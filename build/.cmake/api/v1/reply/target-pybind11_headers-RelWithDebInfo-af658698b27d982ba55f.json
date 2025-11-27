@@ -1,0 +1,41 @@
+{
+	"abstract" : true,
+	"backtrace" : 1,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_library"
+		],
+		"files" : 
+		[
+			"build/_deps/pybind11-src/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 228,
+				"parent" : 0
+			}
+		]
+	},
+	"codemodelVersion" : 
+	{
+		"major" : 2,
+		"minor" : 9
+	},
+	"id" : "pybind11_headers::@1ce1e7db1c911fd22b77",
+	"name" : "pybind11_headers",
+	"paths" : 
+	{
+		"build" : "_deps/pybind11-build",
+		"source" : "build/_deps/pybind11-src"
+	},
+	"sources" : [],
+	"type" : "INTERFACE_LIBRARY"
+}

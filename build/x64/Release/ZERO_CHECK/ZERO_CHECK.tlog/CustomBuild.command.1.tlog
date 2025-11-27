@@ -1,0 +1,10 @@
+^C:\USERS\IREAL\DOCUMENTS\PHD\CAUSAL++\BUILD\CMAKEFILES\CC51DD684B77C214ACF9018244E5459B\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/phd/Causal++ -BC:/Users/ireal/Documents/phd/Causal++/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/ireal/Documents/phd/Causal++/build/CausalPlusPlus.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

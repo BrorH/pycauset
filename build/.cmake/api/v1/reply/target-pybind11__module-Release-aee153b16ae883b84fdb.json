@@ -1,0 +1,109 @@
+{
+	"abstract" : true,
+	"backtrace" : 3,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_library",
+			"include",
+			"set_property",
+			"target_link_libraries"
+		],
+		"files" : 
+		[
+			"build/_deps/pybind11-src/tools/pybind11Common.cmake",
+			"build/_deps/pybind11-src/CMakeLists.txt",
+			"build/_deps/pybind11-src/tools/pybind11Tools.cmake"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 1
+			},
+			{
+				"command" : 1,
+				"file" : 1,
+				"line" : 247,
+				"parent" : 0
+			},
+			{
+				"file" : 0,
+				"parent" : 1
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 55,
+				"parent" : 2
+			},
+			{
+				"command" : 2,
+				"file" : 0,
+				"line" : 56,
+				"parent" : 2
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 192,
+				"parent" : 2
+			},
+			{
+				"file" : 2,
+				"parent" : 5
+			},
+			{
+				"command" : 3,
+				"file" : 2,
+				"line" : 140,
+				"parent" : 6
+			}
+		]
+	},
+	"codemodelVersion" : 
+	{
+		"major" : 2,
+		"minor" : 9
+	},
+	"id" : "pybind11::module::@1ce1e7db1c911fd22b77",
+	"imported" : true,
+	"interfaceCompileDependencies" : 
+	[
+		{
+			"backtrace" : 4,
+			"id" : "pybind11::pybind11::@1ce1e7db1c911fd22b77"
+		},
+		{
+			"backtrace" : 7,
+			"id" : "pybind11::python_link_helper::@1ce1e7db1c911fd22b77"
+		},
+		{
+			"backtrace" : 7,
+			"id" : "pybind11::_ClassicPythonLibraries::@1ce1e7db1c911fd22b77"
+		}
+	],
+	"interfaceLinkLibraries" : 
+	[
+		{
+			"backtrace" : 4,
+			"id" : "pybind11::pybind11::@1ce1e7db1c911fd22b77"
+		},
+		{
+			"backtrace" : 7,
+			"id" : "pybind11::python_link_helper::@1ce1e7db1c911fd22b77"
+		},
+		{
+			"backtrace" : 7,
+			"id" : "pybind11::_ClassicPythonLibraries::@1ce1e7db1c911fd22b77"
+		}
+	],
+	"name" : "pybind11::module",
+	"paths" : 
+	{
+		"build" : "_deps/pybind11-build",
+		"source" : "build/_deps/pybind11-src"
+	},
+	"sources" : [],
+	"type" : "INTERFACE_LIBRARY"
+}

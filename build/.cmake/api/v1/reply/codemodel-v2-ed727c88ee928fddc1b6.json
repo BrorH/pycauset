@@ -1,0 +1,1804 @@
+{
+	"configurations" : 
+	[
+		{
+			"abstractTargets" : 
+			[
+				{
+					"directoryIndex" : 3,
+					"id" : "Python3::Interpreter::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Python3__Interpreter-Debug-18b628b1a0f352754e07.json",
+					"name" : "Python3::Interpreter",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "Python3::InterpreterMultiConfig::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Python3__InterpreterMultiConfig-Debug-1ae7340af899f55b3086.json",
+					"name" : "Python3::InterpreterMultiConfig",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "Threads::Threads::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Threads__Threads-Debug-cf149df2c48d1477df91.json",
+					"name" : "Threads::Threads",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "Threads::Threads::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-Threads__Threads-Debug-303fe1f5137e3e192e32.json",
+					"name" : "Threads::Threads",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::_ClassicPythonLibraries::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11___ClassicPythonLibraries-Debug-2eaad4408ef8271c2909.json",
+					"name" : "pybind11::_ClassicPythonLibraries",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::embed::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__embed-Debug-447d110a4bd52d495746.json",
+					"name" : "pybind11::embed",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::lto::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__lto-Debug-4275c66ef882f16ad29c.json",
+					"name" : "pybind11::lto",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::module::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__module-Debug-aee153b16ae883b84fdb.json",
+					"name" : "pybind11::module",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::opt_size::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__opt_size-Debug-1922ac46dadf8d917c08.json",
+					"name" : "pybind11::opt_size",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::pybind11::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__pybind11-Debug-1d34b1c8976bcd5b24f6.json",
+					"name" : "pybind11::pybind11",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::python_headers::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__python_headers-Debug-1e49320962cdc800fa4d.json",
+					"name" : "pybind11::python_headers",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::python_link_helper::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__python_link_helper-Debug-9939af30725fbf5b5a9c.json",
+					"name" : "pybind11::python_link_helper",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::thin_lto::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__thin_lto-Debug-d8391492d21b104e191e.json",
+					"name" : "pybind11::thin_lto",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::windows_extras::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__windows_extras-Debug-a270f35f67e6710e3db1.json",
+					"name" : "pybind11::windows_extras",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11_headers::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11_headers-Debug-af658698b27d982ba55f.json",
+					"name" : "pybind11_headers",
+					"projectIndex" : 4
+				}
+			],
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						4
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-f6f22219c74102c3da70.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						5,
+						6,
+						7,
+						8,
+						13
+					]
+				},
+				{
+					"build" : "_deps/googletest-build",
+					"childIndexes" : 
+					[
+						2
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build-Debug-743b8183881bd4a21fc2.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "build/_deps/googletest-src",
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						3
+					],
+					"build" : "_deps/googletest-build/googlemock",
+					"childIndexes" : 
+					[
+						3
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build.googlemock-Debug-6ff59320355ae750952f.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 1,
+					"projectIndex" : 2,
+					"source" : "build/_deps/googletest-src/googlemock",
+					"targetIndexes" : 
+					[
+						2,
+						9,
+						10
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						0,
+						1,
+						2
+					],
+					"build" : "_deps/googletest-build/googletest",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build.googletest-Debug-2e0916b609736bfd0541.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 2,
+					"projectIndex" : 3,
+					"source" : "build/_deps/googletest-src/googletest",
+					"targetIndexes" : 
+					[
+						3,
+						11,
+						12
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14
+					],
+					"build" : "_deps/pybind11-build",
+					"jsonFile" : "directory-_deps.pybind11-build-Debug-09d07f7a2977b7d1c8ca.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.5"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 4,
+					"source" : "build/_deps/pybind11-src",
+					"targetIndexes" : 
+					[
+						4
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1,
+						4
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "CausalPlusPlus",
+					"targetIndexes" : 
+					[
+						0,
+						5,
+						6,
+						7,
+						8,
+						13
+					]
+				},
+				{
+					"childIndexes" : 
+					[
+						2
+					],
+					"directoryIndexes" : 
+					[
+						1
+					],
+					"name" : "googletest-distribution",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						3
+					],
+					"childIndexes" : 
+					[
+						3
+					],
+					"directoryIndexes" : 
+					[
+						2
+					],
+					"name" : "gmock",
+					"parentIndex" : 1,
+					"targetIndexes" : 
+					[
+						2,
+						9,
+						10
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						0,
+						1,
+						2
+					],
+					"directoryIndexes" : 
+					[
+						3
+					],
+					"name" : "gtest",
+					"parentIndex" : 2,
+					"targetIndexes" : 
+					[
+						3,
+						11,
+						12
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14
+					],
+					"directoryIndexes" : 
+					[
+						4
+					],
+					"name" : "pybind11",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						4
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ALL_BUILD-Debug-146e3bbc27c8ef500edc.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "ALL_BUILD::@f0697b77e45c2bae8283",
+					"jsonFile" : "target-ALL_BUILD-Debug-6b5bee5cc95cc69bb5e6.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "ALL_BUILD::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-ALL_BUILD-Debug-735cf352da72b4a712fa.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "ALL_BUILD::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-ALL_BUILD-Debug-86c809c62c2aebd0737a.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "ALL_BUILD::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-ALL_BUILD-Debug-aa384200fd87a6158f7c.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ZERO_CHECK-Debug-63270c41e20c1ba41712.json",
+					"name" : "ZERO_CHECK",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_lib::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_lib-Debug-9d0a7b6cae98387435ed.json",
+					"name" : "causal_lib",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_main::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_main-Debug-b2110bae71aa9a99e2a9.json",
+					"name" : "causal_main",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_tests::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_tests-Debug-86fe3eb67544557ce088.json",
+					"name" : "causal_tests",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "gmock::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-gmock-Debug-3da4feef14fcbfdf0ac7.json",
+					"name" : "gmock",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "gmock_main::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-gmock_main-Debug-fab7ebbffc9915214c7f.json",
+					"name" : "gmock_main",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "gtest::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-gtest-Debug-6f9f61ee3f99c45b2721.json",
+					"name" : "gtest",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "gtest_main::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-gtest_main-Debug-fc7e7fdc134cd9e37ffb.json",
+					"name" : "gtest_main",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pycauset::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pycauset-Debug-95e56225e2415ce6a896.json",
+					"name" : "pycauset",
+					"projectIndex" : 0
+				}
+			]
+		},
+		{
+			"abstractTargets" : 
+			[
+				{
+					"directoryIndex" : 3,
+					"id" : "Python3::Interpreter::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Python3__Interpreter-Release-18b628b1a0f352754e07.json",
+					"name" : "Python3::Interpreter",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "Python3::InterpreterMultiConfig::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Python3__InterpreterMultiConfig-Release-1ae7340af899f55b3086.json",
+					"name" : "Python3::InterpreterMultiConfig",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "Threads::Threads::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Threads__Threads-Release-cf149df2c48d1477df91.json",
+					"name" : "Threads::Threads",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "Threads::Threads::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-Threads__Threads-Release-303fe1f5137e3e192e32.json",
+					"name" : "Threads::Threads",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::_ClassicPythonLibraries::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11___ClassicPythonLibraries-Release-2eaad4408ef8271c2909.json",
+					"name" : "pybind11::_ClassicPythonLibraries",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::embed::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__embed-Release-447d110a4bd52d495746.json",
+					"name" : "pybind11::embed",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::lto::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__lto-Release-4275c66ef882f16ad29c.json",
+					"name" : "pybind11::lto",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::module::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__module-Release-aee153b16ae883b84fdb.json",
+					"name" : "pybind11::module",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::opt_size::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__opt_size-Release-1922ac46dadf8d917c08.json",
+					"name" : "pybind11::opt_size",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::pybind11::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__pybind11-Release-1d34b1c8976bcd5b24f6.json",
+					"name" : "pybind11::pybind11",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::python_headers::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__python_headers-Release-1e49320962cdc800fa4d.json",
+					"name" : "pybind11::python_headers",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::python_link_helper::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__python_link_helper-Release-9939af30725fbf5b5a9c.json",
+					"name" : "pybind11::python_link_helper",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::thin_lto::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__thin_lto-Release-d8391492d21b104e191e.json",
+					"name" : "pybind11::thin_lto",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::windows_extras::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__windows_extras-Release-a270f35f67e6710e3db1.json",
+					"name" : "pybind11::windows_extras",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11_headers::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11_headers-Release-af658698b27d982ba55f.json",
+					"name" : "pybind11_headers",
+					"projectIndex" : 4
+				}
+			],
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						4
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Release-f6f22219c74102c3da70.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						5,
+						6,
+						7,
+						8,
+						13
+					]
+				},
+				{
+					"build" : "_deps/googletest-build",
+					"childIndexes" : 
+					[
+						2
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build-Release-743b8183881bd4a21fc2.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "build/_deps/googletest-src",
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						3
+					],
+					"build" : "_deps/googletest-build/googlemock",
+					"childIndexes" : 
+					[
+						3
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build.googlemock-Release-e484117541960e4983cf.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 1,
+					"projectIndex" : 2,
+					"source" : "build/_deps/googletest-src/googlemock",
+					"targetIndexes" : 
+					[
+						2,
+						9,
+						10
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						0,
+						1,
+						2
+					],
+					"build" : "_deps/googletest-build/googletest",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build.googletest-Release-1c9685c0998199ae1c27.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 2,
+					"projectIndex" : 3,
+					"source" : "build/_deps/googletest-src/googletest",
+					"targetIndexes" : 
+					[
+						3,
+						11,
+						12
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14
+					],
+					"build" : "_deps/pybind11-build",
+					"jsonFile" : "directory-_deps.pybind11-build-Release-09d07f7a2977b7d1c8ca.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.5"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 4,
+					"source" : "build/_deps/pybind11-src",
+					"targetIndexes" : 
+					[
+						4
+					]
+				}
+			],
+			"name" : "Release",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1,
+						4
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "CausalPlusPlus",
+					"targetIndexes" : 
+					[
+						0,
+						5,
+						6,
+						7,
+						8,
+						13
+					]
+				},
+				{
+					"childIndexes" : 
+					[
+						2
+					],
+					"directoryIndexes" : 
+					[
+						1
+					],
+					"name" : "googletest-distribution",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						3
+					],
+					"childIndexes" : 
+					[
+						3
+					],
+					"directoryIndexes" : 
+					[
+						2
+					],
+					"name" : "gmock",
+					"parentIndex" : 1,
+					"targetIndexes" : 
+					[
+						2,
+						9,
+						10
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						0,
+						1,
+						2
+					],
+					"directoryIndexes" : 
+					[
+						3
+					],
+					"name" : "gtest",
+					"parentIndex" : 2,
+					"targetIndexes" : 
+					[
+						3,
+						11,
+						12
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14
+					],
+					"directoryIndexes" : 
+					[
+						4
+					],
+					"name" : "pybind11",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						4
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ALL_BUILD-Release-146e3bbc27c8ef500edc.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "ALL_BUILD::@f0697b77e45c2bae8283",
+					"jsonFile" : "target-ALL_BUILD-Release-6b5bee5cc95cc69bb5e6.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "ALL_BUILD::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-ALL_BUILD-Release-735cf352da72b4a712fa.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "ALL_BUILD::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-ALL_BUILD-Release-86c809c62c2aebd0737a.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "ALL_BUILD::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-ALL_BUILD-Release-aa384200fd87a6158f7c.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ZERO_CHECK-Release-63270c41e20c1ba41712.json",
+					"name" : "ZERO_CHECK",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_lib::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_lib-Release-f7ca6169efbba8243f8d.json",
+					"name" : "causal_lib",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_main::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_main-Release-7c1345c423130af5af02.json",
+					"name" : "causal_main",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_tests::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_tests-Release-b139fda6a49a48de05b1.json",
+					"name" : "causal_tests",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "gmock::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-gmock-Release-f58f3009520b2e149b49.json",
+					"name" : "gmock",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "gmock_main::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-gmock_main-Release-6064d0d0e39c368fe918.json",
+					"name" : "gmock_main",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "gtest::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-gtest-Release-6642a521e9c2c76d0aa7.json",
+					"name" : "gtest",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "gtest_main::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-gtest_main-Release-f02404fdeec8ccdb974d.json",
+					"name" : "gtest_main",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pycauset::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pycauset-Release-4d3a0c83833635262fd0.json",
+					"name" : "pycauset",
+					"projectIndex" : 0
+				}
+			]
+		},
+		{
+			"abstractTargets" : 
+			[
+				{
+					"directoryIndex" : 3,
+					"id" : "Python3::Interpreter::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Python3__Interpreter-MinSizeRel-18b628b1a0f352754e07.json",
+					"name" : "Python3::Interpreter",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "Python3::InterpreterMultiConfig::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Python3__InterpreterMultiConfig-MinSizeRel-1ae7340af899f55b3086.json",
+					"name" : "Python3::InterpreterMultiConfig",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "Threads::Threads::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Threads__Threads-MinSizeRel-cf149df2c48d1477df91.json",
+					"name" : "Threads::Threads",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "Threads::Threads::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-Threads__Threads-MinSizeRel-303fe1f5137e3e192e32.json",
+					"name" : "Threads::Threads",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::_ClassicPythonLibraries::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11___ClassicPythonLibraries-MinSizeRel-2eaad4408ef8271c2909.json",
+					"name" : "pybind11::_ClassicPythonLibraries",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::embed::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__embed-MinSizeRel-447d110a4bd52d495746.json",
+					"name" : "pybind11::embed",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::lto::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__lto-MinSizeRel-4275c66ef882f16ad29c.json",
+					"name" : "pybind11::lto",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::module::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__module-MinSizeRel-aee153b16ae883b84fdb.json",
+					"name" : "pybind11::module",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::opt_size::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__opt_size-MinSizeRel-1922ac46dadf8d917c08.json",
+					"name" : "pybind11::opt_size",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::pybind11::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__pybind11-MinSizeRel-1d34b1c8976bcd5b24f6.json",
+					"name" : "pybind11::pybind11",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::python_headers::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__python_headers-MinSizeRel-1e49320962cdc800fa4d.json",
+					"name" : "pybind11::python_headers",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::python_link_helper::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__python_link_helper-MinSizeRel-9939af30725fbf5b5a9c.json",
+					"name" : "pybind11::python_link_helper",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::thin_lto::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__thin_lto-MinSizeRel-d8391492d21b104e191e.json",
+					"name" : "pybind11::thin_lto",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::windows_extras::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__windows_extras-MinSizeRel-a270f35f67e6710e3db1.json",
+					"name" : "pybind11::windows_extras",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11_headers::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11_headers-MinSizeRel-af658698b27d982ba55f.json",
+					"name" : "pybind11_headers",
+					"projectIndex" : 4
+				}
+			],
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						4
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-MinSizeRel-f6f22219c74102c3da70.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						5,
+						6,
+						7,
+						8,
+						13
+					]
+				},
+				{
+					"build" : "_deps/googletest-build",
+					"childIndexes" : 
+					[
+						2
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build-MinSizeRel-743b8183881bd4a21fc2.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "build/_deps/googletest-src",
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						3
+					],
+					"build" : "_deps/googletest-build/googlemock",
+					"childIndexes" : 
+					[
+						3
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build.googlemock-MinSizeRel-d58d11be352e281411f6.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 1,
+					"projectIndex" : 2,
+					"source" : "build/_deps/googletest-src/googlemock",
+					"targetIndexes" : 
+					[
+						2,
+						9,
+						10
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						0,
+						1,
+						2
+					],
+					"build" : "_deps/googletest-build/googletest",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build.googletest-MinSizeRel-4e92f53a73046c376219.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 2,
+					"projectIndex" : 3,
+					"source" : "build/_deps/googletest-src/googletest",
+					"targetIndexes" : 
+					[
+						3,
+						11,
+						12
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14
+					],
+					"build" : "_deps/pybind11-build",
+					"jsonFile" : "directory-_deps.pybind11-build-MinSizeRel-09d07f7a2977b7d1c8ca.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.5"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 4,
+					"source" : "build/_deps/pybind11-src",
+					"targetIndexes" : 
+					[
+						4
+					]
+				}
+			],
+			"name" : "MinSizeRel",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1,
+						4
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "CausalPlusPlus",
+					"targetIndexes" : 
+					[
+						0,
+						5,
+						6,
+						7,
+						8,
+						13
+					]
+				},
+				{
+					"childIndexes" : 
+					[
+						2
+					],
+					"directoryIndexes" : 
+					[
+						1
+					],
+					"name" : "googletest-distribution",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						3
+					],
+					"childIndexes" : 
+					[
+						3
+					],
+					"directoryIndexes" : 
+					[
+						2
+					],
+					"name" : "gmock",
+					"parentIndex" : 1,
+					"targetIndexes" : 
+					[
+						2,
+						9,
+						10
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						0,
+						1,
+						2
+					],
+					"directoryIndexes" : 
+					[
+						3
+					],
+					"name" : "gtest",
+					"parentIndex" : 2,
+					"targetIndexes" : 
+					[
+						3,
+						11,
+						12
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14
+					],
+					"directoryIndexes" : 
+					[
+						4
+					],
+					"name" : "pybind11",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						4
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ALL_BUILD-MinSizeRel-146e3bbc27c8ef500edc.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "ALL_BUILD::@f0697b77e45c2bae8283",
+					"jsonFile" : "target-ALL_BUILD-MinSizeRel-6b5bee5cc95cc69bb5e6.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "ALL_BUILD::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-ALL_BUILD-MinSizeRel-735cf352da72b4a712fa.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "ALL_BUILD::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-ALL_BUILD-MinSizeRel-86c809c62c2aebd0737a.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "ALL_BUILD::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-ALL_BUILD-MinSizeRel-aa384200fd87a6158f7c.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ZERO_CHECK-MinSizeRel-63270c41e20c1ba41712.json",
+					"name" : "ZERO_CHECK",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_lib::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_lib-MinSizeRel-8b274844cdfb76271c37.json",
+					"name" : "causal_lib",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_main::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_main-MinSizeRel-e1bc540d1ad65e5d7aed.json",
+					"name" : "causal_main",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_tests::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_tests-MinSizeRel-d135827959b63ad89db4.json",
+					"name" : "causal_tests",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "gmock::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-gmock-MinSizeRel-7a0aa478e97b75deb07c.json",
+					"name" : "gmock",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "gmock_main::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-gmock_main-MinSizeRel-22aa4cb61646b9880b1c.json",
+					"name" : "gmock_main",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "gtest::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-gtest-MinSizeRel-22bff9b5914ed61efe5b.json",
+					"name" : "gtest",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "gtest_main::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-gtest_main-MinSizeRel-daf3b4d46b239169db10.json",
+					"name" : "gtest_main",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pycauset::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pycauset-MinSizeRel-1779ea6c09d000985669.json",
+					"name" : "pycauset",
+					"projectIndex" : 0
+				}
+			]
+		},
+		{
+			"abstractTargets" : 
+			[
+				{
+					"directoryIndex" : 3,
+					"id" : "Python3::Interpreter::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Python3__Interpreter-RelWithDebInfo-18b628b1a0f352754e07.json",
+					"name" : "Python3::Interpreter",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "Python3::InterpreterMultiConfig::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Python3__InterpreterMultiConfig-RelWithDebInfo-1ae7340af899f55b3086.json",
+					"name" : "Python3::InterpreterMultiConfig",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "Threads::Threads::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-Threads__Threads-RelWithDebInfo-cf149df2c48d1477df91.json",
+					"name" : "Threads::Threads",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "Threads::Threads::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-Threads__Threads-RelWithDebInfo-303fe1f5137e3e192e32.json",
+					"name" : "Threads::Threads",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::_ClassicPythonLibraries::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11___ClassicPythonLibraries-RelWithDebInfo-2eaad4408ef8271c2909.json",
+					"name" : "pybind11::_ClassicPythonLibraries",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::embed::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__embed-RelWithDebInfo-447d110a4bd52d495746.json",
+					"name" : "pybind11::embed",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::lto::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__lto-RelWithDebInfo-4275c66ef882f16ad29c.json",
+					"name" : "pybind11::lto",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::module::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__module-RelWithDebInfo-aee153b16ae883b84fdb.json",
+					"name" : "pybind11::module",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::opt_size::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__opt_size-RelWithDebInfo-1922ac46dadf8d917c08.json",
+					"name" : "pybind11::opt_size",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::pybind11::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__pybind11-RelWithDebInfo-1d34b1c8976bcd5b24f6.json",
+					"name" : "pybind11::pybind11",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::python_headers::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__python_headers-RelWithDebInfo-1e49320962cdc800fa4d.json",
+					"name" : "pybind11::python_headers",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::python_link_helper::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__python_link_helper-RelWithDebInfo-9939af30725fbf5b5a9c.json",
+					"name" : "pybind11::python_link_helper",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::thin_lto::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__thin_lto-RelWithDebInfo-d8391492d21b104e191e.json",
+					"name" : "pybind11::thin_lto",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11::windows_extras::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11__windows_extras-RelWithDebInfo-a270f35f67e6710e3db1.json",
+					"name" : "pybind11::windows_extras",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "pybind11_headers::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-pybind11_headers-RelWithDebInfo-af658698b27d982ba55f.json",
+					"name" : "pybind11_headers",
+					"projectIndex" : 4
+				}
+			],
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						4
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-RelWithDebInfo-f6f22219c74102c3da70.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						5,
+						6,
+						7,
+						8,
+						13
+					]
+				},
+				{
+					"build" : "_deps/googletest-build",
+					"childIndexes" : 
+					[
+						2
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build-RelWithDebInfo-743b8183881bd4a21fc2.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "build/_deps/googletest-src",
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						3
+					],
+					"build" : "_deps/googletest-build/googlemock",
+					"childIndexes" : 
+					[
+						3
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build.googlemock-RelWithDebInfo-bbda34bf64972d608911.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 1,
+					"projectIndex" : 2,
+					"source" : "build/_deps/googletest-src/googlemock",
+					"targetIndexes" : 
+					[
+						2,
+						9,
+						10
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						0,
+						1,
+						2
+					],
+					"build" : "_deps/googletest-build/googletest",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-_deps.googletest-build.googletest-RelWithDebInfo-ba78f65ff077b1e3854b.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 2,
+					"projectIndex" : 3,
+					"source" : "build/_deps/googletest-src/googletest",
+					"targetIndexes" : 
+					[
+						3,
+						11,
+						12
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14
+					],
+					"build" : "_deps/pybind11-build",
+					"jsonFile" : "directory-_deps.pybind11-build-RelWithDebInfo-09d07f7a2977b7d1c8ca.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.5"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 4,
+					"source" : "build/_deps/pybind11-src",
+					"targetIndexes" : 
+					[
+						4
+					]
+				}
+			],
+			"name" : "RelWithDebInfo",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1,
+						4
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "CausalPlusPlus",
+					"targetIndexes" : 
+					[
+						0,
+						5,
+						6,
+						7,
+						8,
+						13
+					]
+				},
+				{
+					"childIndexes" : 
+					[
+						2
+					],
+					"directoryIndexes" : 
+					[
+						1
+					],
+					"name" : "googletest-distribution",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						3
+					],
+					"childIndexes" : 
+					[
+						3
+					],
+					"directoryIndexes" : 
+					[
+						2
+					],
+					"name" : "gmock",
+					"parentIndex" : 1,
+					"targetIndexes" : 
+					[
+						2,
+						9,
+						10
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						0,
+						1,
+						2
+					],
+					"directoryIndexes" : 
+					[
+						3
+					],
+					"name" : "gtest",
+					"parentIndex" : 2,
+					"targetIndexes" : 
+					[
+						3,
+						11,
+						12
+					]
+				},
+				{
+					"abstractTargetIndexes" : 
+					[
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14
+					],
+					"directoryIndexes" : 
+					[
+						4
+					],
+					"name" : "pybind11",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						4
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ALL_BUILD-RelWithDebInfo-146e3bbc27c8ef500edc.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "ALL_BUILD::@f0697b77e45c2bae8283",
+					"jsonFile" : "target-ALL_BUILD-RelWithDebInfo-6b5bee5cc95cc69bb5e6.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "ALL_BUILD::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-ALL_BUILD-RelWithDebInfo-735cf352da72b4a712fa.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "ALL_BUILD::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-ALL_BUILD-RelWithDebInfo-86c809c62c2aebd0737a.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "ALL_BUILD::@1ce1e7db1c911fd22b77",
+					"jsonFile" : "target-ALL_BUILD-RelWithDebInfo-aa384200fd87a6158f7c.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ZERO_CHECK-RelWithDebInfo-63270c41e20c1ba41712.json",
+					"name" : "ZERO_CHECK",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_lib::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_lib-RelWithDebInfo-8f724370640c22675aa3.json",
+					"name" : "causal_lib",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_main::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_main-RelWithDebInfo-6a5a0351036e92e7b3dc.json",
+					"name" : "causal_main",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "causal_tests::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-causal_tests-RelWithDebInfo-9a76b457c4b6f547517f.json",
+					"name" : "causal_tests",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "gmock::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-gmock-RelWithDebInfo-52e2524497fa70c0782f.json",
+					"name" : "gmock",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "gmock_main::@0f7bb11d64f3678238c7",
+					"jsonFile" : "target-gmock_main-RelWithDebInfo-071cf77d52af2aeec3c1.json",
+					"name" : "gmock_main",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "gtest::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-gtest-RelWithDebInfo-2f26b34b2ced9ed0fa24.json",
+					"name" : "gtest",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "gtest_main::@1ea2dfc0605fe3ab2a3f",
+					"jsonFile" : "target-gtest_main-RelWithDebInfo-f7e71c428268ee5c96ea.json",
+					"name" : "gtest_main",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pycauset::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pycauset-RelWithDebInfo-14dea6c8c08277eb0780.json",
+					"name" : "pycauset",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "C:/Users/ireal/Documents/phd/Causal++/build",
+		"source" : "C:/Users/ireal/Documents/phd/Causal++"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 9
+	}
+}

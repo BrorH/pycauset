@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeFiles\2e4192da427c732c642f38d14dee5c45\pybind11-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeFiles\2e4192da427c732c642f38d14dee5c45\pybind11-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeFiles\2e4192da427c732c642f38d14dee5c45\pybind11-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeFiles\2e4192da427c732c642f38d14dee5c45\pybind11-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeFiles\2e4192da427c732c642f38d14dee5c45\pybind11-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeFiles\2e4192da427c732c642f38d14dee5c45\pybind11-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeFiles\2e4192da427c732c642f38d14dee5c45\pybind11-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeFiles\2e4192da427c732c642f38d14dee5c45\pybind11-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeFiles\8557065af3f1149b8887f0e450cba743\pybind11-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeFiles\ee2a18fafa5da351d17c2c5ee3e3c1a4\pybind11-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\pybind11-subbuild\CMakeFiles\pybind11-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{6AE10F7E-5786-3C36-82EB-4B4FA7E59867}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

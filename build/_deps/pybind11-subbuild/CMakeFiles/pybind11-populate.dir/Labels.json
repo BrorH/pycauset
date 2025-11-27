@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "C:/Users/ireal/Documents/phd/Causal++/build/_deps/pybind11-subbuild/CMakeFiles/pybind11-populate"
+		},
+		{
+			"file" : "C:/Users/ireal/Documents/phd/Causal++/build/_deps/pybind11-subbuild/CMakeFiles/ee2a18fafa5da351d17c2c5ee3e3c1a4/pybind11-populate.rule"
+		},
+		{
+			"file" : "C:/Users/ireal/Documents/phd/Causal++/build/_deps/pybind11-subbuild/CMakeFiles/8557065af3f1149b8887f0e450cba743/pybind11-populate-complete.rule"
+		},
+		{
+			"file" : "C:/Users/ireal/Documents/phd/Causal++/build/_deps/pybind11-subbuild/CMakeFiles/2e4192da427c732c642f38d14dee5c45/pybind11-populate-build.rule"
+		},
+		{
+			"file" : "C:/Users/ireal/Documents/phd/Causal++/build/_deps/pybind11-subbuild/CMakeFiles/2e4192da427c732c642f38d14dee5c45/pybind11-populate-configure.rule"
+		},
+		{
+			"file" : "C:/Users/ireal/Documents/phd/Causal++/build/_deps/pybind11-subbuild/CMakeFiles/2e4192da427c732c642f38d14dee5c45/pybind11-populate-download.rule"
+		},
+		{
+			"file" : "C:/Users/ireal/Documents/phd/Causal++/build/_deps/pybind11-subbuild/CMakeFiles/2e4192da427c732c642f38d14dee5c45/pybind11-populate-install.rule"
+		},
+		{
+			"file" : "C:/Users/ireal/Documents/phd/Causal++/build/_deps/pybind11-subbuild/CMakeFiles/2e4192da427c732c642f38d14dee5c45/pybind11-populate-mkdir.rule"
+		},
+		{
+			"file" : "C:/Users/ireal/Documents/phd/Causal++/build/_deps/pybind11-subbuild/CMakeFiles/2e4192da427c732c642f38d14dee5c45/pybind11-populate-patch.rule"
+		},
+		{
+			"file" : "C:/Users/ireal/Documents/phd/Causal++/build/_deps/pybind11-subbuild/CMakeFiles/2e4192da427c732c642f38d14dee5c45/pybind11-populate-test.rule"
+		},
+		{
+			"file" : "C:/Users/ireal/Documents/phd/Causal++/build/_deps/pybind11-subbuild/CMakeFiles/2e4192da427c732c642f38d14dee5c45/pybind11-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"pybind11-populate"
+		],
+		"name" : "pybind11-populate"
+	}
+}
