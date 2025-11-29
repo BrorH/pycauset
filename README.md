@@ -1,4 +1,4 @@
-# Causal++: High-Performance Causal Set Matrix Framework
+# pycauset: High-Performance Causal Set Matrix Framework
 
 ## Project Overview
 **Goal**: Develop a C++ framework to manipulate massive Causal Matrices ($C$) representing Causal Sets.
@@ -54,3 +54,9 @@ To handle 100GB datasets which exceed typical RAM:
 ## Developer Notes
 * Build & setup instructions live in `docs/SETUP.md`.
 * Python module usage lives in `docs/PYTHON.md`.
+* Default Python storage lands in a hidden `.pycauset/` directory. Auto-created files are deleted at interpreter shutdown unless you set `pycauset.save = True`; explicit `backing_file` paths are never removed automatically.
+* Core matrix types now inherit from `MatrixBase`, which centralizes memory-mapped storage, cleanup, and shared helpers. `CausalMatrix` (boolean, bit-packed) and `IntegerMatrix` (32-bit counts) each implement their own element access/multiplication on top of that base, mirroring how NumPy exposes multiple matrix flavors through a unified API surface.
+* The Python surface now exposes the canonical lowercase `pycauset.causalmatrix` type (matching NumPy naming). `pycauset.CausalMatrix` remains as a thin alias for existing scripts.
+* `pycauset.matrix(...)` is a convenience wrapper that accepts integers, nested Python lists, or NumPy arrays so you can bootstrap matrices directly from in-memory data; it now supports arbitrary dense matrices and keeps everything in RAM (use `pycauset.causalmatrix` when you need the persisted, strictly upper-triangular representation).
+* Random population can now be deterministic: set `pycauset.seed = 42` (or pass `seed=` to constructors) to reuse the same pseudo-random stream across runs.
+* Multiplication now mirrors NumPy: `lhs * rhs` performs elementwise intersection while `pycauset.matmul(lhs, rhs)` (or `lhs.multiply(rhs, ...)`) computes the integer-valued matrix product.

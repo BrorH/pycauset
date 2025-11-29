@@ -20,17 +20,29 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(pybind11)
 
+find_package(OpenMP)
+
 include_directories(include)
 
 add_library(causal_lib 
     src/MemoryMapper.cpp
+    src/MatrixBase.cpp
+    src/TriangularMatrix.cpp
     src/CausalMatrix.cpp
     src/IntegerMatrix.cpp
+    src/KMatrix.cpp
+    src/TriangularFloatMatrix.cpp
 )
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(causal_lib PUBLIC OpenMP::OpenMP_CXX)
+endif()
 
 # Python Module
 pybind11_add_module(pycauset src/bindings.cpp)
-pybind11_enable_stable_abi(pycauset 3.8)
+if (COMMAND pybind11_enable_stable_abi)
+  pybind11_enable_stable_abi(pycauset 3.8)
+endif()
 target_link_libraries(pycauset PRIVATE causal_lib)
 
 add_executable(causal_main src/main.cpp)

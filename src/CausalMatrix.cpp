@@ -7,166 +7,99 @@
 #include <random>
 #include <cmath>
 
-CausalMatrix::CausalMatrix(uint64_t N, const std::string& backingFile) : N_(N) {
-    calculateOffsets();
-    
-    // Total size is the offset of the (non-existent) N-th row
-    // row_offsets_ has N entries. The end of the last row is needed.
-    // Let's calculate total bytes.
-    // Last row (index N-1) has length 0.
-    // Row N-2 has length 1.
-    
-    uint64_t totalBytes = 0;
-    if (N > 0) {
-        // The offset of the byte after the last row
-        uint64_t lastRowLen = 1; // Row N-2 has 1 bit
-        // Actually, let's just use the loop in calculateOffsets logic
-        // Re-run logic here or trust calculateOffsets?
-        // calculateOffsets populates row_offsets_.
-        // We need the total size to initialize mapper.
-        
-        // Let's do a quick sum or just use the last offset + last row size
-        // But calculateOffsets is called before mapper_ init? No, mapper_ needs size.
-        // So we must calculate size first.
-    }
-    
-    // Re-implement logic to get size first
-    uint64_t currentOffset = 0;
-    for (uint64_t i = 0; i < N; ++i) {
-        uint64_t rowLen = (N - 1) - i;
-        if (rowLen > 0) {
-            uint64_t words = (rowLen + 63) / 64;
-            currentOffset += words * 8;
-        }
-    }
-    uint64_t sizeInBytes = currentOffset;
-    if (sizeInBytes == 0) sizeInBytes = 8; // Minimum size to avoid empty mapping errors
+CausalMatrix::CausalMatrix(uint64_t n, const std::string& backing_file, bool populate,
+                           std::optional<uint64_t> seed)
+    : TriangularMatrix(n) {
+    // Calculate offsets for bits (1 bit per element), aligned to 64 bits
+    uint64_t size_in_bytes = calculate_triangular_offsets(1, 64);
+    initialize_storage(size_in_bytes, backing_file, "causal_matrix", 8, 
+                      pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT);
 
-    std::string path = backingFile;
-    if (path.empty()) {
-        path = "temp_matrix.bin"; 
+    if (populate) {
+        fill_random(0.5, seed);
     }
-
-    mapper_ = std::make_unique<MemoryMapper>(path, sizeInBytes);
 }
 
-void CausalMatrix::calculateOffsets() {
-    row_offsets_.resize(N_);
-    uint64_t currentOffset = 0;
-    for (uint64_t i = 0; i < N_; ++i) {
-        row_offsets_[i] = currentOffset;
-        uint64_t rowLen = (N_ - 1) - i;
-        if (rowLen > 0) {
-            uint64_t words = (rowLen + 63) / 64;
-            currentOffset += words * 8;
-        }
-    }
+CausalMatrix::CausalMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
+    : TriangularMatrix(n, std::move(mapper)) {
+    // Calculate offsets for bits (1 bit per element), aligned to 64 bits
+    calculate_triangular_offsets(1, 64);
 }
 
 void CausalMatrix::set(uint64_t i, uint64_t j, bool value) {
     if (i >= j) throw std::invalid_argument("Strictly upper triangular");
-    if (j >= N_) throw std::out_of_range("Index out of bounds");
+    if (j >= n_) throw std::out_of_range("Index out of bounds");
 
     // Row i starts at row_offsets_[i]
     // It represents columns i+1 to N-1
     // The bit for column j is at index (j - (i + 1)) in this row
     
-    uint64_t bitOffset = j - (i + 1);
-    uint64_t wordIndex = bitOffset / 64;
-    uint64_t bitIndex = bitOffset % 64;
+    uint64_t bit_offset = j - (i + 1);
+    uint64_t word_index = bit_offset / 64;
+    uint64_t bit_index = bit_offset % 64;
 
-    uint64_t byteOffset = row_offsets_[i] + wordIndex * 8;
-    uint64_t* dataPtr = (uint64_t*)((char*)mapper_->getData() + byteOffset);
+    uint64_t byte_offset = row_offsets_[i] + word_index * 8;
+    auto* base_ptr = static_cast<char*>(require_mapper()->get_data());
+    uint64_t* data_ptr = reinterpret_cast<uint64_t*>(base_ptr + byte_offset);
     
     if (value) {
-        *dataPtr |= (1ULL << bitIndex);
+        *data_ptr |= (1ULL << bit_index);
     } else {
-        *dataPtr &= ~(1ULL << bitIndex);
+        *data_ptr &= ~(1ULL << bit_index);
     }
 }
 
 bool CausalMatrix::get(uint64_t i, uint64_t j) const {
-    if (i >= j || j >= N_) return false;
+    if (i >= j || j >= n_) return false;
 
-    uint64_t bitOffset = j - (i + 1);
-    uint64_t wordIndex = bitOffset / 64;
-    uint64_t bitIndex = bitOffset % 64;
+    uint64_t bit_offset = j - (i + 1);
+    uint64_t word_index = bit_offset / 64;
+    uint64_t bit_index = bit_offset % 64;
 
-    uint64_t byteOffset = row_offsets_[i] + wordIndex * 8;
-    const uint64_t* dataPtr = (const uint64_t*)((const char*)mapper_->getData() + byteOffset);
+    uint64_t byte_offset = row_offsets_[i] + word_index * 8;
+    auto* base_ptr = static_cast<const char*>(require_mapper()->get_data());
+    const uint64_t* data_ptr = reinterpret_cast<const uint64_t*>(base_ptr + byte_offset);
     
-    return (*dataPtr >> bitIndex) & 1ULL;
+    return (*data_ptr >> bit_index) & 1ULL;
 }
 
-std::unique_ptr<CausalMatrix> CausalMatrix::random(uint64_t N, double density, const std::string& backingFile) {
-    auto mat = std::make_unique<CausalMatrix>(N, backingFile);
-    
-    std::random_device rd;
-    std::mt19937_64 gen(rd());
-
-    // Optimization for 50% density: fill with random words
-    if (std::abs(density - 0.5) < 0.0001) {
-        uint64_t* rawData = mat->data();
-        for (uint64_t i = 0; i < N; ++i) {
-            uint64_t rowLen = (N - 1) - i;
-            if (rowLen == 0) continue;
-            uint64_t words = (rowLen + 63) / 64;
-            uint64_t* rowPtr = (uint64_t*)((char*)rawData + mat->getRowOffset(i));
-            for (uint64_t w = 0; w < words; ++w) {
-                rowPtr[w] = gen();
-            }
-            // Mask the last word to ensure unused bits are 0? 
-            // Not strictly necessary if we always access via get(), but good practice.
-            // The last word has (rowLen % 64) valid bits. If 0, all 64 are valid.
-            uint64_t validBits = rowLen % 64;
-            if (validBits > 0) {
-                uint64_t mask = (1ULL << validBits) - 1;
-                rowPtr[words - 1] &= mask;
-            }
-        }
-    } else {
-        std::bernoulli_distribution d(density);
-        // Iterate only upper triangle
-        for (uint64_t i = 0; i < N; ++i) {
-            for (uint64_t j = i + 1; j < N; ++j) {
-                if (d(gen)) {
-                    mat->set(i, j, true);
-                }
-            }
-        }
-    }
+std::unique_ptr<CausalMatrix> CausalMatrix::random(uint64_t n, double density,
+                                                   const std::string& backing_file,
+                                                   std::optional<uint64_t> seed) {
+    auto mat = std::make_unique<CausalMatrix>(n, backing_file, false);
+    mat->fill_random(density, seed);
     return mat;
 }
 
-std::unique_ptr<IntegerMatrix> CausalMatrix::multiply(const CausalMatrix& other, const std::string& resultFile) const {
-    if (N_ != other.size()) {
+std::unique_ptr<IntegerMatrix> CausalMatrix::multiply(const CausalMatrix& other, const std::string& result_file) const {
+    if (n_ != other.size()) {
         throw std::invalid_argument("Matrix dimensions must match");
     }
 
-    auto result = std::make_unique<IntegerMatrix>(N_, resultFile);
+    auto result = std::make_unique<IntegerMatrix>(n_, result_file);
     
     // Optimized Row-Addition Algorithm
     // C[i][j] = sum_k (A[i][k] * B[k][j])
     
     // Buffer to accumulate one row of results
-    std::vector<uint32_t> accumulator(N_);
+    std::vector<uint32_t> accumulator(n_);
 
-    const char* a_base = (const char*)mapper_->getData();
-    const char* b_base = (const char*)other.mapper_->getData();
+    const char* a_base = static_cast<const char*>(require_mapper()->get_data());
+    const char* b_base = static_cast<const char*>(other.require_mapper()->get_data());
 
-    for (uint64_t i = 0; i < N_; ++i) {
+    for (uint64_t i = 0; i < n_; ++i) {
         // Clear accumulator for Row i
         std::fill(accumulator.begin(), accumulator.end(), 0);
         
         // Iterate over Row i of A
         // Row i has length N - 1 - i
-        uint64_t rowLenA = (N_ - 1) - i;
-        if (rowLenA == 0) continue;
+        uint64_t row_len_a = (n_ - 1) - i;
+        if (row_len_a == 0) continue;
 
-        uint64_t wordsA = (rowLenA + 63) / 64;
+        uint64_t words_a = (row_len_a + 63) / 64;
         const uint64_t* a_row_ptr = (const uint64_t*)(a_base + row_offsets_[i]);
 
-        for (uint64_t w = 0; w < wordsA; ++w) {
+        for (uint64_t w = 0; w < words_a; ++w) {
             uint64_t word = a_row_ptr[w];
             if (word == 0) continue;
 
@@ -177,30 +110,30 @@ std::unique_ptr<IntegerMatrix> CausalMatrix::multiply(const CausalMatrix& other,
                 // bit 0 corresponds to col i+1 + w*64
                 uint64_t k = (i + 1) + w * 64 + bit;
                 
-                if (k < N_) {
+                if (k < n_) {
                     // Add Row k of B to accumulator
                     // Row k of B starts at col k+1
-                    uint64_t rowLenB = (N_ - 1) - k;
-                    if (rowLenB > 0) {
-                        uint64_t wordsB = (rowLenB + 63) / 64;
-                        const uint64_t* b_row_ptr = (const uint64_t*)(b_base + other.getRowOffset(k));
+                    uint64_t row_len_b = (n_ - 1) - k;
+                    if (row_len_b > 0) {
+                        uint64_t words_b = (row_len_b + 63) / 64;
+                        const uint64_t* b_row_ptr = (const uint64_t*)(b_base + other.get_row_offset(k));
                         
-                        for (uint64_t wb = 0; wb < wordsB; ++wb) {
-                            uint64_t wordB = b_row_ptr[wb];
-                            if (wordB == 0) continue;
+                        for (uint64_t wb = 0; wb < words_b; ++wb) {
+                            uint64_t word_b = b_row_ptr[wb];
+                            if (word_b == 0) continue;
                             
                             // Add bits of B[k] to accumulator
                             // bit b in wordB corresponds to col (k+1) + wb*64 + b
-                            uint64_t baseCol = (k + 1) + wb * 64;
+                            uint64_t base_col = (k + 1) + wb * 64;
                             
                             // Unroll loop for performance?
-                            while (wordB) {
-                                int bitB = std::countr_zero(wordB);
-                                uint64_t col = baseCol + bitB;
-                                if (col < N_) {
+                            while (word_b) {
+                                int bit_b = std::countr_zero(word_b);
+                                uint64_t col = base_col + bit_b;
+                                if (col < n_) {
                                     accumulator[col]++;
                                 }
-                                wordB &= ~(1ULL << bitB);
+                                word_b &= ~(1ULL << bit_b);
                             }
                         }
                     }
@@ -213,7 +146,7 @@ std::unique_ptr<IntegerMatrix> CausalMatrix::multiply(const CausalMatrix& other,
 
         // Write accumulator to result matrix
         // Result is strictly upper triangular, so we only care about cols > i
-        for (uint64_t j = i + 1; j < N_; ++j) {
+        for (uint64_t j = i + 1; j < n_; ++j) {
             if (accumulator[j] > 0) {
                 result->set(i, j, accumulator[j]);
             }
@@ -222,3 +155,82 @@ std::unique_ptr<IntegerMatrix> CausalMatrix::multiply(const CausalMatrix& other,
 
     return result;
 }
+
+std::unique_ptr<CausalMatrix> CausalMatrix::elementwise_multiply(const CausalMatrix& other,
+                                                                const std::string& result_file) const {
+    if (n_ != other.size()) {
+        throw std::invalid_argument("Matrix dimensions must match");
+    }
+
+    auto result = std::make_unique<CausalMatrix>(n_, result_file, false);
+    const char* lhs_base = static_cast<const char*>(require_mapper()->get_data());
+    const char* rhs_base = static_cast<const char*>(other.require_mapper()->get_data());
+    char* dst_base = static_cast<char*>(result->require_mapper()->get_data());
+
+    for (uint64_t i = 0; i < n_; ++i) {
+        uint64_t row_len = (n_ - 1) - i;
+        if (row_len == 0) {
+            continue;
+        }
+        uint64_t words = (row_len + 63) / 64;
+
+        const auto* lhs_row = reinterpret_cast<const uint64_t*>(lhs_base + row_offsets_[i]);
+        const auto* rhs_row = reinterpret_cast<const uint64_t*>(rhs_base + other.get_row_offset(i));
+        auto* dst_row = reinterpret_cast<uint64_t*>(dst_base + result->get_row_offset(i));
+
+        for (uint64_t w = 0; w < words; ++w) {
+            dst_row[w] = lhs_row[w] & rhs_row[w];
+        }
+
+        uint64_t valid_bits = row_len % 64;
+        if (valid_bits > 0) {
+            uint64_t mask = (1ULL << valid_bits) - 1;
+            dst_row[words - 1] &= mask;
+        }
+    }
+
+    return result;
+}
+
+void CausalMatrix::fill_random(double density, std::optional<uint64_t> seed) {
+    std::mt19937_64 gen;
+    if (seed.has_value()) {
+        gen.seed(*seed);
+    } else {
+        std::random_device rd;
+        gen.seed(rd());
+    }
+
+    if (std::abs(density - 0.5) < 0.0001) {
+        uint64_t* raw_data = data();
+        for (uint64_t i = 0; i < n_; ++i) {
+            uint64_t row_len = (n_ - 1) - i;
+            if (row_len == 0) {
+                continue;
+            }
+            uint64_t words = (row_len + 63) / 64;
+            auto* row_ptr = reinterpret_cast<uint64_t*>(
+                reinterpret_cast<char*>(raw_data) + get_row_offset(i));
+            for (uint64_t w = 0; w < words; ++w) {
+                row_ptr[w] = gen();
+            }
+            uint64_t valid_bits = row_len % 64;
+            if (valid_bits > 0) {
+                uint64_t mask = (1ULL << valid_bits) - 1;
+                row_ptr[words - 1] &= mask;
+            }
+        }
+    } else {
+        std::bernoulli_distribution dist(density);
+        for (uint64_t i = 0; i < n_; ++i) {
+            for (uint64_t j = i + 1; j < n_; ++j) {
+                if (dist(gen)) {
+                    set(i, j, true);
+                }
+            }
+        }
+    }
+}
+
+
+
