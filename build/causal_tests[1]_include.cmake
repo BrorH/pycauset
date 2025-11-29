@@ -1,5 +1,5 @@
-if(EXISTS "C:/Users/ireal/Documents/phd/Causal++/build/causal_tests[1]_tests.cmake")
-  include("C:/Users/ireal/Documents/phd/Causal++/build/causal_tests[1]_tests.cmake")
+if(EXISTS "C:/Users/ireal/Documents/pycauset/build/causal_tests[1]_tests.cmake")
+  include("C:/Users/ireal/Documents/pycauset/build/causal_tests[1]_tests.cmake")
 else()
   add_test(causal_tests_NOT_BUILT causal_tests_NOT_BUILT)
 endif()

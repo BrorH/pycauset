@@ -5,16 +5,16 @@
 		<Platform Name="x64"/>
 	</Configurations>
 	<Folder Name="/CMakePredefinedTargets/">
-		<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="6370ba97-c448-3aff-af19-7ff68d256346" DefaultStartup="true">
+		<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="347586e7-2e61-3489-bced-51a24000de42" DefaultStartup="true">
 			<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 			<BuildDependency Project="googletest-populate.vcxproj"/>
 			<Build Solution="Debug|*" Project="false"/>
 		</Project>
-		<Project Path="ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="207aa53e-9910-3602-bdcd-be6d64bb98a4"/>
+		<Project Path="ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="fec6212e-d750-33a6-a7d2-032813027845"/>
 	</Folder>
 	<Folder Name="/ExternalProjectTargets/"/>
 	<Folder Name="/ExternalProjectTargets/googletest-populate/">
-		<Project Path="googletest-populate.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c9cd6c9e-8ff1-39bd-b616-082b0d1741cf">
+		<Project Path="googletest-populate.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="3ede045d-414e-323f-8cad-d6a4d64c4e00">
 			<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 		</Project>
 	</Folder>

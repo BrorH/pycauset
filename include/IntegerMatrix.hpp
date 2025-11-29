@@ -4,15 +4,17 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include "MemoryMapper.hpp"
 
-class IntegerMatrix {
+#include "MatrixBase.hpp"
+
+class IntegerMatrix : public MatrixBase {
 public:
-    // Constructor: Creates a new matrix of size N*N
+    // Constructor: Creates a new matrix of size n*n
     // Stores 32-bit integers. Strictly Upper Triangular.
-    IntegerMatrix(uint64_t N, const std::string& backingFile);
-    
-    ~IntegerMatrix() = default;
+    IntegerMatrix(uint64_t n, const std::string& backingFile);
+
+    // Constructor for loading from existing mapper
+    IntegerMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper);
 
     // Set value at (i, j). Only valid for i < j.
     void set(uint64_t i, uint64_t j, uint32_t value);
@@ -20,15 +22,11 @@ public:
     // Get value at (i, j). Returns 0 if i >= j.
     uint32_t get(uint64_t i, uint64_t j) const;
 
-    uint64_t size() const { return N_; }
-
-    const uint32_t* data() const { return static_cast<const uint32_t*>(mapper_->getData()); }
-    uint32_t* data() { return static_cast<uint32_t*>(mapper_->getData()); }
+    const uint32_t* data() const { return static_cast<const uint32_t*>(require_mapper()->get_data()); }
+    uint32_t* data() { return static_cast<uint32_t*>(require_mapper()->get_data()); }
 
 private:
-    uint64_t N_;
-    std::unique_ptr<MemoryMapper> mapper_;
     std::vector<uint64_t> row_offsets_;
     
-    void calculateOffsets();
+    void calculate_offsets();
 };

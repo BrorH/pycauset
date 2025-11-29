@@ -1,6 +1,6 @@
-^C:\USERS\IREAL\DOCUMENTS\PHD\CAUSAL++\CMAKELISTS.TXT
+^C:\USERS\IREAL\DOCUMENTS\PYCAUSET\CMAKELISTS.TXT
 setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/phd/Causal++ -BC:/Users/ireal/Documents/phd/Causal++/build --check-stamp-file C:/Users/ireal/Documents/phd/Causal++/build/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/pycauset -BC:/Users/ireal/Documents/pycauset/build --check-stamp-file C:/Users/ireal/Documents/pycauset/build/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone

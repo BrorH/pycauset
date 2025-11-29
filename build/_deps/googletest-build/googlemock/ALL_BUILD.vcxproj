@@ -25,7 +25,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{B60A857D-FF86-31B2-8A7F-D9D1E38B39AE}</ProjectGuid>
+    <ProjectGuid>{47CC69AA-F6C0-3A24-9503-000298B3BDB4}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
     <Platform>x64</Platform>
@@ -69,7 +69,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\include;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googletest\include;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googletest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\include;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googletest\include;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googletest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -79,7 +79,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\include;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googletest\include;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googletest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\include;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googletest\include;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googletest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -89,7 +89,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\include;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googletest\include;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googletest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\include;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googletest\include;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googletest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -99,7 +99,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
     <Midl>
-      <AdditionalIncludeDirectories>C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\include;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googletest\include;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googletest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\include;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googletest\include;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googletest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -108,11 +108,11 @@
     </Midl>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\CMakeLists.txt">
+    <CustomBuild Include="C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\CMakeLists.txt">
       <UseUtf8Encoding>Always</UseUtf8Encoding>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-src/googlemock/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/ireal/Documents/pycauset/build/_deps/googletest-src/googlemock/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/phd/Causal++ -BC:/Users/ireal/Documents/phd/Causal++/build --check-stamp-file C:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-build/googlemock/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/pycauset -BC:/Users/ireal/Documents/pycauset/build --check-stamp-file C:/Users/ireal/Documents/pycauset/build/_deps/googletest-build/googlemock/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -120,12 +120,12 @@ endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
 exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\cmake\gmock.pc.in;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\cmake\gmock_main.pc.in;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-build\googlemock\CMakeFiles\generate.stamp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\cmake\gmock.pc.in;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\cmake\gmock_main.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\ireal\Documents\pycauset\build\_deps\googletest-build\googlemock\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-src/googlemock/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Users/ireal/Documents/pycauset/build/_deps/googletest-src/googlemock/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/phd/Causal++ -BC:/Users/ireal/Documents/phd/Causal++/build --check-stamp-file C:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-build/googlemock/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/pycauset -BC:/Users/ireal/Documents/pycauset/build --check-stamp-file C:/Users/ireal/Documents/pycauset/build/_deps/googletest-build/googlemock/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -133,12 +133,12 @@ endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
 exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\cmake\gmock.pc.in;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\cmake\gmock_main.pc.in;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-build\googlemock\CMakeFiles\generate.stamp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\cmake\gmock.pc.in;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\cmake\gmock_main.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\ireal\Documents\pycauset\build\_deps\googletest-build\googlemock\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule C:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-src/googlemock/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule C:/Users/ireal/Documents/pycauset/build/_deps/googletest-src/googlemock/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/phd/Causal++ -BC:/Users/ireal/Documents/phd/Causal++/build --check-stamp-file C:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-build/googlemock/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/pycauset -BC:/Users/ireal/Documents/pycauset/build --check-stamp-file C:/Users/ireal/Documents/pycauset/build/_deps/googletest-build/googlemock/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -146,12 +146,12 @@ endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
 exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\cmake\gmock.pc.in;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\cmake\gmock_main.pc.in;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-build\googlemock\CMakeFiles\generate.stamp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\cmake\gmock.pc.in;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\cmake\gmock_main.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\ireal\Documents\pycauset\build\_deps\googletest-build\googlemock\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule C:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-src/googlemock/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule C:/Users/ireal/Documents/pycauset/build/_deps/googletest-src/googlemock/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/phd/Causal++ -BC:/Users/ireal/Documents/phd/Causal++/build --check-stamp-file C:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-build/googlemock/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/pycauset -BC:/Users/ireal/Documents/pycauset/build --check-stamp-file C:/Users/ireal/Documents/pycauset/build/_deps/googletest-build/googlemock/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -159,8 +159,8 @@ endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
 exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\cmake\gmock.pc.in;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-src\googlemock\cmake\gmock_main.pc.in;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-build\googlemock\CMakeFiles\generate.stamp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\cmake\gmock.pc.in;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-src\googlemock\cmake\gmock_main.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\ireal\Documents\pycauset\build\_deps\googletest-build\googlemock\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
     </CustomBuild>
   </ItemGroup>
@@ -168,26 +168,26 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
-    <ProjectReference Include="C:\Users\ireal\Documents\phd\Causal++\build\ZERO_CHECK.vcxproj">
-      <Project>{122C2168-A905-30FD-979C-05F568D91584}</Project>
+    <ProjectReference Include="C:\Users\ireal\Documents\pycauset\build\ZERO_CHECK.vcxproj">
+      <Project>{684AB8BB-6164-300C-89EB-42E544251EDD}</Project>
       <Name>ZERO_CHECK</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </ProjectReference>
-    <ProjectReference Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-build\googlemock\gmock.vcxproj">
-      <Project>{32E29BC3-0CDC-3232-8FC1-CC478FB40126}</Project>
+    <ProjectReference Include="C:\Users\ireal\Documents\pycauset\build\_deps\googletest-build\googlemock\gmock.vcxproj">
+      <Project>{7C675983-5F7A-3B02-B024-CB5EB7390D11}</Project>
       <Name>gmock</Name>
     </ProjectReference>
-    <ProjectReference Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-build\googlemock\gmock_main.vcxproj">
-      <Project>{DFF80B88-2B7F-327A-A72C-BA53A436F24A}</Project>
+    <ProjectReference Include="C:\Users\ireal\Documents\pycauset\build\_deps\googletest-build\googlemock\gmock_main.vcxproj">
+      <Project>{627E1627-9611-3F8C-A57B-A54D9F06EA00}</Project>
       <Name>gmock_main</Name>
     </ProjectReference>
-    <ProjectReference Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-build\googletest\gtest.vcxproj">
-      <Project>{233E4113-4F56-3E8E-8C69-93E15FEC5C46}</Project>
+    <ProjectReference Include="C:\Users\ireal\Documents\pycauset\build\_deps\googletest-build\googletest\gtest.vcxproj">
+      <Project>{9799C7CE-60F7-3B0C-9DC5-0D2CB3216641}</Project>
       <Name>gtest</Name>
     </ProjectReference>
-    <ProjectReference Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-build\googletest\gtest_main.vcxproj">
-      <Project>{09FECCE1-E2DA-3BE7-81EB-A5F1449097CD}</Project>
+    <ProjectReference Include="C:\Users\ireal\Documents\pycauset\build\_deps\googletest-build\googletest\gtest_main.vcxproj">
+      <Project>{191FD441-D6C1-3190-B933-97614AA65475}</Project>
       <Name>gtest_main</Name>
     </ProjectReference>
   </ItemGroup>

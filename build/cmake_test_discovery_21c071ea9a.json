@@ -8,37 +8,37 @@
       "testsuite": [
         {
           "name": "Initialization",
-          "file": "C:\\Users\\ireal\\Documents\\phd\\Causal++\\tests\\test_main.cpp",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
           "line": 24
         },
         {
           "name": "SetAndGet",
-          "file": "C:\\Users\\ireal\\Documents\\phd\\Causal++\\tests\\test_main.cpp",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
           "line": 29
         },
         {
           "name": "MultiplicationSmall",
-          "file": "C:\\Users\\ireal\\Documents\\phd\\Causal++\\tests\\test_main.cpp",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
           "line": 49
         },
         {
           "name": "MultiplicationPaths",
-          "file": "C:\\Users\\ireal\\Documents\\phd\\Causal++\\tests\\test_main.cpp",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
           "line": 64
         },
         {
           "name": "UpperTriangularConstraint",
-          "file": "C:\\Users\\ireal\\Documents\\phd\\Causal++\\tests\\test_main.cpp",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
           "line": 79
         },
         {
           "name": "Persistence",
-          "file": "C:\\Users\\ireal\\Documents\\phd\\Causal++\\tests\\test_main.cpp",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
           "line": 85
         },
         {
           "name": "LargeIndexCalculation",
-          "file": "C:\\Users\\ireal\\Documents\\phd\\Causal++\\tests\\test_main.cpp",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
           "line": 98
         }
       ]

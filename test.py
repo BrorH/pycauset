@@ -1,4 +1,11 @@
-import pycauset
+import pycauset as pc
+import numpy as np
 
 
-a = pycauset.CausalMatrix(5, "example.bin")
+
+a = pc.CausalMatrix(10000,saveas="bigone")
+
+
+k = pc.compute_k(a, 2.1,saveas="kbigone")
+
+print(k)

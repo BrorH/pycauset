@@ -13,7 +13,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{6370BA97-C448-3AFF-AF19-7FF68D256346}</ProjectGuid>
+    <ProjectGuid>{347586E7-2E61-3489-BCED-51A24000DE42}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
     <Platform>x64</Platform>
@@ -49,11 +49,11 @@
     </Midl>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CustomBuild Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-subbuild\CMakeLists.txt">
+    <CustomBuild Include="C:\Users\ireal\Documents\pycauset\build\_deps\googletest-subbuild\CMakeLists.txt">
       <UseUtf8Encoding>Always</UseUtf8Encoding>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-subbuild/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/ireal/Documents/pycauset/build/_deps/googletest-subbuild/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-subbuild -BC:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-subbuild --check-stamp-file C:/Users/ireal/Documents/phd/Causal++/build/_deps/googletest-subbuild/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/pycauset/build/_deps/googletest-subbuild -BC:/Users/ireal/Documents/pycauset/build/_deps/googletest-subbuild --check-stamp-file C:/Users/ireal/Documents/pycauset/build/_deps/googletest-subbuild/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -61,8 +61,8 @@ endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
 exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\PatchInfo.txt.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\RepositoryInfo.txt.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\UpdateInfo.txt.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\cfgcmd.txt.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\download.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\extractfile.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\mkdirs.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\shared_internal_commands.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-subbuild\CMakeFiles\4.2.0\CMakeSystem.cmake;C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-subbuild\googletest-populate-prefix\tmp\googletest-populate-mkdirs.cmake;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-subbuild\CMakeFiles\generate.stamp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\PatchInfo.txt.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\RepositoryInfo.txt.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\UpdateInfo.txt.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\cfgcmd.txt.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\download.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\extractfile.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\mkdirs.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\ExternalProject\shared_internal_commands.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-subbuild\CMakeFiles\4.2.0\CMakeSystem.cmake;C:\Users\ireal\Documents\pycauset\build\_deps\googletest-subbuild\googletest-populate-prefix\tmp\googletest-populate-mkdirs.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\ireal\Documents\pycauset\build\_deps\googletest-subbuild\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
     </CustomBuild>
   </ItemGroup>
@@ -70,14 +70,14 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
-    <ProjectReference Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-subbuild\ZERO_CHECK.vcxproj">
-      <Project>{207AA53E-9910-3602-BDCD-BE6D64BB98A4}</Project>
+    <ProjectReference Include="C:\Users\ireal\Documents\pycauset\build\_deps\googletest-subbuild\ZERO_CHECK.vcxproj">
+      <Project>{FEC6212E-D750-33A6-A7D2-032813027845}</Project>
       <Name>ZERO_CHECK</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </ProjectReference>
-    <ProjectReference Include="C:\Users\ireal\Documents\phd\Causal++\build\_deps\googletest-subbuild\googletest-populate.vcxproj">
-      <Project>{C9CD6C9E-8FF1-39BD-B616-082B0D1741CF}</Project>
+    <ProjectReference Include="C:\Users\ireal\Documents\pycauset\build\_deps\googletest-subbuild\googletest-populate.vcxproj">
+      <Project>{3EDE045D-414E-323F-8CAD-D6A4D64C4E00}</Project>
       <Name>googletest-populate</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
