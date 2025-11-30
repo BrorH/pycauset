@@ -213,6 +213,8 @@
   },
   "active": "1563eaae446d05e3",
   "lastOpenFiles": [
+    "javascripts/mathjax.js",
+    "javascripts",
     "index.md",
     "guides/User Guide.md",
     "project/TODO.md",
@@ -238,7 +240,6 @@
     "api/classes/pycauset.IdentityMatrix.md",
     "api/functions/pycauset.I.md",
     "api/functions/pycauset.bitwise_not.md",
-    "api/classes/pycauset.FloatVector.md",
     "api/functions",
     "api/classes",
     "project",
