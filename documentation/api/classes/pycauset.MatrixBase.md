@@ -4,20 +4,20 @@
 class pycauset.MatrixBase
 ```
 
-The abstract base class for all matrix types in `pycauset`. It manages the memory-mapped backing file, lifecycle, and common properties like scaling.
+The abstract base class for all matrix types in `pycauset`. It manages the storage (memory-mapped file or RAM), lifecycle, and common properties like scaling.
 
 ## Properties
 
 *   **scalar** (*float*): A scaling factor applied to all elements when accessed as doubles. Defaults to `1.0`. Setting this property updates the file header instantly.
 *   **seed** (*int*): The random seed used to generate the matrix, if applicable. Read-only. Returns `0` if no seed was recorded.
-*   **is_temporary** (*bool*): Indicates whether the backing file is temporary and should be deleted on exit.
+*   **is_temporary** (*bool*): Indicates whether the backing storage is temporary (RAM or temp file) and should be deleted/released on exit.
 *   **shape** (*tuple*): The dimensions of the matrix `(N, N)`.
 *   **size** (*int*): The dimension $N$ of the matrix.
 
 ## Methods
 
 ### `close()`
-Releases the memory-mapped file handle. The matrix object becomes unusable after calling this method.
+Releases the memory-mapped file handle or frees the RAM buffer. The matrix object becomes unusable after calling this method.
 
 ### `get_backing_file()`
 Returns the absolute path to the backing file on disk.

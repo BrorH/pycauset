@@ -8,6 +8,17 @@
 
 namespace pycauset {
 
+// Global configuration for memory threshold
+extern std::atomic<uint64_t> g_memory_threshold;
+
+inline void set_memory_threshold(uint64_t bytes) {
+    g_memory_threshold.store(bytes);
+}
+
+inline uint64_t get_memory_threshold() {
+    return g_memory_threshold.load();
+}
+
 inline std::filesystem::path get_storage_root() {
     const char* env = std::getenv("PYCAUSET_STORAGE_DIR");
     std::filesystem::path root;

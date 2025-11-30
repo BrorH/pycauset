@@ -4,9 +4,13 @@
 Goals:
 - [x] Calculate eq. (3.5) in Johnston: $K = \Phi (I - b\Phi)^{-1}$ 
 - [ ] Calculate a 100GB $K$
-- [ ] Numpy compatibility
+- [x] Numpy compatibility
+- [ ] Study the base changes and 
 
 ## Wanted features
+- [ ] Figure out how to correctly randomly fill C
+- [ ] Visualizations of matrices
+- [ ] gpu parallelization
 - [x] Saving/loading causal matrices to/from binary files.
 - [x] Implement matrix operations: addition, subtraction, multiplication.
 - [x] Implement inverting
@@ -15,19 +19,20 @@ Goals:
 - [x] Make binary files have .pycauset extension
 - [x] Allow users to specify lower size of elements which get turned into and stored as binary files (deprecated)
 - [x] Matrix printing
-- [ ] Figure out how to correctly randomly fill C
-- [ ] Visualizations of matrices
 - [x] printable "info" about matrix. I.e. print info from header
 - [x] Fix bug so that binaries are actually deleted on program finish
 - [x] add dtype specification on matrix creation
-- [ ] vectors
-- [ ] complex numbers support
-- [ ]  introduce RAM-backed mapping for small temporary objects
+- [x] vectors
+- [x] complex numbers support
+- [x]  introduce RAM-backed mapping for small temporary objects
+
+
 
 
 ## Documentation needed
 - [x] pycauset.save (deprecated)
-- [ ] pycauset.TriangularMatrix
-- [ ] pycauset.keep_temp_files
-- [ ] pycauset.Vector
+- [x] pycauset.TriangularMatrix
+- [x] pycauset.keep_temp_files
+- [x] pycauset.Vector
+- [x] pycauset.set_memory_threshold
 - [ ] `$PYCAUSET_STORAGE_DIR`

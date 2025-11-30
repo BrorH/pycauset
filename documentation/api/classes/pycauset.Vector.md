@@ -15,7 +15,7 @@ The `Vector` class serves as a smart factory for creating vector objects in `pyc
     *   Floats -> `FloatVector`
     *   Booleans -> `BitVector`
 
-All returned vector objects share a common interface and are backed by disk storage.
+All returned vector objects share a common interface. Small vectors (below the configured memory threshold) are stored in RAM for performance, while larger vectors are backed by disk storage.
 
 ## Parameters
 

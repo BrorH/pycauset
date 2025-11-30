@@ -10,6 +10,7 @@
         "tuple": "cpp",
         "utility": "cpp",
         "variant": "cpp",
-        "xutility": "cpp"
+        "xutility": "cpp",
+        "stdexcept": "cpp"
     }
 }

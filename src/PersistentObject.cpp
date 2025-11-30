@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 
 #include "StoragePaths.hpp"
 
@@ -32,7 +33,7 @@ PersistentObject::~PersistentObject() {
         std::string path = mapper_->get_filename();
         mapper_.reset(); // Close file mapping
 
-        if (temp && !path.empty()) {
+        if (temp && !path.empty() && path != ":memory:") {
             try {
                 std::filesystem::remove(path);
             } catch (...) {
@@ -81,7 +82,18 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     if (final_size < min_size_bytes) {
         final_size = min_size_bytes;
     }
-    std::string path = resolve_backing_file(backing_file, fallback_prefix);
+    
+    std::string path;
+    if (backing_file.empty()) {
+        // Check if we should use RAM-backed storage
+        if (final_size <= pycauset::get_memory_threshold()) {
+            path = ":memory:";
+        } else {
+            path = resolve_backing_file(backing_file, fallback_prefix);
+        }
+    } else {
+        path = resolve_backing_file(backing_file, fallback_prefix);
+    }
     
     // Create new file with header space
     mapper_ = std::make_unique<MemoryMapper>(path, final_size, true);
@@ -97,15 +109,13 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     header->cols = cols;
     header->scalar = 1.0;
     // If no backing file was requested, this is an auto-generated temporary file.
-    header->is_temporary = backing_file.empty() ? 1 : 0;
+    // RAM-backed files are always temporary.
+    header->is_temporary = (backing_file.empty() || path == ":memory:") ? 1 : 0;
     scalar_ = 1.0;
 }
 
 std::string PersistentObject::copy_storage(const std::string& result_file_hint) const {
     std::string source_path = get_backing_file();
-    if (source_path.empty()) {
-        throw std::runtime_error("Cannot copy object without backing file");
-    }
     
     if (mapper_) {
         mapper_->flush();
@@ -113,11 +123,30 @@ std::string PersistentObject::copy_storage(const std::string& result_file_hint) 
 
     std::string dest_path = resolve_backing_file(result_file_hint, "copy");
     
-    // Use filesystem copy
-    try {
-        std::filesystem::copy_file(source_path, dest_path, std::filesystem::copy_options::overwrite_existing);
-    } catch (const std::filesystem::filesystem_error& e) {
-        throw std::runtime_error("Failed to copy backing file: " + std::string(e.what()));
+    if (source_path == ":memory:") {
+        // For RAM-backed objects, we must write the memory buffer to disk manually
+        std::ofstream outfile(dest_path, std::ios::binary);
+        if (!outfile) {
+            throw std::runtime_error("Failed to open destination file for writing: " + dest_path);
+        }
+        
+        const char* data = static_cast<const char*>(static_cast<const void*>(mapper_->get_header()));
+        size_t size = sizeof(pycauset::FileHeader) + mapper_->get_data_size();
+        
+        if (!outfile.write(data, size)) {
+            throw std::runtime_error("Failed to write RAM object to disk: " + dest_path);
+        }
+        outfile.close();
+    } else {
+        if (source_path.empty()) {
+            throw std::runtime_error("Cannot copy object without backing file");
+        }
+        // Use filesystem copy
+        try {
+            std::filesystem::copy_file(source_path, dest_path, std::filesystem::copy_options::overwrite_existing);
+        } catch (const std::filesystem::filesystem_error& e) {
+            throw std::runtime_error("Failed to copy backing file: " + std::string(e.what()));
+        }
     }
     
     return dest_path;

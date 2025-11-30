@@ -3,23 +3,23 @@
 
 ## Matrix Multiplication (`matmul`)
 
-Matrix multiplication is performed using the `pycauset.matmul(A, B)` function.
+Matrix multiplication is performed using the [[pycauset.matmul]](A, B) function.
 
 ### Supported Types
 Matrix multiplication is supported for all combinations of matrix types. The return type depends on the operands:
 
 | Operand A | Operand B | Result Type |
 | :--- | :--- | :--- |
-| `FloatMatrix` (Dense) | Any | `FloatMatrix` |
-| Any | `FloatMatrix` (Dense) | `FloatMatrix` |
-| `TriangularFloatMatrix` | Triangular (Any) | `TriangularFloatMatrix` |
-| Triangular (Any) | `TriangularFloatMatrix` | `TriangularFloatMatrix` |
-| `IntegerMatrix` | `IntegerMatrix` or `TriangularBitMatrix` | `IntegerMatrix` |
-| `TriangularBitMatrix` | `IntegerMatrix` | `IntegerMatrix` |
-| `TriangularBitMatrix` | `TriangularBitMatrix` | `IntegerMatrix` |
-| `DenseBitMatrix` | `DenseBitMatrix` | `IntegerMatrix` |
+| [[pycauset.FloatMatrix]] (Dense) | Any | [[pycauset.FloatMatrix]] |
+| Any | [[pycauset.FloatMatrix]] (Dense) | [[pycauset.FloatMatrix]] |
+| [[pycauset.TriangularFloatMatrix]] | Triangular (Any) | [[pycauset.TriangularFloatMatrix]] |
+| Triangular (Any) | [[pycauset.TriangularFloatMatrix]] | [[pycauset.TriangularFloatMatrix]] |
+| [[pycauset.IntegerMatrix]] | [[pycauset.IntegerMatrix]] or [[pycauset.TriangularBitMatrix]] | [[pycauset.IntegerMatrix]] |
+| [[pycauset.TriangularBitMatrix]] | [[pycauset.IntegerMatrix]] | [[pycauset.IntegerMatrix]] |
+| [[pycauset.TriangularBitMatrix]] | [[pycauset.TriangularBitMatrix]] | [[pycauset.IntegerMatrix]] |
+| [[pycauset.DenseBitMatrix]] | [[pycauset.DenseBitMatrix]] | [[pycauset.IntegerMatrix]] |
 
-**Note on `IntegerMatrix`**: In `pycauset`, `IntegerMatrix` is a **dense** matrix storing 32-bit integers. It is the standard return type for discrete matrix multiplications (like path counting).
+**Note on [[pycauset.IntegerMatrix]]**: In `pycauset`, [[pycauset.IntegerMatrix]] is a **dense** matrix storing 32-bit integers. It is the standard return type for discrete matrix multiplications (like path counting).
 
 ### Syntax
 ```python
@@ -36,7 +36,7 @@ See the table above. The system automatically promotes types to the most general
 The implementation uses memory-mapped files to handle large matrices without loading them entirely into RAM.
 - **Triangular Matrices**: Uses a row-addition algorithm that exploits the strictly upper triangular structure. For each row $i$ of $A$, it accumulates rows $k$ of $B$ where $A_{ik} \neq 0$.
 - **Dense Matrices**: Uses a row-wise accumulation (IKJ) algorithm optimized for row-major storage.
-- **Mixed Types**: When multiplying mixed types (e.g., `TriangularBitMatrix` * `FloatMatrix`), the operation is optimized to use the sparse structure of the triangular matrix while producing a dense result, avoiding full expansion of the sparse matrix before multiplication.
+- **Mixed Types**: When multiplying mixed types (e.g., [[pycauset.TriangularBitMatrix]] * [[pycauset.FloatMatrix]]), the operation is optimized to use the sparse structure of the triangular matrix while producing a dense result, avoiding full expansion of the sparse matrix before multiplication.
 - **Scalar Multiplication**: Scalar factors are handled lazily and are correctly propagated during matrix multiplication ($C.scalar = A.scalar \times B.scalar$).
 
 This approach ensures that operations are performed chunk-wise (row-wise), respecting memory constraints.
@@ -53,7 +53,7 @@ C = A * B
 
 ### Semantics
 -   $C_{ij} = A_{ij} \times B_{ij}$
--   For `TriangularBitMatrix`, this is equivalent to a bitwise AND operation ($1 \times 1 = 1$, others $0$).
+-   For [[pycauset.TriangularBitMatrix]], this is equivalent to a bitwise AND operation ($1 \times 1 = 1$, others $0$).
 -   Returns a new matrix of the same type as the operands.
 
 ## Scalar Multiplication
@@ -82,4 +82,4 @@ C = 0.5 * A
 *   **Matrix @ Vector**: `M @ v` returns a column vector ($M \times v$).
 *   **Vector @ Matrix**: `v.T @ M` returns a row vector ($v^T \times M$).
 
-See the [Vector Guide](Vector%20Guide.md#transposition--matrix-operations) for more details on transposition and vector operations.
+See the [[Vector Guide#Transposition & Matrix Operations]] for more details on transposition and vector operations.

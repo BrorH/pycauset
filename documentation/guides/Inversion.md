@@ -4,7 +4,7 @@ PyCauset provides an interface for computing the mathematical inverse ($A^{-1}$)
 
 ## Usage
 
-You can use the `.invert()` method on a matrix object or the `pycauset.invert()` function.
+You can use the `.invert()` method on a matrix object or the [[pycauset.invert]] function.
 
 ```python
 import pycauset
@@ -24,7 +24,7 @@ except RuntimeError as e:
 
 ## Singularity of Triangular Matrices
 
-The triangular matrix types in PyCauset (`TriangularBitMatrix`, `TriangularFloatMatrix`) are **strictly upper triangular**. 
+The triangular matrix types in PyCauset ([[pycauset.TriangularBitMatrix]], [[pycauset.TriangularFloatMatrix]]) are **strictly upper triangular**. 
 
 A strictly upper triangular matrix has zeros on the main diagonal. The determinant of a triangular matrix is the product of its diagonal entries. Therefore, the determinant of any strictly upper triangular matrix is 0, making it **singular** (non-invertible).
 
@@ -32,9 +32,9 @@ Attempting to invert these matrices will raise a `RuntimeError`.
 
 ## Dense Matrix Inversion
 
-The `FloatMatrix` class supports general matrix inversion using Gaussian elimination with partial pivoting. This allows you to invert dense matrices, provided they are non-singular (determinant is non-zero).
+The [[pycauset.FloatMatrix]] class supports general matrix inversion using Gaussian elimination with partial pivoting. This allows you to invert dense matrices, provided they are non-singular (determinant is non-zero).
 
-**Note**: `IntegerMatrix` and `DenseBitMatrix` are also dense, but direct inversion is not supported to avoid ambiguity (integer inversion usually results in floats). To invert them, convert them to `FloatMatrix` first.
+**Note**: [[pycauset.IntegerMatrix]] and [[pycauset.DenseBitMatrix]] are also dense, but direct inversion is not supported to avoid ambiguity (integer inversion usually results in floats). To invert them, convert them to [[pycauset.FloatMatrix]] first.
 
 ```python
 import pycauset
