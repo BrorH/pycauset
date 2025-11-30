@@ -100,7 +100,7 @@ events:
       The output was:
       0
       MSBuild version 18.0.5+e22287bf1 for .NET Framework
-      Build started 29.11.2025 18:26:59.
+      Build started 30.11.2025 12:59:58.
       
       Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\4.2.0\\CompilerIdCXX\\CompilerIdCXX.vcxproj" on node 1 (default targets).
       PrepareForBuild:
@@ -129,7 +129,7 @@ events:
           0 Warning(s)
           0 Error(s)
       
-      Time Elapsed 00:00:00.43
+      Time Elapsed 00:00:00.70
       
       
       Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.exe"
@@ -974,9 +974,9 @@ events:
       - "C:/Program Files/CMake/bin/"
       - "C:/Program Files/CMake/sbin/"
       - "C:/Program Files/CMake/"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/"
-      - "C:/Program Files (x86)/CausalPlusPlus/"
+      - "C:/Program Files (x86)/pycauset/bin/"
+      - "C:/Program Files (x86)/pycauset/sbin/"
+      - "C:/Program Files (x86)/pycauset/"
     searched_directories:
       - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/rc.com"
       - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/rc.exe"
@@ -1110,15 +1110,15 @@ events:
       - "C:/Program Files/CMake/rc.com"
       - "C:/Program Files/CMake/rc.exe"
       - "C:/Program Files/CMake/rc"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/rc.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/rc.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/rc"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/rc.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/rc.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/rc"
-      - "C:/Program Files (x86)/CausalPlusPlus/rc.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/rc.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/rc"
+      - "C:/Program Files (x86)/pycauset/bin/rc.com"
+      - "C:/Program Files (x86)/pycauset/bin/rc.exe"
+      - "C:/Program Files (x86)/pycauset/bin/rc"
+      - "C:/Program Files (x86)/pycauset/sbin/rc.com"
+      - "C:/Program Files (x86)/pycauset/sbin/rc.exe"
+      - "C:/Program Files (x86)/pycauset/sbin/rc"
+      - "C:/Program Files (x86)/pycauset/rc.com"
+      - "C:/Program Files (x86)/pycauset/rc.exe"
+      - "C:/Program Files (x86)/pycauset/rc"
     found: false
     search_context:
       ENV{PATH}:
@@ -1171,12 +1171,12 @@ events:
         - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
         - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
         - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/CausalPlusPlus"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "C:/Program Files/CMake"
-        - "C:/Program Files (x86)/CausalPlusPlus"
+        - "C:/Program Files (x86)/pycauset"
   -
     kind: "try_compile-v1"
     backtrace:
@@ -1186,8 +1186,8 @@ events:
     checks:
       - "Detecting CXX compiler ABI info"
     directories:
-      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-959htk"
-      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-959htk"
+      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-iust6i"
+      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-iust6i"
     cmakeVariables:
       CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /GR /EHsc"
       CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
@@ -1197,39 +1197,39 @@ events:
       variable: "CMAKE_CXX_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-959htk'
+        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-iust6i'
         
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_17374.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_59d7d.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
         MSBuild version 18.0.5+e22287bf1 for .NET Framework
-        Build started 29.11.2025 18:27:00.
+        Build started 30.11.2025 12:59:59.
         
-        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-959htk\\cmTC_17374.vcxproj" on node 1 (default targets).
+        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-iust6i\\cmTC_59d7d.vcxproj" on node 1 (default targets).
         PrepareForBuild:
           Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
-          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-959htk\\Debug\\".
-          Creating directory "cmTC_17374.dir\\Debug\\cmTC_17374.tlog\\".
+          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-iust6i\\Debug\\".
+          Creating directory "cmTC_59d7d.dir\\Debug\\cmTC_59d7d.tlog\\".
         InitializeBuildStatus:
-          Creating "cmTC_17374.dir\\Debug\\cmTC_17374.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
-          Touching "cmTC_17374.dir\\Debug\\cmTC_17374.tlog\\unsuccessfulbuild".
+          Creating "cmTC_59d7d.dir\\Debug\\cmTC_59d7d.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Touching "cmTC_59d7d.dir\\Debug\\cmTC_59d7d.tlog\\unsuccessfulbuild".
         ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /Fo"cmTC_17374.dir\\Debug\\\\" /Fd"cmTC_17374.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp"
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /Fo"cmTC_59d7d.dir\\Debug\\\\" /Fd"cmTC_59d7d.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp"
           Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35719 for x64
           Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /Fo"cmTC_17374.dir\\Debug\\\\" /Fd"cmTC_17374.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp"
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /Fo"cmTC_59d7d.dir\\Debug\\\\" /Fd"cmTC_59d7d.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp"
           CMakeCXXCompilerABI.cpp
         Link:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-959htk\\Debug\\cmTC_17374.exe" /INCREMENTAL /ILK:"cmTC_17374.dir\\Debug\\cmTC_17374.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-959htk/Debug/cmTC_17374.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-959htk/Debug/cmTC_17374.lib" /MACHINE:X64  /machine:x64 cmTC_17374.dir\\Debug\\CMakeCXXCompilerABI.obj
-          cmTC_17374.vcxproj -> C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-959htk\\Debug\\cmTC_17374.exe
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-iust6i\\Debug\\cmTC_59d7d.exe" /INCREMENTAL /ILK:"cmTC_59d7d.dir\\Debug\\cmTC_59d7d.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-iust6i/Debug/cmTC_59d7d.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-iust6i/Debug/cmTC_59d7d.lib" /MACHINE:X64  /machine:x64 cmTC_59d7d.dir\\Debug\\CMakeCXXCompilerABI.obj
+          cmTC_59d7d.vcxproj -> C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-iust6i\\Debug\\cmTC_59d7d.exe
         FinalizeBuildStatus:
-          Deleting file "cmTC_17374.dir\\Debug\\cmTC_17374.tlog\\unsuccessfulbuild".
-          Touching "cmTC_17374.dir\\Debug\\cmTC_17374.tlog\\cmTC_17374.lastbuildstate".
-        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-959htk\\cmTC_17374.vcxproj" (default targets).
+          Deleting file "cmTC_59d7d.dir\\Debug\\cmTC_59d7d.tlog\\unsuccessfulbuild".
+          Touching "cmTC_59d7d.dir\\Debug\\cmTC_59d7d.tlog\\cmTC_59d7d.lastbuildstate".
+        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-iust6i\\cmTC_59d7d.vcxproj" (default targets).
         
         Build succeeded.
             0 Warning(s)
             0 Error(s)
         
-        Time Elapsed 00:00:00.89
+        Time Elapsed 00:00:00.43
         
       exitCode: 0
   -
@@ -1263,688 +1263,486 @@ events:
   -
     kind: "find-v1"
     backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCompilerId.cmake:462 (find_file)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCompilerId.cmake:500 (CMAKE_DETERMINE_COMPILER_ID_WRITE)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCompilerId.cmake:8 (CMAKE_DETERMINE_COMPILER_ID_BUILD)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCCompiler.cmake:122 (CMAKE_DETERMINE_COMPILER_ID)"
-      - "build/_deps/googletest-src/CMakeLists.txt:6 (project)"
-    mode: "file"
-    variable: "src_in"
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:2437 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython.cmake:721 (include)"
+      - "CMakeLists.txt:10 (find_package)"
+    mode: "program"
+    variable: "_Python_EXECUTABLE_DEBUG"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python3.12_d"
+      - "python3_d"
+      - "python_d"
+    candidate_directories:
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/"
+    searched_directories:
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Users\\ireal\\scoop\\shims"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312\\Scripts"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ireal\\.dotnet\\tools"
+        - "C:\\Users\\ireal\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\Scripts"
+        - "C:\\ffmpeg\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\GitHubDesktop\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312"
+        - "C:\\Users\\ireal\\AppData\\Roaming\\npm"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.10.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "C:\\Tools\\mongosh\\bin"
+        - "C:\\Tools\\mongodb-tools\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files (x86)/pycauset"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:3201 (find_library)"
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython.cmake:721 (include)"
+      - "CMakeLists.txt:10 (find_package)"
+    mode: "library"
+    variable: "_Python_LIBRARY_RELEASE"
+    description: "Path to a library."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: false
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python312"
+      - "python3.12"
+    candidate_directories:
+      - "C:/Users/ireal/Documents/pycauset/.venv/lib/"
+      - "C:/Users/ireal/Documents/pycauset/.venv/libs/"
+      - "C:/Users/ireal/Documents/pycauset/.venv/lib/python3.12/config-3.12/"
+      - "C:/Users/ireal/Documents/pycauset/.venv/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/lib/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/lib/python3.12/config-3.12/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/"
+    searched_directories:
+      - "C:/Users/ireal/Documents/pycauset/.venv/lib/"
+      - "C:/Users/ireal/Documents/pycauset/.venv/lib/"
+      - "C:/Users/ireal/Documents/pycauset/.venv/libs/"
+      - "C:/Users/ireal/Documents/pycauset/.venv/libs/"
+      - "C:/Users/ireal/Documents/pycauset/.venv/lib/python3.12/config-3.12/"
+      - "C:/Users/ireal/Documents/pycauset/.venv/lib/python3.12/config-3.12/"
+      - "C:/Users/ireal/Documents/pycauset/.venv/"
+      - "C:/Users/ireal/Documents/pycauset/.venv/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/lib/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/lib/"
+    found: "C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/python312.lib"
+    search_context:
+      ENV{PATH}:
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Users\\ireal\\scoop\\shims"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312\\Scripts"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ireal\\.dotnet\\tools"
+        - "C:\\Users\\ireal\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\Scripts"
+        - "C:\\ffmpeg\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\GitHubDesktop\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312"
+        - "C:\\Users\\ireal\\AppData\\Roaming\\npm"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.10.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "C:\\Tools\\mongosh\\bin"
+        - "C:\\Tools\\mongodb-tools\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files (x86)/pycauset"
+      CMAKE_SYSTEM_LIBRARY_PATH:
+        - "C:/Program Files (x86)/pycauset/bin"
+        - "C:/Program Files/CMake/bin"
+        - "/bin"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:3389 (find_library)"
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython.cmake:721 (include)"
+      - "CMakeLists.txt:10 (find_package)"
+    mode: "library"
+    variable: "_Python_LIBRARY_DEBUG"
+    description: "Path to a library."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python312_d"
+    candidate_directories:
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/"
+    searched_directories:
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Users\\ireal\\scoop\\shims"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312\\Scripts"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ireal\\.dotnet\\tools"
+        - "C:\\Users\\ireal\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\Scripts"
+        - "C:\\ffmpeg\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\GitHubDesktop\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312"
+        - "C:\\Users\\ireal\\AppData\\Roaming\\npm"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.10.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "C:\\Tools\\mongosh\\bin"
+        - "C:\\Tools\\mongodb-tools\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files (x86)/pycauset"
+      CMAKE_SYSTEM_LIBRARY_PATH:
+        - "C:/Program Files (x86)/pycauset/bin"
+        - "C:/Program Files/CMake/bin"
+        - "/bin"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:1406 (find_library)"
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:3407 (_python_find_runtime_library)"
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython.cmake:721 (include)"
+      - "CMakeLists.txt:10 (find_package)"
+    mode: "library"
+    variable: "_Python_RUNTIME_LIBRARY_RELEASE"
+    description: "Path to a library."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python312"
+      - "python3.12"
+    candidate_directories:
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/bin/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/bin/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/"
+      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/bin/"
+      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/"
+      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/bin/"
+      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/"
+      - "C:/Program Files/Common Files/Oracle/Java/javapath/bin/"
+      - "C:/Program Files/Common Files/Oracle/Java/javapath/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/bin/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/bin/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/"
+      - "C:/Windows/System32/bin/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/bin/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/bin/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/bin/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/bin/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/bin/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/Program Files/dotnet/bin/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files/Git/cmd/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/bin/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/bin/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files/CMake/bin/bin/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/bin/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Users/ireal/scoop/shims/bin/"
+      - "C:/Users/ireal/scoop/shims/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA NvDLISR/bin/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA NvDLISR/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/Scripts/bin/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/Scripts/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Launcher/bin/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/ireal/AppData/Local/Microsoft/WindowsApps/bin/"
+      - "C:/Users/ireal/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/ireal/AppData/Local/Programs/Microsoft VS Code/bin/bin/"
+      - "C:/Users/ireal/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/ireal/.dotnet/tools/bin/"
+      - "C:/Users/ireal/.dotnet/tools/"
+      - "C:/Users/ireal/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0/LocalCache/local-packages/Python312/Scripts/bin/"
+      - "C:/Users/ireal/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0/LocalCache/local-packages/Python312/Scripts/"
+      - "C:/ffmpeg/bin/bin/"
+      - "C:/ffmpeg/bin/"
+      - "C:/Users/ireal/AppData/Local/GitHubDesktop/bin/bin/"
+      - "C:/Users/ireal/AppData/Local/GitHubDesktop/bin/"
+      - "C:/Users/ireal/AppData/Roaming/npm/bin/"
+      - "C:/Users/ireal/AppData/Roaming/npm/"
+      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.10.0-win32-x64/bundled/scripts/noConfigScripts/bin/"
+      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.10.0-win32-x64/bundled/scripts/noConfigScripts/"
+      - "C:/Tools/mongosh/bin/bin/"
+      - "C:/Tools/mongosh/bin/"
+      - "C:/Tools/mongodb-tools/bin/bin/"
+      - "C:/Tools/mongodb-tools/bin/"
+      - "C:/Users/ireal/AppData/Local/Programs/ExifTool/bin/"
+      - "C:/Users/ireal/AppData/Local/Programs/ExifTool/"
+      - "C:/Users/ireal/AppData/Local/Programs/Antigravity/bin/bin/"
+      - "C:/Users/ireal/AppData/Local/Programs/Antigravity/bin/"
+      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.16.0-win32-x64/bundled/scripts/noConfigScripts/bin/"
+      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.16.0-win32-x64/bundled/scripts/noConfigScripts/"
+      - "C:/Program Files/lib/bin/"
+      - "C:/Program Files/lib/"
+      - "C:/Program Files/bin/"
+      - "C:/Program Files/"
+      - "C:/Program Files (x86)/lib/bin/"
+      - "C:/Program Files (x86)/lib/"
+      - "C:/Program Files (x86)/bin/"
+      - "C:/Program Files (x86)/"
+      - "C:/Program Files/CMake/lib/bin/"
+      - "C:/Program Files/CMake/lib/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Program Files/CMake/"
+      - "C:/Program Files (x86)/pycauset/lib/bin/"
+      - "C:/Program Files (x86)/pycauset/lib/"
+      - "C:/Program Files (x86)/pycauset/bin/"
+      - "C:/Program Files (x86)/pycauset/"
+      - "C:/Program Files (x86)/pycauset/bin/bin/"
+      - "C:/Program Files (x86)/pycauset/bin/"
+      - "/bin/bin/"
+      - "/bin/"
+    searched_directories:
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/bin/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/bin/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/bin/"
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/bin/"
+    found: "C:/Users/ireal/AppData/Local/Programs/Python/Python312/python312.dll"
+    search_context:
+      ENV{PATH}:
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Users\\ireal\\scoop\\shims"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312\\Scripts"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ireal\\.dotnet\\tools"
+        - "C:\\Users\\ireal\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\Scripts"
+        - "C:\\ffmpeg\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\GitHubDesktop\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312"
+        - "C:\\Users\\ireal\\AppData\\Roaming\\npm"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.10.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "C:\\Tools\\mongosh\\bin"
+        - "C:\\Tools\\mongodb-tools\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files (x86)/pycauset"
+      CMAKE_SYSTEM_LIBRARY_PATH:
+        - "C:/Program Files (x86)/pycauset/bin"
+        - "C:/Program Files/CMake/bin"
+        - "/bin"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:3716 (find_path)"
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython.cmake:721 (include)"
+      - "CMakeLists.txt:10 (find_package)"
+    mode: "path"
+    variable: "_Python_INCLUDE_DIR"
     description: "Path to a file."
     settings:
       SearchFramework: "NEVER"
       SearchAppBundle: "NEVER"
       CMAKE_FIND_USE_CMAKE_PATH: true
       CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
-      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
-      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
-      CMAKE_FIND_USE_INSTALL_PREFIX: true
-    names:
-      - "CMakeCCompilerId.c.in"
-    candidate_directories:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/"
-    found: "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeCCompilerId.c.in"
-    search_context:
-      ENV{PATH}:
-        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
-        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
-        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\WINDOWS\\system32"
-        - "C:\\WINDOWS"
-        - "C:\\WINDOWS\\System32\\Wbem"
-        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
-        - "C:\\WINDOWS\\System32\\OpenSSH\\"
-        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
-        - "C:\\Program Files\\dotnet\\"
-        - "C:\\Program Files\\Git\\cmd"
-        - "C:\\Program Files\\nodejs\\"
-        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
-        - "C:\\Program Files\\CMake\\bin"
-        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
-        - "C:\\Users\\ireal\\scoop\\shims"
-        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\WINDOWS\\system32"
-        - "C:\\WINDOWS"
-        - "C:\\WINDOWS\\System32\\Wbem"
-        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
-        - "C:\\WINDOWS\\System32\\OpenSSH\\"
-        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR"
-        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
-        - "C:\\Program Files\\dotnet\\"
-        - "C:\\Program Files\\Git\\cmd"
-        - "C:\\Program Files\\nodejs\\"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312\\Scripts"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Launcher\\"
-        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
-        - "C:\\Users\\ireal\\.dotnet\\tools"
-        - "C:\\Users\\ireal\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\Scripts"
-        - "C:\\ffmpeg\\bin"
-        - "C:\\Users\\ireal\\AppData\\Local\\GitHubDesktop\\bin"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312"
-        - "C:\\Users\\ireal\\AppData\\Roaming\\npm"
-        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.10.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
-        - "C:\\Tools\\mongosh\\bin"
-        - "C:\\Tools\\mongodb-tools\\bin"
-        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
-        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/CausalPlusPlus"
-      CMAKE_SYSTEM_PREFIX_PATH:
-        - "C:/Program Files"
-        - "C:/Program Files (x86)"
-        - "C:/Program Files/CMake"
-        - "C:/Program Files (x86)/CausalPlusPlus"
-  -
-    kind: "message-v1"
-    backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCCompiler.cmake:122 (CMAKE_DETERMINE_COMPILER_ID)"
-      - "build/_deps/googletest-src/CMakeLists.txt:6 (project)"
-    message: |
-      Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
-      Compiler:  
-      Build flags: 
-      Id flags:  
-      
-      The output was:
-      0
-      MSBuild version 18.0.5+e22287bf1 for .NET Framework
-      Build started 29.11.2025 18:27:06.
-      
-      Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\4.2.0\\CompilerIdC\\CompilerIdC.vcxproj" on node 1 (default targets).
-      PrepareForBuild:
-        Creating directory "Debug\\".
-        Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
-        Creating directory "Debug\\CompilerIdC.tlog\\".
-      InitializeBuildStatus:
-        Creating "Debug\\CompilerIdC.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
-        Touching "Debug\\CompilerIdC.tlog\\unsuccessfulbuild".
-      ClCompile:
-        C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc145.pdb" /external:W0 /Gd /TC /FC /errorReport:queue CMakeCCompilerId.c
-        CMakeCCompilerId.c
-      Link:
-        C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdC.exe" /INCREMENTAL:NO /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdC.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdC.lib" /MACHINE:X64 Debug\\CMakeCCompilerId.obj
-        CompilerIdC.vcxproj -> C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\4.2.0\\CompilerIdC\\CompilerIdC.exe
-      PostBuildEvent:
-        for %%i in (cl.exe) do @echo CMAKE_C_COMPILER=%%~$PATH:i
-        :VCEnd
-        CMAKE_C_COMPILER=C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\cl.exe
-      FinalizeBuildStatus:
-        Deleting file "Debug\\CompilerIdC.tlog\\unsuccessfulbuild".
-        Touching "Debug\\CompilerIdC.tlog\\CompilerIdC.lastbuildstate".
-      Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\4.2.0\\CompilerIdC\\CompilerIdC.vcxproj" (default targets).
-      
-      Build succeeded.
-          0 Warning(s)
-          0 Error(s)
-      
-      Time Elapsed 00:00:01.08
-      
-      
-      Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CompilerIdC.exe"
-      
-      Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CompilerIdC.vcxproj"
-      
-      The C compiler identification is MSVC, found in:
-        C:/Users/ireal/Documents/pycauset/build/CMakeFiles/4.2.0/CompilerIdC/CompilerIdC.exe
-      
-  -
-    kind: "find-v1"
-    backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeFindBinUtils.cmake:37 (find_program)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeFindBinUtils.cmake:65 (__resolve_tool_path)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeFindBinUtils.cmake:104 (__resolve_linker_path)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCCompiler.cmake:200 (include)"
-      - "build/_deps/googletest-src/CMakeLists.txt:6 (project)"
-    mode: "program"
-    variable: "_CMAKE_TOOL_WITH_PATH"
-    description: "Path to a program."
-    settings:
-      SearchFramework: "NEVER"
-      SearchAppBundle: "NEVER"
-      CMAKE_FIND_USE_CMAKE_PATH: false
-      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
-      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
-      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
-      CMAKE_FIND_USE_INSTALL_PREFIX: true
-    names:
-      - "lld-link"
-    candidate_directories:
-      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/"
-      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/"
-      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/"
-      - "C:/Program Files/Common Files/Oracle/Java/javapath/"
-      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/"
-      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/"
-      - "C:/Windows/System32/"
-      - "C:/Windows/"
-      - "C:/Windows/System32/wbem/"
-      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
-      - "C:/Windows/System32/OpenSSH/"
-      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
-      - "C:/Program Files/dotnet/"
-      - "C:/Program Files/Git/cmd/"
-      - "C:/Program Files/nodejs/"
-      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
-      - "C:/Program Files/CMake/bin/"
-      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
-      - "C:/Users/ireal/scoop/shims/"
-      - "C:/Program Files/NVIDIA Corporation/NVIDIA NvDLISR/"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/Scripts/"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Launcher/"
-      - "C:/Users/ireal/AppData/Local/Microsoft/WindowsApps/"
-      - "C:/Users/ireal/AppData/Local/Programs/Microsoft VS Code/bin/"
-      - "C:/Users/ireal/.dotnet/tools/"
-      - "C:/Users/ireal/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0/LocalCache/local-packages/Python312/Scripts/"
-      - "C:/ffmpeg/bin/"
-      - "C:/Users/ireal/AppData/Local/GitHubDesktop/bin/"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/"
-      - "C:/Users/ireal/AppData/Roaming/npm/"
-      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.10.0-win32-x64/bundled/scripts/noConfigScripts/"
-      - "C:/Tools/mongosh/bin/"
-      - "C:/Tools/mongodb-tools/bin/"
-      - "C:/Users/ireal/AppData/Local/Programs/ExifTool/"
-      - "C:/Users/ireal/AppData/Local/Programs/Antigravity/bin/"
-      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.16.0-win32-x64/bundled/scripts/noConfigScripts/"
-      - "C:/Program Files/bin/"
-      - "C:/Program Files/sbin/"
-      - "C:/Program Files/"
-      - "C:/Program Files (x86)/bin/"
-      - "C:/Program Files (x86)/sbin/"
-      - "C:/Program Files (x86)/"
-      - "C:/Program Files/CMake/bin/"
-      - "C:/Program Files/CMake/sbin/"
-      - "C:/Program Files/CMake/"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/"
-      - "C:/Program Files (x86)/CausalPlusPlus/"
-    searched_directories:
-      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/lld-link.com"
-      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/lld-link.exe"
-      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/lld-link"
-      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/lld-link.com"
-      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/lld-link.exe"
-      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/lld-link"
-      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/lld-link.com"
-      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/lld-link.exe"
-      - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/lld-link"
-      - "C:/Program Files/Common Files/Oracle/Java/javapath/lld-link.com"
-      - "C:/Program Files/Common Files/Oracle/Java/javapath/lld-link.exe"
-      - "C:/Program Files/Common Files/Oracle/Java/javapath/lld-link"
-      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/lld-link.com"
-      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/lld-link.exe"
-      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/lld-link"
-      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/lld-link.com"
-      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/lld-link.exe"
-      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/lld-link"
-      - "C:/Windows/System32/lld-link.com"
-      - "C:/Windows/System32/lld-link.exe"
-      - "C:/Windows/System32/lld-link"
-      - "C:/Windows/lld-link.com"
-      - "C:/Windows/lld-link.exe"
-      - "C:/Windows/lld-link"
-      - "C:/Windows/System32/wbem/lld-link.com"
-      - "C:/Windows/System32/wbem/lld-link.exe"
-      - "C:/Windows/System32/wbem/lld-link"
-      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link.com"
-      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link.exe"
-      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link"
-      - "C:/Windows/System32/OpenSSH/lld-link.com"
-      - "C:/Windows/System32/OpenSSH/lld-link.exe"
-      - "C:/Windows/System32/OpenSSH/lld-link"
-      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link.com"
-      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link.exe"
-      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link"
-      - "C:/Program Files/dotnet/lld-link.com"
-      - "C:/Program Files/dotnet/lld-link.exe"
-      - "C:/Program Files/dotnet/lld-link"
-      - "C:/Program Files/Git/cmd/lld-link.com"
-      - "C:/Program Files/Git/cmd/lld-link.exe"
-      - "C:/Program Files/Git/cmd/lld-link"
-      - "C:/Program Files/nodejs/lld-link.com"
-      - "C:/Program Files/nodejs/lld-link.exe"
-      - "C:/Program Files/nodejs/lld-link"
-      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link.com"
-      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link.exe"
-      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link"
-      - "C:/Program Files/CMake/bin/lld-link.com"
-      - "C:/Program Files/CMake/bin/lld-link.exe"
-      - "C:/Program Files/CMake/bin/lld-link"
-      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link.com"
-      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link.exe"
-      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link"
-      - "C:/Users/ireal/scoop/shims/lld-link.com"
-      - "C:/Users/ireal/scoop/shims/lld-link.exe"
-      - "C:/Users/ireal/scoop/shims/lld-link"
-      - "C:/Program Files/NVIDIA Corporation/NVIDIA NvDLISR/lld-link.com"
-      - "C:/Program Files/NVIDIA Corporation/NVIDIA NvDLISR/lld-link.exe"
-      - "C:/Program Files/NVIDIA Corporation/NVIDIA NvDLISR/lld-link"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/Scripts/lld-link.com"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/Scripts/lld-link.exe"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/Scripts/lld-link"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Launcher/lld-link.com"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Launcher/lld-link.exe"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Launcher/lld-link"
-      - "C:/Users/ireal/AppData/Local/Microsoft/WindowsApps/lld-link.com"
-      - "C:/Users/ireal/AppData/Local/Microsoft/WindowsApps/lld-link.exe"
-      - "C:/Users/ireal/AppData/Local/Microsoft/WindowsApps/lld-link"
-      - "C:/Users/ireal/AppData/Local/Programs/Microsoft VS Code/bin/lld-link.com"
-      - "C:/Users/ireal/AppData/Local/Programs/Microsoft VS Code/bin/lld-link.exe"
-      - "C:/Users/ireal/AppData/Local/Programs/Microsoft VS Code/bin/lld-link"
-      - "C:/Users/ireal/.dotnet/tools/lld-link.com"
-      - "C:/Users/ireal/.dotnet/tools/lld-link.exe"
-      - "C:/Users/ireal/.dotnet/tools/lld-link"
-      - "C:/Users/ireal/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0/LocalCache/local-packages/Python312/Scripts/lld-link.com"
-      - "C:/Users/ireal/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0/LocalCache/local-packages/Python312/Scripts/lld-link.exe"
-      - "C:/Users/ireal/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0/LocalCache/local-packages/Python312/Scripts/lld-link"
-      - "C:/ffmpeg/bin/lld-link.com"
-      - "C:/ffmpeg/bin/lld-link.exe"
-      - "C:/ffmpeg/bin/lld-link"
-      - "C:/Users/ireal/AppData/Local/GitHubDesktop/bin/lld-link.com"
-      - "C:/Users/ireal/AppData/Local/GitHubDesktop/bin/lld-link.exe"
-      - "C:/Users/ireal/AppData/Local/GitHubDesktop/bin/lld-link"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/lld-link.com"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/lld-link.exe"
-      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/lld-link"
-      - "C:/Users/ireal/AppData/Roaming/npm/lld-link.com"
-      - "C:/Users/ireal/AppData/Roaming/npm/lld-link.exe"
-      - "C:/Users/ireal/AppData/Roaming/npm/lld-link"
-      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.10.0-win32-x64/bundled/scripts/noConfigScripts/lld-link.com"
-      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.10.0-win32-x64/bundled/scripts/noConfigScripts/lld-link.exe"
-      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.10.0-win32-x64/bundled/scripts/noConfigScripts/lld-link"
-      - "C:/Tools/mongosh/bin/lld-link.com"
-      - "C:/Tools/mongosh/bin/lld-link.exe"
-      - "C:/Tools/mongosh/bin/lld-link"
-      - "C:/Tools/mongodb-tools/bin/lld-link.com"
-      - "C:/Tools/mongodb-tools/bin/lld-link.exe"
-      - "C:/Tools/mongodb-tools/bin/lld-link"
-      - "C:/Users/ireal/AppData/Local/Programs/ExifTool/lld-link.com"
-      - "C:/Users/ireal/AppData/Local/Programs/ExifTool/lld-link.exe"
-      - "C:/Users/ireal/AppData/Local/Programs/ExifTool/lld-link"
-      - "C:/Users/ireal/AppData/Local/Programs/Antigravity/bin/lld-link.com"
-      - "C:/Users/ireal/AppData/Local/Programs/Antigravity/bin/lld-link.exe"
-      - "C:/Users/ireal/AppData/Local/Programs/Antigravity/bin/lld-link"
-      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.16.0-win32-x64/bundled/scripts/noConfigScripts/lld-link.com"
-      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.16.0-win32-x64/bundled/scripts/noConfigScripts/lld-link.exe"
-      - "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.16.0-win32-x64/bundled/scripts/noConfigScripts/lld-link"
-      - "C:/Program Files/bin/lld-link.com"
-      - "C:/Program Files/bin/lld-link.exe"
-      - "C:/Program Files/bin/lld-link"
-      - "C:/Program Files/sbin/lld-link.com"
-      - "C:/Program Files/sbin/lld-link.exe"
-      - "C:/Program Files/sbin/lld-link"
-      - "C:/Program Files/lld-link.com"
-      - "C:/Program Files/lld-link.exe"
-      - "C:/Program Files/lld-link"
-      - "C:/Program Files (x86)/bin/lld-link.com"
-      - "C:/Program Files (x86)/bin/lld-link.exe"
-      - "C:/Program Files (x86)/bin/lld-link"
-      - "C:/Program Files (x86)/sbin/lld-link.com"
-      - "C:/Program Files (x86)/sbin/lld-link.exe"
-      - "C:/Program Files (x86)/sbin/lld-link"
-      - "C:/Program Files (x86)/lld-link.com"
-      - "C:/Program Files (x86)/lld-link.exe"
-      - "C:/Program Files (x86)/lld-link"
-      - "C:/Program Files/CMake/bin/lld-link.com"
-      - "C:/Program Files/CMake/bin/lld-link.exe"
-      - "C:/Program Files/CMake/bin/lld-link"
-      - "C:/Program Files/CMake/sbin/lld-link.com"
-      - "C:/Program Files/CMake/sbin/lld-link.exe"
-      - "C:/Program Files/CMake/sbin/lld-link"
-      - "C:/Program Files/CMake/lld-link.com"
-      - "C:/Program Files/CMake/lld-link.exe"
-      - "C:/Program Files/CMake/lld-link"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/lld-link.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/lld-link.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/lld-link"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/lld-link.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/lld-link.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/lld-link"
-      - "C:/Program Files (x86)/CausalPlusPlus/lld-link.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/lld-link.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/lld-link"
-    found: false
-    search_context:
-      ENV{PATH}:
-        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
-        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
-        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\WINDOWS\\system32"
-        - "C:\\WINDOWS"
-        - "C:\\WINDOWS\\System32\\Wbem"
-        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
-        - "C:\\WINDOWS\\System32\\OpenSSH\\"
-        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
-        - "C:\\Program Files\\dotnet\\"
-        - "C:\\Program Files\\Git\\cmd"
-        - "C:\\Program Files\\nodejs\\"
-        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
-        - "C:\\Program Files\\CMake\\bin"
-        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
-        - "C:\\Users\\ireal\\scoop\\shims"
-        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\WINDOWS\\system32"
-        - "C:\\WINDOWS"
-        - "C:\\WINDOWS\\System32\\Wbem"
-        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
-        - "C:\\WINDOWS\\System32\\OpenSSH\\"
-        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR"
-        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
-        - "C:\\Program Files\\dotnet\\"
-        - "C:\\Program Files\\Git\\cmd"
-        - "C:\\Program Files\\nodejs\\"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312\\Scripts"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Launcher\\"
-        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
-        - "C:\\Users\\ireal\\.dotnet\\tools"
-        - "C:\\Users\\ireal\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\Scripts"
-        - "C:\\ffmpeg\\bin"
-        - "C:\\Users\\ireal\\AppData\\Local\\GitHubDesktop\\bin"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312"
-        - "C:\\Users\\ireal\\AppData\\Roaming\\npm"
-        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.10.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
-        - "C:\\Tools\\mongosh\\bin"
-        - "C:\\Tools\\mongodb-tools\\bin"
-        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
-        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/CausalPlusPlus"
-      CMAKE_SYSTEM_PREFIX_PATH:
-        - "C:/Program Files"
-        - "C:/Program Files (x86)"
-        - "C:/Program Files/CMake"
-        - "C:/Program Files (x86)/CausalPlusPlus"
-  -
-    kind: "try_compile-v1"
-    backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCompilerABI.cmake:83 (try_compile)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
-      - "build/_deps/googletest-src/CMakeLists.txt:6 (project)"
-    checks:
-      - "Detecting C compiler ABI info"
-    directories:
-      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-d54lgs"
-      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-d54lgs"
-    cmakeVariables:
-      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS"
-      CMAKE_C_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
-      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
-    buildResult:
-      variable: "CMAKE_C_ABI_COMPILED"
-      cached: true
-      stdout: |
-        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-d54lgs'
-        
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_3dc19.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
-        MSBuild version 18.0.5+e22287bf1 for .NET Framework
-        Build started 29.11.2025 18:27:08.
-        
-        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-d54lgs\\cmTC_3dc19.vcxproj" on node 1 (default targets).
-        PrepareForBuild:
-          Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
-          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-d54lgs\\Debug\\".
-          Creating directory "cmTC_3dc19.dir\\Debug\\cmTC_3dc19.tlog\\".
-        InitializeBuildStatus:
-          Creating "cmTC_3dc19.dir\\Debug\\cmTC_3dc19.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
-          Touching "cmTC_3dc19.dir\\Debug\\cmTC_3dc19.tlog\\unsuccessfulbuild".
-        ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_3dc19.dir\\Debug\\\\" /Fd"cmTC_3dc19.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCCompilerABI.c"
-          Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35719 for x64
-          Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_3dc19.dir\\Debug\\\\" /Fd"cmTC_3dc19.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCCompilerABI.c"
-          CMakeCCompilerABI.c
-        Link:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-d54lgs\\Debug\\cmTC_3dc19.exe" /INCREMENTAL /ILK:"cmTC_3dc19.dir\\Debug\\cmTC_3dc19.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-d54lgs/Debug/cmTC_3dc19.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-d54lgs/Debug/cmTC_3dc19.lib" /MACHINE:X64  /machine:x64 cmTC_3dc19.dir\\Debug\\CMakeCCompilerABI.obj
-          cmTC_3dc19.vcxproj -> C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-d54lgs\\Debug\\cmTC_3dc19.exe
-        FinalizeBuildStatus:
-          Deleting file "cmTC_3dc19.dir\\Debug\\cmTC_3dc19.tlog\\unsuccessfulbuild".
-          Touching "cmTC_3dc19.dir\\Debug\\cmTC_3dc19.tlog\\cmTC_3dc19.lastbuildstate".
-        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-d54lgs\\cmTC_3dc19.vcxproj" (default targets).
-        
-        Build succeeded.
-            0 Warning(s)
-            0 Error(s)
-        
-        Time Elapsed 00:00:00.74
-        
-      exitCode: 0
-  -
-    kind: "message-v1"
-    backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCompilerABI.cmake:253 (message)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
-      - "build/_deps/googletest-src/CMakeLists.txt:6 (project)"
-    message: |
-      Parsed C implicit link information:
-        link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
-        linker tool regex: [^[ 	]*(->|"|[0-9]+>[ 	-]*Build:[ 	0-9]+ ms[ 	]*)?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?))("|,| |$)]
-        linker tool for 'C': C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/HostX64/x64/link.exe
-        implicit libs: []
-        implicit objs: []
-        implicit dirs: []
-        implicit fwks: []
-      
-      
-  -
-    kind: "message-v1"
-    backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/Internal/CMakeDetermineLinkerId.cmake:38 (message)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeDetermineCompilerABI.cmake:299 (cmake_determine_linker_id)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
-      - "build/_deps/googletest-src/CMakeLists.txt:6 (project)"
-    message: |
-      Running the C compiler's linker: "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/HostX64/x64/link.exe" "-v"
-      Microsoft (R) Incremental Linker Version 14.50.35719.0
-      Copyright (C) Microsoft Corporation.  All rights reserved.
-  -
-    kind: "find-v1"
-    backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:2180 (find_program)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython3.cmake:671 (include)"
-      - "build/_deps/googletest-src/googletest/cmake/internal_utils.cmake:250 (find_package)"
-      - "build/_deps/googletest-src/googletest/CMakeLists.txt:81 (include)"
-    mode: "program"
-    variable: "_Python3_EXECUTABLE"
-    description: "Path to a program."
-    settings:
-      SearchFramework: "NEVER"
-      SearchAppBundle: "NEVER"
-      CMAKE_FIND_USE_CMAKE_PATH: true
-      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
       CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: false
       CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: false
       CMAKE_FIND_USE_INSTALL_PREFIX: true
     names:
-      - "python3.15"
-      - "python3"
-      - "python"
-      - "ipy3.15"
-      - "ipy3"
-      - "ipy64"
-      - "ipy32"
-      - "ipy"
-      - "ipy.exe"
+      - "Python.h"
     candidate_directories:
-      - "/REGISTRY-NOTFOUND/bin/"
-      - "/REGISTRY-NOTFOUND/Scripts/"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/"
-      - "/REGISTRY-NOTFOUND/net45/"
-      - "/REGISTRY-NOTFOUND/net40/"
-      - "/REGISTRY-NOTFOUND/"
-    searched_directories:
-      - "/REGISTRY-NOTFOUND/bin/python3.15.com"
-      - "/REGISTRY-NOTFOUND/bin/python3.15.exe"
-      - "/REGISTRY-NOTFOUND/bin/python3.15"
-      - "/REGISTRY-NOTFOUND/bin/python3.com"
-      - "/REGISTRY-NOTFOUND/bin/python3.exe"
-      - "/REGISTRY-NOTFOUND/bin/python3"
-      - "/REGISTRY-NOTFOUND/bin/python.com"
-      - "/REGISTRY-NOTFOUND/bin/python.exe"
-      - "/REGISTRY-NOTFOUND/bin/python"
-      - "/REGISTRY-NOTFOUND/bin/ipy3.15.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy3.15.exe"
-      - "/REGISTRY-NOTFOUND/bin/ipy3.15"
-      - "/REGISTRY-NOTFOUND/bin/ipy3.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/bin/ipy3"
-      - "/REGISTRY-NOTFOUND/bin/ipy64.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/bin/ipy64"
-      - "/REGISTRY-NOTFOUND/bin/ipy32.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/bin/ipy32"
-      - "/REGISTRY-NOTFOUND/bin/ipy.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy.exe"
-      - "/REGISTRY-NOTFOUND/bin/ipy"
-      - "/REGISTRY-NOTFOUND/bin/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/python3.15.com"
-      - "/REGISTRY-NOTFOUND/Scripts/python3.15.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/python3.15"
-      - "/REGISTRY-NOTFOUND/Scripts/python3.com"
-      - "/REGISTRY-NOTFOUND/Scripts/python3.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/python3"
-      - "/REGISTRY-NOTFOUND/Scripts/python.com"
-      - "/REGISTRY-NOTFOUND/Scripts/python.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/python"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3.15.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3.15.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3.15"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy64.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy64"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy32.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy32"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/python3.15.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/python3.15.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/python3.15"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/python3.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/python3.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/python3"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/python.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/python.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/python"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy3.15.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy3.15.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy3.15"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy3.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy3"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy64.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy64"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy32.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy32"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.15/ipy.exe"
-      - "/REGISTRY-NOTFOUND/net45/python3.15.com"
-      - "/REGISTRY-NOTFOUND/net45/python3.15.exe"
-      - "/REGISTRY-NOTFOUND/net45/python3.15"
-      - "/REGISTRY-NOTFOUND/net45/python3.com"
-      - "/REGISTRY-NOTFOUND/net45/python3.exe"
-      - "/REGISTRY-NOTFOUND/net45/python3"
-      - "/REGISTRY-NOTFOUND/net45/python.com"
-      - "/REGISTRY-NOTFOUND/net45/python.exe"
-      - "/REGISTRY-NOTFOUND/net45/python"
-      - "/REGISTRY-NOTFOUND/net45/ipy3.15.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy3.15.exe"
-      - "/REGISTRY-NOTFOUND/net45/ipy3.15"
-      - "/REGISTRY-NOTFOUND/net45/ipy3.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/net45/ipy3"
-      - "/REGISTRY-NOTFOUND/net45/ipy64.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/net45/ipy64"
-      - "/REGISTRY-NOTFOUND/net45/ipy32.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/net45/ipy32"
-      - "/REGISTRY-NOTFOUND/net45/ipy.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy.exe"
-      - "/REGISTRY-NOTFOUND/net45/ipy"
-      - "/REGISTRY-NOTFOUND/net45/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy.exe"
-      - "/REGISTRY-NOTFOUND/net40/python3.15.com"
-      - "/REGISTRY-NOTFOUND/net40/python3.15.exe"
-      - "/REGISTRY-NOTFOUND/net40/python3.15"
-      - "/REGISTRY-NOTFOUND/net40/python3.com"
-      - "/REGISTRY-NOTFOUND/net40/python3.exe"
-      - "/REGISTRY-NOTFOUND/net40/python3"
-      - "/REGISTRY-NOTFOUND/net40/python.com"
-      - "/REGISTRY-NOTFOUND/net40/python.exe"
-      - "/REGISTRY-NOTFOUND/net40/python"
-      - "/REGISTRY-NOTFOUND/net40/ipy3.15.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy3.15.exe"
-      - "/REGISTRY-NOTFOUND/net40/ipy3.15"
-      - "/REGISTRY-NOTFOUND/net40/ipy3.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/net40/ipy3"
-      - "/REGISTRY-NOTFOUND/net40/ipy64.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/net40/ipy64"
-      - "/REGISTRY-NOTFOUND/net40/ipy32.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/net40/ipy32"
-      - "/REGISTRY-NOTFOUND/net40/ipy.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy.exe"
-      - "/REGISTRY-NOTFOUND/net40/ipy"
-      - "/REGISTRY-NOTFOUND/net40/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy.exe"
-      - "/REGISTRY-NOTFOUND/python3.15.com"
-      - "/REGISTRY-NOTFOUND/python3.15.exe"
-      - "/REGISTRY-NOTFOUND/python3.15"
-      - "/REGISTRY-NOTFOUND/python3.com"
-      - "/REGISTRY-NOTFOUND/python3.exe"
-      - "/REGISTRY-NOTFOUND/python3"
-      - "/REGISTRY-NOTFOUND/python.com"
-      - "/REGISTRY-NOTFOUND/python.exe"
-      - "/REGISTRY-NOTFOUND/python"
-      - "/REGISTRY-NOTFOUND/ipy3.15.com"
-      - "/REGISTRY-NOTFOUND/ipy3.15.exe"
-      - "/REGISTRY-NOTFOUND/ipy3.15"
-      - "/REGISTRY-NOTFOUND/ipy3.com"
-      - "/REGISTRY-NOTFOUND/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/ipy3"
-      - "/REGISTRY-NOTFOUND/ipy64.com"
-      - "/REGISTRY-NOTFOUND/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/ipy64"
-      - "/REGISTRY-NOTFOUND/ipy32.com"
-      - "/REGISTRY-NOTFOUND/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/ipy32"
-      - "/REGISTRY-NOTFOUND/ipy.com"
-      - "/REGISTRY-NOTFOUND/ipy.exe"
-      - "/REGISTRY-NOTFOUND/ipy"
-      - "/REGISTRY-NOTFOUND/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/ipy.exe"
-    found: false
+      - "C:/Users/ireal/AppData/Local/Programs/Python/Python312/Include/"
+    found: "C:/Users/ireal/AppData/Local/Programs/Python/Python312/Include/"
     search_context:
       ENV{PATH}:
         - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
@@ -1996,342 +1794,328 @@ events:
         - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
         - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
         - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/CausalPlusPlus"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "C:/Program Files/CMake"
-        - "C:/Program Files (x86)/CausalPlusPlus"
+        - "C:/Program Files (x86)/pycauset"
   -
-    kind: "find-v1"
+    kind: "find_package-v1"
     backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:2180 (find_program)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython3.cmake:671 (include)"
-      - "build/_deps/googletest-src/googletest/cmake/internal_utils.cmake:250 (find_package)"
-      - "build/_deps/googletest-src/googletest/CMakeLists.txt:81 (include)"
-    mode: "program"
-    variable: "_Python3_EXECUTABLE"
-    description: "Path to a program."
+      - "CMakeLists.txt:15 (find_package)"
+    name: "pybind11"
+    configs:
+      -
+        filename: "pybind11Config.cmake"
+        kind: "cmake"
+      -
+        filename: "pybind11-config.cmake"
+        kind: "cmake"
+    version_request:
+      exact: false
     settings:
-      SearchFramework: "NEVER"
-      SearchAppBundle: "NEVER"
-      CMAKE_FIND_USE_CMAKE_PATH: true
-      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
-      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: false
-      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: false
-      CMAKE_FIND_USE_INSTALL_PREFIX: true
-    names:
-      - "python3.13"
-      - "python3"
-      - "python"
-      - "ipy3.13"
-      - "ipy3"
-      - "ipy64"
-      - "ipy32"
-      - "ipy"
-      - "ipy.exe"
-    candidate_directories:
-      - "/REGISTRY-NOTFOUND/bin/"
-      - "/REGISTRY-NOTFOUND/Scripts/"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/"
-      - "/REGISTRY-NOTFOUND/net45/"
-      - "/REGISTRY-NOTFOUND/net40/"
-      - "/REGISTRY-NOTFOUND/"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/"
-    searched_directories:
-      - "/REGISTRY-NOTFOUND/bin/python3.13.com"
-      - "/REGISTRY-NOTFOUND/bin/python3.13.exe"
-      - "/REGISTRY-NOTFOUND/bin/python3.13"
-      - "/REGISTRY-NOTFOUND/bin/python3.com"
-      - "/REGISTRY-NOTFOUND/bin/python3.exe"
-      - "/REGISTRY-NOTFOUND/bin/python3"
-      - "/REGISTRY-NOTFOUND/bin/python.com"
-      - "/REGISTRY-NOTFOUND/bin/python.exe"
-      - "/REGISTRY-NOTFOUND/bin/python"
-      - "/REGISTRY-NOTFOUND/bin/ipy3.13.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy3.13.exe"
-      - "/REGISTRY-NOTFOUND/bin/ipy3.13"
-      - "/REGISTRY-NOTFOUND/bin/ipy3.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/bin/ipy3"
-      - "/REGISTRY-NOTFOUND/bin/ipy64.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/bin/ipy64"
-      - "/REGISTRY-NOTFOUND/bin/ipy32.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/bin/ipy32"
-      - "/REGISTRY-NOTFOUND/bin/ipy.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy.exe"
-      - "/REGISTRY-NOTFOUND/bin/ipy"
-      - "/REGISTRY-NOTFOUND/bin/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/bin/ipy.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/python3.13.com"
-      - "/REGISTRY-NOTFOUND/Scripts/python3.13.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/python3.13"
-      - "/REGISTRY-NOTFOUND/Scripts/python3.com"
-      - "/REGISTRY-NOTFOUND/Scripts/python3.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/python3"
-      - "/REGISTRY-NOTFOUND/Scripts/python.com"
-      - "/REGISTRY-NOTFOUND/Scripts/python.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/python"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3.13.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3.13.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3.13"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy3"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy64.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy64"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy32.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy32"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy.exe"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/Scripts/ipy.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/python3.13.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/python3.13.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/python3.13"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/python3.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/python3.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/python3"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/python.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/python.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/python"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy3.13.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy3.13.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy3.13"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy3.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy3"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy64.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy64"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy32.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy32"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy.exe"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/share/ironpython3.13/ipy.exe"
-      - "/REGISTRY-NOTFOUND/net45/python3.13.com"
-      - "/REGISTRY-NOTFOUND/net45/python3.13.exe"
-      - "/REGISTRY-NOTFOUND/net45/python3.13"
-      - "/REGISTRY-NOTFOUND/net45/python3.com"
-      - "/REGISTRY-NOTFOUND/net45/python3.exe"
-      - "/REGISTRY-NOTFOUND/net45/python3"
-      - "/REGISTRY-NOTFOUND/net45/python.com"
-      - "/REGISTRY-NOTFOUND/net45/python.exe"
-      - "/REGISTRY-NOTFOUND/net45/python"
-      - "/REGISTRY-NOTFOUND/net45/ipy3.13.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy3.13.exe"
-      - "/REGISTRY-NOTFOUND/net45/ipy3.13"
-      - "/REGISTRY-NOTFOUND/net45/ipy3.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/net45/ipy3"
-      - "/REGISTRY-NOTFOUND/net45/ipy64.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/net45/ipy64"
-      - "/REGISTRY-NOTFOUND/net45/ipy32.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/net45/ipy32"
-      - "/REGISTRY-NOTFOUND/net45/ipy.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy.exe"
-      - "/REGISTRY-NOTFOUND/net45/ipy"
-      - "/REGISTRY-NOTFOUND/net45/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/net45/ipy.exe"
-      - "/REGISTRY-NOTFOUND/net40/python3.13.com"
-      - "/REGISTRY-NOTFOUND/net40/python3.13.exe"
-      - "/REGISTRY-NOTFOUND/net40/python3.13"
-      - "/REGISTRY-NOTFOUND/net40/python3.com"
-      - "/REGISTRY-NOTFOUND/net40/python3.exe"
-      - "/REGISTRY-NOTFOUND/net40/python3"
-      - "/REGISTRY-NOTFOUND/net40/python.com"
-      - "/REGISTRY-NOTFOUND/net40/python.exe"
-      - "/REGISTRY-NOTFOUND/net40/python"
-      - "/REGISTRY-NOTFOUND/net40/ipy3.13.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy3.13.exe"
-      - "/REGISTRY-NOTFOUND/net40/ipy3.13"
-      - "/REGISTRY-NOTFOUND/net40/ipy3.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/net40/ipy3"
-      - "/REGISTRY-NOTFOUND/net40/ipy64.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/net40/ipy64"
-      - "/REGISTRY-NOTFOUND/net40/ipy32.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/net40/ipy32"
-      - "/REGISTRY-NOTFOUND/net40/ipy.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy.exe"
-      - "/REGISTRY-NOTFOUND/net40/ipy"
-      - "/REGISTRY-NOTFOUND/net40/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/net40/ipy.exe"
-      - "/REGISTRY-NOTFOUND/python3.13.com"
-      - "/REGISTRY-NOTFOUND/python3.13.exe"
-      - "/REGISTRY-NOTFOUND/python3.13"
-      - "/REGISTRY-NOTFOUND/python3.com"
-      - "/REGISTRY-NOTFOUND/python3.exe"
-      - "/REGISTRY-NOTFOUND/python3"
-      - "/REGISTRY-NOTFOUND/python.com"
-      - "/REGISTRY-NOTFOUND/python.exe"
-      - "/REGISTRY-NOTFOUND/python"
-      - "/REGISTRY-NOTFOUND/ipy3.13.com"
-      - "/REGISTRY-NOTFOUND/ipy3.13.exe"
-      - "/REGISTRY-NOTFOUND/ipy3.13"
-      - "/REGISTRY-NOTFOUND/ipy3.com"
-      - "/REGISTRY-NOTFOUND/ipy3.exe"
-      - "/REGISTRY-NOTFOUND/ipy3"
-      - "/REGISTRY-NOTFOUND/ipy64.com"
-      - "/REGISTRY-NOTFOUND/ipy64.exe"
-      - "/REGISTRY-NOTFOUND/ipy64"
-      - "/REGISTRY-NOTFOUND/ipy32.com"
-      - "/REGISTRY-NOTFOUND/ipy32.exe"
-      - "/REGISTRY-NOTFOUND/ipy32"
-      - "/REGISTRY-NOTFOUND/ipy.com"
-      - "/REGISTRY-NOTFOUND/ipy.exe"
-      - "/REGISTRY-NOTFOUND/ipy"
-      - "/REGISTRY-NOTFOUND/ipy.exe.com"
-      - "/REGISTRY-NOTFOUND/ipy.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/python3.13.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/python3.13.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/python3.13"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/python3.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/python3.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/python3"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/python.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/python.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/python"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy3.13.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy3.13.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy3.13"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy3.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy3.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy3"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy64.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy64.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy64"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy32.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy32.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy32"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy.exe.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/bin/ipy.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/python3.13.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/python3.13.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/python3.13"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/python3.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/python3.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/python3"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/python.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/python.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/python"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy3.13.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy3.13.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy3.13"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy3.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy3.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy3"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy64.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy64.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy64"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy32.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy32.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy32"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy.exe.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Scripts/ipy.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/python3.13.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/python3.13.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/python3.13"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/python3.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/python3.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/python3"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/python.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/python.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/python"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy3.13.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy3.13.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy3.13"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy3.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy3.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy3"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy64.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy64.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy64"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy32.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy32.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy32"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy.exe.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/share/ironpython3.13/ipy.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/python3.13.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/python3.13.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/python3.13"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/python3.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/python3.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/python3"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/python.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/python.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/python"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy3.13.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy3.13.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy3.13"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy3.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy3.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy3"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy64.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy64.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy64"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy32.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy32.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy32"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy.exe.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net45/ipy.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/python3.13.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/python3.13.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/python3.13"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/python3.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/python3.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/python3"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/python.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/python.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/python"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy3.13.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy3.13.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy3.13"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy3.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy3.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy3"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy64.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy64.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy64"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy32.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy32.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy32"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy.exe.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/net40/ipy.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/python3.13.com"
-    found: "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/python3.13.exe"
+      required: "optional"
+      quiet: false
+      global: false
+      policy_scope: true
+      bypass_provider: false
+      names:
+        - "pybind11"
+      path_suffixes:
+        - ""
+      paths:
+        CMAKE_FIND_USE_CMAKE_PATH: true
+        CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+        CMAKE_FIND_USE_INSTALL_PREFIX: true
+        CMAKE_FIND_USE_PACKAGE_ROOT_PATH: true
+        CMAKE_FIND_USE_CMAKE_PACKAGE_REGISTRY: true
+        CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY: true
+        CMAKE_FIND_ROOT_PATH_MODE: "BOTH"
+    candidates:
+      -
+        path: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/pkgRedirects/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/pkgRedirects/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Common Files/Oracle/Java/javapath/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Common Files/Oracle/Java/javapath/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/wbem/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/wbem/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/WindowsPowerShell/v1.0/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/WindowsPowerShell/v1.0/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/OpenSSH/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/OpenSSH/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/dotnet/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/dotnet/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Git/cmd/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Git/cmd/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/nodejs/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/nodejs/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/CMake/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/CMake/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/scoop/shims/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/scoop/shims/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/Python/Python312/Scripts/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/Python/Python312/Scripts/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/Python/Launcher/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/Python/Launcher/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Microsoft/WindowsApps/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Microsoft/WindowsApps/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/Microsoft VS Code/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/Microsoft VS Code/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0/LocalCache/local-packages/Python312/Scripts/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0/LocalCache/local-packages/Python312/Scripts/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/ffmpeg/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/ffmpeg/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/GitHubDesktop/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/GitHubDesktop/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/Python/Python312/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/Python/Python312/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Roaming/npm/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Roaming/npm/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Tools/mongosh/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Tools/mongosh/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Tools/mongodb-tools/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Tools/mongodb-tools/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/ExifTool/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/ExifTool/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/Antigravity/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/AppData/Local/Programs/Antigravity/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.16.0-win32-x64/bundled/scripts/noConfigScripts/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/ireal/.vscode/extensions/ms-python.debugpy-2025.16.0-win32-x64/bundled/scripts/noConfigScripts/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/CMake/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/CMake/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+    found: null
     search_context:
       ENV{PATH}:
         - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
@@ -2383,277 +2167,12 @@ events:
         - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
         - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
         - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/CausalPlusPlus"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "C:/Program Files/CMake"
-        - "C:/Program Files (x86)/CausalPlusPlus"
-  -
-    kind: "find-v1"
-    backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:2437 (find_program)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython3.cmake:671 (include)"
-      - "build/_deps/googletest-src/googletest/cmake/internal_utils.cmake:250 (find_package)"
-      - "build/_deps/googletest-src/googletest/CMakeLists.txt:81 (include)"
-    mode: "program"
-    variable: "_Python3_EXECUTABLE_DEBUG"
-    description: "Path to a program."
-    settings:
-      SearchFramework: "NEVER"
-      SearchAppBundle: "NEVER"
-      CMAKE_FIND_USE_CMAKE_PATH: true
-      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
-      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
-      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
-      CMAKE_FIND_USE_INSTALL_PREFIX: true
-    names:
-      - "python3.13_d"
-      - "python3_d"
-      - "python_d"
-    candidate_directories:
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/"
-    searched_directories:
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/python3.13_d.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/python3.13_d.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/python3.13_d"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/python3_d.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/python3_d.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/python3_d"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/python_d.com"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/python_d.exe"
-      - "C:/Program Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/python_d"
-    found: false
-    search_context:
-      ENV{PATH}:
-        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
-        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
-        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\WINDOWS\\system32"
-        - "C:\\WINDOWS"
-        - "C:\\WINDOWS\\System32\\Wbem"
-        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
-        - "C:\\WINDOWS\\System32\\OpenSSH\\"
-        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
-        - "C:\\Program Files\\dotnet\\"
-        - "C:\\Program Files\\Git\\cmd"
-        - "C:\\Program Files\\nodejs\\"
-        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
-        - "C:\\Program Files\\CMake\\bin"
-        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
-        - "C:\\Users\\ireal\\scoop\\shims"
-        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
-        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
-        - "C:\\WINDOWS\\system32"
-        - "C:\\WINDOWS"
-        - "C:\\WINDOWS\\System32\\Wbem"
-        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
-        - "C:\\WINDOWS\\System32\\OpenSSH\\"
-        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR"
-        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
-        - "C:\\Program Files\\dotnet\\"
-        - "C:\\Program Files\\Git\\cmd"
-        - "C:\\Program Files\\nodejs\\"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312\\Scripts"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Launcher\\"
-        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
-        - "C:\\Users\\ireal\\.dotnet\\tools"
-        - "C:\\Users\\ireal\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\Scripts"
-        - "C:\\ffmpeg\\bin"
-        - "C:\\Users\\ireal\\AppData\\Local\\GitHubDesktop\\bin"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312"
-        - "C:\\Users\\ireal\\AppData\\Roaming\\npm"
-        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.10.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
-        - "C:\\Tools\\mongosh\\bin"
-        - "C:\\Tools\\mongodb-tools\\bin"
-        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
-        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
-        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/CausalPlusPlus"
-      CMAKE_SYSTEM_PREFIX_PATH:
-        - "C:/Program Files"
-        - "C:/Program Files (x86)"
-        - "C:/Program Files/CMake"
-        - "C:/Program Files (x86)/CausalPlusPlus"
-  -
-    kind: "try_compile-v1"
-    backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CheckCSourceCompiles.cmake:103 (cmake_check_source_compiles)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindThreads.cmake:160 (check_c_source_compiles)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindThreads.cmake:226 (_threads_check_libc)"
-      - "build/_deps/googletest-src/googletest/cmake/internal_utils.cmake:66 (find_package)"
-      - "build/_deps/googletest-src/googletest/CMakeLists.txt:83 (config_compiler_and_linker)"
-    checks:
-      - "Performing Test CMAKE_HAVE_LIBC_PTHREAD"
-    directories:
-      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-spp7i9"
-      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-spp7i9"
-    cmakeVariables:
-      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS"
-      CMAKE_C_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
-      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
-    buildResult:
-      variable: "CMAKE_HAVE_LIBC_PTHREAD"
-      cached: true
-      stdout: |
-        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-spp7i9'
-        
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_bd0de.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
-        MSBuild version 18.0.5+e22287bf1 for .NET Framework
-        Build started 29.11.2025 18:27:11.
-        
-        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-spp7i9\\cmTC_bd0de.vcxproj" on node 1 (default targets).
-        PrepareForBuild:
-          Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
-          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-spp7i9\\Debug\\".
-          Creating directory "cmTC_bd0de.dir\\Debug\\cmTC_bd0de.tlog\\".
-        InitializeBuildStatus:
-          Creating "cmTC_bd0de.dir\\Debug\\cmTC_bd0de.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
-          Touching "cmTC_bd0de.dir\\Debug\\cmTC_bd0de.tlog\\unsuccessfulbuild".
-        ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CMAKE_HAVE_LIBC_PTHREAD /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_bd0de.dir\\Debug\\\\" /Fd"cmTC_bd0de.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-spp7i9\\src.c"
-          Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35719 for x64
-          Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CMAKE_HAVE_LIBC_PTHREAD /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_bd0de.dir\\Debug\\\\" /Fd"cmTC_bd0de.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-spp7i9\\src.c"
-          src.c
-        C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-spp7i9\\src.c(1,10): error C1083: Cannot open include file: 'pthread.h': No such file or directory [C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-spp7i9\\cmTC_bd0de.vcxproj]
-        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-spp7i9\\cmTC_bd0de.vcxproj" (default targets) -- FAILED.
-        
-        Build FAILED.
-        
-        "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-spp7i9\\cmTC_bd0de.vcxproj" (default target) (1) ->
-        (ClCompile target) -> 
-          C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-spp7i9\\src.c(1,10): error C1083: Cannot open include file: 'pthread.h': No such file or directory [C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-spp7i9\\cmTC_bd0de.vcxproj]
-        
-            0 Warning(s)
-            1 Error(s)
-        
-        Time Elapsed 00:00:00.26
-        
-      exitCode: 1
-  -
-    kind: "try_compile-v1"
-    backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CheckLibraryExists.cmake:154 (try_compile)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindThreads.cmake:175 (check_library_exists)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindThreads.cmake:238 (_threads_check_lib)"
-      - "build/_deps/googletest-src/googletest/cmake/internal_utils.cmake:66 (find_package)"
-      - "build/_deps/googletest-src/googletest/CMakeLists.txt:83 (config_compiler_and_linker)"
-    checks:
-      - "Looking for pthread_create in pthreads"
-    directories:
-      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-9a89zt"
-      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-9a89zt"
-    cmakeVariables:
-      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS"
-      CMAKE_C_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
-      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
-    buildResult:
-      variable: "CMAKE_HAVE_PTHREADS_CREATE"
-      cached: true
-      stdout: |
-        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-9a89zt'
-        
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_832ca.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
-        MSBuild version 18.0.5+e22287bf1 for .NET Framework
-        Build started 29.11.2025 18:27:11.
-        
-        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9a89zt\\cmTC_832ca.vcxproj" on node 1 (default targets).
-        PrepareForBuild:
-          Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
-          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9a89zt\\Debug\\".
-          Creating directory "cmTC_832ca.dir\\Debug\\cmTC_832ca.tlog\\".
-        InitializeBuildStatus:
-          Creating "cmTC_832ca.dir\\Debug\\cmTC_832ca.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
-          Touching "cmTC_832ca.dir\\Debug\\cmTC_832ca.tlog\\unsuccessfulbuild".
-        ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_832ca.dir\\Debug\\\\" /Fd"cmTC_832ca.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9a89zt\\CheckFunctionExists.c"
-          Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35719 for x64
-          Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_832ca.dir\\Debug\\\\" /Fd"cmTC_832ca.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9a89zt\\CheckFunctionExists.c"
-          CheckFunctionExists.c
-        Link:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9a89zt\\Debug\\cmTC_832ca.exe" /INCREMENTAL /ILK:"cmTC_832ca.dir\\Debug\\cmTC_832ca.ilk" /NOLOGO pthreads.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-9a89zt/Debug/cmTC_832ca.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-9a89zt/Debug/cmTC_832ca.lib" /MACHINE:X64  /machine:x64 cmTC_832ca.dir\\Debug\\CheckFunctionExists.obj
-        LINK : fatal error LNK1104: cannot open file 'pthreads.lib' [C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9a89zt\\cmTC_832ca.vcxproj]
-        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9a89zt\\cmTC_832ca.vcxproj" (default targets) -- FAILED.
-        
-        Build FAILED.
-        
-        "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9a89zt\\cmTC_832ca.vcxproj" (default target) (1) ->
-        (Link target) -> 
-          LINK : fatal error LNK1104: cannot open file 'pthreads.lib' [C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9a89zt\\cmTC_832ca.vcxproj]
-        
-            0 Warning(s)
-            1 Error(s)
-        
-        Time Elapsed 00:00:00.30
-        
-      exitCode: 1
-  -
-    kind: "try_compile-v1"
-    backtrace:
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/CheckLibraryExists.cmake:154 (try_compile)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindThreads.cmake:175 (check_library_exists)"
-      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindThreads.cmake:239 (_threads_check_lib)"
-      - "build/_deps/googletest-src/googletest/cmake/internal_utils.cmake:66 (find_package)"
-      - "build/_deps/googletest-src/googletest/CMakeLists.txt:83 (config_compiler_and_linker)"
-    checks:
-      - "Looking for pthread_create in pthread"
-    directories:
-      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-5aucs5"
-      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-5aucs5"
-    cmakeVariables:
-      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS"
-      CMAKE_C_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
-      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
-    buildResult:
-      variable: "CMAKE_HAVE_PTHREAD_CREATE"
-      cached: true
-      stdout: |
-        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-5aucs5'
-        
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_bef54.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
-        MSBuild version 18.0.5+e22287bf1 for .NET Framework
-        Build started 29.11.2025 18:27:12.
-        
-        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5aucs5\\cmTC_bef54.vcxproj" on node 1 (default targets).
-        PrepareForBuild:
-          Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
-          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5aucs5\\Debug\\".
-          Creating directory "cmTC_bef54.dir\\Debug\\cmTC_bef54.tlog\\".
-        InitializeBuildStatus:
-          Creating "cmTC_bef54.dir\\Debug\\cmTC_bef54.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
-          Touching "cmTC_bef54.dir\\Debug\\cmTC_bef54.tlog\\unsuccessfulbuild".
-        ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_bef54.dir\\Debug\\\\" /Fd"cmTC_bef54.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5aucs5\\CheckFunctionExists.c"
-          Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35719 for x64
-          Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_bef54.dir\\Debug\\\\" /Fd"cmTC_bef54.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5aucs5\\CheckFunctionExists.c"
-          CheckFunctionExists.c
-        Link:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5aucs5\\Debug\\cmTC_bef54.exe" /INCREMENTAL /ILK:"cmTC_bef54.dir\\Debug\\cmTC_bef54.ilk" /NOLOGO pthread.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-5aucs5/Debug/cmTC_bef54.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-5aucs5/Debug/cmTC_bef54.lib" /MACHINE:X64  /machine:x64 cmTC_bef54.dir\\Debug\\CheckFunctionExists.obj
-        LINK : fatal error LNK1104: cannot open file 'pthread.lib' [C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5aucs5\\cmTC_bef54.vcxproj]
-        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5aucs5\\cmTC_bef54.vcxproj" (default targets) -- FAILED.
-        
-        Build FAILED.
-        
-        "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5aucs5\\cmTC_bef54.vcxproj" (default target) (1) ->
-        (Link target) -> 
-          LINK : fatal error LNK1104: cannot open file 'pthread.lib' [C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5aucs5\\cmTC_bef54.vcxproj]
-        
-            0 Warning(s)
-            1 Error(s)
-        
-        Time Elapsed 00:00:00.31
-        
-      exitCode: 1
+        - "C:/Program Files (x86)/pycauset"
   -
     kind: "find-v1"
     backtrace:
@@ -2721,9 +2240,9 @@ events:
       - "C:/Program Files/CMake/bin/"
       - "C:/Program Files/CMake/sbin/"
       - "C:/Program Files/CMake/"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/"
-      - "C:/Program Files (x86)/CausalPlusPlus/"
+      - "C:/Program Files (x86)/pycauset/bin/"
+      - "C:/Program Files (x86)/pycauset/sbin/"
+      - "C:/Program Files (x86)/pycauset/"
     searched_directories:
       - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/python3.6.com"
       - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/python3.6.exe"
@@ -2857,15 +2376,15 @@ events:
       - "C:/Program Files/CMake/python3.6.com"
       - "C:/Program Files/CMake/python3.6.exe"
       - "C:/Program Files/CMake/python3.6"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/python3.6.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/python3.6.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/python3.6"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/python3.6.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/python3.6.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/python3.6"
-      - "C:/Program Files (x86)/CausalPlusPlus/python3.6.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/python3.6.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/python3.6"
+      - "C:/Program Files (x86)/pycauset/bin/python3.6.com"
+      - "C:/Program Files (x86)/pycauset/bin/python3.6.exe"
+      - "C:/Program Files (x86)/pycauset/bin/python3.6"
+      - "C:/Program Files (x86)/pycauset/sbin/python3.6.com"
+      - "C:/Program Files (x86)/pycauset/sbin/python3.6.exe"
+      - "C:/Program Files (x86)/pycauset/sbin/python3.6"
+      - "C:/Program Files (x86)/pycauset/python3.6.com"
+      - "C:/Program Files (x86)/pycauset/python3.6.exe"
+      - "C:/Program Files (x86)/pycauset/python3.6"
       - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/python3.com"
       - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/python3.exe"
       - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/python3"
@@ -2998,15 +2517,15 @@ events:
       - "C:/Program Files/CMake/python3.com"
       - "C:/Program Files/CMake/python3.exe"
       - "C:/Program Files/CMake/python3"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/python3.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/python3.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/python3"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/python3.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/python3.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/python3"
-      - "C:/Program Files (x86)/CausalPlusPlus/python3.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/python3.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/python3"
+      - "C:/Program Files (x86)/pycauset/bin/python3.com"
+      - "C:/Program Files (x86)/pycauset/bin/python3.exe"
+      - "C:/Program Files (x86)/pycauset/bin/python3"
+      - "C:/Program Files (x86)/pycauset/sbin/python3.com"
+      - "C:/Program Files (x86)/pycauset/sbin/python3.exe"
+      - "C:/Program Files (x86)/pycauset/sbin/python3"
+      - "C:/Program Files (x86)/pycauset/python3.com"
+      - "C:/Program Files (x86)/pycauset/python3.exe"
+      - "C:/Program Files (x86)/pycauset/python3"
     found: false
     search_context:
       ENV{PATH}:
@@ -3059,12 +2578,12 @@ events:
         - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
         - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
         - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/CausalPlusPlus"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "C:/Program Files/CMake"
-        - "C:/Program Files (x86)/CausalPlusPlus"
+        - "C:/Program Files (x86)/pycauset"
   -
     kind: "find-v1"
     backtrace:
@@ -3132,9 +2651,9 @@ events:
       - "C:/Program Files/CMake/bin/"
       - "C:/Program Files/CMake/sbin/"
       - "C:/Program Files/CMake/"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/"
-      - "C:/Program Files (x86)/CausalPlusPlus/"
+      - "C:/Program Files (x86)/pycauset/bin/"
+      - "C:/Program Files (x86)/pycauset/sbin/"
+      - "C:/Program Files (x86)/pycauset/"
       - "/REGISTRY-NOTFOUND/"
     searched_directories:
       - "C:/Users/ireal/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/python3.12.com"
@@ -3269,15 +2788,15 @@ events:
       - "C:/Program Files/CMake/python3.12.com"
       - "C:/Program Files/CMake/python3.12.exe"
       - "C:/Program Files/CMake/python3.12"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/python3.12.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/python3.12.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/bin/python3.12"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/python3.12.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/python3.12.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/sbin/python3.12"
-      - "C:/Program Files (x86)/CausalPlusPlus/python3.12.com"
-      - "C:/Program Files (x86)/CausalPlusPlus/python3.12.exe"
-      - "C:/Program Files (x86)/CausalPlusPlus/python3.12"
+      - "C:/Program Files (x86)/pycauset/bin/python3.12.com"
+      - "C:/Program Files (x86)/pycauset/bin/python3.12.exe"
+      - "C:/Program Files (x86)/pycauset/bin/python3.12"
+      - "C:/Program Files (x86)/pycauset/sbin/python3.12.com"
+      - "C:/Program Files (x86)/pycauset/sbin/python3.12.exe"
+      - "C:/Program Files (x86)/pycauset/sbin/python3.12"
+      - "C:/Program Files (x86)/pycauset/python3.12.com"
+      - "C:/Program Files (x86)/pycauset/python3.12.exe"
+      - "C:/Program Files (x86)/pycauset/python3.12"
       - "/REGISTRY-NOTFOUND/python3.12.com"
       - "/REGISTRY-NOTFOUND/python3.12.exe"
       - "/REGISTRY-NOTFOUND/python3.12"
@@ -3415,12 +2934,12 @@ events:
         - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
         - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
         - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/CausalPlusPlus"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "C:/Program Files/CMake"
-        - "C:/Program Files (x86)/CausalPlusPlus"
+        - "C:/Program Files (x86)/pycauset"
   -
     kind: "try_compile-v1"
     backtrace:
@@ -3434,8 +2953,8 @@ events:
     checks:
       - "Performing Test HAS_MSVC_GL_LTCG"
     directories:
-      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-oy4set"
-      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-oy4set"
+      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-ostlvh"
+      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-ostlvh"
     cmakeVariables:
       CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /GR /EHsc"
       CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
@@ -3445,55 +2964,55 @@ events:
       variable: "HAS_MSVC_GL_LTCG"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-oy4set'
+        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-ostlvh'
         
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_7ae05.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_d7073.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
         MSBuild version 18.0.5+e22287bf1 for .NET Framework
-        Build started 29.11.2025 18:27:16.
+        Build started 30.11.2025 13:00:03.
         
-        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-oy4set\\cmTC_7ae05.vcxproj" on node 1 (default targets).
+        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ostlvh\\cmTC_d7073.vcxproj" on node 1 (default targets).
         PrepareForBuild:
           Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
-          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-oy4set\\Debug\\".
-          Creating directory "cmTC_7ae05.dir\\Debug\\cmTC_7ae05.tlog\\".
+          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ostlvh\\Debug\\".
+          Creating directory "cmTC_d7073.dir\\Debug\\cmTC_d7073.tlog\\".
         InitializeBuildStatus:
-          Creating "cmTC_7ae05.dir\\Debug\\cmTC_7ae05.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
-          Touching "cmTC_7ae05.dir\\Debug\\cmTC_7ae05.tlog\\unsuccessfulbuild".
+          Creating "cmTC_d7073.dir\\Debug\\cmTC_d7073.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Touching "cmTC_d7073.dir\\Debug\\cmTC_d7073.tlog\\unsuccessfulbuild".
         ComputeStdModulesCompileInputs:
           Reading library manifest file 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\modules\\modules.json' which provides data for library 'microsoft/STL'.
           Adding module source 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\modules\\std.ixx' from library 'microsoft/STL' to be built with this project.
           Adding module source 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\modules\\std.compat.ixx' from library 'microsoft/STL' to be built with this project.
         MakeDirsForCl:
-          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-oy4set\\cmTC_7ae05.dir\\Debug\\microsoft\\STL".
+          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ostlvh\\cmTC_d7073.dir\\Debug\\microsoft\\STL".
         SetModuleDependencies:
-          Creating directory "cmTC_7ae05.dir\\Debug\\cmTC_7ae05_MD.tlog\\".
+          Creating directory "cmTC_d7073.dir\\Debug\\cmTC_d7073_MD.tlog\\".
         ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /GL /D _MBCS /D WIN32 /D _WINDOWS /D HAS_MSVC_GL_LTCG /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /std:c++20 /Fo"cmTC_7ae05.dir\\Debug\\\\" /Fd"cmTC_7ae05.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-oy4set\\src.cxx"
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /GL /D _MBCS /D WIN32 /D _WINDOWS /D HAS_MSVC_GL_LTCG /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /std:c++20 /Fo"cmTC_d7073.dir\\Debug\\\\" /Fd"cmTC_d7073.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ostlvh\\src.cxx"
           Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35719 for x64
           Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /GL /D _MBCS /D WIN32 /D _WINDOWS /D HAS_MSVC_GL_LTCG /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /std:c++20 /Fo"cmTC_7ae05.dir\\Debug\\\\" /Fd"cmTC_7ae05.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-oy4set\\src.cxx"
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /GL /D _MBCS /D WIN32 /D _WINDOWS /D HAS_MSVC_GL_LTCG /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /std:c++20 /Fo"cmTC_d7073.dir\\Debug\\\\" /Fd"cmTC_d7073.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ostlvh\\src.cxx"
           src.cxx
         Link:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-oy4set\\Debug\\cmTC_7ae05.exe" /INCREMENTAL /ILK:"cmTC_7ae05.dir\\Debug\\cmTC_7ae05.ilk" /NOLOGO "-LTCG" kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-oy4set/Debug/cmTC_7ae05.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-oy4set/Debug/cmTC_7ae05.lib" /MACHINE:X64  /machine:x64 cmTC_7ae05.dir\\Debug\\src.obj
-        LINK : warning LNK4075: ignoring '/INCREMENTAL' due to '/LTCG' specification [C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-oy4set\\cmTC_7ae05.vcxproj]
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ostlvh\\Debug\\cmTC_d7073.exe" /INCREMENTAL /ILK:"cmTC_d7073.dir\\Debug\\cmTC_d7073.ilk" /NOLOGO "-LTCG" kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-ostlvh/Debug/cmTC_d7073.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-ostlvh/Debug/cmTC_d7073.lib" /MACHINE:X64  /machine:x64 cmTC_d7073.dir\\Debug\\src.obj
+        LINK : warning LNK4075: ignoring '/INCREMENTAL' due to '/LTCG' specification [C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ostlvh\\cmTC_d7073.vcxproj]
           Generating code
           Finished generating code
-          cmTC_7ae05.vcxproj -> C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-oy4set\\Debug\\cmTC_7ae05.exe
+          cmTC_d7073.vcxproj -> C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ostlvh\\Debug\\cmTC_d7073.exe
         FinalizeBuildStatus:
-          Deleting file "cmTC_7ae05.dir\\Debug\\cmTC_7ae05.tlog\\unsuccessfulbuild".
-          Touching "cmTC_7ae05.dir\\Debug\\cmTC_7ae05.tlog\\cmTC_7ae05.lastbuildstate".
-        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-oy4set\\cmTC_7ae05.vcxproj" (default targets).
+          Deleting file "cmTC_d7073.dir\\Debug\\cmTC_d7073.tlog\\unsuccessfulbuild".
+          Touching "cmTC_d7073.dir\\Debug\\cmTC_d7073.tlog\\cmTC_d7073.lastbuildstate".
+        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ostlvh\\cmTC_d7073.vcxproj" (default targets).
         
         Build succeeded.
         
-        "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-oy4set\\cmTC_7ae05.vcxproj" (default target) (1) ->
+        "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ostlvh\\cmTC_d7073.vcxproj" (default target) (1) ->
         (Link target) -> 
-          LINK : warning LNK4075: ignoring '/INCREMENTAL' due to '/LTCG' specification [C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-oy4set\\cmTC_7ae05.vcxproj]
+          LINK : warning LNK4075: ignoring '/INCREMENTAL' due to '/LTCG' specification [C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ostlvh\\cmTC_d7073.vcxproj]
         
             1 Warning(s)
             0 Error(s)
         
-        Time Elapsed 00:00:00.45
+        Time Elapsed 00:00:00.48
         
       exitCode: 0
   -
@@ -3501,11 +3020,11 @@ events:
     backtrace:
       - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindOpenMP.cmake:333 (try_compile)"
       - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindOpenMP.cmake:640 (_OPENMP_GET_FLAGS)"
-      - "CMakeLists.txt:23 (find_package)"
+      - "CMakeLists.txt:26 (find_package)"
     description: "Detecting CXX OpenMP compiler info"
     directories:
-      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-98y1wp"
-      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-98y1wp"
+      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-2wr0tb"
+      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-2wr0tb"
     cmakeVariables:
       CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /GR /EHsc"
       CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
@@ -3514,47 +3033,47 @@ events:
       variable: "OpenMP_COMPILE_RESULT_CXX_openmp"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-98y1wp'
+        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-2wr0tb'
         
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_8373b.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_abab2.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
         MSBuild version 18.0.5+e22287bf1 for .NET Framework
-        Build started 29.11.2025 18:27:17.
+        Build started 30.11.2025 13:00:04.
         
-        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-98y1wp\\cmTC_8373b.vcxproj" on node 1 (default targets).
+        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2wr0tb\\cmTC_abab2.vcxproj" on node 1 (default targets).
         PrepareForBuild:
           Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
-          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-98y1wp\\Debug\\".
-          Creating directory "cmTC_8373b.dir\\Debug\\cmTC_8373b.tlog\\".
+          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2wr0tb\\Debug\\".
+          Creating directory "cmTC_abab2.dir\\Debug\\cmTC_abab2.tlog\\".
         InitializeBuildStatus:
-          Creating "cmTC_8373b.dir\\Debug\\cmTC_8373b.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
-          Touching "cmTC_8373b.dir\\Debug\\cmTC_8373b.tlog\\unsuccessfulbuild".
+          Creating "cmTC_abab2.dir\\Debug\\cmTC_abab2.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Touching "cmTC_abab2.dir\\Debug\\cmTC_abab2.tlog\\unsuccessfulbuild".
         ComputeStdModulesCompileInputs:
           Reading library manifest file 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\modules\\modules.json' which provides data for library 'microsoft/STL'.
           Adding module source 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\modules\\std.ixx' from library 'microsoft/STL' to be built with this project.
           Adding module source 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\modules\\std.compat.ixx' from library 'microsoft/STL' to be built with this project.
         MakeDirsForCl:
-          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-98y1wp\\cmTC_8373b.dir\\Debug\\microsoft\\STL".
+          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2wr0tb\\cmTC_abab2.dir\\Debug\\microsoft\\STL".
         SetModuleDependencies:
-          Creating directory "cmTC_8373b.dir\\Debug\\cmTC_8373b_MD.tlog\\".
+          Creating directory "cmTC_abab2.dir\\Debug\\cmTC_abab2_MD.tlog\\".
         ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /openmp /std:c++20 /Fo"cmTC_8373b.dir\\Debug\\\\" /Fd"cmTC_8373b.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-98y1wp\\OpenMPTryFlag.cpp"
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /openmp /std:c++20 /Fo"cmTC_abab2.dir\\Debug\\\\" /Fd"cmTC_abab2.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2wr0tb\\OpenMPTryFlag.cpp"
           Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35719 for x64
           Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /openmp /std:c++20 /Fo"cmTC_8373b.dir\\Debug\\\\" /Fd"cmTC_8373b.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-98y1wp\\OpenMPTryFlag.cpp"
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /openmp /std:c++20 /Fo"cmTC_abab2.dir\\Debug\\\\" /Fd"cmTC_abab2.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2wr0tb\\OpenMPTryFlag.cpp"
           OpenMPTryFlag.cpp
         Link:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-98y1wp\\Debug\\cmTC_8373b.exe" /INCREMENTAL /ILK:"cmTC_8373b.dir\\Debug\\cmTC_8373b.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-98y1wp/Debug/cmTC_8373b.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-98y1wp/Debug/cmTC_8373b.lib" /MACHINE:X64  /machine:x64 cmTC_8373b.dir\\Debug\\OpenMPTryFlag.obj
-          cmTC_8373b.vcxproj -> C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-98y1wp\\Debug\\cmTC_8373b.exe
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2wr0tb\\Debug\\cmTC_abab2.exe" /INCREMENTAL /ILK:"cmTC_abab2.dir\\Debug\\cmTC_abab2.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-2wr0tb/Debug/cmTC_abab2.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-2wr0tb/Debug/cmTC_abab2.lib" /MACHINE:X64  /machine:x64 cmTC_abab2.dir\\Debug\\OpenMPTryFlag.obj
+          cmTC_abab2.vcxproj -> C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2wr0tb\\Debug\\cmTC_abab2.exe
         FinalizeBuildStatus:
-          Deleting file "cmTC_8373b.dir\\Debug\\cmTC_8373b.tlog\\unsuccessfulbuild".
-          Touching "cmTC_8373b.dir\\Debug\\cmTC_8373b.tlog\\cmTC_8373b.lastbuildstate".
-        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-98y1wp\\cmTC_8373b.vcxproj" (default targets).
+          Deleting file "cmTC_abab2.dir\\Debug\\cmTC_abab2.tlog\\unsuccessfulbuild".
+          Touching "cmTC_abab2.dir\\Debug\\cmTC_abab2.tlog\\cmTC_abab2.lastbuildstate".
+        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2wr0tb\\cmTC_abab2.vcxproj" (default targets).
         
         Build succeeded.
             0 Warning(s)
             0 Error(s)
         
-        Time Elapsed 00:00:00.41
+        Time Elapsed 00:00:00.43
         
       exitCode: 0
   -
@@ -3562,11 +3081,11 @@ events:
     backtrace:
       - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindOpenMP.cmake:574 (try_compile)"
       - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindOpenMP.cmake:714 (_OPENMP_GET_SPEC_DATE)"
-      - "CMakeLists.txt:23 (find_package)"
+      - "CMakeLists.txt:26 (find_package)"
     description: "Detecting CXX OpenMP version"
     directories:
-      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-yodgzz"
-      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-yodgzz"
+      source: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-ruu6h0"
+      binary: "C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-ruu6h0"
     cmakeVariables:
       CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /GR /EHsc"
       CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
@@ -3575,47 +3094,512 @@ events:
       variable: "OpenMP_SPECTEST_CXX_"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-yodgzz'
+        Change Dir: 'C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-ruu6h0'
         
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_77de8.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_1c3a5.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
         MSBuild version 18.0.5+e22287bf1 for .NET Framework
-        Build started 29.11.2025 18:27:17.
+        Build started 30.11.2025 13:00:04.
         
-        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-yodgzz\\cmTC_77de8.vcxproj" on node 1 (default targets).
+        Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ruu6h0\\cmTC_1c3a5.vcxproj" on node 1 (default targets).
         PrepareForBuild:
           Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
-          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-yodgzz\\Debug\\".
-          Creating directory "cmTC_77de8.dir\\Debug\\cmTC_77de8.tlog\\".
+          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ruu6h0\\Debug\\".
+          Creating directory "cmTC_1c3a5.dir\\Debug\\cmTC_1c3a5.tlog\\".
         InitializeBuildStatus:
-          Creating "cmTC_77de8.dir\\Debug\\cmTC_77de8.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
-          Touching "cmTC_77de8.dir\\Debug\\cmTC_77de8.tlog\\unsuccessfulbuild".
+          Creating "cmTC_1c3a5.dir\\Debug\\cmTC_1c3a5.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Touching "cmTC_1c3a5.dir\\Debug\\cmTC_1c3a5.tlog\\unsuccessfulbuild".
         ComputeStdModulesCompileInputs:
           Reading library manifest file 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\modules\\modules.json' which provides data for library 'microsoft/STL'.
           Adding module source 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\modules\\std.ixx' from library 'microsoft/STL' to be built with this project.
           Adding module source 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\modules\\std.compat.ixx' from library 'microsoft/STL' to be built with this project.
         MakeDirsForCl:
-          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-yodgzz\\cmTC_77de8.dir\\Debug\\microsoft\\STL".
+          Creating directory "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ruu6h0\\cmTC_1c3a5.dir\\Debug\\microsoft\\STL".
         SetModuleDependencies:
-          Creating directory "cmTC_77de8.dir\\Debug\\cmTC_77de8_MD.tlog\\".
+          Creating directory "cmTC_1c3a5.dir\\Debug\\cmTC_1c3a5_MD.tlog\\".
         ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /openmp /std:c++20 /Fo"cmTC_77de8.dir\\Debug\\\\" /Fd"cmTC_77de8.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-yodgzz\\OpenMPCheckVersion.cpp"
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /openmp /std:c++20 /Fo"cmTC_1c3a5.dir\\Debug\\\\" /Fd"cmTC_1c3a5.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ruu6h0\\OpenMPCheckVersion.cpp"
           Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35719 for x64
           Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /openmp /std:c++20 /Fo"cmTC_77de8.dir\\Debug\\\\" /Fd"cmTC_77de8.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-yodgzz\\OpenMPCheckVersion.cpp"
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GR /openmp /std:c++20 /Fo"cmTC_1c3a5.dir\\Debug\\\\" /Fd"cmTC_1c3a5.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ruu6h0\\OpenMPCheckVersion.cpp"
           OpenMPCheckVersion.cpp
         Link:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-yodgzz\\Debug\\cmTC_77de8.exe" /INCREMENTAL /ILK:"cmTC_77de8.dir\\Debug\\cmTC_77de8.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-yodgzz/Debug/cmTC_77de8.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-yodgzz/Debug/cmTC_77de8.lib" /MACHINE:X64  /machine:x64 cmTC_77de8.dir\\Debug\\OpenMPCheckVersion.obj
-          cmTC_77de8.vcxproj -> C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-yodgzz\\Debug\\cmTC_77de8.exe
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ruu6h0\\Debug\\cmTC_1c3a5.exe" /INCREMENTAL /ILK:"cmTC_1c3a5.dir\\Debug\\cmTC_1c3a5.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-ruu6h0/Debug/cmTC_1c3a5.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/ireal/Documents/pycauset/build/CMakeFiles/CMakeScratch/TryCompile-ruu6h0/Debug/cmTC_1c3a5.lib" /MACHINE:X64  /machine:x64 cmTC_1c3a5.dir\\Debug\\OpenMPCheckVersion.obj
+          cmTC_1c3a5.vcxproj -> C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ruu6h0\\Debug\\cmTC_1c3a5.exe
         FinalizeBuildStatus:
-          Deleting file "cmTC_77de8.dir\\Debug\\cmTC_77de8.tlog\\unsuccessfulbuild".
-          Touching "cmTC_77de8.dir\\Debug\\cmTC_77de8.tlog\\cmTC_77de8.lastbuildstate".
-        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-yodgzz\\cmTC_77de8.vcxproj" (default targets).
+          Deleting file "cmTC_1c3a5.dir\\Debug\\cmTC_1c3a5.tlog\\unsuccessfulbuild".
+          Touching "cmTC_1c3a5.dir\\Debug\\cmTC_1c3a5.tlog\\cmTC_1c3a5.lastbuildstate".
+        Done Building Project "C:\\Users\\ireal\\Documents\\pycauset\\build\\CMakeFiles\\CMakeScratch\\TryCompile-ruu6h0\\cmTC_1c3a5.vcxproj" (default targets).
         
         Build succeeded.
             0 Warning(s)
             0 Error(s)
         
-        Time Elapsed 00:00:00.46
+        Time Elapsed 00:00:00.47
         
       exitCode: 0
+...
+
+---
+events:
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:2437 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython.cmake:721 (include)"
+      - "CMakeLists.txt:10 (find_package)"
+    mode: "program"
+    variable: "_Python_EXECUTABLE_DEBUG"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python3.15_d"
+      - "python3.14_d"
+      - "python3.13_d"
+      - "python3.12_d"
+      - "python3.11_d"
+      - "python3.10_d"
+      - "python3.9_d"
+      - "python3.8_d"
+      - "python3.7_d"
+      - "python3.6_d"
+      - "python3.5_d"
+      - "python3.4_d"
+      - "python3.3_d"
+      - "python3.2_d"
+      - "python3.1_d"
+      - "python3.0_d"
+      - "python3_d"
+      - "python_d"
+    candidate_directories:
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/"
+    searched_directories:
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.15_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.15_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.15_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.14_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.14_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.14_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.13_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.13_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.13_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.11_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.11_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.11_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.10_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.10_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.10_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.9_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.9_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.9_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.8_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.8_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.8_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.7_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.7_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.7_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.6_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.6_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.6_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.5_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.5_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.5_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.4_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.4_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.4_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.3_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.3_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.3_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.2_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.2_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.2_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.1_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.1_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.1_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.0_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.0_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.0_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Users\\ireal\\scoop\\shims"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312\\Scripts"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ireal\\.dotnet\\tools"
+        - "C:\\Users\\ireal\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\Scripts"
+        - "C:\\ffmpeg\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\GitHubDesktop\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312"
+        - "C:\\Users\\ireal\\AppData\\Roaming\\npm"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.10.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "C:\\Tools\\mongosh\\bin"
+        - "C:\\Tools\\mongodb-tools\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files (x86)/pycauset"
+...
+
+---
+events:
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:2437 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython.cmake:721 (include)"
+      - "CMakeLists.txt:10 (find_package)"
+    mode: "program"
+    variable: "_Python_EXECUTABLE_DEBUG"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python3.15_d"
+      - "python3.14_d"
+      - "python3.13_d"
+      - "python3.12_d"
+      - "python3.11_d"
+      - "python3.10_d"
+      - "python3.9_d"
+      - "python3.8_d"
+      - "python3.7_d"
+      - "python3.6_d"
+      - "python3.5_d"
+      - "python3.4_d"
+      - "python3.3_d"
+      - "python3.2_d"
+      - "python3.1_d"
+      - "python3.0_d"
+      - "python3_d"
+      - "python_d"
+    candidate_directories:
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/"
+    searched_directories:
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.15_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.15_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.15_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.14_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.14_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.14_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.13_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.13_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.13_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.11_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.11_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.11_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.10_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.10_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.10_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.9_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.9_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.9_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.8_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.8_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.8_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.7_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.7_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.7_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.6_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.6_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.6_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.5_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.5_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.5_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.4_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.4_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.4_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.3_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.3_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.3_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.2_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.2_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.2_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.1_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.1_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.1_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.0_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.0_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.0_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Users\\ireal\\scoop\\shims"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312\\Scripts"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ireal\\.dotnet\\tools"
+        - "C:\\Users\\ireal\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\Scripts"
+        - "C:\\ffmpeg\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\GitHubDesktop\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312"
+        - "C:\\Users\\ireal\\AppData\\Roaming\\npm"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.10.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "C:\\Tools\\mongosh\\bin"
+        - "C:\\Tools\\mongodb-tools\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files (x86)/pycauset"
+...
+
+---
+events:
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake:2437 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython.cmake:721 (include)"
+      - "CMakeLists.txt:10 (find_package)"
+    mode: "program"
+    variable: "_Python_EXECUTABLE_DEBUG"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python3.15_d"
+      - "python3.14_d"
+      - "python3.13_d"
+      - "python3.12_d"
+      - "python3.11_d"
+      - "python3.10_d"
+      - "python3.9_d"
+      - "python3.8_d"
+      - "python3.7_d"
+      - "python3.6_d"
+      - "python3.5_d"
+      - "python3.4_d"
+      - "python3.3_d"
+      - "python3.2_d"
+      - "python3.1_d"
+      - "python3.0_d"
+      - "python3_d"
+      - "python_d"
+    candidate_directories:
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/"
+    searched_directories:
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.15_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.15_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.15_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.14_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.14_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.14_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.13_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.13_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.13_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.12_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.11_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.11_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.11_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.10_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.10_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.10_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.9_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.9_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.9_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.8_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.8_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.8_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.7_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.7_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.7_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.6_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.6_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.6_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.5_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.5_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.5_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.4_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.4_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.4_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.3_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.3_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.3_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.2_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.2_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.2_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.1_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.1_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.1_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.0_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.0_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3.0_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python3_d"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d.com"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d.exe"
+      - "C:/Users/ireal/Documents/pycauset/.venv/Scripts/python_d"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Users\\ireal\\scoop\\shims"
+        - "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312\\Scripts"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ireal\\.dotnet\\tools"
+        - "C:\\Users\\ireal\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\Scripts"
+        - "C:\\ffmpeg\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\GitHubDesktop\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Python\\Python312"
+        - "C:\\Users\\ireal\\AppData\\Roaming\\npm"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.10.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+        - "c:\\Users\\ireal\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "C:\\Tools\\mongosh\\bin"
+        - "C:\\Tools\\mongodb-tools\\bin"
+        - "C:\\Users\\ireal\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\ExifTool"
+        - "C:\\Users\\ireal\\AppData\\Local\\Programs\\Antigravity\\bin"
+        - "c:\\Users\\ireal\\.vscode\\extensions\\ms-python.debugpy-2025.16.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/pycauset"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files (x86)/pycauset"
 ...

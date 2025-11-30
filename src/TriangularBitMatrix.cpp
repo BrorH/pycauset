@@ -240,16 +240,64 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
         gen.seed(rd());
     }
 
+    auto* mapper = require_mapper();
+    // Unmap the whole file to save memory during generation
+    mapper->unmap();
+
+    const size_t CHUNK_SIZE = 64 * 1024 * 1024; // 64 MB
+    size_t granularity = MemoryMapper::get_granularity();
+    size_t file_header_size = sizeof(pycauset::FileHeader);
+    size_t data_start_offset = file_header_size;
+    size_t file_size = mapper->get_data_size() + file_header_size;
+
+    // Helper to map a chunk covering a specific file offset
+    auto map_chunk_for_offset = [&](size_t offset, size_t min_size, void*& view_ptr, size_t& view_start, size_t& view_size) {
+        size_t aligned_start = (offset / granularity) * granularity;
+        size_t required_end = offset + min_size;
+        size_t map_len = std::max(CHUNK_SIZE, required_end - aligned_start);
+        
+        if (aligned_start + map_len > file_size) {
+            map_len = file_size - aligned_start;
+        }
+        
+        view_ptr = mapper->map_region(aligned_start, map_len);
+        view_start = aligned_start;
+        view_size = map_len;
+    };
+
     if (std::abs(density - 0.5) < 0.0001) {
-        uint64_t* raw_data = data();
+        void* current_view = nullptr;
+        size_t view_start = 0;
+        size_t view_size = 0;
+
         for (uint64_t i = 0; i < n_; ++i) {
             uint64_t row_len = (n_ - 1) - i;
-            if (row_len == 0) {
-                continue;
-            }
+            if (row_len == 0) continue;
+
             uint64_t words = (row_len + 63) / 64;
-            auto* row_ptr = reinterpret_cast<uint64_t*>(
-                reinterpret_cast<char*>(raw_data) + get_row_offset(i));
+            uint64_t row_offset_rel = get_row_offset(i);
+            uint64_t row_file_start = data_start_offset + row_offset_rel;
+            uint64_t row_size_bytes = words * 8;
+
+            // Check if current row fits in current view
+            bool fits = false;
+            if (current_view) {
+                if (row_file_start >= view_start && (row_file_start + row_size_bytes) <= (view_start + view_size)) {
+                    fits = true;
+                }
+            }
+
+            if (!fits) {
+                if (current_view) {
+                    mapper->unmap_region(current_view);
+                }
+                map_chunk_for_offset(row_file_start, row_size_bytes, current_view, view_start, view_size);
+            }
+
+            // Calculate pointer to row in view
+            char* row_base = static_cast<char*>(current_view) + (row_file_start - view_start);
+            uint64_t* row_ptr = reinterpret_cast<uint64_t*>(row_base);
+
             for (uint64_t w = 0; w < words; ++w) {
                 row_ptr[w] = gen();
             }
@@ -259,16 +307,71 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
                 row_ptr[words - 1] &= mask;
             }
         }
+        if (current_view) {
+            mapper->unmap_region(current_view);
+        }
+
     } else {
         std::bernoulli_distribution dist(density);
+        void* current_view = nullptr;
+        size_t view_start = 0;
+        size_t view_size = 0;
+
         for (uint64_t i = 0; i < n_; ++i) {
+            uint64_t row_len = (n_ - 1) - i;
+            if (row_len == 0) continue;
+
+            uint64_t words = (row_len + 63) / 64;
+            uint64_t row_offset_rel = get_row_offset(i);
+            uint64_t row_file_start = data_start_offset + row_offset_rel;
+            uint64_t row_size_bytes = words * 8;
+
+            bool fits = false;
+            if (current_view) {
+                if (row_file_start >= view_start && (row_file_start + row_size_bytes) <= (view_start + view_size)) {
+                    fits = true;
+                }
+            }
+
+            if (!fits) {
+                if (current_view) {
+                    mapper->unmap_region(current_view);
+                }
+                map_chunk_for_offset(row_file_start, row_size_bytes, current_view, view_start, view_size);
+            }
+
+            char* row_base = static_cast<char*>(current_view) + (row_file_start - view_start);
+            uint64_t* row_ptr = reinterpret_cast<uint64_t*>(row_base);
+
+            // We need to be careful here. set(i, j, val) uses data() which is invalid now.
+            // We must implement setting bits manually on the raw pointer.
+            
+            // Initialize row to 0 first? No, memory mapped file content is undefined or zero?
+            // If create_new was true, it's zero initialized by OS.
+            // But we should probably clear it if we are not sure.
+            // Actually, for sparse generation, we should iterate and set bits.
+            // But we need to clear the memory first if it's not guaranteed zero.
+            // Windows zeroes new files.
+            
+            // Iterate columns
             for (uint64_t j = i + 1; j < n_; ++j) {
                 if (dist(gen)) {
-                    set(i, j, true);
+                    // Set bit (i, j)
+                    uint64_t bit_offset = j - (i + 1);
+                    uint64_t word_index = bit_offset / 64;
+                    uint64_t bit_index = bit_offset % 64;
+                    
+                    row_ptr[word_index] |= (1ULL << bit_index);
                 }
             }
         }
+        if (current_view) {
+            mapper->unmap_region(current_view);
+        }
     }
+    
+    // Restore full mapping
+    mapper->map_all();
 }
 
 std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {

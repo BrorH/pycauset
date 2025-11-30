@@ -147,6 +147,56 @@ void MemoryMapper::flush() {
     }
 }
 
+void MemoryMapper::flush(void* ptr, size_t size) {
+    if (ptr && size > 0) {
+        FlushViewOfFile(ptr, size);
+        // We don't necessarily need to FlushFileBuffers every time for performance,
+        // but FlushViewOfFile initiates the write to disk.
+    }
+}
+
+void MemoryMapper::unmap() {
+    if (mapped_ptr_) {
+        UnmapViewOfFile(mapped_ptr_);
+        mapped_ptr_ = nullptr;
+    }
+}
+
+void MemoryMapper::map_all() {
+    if (mapped_ptr_) return; // Already mapped
+    if (!hMapping_) throw std::runtime_error("File mapping handle is invalid");
+    
+    mapped_ptr_ = MapViewOfFile(hMapping_, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    if (!mapped_ptr_) {
+        throw std::runtime_error("Failed to map view of file");
+    }
+}
+
+void* MemoryMapper::map_region(size_t offset, size_t size) {
+    if (!hMapping_) throw std::runtime_error("File mapping handle is invalid");
+    
+    ULARGE_INTEGER liOffset;
+    liOffset.QuadPart = offset;
+    
+    void* ptr = MapViewOfFile(hMapping_, FILE_MAP_ALL_ACCESS, liOffset.HighPart, liOffset.LowPart, size);
+    if (!ptr) {
+        throw std::runtime_error("Failed to map region");
+    }
+    return ptr;
+}
+
+void MemoryMapper::unmap_region(void* ptr) {
+    if (ptr) {
+        UnmapViewOfFile(ptr);
+    }
+}
+
+size_t MemoryMapper::get_granularity() {
+    SYSTEM_INFO sysInfo;
+    GetSystemInfo(&sysInfo);
+    return sysInfo.dwAllocationGranularity;
+}
+
 void MemoryMapper::close_file() {
     if (mapped_ptr_) {
         UnmapViewOfFile(mapped_ptr_);

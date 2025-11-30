@@ -6,6 +6,7 @@
 #include "TriangularBitMatrix.hpp"
 #include "DenseMatrix.hpp"
 #include "TriangularMatrix.hpp"
+#include "IdentityMatrix.hpp"
 #include "StoragePaths.hpp"
 #include "FileFormat.hpp"
 #include "MatrixOperations.hpp"
@@ -69,12 +70,19 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     auto* a_tfm = dynamic_cast<const TriangularFloatMatrix*>(&a);
     auto* a_tim = dynamic_cast<const TriangularIntegerMatrix*>(&a);
     auto* a_tbm = dynamic_cast<const TriangularBitMatrix*>(&a);
+    auto* a_id = dynamic_cast<const IdentityMatrix*>(&a);
 
     auto* b_fm = dynamic_cast<const FloatMatrix*>(&b);
     auto* b_im = dynamic_cast<const IntegerMatrix*>(&b);
     auto* b_tfm = dynamic_cast<const TriangularFloatMatrix*>(&b);
     auto* b_tim = dynamic_cast<const TriangularIntegerMatrix*>(&b);
     auto* b_tbm = dynamic_cast<const TriangularBitMatrix*>(&b);
+    auto* b_id = dynamic_cast<const IdentityMatrix*>(&b);
+
+    // Identity x Identity -> Identity
+    if (a_id && b_id) {
+        return a_id->multiply(*b_id, saveas);
+    }
 
     // If either is FloatMatrix (Dense<double>), result is FloatMatrix
     if (a_fm || b_fm) {
@@ -390,8 +398,31 @@ PYBIND11_MODULE(pycauset, m) {
                  return py::cast(new TriangularFloatMatrix(n, std::move(mapper)));
             case pycauset::MatrixType::DENSE_FLOAT:
                  return py::cast(new FloatMatrix(n, std::move(mapper)));
+            case pycauset::MatrixType::IDENTITY:
+                 return py::cast(new IdentityMatrix(n, std::move(mapper)));
             default:
-                throw std::runtime_error("Unsupported matrix type for loading");
+                throw std::runtime_error("Unknown matrix type in file");
         }
     }, "Load a matrix from a file");
+
+    // IdentityMatrix
+    py::class_<IdentityMatrix, MatrixBase> idm(m, "IdentityMatrix");
+    idm.def(py::init<uint64_t, const std::string&>(), 
+            py::arg("n"), py::arg("backing_file") = "")
+        .def("get", [](const IdentityMatrix& m, uint64_t i, uint64_t j) {
+            return m.get_element_as_double(i, j);
+        })
+        .def("close", &IdentityMatrix::close)
+        .def("size", &IdentityMatrix::size)
+        .def("get_backing_file", &IdentityMatrix::get_backing_file)
+        .def_property_readonly("shape", [](const IdentityMatrix& m) {
+            return std::make_pair(m.size(), m.size());
+        })
+        .def("__getitem__", [](const IdentityMatrix& m, std::pair<uint64_t, uint64_t> idx) {
+            return m.get_element_as_double(idx.first, idx.second);
+        })
+        .def("__repr__", [](const IdentityMatrix& m) {
+            return "<IdentityMatrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
+        });
+    bind_arithmetic(idm);
 }

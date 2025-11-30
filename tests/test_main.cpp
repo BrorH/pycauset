@@ -2,6 +2,7 @@
 #include "TriangularBitMatrix.hpp"
 #include "TriangularMatrix.hpp"
 #include "DenseMatrix.hpp"
+#include "IdentityMatrix.hpp"
 #include "FileFormat.hpp"
 #include "MemoryMapper.hpp"
 #include "MatrixOperations.hpp"
@@ -265,3 +266,76 @@ TEST_F(MatrixTest, ComputeKMatrix) {
     
     EXPECT_NEAR(K.get(0, 1), 1.0, 1e-9);
 }
+
+// --- IdentityMatrix Tests ---
+
+TEST_F(MatrixTest, Identity_SetAndGet) {
+    IdentityMatrix mat(5, testFile);
+    EXPECT_DOUBLE_EQ(mat.get_element_as_double(0, 0), 1.0);
+    EXPECT_DOUBLE_EQ(mat.get_element_as_double(1, 1), 1.0);
+    EXPECT_DOUBLE_EQ(mat.get_element_as_double(0, 1), 0.0);
+    EXPECT_DOUBLE_EQ(mat.get_element_as_double(1, 0), 0.0);
+    
+    // Test scalar
+    mat.set_scalar(2.0);
+    EXPECT_DOUBLE_EQ(mat.get_element_as_double(0, 0), 2.0);
+    EXPECT_DOUBLE_EQ(mat.get_element_as_double(1, 1), 2.0);
+}
+
+TEST_F(MatrixTest, Identity_Multiplication) {
+    IdentityMatrix I1(3, testFile);
+    IdentityMatrix I2(3, auxFile);
+    
+    I1.set_scalar(2.0);
+    I2.set_scalar(3.0);
+    
+    auto res = I1.multiply(I2, resultFile);
+    EXPECT_DOUBLE_EQ(res->get_element_as_double(0, 0), 6.0);
+    EXPECT_DOUBLE_EQ(res->get_element_as_double(0, 1), 0.0);
+    
+    // Check if result is IdentityMatrix
+    EXPECT_NE(dynamic_cast<IdentityMatrix*>(res.get()), nullptr);
+}
+
+TEST_F(MatrixTest, Identity_Addition) {
+    IdentityMatrix I1(3, testFile);
+    IdentityMatrix I2(3, auxFile);
+    
+    I1.set_scalar(2.0);
+    I2.set_scalar(3.0);
+    
+    auto res = pycauset::add(I1, I2, resultFile);
+    EXPECT_DOUBLE_EQ(res->get_element_as_double(0, 0), 5.0);
+    EXPECT_DOUBLE_EQ(res->get_element_as_double(0, 1), 0.0);
+    
+    // Check if result is IdentityMatrix
+    EXPECT_NE(dynamic_cast<IdentityMatrix*>(res.get()), nullptr);
+}
+
+TEST_F(MatrixTest, Identity_Persistence) {
+    {
+        IdentityMatrix mat(10, testFile);
+        mat.set_scalar(5.0);
+        mat.close();
+    }
+    
+    // Re-open manually to check type
+    std::ifstream file(testFile, std::ios::binary);
+    ASSERT_TRUE(file.good());
+    
+    pycauset::FileHeader header;
+    file.read(reinterpret_cast<char*>(&header), sizeof(header));
+    file.close();
+    
+    EXPECT_EQ(header.matrix_type, pycauset::MatrixType::IDENTITY);
+    EXPECT_DOUBLE_EQ(header.scalar, 5.0);
+    
+    // Load using IdentityMatrix constructor
+    uint64_t file_size = std::filesystem::file_size(testFile);
+    uint64_t data_size = file_size - sizeof(pycauset::FileHeader);
+    auto mapper = std::make_unique<MemoryMapper>(testFile, data_size, false);
+    IdentityMatrix loaded(10, std::move(mapper));
+    
+    EXPECT_DOUBLE_EQ(loaded.get_element_as_double(0, 0), 5.0);
+}
+

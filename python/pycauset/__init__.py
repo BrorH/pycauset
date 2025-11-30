@@ -346,12 +346,12 @@ def _patch_matrix_class(cls: Any, target_arg: str = "backing_file") -> None:
 
 
 def _patched_triangular_bit_matrix_random(
-    N: int, density: float = 0.5, backing_file: Any = None, seed: int | None = None, seed_override: int | None = None
+    N: int, p: float = 0.5, backing_file: Any = None, seed: int | None = None, seed_override: int | None = None
 ):
     N = int(N)
     resolved = _resolve_backing_path(backing_file, fallback="random")
-    if _should_register_auto(backing_file):
-        _STORAGE_REGISTRY.register_auto_file(resolved)
+    # if _should_register_auto(backing_file):
+    #     _STORAGE_REGISTRY.register_auto_file(resolved)
     
     actual_seed = seed
     if actual_seed is None:
@@ -359,8 +359,9 @@ def _patched_triangular_bit_matrix_random(
     if actual_seed is None:
         actual_seed = globals().get("seed")
 
-    matrix = _original_triangular_bit_matrix_random(N, density, resolved, actual_seed)
+    matrix = _original_triangular_bit_matrix_random(N, p, resolved, actual_seed)
     _track_matrix(matrix)
+    _mark_temporary_if_auto(matrix)
     return matrix
 
 
@@ -561,9 +562,19 @@ TriangularFloatMatrix = _native.TriangularFloatMatrix
 if hasattr(_native, "TriangularIntegerMatrix"):
     TriangularIntegerMatrix = _native.TriangularIntegerMatrix
 
-def CausalMatrix(*args, **kwargs):
-    """Factory function for creating TriangularBitMatrix instances (formerly CausalMatrix)."""
-    return TriangularBitMatrix(*args, **kwargs)
+def CausalMatrix(n: int, populate: bool = True, **kwargs):
+    """
+    Factory function for creating TriangularBitMatrix instances (formerly CausalMatrix).
+    
+    Args:
+        n: The size of the matrix (NxN).
+        populate: If True (default), fills the matrix with random bits (p=0.5).
+                  If False, returns an empty (all-zeros) matrix.
+        **kwargs: Additional arguments passed to TriangularBitMatrix constructor.
+    """
+    if populate:
+        return TriangularBitMatrix.random(n, p=0.5, **kwargs)
+    return TriangularBitMatrix(n, **kwargs)
 
 CausalMatrix.random = TriangularBitMatrix.random
 
@@ -739,9 +750,18 @@ def save(matrix: Any, path: str | os.PathLike) -> None:
     set_temporary_file(dest, False)
 
 
+# Monkey-patch MatrixBase to add the save method to all matrix classes
+if hasattr(_native, "MatrixBase"):
+    _native.MatrixBase.save = save
+
+
+# Alias for IdentityMatrix
+I = _native.IdentityMatrix
+
+
 def __getattr__(name):
     return getattr(_native, name)
 
 
 __all__ = [name for name in dir(_native) if not name.startswith("__")]
-__all__.extend(["save", "keep_temp_files", "seed", "Matrix", "TriangularMatrix", "CausalMatrix", "TriangularBitMatrix", "compute_k", "bitwise_not", "invert"])
+__all__.extend(["save", "keep_temp_files", "seed", "Matrix", "TriangularMatrix", "CausalMatrix", "TriangularBitMatrix", "compute_k", "bitwise_not", "invert", "I"])

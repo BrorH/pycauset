@@ -23,3 +23,8 @@ Returns the absolute path to the backing file on disk.
 
 ### `get_element_as_double(i, j)`
 Returns the element at $(i, j)$ as a double-precision float, multiplied by `scalar`.
+
+### `save(path)`
+Saves the matrix to a permanent location.
+*   **path** (*str*): The destination path.
+*   This creates a hard link if possible, or copies the file.

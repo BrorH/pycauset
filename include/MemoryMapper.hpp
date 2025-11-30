@@ -21,6 +21,14 @@ public:
     const std::string& get_filename() const { return filename_; }
 
     void flush();
+    void flush(void* ptr, size_t size);
+
+    // Advanced mapping control for large files
+    void unmap();
+    void map_all();
+    void* map_region(size_t offset, size_t size);
+    void unmap_region(void* ptr);
+    static size_t get_granularity();
 
 private:
     std::string filename_;

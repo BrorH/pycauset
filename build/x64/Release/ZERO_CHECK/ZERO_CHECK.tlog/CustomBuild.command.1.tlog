@@ -1,6 +1,6 @@
 ^C:\USERS\IREAL\DOCUMENTS\PYCAUSET\BUILD\CMAKEFILES\1F2E1425F655439A547E013C5B59FB2D\GENERATE.STAMP.RULE
 setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/pycauset -BC:/Users/ireal/Documents/pycauset/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/ireal/Documents/pycauset/build/CausalPlusPlus.slnx
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/ireal/Documents/pycauset -BC:/Users/ireal/Documents/pycauset/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/ireal/Documents/pycauset/build/pycauset.slnx
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone

@@ -4,6 +4,21 @@
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\bindings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MemoryMapper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixBase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\TriangularMatrix.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\TriangularBitMatrix.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixOperations.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="C:\Users\ireal\Documents\pycauset\CMakeLists.txt" />

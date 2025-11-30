@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "project/TODO.md",
+                "file": "guides/Matrix Guide.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "TODO"
+              "title": "Matrix Guide"
             }
           },
           {
@@ -35,8 +35,7 @@
               "title": "PYTHON"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       },
       {
         "id": "0d6668f9bb0e4d25",
@@ -232,14 +231,16 @@
       "bases:Create new base": false
     }
   },
-  "active": "a453d5927e745b90",
+  "active": "1563eaae446d05e3",
   "lastOpenFiles": [
+    "api/pycauset.I.md",
+    "api/pycauset.IdentityMatrix.md",
+    "PYTHON.md",
+    "project/TODO.md",
     "SETUP.md",
     "internals/Matrix Hierarchy.md",
     "guides/Matrix Multiplication.md",
     "guides/Matrix Guide.md",
-    "project/TODO.md",
-    "PYTHON.md",
     "guides/Saving and Storing Matrices.md",
     "Welcome.md",
     "api/pycauset.save.md",
@@ -258,8 +259,6 @@
     "api/pycauset.bitwise_not.md",
     "internals/Math Derivation.md",
     "internals/File Format.md",
-    "internals/Implementation Plan.md",
-    "guides/Installation.md",
     "project",
     "api/parameters",
     "internals",
