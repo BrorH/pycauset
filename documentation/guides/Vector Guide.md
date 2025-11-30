@@ -7,16 +7,16 @@
 You can create vectors using the [[pycauset.Vector]] factory function. It automatically selects the most efficient storage backend based on your data.
 
 ```python
-from pycauset import Vector
+import pycauset as pc
 
 # Create a float vector of size 1000 (initialized to 0.0)
-v1 = Vector(1000)
+v1 = pc.Vector(1000)
 
 # Create an integer vector from a list
-v2 = Vector([1, 2, 3, 4, 5])
+v2 = pc.Vector([1, 2, 3, 4, 5])
 
 # Create a bit-packed boolean vector (1 bit per element)
-v3 = Vector([True, False, True, True])
+v3 = pc.Vector([True, False, True, True])
 ```
 
 ## Vector Arithmetic
@@ -26,16 +26,16 @@ Vectors support standard arithmetic operations. These operations are performed e
 ### Addition
 
 ```python
-v1 = Vector([1, 2, 3])
-v2 = Vector([4, 5, 6])
+v1 = pc.Vector([1, 2, 3])
+v2 = pc.Vector([4, 5, 6])
 v3 = v1 + v2  # [5, 7, 9]
 ```
 
 ### Subtraction
 
 ```python
-v1 = Vector([1, 2, 3])
-v2 = Vector([4, 5, 6])
+v1 = pc.Vector([1, 2, 3])
+v2 = pc.Vector([4, 5, 6])
 v3 = v2 - v1  # [3, 3, 3]
 ```
 
@@ -44,7 +44,7 @@ v3 = v2 - v1  # [3, 3, 3]
 You can add a scalar to every element of a vector.
 
 ```python
-v = Vector([1, 2, 3])
+v = pc.Vector([1, 2, 3])
 v_plus_5 = v + 5  # [6, 7, 8]
 v_plus_5_reverse = 5 + v  # [6, 7, 8]
 ```
@@ -52,7 +52,7 @@ v_plus_5_reverse = 5 + v  # [6, 7, 8]
 ### Scalar Multiplication
 
 ```python
-v = Vector([1, 2, 3])
+v = pc.Vector([1, 2, 3])
 v_scaled = v * 2.0  # [2.0, 4.0, 6.0]
 ```
 
@@ -61,12 +61,12 @@ v_scaled = v * 2.0  # [2.0, 4.0, 6.0]
 You can compute the dot product of two vectors using [[pycauset.dot]] or the `dot` method.
 
 ```python
-from pycauset import dot
+import pycauset as pc
 
-v1 = Vector([1, 2, 3])
-v2 = Vector([4, 5, 6])
+v1 = pc.Vector([1, 2, 3])
+v2 = pc.Vector([4, 5, 6])
 
-result = dot(v1, v2)  # 1*4 + 2*5 + 3*6 = 32.0
+result = pc.dot(v1, v2)  # 1*4 + 2*5 + 3*6 = 32.0
 # OR
 result = v1.dot(v2)
 ```
@@ -82,7 +82,7 @@ You can transpose a vector using the `.T` property.
 *   **Row Vector** (`v.T`): Shape `(1, N)`.
 
 ```python
-v = Vector([1, 2, 3])
+v = pc.Vector([1, 2, 3])
 print(v.shape)    # (3,)
 
 vt = v.T
@@ -99,8 +99,8 @@ print(v_orig.shape) # (3,)
 The inner product produces a scalar.
 
 ```python
-v1 = Vector([1, 2, 3])
-v2 = Vector([4, 5, 6])
+v1 = pc.Vector([1, 2, 3])
+v2 = pc.Vector([4, 5, 6])
 
 # Row @ Column -> Scalar
 scalar = v1.T @ v2  # 32.0
@@ -119,8 +119,8 @@ scalar = v1 @ v2    # 32.0
 The outer product produces a matrix.
 
 ```python
-v1 = Vector([1, 2, 3]) # Column
-v2 = Vector([4, 5, 6]) # Column
+v1 = pc.Vector([1, 2, 3]) # Column
+v2 = pc.Vector([4, 5, 6]) # Column
 
 # Column @ Row -> Matrix (N x N)
 M = v1 @ v2.T 
@@ -140,8 +140,8 @@ M = v1 @ v2.T
 You can multiply matrices and vectors.
 
 ```python
-M = pycauset.FloatMatrix(3)
-v = Vector([1, 1, 1])
+M = pc.FloatMatrix(3)
+v = pc.Vector([1, 1, 1])
 
 # Matrix @ Column Vector -> Column Vector
 v_new = M @ v 
@@ -165,14 +165,14 @@ arr = np.array(v)
 You can create vectors from NumPy arrays using [[pycauset.asarray]]:
 ```python
 arr = np.array([1.0, 2.0, 3.0])
-v = pycauset.asarray(arr)
+v = pc.asarray(arr)
 ```
 
 ### Mixed Operations
 You can add, subtract, or multiply vectors with NumPy arrays directly. The result remains a persistent `pycauset` vector.
 
 ```python
-v = Vector([1, 2, 3])
+v = pc.Vector([1, 2, 3])
 arr = np.array([10, 10, 10])
 v_new = v + arr # [11, 12, 13]
 ```
@@ -182,12 +182,12 @@ v_new = v + arr # [11, 12, 13]
 Like matrices, vectors are backed by storage (RAM or disk). You can save them permanently using [[pycauset.save]].
 
 ```python
-from pycauset import save, load
+import pycauset as pc
 
-v = Vector([1, 2, 3])
-save(v, "my_vector.pycauset")
+v = pc.Vector([1, 2, 3])
+pc.save(v, "my_vector.pycauset")
 
-v_loaded = load("my_vector.pycauset")
+v_loaded = pc.load("my_vector.pycauset")
 ```
 
 ## Mixed Types
@@ -195,8 +195,8 @@ v_loaded = load("my_vector.pycauset")
 Operations between different vector types (e.g., [[pycauset.IntegerVector]] + [[pycauset.FloatVector]]) are supported. The result is typically promoted to a [[pycauset.FloatVector]] (DenseVector<double>) to ensure precision.
 
 ```python
-v_int = Vector([1, 2], dtype="int")
-v_float = Vector([0.5, 0.5], dtype="float")
+v_int = pc.Vector([1, 2], dtype="int")
+v_float = pc.Vector([0.5, 0.5], dtype="float")
 
 v_sum = v_int + v_float  # [1.5, 2.5] (FloatVector)
 ```
