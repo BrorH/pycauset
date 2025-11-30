@@ -1,31 +1,54 @@
-# Setup Instructions
+# Installation Guide
 
-## 1. Install a C++ Compiler
-Install **Visual Studio Community 2022** with the **Desktop development with C++** workload (or another MSVC-compatible toolchain) so `cl.exe` and the Windows SDK are available.
+## Prerequisites: C++ Compiler
+PyCauset is a high-performance library with a C++ backend. You **must** have a C++ compiler installed to build it.
 
-## 2. Verify Installation
-Restart VS Code, open a terminal, and run:
-```powershell
-cl
+*   **Windows**: Install **Visual Studio Community 2022** (or Build Tools) with the **"Desktop development with C++"** workload. This provides the MSVC compiler (`cl.exe`).
+*   **Linux**: Install `g++` or `clang` (e.g., `sudo apt install build-essential`).
+*   **macOS**: Install Xcode Command Line Tools (`xcode-select --install`).
+
+## Method 1: Install via pip (Recommended)
+The easiest way to install PyCauset is using `pip`.
+
+### From PyPI
+To install the latest published version:
+```bash
+pip install pycauset
 ```
-Seeing the MSVC version output confirms the compiler is discoverable.
 
-## 3. Build & Test
-Use the consolidated build script:
+### From Source
+To install from the local repository (this will automatically compile the C++ extension):
+
+```bash
+pip install .
+```
+
+To install in editable mode (for development):
+
+```bash
+pip install -e .
+```
+
+## Method 2: Manual Build (Development)
+If you are developing the C++ core or prefer manual control over the build process, you can use the provided PowerShell script (`build.ps1`). This script handles CMake configuration, compilation, and testing.
+
+### 1. Verify Compiler
+Ensure your compiler is discoverable in your terminal.
+*   **Windows**: Run `cl`. If it's not found, you may need to launch the "Developer PowerShell for VS 2022" or add MSVC to your PATH.
+
+### 2. Build Script
+Use the `build.ps1` script to build the project:
+
 ```powershell
-# Build everything and run C++ tests + Python module
+# Build everything (C++ tests + Python module)
 ./build.ps1 -All
 
-# Only run C++ tests
-./build.ps1 -Tests
-
-# Only build the Python module
+# Only build the Python module (copies to python/pycauset)
 ./build.ps1 -Python
+
+# Only run C++ unit tests
+./build.ps1 -Tests
 ```
 
-## 4. Running Python Scripts
-Ensure the module is built and copied into `python/pycauset/` by running `./build.ps1 -Python`. Then run your scripts using the interpreter version used during the build:
-
-```powershell
-py your_script.py
-```
+### 3. Running Scripts
+If you used `./build.ps1 -Python` (and didn't use `pip`), the compiled module is located in `python/pycauset`. You can run scripts by ensuring this directory is in your `PYTHONPATH` or by running scripts from the root directory.

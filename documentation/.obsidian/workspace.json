@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "internals/Matrix Hierarchy.md",
+                "file": "guides/Installation.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Matrix Hierarchy"
+              "title": "Installation"
             }
           },
           {
@@ -197,9 +197,15 @@
       "bases:Create new base": false
     }
   },
-  "active": "4afc83a8e9d97142",
+  "active": "1563eaae446d05e3",
   "lastOpenFiles": [
+    "Welcome.md",
     "internals/Matrix Hierarchy.md",
+    "internals/Math Derivation.md",
+    "internals/File Format.md",
+    "guides/Inversion.md",
+    "guides/Installation.md",
+    "guides/BitwiseInversion.md",
     "api/pycauset.save.md",
     "api/functions/pycauset.load.md",
     "api/functions/pycauset.matmul.md",
@@ -218,15 +224,9 @@
     "api/functions",
     "api/classes",
     "api/pycauset.matmul.md",
-    "guides/Installation.md",
     "project/TODO.md",
     "PYTHON.md",
     "api/pycauset.Matrix.md",
-    "Welcome.md",
-    "api/pycauset.I.md",
-    "api/pycauset.IdentityMatrix.md",
-    "SETUP.md",
-    "guides/Matrix Multiplication.md",
     "project",
     "api/parameters",
     "internals",
