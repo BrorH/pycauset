@@ -11,7 +11,8 @@
 For a causal set of size $N$, the relevant mathematical objects are typically of order $\mathcal O(N^2)$ and operations are $\mathcal O(N^3)$. For even moderate sizes like $N=10,000$, standard in-memory libraries like NumPy can struggle with memory limits.
 
 **PyCauset solves this by:**
-*   **Memory Mapping**: Storing matrices on disk and loading only necessary chunks into RAM.
+*   **Hybrid Storage**: Automatically keeping small matrices in RAM for speed, while seamlessly spilling large matrices to disk.
+*   **Memory Mapping**: Storing massive matrices on disk and loading only necessary chunks into RAM.
 *   **Bit Packing**: Storing boolean matrices (causal relations) as individual bits, reducing storage requirements by 8x-64x compared to standard types.
 *   **C++ Efficiency**: Core operations are implemented in optimized C++.
 
