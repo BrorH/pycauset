@@ -12,14 +12,14 @@ Pycauset is written in C++ and stores all binary matrix entries as individual bi
 Pycauset is written to behave similarly to [numpy](https://numpy.org/) for the user.
 
 ## Guides
-*   [Installation](guides/Installation.md)
-*   [User Guide](guides/User%20Guide.md)
-*   [Matrix Guide](guides/Matrix%20Guide.md)
-*   [Vector Guide](guides/Vector%20Guide.md)
-*   [NumPy Integration](guides/Numpy%20Integration.md)
-*   [Matrix Multiplication](guides/Matrix%20Multiplication.md)
-*   [Inversion](guides/Inversion.md)
-*   [Bitwise Inversion](guides/BitwiseInversion.md)
+*   [[Installation]]
+*   [[User Guide]]
+*   [[Matrix Guide]]
+*   [[Vector Guide]]
+*   [[Numpy Integration]]
+*   [[Matrix Multiplication]]
+*   [[Inversion]]
+*   [[BitwiseInversion]]
 
 ## Project
-*   [Philosophy & Design Principles](project/Philosophy.md)
+*   [[Philosophy]]

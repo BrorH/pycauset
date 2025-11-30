@@ -10,6 +10,9 @@
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\PersistentObject.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\StoragePaths.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixBase.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

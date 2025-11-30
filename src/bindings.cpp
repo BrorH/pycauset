@@ -999,4 +999,11 @@ PYBIND11_MODULE(pycauset, m) {
         });
 
     m.def("dot", &pycauset::dot_product, "Dot product of two vectors");
+
+    m.def("set_memory_threshold", &pycauset::set_memory_threshold, 
+          py::arg("bytes"),
+          "Set the size threshold (in bytes) below which objects are stored in RAM instead of on disk.");
+          
+    m.def("get_memory_threshold", &pycauset::get_memory_threshold,
+          "Get the current memory threshold in bytes.");
 }

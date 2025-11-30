@@ -1,10 +1,10 @@
 # NumPy Integration Guide
 
-`pycauset` is designed to work seamlessly with the Python scientific stack, particularly NumPy. While `pycauset` uses its own disk-backed storage for handling massive datasets, it provides smooth interoperability with NumPy arrays for convenience and flexibility.
+`pycauset` is designed to work seamlessly with the Python scientific stack, particularly NumPy. While `pycauset` uses its own optimized storage (RAM or disk-backed) for handling massive datasets, it provides smooth interoperability with NumPy arrays for convenience and flexibility.
 
 ## Converting NumPy Arrays to PyCauset
 
-You can convert NumPy arrays into `pycauset` objects using the `pycauset.asarray()` function. This function automatically detects the data type and shape of the NumPy array and creates the corresponding `pycauset` Matrix or Vector.
+You can convert NumPy arrays into `pycauset` objects using the [[pycauset.asarray]] function. This function automatically detects the data type and shape of the NumPy array and creates the corresponding [[pycauset.Matrix]] or [[pycauset.Vector]].
 
 ```python
 import numpy as np
@@ -23,7 +23,7 @@ arr_bool = np.array([True, False], dtype=bool)
 vec_bool = pycauset.asarray(arr_bool)  # Returns BitVector
 ```
 
-**Note**: This operation creates a **copy** of the data on disk. `pycauset` objects are persistent, whereas NumPy arrays are in-memory.
+**Note**: This operation creates a **copy** of the data. Depending on the size and the configured memory threshold, the new object will be stored in RAM or on disk, see [[User Guide#Storage Management]]
 
 ## Converting PyCauset Objects to NumPy
 
@@ -40,7 +40,7 @@ mean_val = np.mean(v)
 std_val = np.std(v)
 ```
 
-**Note**: This operation loads the entire dataset from disk into memory. Be careful when doing this with very large matrices that exceed your RAM capacity.
+**Note**: This operation loads the entire dataset into memory as a standard NumPy array. Be careful when doing this with very large disk-backed matrices that exceed your RAM capacity.
 
 ## Mixed Arithmetic
 
@@ -70,7 +70,7 @@ v_result = M @ v_np  # [5.0, 6.0]
 
 ## Performance Considerations
 
-*   **PyCauset as Primary**: When you perform operations like `pycauset_obj + numpy_obj`, `pycauset` attempts to handle the operation. The NumPy array is temporarily converted to a `pycauset` object (backed by a temporary file), and the operation runs using the optimized C++ backend. The result is a new `pycauset` object.
+*   **PyCauset as Primary**: When you perform operations like `pycauset_obj + numpy_obj`, `pycauset` attempts to handle the operation. The NumPy array is temporarily converted to a `pycauset` object (backed by RAM or a temporary file), and the operation runs using the optimized C++ backend. The result is a new `pycauset` object.
 *   **NumPy as Primary**: If you use a NumPy function like `np.add(pycauset_obj, numpy_obj)`, NumPy will convert the `pycauset` object to an in-memory array first. This might be slower and memory-intensive for large datasets.
 
 **Best Practice**: For massive datasets, stick to `pycauset` native operations and objects as much as possible, only converting to NumPy for small results or specific analysis steps that `pycauset` doesn't yet support.

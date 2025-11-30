@@ -1,10 +1,10 @@
 # Vector Guide
 
-`pycauset` introduces efficient, disk-backed vectors that integrate seamlessly with the matrix operations.
+`pycauset` introduces efficient vectors that integrate seamlessly with the matrix operations. Vectors are stored in RAM for small sizes (behaving like NumPy arrays) and automatically spill to disk for massive datasets.
 
 ## Creating Vectors
 
-You can create vectors using the `Vector` factory function. It automatically selects the most efficient storage backend based on your data.
+You can create vectors using the [[pycauset.Vector]] factory function. It automatically selects the most efficient storage backend based on your data.
 
 ```python
 from pycauset import Vector
@@ -58,7 +58,7 @@ v_scaled = v * 2.0  # [2.0, 4.0, 6.0]
 
 ### Dot Product
 
-You can compute the dot product of two vectors using `pycauset.dot` or the `dot` method.
+You can compute the dot product of two vectors using [[pycauset.dot]] or the `dot` method.
 
 ```python
 from pycauset import dot
@@ -110,9 +110,9 @@ scalar = v1 @ v2    # 32.0
 ```
 
 **Type Safety**:
-*   `IntegerVector @ IntegerVector` -> `int`
-*   `BitVector @ BitVector` -> `int`
-*   Any `FloatVector` operand -> `float`
+*   [[pycauset.IntegerVector]] @ [[pycauset.IntegerVector]] -> `int`
+*   [[pycauset.BitVector]] @ [[pycauset.BitVector]] -> `int`
+*   Any [[pycauset.FloatVector]] operand -> `float`
 
 ### Outer Product
 
@@ -131,9 +131,9 @@ M = v1 @ v2.T
 ```
 
 **Type Safety**:
-*   `BitVector @ BitVector.T` -> `DenseBitMatrix` (Logical AND)
-*   `IntegerVector @ IntegerVector.T` -> `IntegerMatrix`
-*   Others -> `FloatMatrix`
+*   [[pycauset.BitVector]] @ [[pycauset.BitVector]].T -> [[pycauset.DenseBitMatrix]] (Logical AND)
+*   [[pycauset.IntegerVector]] @ [[pycauset.IntegerVector]].T -> [[pycauset.IntegerMatrix]]
+*   Others -> [[pycauset.FloatMatrix]]
 
 ### Matrix-Vector Multiplication
 
@@ -162,7 +162,7 @@ arr = np.array(v)
 ```
 
 ### From NumPy
-You can create vectors from NumPy arrays using `pycauset.asarray`:
+You can create vectors from NumPy arrays using [[pycauset.asarray]]:
 ```python
 arr = np.array([1.0, 2.0, 3.0])
 v = pycauset.asarray(arr)
@@ -179,7 +179,7 @@ v_new = v + arr # [11, 12, 13]
 
 ## Persistence
 
-Like matrices, vectors are backed by files on disk. You can save them permanently using `pycauset.save`.
+Like matrices, vectors are backed by storage (RAM or disk). You can save them permanently using [[pycauset.save]].
 
 ```python
 from pycauset import save, load
@@ -192,7 +192,7 @@ v_loaded = load("my_vector.pycauset")
 
 ## Mixed Types
 
-Operations between different vector types (e.g., IntegerVector + FloatVector) are supported. The result is typically promoted to a `FloatVector` (DenseVector<double>) to ensure precision.
+Operations between different vector types (e.g., [[pycauset.IntegerVector]] + [[pycauset.FloatVector]]) are supported. The result is typically promoted to a [[pycauset.FloatVector]] (DenseVector<double>) to ensure precision.
 
 ```python
 v_int = Vector([1, 2], dtype="int")

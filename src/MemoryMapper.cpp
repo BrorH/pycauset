@@ -46,26 +46,30 @@ size_t MemoryMapper::get_data_size() const {
 
 #ifdef _WIN32
 void MemoryMapper::open_file(bool create_new) {
-    // Ensure directory exists
-    std::filesystem::path path(filename_);
-    if (path.has_parent_path()) {
-        std::filesystem::create_directories(path.parent_path());
-    }
+    if (filename_ == ":memory:") {
+        hFile_ = INVALID_HANDLE_VALUE;
+    } else {
+        // Ensure directory exists
+        std::filesystem::path path(filename_);
+        if (path.has_parent_path()) {
+            std::filesystem::create_directories(path.parent_path());
+        }
 
-    DWORD creationDisposition = create_new ? CREATE_ALWAYS : OPEN_EXISTING;
+        DWORD creationDisposition = create_new ? CREATE_ALWAYS : OPEN_EXISTING;
 
-    hFile_ = CreateFileA(
-        filename_.c_str(),
-        GENERIC_READ | GENERIC_WRITE,
-        FILE_SHARE_READ | FILE_SHARE_WRITE, // Allow others to read and write
-        NULL,
-        creationDisposition,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL
-    );
+        hFile_ = CreateFileA(
+            filename_.c_str(),
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, // Allow others to read and write
+            NULL,
+            creationDisposition,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL
+        );
 
-    if (hFile_ == INVALID_HANDLE_VALUE) {
-        throw std::runtime_error("Failed to open file: " + filename_);
+        if (hFile_ == INVALID_HANDLE_VALUE) {
+            throw std::runtime_error("Failed to open file: " + filename_);
+        }
     }
 
     size_t total_size = data_size_ + sizeof(pycauset::FileHeader);
@@ -74,35 +78,47 @@ void MemoryMapper::open_file(bool create_new) {
 
     // Only set file size if we are creating a new file or explicitly resizing
     if (create_new) {
-        if (!SetFilePointerEx(hFile_, liSize, NULL, FILE_BEGIN)) {
-            CloseHandle(hFile_);
-            throw std::runtime_error("Failed to set file pointer");
-        }
-        if (!SetEndOfFile(hFile_)) {
-            CloseHandle(hFile_);
-            throw std::runtime_error("Failed to set end of file");
+        if (hFile_ != INVALID_HANDLE_VALUE) {
+            if (!SetFilePointerEx(hFile_, liSize, NULL, FILE_BEGIN)) {
+                CloseHandle(hFile_);
+                throw std::runtime_error("Failed to set file pointer");
+            }
+            if (!SetEndOfFile(hFile_)) {
+                CloseHandle(hFile_);
+                throw std::runtime_error("Failed to set end of file");
+            }
         }
     } else {
-        // Verify file size is at least total_size
-        LARGE_INTEGER fileSize;
-        if (!GetFileSizeEx(hFile_, &fileSize)) {
-            CloseHandle(hFile_);
-            throw std::runtime_error("Failed to get file size");
-        }
-        
-        // If data_size_ is 0, we map the whole file
-        if (data_size_ == 0) {
-            total_size = static_cast<size_t>(fileSize.QuadPart);
-            if (total_size < sizeof(pycauset::FileHeader)) {
-                 CloseHandle(hFile_);
-                 throw std::runtime_error("File is too small to contain a header");
-            }
-            data_size_ = total_size - sizeof(pycauset::FileHeader);
-            liSize.QuadPart = total_size;
+        if (hFile_ == INVALID_HANDLE_VALUE) {
+             // Cannot open existing memory mapping without a file handle unless we share a name, 
+             // but here :memory: implies new anonymous mapping.
+             // If we want to support shared memory by name, that's a different feature.
+             // For now, assume :memory: is always new/temporary.
+             if (data_size_ == 0) {
+                 throw std::runtime_error("Cannot open existing anonymous mapping without size");
+             }
         } else {
-            if (static_cast<size_t>(fileSize.QuadPart) < total_size) {
-                 CloseHandle(hFile_);
-                 throw std::runtime_error("File is smaller than expected size");
+            // Verify file size is at least total_size
+            LARGE_INTEGER fileSize;
+            if (!GetFileSizeEx(hFile_, &fileSize)) {
+                CloseHandle(hFile_);
+                throw std::runtime_error("Failed to get file size");
+            }
+            
+            // If data_size_ is 0, we map the whole file
+            if (data_size_ == 0) {
+                total_size = static_cast<size_t>(fileSize.QuadPart);
+                if (total_size < sizeof(pycauset::FileHeader)) {
+                     CloseHandle(hFile_);
+                     throw std::runtime_error("File is too small to contain a header");
+                }
+                data_size_ = total_size - sizeof(pycauset::FileHeader);
+                liSize.QuadPart = total_size;
+            } else {
+                if (static_cast<size_t>(fileSize.QuadPart) < total_size) {
+                     CloseHandle(hFile_);
+                     throw std::runtime_error("File is smaller than expected size");
+                }
             }
         }
     }
@@ -117,7 +133,7 @@ void MemoryMapper::open_file(bool create_new) {
     );
 
     if (hMapping_ == NULL) {
-        CloseHandle(hFile_);
+        if (hFile_ != INVALID_HANDLE_VALUE) CloseHandle(hFile_);
         throw std::runtime_error("Failed to create file mapping");
     }
 
@@ -131,7 +147,7 @@ void MemoryMapper::open_file(bool create_new) {
 
     if (mapped_ptr_ == NULL) {
         CloseHandle(hMapping_);
-        CloseHandle(hFile_);
+        if (hFile_ != INVALID_HANDLE_VALUE) CloseHandle(hFile_);
         throw std::runtime_error("Failed to map view of file");
     }
 }

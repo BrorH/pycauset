@@ -383,6 +383,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\bindings.cpp" />
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MemoryMapper.cpp" />
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\PersistentObject.cpp" />
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\StoragePaths.cpp" />
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixBase.cpp" />
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\VectorBase.cpp" />
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\TriangularMatrix.cpp" />

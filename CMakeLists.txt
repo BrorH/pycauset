@@ -30,6 +30,7 @@ set(PYCAUSET_SOURCES
     src/bindings.cpp
     src/MemoryMapper.cpp
     src/PersistentObject.cpp
+    src/StoragePaths.cpp
     src/MatrixBase.cpp
     src/VectorBase.cpp
     src/TriangularMatrix.cpp

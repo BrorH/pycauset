@@ -1,7 +1,10 @@
 The back-bone of pycauset is the matrix system. It is built from the ground-up to allow a seamless workflow as similar to possible to numpy.
+
+`pycauset` behaves like NumPy at small scales (storing data in RAM), but converts to a memory-efficient beast at high scales (automatically spilling to disk).
+
 # Creating a Matrix
 
-Matrices can be created using the `pycauset.Matrix` factory function. This function is flexible and accepts lists, NumPy arrays, or dimensions. You can also specify the `dtype` to control the underlying storage format.
+Matrices can be created using the [[pycauset.Matrix]] factory function. This function is flexible and accepts lists, NumPy arrays, or dimensions. You can also specify the `dtype` to control the underlying storage format.
 
 ```python
 import pycauset
@@ -29,9 +32,9 @@ C = pycauset.CausalMatrix(100)
 
 ## Matrix Multiplication (`matmul`)
 
-Matrix multiplication is performed using the `pycauset.matmul(A, B)` function.
+Matrix multiplication is performed using the [[pycauset.matmul]](A, B) function.
 ### Supported Types
-Currently, matrix multiplication is optimized and exposed for **`TriangularBitMatrix`**.
+Currently, matrix multiplication is optimized and exposed for **[[pycauset.TriangularBitMatrix]]**.
 ### Syntax
 ```python
 import pycauset
@@ -41,8 +44,8 @@ C = pycauset.matmul(A, B)
 ```
 
 ### Return Value
-The operation returns an **`IntegerMatrix`**. 
-- Since `TriangularBitMatrix` entries are boolean (0 or 1), the dot product of a row and a column results in an integer.
+The operation returns an **[[pycauset.IntegerMatrix]]**. 
+- Since [[pycauset.TriangularBitMatrix]] entries are boolean (0 or 1), the dot product of a row and a column results in an integer.
 - Geometrically, if $A$ and $B$ represent adjacency matrices of graphs, $C_{ij}$ counts the number of paths of length 2 from node $i$ to node $j$ (i.e., number of intermediate nodes $k$ such that $i \to k$ and $k \to j$).
 ## Element-wise Multiplication
 
@@ -54,7 +57,7 @@ C = A * B
 ```
 ### Semantics
 -   $C_{ij} = A_{ij} \times B_{ij}$
--   For `TriangularBitMatrix`, this is equivalent to a bitwise AND operation ($1 \times 1 = 1$, others $0$).
+-   For [[pycauset.TriangularBitMatrix]], this is equivalent to a bitwise AND operation ($1 \times 1 = 1$, others $0$).
 -   Returns a new matrix of the same type as the operands.
 
 ## Scalar Multiplication
@@ -70,14 +73,14 @@ C = 0.5 * A
 # Saving and Storing Matrices
 In pycauset, matrices never live in-memory, but are stored on your device's storage disk. This allows for work humongous matrices.
 ### Saving a Matrix
-Matrices are backed by temporary files that are deleted when the program exits, unless [`pycauset.keep_temp_files`](pycauset.keep_temp_files.md) is set to `True`. To permanently save a specific matrix, use [`pycauset.save()`](pycauset.save). 
+Matrices are backed by temporary files that are deleted when the program exits, unless [[pycauset.keep_temp_files]] is set to `True`. To permanently save a specific matrix, use [[pycauset.save]]. 
 ```python
 # Save the matrix to a permanent location
 pycauset.save(C, "my_saved_matrix.pycauset")
 ```
 
 ### Loading a Matrix
-You can load any previously saved matrix file using `pycauset.load()`. The function automatically detects the matrix type (Causal, Integer, Float, etc.) from the file header.
+You can load any previously saved matrix file using [[pycauset.load]]. The function automatically detects the matrix type (Causal, Integer, Float, etc.) from the file header.
 
 ```python
 # Load a matrix from disk
@@ -92,7 +95,7 @@ print(type(matrix))
 By default, `pycauset` manages backing files automatically. Files are stored in a `.pycauset` directory (or `$PYCAUSET_STORAGE_DIR`).
 - **Automatic Cleanup**: Temporary files are deleted on exit.
 - **Persistence**: Set `pycauset.keep_temp_files = True` to prevent deletion of temporary files (useful for debugging).
-- **Explicit Saving**: Use `pycauset.save()` to keep specific matrices.
+- **Explicit Saving**: Use [[pycauset.save]] to keep specific matrices.
 
 
 
