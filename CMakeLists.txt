@@ -29,10 +29,13 @@ find_package(OpenMP)
 set(PYCAUSET_SOURCES
     src/bindings.cpp
     src/MemoryMapper.cpp
+    src/PersistentObject.cpp
     src/MatrixBase.cpp
+    src/VectorBase.cpp
     src/TriangularMatrix.cpp
     src/TriangularBitMatrix.cpp
     src/DenseBitMatrix.cpp
+    src/DenseVector.cpp
     src/MatrixOperations.cpp
 )
 

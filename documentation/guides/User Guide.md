@@ -48,6 +48,20 @@ data = [
 C_from_list = pycauset.CausalMatrix(data)
 ```
 
+### Creating a Vector
+`pycauset` also supports efficient, disk-backed vectors. See the [Vector Guide](Vector%20Guide.md) for details.
+
+```python
+# Create a vector from a list
+v = pycauset.Vector([1, 2, 3])
+
+# Create a large empty vector
+v_large = pycauset.Vector(1000000, dtype="float")
+```
+
+### Matrix Operations
+```
+
 #### Other Matrix Types
 The `Matrix` factory returns specialized classes based on the data:
 *   **`pycauset.IntegerMatrix`**: Dense $N \times N$ matrix storing 32-bit integers.

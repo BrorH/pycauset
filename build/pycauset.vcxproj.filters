@@ -7,7 +7,13 @@
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MemoryMapper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\PersistentObject.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixBase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\VectorBase.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\TriangularMatrix.cpp">
@@ -17,6 +23,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\DenseBitMatrix.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\DenseVector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixOperations.cpp">

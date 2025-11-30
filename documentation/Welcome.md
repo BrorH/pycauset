@@ -10,3 +10,12 @@ Causal sets are _huge_, and for a causal set of size $N$, the relevant mathemati
 Pycauset is written in C++ and stores all binary matrix entries as individual bits - saving orders of magnitude from using, say, [numpy](https://numpy.org/) for the same task. By default, each matrix is stored as a binary file, and only chunks of the full file is loaded into memory at one time. This means there is no upper limit to how large $N$ can be - as long as you have the time and storage. For example, an external storage medium can be used for this purpose.
 
 Pycauset is written to behave similarly to [numpy](https://numpy.org/) for the user.
+
+## Guides
+*   [Installation](guides/Installation.md)
+*   [User Guide](guides/User%20Guide.md)
+*   [Matrix Guide](guides/Matrix%20Guide.md)
+*   [Vector Guide](guides/Vector%20Guide.md)
+*   [Matrix Multiplication](guides/Matrix%20Multiplication.md)
+*   [Inversion](guides/Inversion.md)
+*   [Bitwise Inversion](guides/BitwiseInversion.md)

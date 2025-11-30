@@ -199,6 +199,7 @@
   },
   "active": "1563eaae446d05e3",
   "lastOpenFiles": [
+    "guides/Vector Guide.md",
     "guides/Installation.md",
     "Welcome.md",
     "internals/Matrix Hierarchy.md",
@@ -226,7 +227,6 @@
     "api/pycauset.matmul.md",
     "project/TODO.md",
     "PYTHON.md",
-    "api/pycauset.Matrix.md",
     "project",
     "api/parameters",
     "internals",

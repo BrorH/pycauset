@@ -1,7 +1,10 @@
 C:\Users\ireal\Documents\pycauset\src\bindings.cpp;C:\Users\ireal\Documents\pycauset\build\pycauset.dir\Release\bindings.obj
 C:\Users\ireal\Documents\pycauset\src\MemoryMapper.cpp;C:\Users\ireal\Documents\pycauset\build\pycauset.dir\Release\MemoryMapper.obj
+C:\Users\ireal\Documents\pycauset\src\PersistentObject.cpp;C:\Users\ireal\Documents\pycauset\build\pycauset.dir\Release\PersistentObject.obj
 C:\Users\ireal\Documents\pycauset\src\MatrixBase.cpp;C:\Users\ireal\Documents\pycauset\build\pycauset.dir\Release\MatrixBase.obj
+C:\Users\ireal\Documents\pycauset\src\VectorBase.cpp;C:\Users\ireal\Documents\pycauset\build\pycauset.dir\Release\VectorBase.obj
 C:\Users\ireal\Documents\pycauset\src\TriangularMatrix.cpp;C:\Users\ireal\Documents\pycauset\build\pycauset.dir\Release\TriangularMatrix.obj
 C:\Users\ireal\Documents\pycauset\src\TriangularBitMatrix.cpp;C:\Users\ireal\Documents\pycauset\build\pycauset.dir\Release\TriangularBitMatrix.obj
 C:\Users\ireal\Documents\pycauset\src\DenseBitMatrix.cpp;C:\Users\ireal\Documents\pycauset\build\pycauset.dir\Release\DenseBitMatrix.obj
+C:\Users\ireal\Documents\pycauset\src\DenseVector.cpp;C:\Users\ireal\Documents\pycauset\build\pycauset.dir\Release\DenseVector.obj
 C:\Users\ireal\Documents\pycauset\src\MatrixOperations.cpp;C:\Users\ireal\Documents\pycauset\build\pycauset.dir\Release\MatrixOperations.obj

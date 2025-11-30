@@ -38,7 +38,8 @@ public:
                          std::string("triangular_") + MatrixTraits<T>::name, 
                          8,
                          pycauset::MatrixType::TRIANGULAR_FLOAT, // Placeholder
-                         MatrixTraits<T>::data_type);
+                         MatrixTraits<T>::data_type,
+                         n, n);
     }
 
     TriangularMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)

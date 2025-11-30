@@ -15,7 +15,8 @@ public:
                          "identity", 
                          0,
                          pycauset::MatrixType::IDENTITY, 
-                         pycauset::DataType::FLOAT64);
+                         pycauset::DataType::FLOAT64,
+                         n, n);
     }
 
     IdentityMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)

@@ -21,6 +21,7 @@ Goals:
 - [x] Fix bug so that binaries are actually deleted on program finish
 - [x] add dtype specification on matrix creation
 - [ ] vectors
+- [ ] complex numbers support
 
 
 ## Documentation needed

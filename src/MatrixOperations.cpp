@@ -34,7 +34,42 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
         return a_id.add(b_id, result_file);
     }
 
+    // Check for Integer types
+    bool a_is_int = (dynamic_cast<const DenseMatrix<int32_t>*>(&a) != nullptr) || 
+                    (dynamic_cast<const TriangularMatrix<int32_t>*>(&a) != nullptr) ||
+                    (dynamic_cast<const DenseMatrix<bool>*>(&a) != nullptr) ||
+                    (dynamic_cast<const TriangularMatrix<bool>*>(&a) != nullptr);
+                    
+    bool b_is_int = (dynamic_cast<const DenseMatrix<int32_t>*>(&b) != nullptr) || 
+                    (dynamic_cast<const TriangularMatrix<int32_t>*>(&b) != nullptr) ||
+                    (dynamic_cast<const DenseMatrix<bool>*>(&b) != nullptr) ||
+                    (dynamic_cast<const TriangularMatrix<bool>*>(&b) != nullptr);
+
     bool both_triangular = is_triangular(a) && is_triangular(b);
+
+    if (a_is_int && b_is_int) {
+        if (both_triangular) {
+            auto result = std::make_unique<TriangularMatrix<int32_t>>(n, result_file);
+            for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t j = i + 1; j < n; ++j) {
+                    int32_t val = (int32_t)a.get_element_as_double(i, j) + (int32_t)b.get_element_as_double(i, j);
+                    if (val != 0) {
+                        result->set(i, j, val);
+                    }
+                }
+            }
+            return result;
+        } else {
+            auto result = std::make_unique<DenseMatrix<int32_t>>(n, result_file);
+            for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t j = 0; j < n; ++j) {
+                    int32_t val = (int32_t)a.get_element_as_double(i, j) + (int32_t)b.get_element_as_double(i, j);
+                    result->set(i, j, val);
+                }
+            }
+            return result;
+        }
+    }
     
     if (both_triangular) {
         auto result = std::make_unique<TriangularMatrix<double>>(n, result_file);
@@ -71,7 +106,42 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
         return a_id.subtract(b_id, result_file);
     }
 
+    // Check for Integer types
+    bool a_is_int = (dynamic_cast<const DenseMatrix<int32_t>*>(&a) != nullptr) || 
+                    (dynamic_cast<const TriangularMatrix<int32_t>*>(&a) != nullptr) ||
+                    (dynamic_cast<const DenseMatrix<bool>*>(&a) != nullptr) ||
+                    (dynamic_cast<const TriangularMatrix<bool>*>(&a) != nullptr);
+                    
+    bool b_is_int = (dynamic_cast<const DenseMatrix<int32_t>*>(&b) != nullptr) || 
+                    (dynamic_cast<const TriangularMatrix<int32_t>*>(&b) != nullptr) ||
+                    (dynamic_cast<const DenseMatrix<bool>*>(&b) != nullptr) ||
+                    (dynamic_cast<const TriangularMatrix<bool>*>(&b) != nullptr);
+
     bool both_triangular = is_triangular(a) && is_triangular(b);
+
+    if (a_is_int && b_is_int) {
+        if (both_triangular) {
+            auto result = std::make_unique<TriangularMatrix<int32_t>>(n, result_file);
+            for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t j = i + 1; j < n; ++j) {
+                    int32_t val = (int32_t)a.get_element_as_double(i, j) - (int32_t)b.get_element_as_double(i, j);
+                    if (val != 0) {
+                        result->set(i, j, val);
+                    }
+                }
+            }
+            return result;
+        } else {
+            auto result = std::make_unique<DenseMatrix<int32_t>>(n, result_file);
+            for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t j = 0; j < n; ++j) {
+                    int32_t val = (int32_t)a.get_element_as_double(i, j) - (int32_t)b.get_element_as_double(i, j);
+                    result->set(i, j, val);
+                }
+            }
+            return result;
+        }
+    }
     
     if (both_triangular) {
         auto result = std::make_unique<TriangularMatrix<double>>(n, result_file);
@@ -108,7 +178,42 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
         return a_id.elementwise_multiply(b_id, result_file);
     }
 
+    // Check for Integer types
+    bool a_is_int = (dynamic_cast<const DenseMatrix<int32_t>*>(&a) != nullptr) || 
+                    (dynamic_cast<const TriangularMatrix<int32_t>*>(&a) != nullptr) ||
+                    (dynamic_cast<const DenseMatrix<bool>*>(&a) != nullptr) ||
+                    (dynamic_cast<const TriangularMatrix<bool>*>(&a) != nullptr);
+                    
+    bool b_is_int = (dynamic_cast<const DenseMatrix<int32_t>*>(&b) != nullptr) || 
+                    (dynamic_cast<const TriangularMatrix<int32_t>*>(&b) != nullptr) ||
+                    (dynamic_cast<const DenseMatrix<bool>*>(&b) != nullptr) ||
+                    (dynamic_cast<const TriangularMatrix<bool>*>(&b) != nullptr);
+
     bool both_triangular = is_triangular(a) && is_triangular(b);
+
+    if (a_is_int && b_is_int) {
+        if (both_triangular) {
+            auto result = std::make_unique<TriangularMatrix<int32_t>>(n, result_file);
+            for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t j = i + 1; j < n; ++j) {
+                    int32_t val = (int32_t)a.get_element_as_double(i, j) * (int32_t)b.get_element_as_double(i, j);
+                    if (val != 0) {
+                        result->set(i, j, val);
+                    }
+                }
+            }
+            return result;
+        } else {
+            auto result = std::make_unique<DenseMatrix<int32_t>>(n, result_file);
+            for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t j = 0; j < n; ++j) {
+                    int32_t val = (int32_t)a.get_element_as_double(i, j) * (int32_t)b.get_element_as_double(i, j);
+                    result->set(i, j, val);
+                }
+            }
+            return result;
+        }
+    }
     
     if (both_triangular) {
         auto result = std::make_unique<TriangularMatrix<double>>(n, result_file);
@@ -131,6 +236,126 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
         }
         return result;
     }
+}
+
+std::unique_ptr<VectorBase> add_vectors(const VectorBase& a, const VectorBase& b, const std::string& result_file) {
+    if (a.size() != b.size()) {
+        throw std::invalid_argument("Vector dimensions must match");
+    }
+    uint64_t n = a.size();
+    
+    // Check if both are integer-like (IntegerVector or BitVector)
+    bool a_is_int = (dynamic_cast<const DenseVector<int32_t>*>(&a) != nullptr) || (dynamic_cast<const DenseVector<bool>*>(&a) != nullptr);
+    bool b_is_int = (dynamic_cast<const DenseVector<int32_t>*>(&b) != nullptr) || (dynamic_cast<const DenseVector<bool>*>(&b) != nullptr);
+
+    if (a_is_int && b_is_int) {
+        auto result = std::make_unique<DenseVector<int32_t>>(n, result_file);
+        for (uint64_t i = 0; i < n; ++i) {
+            result->set(i, (int32_t)a.get_element_as_double(i) + (int32_t)b.get_element_as_double(i));
+        }
+        return result;
+    }
+
+    auto result = std::make_unique<DenseVector<double>>(n, result_file);
+    for (uint64_t i = 0; i < n; ++i) {
+        result->set(i, a.get_element_as_double(i) + b.get_element_as_double(i));
+    }
+    return result;
+}
+
+std::unique_ptr<VectorBase> subtract_vectors(const VectorBase& a, const VectorBase& b, const std::string& result_file) {
+    if (a.size() != b.size()) {
+        throw std::invalid_argument("Vector dimensions must match");
+    }
+    uint64_t n = a.size();
+
+    // Check if both are integer-like
+    bool a_is_int = (dynamic_cast<const DenseVector<int32_t>*>(&a) != nullptr) || (dynamic_cast<const DenseVector<bool>*>(&a) != nullptr);
+    bool b_is_int = (dynamic_cast<const DenseVector<int32_t>*>(&b) != nullptr) || (dynamic_cast<const DenseVector<bool>*>(&b) != nullptr);
+
+    if (a_is_int && b_is_int) {
+        auto result = std::make_unique<DenseVector<int32_t>>(n, result_file);
+        for (uint64_t i = 0; i < n; ++i) {
+            result->set(i, (int32_t)a.get_element_as_double(i) - (int32_t)b.get_element_as_double(i));
+        }
+        return result;
+    }
+
+    auto result = std::make_unique<DenseVector<double>>(n, result_file);
+    for (uint64_t i = 0; i < n; ++i) {
+        result->set(i, a.get_element_as_double(i) - b.get_element_as_double(i));
+    }
+    return result;
+}
+
+double dot_product(const VectorBase& a, const VectorBase& b) {
+    if (a.size() != b.size()) {
+        throw std::invalid_argument("Vector dimensions must match");
+    }
+    uint64_t n = a.size();
+    double sum = 0.0;
+    for (uint64_t i = 0; i < n; ++i) {
+        sum += a.get_element_as_double(i) * b.get_element_as_double(i);
+    }
+    return sum;
+}
+
+std::unique_ptr<VectorBase> scalar_multiply_vector(const VectorBase& v, double scalar, const std::string& result_file) {
+    uint64_t n = v.size();
+    auto result = std::make_unique<DenseVector<double>>(n, result_file);
+    for (uint64_t i = 0; i < n; ++i) {
+        result->set(i, v.get_element_as_double(i) * scalar);
+    }
+    return result;
+}
+
+std::unique_ptr<VectorBase> scalar_multiply_vector(const VectorBase& v, int64_t scalar, const std::string& result_file) {
+    uint64_t n = v.size();
+    
+    bool v_is_int = (dynamic_cast<const DenseVector<int32_t>*>(&v) != nullptr) || (dynamic_cast<const DenseVector<bool>*>(&v) != nullptr);
+
+    if (v_is_int) {
+        auto result = std::make_unique<DenseVector<int32_t>>(n, result_file);
+        for (uint64_t i = 0; i < n; ++i) {
+            result->set(i, (int32_t)v.get_element_as_double(i) * (int32_t)scalar);
+        }
+        return result;
+    }
+
+    auto result = std::make_unique<DenseVector<double>>(n, result_file);
+    for (uint64_t i = 0; i < n; ++i) {
+        result->set(i, v.get_element_as_double(i) * (double)scalar);
+    }
+    return result;
+}
+
+std::unique_ptr<VectorBase> scalar_add_vector(const VectorBase& v, double scalar, const std::string& result_file) {
+    uint64_t n = v.size();
+    auto result = std::make_unique<DenseVector<double>>(n, result_file);
+    for (uint64_t i = 0; i < n; ++i) {
+        result->set(i, v.get_element_as_double(i) + scalar);
+    }
+    return result;
+}
+
+std::unique_ptr<VectorBase> scalar_add_vector(const VectorBase& v, int64_t scalar, const std::string& result_file) {
+    uint64_t n = v.size();
+    
+    bool v_is_int = (dynamic_cast<const DenseVector<int32_t>*>(&v) != nullptr) || (dynamic_cast<const DenseVector<bool>*>(&v) != nullptr);
+
+    if (v_is_int) {
+        auto result = std::make_unique<DenseVector<int32_t>>(n, result_file);
+        for (uint64_t i = 0; i < n; ++i) {
+            result->set(i, (int32_t)v.get_element_as_double(i) + (int32_t)scalar);
+        }
+        return result;
+    }
+
+    auto result = std::make_unique<DenseVector<double>>(n, result_file);
+    for (uint64_t i = 0; i < n; ++i) {
+        result->set(i, v.get_element_as_double(i) + (double)scalar);
+    }
+    return result;
 }
 
 } // namespace pycauset
