@@ -1,8 +1,9 @@
-# Python
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.pyd
 .Python
 build/
 develop-eggs/
@@ -22,7 +23,10 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Virtual Environments
+# --- Generated Version File ---
+python/pycauset/_version.py
+
+# --- Virtual Environments ---
 .env
 .venv
 env/
@@ -31,13 +35,21 @@ ENV/
 env.bak/
 venv.bak/
 
-# C++ / CMake
+# --- Testing & Coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# --- C++ / CMake / Visual Studio ---
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
 *.vcxproj
 *.vcxproj.filters
+*.vcxproj.user
 *.sln
 *.slnx
 *.dir/
@@ -48,31 +60,26 @@ Makefile
 *.pdb
 *.ilk
 *.obj
-compile_commands.json
-CTestTestfile.cmake
+*.iobj
+*.ipdb
+*.tlog
 _deps/
 x64/
+x86/
 Debug/
 Release/
 RelWithDebInfo/
 MinSizeRel/
+out/
 
-# VS Code
+# --- IDEs / Editors ---
 .vscode/
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-*.code-workspace
+.idea/
+*.swp
+*.swo
+*~
 
-# PyCauset Specific
+# --- Project Specific ---
 .pycauset/
 *.pycauset
-*.pyd
-*.bin
-test_*.bin
-*_test.bin
-
-# Documentation
-.obsidian/workspace
-.obsidian/cache
+storage/
