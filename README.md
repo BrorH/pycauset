@@ -13,21 +13,24 @@ For a causal set of size $N$, the relevant mathematical objects are typically of
 
 ## Installation
 
-### Prerequisites
-PyCauset requires a C++ compiler to build the native extension.
-*   **Windows**: Install **Visual Studio Build Tools** with the "Desktop development with C++" workload.
-*   **Linux/macOS**: Install `gcc` or `clang`.
+### From PyPI (Recommended)
+The easiest way to install PyCauset is via pip:
 
-### Build & Install
-Clone the repository and run the build script:
-
-```powershell
-# Build the C++ extension and Python module
-./build.ps1 -Python
-
-# To run tests as well
-./build.ps1 -All
+```bash
+pip install pycauset
 ```
+
+*Note: Since this is a C++ extension, you will need a C++ compiler installed on your system (Visual Studio Build Tools on Windows, GCC/Clang on Linux/Mac) for the installation to succeed.*
+
+### From Source
+If you want to build from source or contribute:
+
+1.  Clone the repository.
+2.  Install build dependencies: `pip install scikit-build-core pybind11`.
+3.  Build and install:
+    ```bash
+    pip install .
+    ```
 
 ## Quick Start
 

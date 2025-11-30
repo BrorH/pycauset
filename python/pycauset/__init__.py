@@ -1,6 +1,11 @@
 """Python package wrapper that augments the native pycauset extension."""
 from __future__ import annotations
 
+try:
+    from ._version import version as __version__
+except ImportError:
+    __version__ = "unknown"
+
 import atexit
 import inspect
 import os
