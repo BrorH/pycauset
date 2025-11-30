@@ -32,6 +32,7 @@ set(PYCAUSET_SOURCES
     src/MatrixBase.cpp
     src/TriangularMatrix.cpp
     src/TriangularBitMatrix.cpp
+    src/DenseBitMatrix.cpp
     src/MatrixOperations.cpp
 )
 

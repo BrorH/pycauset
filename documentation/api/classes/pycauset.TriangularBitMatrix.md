@@ -30,7 +30,7 @@ Sets the value at row `i` and column `j`.
 ### `multiply(other)`
 Multiplies this matrix by another `TriangularBitMatrix`.
 *   **other**: Another `TriangularBitMatrix`.
-*   **Returns**: An [[pycauset.IntegerMatrix]].
+*   **Returns**: A [[pycauset.TriangularIntegerMatrix]].
 
 ### `elementwise_multiply(other)`
 Performs elementwise logical AND.

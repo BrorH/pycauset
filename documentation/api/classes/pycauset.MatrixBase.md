@@ -10,6 +10,7 @@ The abstract base class for all matrix types in `pycauset`. It manages the memor
 
 *   **scalar** (*float*): A scaling factor applied to all elements when accessed as doubles. Defaults to `1.0`. Setting this property updates the file header instantly.
 *   **seed** (*int*): The random seed used to generate the matrix, if applicable. Read-only. Returns `0` if no seed was recorded.
+*   **is_temporary** (*bool*): Indicates whether the backing file is temporary and should be deleted on exit.
 *   **shape** (*tuple*): The dimensions of the matrix `(N, N)`.
 *   **size** (*int*): The dimension $N$ of the matrix.
 

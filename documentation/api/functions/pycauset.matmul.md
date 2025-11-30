@@ -6,7 +6,7 @@ pycauset.matmul(a, b)
 
 Perform matrix multiplication.
 
-If both inputs are [[pycauset.TriangularBitMatrix]] instances, an optimized C++ implementation is used, returning an [[pycauset.IntegerMatrix]].
+If both inputs are [[pycauset.TriangularBitMatrix]] instances, an optimized C++ implementation is used, returning a [[pycauset.TriangularIntegerMatrix]].
 Otherwise, a generic multiplication is performed, returning a [[pycauset.Matrix]].
 
 ## Parameters
@@ -16,4 +16,4 @@ Otherwise, a generic multiplication is performed, returning a [[pycauset.Matrix]
 
 ## Returns
 
-*   **IntegerMatrix** or **Matrix**: The result of the multiplication.
+*   **TriangularIntegerMatrix**, **IntegerMatrix**, or **Matrix**: The result of the multiplication.

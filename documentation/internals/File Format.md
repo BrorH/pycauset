@@ -40,7 +40,7 @@ The header contains metadata necessary to identify the file type, matrix dimensi
 *   `1`: **CAUSAL** (Strictly Upper Triangular, Boolean/Bit storage)
 *   `2`: **INTEGER** (Strictly Upper Triangular, 32-bit Integer storage)
 *   `3`: **TRIANGULAR_FLOAT** (Strictly Upper Triangular, 64-bit Float storage)
-*   `4`: **DENSE_FLOAT** (Dense $N \times N$, 64-bit Float storage)
+*   `4`: **DENSE** (Dense $N \times N$, storage depends on Data Type)
 
 **Data Type (`uint32_t`)**
 *   `1`: **BIT** (1 bit per element)
@@ -68,11 +68,24 @@ The header contains metadata necessary to identify the file type, matrix dimensi
 *   **Layout**: Row-major. Row $i$ stores columns $j = i+1 \dots N-1$.
 *   **Size Calculation**: $\frac{N(N-1)}{2} \times 8$ bytes.
 
-### Dense Float Matrix (Type 4)
+### Dense Float Matrix (Type 4, Data Type 3)
 *   **Logical Structure**: Dense ($N \times N$).
 *   **Storage**: `double` (8 bytes).
 *   **Layout**: Standard Row-major.
 *   **Size Calculation**: $N^2 \times 8$ bytes.
+
+### Dense Integer Matrix (Type 4, Data Type 2)
+*   **Logical Structure**: Dense ($N \times N$).
+*   **Storage**: `int32_t` (4 bytes).
+*   **Layout**: Standard Row-major.
+*   **Size Calculation**: $N^2 \times 4$ bytes.
+
+### Dense Bit Matrix (Type 4, Data Type 1)
+*   **Logical Structure**: Dense ($N \times N$).
+*   **Storage**: Bit-packed.
+*   **Layout**: Row-major.
+*   **Alignment**: Each row is padded to align to a 64-bit boundary.
+*   **Size Calculation**: $N \times \lceil \frac{N}{64} \rceil \times 8$ bytes.
 
 ## Loading
 
