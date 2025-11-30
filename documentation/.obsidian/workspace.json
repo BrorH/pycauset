@@ -213,6 +213,7 @@
   },
   "active": "1563eaae446d05e3",
   "lastOpenFiles": [
+    "index.md",
     "guides/User Guide.md",
     "project/TODO.md",
     "guides/Inversion.md",
@@ -238,7 +239,6 @@
     "api/functions/pycauset.I.md",
     "api/functions/pycauset.bitwise_not.md",
     "api/classes/pycauset.FloatVector.md",
-    "api/classes/pycauset.DenseBitMatrix.md",
     "api/functions",
     "api/classes",
     "project",
