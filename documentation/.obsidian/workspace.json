@@ -213,6 +213,7 @@
   },
   "active": "1563eaae446d05e3",
   "lastOpenFiles": [
+    "internals/Release Process.md",
     "javascripts/mermaid.js",
     "project/TODO.md",
     "stylesheets/extra.css",
@@ -247,7 +248,6 @@
     "api/classes",
     "project",
     "api/parameters",
-    "internals",
-    "guides"
+    "internals"
   ]
 }
