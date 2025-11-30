@@ -6,7 +6,9 @@
 #include "IdentityMatrix.hpp"
 #include "MatrixFactory.hpp"
 #include <stdexcept>
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 #include <bit>
 #include <vector>
 #include <functional>

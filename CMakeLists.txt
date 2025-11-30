@@ -24,6 +24,24 @@ endif()
 
 # 3. OpenMP (Optional but recommended)
 find_package(OpenMP)
+if(NOT OpenMP_CXX_FOUND AND APPLE)
+    # Try to find OpenMP in Homebrew paths on macOS
+    set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp")
+    set(OpenMP_CXX_LIB_NAMES "omp")
+    set(OpenMP_omp_LIBRARY "omp")
+    
+    # Check standard Homebrew locations
+    file(GLOB OPENMP_DIRS "/opt/homebrew/opt/libomp" "/usr/local/opt/libomp")
+    foreach(DIR ${OPENMP_DIRS})
+        if(EXISTS "${DIR}/include/omp.h")
+            include_directories("${DIR}/include")
+            link_directories("${DIR}/lib")
+            set(OpenMP_CXX_FOUND TRUE)
+            message(STATUS "Found OpenMP via Homebrew at ${DIR}")
+            break()
+        endif()
+    endforeach()
+endif()
 
 # --- Source Files ---
 set(PYCAUSET_SOURCES
