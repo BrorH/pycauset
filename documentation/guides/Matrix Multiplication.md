@@ -74,3 +74,12 @@ C = 0.5 * A
 -   Instead, it updates an internal `scalar` field in the matrix object.
 -   When elements are accessed (e.g., via `get_element_as_double` or converted to numpy), the stored value is multiplied by this scalar on the fly.
 -   If you perform `C = pycauset.matmul(A, B)`, the resulting matrix will inherit the product of the scalars: `C.scalar = A.scalar * B.scalar`.
+
+## Vector-Matrix Multiplication
+
+`pycauset` supports multiplication between matrices and vectors using the `@` operator.
+
+*   **Matrix @ Vector**: `M @ v` returns a column vector ($M \times v$).
+*   **Vector @ Matrix**: `v.T @ M` returns a row vector ($v^T \times M$).
+
+See the [Vector Guide](Vector%20Guide.md#transposition--matrix-operations) for more details on transposition and vector operations.

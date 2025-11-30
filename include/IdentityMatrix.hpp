@@ -63,9 +63,15 @@ public:
         return result;
     }
 
-    std::unique_ptr<IdentityMatrix> multiply_scalar(double factor, const std::string& result_file = "") const {
+    std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
         auto result = std::make_unique<IdentityMatrix>(n_, result_file);
         result->set_scalar(scalar_ * factor);
+        return result;
+    }
+
+    std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
+        auto result = std::make_unique<IdentityMatrix>(n_, result_file);
+        result->set_scalar(scalar_ * static_cast<double>(factor));
         return result;
     }
 };

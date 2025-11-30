@@ -390,6 +390,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\DenseBitMatrix.cpp" />
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\DenseVector.cpp" />
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixOperations.cpp" />
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixFactory.cpp" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>

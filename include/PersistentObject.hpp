@@ -24,6 +24,12 @@ public:
     bool is_temporary() const;
     void set_temporary(bool temp);
 
+    bool is_transposed() const;
+    void set_transposed(bool transposed);
+
+    pycauset::DataType get_data_type() const;
+    pycauset::MatrixType get_matrix_type() const;
+
     // Creates a copy of the backing file and returns the new path
     std::string copy_storage(const std::string& result_file_hint) const;
 

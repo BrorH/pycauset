@@ -40,7 +40,11 @@ public:
     std::unique_ptr<TriangularMatrix<bool>> elementwise_multiply(const TriangularMatrix<bool>& other, const std::string& result_file) const;
     
     // Scalar multiplication
-    std::unique_ptr<TriangularMatrix<bool>> multiply_scalar(double factor, const std::string& result_file = "") const;
+    std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override;
+
+    std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
+        return multiply_scalar(static_cast<double>(factor), result_file);
+    }
 
     // Bitwise inversion (NOT)
     // Returns a new matrix where every bit in the upper triangle is flipped.

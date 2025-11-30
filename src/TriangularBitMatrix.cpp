@@ -375,7 +375,7 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
     mapper->map_all();
 }
 
-std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {
+std::unique_ptr<MatrixBase> TriangularMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {
     std::string new_path = copy_storage(result_file);
     
     uint64_t file_size = std::filesystem::file_size(new_path);

@@ -31,6 +31,9 @@
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixOperations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixFactory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="C:\Users\ireal\Documents\pycauset\CMakeLists.txt" />
