@@ -44,6 +44,7 @@ The header contains metadata necessary to identify the object type, dimensions, 
 ### Enums
 
 **Matrix Type (`uint32_t`)**
+
 *   `1`: **CAUSAL** (Strictly Upper Triangular Matrix, Boolean/Bit storage)
 *   `2`: **INTEGER** (Strictly Upper Triangular Matrix, 32-bit Integer storage)
 *   `3`: **TRIANGULAR_FLOAT** (Strictly Upper Triangular Matrix, 64-bit Float storage)
@@ -52,6 +53,7 @@ The header contains metadata necessary to identify the object type, dimensions, 
 *   `6`: **VECTOR** (Dense Vector, $N$ elements)
 
 **Data Type (`uint32_t`)**
+
 *   `1`: **BIT** (1 bit per element)
 *   `2`: **INT32** (32-bit signed integer)
 *   `3`: **FLOAT64** (64-bit double precision float)
