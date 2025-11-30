@@ -1,6 +1,6 @@
 #include <iostream>
 
 int main() {
-    std::cout << "Causal++ Initialized" << std::endl;
+    std::cout << "pycauset Initialized" << std::endl;
     return 0;
 }

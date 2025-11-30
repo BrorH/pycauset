@@ -1,45 +1,80 @@
 {
-  "tests": 7,
+  "tests": 14,
   "name": "AllTests",
   "testsuites": [
     {
-      "name": "CausalMatrixTest",
-      "tests": 7,
+      "name": "MatrixTest",
+      "tests": 14,
       "testsuite": [
         {
-          "name": "Initialization",
+          "name": "TBM_Initialization",
           "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
-          "line": 24
+          "line": 41
         },
         {
-          "name": "SetAndGet",
+          "name": "TBM_SetAndGet",
           "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
-          "line": 29
+          "line": 46
         },
         {
-          "name": "MultiplicationSmall",
+          "name": "TBM_MultiplicationSmall",
           "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
-          "line": 49
+          "line": 66
         },
         {
-          "name": "MultiplicationPaths",
+          "name": "TBM_MultiplicationPaths",
           "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
-          "line": 64
+          "line": 82
         },
         {
-          "name": "UpperTriangularConstraint",
+          "name": "TBM_UpperTriangularConstraint",
           "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
-          "line": 79
+          "line": 97
+        },
+        {
+          "name": "FM_Initialization",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
+          "line": 105
+        },
+        {
+          "name": "FM_SetAndGet",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
+          "line": 113
+        },
+        {
+          "name": "FM_Multiplication",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
+          "line": 124
+        },
+        {
+          "name": "FM_Inversion",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
+          "line": 168
+        },
+        {
+          "name": "IM_SetAndGet",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
+          "line": 187
+        },
+        {
+          "name": "IM_Multiplication",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
+          "line": 196
+        },
+        {
+          "name": "TFM_SetAndGet",
+          "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
+          "line": 210
         },
         {
           "name": "Persistence",
           "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
-          "line": 85
+          "line": 223
         },
         {
-          "name": "LargeIndexCalculation",
+          "name": "ComputeKMatrix",
           "file": "C:\\Users\\ireal\\Documents\\pycauset\\tests\\test_main.cpp",
-          "line": 98
+          "line": 247
         }
       ]
     }

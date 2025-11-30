@@ -1,34 +1,51 @@
 #include <gtest/gtest.h>
-#include "CausalMatrix.hpp"
-#include "IntegerMatrix.hpp"
+#include "TriangularBitMatrix.hpp"
+#include "TriangularMatrix.hpp"
+#include "DenseMatrix.hpp"
+#include "FileFormat.hpp"
+#include "MemoryMapper.hpp"
+#include "MatrixOperations.hpp"
 #include <filesystem>
+#include <fstream>
+#include <cmath>
 
-class CausalMatrixTest : public ::testing::Test {
+// Aliases for convenience
+using FloatMatrix = DenseMatrix<double>;
+using IntegerMatrix = DenseMatrix<int32_t>;
+using TriangularFloatMatrix = TriangularMatrix<double>;
+using TriangularIntegerMatrix = TriangularMatrix<int32_t>;
+
+class MatrixTest : public ::testing::Test {
 protected:
     std::string testFile = "test_matrix.bin";
     std::string resultFile = "result_matrix.bin";
+    std::string auxFile = "aux_matrix.bin";
 
     void SetUp() override {
-        // Clean up before test
-        if (std::filesystem::exists(testFile)) std::filesystem::remove(testFile);
-        if (std::filesystem::exists(resultFile)) std::filesystem::remove(resultFile);
+        cleanup();
     }
 
     void TearDown() override {
-        // Clean up after test
+        cleanup();
+    }
+
+    void cleanup() {
         if (std::filesystem::exists(testFile)) std::filesystem::remove(testFile);
         if (std::filesystem::exists(resultFile)) std::filesystem::remove(resultFile);
+        if (std::filesystem::exists(auxFile)) std::filesystem::remove(auxFile);
     }
 };
 
-TEST_F(CausalMatrixTest, Initialization) {
-    CausalMatrix mat(100, testFile);
+// --- TriangularBitMatrix Tests ---
+
+TEST_F(MatrixTest, TBM_Initialization) {
+    TriangularBitMatrix mat(100, testFile);
     EXPECT_EQ(mat.size(), 100);
 }
 
-TEST_F(CausalMatrixTest, SetAndGet) {
+TEST_F(MatrixTest, TBM_SetAndGet) {
     int N = 10;
-    CausalMatrix mat(N, testFile);
+    TriangularBitMatrix mat(N, testFile);
     
     mat.set(0, 1, true);
     mat.set(1, 2, true);
@@ -46,26 +63,27 @@ TEST_F(CausalMatrixTest, SetAndGet) {
     EXPECT_FALSE(mat.get(0, 1));
 }
 
-TEST_F(CausalMatrixTest, MultiplicationSmall) {
+TEST_F(MatrixTest, TBM_MultiplicationSmall) {
     // A: 0->1, 1->2. (Path 0->1->2)
     // B: Same.
     // A*B should have (0, 2) = 1.
     
-    CausalMatrix mat(3, testFile);
+    TriangularBitMatrix mat(3, testFile);
     mat.set(0, 1, true);
     mat.set(1, 2, true);
     
     auto res = mat.multiply(mat, resultFile);
     
+    // Result is TriangularIntegerMatrix
     EXPECT_EQ(res->get(0, 2), 1);
     EXPECT_EQ(res->get(0, 1), 0); // No path of length 2
 }
 
-TEST_F(CausalMatrixTest, MultiplicationPaths) {
+TEST_F(MatrixTest, TBM_MultiplicationPaths) {
     // 0->1, 0->2, 1->3, 2->3
     // Paths from 0 to 3: 0->1->3 and 0->2->3. Total 2.
     
-    CausalMatrix mat(4, testFile);
+    TriangularBitMatrix mat(4, testFile);
     mat.set(0, 1, true);
     mat.set(0, 2, true);
     mat.set(1, 3, true);
@@ -76,31 +94,174 @@ TEST_F(CausalMatrixTest, MultiplicationPaths) {
     EXPECT_EQ(res->get(0, 3), 2);
 }
 
-TEST_F(CausalMatrixTest, UpperTriangularConstraint) {
-    CausalMatrix mat(10, testFile);
+TEST_F(MatrixTest, TBM_UpperTriangularConstraint) {
+    TriangularBitMatrix mat(10, testFile);
     EXPECT_THROW(mat.set(1, 1, true), std::invalid_argument);
     EXPECT_THROW(mat.set(2, 1, true), std::invalid_argument);
 }
 
-TEST_F(CausalMatrixTest, Persistence) {
-    {
-        CausalMatrix mat(100, testFile);
-        mat.set(50, 60, true);
-    } // mat goes out of scope, file should be saved/closed
+// --- DenseMatrix<double> (FloatMatrix) Tests ---
 
-    {
-        CausalMatrix mat2(100, testFile);
-        EXPECT_TRUE(mat2.get(50, 60));
-        EXPECT_FALSE(mat2.get(50, 61));
-    }
+TEST_F(MatrixTest, FM_Initialization) {
+    FloatMatrix mat(50, testFile);
+    EXPECT_EQ(mat.size(), 50);
+    for(int i=0; i<50; ++i)
+        for(int j=0; j<50; ++j)
+            EXPECT_EQ(mat.get(i, j), 0.0);
 }
 
-TEST_F(CausalMatrixTest, LargeIndexCalculation) {
-    uint64_t N = 1000; 
-    CausalMatrix mat(N, testFile);
-    mat.set(0, N-1, true);
-    EXPECT_TRUE(mat.get(0, N-1));
+TEST_F(MatrixTest, FM_SetAndGet) {
+    FloatMatrix mat(5, testFile);
+    mat.set(0, 0, 1.5);
+    mat.set(4, 4, -2.0);
+    mat.set(2, 3, 3.14);
+
+    EXPECT_DOUBLE_EQ(mat.get(0, 0), 1.5);
+    EXPECT_DOUBLE_EQ(mat.get(4, 4), -2.0);
+    EXPECT_DOUBLE_EQ(mat.get(2, 3), 3.14);
+}
+
+TEST_F(MatrixTest, FM_Multiplication) {
+    // Identity * Identity = Identity
+    std::string fileI = "test_I.bin";
+    if (std::filesystem::exists(fileI)) std::filesystem::remove(fileI);
     
-    mat.set(N-2, N-1, true);
-    EXPECT_TRUE(mat.get(N-2, N-1));
+    {
+        FloatMatrix I(3, fileI);
+        I.set(0, 0, 1.0); I.set(1, 1, 1.0); I.set(2, 2, 1.0);
+
+        auto res = I.multiply(I, resultFile);
+        EXPECT_DOUBLE_EQ(res->get(0, 0), 1.0);
+        EXPECT_DOUBLE_EQ(res->get(1, 1), 1.0);
+        EXPECT_DOUBLE_EQ(res->get(2, 2), 1.0);
+        EXPECT_DOUBLE_EQ(res->get(0, 1), 0.0);
+    }
+    
+    if (std::filesystem::exists(fileI)) std::filesystem::remove(fileI);
+    if (std::filesystem::exists(resultFile)) std::filesystem::remove(resultFile);
+
+    // A = [[1, 2], [3, 4]]
+    // B = [[2, 0], [1, 2]]
+    // A*B = [[4, 4], [10, 8]]
+    std::string fileA = "test_A.bin";
+    if (std::filesystem::exists(fileA)) std::filesystem::remove(fileA);
+    
+    {
+        FloatMatrix A(2, fileA);
+        A.set(0, 0, 1.0); A.set(0, 1, 2.0);
+        A.set(1, 0, 3.0); A.set(1, 1, 4.0);
+
+        FloatMatrix B(2, auxFile);
+        B.set(0, 0, 2.0); B.set(0, 1, 0.0);
+        B.set(1, 0, 1.0); B.set(1, 1, 2.0);
+
+        auto C = A.multiply(B, resultFile);
+        EXPECT_DOUBLE_EQ(C->get(0, 0), 4.0);
+        EXPECT_DOUBLE_EQ(C->get(0, 1), 4.0);
+        EXPECT_DOUBLE_EQ(C->get(1, 0), 10.0);
+        EXPECT_DOUBLE_EQ(C->get(1, 1), 8.0);
+    }
+    
+    if (std::filesystem::exists(fileA)) std::filesystem::remove(fileA);
+}
+
+TEST_F(MatrixTest, FM_Inversion) {
+    // A = [[4, 7], [2, 6]]
+    // Det = 24 - 14 = 10
+    // Inv = 1/10 * [[6, -7], [-2, 4]] = [[0.6, -0.7], [-0.2, 0.4]]
+    
+    FloatMatrix A(2, testFile);
+    A.set(0, 0, 4.0); A.set(0, 1, 7.0);
+    A.set(1, 0, 2.0); A.set(1, 1, 6.0);
+
+    auto Inv = A.inverse(resultFile);
+    
+    EXPECT_NEAR(Inv->get(0, 0), 0.6, 1e-9);
+    EXPECT_NEAR(Inv->get(0, 1), -0.7, 1e-9);
+    EXPECT_NEAR(Inv->get(1, 0), -0.2, 1e-9);
+    EXPECT_NEAR(Inv->get(1, 1), 0.4, 1e-9);
+}
+
+// --- DenseMatrix<int32_t> (IntegerMatrix) Tests ---
+
+TEST_F(MatrixTest, IM_SetAndGet) {
+    IntegerMatrix mat(5, testFile);
+    mat.set(1, 1, 42);
+    mat.set(3, 2, -10);
+    
+    EXPECT_EQ(mat.get(1, 1), 42);
+    EXPECT_EQ(mat.get(3, 2), -10);
+}
+
+TEST_F(MatrixTest, IM_Multiplication) {
+    // A = [[1, 1], [1, 1]]
+    // A*A = [[2, 2], [2, 2]]
+    IntegerMatrix A(2, testFile);
+    A.set(0, 0, 1); A.set(0, 1, 1);
+    A.set(1, 0, 1); A.set(1, 1, 1);
+    
+    auto res = A.multiply(A, resultFile);
+    EXPECT_EQ(res->get(0, 0), 2);
+    EXPECT_EQ(res->get(1, 1), 2);
+}
+
+// --- TriangularMatrix<double> (TriangularFloatMatrix) Tests ---
+
+TEST_F(MatrixTest, TFM_SetAndGet) {
+    TriangularFloatMatrix mat(5, testFile);
+    mat.set(0, 1, 1.5);
+    
+    EXPECT_DOUBLE_EQ(mat.get(0, 1), 1.5);
+    EXPECT_DOUBLE_EQ(mat.get(0, 0), 0.0); // Diagonal is 0
+    EXPECT_DOUBLE_EQ(mat.get(1, 0), 0.0); // Lower is 0
+    
+    EXPECT_THROW(mat.set(1, 0, 1.0), std::invalid_argument);
+}
+
+// --- Mixed Operations & Persistence ---
+
+TEST_F(MatrixTest, Persistence) {
+    {
+        TriangularBitMatrix mat(10, testFile);
+        mat.set(0, 5, true);
+        mat.close();
+    }
+    
+    // Re-open
+    std::ifstream file(testFile, std::ios::binary);
+    ASSERT_TRUE(file.good());
+    
+    pycauset::FileHeader header;
+    file.read(reinterpret_cast<char*>(&header), sizeof(header));
+    file.close();
+    
+    uint64_t file_size = std::filesystem::file_size(testFile);
+    uint64_t data_size = file_size - sizeof(pycauset::FileHeader);
+    auto mapper = std::make_unique<MemoryMapper>(testFile, data_size, false);
+    TriangularBitMatrix loaded(10, std::move(mapper));
+    
+    EXPECT_TRUE(loaded.get(0, 5));
+    EXPECT_FALSE(loaded.get(0, 4));
+}
+
+TEST_F(MatrixTest, ComputeKMatrix) {
+    // Simple case: C = [[0, 1], [0, 0]] (1 node 0->1)
+    // K = C(aI + C)^-1
+    // a = 1.0
+    // (I + C) = [[1, 1], [0, 1]]
+    // (I + C)^-1 = [[1, -1], [0, 1]]
+    // C * (I+C)^-1 = [[0, 1], [0, 0]] * [[1, -1], [0, 1]] = [[0, 1], [0, 0]]
+    
+    TriangularBitMatrix C(2, testFile);
+    C.set(0, 1, true);
+    
+    compute_k_matrix(C, 1.0, resultFile, 1);
+    
+    // Load result K (TriangularFloatMatrix)
+    uint64_t file_size = std::filesystem::file_size(resultFile);
+    uint64_t data_size = file_size - sizeof(pycauset::FileHeader);
+    auto mapper = std::make_unique<MemoryMapper>(resultFile, data_size, false);
+    TriangularFloatMatrix K(2, std::move(mapper));
+    
+    EXPECT_NEAR(K.get(0, 1), 1.0, 1e-9);
 }

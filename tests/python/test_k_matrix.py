@@ -41,7 +41,7 @@ class TestKMatrix(unittest.TestCase):
         a = 1.0
         
         # Empty matrix
-        C1 = CausalMatrix(N, populate=False, saveas="empty_C.pycauset")
+        C1 = CausalMatrix(N, saveas="empty_C.pycauset")
         K_mat1 = compute_k(C1, a)
         for i in range(N):
             for j in range(N):

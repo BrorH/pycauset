@@ -10,16 +10,10 @@
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\TriangularMatrix.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\CausalMatrix.cpp">
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\TriangularBitMatrix.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\IntegerMatrix.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\KMatrix.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\TriangularFloatMatrix.cpp">
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixOperations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

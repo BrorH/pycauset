@@ -28,10 +28,8 @@ add_library(causal_lib
     src/MemoryMapper.cpp
     src/MatrixBase.cpp
     src/TriangularMatrix.cpp
-    src/CausalMatrix.cpp
-    src/IntegerMatrix.cpp
-    src/KMatrix.cpp
-    src/TriangularFloatMatrix.cpp
+    src/TriangularBitMatrix.cpp
+    src/MatrixOperations.cpp
 )
 
 if(OpenMP_CXX_FOUND)

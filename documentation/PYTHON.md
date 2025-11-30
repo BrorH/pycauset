@@ -1,10 +1,12 @@
-# Causal++ Python Module Documentation
+WARNING: THIS FILE IS DEPRECATED! DO NOT USE THIS FILE TO UNDERSTAND ANYTHING ABOUT HOW PYCAUSET WORKS!!!!
+
+THIS FILE IS DEPRECATED
+# Pycauset Python Module Documentation
 
 ## Overview
-The `pycauset` module provides a high-performance interface for working with massive Causal Matrices (up to $N=10^6$). It uses memory-mapped files to handle data larger than RAM.
+The `pycauset` module provides a high-performance interface for working with massive Causal Sets (up to $N=10^6$). It uses memory-mapped files to handle data larger than RAM.
 
-### Matrix hierarchy
-All matrix types derive from a shared C++ `MatrixBase` that owns the memory-mapped backing file, row-offset bookkeeping, and lifecycle management. `CausalMatrix` (exported as `pycauset.CausalMatrix`) is the primary boolean specialization exposed to Python today; multiplication via `pycauset.matmul` produces an `IntegerMatrix`, another `MatrixBase` subclass that stores 32-bit counts. This layered design mirrors NumPy’s array family and allows future matrix flavors (e.g., diagonal-enabled variants) to hook into the same storage and cleanup guarantees without changing the Python surface area.
+
 
 ## Installation
 Ensure the module is built and copied into `python/pycauset/` by running:
@@ -23,30 +25,65 @@ import pycauset
 ```
 
 ### Creating a Matrix
-```python
-# Create a 1000x1000 matrix backed by 'my_matrix.pycauset'.
-# Simple names are stored inside ./.pycauset by default.
-C = pycauset.CausalMatrix(1000, "my_matrix")
+The library provides several matrix classes optimized for different data types.
 
-print(C)
-# Output:
-# CausalMatrix(shape=(1000, 1000))
-# [
-#  [0 0 0 ... 0 0 1]
-#  ...
-# ]
+#### `pycauset.TriangularBitMatrix`
+The primary class for representing causal structures. It stores boolean values in a strictly upper triangular format ($i < j$), using bit-packing for efficiency (1 bit per element).
+
+```python
+# Create a 1000x1000 empty boolean matrix
+C_empty = pycauset.TriangularBitMatrix(1000)
+
+# Create a random matrix
+C = pycauset.TriangularBitMatrix.random(1000, p=0.5)
+
+# Create from a NumPy array
+import numpy as np
+arr = np.triu(np.random.randint(0, 2, (10, 10)), k=1).astype(bool)
+C_from_np = pycauset.TriangularBitMatrix(arr)
 ```
 
-### Loading a Matrix
-You can load any previously saved matrix file using `pycauset.load()`. The function automatically detects the matrix type (Causal, Integer, Float, etc.) from the file header.
+#### `pycauset.CausalMatrix`
+A convenience factory function that returns a `TriangularBitMatrix`. It is maintained for backward compatibility and ease of use.
 
 ```python
-# Load a matrix from disk
-matrix = pycauset.load("my_matrix.pycauset")
+# Equivalent to TriangularBitMatrix(1000)
+C = pycauset.CausalMatrix(1000)
+```
 
-# Check the type
-print(type(matrix)) 
-# <class 'pycauset.pycauset.CausalMatrix'> (or IntegerMatrix, etc.)
+#### Other Matrix Types
+*   **`pycauset.IntegerMatrix`**: Stores 32-bit integers (strictly upper triangular). Typically produced by multiplying two `TriangularBitMatrix` instances.
+*   **`pycauset.TriangularFloatMatrix`**: Stores 64-bit doubles (strictly upper triangular). Used for analytical results like the $K$ matrix.
+*   **`pycauset.FloatMatrix`**: A dense $N \times N$ matrix storing 64-bit doubles.
+
+### Matrix Operations
+
+#### Multiplication
+```python
+A = pycauset.CausalMatrix(100)
+B = pycauset.CausalMatrix(100)
+
+# Matrix multiplication (A @ B)
+# Returns an IntegerMatrix counting paths of length 2
+AB = pycauset.matmul(A, B)
+```
+
+#### The $K$ Matrix
+Computes $K = C(aI + C)^{-1}$, a key quantity in causal set theory.
+```python
+# Returns a TriangularFloatMatrix
+K = pycauset.compute_k(C, a=1.0)
+```
+
+#### Lazy Scaling
+All matrices support $O(1)$ scalar multiplication. The actual values are scaled on-the-fly when accessed via `get_element_as_double` (or implicitly when converting to other formats).
+
+```python
+# Multiply matrix by scalar (instantaneous)
+K_scaled = K * 2.5 
+```
+
+
 
 # Use it as normal
 print(matrix.size())
@@ -57,7 +94,7 @@ print(matrix.size())
 
 ```python
 # Integer input behaves like the CausalMatrix constructor
-alpha = pycauset.Matrix(256, populate=False)
+alpha = pycauset.Matrix(256)
 
 # Nested sequences can now describe any square matrix
 beta = pycauset.Matrix([
@@ -86,12 +123,13 @@ exists = C[0, 5]  # True
 Call `str(C)` (or just `print(C)`) to view a NumPy-style preview. Matrices with up to six rows/columns render in full; larger matrices show the first and last three rows/columns with ellipses (`...`) in between.
 
 ### Random Population & Seeding
-Constructors default to `populate=True`. `pycauset.CausalMatrix` fills the strict upper triangle with Bernoulli(0.5) draws while the in-memory `pycauset.Matrix` populates every entry. Control randomness via either:
+To create a random matrix, use the `.random()` factory method. `pycauset.CausalMatrix.random(N)` fills the strict upper triangle with Bernoulli(0.5) draws.
 
-- The module-level toggle: `pycauset.seed = 42` makes every subsequent populated matrix deterministic until you reset it to `None`.
-- Per-call overrides: pass `seed=42` to `pycauset.CausalMatrix(...)` or `pycauset.CausalMatrix.random(...)`.
+Control randomness via either:
+- The module-level toggle: `pycauset.seed = 42` makes every subsequent random matrix deterministic until you reset it to `None`.
+- Per-call overrides: pass `seed=42` to `pycauset.CausalMatrix.random(...)`.
 
-Set `populate=False` whenever you want an empty matrix, or stick with `pycauset.Matrix([...])` to populate from explicit data.
+The default constructor `pycauset.CausalMatrix(N)` creates an empty matrix (all zeros).
 
 ### Elementwise vs Matrix Multiplication
 `*` now mirrors NumPy’s elementwise semantics: it returns a new `CausalMatrix` whose entries are the logical AND of the operands. Use this when you want to intersect adjacency structures without leaving the boolean domain.
@@ -99,7 +137,7 @@ Set `populate=False` whenever you want an empty matrix, or stick with `pycauset.
 ```python
 lhs = pycauset.CausalMatrix(100)
 rhs = pycauset.CausalMatrix(100)
-# ... populate both ...
+# ... fill both ...
 overlap = lhs * rhs  # still a CausalMatrix
 ```
 
