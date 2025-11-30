@@ -19,3 +19,6 @@ Pycauset is written to behave similarly to [numpy](https://numpy.org/) for the u
 *   [Matrix Multiplication](guides/Matrix%20Multiplication.md)
 *   [Inversion](guides/Inversion.md)
 *   [Bitwise Inversion](guides/BitwiseInversion.md)
+
+## Project
+*   [Philosophy & Design Principles](project/Philosophy.md)

@@ -71,6 +71,85 @@ result = dot(v1, v2)  # 1*4 + 2*5 + 3*6 = 32.0
 result = v1.dot(v2)
 ```
 
+## Transposition & Matrix Operations
+
+`pycauset` supports vector transposition and various forms of multiplication using the `@` operator (matrix multiplication), mirroring `numpy` behavior.
+
+### Transposition (`.T`)
+
+You can transpose a vector using the `.T` property.
+*   **Column Vector** (Default): Shape `(N,)`.
+*   **Row Vector** (`v.T`): Shape `(1, N)`.
+
+```python
+v = Vector([1, 2, 3])
+print(v.shape)    # (3,)
+
+vt = v.T
+print(vt.shape)   # (1, 3)
+
+v_orig = vt.T     # Back to column vector
+print(v_orig.shape) # (3,)
+```
+
+**Note**: Transposing creates a new persistent object (a new file) with the `is_transposed` flag flipped. It does *not* modify the original vector.
+
+### Inner Product (Dot Product)
+
+The inner product produces a scalar.
+
+```python
+v1 = Vector([1, 2, 3])
+v2 = Vector([4, 5, 6])
+
+# Row @ Column -> Scalar
+scalar = v1.T @ v2  # 32.0
+
+# Column @ Column (Numpy behavior for 1D arrays)
+scalar = v1 @ v2    # 32.0
+```
+
+**Type Safety**:
+*   `IntegerVector @ IntegerVector` -> `int`
+*   `BitVector @ BitVector` -> `int`
+*   Any `FloatVector` operand -> `float`
+
+### Outer Product
+
+The outer product produces a matrix.
+
+```python
+v1 = Vector([1, 2, 3]) # Column
+v2 = Vector([4, 5, 6]) # Column
+
+# Column @ Row -> Matrix (N x N)
+M = v1 @ v2.T 
+# M is:
+# [[ 4,  5,  6],
+#  [ 8, 10, 12],
+#  [12, 15, 18]]
+```
+
+**Type Safety**:
+*   `BitVector @ BitVector.T` -> `DenseBitMatrix` (Logical AND)
+*   `IntegerVector @ IntegerVector.T` -> `IntegerMatrix`
+*   Others -> `FloatMatrix`
+
+### Matrix-Vector Multiplication
+
+You can multiply matrices and vectors.
+
+```python
+M = pycauset.FloatMatrix(3)
+v = Vector([1, 1, 1])
+
+# Matrix @ Column Vector -> Column Vector
+v_new = M @ v 
+
+# Row Vector @ Matrix -> Row Vector
+v_row = v.T @ M
+```
+
 ## Persistence
 
 Like matrices, vectors are backed by files on disk. You can save them permanently using `pycauset.save`.

@@ -49,6 +49,22 @@ std::string PersistentObject::get_backing_file() const {
     return "";
 }
 
+pycauset::DataType PersistentObject::get_data_type() const {
+    return require_mapper()->get_header()->data_type;
+}
+
+pycauset::MatrixType PersistentObject::get_matrix_type() const {
+    return require_mapper()->get_header()->matrix_type;
+}
+
+bool PersistentObject::is_transposed() const {
+    return require_mapper()->get_header()->is_transposed != 0;
+}
+
+void PersistentObject::set_transposed(bool transposed) {
+    require_mapper()->get_header()->is_transposed = transposed ? 1 : 0;
+}
+
 void PersistentObject::close() {
     mapper_.reset();
 }
@@ -159,5 +175,5 @@ std::string PersistentObject::resolve_backing_file(const std::string& requested,
     if (!requested.empty()) {
         return requested;
     }
-    return make_unique_storage_file(fallback_prefix);
+    return pycauset::make_unique_storage_file(fallback_prefix);
 }

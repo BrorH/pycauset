@@ -47,6 +47,37 @@ The header contains metadata necessary to identify the file type, matrix dimensi
 *   `2`: **INT32** (32-bit signed integer)
 *   `3`: **FLOAT64** (64-bit double precision float)
 
+## Type Promotion & Matrix Factory
+
+PyCauset employs a standardized `MatrixFactory` to handle matrix creation and arithmetic type promotion. This ensures consistent behavior across operations (e.g., `add`, `subtract`, `multiply`).
+
+### Promotion Rules
+
+When performing binary operations between two matrices (A and B), the result type is determined as follows:
+
+**Data Type Promotion:**
+*   `FLOAT64` + `Any` $\to$ `FLOAT64`
+*   `INT32` + `INT32` $\to$ `INT32`
+*   `BIT` + `BIT` $\to$ `INT32` (Arithmetic operations promote bits to integers)
+
+**Structure Promotion:**
+*   `Triangular` + `Triangular` $\to$ `Triangular`
+*   `Dense` + `Any` $\to$ `Dense`
+*   `Identity` is treated as `Triangular` for structure compatibility.
+
+### Matrix Factory
+
+The C++ `MatrixFactory` class centralizes the logic for instantiating the correct matrix subclass based on the `MatrixType` and `DataType` enums.
+
+| Matrix Type | Data Type | Resulting C++ Class |
+| :--- | :--- | :--- |
+| `CAUSAL` | `BIT` | `TriangularMatrix<bool>` |
+| `TRIANGULAR_FLOAT` | `FLOAT64` | `TriangularMatrix<double>` |
+| `TRIANGULAR_FLOAT` | `INT32` | `TriangularMatrix<int32_t>` |
+| `DENSE` | `FLOAT64` | `DenseMatrix<double>` |
+| `DENSE` | `INT32` | `DenseMatrix<int32_t>` |
+| `DENSE` | `BIT` | `DenseMatrix<bool>` |
+
 ## Storage Strategies
 
 ### Causal Matrix (Type 1)

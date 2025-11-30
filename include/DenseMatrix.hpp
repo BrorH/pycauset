@@ -52,16 +52,19 @@ public:
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }
     const T* data() const { return static_cast<const T*>(require_mapper()->get_data()); }
 
-    std::unique_ptr<DenseMatrix<T>> multiply_scalar(double factor, const std::string& result_file = "") const {
+    std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
         std::string new_path = copy_storage(result_file);
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
         auto new_matrix = std::make_unique<DenseMatrix<T>>(n_, std::move(mapper));
         new_matrix->set_scalar(scalar_ * factor);
-        // If result_file was not specified, it's a temporary intermediate result
         if (result_file.empty()) {
             new_matrix->set_temporary(true);
         }
         return new_matrix;
+    }
+
+    std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
+        return multiply_scalar(static_cast<double>(factor), result_file);
     }
 
     std::unique_ptr<DenseMatrix<T>> bitwise_not(const std::string& result_file = "") const {
@@ -132,7 +135,7 @@ public:
             if (n_ == 0) return std::make_unique<DenseMatrix<double>>(0, result_file);
             if (scalar_ == 0.0) throw std::runtime_error("Matrix scalar is 0, cannot invert");
 
-            std::string work_path = copy_storage(make_unique_storage_file("inverse_work"));
+            std::string work_path = copy_storage(pycauset::make_unique_storage_file("inverse_work"));
             auto work_mapper = std::make_unique<MemoryMapper>(work_path, 0, false);
             DenseMatrix<double> work(n_, std::move(work_mapper));
             work.set_temporary(true); // Ensure work file is deleted

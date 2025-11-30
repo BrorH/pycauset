@@ -121,25 +121,15 @@ std::unique_ptr<DenseMatrix<int32_t>> DenseMatrix<bool>::multiply(const DenseMat
     return result;
 }
 
-std::unique_ptr<DenseMatrix<bool>> DenseMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {
-    // For boolean matrix, scalar mult just changes the scalar property, bits remain same.
-    // Unless factor is 0, then it becomes all zeros.
-    
-    auto result = std::make_unique<DenseMatrix<bool>>(n_, result_file);
-    
-    if (factor == 0.0) {
-        // Zero out
-        // Already zeroed by default? initialize_storage usually zeroes?
-        // MemoryMapper usually mmaps a new file which might be zeroed or garbage.
-        // We should explicitly zero it.
-        std::memset(result->data(), 0, n_ * stride_bytes_);
-        result->set_scalar(1.0); // Scalar 0 is represented as all zero bits usually
-    } else {
-        // Copy bits
-        std::memcpy(result->data(), data(), n_ * stride_bytes_);
-        result->set_scalar(scalar_ * factor);
+std::unique_ptr<MatrixBase> DenseMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {
+    std::string new_path = copy_storage(result_file);
+    auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
+    auto new_matrix = std::make_unique<DenseMatrix<bool>>(n_, std::move(mapper));
+    new_matrix->set_scalar(scalar_ * factor);
+    if (result_file.empty()) {
+        new_matrix->set_temporary(true);
     }
-    return result;
+    return new_matrix;
 }
 
 std::unique_ptr<DenseMatrix<bool>> DenseMatrix<bool>::bitwise_not(const std::string& result_file) const {

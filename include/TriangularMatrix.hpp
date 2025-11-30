@@ -83,7 +83,7 @@ public:
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }
     const T* data() const { return static_cast<const T*>(require_mapper()->get_data()); }
 
-    std::unique_ptr<TriangularMatrix<T>> multiply_scalar(double factor, const std::string& result_file = "") const {
+    std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
         std::string new_path = copy_storage(result_file);
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
         auto new_matrix = std::make_unique<TriangularMatrix<T>>(n_, std::move(mapper));
@@ -92,6 +92,10 @@ public:
             new_matrix->set_temporary(true);
         }
         return new_matrix;
+    }
+
+    std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
+        return multiply_scalar(static_cast<double>(factor), result_file);
     }
 
     std::unique_ptr<TriangularMatrix<T>> bitwise_not(const std::string& result_file = "") const {

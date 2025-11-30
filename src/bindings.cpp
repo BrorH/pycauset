@@ -26,6 +26,8 @@ using TriangularFloatMatrix = TriangularMatrix<double>;
 using TriangularIntegerMatrix = TriangularMatrix<int32_t>;
 using TriangularBitMatrix = TriangularMatrix<bool>;
 
+using pycauset::make_unique_storage_file;
+
 namespace {
 bool coerce_bool_like(const py::handle& value) {
     if (py::isinstance<py::bool_>(value)) {
@@ -83,6 +85,28 @@ void bind_vector_arithmetic(py::class_<T, Options...>& cls) {
     cls.def("dot", [](const T& self, const VectorBase& other) {
         return pycauset::dot_product(self, other);
     });
+    cls.def("__matmul__", [](const T& self, const VectorBase& other) {
+        bool self_t = self.is_transposed();
+        bool other_t = other.is_transposed();
+        
+        if (!self_t && other_t) {
+            return py::cast(pycauset::outer_product(self, other, make_unique_storage_file("outer")));
+        } else {
+            // Inner product
+            // Check if both are integer-like to return int
+            bool self_is_int = (py::isinstance<IntegerVector>(py::cast(self)) || py::isinstance<BitVector>(py::cast(self)));
+            bool other_is_int = (py::isinstance<IntegerVector>(py::cast(other)) || py::isinstance<BitVector>(py::cast(other)));
+            
+            double val = pycauset::dot_product(self, other);
+            if (self_is_int && other_is_int) {
+                return py::cast((int64_t)val);
+            }
+            return py::cast(val);
+        }
+    });
+    cls.def("__matmul__", [](const T& self, const MatrixBase& other) {
+        return pycauset::vector_matrix_multiply(self, other, make_unique_storage_file("vec_mat_mul"));
+    });
 }
 
 template <typename T, typename... Options>
@@ -99,8 +123,17 @@ void bind_arithmetic(py::class_<T, Options...>& cls) {
     cls.def("__mul__", [](const T& self, double scalar) {
         return self.multiply_scalar(scalar, make_unique_storage_file("scalar_mul"));
     });
+    cls.def("__mul__", [](const T& self, int64_t scalar) {
+        return self.multiply_scalar(scalar, make_unique_storage_file("scalar_mul"));
+    });
     cls.def("__rmul__", [](const T& self, double scalar) {
         return self.multiply_scalar(scalar, make_unique_storage_file("scalar_mul"));
+    });
+    cls.def("__rmul__", [](const T& self, int64_t scalar) {
+        return self.multiply_scalar(scalar, make_unique_storage_file("scalar_mul"));
+    });
+    cls.def("__matmul__", [](const T& self, const VectorBase& other) {
+        return pycauset::matrix_vector_multiply(self, other, make_unique_storage_file("mat_vec_mul"));
     });
 }
 
@@ -181,13 +214,17 @@ PYBIND11_MODULE(pycauset, m) {
 
     py::class_<MatrixBase, PersistentObject>(m, "MatrixBase");
 
-    py::class_<VectorBase, PersistentObject>(m, "VectorBase");
+    py::class_<VectorBase, PersistentObject>(m, "VectorBase")
+        .def_property_readonly("T", [](const VectorBase& v) {
+            return v.transpose();
+        });
 
     // TriangularFloatMatrix
     py::class_<TriangularFloatMatrix, MatrixBase> tfm(m, "TriangularFloatMatrix");
     tfm.def(py::init<uint64_t, const std::string&>(), 
             py::arg("n"), py::arg("backing_file") = "")
         .def("get", &TriangularFloatMatrix::get)
+        .def("get_element_as_double", &TriangularFloatMatrix::get_element_as_double)
         .def("set", &TriangularFloatMatrix::set)
         .def("close", &TriangularFloatMatrix::close)
         .def("size", &TriangularFloatMatrix::size)
@@ -217,6 +254,7 @@ PYBIND11_MODULE(pycauset, m) {
     tim.def(py::init<uint64_t, const std::string&>(), 
             py::arg("n"), py::arg("backing_file") = "")
         .def("get", &TriangularIntegerMatrix::get)
+        .def("get_element_as_double", &TriangularIntegerMatrix::get_element_as_double)
         .def("set", &TriangularIntegerMatrix::set)
         .def("close", &TriangularIntegerMatrix::close)
         .def("size", &TriangularIntegerMatrix::size)
@@ -225,7 +263,7 @@ PYBIND11_MODULE(pycauset, m) {
             return std::make_pair(m.size(), m.size());
         })
         .def("__getitem__", [](const TriangularIntegerMatrix& m, std::pair<uint64_t, uint64_t> idx) {
-            return m.get(idx.first, idx.second); // Integers usually don't use scalar? But MatrixBase has it.
+            return m.get_element_as_double(idx.first, idx.second);
         })
         .def("__setitem__", [](TriangularIntegerMatrix& m, std::pair<uint64_t, uint64_t> idx, int32_t value) {
             m.set(idx.first, idx.second, value);
@@ -246,6 +284,7 @@ PYBIND11_MODULE(pycauset, m) {
     fm.def(py::init<uint64_t, const std::string&>(), 
            py::arg("n"), py::arg("backing_file") = "")
         .def("get", &FloatMatrix::get)
+        .def("get_element_as_double", &FloatMatrix::get_element_as_double)
         .def("set", &FloatMatrix::set)
         .def("close", &FloatMatrix::close)
         .def("size", &FloatMatrix::size)
@@ -283,6 +322,7 @@ PYBIND11_MODULE(pycauset, m) {
     im.def(py::init<uint64_t, const std::string&>(), 
            py::arg("n"), py::arg("backing_file") = "")
         .def("get", &IntegerMatrix::get)
+        .def("get_element_as_double", &IntegerMatrix::get_element_as_double)
         .def("set", &IntegerMatrix::set)
         .def("close", &IntegerMatrix::close)
         .def("size", &IntegerMatrix::size)
@@ -291,7 +331,7 @@ PYBIND11_MODULE(pycauset, m) {
             return std::make_pair(m.size(), m.size());
         })
         .def("__getitem__", [](const IntegerMatrix& m, std::pair<uint64_t, uint64_t> idx) {
-            return m.get(idx.first, idx.second);
+            return m.get_element_as_double(idx.first, idx.second);
         })
         .def("__setitem__", [](IntegerMatrix& m, std::pair<uint64_t, uint64_t> idx, int32_t value) {
             m.set(idx.first, idx.second, value);
@@ -388,6 +428,7 @@ PYBIND11_MODULE(pycauset, m) {
             m.set(i, j, boolVal);
         })
         .def("get", &TriangularBitMatrix::get)
+        .def("get_element_as_double", &TriangularBitMatrix::get_element_as_double)
         .def("size", &TriangularBitMatrix::size)
         .def_property_readonly("shape", [](const TriangularBitMatrix& m) {
             return std::make_pair(m.size(), m.size());
@@ -455,6 +496,10 @@ PYBIND11_MODULE(pycauset, m) {
 
     m.def("matmul", &dispatch_matmul, py::arg("a"), py::arg("b"), py::arg("saveas") = "",
           "Generic matrix multiplication. Supports mixed types (Dense/Triangular).");
+
+    m.def("save", [](const PersistentObject& obj, const std::string& path) {
+        obj.copy_storage(path);
+    }, "Save a persistent object to a specific path");
 
     m.def("load", [](const std::string& path) -> py::object {
         std::ifstream file(path, std::ios::binary);
@@ -537,9 +582,15 @@ PYBIND11_MODULE(pycauset, m) {
       .def("__getitem__", &FloatVector::get)
       .def("__setitem__", &FloatVector::set)
       .def("__len__", &FloatVector::size)
-      .def_property_readonly("shape", [](const FloatVector& v) { return std::make_tuple(v.size()); })
+      .def_property_readonly("shape", [](const FloatVector& v) { 
+          if (v.is_transposed()) return py::make_tuple(1, v.size());
+          return py::make_tuple(v.size()); 
+      })
       .def("__repr__", [](const FloatVector& v) {
-          return "<FloatVector size=" + std::to_string(v.size()) + ">";
+          std::string s = "<FloatVector size=" + std::to_string(v.size());
+          if (v.is_transposed()) s += " transposed=True";
+          s += ">";
+          return s;
       });
     bind_vector_arithmetic(fv);
 
@@ -549,9 +600,15 @@ PYBIND11_MODULE(pycauset, m) {
       .def("__getitem__", &IntegerVector::get)
       .def("__setitem__", &IntegerVector::set)
       .def("__len__", &IntegerVector::size)
-      .def_property_readonly("shape", [](const IntegerVector& v) { return std::make_tuple(v.size()); })
+      .def_property_readonly("shape", [](const IntegerVector& v) { 
+          if (v.is_transposed()) return py::make_tuple(1, v.size());
+          return py::make_tuple(v.size()); 
+      })
       .def("__repr__", [](const IntegerVector& v) {
-          return "<IntegerVector size=" + std::to_string(v.size()) + ">";
+          std::string s = "<IntegerVector size=" + std::to_string(v.size());
+          if (v.is_transposed()) s += " transposed=True";
+          s += ">";
+          return s;
       });
     bind_vector_arithmetic(iv);
 
@@ -563,9 +620,15 @@ PYBIND11_MODULE(pycauset, m) {
           v.set(i, coerce_bool_like(val));
       })
       .def("__len__", &BitVector::size)
-      .def_property_readonly("shape", [](const BitVector& v) { return std::make_tuple(v.size()); })
+      .def_property_readonly("shape", [](const BitVector& v) { 
+          if (v.is_transposed()) return py::make_tuple(1, v.size());
+          return py::make_tuple(v.size()); 
+      })
       .def("__repr__", [](const BitVector& v) {
-          return "<BitVector size=" + std::to_string(v.size()) + ">";
+          std::string s = "<BitVector size=" + std::to_string(v.size());
+          if (v.is_transposed()) s += " transposed=True";
+          s += ">";
+          return s;
       });
     bind_vector_arithmetic(bv);
 

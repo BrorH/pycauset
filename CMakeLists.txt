@@ -37,6 +37,7 @@ set(PYCAUSET_SOURCES
     src/DenseBitMatrix.cpp
     src/DenseVector.cpp
     src/MatrixOperations.cpp
+    src/MatrixFactory.cpp
 )
 
 # --- Extension Module ---
