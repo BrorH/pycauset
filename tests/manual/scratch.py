@@ -1,11 +1,9 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../python")))
 import pycauset as pc
 
-
-
-# a = pc.CausalMatrix(5)
-# pc.save(a, "atest")
-
-a = pc.load("atest")
-
-k = pc.compute_k(a, 2.1)
-print(2*k)
+C = pc.CausalMatrix(1e5)
+C.save("1e3_C.pycauset")
+print(C)
+# C = pc.load("1e3_C.pycauset")

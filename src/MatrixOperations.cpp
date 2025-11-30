@@ -2,6 +2,7 @@
 #include "TriangularMatrix.hpp"
 #include "TriangularBitMatrix.hpp"
 #include "DenseMatrix.hpp"
+#include "IdentityMatrix.hpp"
 #include <stdexcept>
 #include <omp.h>
 #include <bit>
@@ -17,12 +18,22 @@ bool is_triangular(const MatrixBase& m) {
     return dynamic_cast<const TriangularMatrixBase*>(&m) != nullptr;
 }
 
+bool is_identity(const MatrixBase& m) {
+    return dynamic_cast<const IdentityMatrix*>(&m) != nullptr;
+}
+
 std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
     if (a.size() != b.size()) {
         throw std::invalid_argument("Matrix dimensions must match");
     }
     uint64_t n = a.size();
     
+    if (is_identity(a) && is_identity(b)) {
+        const auto& a_id = static_cast<const IdentityMatrix&>(a);
+        const auto& b_id = static_cast<const IdentityMatrix&>(b);
+        return a_id.add(b_id, result_file);
+    }
+
     bool both_triangular = is_triangular(a) && is_triangular(b);
     
     if (both_triangular) {
@@ -54,6 +65,12 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
     }
     uint64_t n = a.size();
     
+    if (is_identity(a) && is_identity(b)) {
+        const auto& a_id = static_cast<const IdentityMatrix&>(a);
+        const auto& b_id = static_cast<const IdentityMatrix&>(b);
+        return a_id.subtract(b_id, result_file);
+    }
+
     bool both_triangular = is_triangular(a) && is_triangular(b);
     
     if (both_triangular) {
@@ -85,6 +102,12 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
     }
     uint64_t n = a.size();
     
+    if (is_identity(a) && is_identity(b)) {
+        const auto& a_id = static_cast<const IdentityMatrix&>(a);
+        const auto& b_id = static_cast<const IdentityMatrix&>(b);
+        return a_id.elementwise_multiply(b_id, result_file);
+    }
+
     bool both_triangular = is_triangular(a) && is_triangular(b);
     
     if (both_triangular) {

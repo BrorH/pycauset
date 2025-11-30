@@ -8,7 +8,8 @@ enum class MatrixType : uint32_t {
     CAUSAL = 1,
     INTEGER = 2,
     TRIANGULAR_FLOAT = 3,
-    DENSE_FLOAT = 4
+    DENSE_FLOAT = 4,
+    IDENTITY = 5
 };
 
 enum class DataType : uint32_t {

@@ -51,6 +51,23 @@ A convenience factory function that returns a `TriangularBitMatrix`. It is maint
 C = pycauset.CausalMatrix(1000)
 ```
 
+#### `pycauset.IdentityMatrix`
+A memory-efficient representation of an Identity Matrix. It stores no data on disk (only a header) and generates values on the fly.
+
+```python
+# Create a 1000x1000 identity matrix
+I = pycauset.IdentityMatrix(1000)
+
+# Alternatively, use the short alias:
+I = pycauset.I(1000)
+```
+
+### Matrix Operations
+pycauset supports standard arithmetic operations (`+`, `-`, `*`) and matrix multiplication (`@` or `matmul`).
+
+C = pycauset.CausalMatrix(1000)
+```
+
 #### Other Matrix Types
 *   **`pycauset.IntegerMatrix`**: Stores 32-bit integers (strictly upper triangular). Typically produced by multiplying two `TriangularBitMatrix` instances.
 *   **`pycauset.TriangularFloatMatrix`**: Stores 64-bit doubles (strictly upper triangular). Used for analytical results like the $K$ matrix.

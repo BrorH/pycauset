@@ -18,4 +18,7 @@ This function attempts to create a hard link to the matrix's backing file to avo
 ```python
 C = pycauset.CausalMatrix(1000)
 pycauset.save(C, "my_saved_matrix.pycauset")
+
+# Alternatively, use the method on the matrix object:
+C.save("my_saved_matrix.pycauset")
 ```
