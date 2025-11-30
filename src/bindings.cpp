@@ -6,17 +6,22 @@
 #include "TriangularBitMatrix.hpp"
 #include "DenseMatrix.hpp"
 #include "DenseBitMatrix.hpp"
+#include "DenseVector.hpp"
 #include "TriangularMatrix.hpp"
 #include "IdentityMatrix.hpp"
 #include "StoragePaths.hpp"
 #include "FileFormat.hpp"
 #include "MatrixOperations.hpp"
+#include "PersistentObject.hpp"
 
 namespace py = pybind11;
 
 using FloatMatrix = DenseMatrix<double>;
 using IntegerMatrix = DenseMatrix<int32_t>;
 using DenseBitMatrix = DenseMatrix<bool>;
+using FloatVector = DenseVector<double>;
+using IntegerVector = DenseVector<int32_t>;
+using BitVector = DenseVector<bool>;
 using TriangularFloatMatrix = TriangularMatrix<double>;
 using TriangularIntegerMatrix = TriangularMatrix<int32_t>;
 using TriangularBitMatrix = TriangularMatrix<bool>;
@@ -41,6 +46,43 @@ bool coerce_bool_like(const py::handle& value) {
         throw py::type_error("Float assignments must be 0.0 or 1.0.");
     }
     throw py::type_error("TriangularBitMatrix entries accept bool, 0/1, or 0.0/1.0 values.");
+}
+
+template <typename T, typename... Options>
+void bind_vector_arithmetic(py::class_<T, Options...>& cls) {
+    cls.def("__add__", [](const T& self, const VectorBase& other) {
+        return pycauset::add_vectors(self, other, make_unique_storage_file("add_vector"));
+    });
+    cls.def("__add__", [](const T& self, double scalar) {
+        return pycauset::scalar_add_vector(self, scalar, make_unique_storage_file("add_scalar_vector"));
+    });
+    cls.def("__add__", [](const T& self, int64_t scalar) {
+        return pycauset::scalar_add_vector(self, scalar, make_unique_storage_file("add_scalar_vector"));
+    });
+    cls.def("__radd__", [](const T& self, double scalar) {
+        return pycauset::scalar_add_vector(self, scalar, make_unique_storage_file("add_scalar_vector"));
+    });
+    cls.def("__radd__", [](const T& self, int64_t scalar) {
+        return pycauset::scalar_add_vector(self, scalar, make_unique_storage_file("add_scalar_vector"));
+    });
+    cls.def("__sub__", [](const T& self, const VectorBase& other) {
+        return pycauset::subtract_vectors(self, other, make_unique_storage_file("sub_vector"));
+    });
+    cls.def("__mul__", [](const T& self, double scalar) {
+        return pycauset::scalar_multiply_vector(self, scalar, make_unique_storage_file("mul_vector"));
+    });
+    cls.def("__mul__", [](const T& self, int64_t scalar) {
+        return pycauset::scalar_multiply_vector(self, scalar, make_unique_storage_file("mul_vector"));
+    });
+    cls.def("__rmul__", [](const T& self, double scalar) {
+        return pycauset::scalar_multiply_vector(self, scalar, make_unique_storage_file("mul_vector"));
+    });
+    cls.def("__rmul__", [](const T& self, int64_t scalar) {
+        return pycauset::scalar_multiply_vector(self, scalar, make_unique_storage_file("mul_vector"));
+    });
+    cls.def("dot", [](const T& self, const VectorBase& other) {
+        return pycauset::dot_product(self, other);
+    });
 }
 
 template <typename T, typename... Options>
@@ -130,10 +172,16 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
 PYBIND11_MODULE(pycauset, m) {
     m.doc() = "pycauset Python Interface";
 
-    py::class_<MatrixBase>(m, "MatrixBase")
-        .def_property("scalar", &MatrixBase::get_scalar, &MatrixBase::set_scalar)
-        .def_property_readonly("seed", &MatrixBase::get_seed)
-        .def_property("is_temporary", &MatrixBase::is_temporary, &MatrixBase::set_temporary);
+    py::class_<PersistentObject>(m, "PersistentObject")
+        .def_property("scalar", &PersistentObject::get_scalar, &PersistentObject::set_scalar)
+        .def_property_readonly("seed", &PersistentObject::get_seed)
+        .def_property("is_temporary", &PersistentObject::is_temporary, &PersistentObject::set_temporary)
+        .def("close", &PersistentObject::close)
+        .def("get_backing_file", &PersistentObject::get_backing_file);
+
+    py::class_<MatrixBase, PersistentObject>(m, "MatrixBase");
+
+    py::class_<VectorBase, PersistentObject>(m, "VectorBase");
 
     // TriangularFloatMatrix
     py::class_<TriangularFloatMatrix, MatrixBase> tfm(m, "TriangularFloatMatrix");
@@ -448,6 +496,15 @@ PYBIND11_MODULE(pycauset, m) {
                  return py::cast(new FloatMatrix(n, std::move(mapper)));
             case pycauset::MatrixType::IDENTITY:
                  return py::cast(new IdentityMatrix(n, std::move(mapper)));
+            case pycauset::MatrixType::VECTOR:
+                 if (header.data_type == pycauset::DataType::BIT) {
+                     return py::cast(new BitVector(n, std::move(mapper)));
+                 } else if (header.data_type == pycauset::DataType::INT32) {
+                     return py::cast(new IntegerVector(n, std::move(mapper)));
+                 } else if (header.data_type == pycauset::DataType::FLOAT64) {
+                     return py::cast(new FloatVector(n, std::move(mapper)));
+                 }
+                 throw std::runtime_error("Unknown vector data type");
             default:
                 throw std::runtime_error("Unknown matrix type in file");
         }
@@ -473,4 +530,44 @@ PYBIND11_MODULE(pycauset, m) {
             return "<IdentityMatrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
         });
     bind_arithmetic(idm);
+
+    // FloatVector
+    py::class_<FloatVector, VectorBase> fv(m, "FloatVector");
+    fv.def(py::init<uint64_t, const std::string&>(), py::arg("n"), py::arg("backing_file") = "")
+      .def("__getitem__", &FloatVector::get)
+      .def("__setitem__", &FloatVector::set)
+      .def("__len__", &FloatVector::size)
+      .def_property_readonly("shape", [](const FloatVector& v) { return std::make_tuple(v.size()); })
+      .def("__repr__", [](const FloatVector& v) {
+          return "<FloatVector size=" + std::to_string(v.size()) + ">";
+      });
+    bind_vector_arithmetic(fv);
+
+    // IntegerVector
+    py::class_<IntegerVector, VectorBase> iv(m, "IntegerVector");
+    iv.def(py::init<uint64_t, const std::string&>(), py::arg("n"), py::arg("backing_file") = "")
+      .def("__getitem__", &IntegerVector::get)
+      .def("__setitem__", &IntegerVector::set)
+      .def("__len__", &IntegerVector::size)
+      .def_property_readonly("shape", [](const IntegerVector& v) { return std::make_tuple(v.size()); })
+      .def("__repr__", [](const IntegerVector& v) {
+          return "<IntegerVector size=" + std::to_string(v.size()) + ">";
+      });
+    bind_vector_arithmetic(iv);
+
+    // BitVector
+    py::class_<BitVector, VectorBase> bv(m, "BitVector");
+    bv.def(py::init<uint64_t, const std::string&>(), py::arg("n"), py::arg("backing_file") = "")
+      .def("__getitem__", &BitVector::get)
+      .def("__setitem__", [](BitVector& v, uint64_t i, py::object val) {
+          v.set(i, coerce_bool_like(val));
+      })
+      .def("__len__", &BitVector::size)
+      .def_property_readonly("shape", [](const BitVector& v) { return std::make_tuple(v.size()); })
+      .def("__repr__", [](const BitVector& v) {
+          return "<BitVector size=" + std::to_string(v.size()) + ">";
+      });
+    bind_vector_arithmetic(bv);
+
+    m.def("dot", &pycauset::dot_product, "Dot product of two vectors");
 }

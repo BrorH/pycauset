@@ -14,7 +14,8 @@ TriangularMatrix<bool>::TriangularMatrix(uint64_t n, const std::string& backing_
     // Calculate offsets for bits (1 bit per element), aligned to 64 bits
     uint64_t size_in_bytes = calculate_triangular_offsets(1, 64);
     initialize_storage(size_in_bytes, backing_file, "causal_matrix", 8, 
-                      pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT);
+                      pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT,
+                      n, n);
 }
 
 TriangularMatrix<bool>::TriangularMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)

@@ -40,6 +40,11 @@ _TriangularFloatMatrix = _native.TriangularFloatMatrix
 _TriangularIntegerMatrix = getattr(_native, "TriangularIntegerMatrix", None)
 _DenseBitMatrix = getattr(_native, "DenseBitMatrix", None)
 
+# Vector classes
+_FloatVector = getattr(_native, "FloatVector", None)
+_IntegerVector = getattr(_native, "IntegerVector", None)
+_BitVector = getattr(_native, "BitVector", None)
+
 _ASSIGNMENT_RE = re.compile(r"^\s*([A-Za-z0-9_.]+)\s*=.+(?:CausalMatrix|TriangularBitMatrix)", re.IGNORECASE)
 _STORAGE_ROOT: Path | None = None
 _EDGE_ITEMS = 3
@@ -706,8 +711,75 @@ if _TriangularIntegerMatrix:
 if _DenseBitMatrix:
     _patch_matrix_class(_DenseBitMatrix, target_arg="backing_file")
 
+# Patch vector classes
+if _FloatVector:
+    _patch_matrix_class(_FloatVector, target_arg="backing_file")
+if _IntegerVector:
+    _patch_matrix_class(_IntegerVector, target_arg="backing_file")
+if _BitVector:
+    _patch_matrix_class(_BitVector, target_arg="backing_file")
+
 # Aliases (Only CausalMatrix and Matrix are public now)
 TriangularBitMatrix = _TriangularBitMatrix
+
+def Vector(size_or_data: Any, dtype: str | None = None, **kwargs) -> Any:
+    """
+    Factory function for creating Vector instances.
+    
+    Args:
+        size_or_data: Size of the vector (int) or data (list/array).
+        dtype: 'float', 'int', or 'bool'. If None, inferred from data.
+        **kwargs: Additional arguments (ignored for now).
+    """
+    # 1. Handle creation by Size
+    if isinstance(size_or_data, (int, float)) and (isinstance(size_or_data, int) or size_or_data.is_integer()):
+        n = int(size_or_data)
+        if dtype == "int" and _IntegerVector:
+            return _IntegerVector(n, **kwargs)
+        elif dtype == "bool" and _BitVector:
+            return _BitVector(n, **kwargs)
+        elif _FloatVector:
+            return _FloatVector(n, **kwargs)
+        else:
+            raise ImportError("Vector classes not available in native extension.")
+
+    # 2. Handle creation by Data
+    data = size_or_data
+    
+    # Check for NumPy
+    if _np is not None and isinstance(data, _np.ndarray):
+        if dtype is None:
+            if data.dtype.kind in ('i', 'u'):
+                dtype = "int"
+            elif data.dtype.kind == 'f':
+                dtype = "float"
+            elif data.dtype.kind == 'b':
+                dtype = "bool"
+        data = data.tolist()
+
+    # Infer dtype if not provided
+    if dtype is None:
+        dtype = "float" # Default
+        if all(isinstance(x, (int, bool)) for x in data):
+            dtype = "int"
+        if all(isinstance(x, bool) for x in data):
+             dtype = "bool"
+
+    n = len(data)
+    
+    if dtype == "int" and _IntegerVector:
+        vec = _IntegerVector(n, **kwargs)
+    elif dtype == "bool" and _BitVector:
+        vec = _BitVector(n, **kwargs)
+    elif _FloatVector:
+        vec = _FloatVector(n, **kwargs)
+    else:
+        raise ImportError("Vector classes not available in native extension.")
+
+    for i, val in enumerate(data):
+        vec[i] = val
+        
+    return vec
 
 def CausalMatrix(source: Any, populate: bool = True, **kwargs):
     """
@@ -989,8 +1061,8 @@ def __getattr__(name):
 
 
 __all__ = [name for name in dir(_native) if not name.startswith("__")]
-__all__.extend(["save", "keep_temp_files", "seed", "Matrix", "TriangularMatrix", "CausalMatrix", "TriangularBitMatrix", "compute_k", "bitwise_not", "invert", "I"])
+__all__.extend(["save", "keep_temp_files", "seed", "Matrix", "Vector", "TriangularMatrix", "CausalMatrix", "TriangularBitMatrix", "compute_k", "bitwise_not", "invert", "I"])
 # Remove deprecated classes from __all__ if they were added by dir(_native)
-for _deprecated in ["IntegerMatrix", "FloatMatrix", "TriangularFloatMatrix", "TriangularIntegerMatrix"]:
+for _deprecated in ["IntegerMatrix", "FloatMatrix", "TriangularFloatMatrix", "TriangularIntegerMatrix", "FloatVector", "IntegerVector", "BitVector"]:
     if _deprecated in __all__:
         __all__.remove(_deprecated)

@@ -20,7 +20,8 @@ public:
                          std::string("dense_") + MatrixTraits<T>::name, 
                          sizeof(T),
                          pycauset::MatrixType::DENSE_FLOAT, // We might need to adjust this enum if we want DENSE_INT
-                         MatrixTraits<T>::data_type);
+                         MatrixTraits<T>::data_type,
+                         n, n);
         
         // Note: MatrixType::DENSE_FLOAT is currently the only dense type in the enum.
         // If we want to support Dense Integer matrices properly in the file format, 

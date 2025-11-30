@@ -30,7 +30,8 @@ DenseMatrix<bool>::DenseMatrix(uint64_t n, const std::string& backing_file)
     // Ideally we should add DENSE_BIT to the enum, but I can't change the enum definition easily without seeing it.
     // I'll use DENSE_FLOAT and rely on DataType::BIT to distinguish.
     initialize_storage(size_in_bytes, backing_file, "dense_bit_matrix", 8, 
-                      pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT);
+                      pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT,
+                      n, n);
 }
 
 DenseMatrix<bool>::DenseMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
