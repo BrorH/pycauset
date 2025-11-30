@@ -1,0 +1,37 @@
+[build-system]
+requires = ["scikit-build-core>=0.3.3", "pybind11", "setuptools_scm"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pycauset"
+dynamic = ["version"]
+description = "High-performance Causal Set matrix operations using memory-mapped files"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+  { name = "Bror Hjemgaard", email = "bror.hjemgaard@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+]
+
+[project.urls]
+Homepage = "https://github.com/BrorH/pycauset"
+Repository = "https://github.com/BrorH/pycauset"
+
+[tool.scikit-build]
+cmake.source-dir = "."
+wheel.packages = ["python/pycauset"]
+metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
+sdist.include = ["python/pycauset/_version.py"]
+
+[tool.setuptools_scm]
+write_to = "python/pycauset/_version.py"
