@@ -486,11 +486,11 @@ FIND_PACKAGE_MESSAGE_DETAILS_OpenMP:INTERNAL=[TRUE][ ][v2.0()]
 //Details about finding OpenMP_CXX
 FIND_PACKAGE_MESSAGE_DETAILS_OpenMP_CXX:INTERNAL=[-openmp][v2.0()]
 //Details about finding PYTHON
-FIND_PACKAGE_MESSAGE_DETAILS_PYTHON:INTERNAL=C:/Users/ireal/AppData/Local/Programs/Python/Python312/python.exe3.12.5
+FIND_PACKAGE_MESSAGE_DETAILS_PYTHON:INTERNAL=C:/Users/ireal/AppData/Local/Programs/Python/Python312/python.exe3.12.10
 //Details about finding Python
-FIND_PACKAGE_MESSAGE_DETAILS_Python:INTERNAL=[C:/Users/ireal/Documents/pycauset/.venv/Scripts/python.exe][C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/python312.lib][C:/Users/ireal/AppData/Local/Programs/Python/Python312/Include][found components: Interpreter Development.Module ][v3.12.5()]
+FIND_PACKAGE_MESSAGE_DETAILS_Python:INTERNAL=[C:/Users/ireal/Documents/pycauset/.venv/Scripts/python.exe][C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/python312.lib][C:/Users/ireal/AppData/Local/Programs/Python/Python312/Include][found components: Interpreter Development.Module ][v3.12.10()]
 //Details about finding PythonInterp
-FIND_PACKAGE_MESSAGE_DETAILS_PythonInterp:INTERNAL=[C:/Users/ireal/AppData/Local/Programs/Python/Python312/python.exe][v3.12.5(3.6)]
+FIND_PACKAGE_MESSAGE_DETAILS_PythonInterp:INTERNAL=[C:/Users/ireal/AppData/Local/Programs/Python/Python312/python.exe][v3.12.10(3.6)]
 //Test HAS_MSVC_GL_LTCG
 HAS_MSVC_GL_LTCG:INTERNAL=1
 //Result of TRY_COMPILE
@@ -512,7 +512,7 @@ PYTHON_LIBRARIES:INTERNAL=C:/Users/ireal/AppData/Local/Programs/Python/Python312
 PYTHON_MODULE_DEBUG_POSTFIX:INTERNAL=
 PYTHON_MODULE_EXTENSION:INTERNAL=.cp312-win_amd64.pyd
 PYTHON_MODULE_PREFIX:INTERNAL=
-PYTHON_VERSION:INTERNAL=3.12.5
+PYTHON_VERSION:INTERNAL=3.12.10
 PYTHON_VERSION_MAJOR:INTERNAL=3
 PYTHON_VERSION_MINOR:INTERNAL=12
 Python_ADDITIONAL_VERSIONS:INTERNAL=3.12;3.11;3.10;3.9;3.8;3.7;3.6

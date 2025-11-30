@@ -383,6 +383,9 @@ std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::multiply_scalar(
     
     auto result = std::make_unique<TriangularMatrix<bool>>(n_, std::move(mapper));
     result->set_scalar(scalar_ * factor);
+    if (result_file.empty()) {
+        result->set_temporary(true);
+    }
     
     return result;
 }

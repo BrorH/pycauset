@@ -56,6 +56,10 @@ public:
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
         auto new_matrix = std::make_unique<DenseMatrix<T>>(n_, std::move(mapper));
         new_matrix->set_scalar(scalar_ * factor);
+        // If result_file was not specified, it's a temporary intermediate result
+        if (result_file.empty()) {
+            new_matrix->set_temporary(true);
+        }
         return new_matrix;
     }
 
@@ -130,6 +134,7 @@ public:
             std::string work_path = copy_storage(make_unique_storage_file("inverse_work"));
             auto work_mapper = std::make_unique<MemoryMapper>(work_path, 0, false);
             DenseMatrix<double> work(n_, std::move(work_mapper));
+            work.set_temporary(true); // Ensure work file is deleted
             
             auto result = std::make_unique<DenseMatrix<double>>(n_, result_file);
             

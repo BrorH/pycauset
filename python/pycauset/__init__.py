@@ -966,10 +966,10 @@ def save(matrix: Any, path: str | os.PathLike) -> None:
             return
         os.unlink(dest)
         
-    try:
-        os.link(source, dest)
-    except OSError:
-        shutil.copy2(source, dest)
+    # Always copy to ensure the saved file is independent of the temporary one.
+    # Hardlinking would share the file header, so marking the destination as
+    # permanent would also mark the source as permanent, preventing cleanup.
+    shutil.copy2(source, dest)
         
     # Ensure the saved file is marked as permanent
     set_temporary_file(dest, False)

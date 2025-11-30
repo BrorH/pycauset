@@ -16,6 +16,9 @@
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\TriangularBitMatrix.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\DenseBitMatrix.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\ireal\Documents\pycauset\src\MatrixOperations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

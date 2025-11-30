@@ -8,6 +8,26 @@
 
 MatrixBase::MatrixBase(uint64_t n) : n_(n), scalar_(1.0) {}
 
+MatrixBase::~MatrixBase() {
+    if (mapper_) {
+        bool temp = false;
+        try {
+            temp = is_temporary();
+        } catch (...) {}
+
+        std::string path = mapper_->get_filename();
+        mapper_.reset(); // Close file mapping
+
+        if (temp && !path.empty()) {
+            try {
+                std::filesystem::remove(path);
+            } catch (...) {
+                // Best effort deletion
+            }
+        }
+    }
+}
+
 MatrixBase::MatrixBase(uint64_t n, std::unique_ptr<MemoryMapper> mapper) 
     : n_(n), mapper_(std::move(mapper)) {
     if (mapper_) {
@@ -56,7 +76,8 @@ void MatrixBase::initialize_storage(uint64_t size_in_bytes,
     header->rows = n_;
     header->cols = n_;
     header->scalar = 1.0;
-    header->is_temporary = 0; // Default to permanent/unspecified
+    // If no backing file was requested, this is an auto-generated temporary file.
+    header->is_temporary = backing_file.empty() ? 1 : 0;
     scalar_ = 1.0;
 }
 
@@ -94,6 +115,12 @@ uint64_t MatrixBase::get_seed() const {
         return mapper_->get_header()->seed;
     }
     return 0;
+}
+
+void MatrixBase::set_seed(uint64_t seed) {
+    if (mapper_) {
+        mapper_->get_header()->seed = seed;
+    }
 }
 
 bool MatrixBase::is_temporary() const {
