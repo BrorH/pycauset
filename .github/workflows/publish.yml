@@ -17,11 +17,17 @@ jobs:
         with:
           fetch-depth: 0  # Required for setuptools_scm to find tags
 
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install libomp
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.16.5
         env:
           # Configure cibuildwheel to build for Python 3.8+
           CIBW_SKIP: "cp36-* cp37-* pp*"
+          CIBW_BEFORE_BUILD_MACOS: "brew install libomp"
+          CIBW_ENVIRONMENT_MACOS: "CFLAGS='-Xpreprocessor -fopenmp' CXXFLAGS='-Xpreprocessor -fopenmp' LDFLAGS='-lomp'"
 
       - uses: actions/upload-artifact@v4
         with:
