@@ -10,7 +10,7 @@
 class MatrixBase {
 public:
     explicit MatrixBase(uint64_t n);
-    virtual ~MatrixBase() = default;
+    virtual ~MatrixBase();
 
     uint64_t size() const { return n_; }
     std::string get_backing_file() const;
@@ -19,6 +19,7 @@ public:
     double get_scalar() const { return scalar_; }
     void set_scalar(double s); // Updates header and member
     uint64_t get_seed() const;
+    void set_seed(uint64_t seed);
 
     bool is_temporary() const;
     void set_temporary(bool temp);

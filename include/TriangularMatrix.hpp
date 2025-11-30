@@ -87,6 +87,9 @@ public:
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
         auto new_matrix = std::make_unique<TriangularMatrix<T>>(n_, std::move(mapper));
         new_matrix->set_scalar(scalar_ * factor);
+        if (result_file.empty()) {
+            new_matrix->set_temporary(true);
+        }
         return new_matrix;
     }
 

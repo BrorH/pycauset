@@ -10,16 +10,17 @@ Goals:
 - [x] Saving/loading causal matrices to/from binary files.
 - [x] Implement matrix operations: addition, subtraction, multiplication.
 - [x] Implement inverting
-- [ ] Identity matrix: pycauset.I - it should detect size automatically.
-- [ ] Add the option to specify where to save/load the binary files - especially from external drives
-- [ ] Make binary files have .pycauset extension
-- [ ] Allow users to specify lower size of elements which get turned into and stored as binary files
+- [x] Identity matrix: pycauset.I - it should detect size automatically.
+- [x] Add the option to specify where to save/load the binary files - especially from external drives
+- [x] Make binary files have .pycauset extension
+- [x] Allow users to specify lower size of elements which get turned into and stored as binary files (deprecated)
 - [x] Matrix printing
 - [ ] Figure out how to correctly randomly fill C
 - [ ] Visualizations of matrices
 - [x] printable "info" about matrix. I.e. print info from header
-- [ ] Fix bug so that binaries are actually deleted on program finish
+- [x] Fix bug so that binaries are actually deleted on program finish
 - [x] add dtype specification on matrix creation
+- [ ] vectors
 
 
 ## Documentation needed
