@@ -8,19 +8,19 @@ You can convert NumPy arrays into `pycauset` objects using the [[pycauset.asarra
 
 ```python
 import numpy as np
-import pycauset
+import pycauset as pc
 
 # Convert 1D NumPy array to Vector
 arr_1d = np.array([1.0, 2.0, 3.0])
-vec = pycauset.asarray(arr_1d)  # Returns FloatVector
+vec = pc.asarray(arr_1d)  # Returns FloatVector
 
 # Convert 2D NumPy array to Matrix
 arr_2d = np.array([[1, 2], [3, 4]], dtype=np.int32)
-mat = pycauset.asarray(arr_2d)  # Returns IntegerMatrix
+mat = pc.asarray(arr_2d)  # Returns IntegerMatrix
 
 # Convert Boolean array
 arr_bool = np.array([True, False], dtype=bool)
-vec_bool = pycauset.asarray(arr_bool)  # Returns BitVector
+vec_bool = pc.asarray(arr_bool)  # Returns BitVector
 ```
 
 **Note**: This operation creates a **copy** of the data. Depending on the size and the configured memory threshold, the new object will be stored in RAM or on disk, see [[User Guide#Storage Management]]
@@ -30,7 +30,7 @@ vec_bool = pycauset.asarray(arr_bool)  # Returns BitVector
 All `pycauset` Matrix and Vector classes implement the NumPy array protocol (`__array__`). This means you can pass any `pycauset` object directly to `np.array()` or any function that expects an array-like object.
 
 ```python
-v = pycauset.Vector([1, 2, 3])
+v = pc.Vector([1, 2, 3])
 
 # Convert to NumPy array
 arr = np.array(v)
@@ -49,7 +49,7 @@ You can perform arithmetic operations directly between `pycauset` objects and Nu
 ### Vector + NumPy Array
 
 ```python
-v = pycauset.Vector([1, 2, 3])
+v = pc.Vector([1, 2, 3])
 arr = np.array([10, 20, 30])
 
 # Result is a pycauset Vector (operation happens in C++ backend)
@@ -61,7 +61,7 @@ result = v + arr  # [11, 22, 33]
 You can use NumPy arrays as operands in matrix multiplication.
 
 ```python
-M = pycauset.Matrix([[1, 0], [0, 1]]) # Identity
+M = pc.Matrix([[1, 0], [0, 1]]) # Identity
 v_np = np.array([5.0, 6.0])
 
 # Result is a pycauset Vector

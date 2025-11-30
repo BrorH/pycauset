@@ -213,10 +213,10 @@
   },
   "active": "1563eaae446d05e3",
   "lastOpenFiles": [
+    "guides/User Guide.md",
+    "project/TODO.md",
     "guides/Inversion.md",
     "api/functions/pycauset.invert.md",
-    "project/TODO.md",
-    "guides/User Guide.md",
     "guides/Matrix Multiplication.md",
     "guides/Vector Guide.md",
     "guides/Numpy Integration.md",

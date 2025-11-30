@@ -7,17 +7,17 @@ PyCauset provides an interface for computing the mathematical inverse ($A^{-1}$)
 You can use the `.invert()` method on a matrix object or the [[pycauset.invert]] function.
 
 ```python
-import pycauset
+import pycauset as pc
 
 # Create a matrix (must be invertible)
 # Note: TriangularBitMatrix and IntegerMatrix are strictly upper triangular
 # and therefore singular (determinant is 0). They cannot be inverted.
 
 try:
-    m = pycauset.TriangularBitMatrix(5)
+    m = pc.TriangularBitMatrix(5)
     inv = m.invert()
     # OR
-    inv = pycauset.invert(m)
+    inv = pc.invert(m)
 except RuntimeError as e:
     print(f"Inversion failed: {e}")
 ```
@@ -37,12 +37,12 @@ The [[pycauset.FloatMatrix]] class supports general matrix inversion using Gauss
 **Note**: [[pycauset.IntegerMatrix]] and [[pycauset.DenseBitMatrix]] are also dense, but direct inversion is not supported to avoid ambiguity (integer inversion usually results in floats). To invert them, convert them to [[pycauset.FloatMatrix]] first.
 
 ```python
-import pycauset
+import pycauset as pc
 
 # Create a dense FloatMatrix
 # [[4, 7],
 #  [2, 6]]
-m = pycauset.FloatMatrix(2)
+m = pc.FloatMatrix(2)
 m[0, 0] = 4.0
 m[0, 1] = 7.0
 m[1, 0] = 2.0

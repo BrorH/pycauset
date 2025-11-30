@@ -23,10 +23,10 @@ Matrix multiplication is supported for all combinations of matrix types. The ret
 
 ### Syntax
 ```python
-import pycauset
+import pycauset as pc
 
 # A and B can be of any supported type
-C = pycauset.matmul(A, B)
+C = pc.matmul(A, B)
 ```
 
 ### Return Value
@@ -73,7 +73,7 @@ C = 0.5 * A
 -   It does **not** iterate over the matrix data.
 -   Instead, it updates an internal `scalar` field in the matrix object.
 -   When elements are accessed (e.g., via `get_element_as_double` or converted to numpy), the stored value is multiplied by this scalar on the fly.
--   If you perform `C = pycauset.matmul(A, B)`, the resulting matrix will inherit the product of the scalars: `C.scalar = A.scalar * B.scalar`.
+-   If you perform `C = pc.matmul(A, B)`, the resulting matrix will inherit the product of the scalars: `C.scalar = A.scalar * B.scalar`.
 
 ## Vector-Matrix Multiplication
 

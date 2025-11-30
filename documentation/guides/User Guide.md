@@ -111,7 +111,7 @@ Matrices are backed by temporary storage (RAM or temporary files) that is releas
 
 ```python
 # Save the matrix to a permanent location
-pycauset.save(C, "my_saved_matrix.pycauset")
+pc.save(C, "my_saved_matrix.pycauset")
 ```
 
 ### Loading a Matrix
@@ -119,7 +119,7 @@ You can load any previously saved matrix file using [[pycauset.load]]. The funct
 
 ```python
 # Load a matrix from disk
-matrix = pycauset.load("my_saved_matrix.pycauset")
+matrix = pc.load("my_saved_matrix.pycauset")
 
 # Check the type
 print(type(matrix)) 
@@ -136,10 +136,10 @@ The default threshold is **10 MB**. You can configure this using [[pycauset.set_
 
 ```python
 # Set threshold to 100 MB
-pycauset.set_memory_threshold(100 * 1024 * 1024)
+pc.set_memory_threshold(100 * 1024 * 1024)
 
 # Check current threshold
-print(pycauset.get_memory_threshold())
+print(pc.get_memory_threshold())
 ```
 
 This behavior ensures that `pycauset` behaves like NumPy at small scales, but converts to a memory-efficient beast at high scales.
@@ -156,10 +156,10 @@ For objects larger than the memory threshold, `pycauset` manages backing files a
 
 ```python
 # Integer input behaves like the CausalMatrix constructor
-alpha = pycauset.Matrix(256)
+alpha = pc.Matrix(256)
 
 # Nested sequences can now describe any square matrix
-beta = pycauset.Matrix([
+beta = pc.Matrix([
 	[1, 0, 0],
 	[2, 3, 4],
 	[5, 6, 7],
@@ -167,7 +167,7 @@ beta = pycauset.Matrix([
 
 # NumPy arrays (or anything convertible via np.asarray) are accepted directly
 import numpy as np
-gamma = pycauset.Matrix(np.random.rand(4, 4))
+gamma = pc.Matrix(np.random.rand(4, 4))
 ```
 
 
@@ -196,8 +196,8 @@ The default constructor [[pycauset.CausalMatrix]](N) creates an empty matrix (al
 `*` now mirrors NumPy’s elementwise semantics: it returns a new [[pycauset.CausalMatrix]] whose entries are the logical AND of the operands. Use this when you want to intersect adjacency structures without leaving the boolean domain.
 
 ```python
-lhs = pycauset.CausalMatrix(100)
-rhs = pycauset.CausalMatrix(100)
+lhs = pc.CausalMatrix(100)
+rhs = pc.CausalMatrix(100)
 # ... populate both ...
 overlap = lhs * rhs  # still a CausalMatrix
 ```
@@ -206,11 +206,11 @@ Use [[pycauset.matmul]](lhs, rhs) for true matrix multiplication (`numpy.matmul`
 
 ```python
 # A -> B -> C implies A -> C
-A = pycauset.CausalMatrix(100, "A.bin")
+A = pc.CausalMatrix(100, "A.bin")
 A[0, 10] = True
 A[10, 20] = True
 
-Result = pycauset.matmul(A, A)
+Result = pc.matmul(A, A)
 print(Result[0, 20])  # 1 path: 0->10->20
 ```
 
@@ -218,7 +218,7 @@ print(Result[0, 20])  # 1 path: 0->10->20
 If you want to specify where the result is stored (recommended for large matrices):
 ```python
 # Result will be stored in 'paths.bin'
-Result = pycauset.matmul(A, A, saveas="paths.bin")
+Result = pc.matmul(A, A, saveas="paths.bin")
 # Existing code that calls A.multiply(...) still works; matmul is just the numpy-style entry point.
 
 ```
@@ -236,7 +236,7 @@ The result of a multiplication is an [[pycauset.IntegerMatrix]]. It is read-only
 
 ### NumPy Integration
 `pycauset` works hand-in-hand with NumPy.
-- **Convert to PyCauset**: Use `pycauset.asarray(np_array)` to create disk-backed Matrices or Vectors from NumPy arrays.
+- **Convert to PyCauset**: Use `pc.asarray(np_array)` to create disk-backed Matrices or Vectors from NumPy arrays.
 - **Convert to NumPy**: Use `np.array(pycauset_obj)` to load data into memory as a standard NumPy array.
 - **Mixed Arithmetic**: You can add, subtract, or multiply `pycauset` objects with NumPy arrays directly.
 

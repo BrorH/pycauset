@@ -7,23 +7,23 @@ The back-bone of pycauset is the matrix system. It is built from the ground-up t
 Matrices can be created using the [[pycauset.Matrix]] factory function. This function is flexible and accepts lists, NumPy arrays, or dimensions. You can also specify the `dtype` to control the underlying storage format.
 
 ```python
-import pycauset
+import pycauset as pc
 import numpy as np
 
 # 1. From a list of lists (infers type)
-M1 = pycauset.Matrix([[1, 2], [3, 4]])  # Creates IntegerMatrix
+M1 = pc.Matrix([[1, 2], [3, 4]])  # Creates IntegerMatrix
 
 # 2. From a NumPy array
 arr = np.random.rand(5, 5)
-M2 = pycauset.Matrix(arr)               # Creates FloatMatrix
+M2 = pc.Matrix(arr)               # Creates FloatMatrix
 
 # 3. Empty matrix of specific size and type
-M3 = pycauset.Matrix(100, dtype=int)    # 100x100 IntegerMatrix (zeros)
-M4 = pycauset.Matrix(100, dtype=bool)   # 100x100 DenseBitMatrix (zeros)
+M3 = pc.Matrix(100, dtype=int)    # 100x100 IntegerMatrix (zeros)
+M4 = pc.Matrix(100, dtype=bool)   # 100x100 DenseBitMatrix (zeros)
 
 # 4. Causal Matrix (Specialized Triangular Bit Matrix)
 # This is optimized for causal sets (strictly upper triangular)
-C = pycauset.CausalMatrix(100)
+C = pc.CausalMatrix(100)
 ```
 
 # Matrix Operations
@@ -37,10 +37,10 @@ Matrix multiplication is performed using the [[pycauset.matmul]](A, B) function.
 Currently, matrix multiplication is optimized and exposed for **[[pycauset.TriangularBitMatrix]]**.
 ### Syntax
 ```python
-import pycauset
+import pycauset as pc
 
 # A and B are TriangularBitMatrix instances
-C = pycauset.matmul(A, B)
+C = pc.matmul(A, B)
 ```
 
 ### Return Value
@@ -76,7 +76,7 @@ In pycauset, matrices never live in-memory, but are stored on your device's stor
 Matrices are backed by temporary files that are deleted when the program exits, unless [[pycauset.keep_temp_files]] is set to `True`. To permanently save a specific matrix, use [[pycauset.save]]. 
 ```python
 # Save the matrix to a permanent location
-pycauset.save(C, "my_saved_matrix.pycauset")
+pc.save(C, "my_saved_matrix.pycauset")
 ```
 
 ### Loading a Matrix
@@ -84,7 +84,7 @@ You can load any previously saved matrix file using [[pycauset.load]]. The funct
 
 ```python
 # Load a matrix from disk
-matrix = pycauset.load("my_saved_matrix.pycauset")
+matrix = pc.load("my_saved_matrix.pycauset")
 
 # Check the type
 print(type(matrix)) 
