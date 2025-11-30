@@ -1,20 +1,30 @@
 site_name: Pycauset
 docs_dir: documentation
+repo_url: https://github.com/BrorH/pycauset
+repo_name: BrorH/pycauset
 
 theme:
   name: material
   features:
     - navigation.tabs
     - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.instant
     - toc.integrate
+    - content.code.copy
   palette: 
     # Palette toggle for light mode
     - scheme: default
+      primary: teal
+      accent: purple
       toggle:
         icon: material/brightness-7 
         name: Switch to dark mode
     # Palette toggle for dark mode
     - scheme: slate
+      primary: teal
+      accent: lime
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -32,3 +42,9 @@ markdown_extensions:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js

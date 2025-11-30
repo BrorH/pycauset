@@ -1,6 +1,10 @@
 # PyCauset
 
+[![Documentation](https://img.shields.io/badge/docs-live-blue)](https://brorh.github.io/pycauset/)
+
 **PyCauset** is a high-performance Python module designed for numerical work with [Causal Sets](https://en.wikipedia.org/wiki/Causal_sets). It is built to handle massive matrices (up to $N=10^6$) that exceed available RAM by leveraging memory-mapped files and efficient C++ backends.
+
+**[Explore the Full Documentation / Wiki »](https://brorh.github.io/pycauset/)**
 
 ## Why PyCauset?
 
