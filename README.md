@@ -2,7 +2,7 @@
 
 [![Documentation](https://img.shields.io/badge/docs-live-blue)](https://brorh.github.io/pycauset/)
 
-**PyCauset** is a high-performance Python module designed for numerical work with [Causal Sets](https://en.wikipedia.org/wiki/Causal_sets). It is built to handle massive matrices (up to $N=10^6$) that exceed available RAM by leveraging memory-mapped files and efficient C++ backends.
+**PyCauset** is a high-performance Python module designed for numerical work with [Causal Sets](https://en.wikipedia.org/wiki/Causal_sets). It is built to handle massive matrices that exceed available RAM by leveraging memory-mapped files and efficient C++ backends.
 
 **[Explore the Full Documentation / Wiki »](https://brorh.github.io/pycauset/)**
 
@@ -25,7 +25,7 @@ The easiest way to install PyCauset is via pip:
 pip install pycauset
 ```
 
-*Note: Since this is a C++ extension, you will need a C++ compiler installed on your system (Visual Studio Build Tools on Windows, GCC/Clang on Linux/Mac) for the installation to succeed.*
+We provide pre-compiled binary wheels for Windows, macOS, and Linux. No C++ compiler is required for installation.
 
 ### From Source
 If you want to build from source or contribute:

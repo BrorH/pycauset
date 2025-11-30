@@ -1,14 +1,7 @@
 # Installation Guide
 
-## Prerequisites: C++ Compiler
-PyCauset is a high-performance library with a C++ backend. You **must** have a C++ compiler installed to build it.
-
-*   **Windows**: Install **Visual Studio Community 2022** (or Build Tools) with the **"Desktop development with C++"** workload. This provides the MSVC compiler (`cl.exe`).
-*   **Linux**: Install `g++` or `clang` (e.g., `sudo apt install build-essential`).
-*   **macOS**: Install Xcode Command Line Tools (`xcode-select --install`).
-
 ## Method 1: Install via pip (Recommended)
-The easiest way to install PyCauset is using `pip`.
+The easiest way to install PyCauset is using `pip`. 
 
 ### From PyPI
 To install the latest published version:
@@ -16,8 +9,16 @@ To install the latest published version:
 pip install pycauset
 ```
 
-### From Source
-To install from the local repository (this will automatically compile the C++ extension):
+## Method 2: Building from Source
+If you want to build from source or contribute to development, you will need a C++ compiler.
+
+### Prerequisites for Source Build
+*   **Windows**: Install **Visual Studio Community 2022** (or Build Tools) with the **"Desktop development with C++"** workload.
+*   **Linux**: Install `g++` or `clang` (e.g., `sudo apt install build-essential`).
+*   **macOS**: Install Xcode Command Line Tools (`xcode-select --install`).
+
+### Install from Source
+To install from the local repository (this will compile the C++ extension):
 
 ```bash
 pip install .
