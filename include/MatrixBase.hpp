@@ -18,6 +18,8 @@ public:
     virtual std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const = 0;
     virtual std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const = 0;
 
+    virtual std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const = 0;
+
 protected:
     // Constructor for loading from existing mapper
     MatrixBase(uint64_t n, std::unique_ptr<MemoryMapper> mapper);

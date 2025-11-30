@@ -16,6 +16,7 @@ Pycauset is written to behave similarly to [numpy](https://numpy.org/) for the u
 *   [User Guide](guides/User%20Guide.md)
 *   [Matrix Guide](guides/Matrix%20Guide.md)
 *   [Vector Guide](guides/Vector%20Guide.md)
+*   [NumPy Integration](guides/Numpy%20Integration.md)
 *   [Matrix Multiplication](guides/Matrix%20Multiplication.md)
 *   [Inversion](guides/Inversion.md)
 *   [Bitwise Inversion](guides/BitwiseInversion.md)

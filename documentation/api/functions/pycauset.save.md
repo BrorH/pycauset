@@ -1,24 +1,21 @@
 # pycauset.save
 
 ```python
-pycauset.save(matrix, path)
+pycauset.save(obj: PersistentObject, path: str)
 ```
 
-Saves a matrix to a permanent location on disk.
+Saves a persistent object (matrix or vector) to a permanent location on disk.
 
-This function attempts to create a hard link to the matrix's backing file to avoid data duplication. If a hard link cannot be created (e.g., across different filesystems), it falls back to copying the file.
+This function attempts to create a hard link to the object's backing file to avoid data duplication. If a hard link cannot be created (e.g., across different filesystems), it falls back to copying the file.
 
 ## Parameters
 
-*   **matrix** (*MatrixBase*): The matrix object to save. Must be an instance of a file-backed matrix class (e.g., `TriangularBitMatrix`, `IntegerMatrix`).
-*   **path** (*str* or *PathLike*): The destination path where the matrix should be saved.
+*   **obj** (*PersistentObject*): The object to save.
+*   **path** (*str*): The destination path where the object should be saved.
 
 ## Example
 
 ```python
 C = pycauset.CausalMatrix(1000)
 pycauset.save(C, "my_saved_matrix.pycauset")
-
-# Alternatively, use the method on the matrix object:
-C.save("my_saved_matrix.pycauset")
 ```

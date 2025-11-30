@@ -46,6 +46,8 @@ public:
         return multiply_scalar(static_cast<double>(factor), result_file);
     }
 
+    std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override;
+
     // Bitwise inversion (NOT)
     // Returns a new matrix where every bit in the upper triangle is flipped.
     std::unique_ptr<TriangularMatrix<bool>> bitwise_not(const std::string& result_file = "") const;

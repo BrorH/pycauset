@@ -63,6 +63,13 @@ public:
         return result;
     }
 
+    std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
+        auto result = std::make_unique<IdentityMatrix>(n_, result_file);
+        result->set_scalar(scalar_);
+        result->set_transposed(!is_transposed());
+        return result;
+    }
+
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
         auto result = std::make_unique<IdentityMatrix>(n_, result_file);
         result->set_scalar(scalar_ * factor);

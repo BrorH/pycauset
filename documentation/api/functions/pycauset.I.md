@@ -1,7 +1,7 @@
 # pycauset.I
 
 ```python
-class pycauset.I(n)
+class pycauset.I(n: int, backing_file: str = "")
 ```
 
 Alias for [[pycauset.IdentityMatrix]].

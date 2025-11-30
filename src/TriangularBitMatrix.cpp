@@ -25,6 +25,9 @@ TriangularMatrix<bool>::TriangularMatrix(uint64_t n, std::unique_ptr<MemoryMappe
 }
 
 void TriangularMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
+    if (is_transposed()) {
+        std::swap(i, j);
+    }
     if (i >= j) throw std::invalid_argument("Strictly upper triangular");
     if (j >= n_) throw std::out_of_range("Index out of bounds");
 
@@ -44,6 +47,9 @@ void TriangularMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
 }
 
 bool TriangularMatrix<bool>::get(uint64_t i, uint64_t j) const {
+    if (is_transposed()) {
+        std::swap(i, j);
+    }
     if (i >= j || j >= n_) return false;
 
     uint64_t bit_offset = j - (i + 1);
@@ -73,6 +79,20 @@ std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::random(uint64_t 
     }
     mat->fill_random(density, seed);
     return mat;
+}
+
+std::unique_ptr<MatrixBase> TriangularMatrix<bool>::transpose(const std::string& result_file) const {
+    std::string new_path = copy_storage(result_file);
+    auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
+    auto new_matrix = std::make_unique<TriangularMatrix<bool>>(n_, std::move(mapper));
+    
+    // Flip the transposed bit
+    new_matrix->set_transposed(!this->is_transposed());
+    
+    if (result_file.empty()) {
+        new_matrix->set_temporary(true);
+    }
+    return new_matrix;
 }
 
 std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::bitwise_not(const std::string& result_file) const {

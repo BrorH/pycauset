@@ -34,11 +34,18 @@ public:
 
     void set(uint64_t i, uint64_t j, T value) {
         if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
-        data()[i * n_ + j] = value;
+        if (is_transposed()) {
+            data()[j * n_ + i] = value;
+        } else {
+            data()[i * n_ + j] = value;
+        }
     }
 
     T get(uint64_t i, uint64_t j) const {
         if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
+        if (is_transposed()) {
+            return data()[j * n_ + i];
+        }
         return data()[i * n_ + j];
     }
 
@@ -65,6 +72,20 @@ public:
 
     std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
         return multiply_scalar(static_cast<double>(factor), result_file);
+    }
+
+    std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
+        std::string new_path = copy_storage(result_file);
+        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
+        auto new_matrix = std::make_unique<DenseMatrix<T>>(n_, std::move(mapper));
+        
+        // Flip the transposed bit
+        new_matrix->set_transposed(!this->is_transposed());
+        
+        if (result_file.empty()) {
+            new_matrix->set_temporary(true);
+        }
+        return new_matrix;
     }
 
     std::unique_ptr<DenseMatrix<T>> bitwise_not(const std::string& result_file = "") const {
@@ -107,17 +128,64 @@ public:
         
         std::fill(c_data, c_data + n_ * n_, static_cast<T>(0));
 
-        // IKJ algorithm
-        for (uint64_t i = 0; i < n_; ++i) {
-            for (uint64_t k = 0; k < n_; ++k) {
-                T val_a = a_data[i * n_ + k];
-                if (val_a == static_cast<T>(0)) continue;
-                
-                const T* b_row = b_data + k * n_;
-                T* c_row = c_data + i * n_;
-                
+        bool t_a = this->is_transposed();
+        bool t_b = other.is_transposed();
+
+        if (!t_a && !t_b) {
+            // A * B (Standard)
+            // IKJ algorithm
+            for (uint64_t i = 0; i < n_; ++i) {
+                for (uint64_t k = 0; k < n_; ++k) {
+                    T val_a = a_data[i * n_ + k];
+                    if (val_a == static_cast<T>(0)) continue;
+                    
+                    const T* b_row = b_data + k * n_;
+                    T* c_row = c_data + i * n_;
+                    
+                    for (uint64_t j = 0; j < n_; ++j) {
+                        c_row[j] += val_a * b_row[j];
+                    }
+                }
+            }
+        } else if (!t_a && t_b) {
+            // A * B^T
+            // B is transposed logically, so B(k, j) is stored at B_data(j, k).
+            // We want C(i, j) += A(i, k) * B^T(k, j)
+            //                  = A(i, k) * B_storage(j, k)
+            // This is dot product of Row A_i and Row B_j (from storage).
+            for (uint64_t i = 0; i < n_; ++i) {
                 for (uint64_t j = 0; j < n_; ++j) {
-                    c_row[j] += val_a * b_row[j];
+                    T sum = 0;
+                    for (uint64_t k = 0; k < n_; ++k) {
+                        sum += a_data[i * n_ + k] * b_data[j * n_ + k];
+                    }
+                    c_data[i * n_ + j] = sum;
+                }
+            }
+        } else if (t_a && !t_b) {
+            // A^T * B
+            // A is transposed logically. A(i, k) is stored at A_storage(k, i).
+            // C(i, j) += A^T(i, k) * B(k, j)
+            //          = A_storage(k, i) * B(k, j)
+            for (uint64_t i = 0; i < n_; ++i) {
+                for (uint64_t j = 0; j < n_; ++j) {
+                    T sum = 0;
+                    for (uint64_t k = 0; k < n_; ++k) {
+                        sum += a_data[k * n_ + i] * b_data[k * n_ + j];
+                    }
+                    c_data[i * n_ + j] = sum;
+                }
+            }
+        } else {
+            // A^T * B^T
+            // C(i, j) += A_storage(k, i) * B_storage(j, k)
+            for (uint64_t i = 0; i < n_; ++i) {
+                for (uint64_t j = 0; j < n_; ++j) {
+                    T sum = 0;
+                    for (uint64_t k = 0; k < n_; ++k) {
+                        sum += a_data[k * n_ + i] * b_data[j * n_ + k];
+                    }
+                    c_data[i * n_ + j] = sum;
                 }
             }
         }

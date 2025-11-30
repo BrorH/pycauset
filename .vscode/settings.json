@@ -5,6 +5,11 @@
         "filesystem": "cpp",
         "random": "cpp",
         "memory": "cpp",
-        "set": "cpp"
+        "set": "cpp",
+        "array": "cpp",
+        "tuple": "cpp",
+        "utility": "cpp",
+        "variant": "cpp",
+        "xutility": "cpp"
     }
 }
