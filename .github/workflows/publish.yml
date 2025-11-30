@@ -37,7 +37,10 @@ jobs:
           
           # macOS: Help CMake find OpenMP
           CIBW_BEFORE_BUILD_MACOS: "brew install libomp"
-          CIBW_ENVIRONMENT_MACOS: "CFLAGS='-Xpreprocessor -fopenmp' CXXFLAGS='-Xpreprocessor -fopenmp' LDFLAGS='-lomp' OpenMP_ROOT=$(brew --prefix libomp)"
+          CIBW_ENVIRONMENT_MACOS: >
+            CFLAGS="-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include"
+            CXXFLAGS="-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include"
+            LDFLAGS="-L/opt/homebrew/opt/libomp/lib -L/usr/local/opt/libomp/lib -lomp"
 
       - uses: actions/upload-artifact@v4
         with:
