@@ -1,1 +1,3 @@
-mermaid.initialize({startOnLoad:true});
+document$.subscribe(() => {
+  mermaid.init(undefined, document.querySelectorAll(".mermaid"));
+});
