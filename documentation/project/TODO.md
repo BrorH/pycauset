@@ -6,7 +6,7 @@ Goals:
 - [ ] Calculate a 100GB $K$
 - [x] Numpy compatibility
 - [ ] Study the base changes and figure out what to do with the eigenvectors
-- [ ] Host the documentation (github site?)
+- [x] Host the documentation (github site?)
 
 ## Wanted features
 - [ ] Figure out how to correctly randomly fill C

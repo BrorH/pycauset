@@ -1,6 +1,6 @@
 # Matrix Hierarchy
 
-The matrix architecture has been refactored to use C++ templates for better type safety and code reuse. All matrix types derive from a shared abstract `MatrixBase` that handles the memory-mapped backing file and lifecycle management.
+The matrix architecture has been refactored to use C++ templates for better type safety and code reuse. All matrix types derive from a shared abstract `MatrixBase` that handles the storage (RAM or memory-mapped file) and lifecycle management.
 
 ## Class Diagram
 
