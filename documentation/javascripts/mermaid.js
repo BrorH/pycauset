@@ -1,22 +1,40 @@
-// Initialize mermaid with startOnLoad: false so we can manually trigger it
-if (typeof mermaid !== "undefined") {
-  mermaid.initialize({ startOnLoad: false });
-}
+// Initialize mermaid
+// We use a robust check for the new v10+ API (mermaid.run) vs the old API (mermaid.init)
 
-// Hook into MkDocs Material's instant loading event
-if (typeof document$ !== "undefined") {
-  document$.subscribe(() => {
-    if (typeof mermaid !== "undefined") {
-      // Check for newer v10+ API
-      if (mermaid.run) {
-        mermaid.run({
-          nodes: document.querySelectorAll('.mermaid')
-        });
-      } 
-      // Fallback for older versions
-      else if (mermaid.init) {
-        mermaid.init(undefined, document.querySelectorAll(".mermaid"));
-      }
+var initMermaid = function() {
+  if (typeof mermaid === "undefined") {
+    return;
+  }
+  
+  // Configuration
+  var config = {
+    startOnLoad: false,
+    theme: "default",
+    flowchart: { htmlLabels: false }
+  };
+  mermaid.initialize(config);
+
+  // Render
+  var elements = document.querySelectorAll(".mermaid");
+  if (elements.length > 0) {
+    if (mermaid.run) {
+      // Mermaid v10+
+      mermaid.run({ nodes: elements });
+    } else if (mermaid.init) {
+      // Mermaid v9-
+      mermaid.init(undefined, elements);
     }
+  }
+};
+
+if (typeof document$ !== "undefined") {
+  // MkDocs Material event
+  document$.subscribe(function() {
+    initMermaid();
+  });
+} else {
+  // Standard fallback
+  document.addEventListener("DOMContentLoaded", function() {
+    initMermaid();
   });
 }
