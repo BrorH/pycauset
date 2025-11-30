@@ -15,6 +15,7 @@ import warnings
 import weakref
 import uuid
 import shutil
+import abc
 from collections.abc import Sequence as _SequenceABC
 from pathlib import Path
 from typing import Any, Sequence, Tuple
@@ -31,6 +32,13 @@ _native = _import_module(".pycauset", package=__name__)
 _TriangularBitMatrix = _native.TriangularBitMatrix
 _original_triangular_bit_matrix_init = _TriangularBitMatrix.__init__
 _original_triangular_bit_matrix_random = _TriangularBitMatrix.random
+
+# Private aliases for native classes
+_IntegerMatrix = _native.IntegerMatrix
+_FloatMatrix = _native.FloatMatrix
+_TriangularFloatMatrix = _native.TriangularFloatMatrix
+_TriangularIntegerMatrix = getattr(_native, "TriangularIntegerMatrix", None)
+_DenseBitMatrix = getattr(_native, "DenseBitMatrix", None)
 
 _ASSIGNMENT_RE = re.compile(r"^\s*([A-Za-z0-9_.]+)\s*=.+(?:CausalMatrix|TriangularBitMatrix)", re.IGNORECASE)
 _STORAGE_ROOT: Path | None = None
@@ -442,8 +450,6 @@ def _matrix_str(self) -> str:
     return "\n".join(lines)
 
 
-import abc
-
 _TriangularBitMatrix.__str__ = _matrix_str
 
 
@@ -456,31 +462,162 @@ class MatrixMixin:
 
 
 class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
-    """Base class for all matrix types in pycauset.
-    
-    Also serves as an in-memory dense matrix implementation that accepts integers, lists, or NumPy arrays.
     """
+    The Matrix class. 
+    
+    This class acts as a smart factory. 
+    - If you provide data that fits into an optimized C++ backend (integers, triangular), 
+      it returns an instance of that optimized class.
+    - Otherwise, it initializes a standard Python-list based Matrix.
+    """
+    def __new__(cls, size_or_data: Any, dtype: Any = None, **kwargs: Any):
+        # If subclassing, behave like a normal class
+        if cls is not Matrix:
+            return super().__new__(cls)
+            
+        # Resolve dtype
+        target_dtype = None
+        if dtype is not None:
+            if dtype in (int, "int", "int32", "int64"):
+                target_dtype = "int"
+            elif dtype in (float, "float", "float64", "float32"):
+                target_dtype = "float"
+            elif dtype in (bool, "bool", "bool_"):
+                target_dtype = "bool"
+            elif _np is not None:
+                if dtype in (_np.int32, _np.int64, _np.integer):
+                    target_dtype = "int"
+                elif dtype in (_np.float64, _np.float32, _np.floating):
+                    target_dtype = "float"
+                elif dtype in (_np.bool_, _np.bool):
+                    target_dtype = "bool"
+        
+        # 1. Handle creation by Size
+        if isinstance(size_or_data, (int, float)) and (isinstance(size_or_data, int) or size_or_data.is_integer()):
+            n = int(size_or_data)
+            if target_dtype == "int":
+                return _IntegerMatrix(n, **kwargs)
+            elif target_dtype == "bool":
+                if _DenseBitMatrix:
+                    return _DenseBitMatrix(n, **kwargs)
+                return _IntegerMatrix(n, **kwargs) # Fallback
+            else:
+                # Default to FloatMatrix if no dtype or float
+                return _FloatMatrix(n, **kwargs)
+        
+        # 2. Handle creation by Data
+        data = size_or_data
+        
+        # Check for NumPy
+        try:
+            import numpy as np
+            if isinstance(data, np.ndarray):
+                if dtype is None:
+                    # Infer dtype from numpy array
+                    if data.dtype.kind in ('i', 'u'):
+                        target_dtype = "int"
+                    elif data.dtype.kind == 'f':
+                        target_dtype = "float"
+                    elif data.dtype.kind == 'b':
+                        target_dtype = "bool"
+                data = data.tolist()
+        except ImportError:
+            pass
 
-    def __init__(self, source: Any, saveas: Any = None):
+        # Analyze data to pick the best backend
+        try:
+            is_integer = True
+            is_triangular = True
+            rows = len(data)
+            
+            if rows == 0:
+                return _FloatMatrix(0, **kwargs)
+
+            for i, row in enumerate(data):
+                if len(row) != rows:
+                    # Not square? Fallback to standard Python Matrix (this class)
+                    return super(Matrix, cls).__new__(cls)
+                
+                for j, val in enumerate(row):
+                    # Check Type (only if not forced)
+                    if target_dtype is None:
+                        if is_integer and not isinstance(val, (int, bool)):
+                            is_integer = False
+                    
+                    # Check Triangularity (strictly upper)
+                    if is_triangular and j <= i and val != 0:
+                        is_triangular = False
+            
+            # Helper to create and fill
+            def create_and_fill(cls_type, data_source):
+                size, rows = _coerce_general_matrix(data_source)
+                mat = cls_type(size, **kwargs)
+                for i in range(size):
+                    for j in range(size):
+                        val = rows[i][j]
+                        if val != 0:
+                            mat.set(i, j, val)
+                return mat
+
+            # Dispatch Logic
+            if target_dtype == "int":
+                if is_triangular and _TriangularIntegerMatrix:
+                    return create_and_fill(_TriangularIntegerMatrix, data)
+                return create_and_fill(_IntegerMatrix, data)
+            
+            elif target_dtype == "bool":
+                if is_triangular:
+                    return create_and_fill(_TriangularBitMatrix, data)
+                if _DenseBitMatrix:
+                    return create_and_fill(_DenseBitMatrix, data)
+                return create_and_fill(_IntegerMatrix, data)
+
+            elif target_dtype == "float":
+                if is_triangular:
+                    return create_and_fill(_TriangularFloatMatrix, data)
+                return create_and_fill(_FloatMatrix, data)
+
+            # Auto-detection (target_dtype is None)
+            if is_integer:
+                if is_triangular and _TriangularIntegerMatrix:
+                    return create_and_fill(_TriangularIntegerMatrix, data)
+                else:
+                    return create_and_fill(_IntegerMatrix, data)
+            else:
+                if is_triangular:
+                    return create_and_fill(_TriangularFloatMatrix, data)
+                else:
+                    return create_and_fill(_FloatMatrix, data)
+
+        except Exception:
+            # If anything goes wrong during analysis, fallback to standard Python Matrix
+            return super(Matrix, cls).__new__(cls)
+
+    def __init__(self, size_or_data: Any, saveas: Any = None):
+        """
+        Initializes the Python-based Matrix. 
+        NOTE: This is ONLY called if __new__ returns a standard Matrix object.
+        If __new__ returns a C++ object, this __init__ is skipped.
+        """
         if saveas not in (None, ""):
             warnings.warn(
-                "pycauset.Matrix does not persist to disk; use pycauset.TriangularBitMatrix for storage.",
+                "pycauset.Matrix does not persist to disk; use pycauset.save() for storage.",
                 RuntimeWarning,
                 stacklevel=2,
             )
 
-        if isinstance(source, float):
-            source = int(source)
+        if isinstance(size_or_data, float):
+            size_or_data = int(size_or_data)
 
-        if isinstance(source, int):
-            if source < 0:
+        if isinstance(size_or_data, int):
+            if size_or_data < 0:
                 raise ValueError("Matrix dimension must be non-negative.")
-            self._size = source
+            self._size = size_or_data
             self._data: list[list[Any]] = [
-                [0 for _ in range(source)] for _ in range(source)
+                [0 for _ in range(size_or_data)] for _ in range(size_or_data)
             ]
         else:
-            size, rows = _coerce_general_matrix(source)
+            size, rows = _coerce_general_matrix(size_or_data)
             self._size = size
             self._data = rows
 
@@ -533,14 +670,26 @@ class TriangularMatrix(Matrix):
 
 
 # Inject methods and register subclasses
-for cls in (_TriangularBitMatrix, _native.IntegerMatrix, _native.FloatMatrix, _native.TriangularFloatMatrix):
+for cls in (_TriangularBitMatrix, _IntegerMatrix, _FloatMatrix, _TriangularFloatMatrix):
     cls.__str__ = MatrixMixin.__str__
     cls.__repr__ = MatrixMixin.__repr__
     Matrix.register(cls)
 
+if _TriangularIntegerMatrix:
+    _TriangularIntegerMatrix.__str__ = MatrixMixin.__str__
+    _TriangularIntegerMatrix.__repr__ = MatrixMixin.__repr__
+    Matrix.register(_TriangularIntegerMatrix)
+
+if _DenseBitMatrix:
+    _DenseBitMatrix.__str__ = MatrixMixin.__str__
+    _DenseBitMatrix.__repr__ = MatrixMixin.__repr__
+    Matrix.register(_DenseBitMatrix)
+
 # Register triangular subclasses
 TriangularMatrix.register(_TriangularBitMatrix)
-TriangularMatrix.register(_native.TriangularFloatMatrix)
+TriangularMatrix.register(_TriangularFloatMatrix)
+if _TriangularIntegerMatrix:
+    TriangularMatrix.register(_TriangularIntegerMatrix)
 
 # Patch TriangularBitMatrix init/random
 _TriangularBitMatrix.__init__ = _patched_triangular_bit_matrix_init
@@ -548,33 +697,109 @@ _TriangularBitMatrix.random = staticmethod(_patched_triangular_bit_matrix_random
 _patch_matrix_methods(_TriangularBitMatrix)
 
 # Patch other matrix classes to ensure cleanup
-_patch_matrix_class(_native.IntegerMatrix, target_arg="backing_file")
-_patch_matrix_class(_native.FloatMatrix, target_arg="backing_file")
-_patch_matrix_class(_native.TriangularFloatMatrix, target_arg="backing_file")
-if hasattr(_native, "TriangularIntegerMatrix"):
-    _patch_matrix_class(_native.TriangularIntegerMatrix, target_arg="backing_file")
+_patch_matrix_class(_IntegerMatrix, target_arg="backing_file")
+_patch_matrix_class(_FloatMatrix, target_arg="backing_file")
+_patch_matrix_class(_TriangularFloatMatrix, target_arg="backing_file")
+if _TriangularIntegerMatrix:
+    _patch_matrix_class(_TriangularIntegerMatrix, target_arg="backing_file")
 
-# Aliases
+if _DenseBitMatrix:
+    _patch_matrix_class(_DenseBitMatrix, target_arg="backing_file")
+
+# Aliases (Only CausalMatrix and Matrix are public now)
 TriangularBitMatrix = _TriangularBitMatrix
-IntegerMatrix = _native.IntegerMatrix
-FloatMatrix = _native.FloatMatrix
-TriangularFloatMatrix = _native.TriangularFloatMatrix
-if hasattr(_native, "TriangularIntegerMatrix"):
-    TriangularIntegerMatrix = _native.TriangularIntegerMatrix
 
-def CausalMatrix(n: int, populate: bool = True, **kwargs):
+def CausalMatrix(source: Any, populate: bool = True, **kwargs):
     """
-    Factory function for creating TriangularBitMatrix instances (formerly CausalMatrix).
+    Factory function for creating TriangularBitMatrix instances.
     
     Args:
-        n: The size of the matrix (NxN).
-        populate: If True (default), fills the matrix with random bits (p=0.5).
-                  If False, returns an empty (all-zeros) matrix.
+        source: The size of the matrix (int) OR a source matrix (list of lists, numpy array).
+        populate: If True (default) and source is an int, fills the matrix with random bits (p=0.5).
+                  If False and source is an int, returns an empty (all-zeros) matrix.
+                  Ignored if source is a list/array.
         **kwargs: Additional arguments passed to TriangularBitMatrix constructor.
     """
-    if populate:
-        return TriangularBitMatrix.random(n, p=0.5, **kwargs)
-    return TriangularBitMatrix(n, **kwargs)
+    # Case 1: source is an integer size
+    if isinstance(source, (int, float)) and (isinstance(source, int) or source.is_integer()):
+        n = int(source)
+        if populate:
+            return TriangularBitMatrix.random(n, p=0.5, **kwargs)
+        return TriangularBitMatrix(n, **kwargs)
+
+    # Case 2: source is data (list of lists, numpy array, etc.)
+    # If it's a numpy array, try to let the native constructor handle it (fast path)
+    if _np is not None and isinstance(source, _np.ndarray):
+        # Check for non-binary values
+        if source.dtype != bool:
+            if not _np.all(_np.isin(source, [0, 1])):
+                warnings.warn(
+                    "Input data contains non-binary values. They will be converted to boolean (True/False).",
+                    UserWarning,
+                    stacklevel=2
+                )
+        
+        # Check for non-zero values in lower triangle or diagonal
+        if _np.any(_np.tril(source) != 0):
+             warnings.warn(
+                "Input data contains non-zero values in the lower triangle or diagonal. "
+                "CausalMatrix is strictly upper triangular; these values will be ignored.",
+                UserWarning,
+                stacklevel=2
+            )
+
+        try:
+            # Ensure bool type for the native constructor
+            if source.dtype != bool:
+                source = source.astype(bool)
+            return TriangularBitMatrix(source, **kwargs)
+        except Exception:
+            # Fallback to generic coercion if native init fails
+            pass
+
+    # Generic coercion (slow path, but works for lists/iterables)
+    size, rows = _coerce_general_matrix(source)
+    matrix = TriangularBitMatrix(size, **kwargs)
+    
+    has_non_binary = False
+    has_lower_triangular = False
+
+    # Populate strictly upper triangular part
+    for i in range(size):
+        for j in range(size):
+            val = rows[i][j]
+            
+            # Check for non-binary (only once to avoid spam)
+            if not has_non_binary:
+                if val not in (0, 1, False, True, 0.0, 1.0):
+                    has_non_binary = True
+            
+            # Check for lower triangular/diagonal
+            if j <= i:
+                if val: # Truthy check
+                    has_lower_triangular = True
+                continue
+
+            # Truthy check handles 1, 1.0, True
+            if val:
+                matrix.set(i, j, True)
+    
+    if has_non_binary:
+        warnings.warn(
+            "Input data contains non-binary values. They will be converted to boolean (True/False).",
+            UserWarning,
+            stacklevel=2
+        )
+        
+    if has_lower_triangular:
+        warnings.warn(
+            "Input data contains non-zero values in the lower triangle or diagonal. "
+            "CausalMatrix is strictly upper triangular; these values will be ignored.",
+            UserWarning,
+            stacklevel=2
+        )
+                
+    return matrix
 
 CausalMatrix.random = TriangularBitMatrix.random
 
@@ -765,3 +990,7 @@ def __getattr__(name):
 
 __all__ = [name for name in dir(_native) if not name.startswith("__")]
 __all__.extend(["save", "keep_temp_files", "seed", "Matrix", "TriangularMatrix", "CausalMatrix", "TriangularBitMatrix", "compute_k", "bitwise_not", "invert", "I"])
+# Remove deprecated classes from __all__ if they were added by dir(_native)
+for _deprecated in ["IntegerMatrix", "FloatMatrix", "TriangularFloatMatrix", "TriangularIntegerMatrix"]:
+    if _deprecated in __all__:
+        __all__.remove(_deprecated)

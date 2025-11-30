@@ -17,8 +17,9 @@ Matrix multiplication is supported for all combinations of matrix types. The ret
 | `IntegerMatrix` | `IntegerMatrix` or `TriangularBitMatrix` | `IntegerMatrix` |
 | `TriangularBitMatrix` | `IntegerMatrix` | `IntegerMatrix` |
 | `TriangularBitMatrix` | `TriangularBitMatrix` | `IntegerMatrix` |
+| `DenseBitMatrix` | `DenseBitMatrix` | `IntegerMatrix` |
 
-**Note on `IntegerMatrix`**: In `pycauset`, `IntegerMatrix` is currently implemented as a **strictly upper triangular** matrix storing 32-bit integers. It is not a general dense integer matrix. If you need a dense result from integer operations, convert to `FloatMatrix` or use `FloatMatrix` operands.
+**Note on `IntegerMatrix`**: In `pycauset`, `IntegerMatrix` is a **dense** matrix storing 32-bit integers. It is the standard return type for discrete matrix multiplications (like path counting).
 
 ### Syntax
 ```python

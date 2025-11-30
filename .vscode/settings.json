@@ -4,6 +4,7 @@
         "bit": "cpp",
         "filesystem": "cpp",
         "random": "cpp",
-        "memory": "cpp"
+        "memory": "cpp",
+        "set": "cpp"
     }
 }

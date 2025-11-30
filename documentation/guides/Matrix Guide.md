@@ -1,6 +1,27 @@
 The back-bone of pycauset is the matrix system. It is built from the ground-up to allow a seamless workflow as similar to possible to numpy.
 # Creating a Matrix
 
+Matrices can be created using the `pycauset.Matrix` factory function. This function is flexible and accepts lists, NumPy arrays, or dimensions. You can also specify the `dtype` to control the underlying storage format.
+
+```python
+import pycauset
+import numpy as np
+
+# 1. From a list of lists (infers type)
+M1 = pycauset.Matrix([[1, 2], [3, 4]])  # Creates IntegerMatrix
+
+# 2. From a NumPy array
+arr = np.random.rand(5, 5)
+M2 = pycauset.Matrix(arr)               # Creates FloatMatrix
+
+# 3. Empty matrix of specific size and type
+M3 = pycauset.Matrix(100, dtype=int)    # 100x100 IntegerMatrix (zeros)
+M4 = pycauset.Matrix(100, dtype=bool)   # 100x100 DenseBitMatrix (zeros)
+
+# 4. Causal Matrix (Specialized Triangular Bit Matrix)
+# This is optimized for causal sets (strictly upper triangular)
+C = pycauset.CausalMatrix(100)
+```
 
 # Matrix Operations
 
@@ -86,27 +107,25 @@ classDiagram
         +double scalar_
         +get_element_as_double()
     }
-    class TriangularMatrix {
+    class DenseMatrix~T~ {
+        +get(i, j) T
+    }
+    class TriangularMatrix~T~ {
         +vector~uint64_t~ row_offsets_
+        +get(i, j) T
     }
-    class TriangularBitMatrix {
-        +get(i, j) bool
-    }
-    class TriangularFloatMatrix {
-        +get(i, j) double
-    }
-    class IntegerMatrix {
-        +get(i, j) int
-    }
-    class FloatMatrix {
-        +get(i, j) double
-    }
-
+    
+    MatrixBase <|-- DenseMatrix
     MatrixBase <|-- TriangularMatrix
-    MatrixBase <|-- IntegerMatrix
-    MatrixBase <|-- FloatMatrix
-    TriangularMatrix <|-- TriangularBitMatrix
-    TriangularMatrix <|-- TriangularFloatMatrix
 ```
+
+### Common Types
+| Python Class | C++ Implementation | Description |
+| :--- | :--- | :--- |
+| `IntegerMatrix` | `DenseMatrix<int32_t>` | Dense matrix of 32-bit integers. |
+| `FloatMatrix` | `DenseMatrix<double>` | Dense matrix of 64-bit floats. |
+| `DenseBitMatrix` | `DenseMatrix<bool>` | Dense matrix of booleans (bit-packed). |
+| `TriangularBitMatrix` | `TriangularMatrix<bool>` | Strictly upper triangular boolean matrix (Causal Matrix). |
+| `TriangularFloatMatrix` | `TriangularMatrix<double>` | Strictly upper triangular float matrix. |
 
 For working with causal matrices (a backbone of the causal set theory), `TriangularBitMatrix` is the primary boolean specialization.  It is exposed as `pycauset.CausalMatrix`. `IntegerMatrix` stores 32-bit counts (e.g., from matrix multiplication). `TriangularFloatMatrix` and `FloatMatrix` (dense) provide floating-point storage for analytical results.

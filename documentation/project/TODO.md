@@ -19,6 +19,7 @@ Goals:
 - [ ] Visualizations of matrices
 - [x] printable "info" about matrix. I.e. print info from header
 - [ ] Fix bug so that binaries are actually deleted on program finish
+- [x] add dtype specification on matrix creation
 
 
 ## Documentation needed

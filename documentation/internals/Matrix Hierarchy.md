@@ -31,6 +31,12 @@ classDiagram
         +set(i, j, value)
     }
 
+    class DenseMatrix~bool~ {
+        <<Specialization>>
+        +get(i, j) bool
+        +set(i, j, value)
+    }
+
     MatrixBase <|-- DenseMatrix
     MatrixBase <|-- TriangularMatrix
 ```
@@ -43,6 +49,7 @@ For convenience and backward compatibility, the following type aliases are defin
 |-------|------------------------|-------------|
 | `FloatMatrix` | `DenseMatrix<double>` | Dense matrix of double-precision floats. |
 | `IntegerMatrix` | `DenseMatrix<int32_t>` | Dense matrix of 32-bit integers. |
+| `DenseBitMatrix` | `DenseMatrix<bool>` | Dense matrix of booleans (bit-packed). |
 | `TriangularFloatMatrix` | `TriangularMatrix<double>` | Upper-triangular matrix of doubles. |
 | `TriangularBitMatrix` | `TriangularMatrix<bool>` | Upper-triangular bit-packed boolean matrix. |
 

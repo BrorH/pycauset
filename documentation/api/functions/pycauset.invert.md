@@ -6,7 +6,7 @@ pycauset.invert(matrix)
 
 Computes the linear algebra inverse ($A^{-1}$) of a matrix.
 
-*   **Note**: Strictly upper triangular matrices (such as `TriangularBitMatrix`, `IntegerMatrix`, and `TriangularFloatMatrix`) are **singular** (determinant is 0) and cannot be inverted. Calling this function on such matrices will raise a `RuntimeError`.
+*   **Note**: Strictly upper triangular matrices (such as `TriangularBitMatrix`, `TriangularIntegerMatrix`, and `TriangularFloatMatrix`) are **singular** (determinant is 0) and cannot be inverted. Calling this function on such matrices will raise a `RuntimeError`.
 
 ## Parameters
 

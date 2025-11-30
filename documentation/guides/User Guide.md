@@ -11,37 +11,51 @@ import pycauset
 ```
 
 ### Creating a Matrix
-The library provides several matrix classes optimized for different data types.
+The fundamental class in `pycauset` is `pycauset.Matrix`. You can think of it as similar to a NumPy array, but restricted to square matrices.
 
-#### `pycauset.TriangularBitMatrix`
-The primary class for representing causal structures. It stores boolean values in a strictly upper triangular format ($i < j$), using bit-packing for efficiency (1 bit per element).
+#### `pycauset.Matrix`
+This is the general-purpose matrix factory. It can be created from lists, NumPy arrays, or by specifying a size. You can optionally specify a `dtype` to force a specific internal representation.
 
 ```python
-# Create a 1000x1000 boolean matrix
-# By default, it populates with random Bernoulli(0.5) data
-C = pycauset.TriangularBitMatrix(1000)
+# Create from a list of lists (infers type)
+data = [
+    [1, 2],
+    [3, 4]
+]
+M = pycauset.Matrix(data) # Returns IntegerMatrix
 
-# Create an empty matrix
-C_empty = pycauset.TriangularBitMatrix(1000, populate=False)
+# Create an empty (zero-filled) 5x5 integer matrix
+M_int = pycauset.Matrix(5, dtype=int)
 
-# Create from a NumPy array
-import numpy as np
-arr = np.triu(np.random.randint(0, 2, (10, 10)), k=1).astype(bool)
-C_from_np = pycauset.TriangularBitMatrix(arr)
+# Create a dense boolean matrix
+M_bool = pycauset.Matrix(1000, dtype=bool)
 ```
 
 #### `pycauset.CausalMatrix`
-A convenience factory function that returns a `TriangularBitMatrix`. It is maintained for backward compatibility and ease of use.
+For causal set theory, we often deal with causal matrices that are binary (0 or 1) and strictly upper triangular (representing the causal order). The `CausalMatrix` function is the standard way to create these. It returns a highly optimized `TriangularBitMatrix`.
 
 ```python
-# Equivalent to TriangularBitMatrix(1000)
+# Create a 1000x1000 causal matrix
+# By default, it populates with random Bernoulli(0.5) data
 C = pycauset.CausalMatrix(1000)
+
+# Create from a list (automatically converts to binary and enforces triangularity)
+data = [
+    [0, 1, 1],
+    [0, 0, 1],
+    [0, 0, 0]
+]
+C_from_list = pycauset.CausalMatrix(data)
 ```
 
 #### Other Matrix Types
-*   **`pycauset.IntegerMatrix`**: Stores 32-bit integers (strictly upper triangular). Typically produced by multiplying two `TriangularBitMatrix` instances.
-*   **`pycauset.TriangularFloatMatrix`**: Stores 64-bit doubles (strictly upper triangular). Used for analytical results like the $K$ matrix.
-*   **`pycauset.FloatMatrix`**: A dense $N \times N$ matrix storing 64-bit doubles.
+The `Matrix` factory returns specialized classes based on the data:
+*   **`pycauset.IntegerMatrix`**: Dense $N \times N$ matrix storing 32-bit integers.
+*   **`pycauset.TriangularIntegerMatrix`**: Strictly upper triangular matrix storing 32-bit integers.
+*   **`pycauset.FloatMatrix`**: Dense $N \times N$ matrix storing 64-bit doubles.
+*   **`pycauset.TriangularFloatMatrix`**: Strictly upper triangular matrix storing 64-bit doubles.
+*   **`pycauset.DenseBitMatrix`**: Dense $N \times N$ matrix storing boolean values (1 bit per element).
+*   **`pycauset.TriangularBitMatrix`**: Strictly upper triangular matrix storing boolean values (1 bit per element).
 
 ### Matrix Operations
 
@@ -51,7 +65,7 @@ A = pycauset.CausalMatrix(100)
 B = pycauset.CausalMatrix(100)
 
 # Matrix multiplication (A @ B)
-# Returns an IntegerMatrix counting paths of length 2
+# Returns a TriangularIntegerMatrix counting paths of length 2
 AB = pycauset.matmul(A, B)
 ```
 
@@ -118,7 +132,6 @@ import numpy as np
 gamma = pycauset.Matrix(np.random.rand(4, 4))
 ```
 
-Providing `saveas=` now only issues a warning because dense `Matrix` instances never persist to disk; use `pycauset.CausalMatrix` whenever you need the memory-mapped, upper-triangular storage that backs the C++ engine.
 
 ### Accessing Elements
 You can use standard Python indexing `[row, col]`.

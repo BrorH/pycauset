@@ -27,5 +27,5 @@ Use the consolidated build script:
 Ensure the module is built and copied into `python/pycauset/` by running `./build.ps1 -Python`. Then run your scripts using the interpreter version used during the build:
 
 ```powershell
-py -3.12 your_script.py
+py your_script.py
 ```

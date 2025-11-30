@@ -5,6 +5,7 @@
 #include <filesystem>
 #include "TriangularBitMatrix.hpp"
 #include "DenseMatrix.hpp"
+#include "DenseBitMatrix.hpp"
 #include "TriangularMatrix.hpp"
 #include "IdentityMatrix.hpp"
 #include "StoragePaths.hpp"
@@ -15,6 +16,7 @@ namespace py = pybind11;
 
 using FloatMatrix = DenseMatrix<double>;
 using IntegerMatrix = DenseMatrix<int32_t>;
+using DenseBitMatrix = DenseMatrix<bool>;
 using TriangularFloatMatrix = TriangularMatrix<double>;
 using TriangularIntegerMatrix = TriangularMatrix<int32_t>;
 using TriangularBitMatrix = TriangularMatrix<bool>;
@@ -261,6 +263,49 @@ PYBIND11_MODULE(pycauset, m) {
         }, py::arg("other"), py::arg("saveas") = "");
     bind_arithmetic(im);
 
+    // DenseBitMatrix
+    py::class_<DenseBitMatrix, MatrixBase> dbm(m, "DenseBitMatrix");
+    dbm.def(py::init<uint64_t, const std::string&>(), 
+           py::arg("n"), py::arg("backing_file") = "")
+        .def_static("random", &DenseBitMatrix::random, 
+            py::arg("n"), py::arg("density") = 0.5, py::arg("backing_file") = "",
+            py::arg("seed") = py::none())
+        .def("get", &DenseBitMatrix::get)
+        .def("set", [](DenseBitMatrix& m, uint64_t i, uint64_t j, py::object value) {
+            bool boolVal = coerce_bool_like(value);
+            m.set(i, j, boolVal);
+        })
+        .def("close", &DenseBitMatrix::close)
+        .def("size", &DenseBitMatrix::size)
+        .def("get_backing_file", &DenseBitMatrix::get_backing_file)
+        .def_property_readonly("shape", [](const DenseBitMatrix& m) {
+            return std::make_pair(m.size(), m.size());
+        })
+        .def("__getitem__", [](const DenseBitMatrix& m, std::pair<uint64_t, uint64_t> idx) {
+            return m.get(idx.first, idx.second);
+        })
+        .def("__setitem__", [](DenseBitMatrix& m, std::pair<uint64_t, uint64_t> idx, py::object value) {
+            bool boolVal = coerce_bool_like(value);
+            m.set(idx.first, idx.second, boolVal);
+        })
+        .def("__repr__", [](const DenseBitMatrix& m) {
+            return "<DenseBitMatrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
+        })
+        .def("invert", [](const DenseBitMatrix& m) {
+            // DenseBitMatrix inversion? Not implemented in C++ yet, or maybe it is?
+            // I didn't implement inverse() in DenseBitMatrix.hpp, only bitwise_not.
+            // So I won't bind invert() for now, or bind it to throw.
+            throw std::runtime_error("Inversion not supported for DenseBitMatrix");
+        }, "Matrix Inversion (Linear Algebra)")
+        .def("__invert__", [](const DenseBitMatrix& m) {
+            return m.bitwise_not(make_unique_storage_file("bitwise_not"));
+        })
+        .def("multiply", [](const DenseBitMatrix& self, const DenseBitMatrix& other, const std::string& saveas) {
+            std::string target = saveas.empty() ? make_unique_storage_file("matmul_dbm") : saveas;
+            return self.multiply(other, target);
+        }, py::arg("other"), py::arg("saveas") = "");
+    bind_arithmetic(dbm);
+
     // TriangularBitMatrix
     py::class_<TriangularBitMatrix, MatrixBase> tbm(m, "TriangularBitMatrix");
     tbm.def(py::init<uint64_t, const std::string&>(), 
@@ -397,6 +442,9 @@ PYBIND11_MODULE(pycauset, m) {
             case pycauset::MatrixType::TRIANGULAR_FLOAT:
                  return py::cast(new TriangularFloatMatrix(n, std::move(mapper)));
             case pycauset::MatrixType::DENSE_FLOAT:
+                 if (header.data_type == pycauset::DataType::BIT) {
+                     return py::cast(new DenseBitMatrix(n, std::move(mapper)));
+                 }
                  return py::cast(new FloatMatrix(n, std::move(mapper)));
             case pycauset::MatrixType::IDENTITY:
                  return py::cast(new IdentityMatrix(n, std::move(mapper)));
