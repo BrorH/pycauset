@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "internals/Matrix Hierarchy.md",
+                "file": "PYTHON.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Matrix Hierarchy"
+              "title": "PYTHON"
             }
           }
         ],
@@ -234,10 +234,11 @@
   },
   "active": "a453d5927e745b90",
   "lastOpenFiles": [
+    "SETUP.md",
+    "internals/Matrix Hierarchy.md",
     "guides/Matrix Multiplication.md",
     "guides/Matrix Guide.md",
     "project/TODO.md",
-    "internals/Matrix Hierarchy.md",
     "PYTHON.md",
     "guides/Saving and Storing Matrices.md",
     "Welcome.md",
@@ -259,7 +260,6 @@
     "internals/File Format.md",
     "internals/Implementation Plan.md",
     "guides/Installation.md",
-    "guides/BitwiseInversion.md",
     "project",
     "api/parameters",
     "internals",
