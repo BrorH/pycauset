@@ -22,10 +22,12 @@ Goals:
 - [x] add dtype specification on matrix creation
 - [ ] vectors
 - [ ] complex numbers support
+- [ ]  introduce RAM-backed mapping for small temporary objects
 
 
 ## Documentation needed
 - [x] pycauset.save (deprecated)
 - [ ] pycauset.TriangularMatrix
 - [ ] pycauset.keep_temp_files
+- [ ] pycauset.Vector
 - [ ] `$PYCAUSET_STORAGE_DIR`

@@ -17,7 +17,8 @@ enum class DataType : uint32_t {
     UNKNOWN = 0,
     BIT = 1,
     INT32 = 2,
-    FLOAT64 = 3
+    FLOAT64 = 3,
+    COMPLEX_FLOAT64 = 4
 };
 
 struct FileHeader {

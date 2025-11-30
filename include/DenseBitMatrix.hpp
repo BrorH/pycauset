@@ -43,6 +43,8 @@ public:
         return multiply_scalar(static_cast<double>(factor), result_file);
     }
 
+    std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override;
+
     // Bitwise inversion (NOT)
     std::unique_ptr<DenseMatrix<bool>> bitwise_not(const std::string& result_file = "") const;
 

@@ -150,6 +150,33 @@ v_new = M @ v
 v_row = v.T @ M
 ```
 
+## NumPy Compatibility
+
+Vectors are fully compatible with NumPy.
+
+### To NumPy
+You can convert any vector to a NumPy array:
+```python
+import numpy as np
+arr = np.array(v)
+```
+
+### From NumPy
+You can create vectors from NumPy arrays using `pycauset.asarray`:
+```python
+arr = np.array([1.0, 2.0, 3.0])
+v = pycauset.asarray(arr)
+```
+
+### Mixed Operations
+You can add, subtract, or multiply vectors with NumPy arrays directly. The result remains a persistent `pycauset` vector.
+
+```python
+v = Vector([1, 2, 3])
+arr = np.array([10, 10, 10])
+v_new = v + arr # [11, 12, 13]
+```
+
 ## Persistence
 
 Like matrices, vectors are backed by files on disk. You can save them permanently using `pycauset.save`.

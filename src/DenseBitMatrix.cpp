@@ -42,6 +42,10 @@ DenseMatrix<bool>::DenseMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
 void DenseMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
     if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
 
+    if (is_transposed()) {
+        std::swap(i, j);
+    }
+
     uint64_t word_index = j / 64;
     uint64_t bit_index = j % 64;
 
@@ -58,6 +62,10 @@ void DenseMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
 
 bool DenseMatrix<bool>::get(uint64_t i, uint64_t j) const {
     if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
+
+    if (is_transposed()) {
+        std::swap(i, j);
+    }
 
     uint64_t word_index = j / 64;
     uint64_t bit_index = j % 64;
@@ -126,6 +134,20 @@ std::unique_ptr<MatrixBase> DenseMatrix<bool>::multiply_scalar(double factor, co
     auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
     auto new_matrix = std::make_unique<DenseMatrix<bool>>(n_, std::move(mapper));
     new_matrix->set_scalar(scalar_ * factor);
+    if (result_file.empty()) {
+        new_matrix->set_temporary(true);
+    }
+    return new_matrix;
+}
+
+std::unique_ptr<MatrixBase> DenseMatrix<bool>::transpose(const std::string& result_file) const {
+    std::string new_path = copy_storage(result_file);
+    auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
+    auto new_matrix = std::make_unique<DenseMatrix<bool>>(n_, std::move(mapper));
+    
+    // Flip the transposed bit
+    new_matrix->set_transposed(!this->is_transposed());
+    
     if (result_file.empty()) {
         new_matrix->set_temporary(true);
     }

@@ -48,7 +48,15 @@ public:
     }
 
     void set(uint64_t i, uint64_t j, T value) {
-        if (i >= j) throw std::invalid_argument("Strictly upper triangular");
+        if (is_transposed()) {
+            // Transposed: Lower Triangular.
+            // User sets (i, j). If i > j (lower), we map to (j, i) (upper) in storage.
+            if (i <= j) throw std::invalid_argument("Strictly lower triangular (transposed)");
+            std::swap(i, j);
+        } else {
+            if (i >= j) throw std::invalid_argument("Strictly upper triangular");
+        }
+        
         if (j >= n_) throw std::out_of_range("Index out of bounds");
 
         uint64_t row_offset_bytes = get_row_offset(i);
@@ -61,7 +69,16 @@ public:
     }
 
     T get(uint64_t i, uint64_t j) const {
-        if (i >= j) return static_cast<T>(0);
+        if (is_transposed()) {
+            // Transposed: Lower Triangular.
+            // User gets (i, j). If i > j (lower), we map to (j, i) (upper).
+            // If i <= j (upper/diag), it's 0.
+            if (i <= j) return static_cast<T>(0);
+            std::swap(i, j);
+        } else {
+            if (i >= j) return static_cast<T>(0);
+        }
+        
         if (j >= n_) throw std::out_of_range("Index out of bounds");
 
         uint64_t row_offset_bytes = get_row_offset(i);
@@ -96,6 +113,26 @@ public:
 
     std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
         return multiply_scalar(static_cast<double>(factor), result_file);
+    }
+
+    std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
+        // Transposing a Triangular Matrix makes it Lower Triangular.
+        // But our storage format is strictly Upper Triangular.
+        // So we can't just flip a bit. We have to return a DenseMatrix (or a LowerTriangular wrapper if we had one).
+        // Or, we can support "Implicit Transpose" where get(i, j) maps to get(j, i).
+        // If we do implicit transpose, get(i, j) where i > j (lower triangle) becomes get(j, i) (upper triangle).
+        // This works perfectly!
+        
+        std::string new_path = copy_storage(result_file);
+        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
+        auto new_matrix = std::make_unique<TriangularMatrix<T>>(n_, std::move(mapper));
+        
+        new_matrix->set_transposed(!this->is_transposed());
+        
+        if (result_file.empty()) {
+            new_matrix->set_temporary(true);
+        }
+        return new_matrix;
     }
 
     std::unique_ptr<TriangularMatrix<T>> bitwise_not(const std::string& result_file = "") const {

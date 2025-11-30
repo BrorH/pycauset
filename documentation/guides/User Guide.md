@@ -48,6 +48,20 @@ data = [
 C_from_list = pycauset.CausalMatrix(data)
 ```
 
+### NumPy Integration
+`pycauset` works hand-in-hand with NumPy.
+- **Convert to PyCauset**: Use `pycauset.asarray(np_array)` to create disk-backed Matrices or Vectors from NumPy arrays.
+- **Convert to NumPy**: Use `np.array(pycauset_obj)` to load data into memory as a standard NumPy array.
+- **Mixed Arithmetic**: You can add, subtract, or multiply `pycauset` objects with NumPy arrays directly.
+
+For more details, see the [NumPy Integration Guide](Numpy%20Integration.md).
+
+### Vectors
+In addition to Matrices, `pycauset` supports efficient 1D Vectors (`FloatVector`, `IntegerVector`, `BitVector`). See the [Vector Guide](Vector%20Guide.md) for details.
+
+## Matrix Operations
+```
+
 ### Creating a Vector
 `pycauset` also supports efficient, disk-backed vectors. See the [Vector Guide](Vector%20Guide.md) for details.
 
