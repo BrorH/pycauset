@@ -26,7 +26,9 @@ void execute_binary_op(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     // Try to cast to TriangularMatrix<T>
     auto* tri_res = dynamic_cast<TriangularMatrix<T>*>(&result);
     if (tri_res) {
+        #ifdef _OPENMP
         #pragma omp parallel for schedule(static)
+        #endif
         for (int64_t i = 0; i < (int64_t)n; ++i) {
             for (uint64_t j = i + 1; j < n; ++j) {
                 T val = op(static_cast<T>(a.get_element_as_double(i, j)), 
@@ -42,7 +44,9 @@ void execute_binary_op(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     // Try to cast to DenseMatrix<T>
     auto* dense_res = dynamic_cast<DenseMatrix<T>*>(&result);
     if (dense_res) {
+        #ifdef _OPENMP
         #pragma omp parallel for schedule(static)
+        #endif
         for (int64_t i = 0; i < (int64_t)n; ++i) {
             for (uint64_t j = 0; j < n; ++j) {
                 T val = op(static_cast<T>(a.get_element_as_double(i, j)), 
