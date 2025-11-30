@@ -1,4 +1,5 @@
 site_name: Pycauset
+site_url: https://brorh.github.io/pycauset/
 docs_dir: documentation
 repo_url: https://github.com/BrorH/pycauset
 repo_name: BrorH/pycauset
@@ -48,3 +49,6 @@ markdown_extensions:
 extra_javascript:
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - stylesheets/extra.css

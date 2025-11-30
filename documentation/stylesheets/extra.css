@@ -1,0 +1,31 @@
+/* Custom styles for Pycauset Documentation */
+
+/* Make headers pop a bit more */
+h1 {
+    color: var(--md-primary-fg-color);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+h2 {
+    border-bottom: 2px solid var(--md-primary-fg-color--light);
+    padding-bottom: 0.2em;
+}
+
+/* Add a subtle gradient to the header */
+.md-header {
+    background: linear-gradient(to right, var(--md-primary-fg-color), #4a148c) !important;
+}
+
+/* Style the code blocks to be more distinct */
+.md-typeset pre > code {
+    border-radius: 8px;
+    border: 1px solid var(--md-default-fg-color--lightest);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+/* Custom admonition styling (optional tweak) */
+.md-typeset .admonition {
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
