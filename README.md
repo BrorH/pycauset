@@ -1,62 +1,105 @@
-# pycauset: High-Performance Causal Set Matrix Framework
+# PyCauset
 
-## Project Overview
-**Goal**: Develop a C++ framework to manipulate massive Causal Matrices ($C$) representing Causal Sets.
-**Target Scale**: $N \approx 10^6$ (Hundreds of thousands to millions).
-**Storage Target**: ~100GB binary data.
-**Key Constraint**: Matrix $C$ is $N \times N$, Upper Triangular, Binary (0/1), with 0 on the diagonal.
+**PyCauset** is a high-performance Python module designed for numerical work with [Causal Sets](https://en.wikipedia.org/wiki/Causal_sets). It is built to handle massive matrices (up to $N=10^6$) that exceed available RAM by leveraging memory-mapped files and efficient C++ backends.
 
-## Technical Strategy
+## Why PyCauset?
 
-### 1. Language & Tools
-*   **Language**: C++20 (for modern memory management and concepts).
-*   **Build System**: CMake.
-*   **Platform**: Windows (Powershell environment), but cross-platform compatible code.
+For a causal set of size $N$, the relevant mathematical objects are typically of order $\mathcal O(N^2)$ and operations are $\mathcal O(N^3)$. For even moderate sizes like $N=10,000$, standard in-memory libraries like NumPy can struggle with memory limits.
 
-### 2. Storage Architecture
-To handle 100GB datasets which exceed typical RAM:
-*   **Bit-Packing**: Store 64 matrix entries in a single `uint64_t` integer. This reduces space by factor of 64 compared to `bool` or `char`.
-*   **Memory Mapping (mmap)**: Instead of loading the whole file into RAM, we will map the file on disk directly to the virtual address space. The OS handles paging chunks in and out of RAM transparently.
-*   **Upper Triangular Optimization**: We only store the upper triangle to save ~50% space. Mapping $(i, j)$ to a linear index will be required.
+**PyCauset solves this by:**
+*   **Memory Mapping**: Storing matrices on disk and loading only necessary chunks into RAM.
+*   **Bit Packing**: Storing boolean matrices (causal relations) as individual bits, reducing storage requirements by 8x-64x compared to standard types.
+*   **C++ Efficiency**: Core operations are implemented in optimized C++.
 
-### 3. Operations
-*   **Bit-Parallelism**: Operations like Addition and Subtraction can be done 64-bits at a time using CPU bitwise instructions (`AND`, `OR`, `XOR`, `NOT`).
-*   **Matrix Multiplication**: This is the bottleneck ($O(N^3)$). We will implement:
-    *   **The Four Russians Algorithm** (Method of Four Russians) or similar bit-packed optimizations.
-    *   **Block-based Multiplication**: To optimize for CPU cache and minimize disk I/O thrashing.
+## Installation
 
-## Roadmap
+### Prerequisites
+PyCauset requires a C++ compiler to build the native extension.
+*   **Windows**: Install **Visual Studio Build Tools** with the "Desktop development with C++" workload.
+*   **Linux/macOS**: Install `gcc` or `clang`.
 
-### Phase 1: Foundation
-*   Set up CMake project structure.
-*   Create a basic `CausalMatrix` class.
-*   Implement bit-packing logic (setting/getting bits at index $i, j$).
-*   *Deliverable*: A working class for small $N$ in memory.
+### Build & Install
+Clone the repository and run the build script:
 
-### Phase 2: Persistence (The "Huge" Scale)
-*   Implement a `FileBackedStorage` backend.
-*   Use Windows memory mapping APIs (or portable wrappers like `boost::iostreams` or raw generic implementation) to map large files.
-*   *Deliverable*: Ability to create and access a 100GB matrix file without crashing RAM.
+```powershell
+# Build the C++ extension and Python module
+./build.ps1 -Python
 
-### Phase 3: Arithmetic & Logic
-*   Implement `Add`, `Subtract` (XOR/Difference), `Intersection` (AND).
-*   Implement Matrix Multiplication (Boolean or Integer).
-*   *Deliverable*: Basic algebra on the matrix.
+# To run tests as well
+./build.ps1 -All
+```
 
-### Phase 4: Optimization
-*   Optimize memory access patterns (tiling/blocking).
-*   Parallelization (OpenMP or `std::thread`) for multi-core utilization.
+## Quick Start
 
-## Questions for User
-1.  **Algebra**: When you say "Multiply", do you mean Boolean Matrix Multiplication (where $1+1=1$) or standard arithmetic (counting paths)?
-2.  **Sparsity**: Are these matrices expected to be sparse (mostly 0s) or dense?
+### 1. Creating Matrices
+The primary structure for causal sets is the `TriangularBitMatrix` (aliased as `CausalMatrix`).
 
-## Developer Notes
-* Build & setup instructions live in `docs/SETUP.md`.
-* Python module usage lives in `docs/PYTHON.md`.
-* Default Python storage lands in a hidden `.pycauset/` directory. Auto-created files are deleted at interpreter shutdown unless you set `pycauset.save = True`; explicit `backing_file` paths are never removed automatically.
-* Core matrix types now inherit from `MatrixBase`, which centralizes memory-mapped storage, cleanup, and shared helpers. `CausalMatrix` (boolean, bit-packed) and `IntegerMatrix` (32-bit counts) each implement their own element access/multiplication on top of that base, mirroring how NumPy exposes multiple matrix flavors through a unified API surface.
-* The Python surface now exposes the canonical lowercase `pycauset.causalmatrix` type (matching NumPy naming). `pycauset.CausalMatrix` remains as a thin alias for existing scripts.
-* `pycauset.matrix(...)` is a convenience wrapper that accepts integers, nested Python lists, or NumPy arrays so you can bootstrap matrices directly from in-memory data; it now supports arbitrary dense matrices and keeps everything in RAM (use `pycauset.causalmatrix` when you need the persisted, strictly upper-triangular representation).
-* Random population can now be deterministic: set `pycauset.seed = 42` (or pass `seed=` to constructors) to reuse the same pseudo-random stream across runs.
-* Multiplication now mirrors NumPy: `lhs * rhs` performs elementwise intersection while `pycauset.matmul(lhs, rhs)` (or `lhs.multiply(rhs, ...)`) computes the integer-valued matrix product.
+```python
+import pycauset
+
+# Create a random 1000x1000 causal matrix (Bernoulli p=0.5)
+C = pycauset.CausalMatrix.random(1000, density=0.5)
+
+# Create an empty matrix (initialized to zeros)
+C_empty = pycauset.CausalMatrix(1000)
+
+# Create from a NumPy array
+import numpy as np
+arr = np.triu(np.random.randint(0, 2, (10, 10)), k=1).astype(bool)
+C_from_np = pycauset.CausalMatrix(arr)
+```
+
+### 2. Matrix Operations
+PyCauset supports standard arithmetic and specialized causal set operations.
+
+```python
+# Matrix Multiplication (Counting paths of length 2)
+# Returns an IntegerMatrix
+M = pycauset.matmul(C, C)
+
+# Elementwise Multiplication
+E = C * C
+
+# Bitwise Inversion (NOT)
+C_inv = ~C
+
+# Linear Algebra Inversion (for dense float matrices)
+# Returns a FloatMatrix
+F = pycauset.FloatMatrix(100)
+F_inv = pycauset.invert(F)
+```
+
+### 3. Computing the K-Matrix
+A common operation in causal set theory is computing $K = C(aI + C)^{-1}$.
+
+```python
+# Compute K with scalar a=1.0
+# Returns a TriangularFloatMatrix
+K = pycauset.compute_k(C, a=1.0)
+```
+
+## Matrix Types
+
+PyCauset uses a template-based architecture to support efficient storage for different data types:
+
+| Class | Description | Storage |
+|-------|-------------|---------|
+| `TriangularBitMatrix` | Strictly upper-triangular boolean matrix. | 1 bit / element |
+| `IntegerMatrix` | Dense matrix of 32-bit integers. | 4 bytes / element |
+| `FloatMatrix` | Dense matrix of 64-bit floats. | 8 bytes / element |
+| `TriangularFloatMatrix` | Strictly upper-triangular float matrix. | 8 bytes / element |
+
+## Storage Management
+
+PyCauset manages disk storage automatically to keep your workspace clean.
+
+*   **Temporary Files**: All matrices are created as temporary files in a `.pycauset/` directory. These files are **automatically deleted** when your Python script exits (even if it crashes or is interrupted).
+*   **Permanent Storage**: To keep a matrix, you **must** use the `save()` function.
+
+```python
+# This matrix is temporary and will be deleted at exit
+temp = pycauset.CausalMatrix(500)
+
+# Save it permanently to a specific path
+pycauset.save(temp, "my_causet.pycauset")
+```

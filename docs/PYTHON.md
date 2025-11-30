@@ -1,10 +1,44 @@
-# Causal++ Python Module Documentation
+# Pycauset Python Module Documentation
 
 ## Overview
 The `pycauset` module provides a high-performance interface for working with massive Causal Matrices (up to $N=10^6$). It uses memory-mapped files to handle data larger than RAM.
 
 ### Matrix hierarchy
-All matrix types derive from a shared C++ `MatrixBase` that owns the memory-mapped backing file, row-offset bookkeeping, and lifecycle management. `CausalMatrix` (exported as `pycauset.CausalMatrix`) is the primary boolean specialization exposed to Python today; multiplication via `pycauset.matmul` produces an `IntegerMatrix`, another `MatrixBase` subclass that stores 32-bit counts. This layered design mirrors NumPy’s array family and allows future matrix flavors (e.g., diagonal-enabled variants) to hook into the same storage and cleanup guarantees without changing the Python surface area.
+All matrix types derive from a shared C++ `MatrixBase` that owns the memory-mapped backing file and lifecycle management. The hierarchy is designed to support both dense and sparse/triangular structures efficiently.
+
+```mermaid
+classDiagram
+    class MatrixBase {
+        +uint64_t n_
+        +double scalar_
+        +get_element_as_double()
+    }
+    class TriangularMatrix {
+        +vector~uint64_t~ row_offsets_
+    }
+    class TriangularBitMatrix {
+        +get(i, j) bool
+    }
+    class TriangularFloatMatrix {
+        +get(i, j) double
+    }
+    class IntegerMatrix {
+        +get(i, j) int
+    }
+    class FloatMatrix {
+        +get(i, j) double
+    }
+
+    MatrixBase <|-- TriangularMatrix
+    MatrixBase <|-- IntegerMatrix
+    MatrixBase <|-- FloatMatrix
+    TriangularMatrix <|-- TriangularBitMatrix
+    TriangularMatrix <|-- TriangularFloatMatrix
+```
+
+`TriangularBitMatrix` (exposed as `pycauset.CausalMatrix`) is the primary boolean specialization. `IntegerMatrix` stores 32-bit counts (e.g., from matrix multiplication). `TriangularFloatMatrix` and `FloatMatrix` (dense) provide floating-point storage for analytical results.
+
+All matrices now support a `scalar` field (lazy scaling), allowing $O(1)$ scalar multiplication. Accessing elements via `get_element_as_double` automatically applies this scalar, with a fast path for identity scaling ($1.0$).
 
 ## Installation
 Ensure the module is built and copied into `python/pycauset/` by running:
@@ -24,9 +58,8 @@ import pycauset
 
 ### Creating a Matrix
 ```python
-# Create a 1000x1000 matrix backed by 'my_matrix.pycauset'.
-# Simple names are stored inside ./.pycauset by default.
-C = pycauset.CausalMatrix(1000, "my_matrix")
+# Create a 1000x1000 matrix (backed by a temporary file in ./.pycauset)
+C = pycauset.CausalMatrix(1000)
 
 print(C)
 # Output:
@@ -37,16 +70,34 @@ print(C)
 # ]
 ```
 
+### Saving a Matrix
+Matrices are backed by temporary files that are deleted when the program exits, unless `pycauset.keep_temp_files` is set to `True`. To permanently save a matrix, use `pycauset.save()`. This creates a hard link to the backing file if possible, avoiding data duplication.
+
+```python
+# Save the matrix to a permanent location
+pycauset.save(C, "my_saved_matrix.pycauset")
+```
+
 ### Loading a Matrix
 You can load any previously saved matrix file using `pycauset.load()`. The function automatically detects the matrix type (Causal, Integer, Float, etc.) from the file header.
 
 ```python
 # Load a matrix from disk
-matrix = pycauset.load("my_matrix.pycauset")
+matrix = pycauset.load("my_saved_matrix.pycauset")
 
 # Check the type
 print(type(matrix)) 
 # <class 'pycauset.pycauset.CausalMatrix'> (or IntegerMatrix, etc.)
+```
+
+### Temporary Files
+By default, `pycauset` manages backing files automatically. Files are stored in a `.pycauset` directory (or `$PYCAUSET_STORAGE_DIR`).
+- **Automatic Cleanup**: Temporary files are deleted on exit.
+- **Persistence**: Set `pycauset.keep_temp_files = True` to prevent deletion of temporary files (useful for debugging).
+- **Explicit Saving**: Use `pycauset.save()` to keep specific matrices.
+
+### Deprecated Features
+- The `saveas` argument in constructors and functions is deprecated. Use `pycauset.save()` instead.
 
 # Use it as normal
 print(matrix.size())
@@ -57,7 +108,7 @@ print(matrix.size())
 
 ```python
 # Integer input behaves like the CausalMatrix constructor
-alpha = pycauset.Matrix(256, populate=False)
+alpha = pycauset.Matrix(256)
 
 # Nested sequences can now describe any square matrix
 beta = pycauset.Matrix([
@@ -86,12 +137,13 @@ exists = C[0, 5]  # True
 Call `str(C)` (or just `print(C)`) to view a NumPy-style preview. Matrices with up to six rows/columns render in full; larger matrices show the first and last three rows/columns with ellipses (`...`) in between.
 
 ### Random Population & Seeding
-Constructors default to `populate=True`. `pycauset.CausalMatrix` fills the strict upper triangle with Bernoulli(0.5) draws while the in-memory `pycauset.Matrix` populates every entry. Control randomness via either:
+To create a random matrix, use the `.random()` factory method. `pycauset.CausalMatrix.random(N)` fills the strict upper triangle with Bernoulli(0.5) draws.
 
-- The module-level toggle: `pycauset.seed = 42` makes every subsequent populated matrix deterministic until you reset it to `None`.
-- Per-call overrides: pass `seed=42` to `pycauset.CausalMatrix(...)` or `pycauset.CausalMatrix.random(...)`.
+Control randomness via either:
+- The module-level toggle: `pycauset.seed = 42` makes every subsequent random matrix deterministic until you reset it to `None`.
+- Per-call overrides: pass `seed=42` to `pycauset.CausalMatrix.random(...)`.
 
-Set `populate=False` whenever you want an empty matrix, or stick with `pycauset.Matrix([...])` to populate from explicit data.
+The default constructor `pycauset.CausalMatrix(N)` creates an empty matrix (all zeros).
 
 ### Elementwise vs Matrix Multiplication
 `*` now mirrors NumPy’s elementwise semantics: it returns a new `CausalMatrix` whose entries are the logical AND of the operands. Use this when you want to intersect adjacency structures without leaving the boolean domain.
@@ -99,7 +151,7 @@ Set `populate=False` whenever you want an empty matrix, or stick with `pycauset.
 ```python
 lhs = pycauset.CausalMatrix(100)
 rhs = pycauset.CausalMatrix(100)
-# ... populate both ...
+# ... fill both ...
 overlap = lhs * rhs  # still a CausalMatrix
 ```
 
@@ -123,6 +175,14 @@ Result = pycauset.matmul(A, A, saveas="paths.bin")
 # Existing code that calls A.multiply(...) still works; matmul is just the numpy-style entry point.
 
 ```
+
+### Inversion and Bitwise Operations
+- **Bitwise NOT**: Use `~matrix` or `pycauset.bitwise_not(matrix)` to flip all bits in the matrix.
+  - For `TriangularBitMatrix`, this flips bits in the upper triangle.
+  - For `IntegerMatrix`, this performs bitwise NOT on the 32-bit integers.
+  - For `FloatMatrix`, this performs bitwise NOT on the 64-bit double representation.
+- **Matrix Inverse**: Use `pycauset.invert(matrix)` or `matrix.invert()` to compute the linear algebra inverse ($A^{-1}$).
+  - **Note**: Strictly upper triangular matrices (like `TriangularBitMatrix`, `TriangularFloatMatrix`, `IntegerMatrix`) are singular (determinant 0) and cannot be inverted. Calling `invert()` on them will raise a `RuntimeError`.
 
 ### Storage Lifecycle & Cleanup
 - When no `backing_file` is provided, matrices are written to `<cwd>/.pycauset/<variable>.pycauset`. The file name is inferred from the assignment target (`alpha = pycauset.causalmatrix(...) -> alpha.pycauset`).

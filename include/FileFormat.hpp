@@ -20,13 +20,15 @@ enum class DataType : uint32_t {
 
 struct FileHeader {
     char magic[8];          // "PYCAUSET"
-    uint32_t version;       // 1
+    uint32_t version;       // 2
     MatrixType matrix_type;
     DataType data_type;
     uint64_t rows;
     uint64_t cols;
     uint64_t seed;          // 0 if not applicable
-    uint8_t reserved[4048]; // Padding to 4096 bytes
+    double scalar;          // Scaling factor (default 1.0)
+    uint8_t is_temporary;   // 1 if temporary, 0 if permanent
+    uint8_t reserved[4039]; // Padding to 4096 bytes
 };
 
 static_assert(sizeof(FileHeader) == 4096, "FileHeader must be 4096 bytes");

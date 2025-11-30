@@ -2,13 +2,30 @@
 
 #include <stdexcept>
 #include <cstring>
+#include <filesystem>
 
 #include "StoragePaths.hpp"
 
-MatrixBase::MatrixBase(uint64_t n) : n_(n) {}
+MatrixBase::MatrixBase(uint64_t n) : n_(n), scalar_(1.0) {}
 
 MatrixBase::MatrixBase(uint64_t n, std::unique_ptr<MemoryMapper> mapper) 
-    : n_(n), mapper_(std::move(mapper)) {}
+    : n_(n), mapper_(std::move(mapper)) {
+    if (mapper_) {
+        auto* header = mapper_->get_header();
+        if (header->version >= 2) {
+            scalar_ = header->scalar;
+        } else {
+            scalar_ = 1.0;
+        }
+    }
+}
+
+std::string MatrixBase::get_backing_file() const {
+    if (mapper_) {
+        return mapper_->get_filename();
+    }
+    return "";
+}
 
 void MatrixBase::close() {
     mapper_.reset();
@@ -33,11 +50,63 @@ void MatrixBase::initialize_storage(uint64_t size_in_bytes,
     auto* header = mapper_->get_header();
     std::memset(header, 0, sizeof(pycauset::FileHeader));
     std::memcpy(header->magic, "PYCAUSET", 8);
-    header->version = 1;
+    header->version = 2;
     header->matrix_type = matrix_type;
     header->data_type = data_type;
     header->rows = n_;
     header->cols = n_;
+    header->scalar = 1.0;
+    header->is_temporary = 0; // Default to permanent/unspecified
+    scalar_ = 1.0;
+}
+
+std::string MatrixBase::copy_storage(const std::string& result_file_hint) const {
+    std::string source_path = get_backing_file();
+    if (source_path.empty()) {
+        throw std::runtime_error("Cannot copy matrix without backing file");
+    }
+    
+    if (mapper_) {
+        mapper_->flush();
+    }
+
+    std::string dest_path = resolve_backing_file(result_file_hint, "copy");
+    
+    // Use filesystem copy
+    try {
+        std::filesystem::copy_file(source_path, dest_path, std::filesystem::copy_options::overwrite_existing);
+    } catch (const std::filesystem::filesystem_error& e) {
+        throw std::runtime_error("Failed to copy backing file: " + std::string(e.what()));
+    }
+    
+    return dest_path;
+}
+
+void MatrixBase::set_scalar(double s) {
+    scalar_ = s;
+    if (mapper_) {
+        mapper_->get_header()->scalar = s;
+    }
+}
+
+uint64_t MatrixBase::get_seed() const {
+    if (mapper_) {
+        return mapper_->get_header()->seed;
+    }
+    return 0;
+}
+
+bool MatrixBase::is_temporary() const {
+    if (mapper_) {
+        return mapper_->get_header()->is_temporary != 0;
+    }
+    return false;
+}
+
+void MatrixBase::set_temporary(bool temp) {
+    if (mapper_) {
+        mapper_->get_header()->is_temporary = temp ? 1 : 0;
+    }
 }
 
 MemoryMapper* MatrixBase::require_mapper() {

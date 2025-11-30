@@ -18,6 +18,9 @@ public:
     const pycauset::FileHeader* get_header() const;
 
     size_t get_data_size() const;
+    const std::string& get_filename() const { return filename_; }
+
+    void flush();
 
 private:
     std::string filename_;

@@ -57,7 +57,7 @@ void MemoryMapper::open_file(bool create_new) {
     hFile_ = CreateFileA(
         filename_.c_str(),
         GENERIC_READ | GENERIC_WRITE,
-        0, // No sharing
+        FILE_SHARE_READ | FILE_SHARE_WRITE, // Allow others to read and write
         NULL,
         creationDisposition,
         FILE_ATTRIBUTE_NORMAL,
@@ -89,9 +89,21 @@ void MemoryMapper::open_file(bool create_new) {
             CloseHandle(hFile_);
             throw std::runtime_error("Failed to get file size");
         }
-        if (static_cast<size_t>(fileSize.QuadPart) < total_size) {
-             CloseHandle(hFile_);
-             throw std::runtime_error("File is smaller than expected size");
+        
+        // If data_size_ is 0, we map the whole file
+        if (data_size_ == 0) {
+            total_size = static_cast<size_t>(fileSize.QuadPart);
+            if (total_size < sizeof(pycauset::FileHeader)) {
+                 CloseHandle(hFile_);
+                 throw std::runtime_error("File is too small to contain a header");
+            }
+            data_size_ = total_size - sizeof(pycauset::FileHeader);
+            liSize.QuadPart = total_size;
+        } else {
+            if (static_cast<size_t>(fileSize.QuadPart) < total_size) {
+                 CloseHandle(hFile_);
+                 throw std::runtime_error("File is smaller than expected size");
+            }
         }
     }
 
@@ -121,6 +133,17 @@ void MemoryMapper::open_file(bool create_new) {
         CloseHandle(hMapping_);
         CloseHandle(hFile_);
         throw std::runtime_error("Failed to map view of file");
+    }
+}
+
+void MemoryMapper::flush() {
+    if (mapped_ptr_) {
+        if (!FlushViewOfFile(mapped_ptr_, 0)) {
+            // Log warning?
+        }
+        if (hFile_ != INVALID_HANDLE_VALUE) {
+            FlushFileBuffers(hFile_);
+        }
     }
 }
 

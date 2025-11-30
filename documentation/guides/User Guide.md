@@ -1,21 +1,7 @@
-WARNING: THIS FILE IS DEPRECATED! DO NOT USE THIS FILE TO UNDERSTAND ANYTHING ABOUT HOW PYCAUSET WORKS!!!!
-
-THIS FILE IS DEPRECATED
-# Pycauset Python Module Documentation
+# Pycauset User Guide
 
 ## Overview
-The `pycauset` module provides a high-performance interface for working with massive Causal Sets (up to $N=10^6$). It uses memory-mapped files to handle data larger than RAM.
-
-
-
-## Installation
-Ensure the module is built and copied into `python/pycauset/` by running:
-```powershell
-./build.ps1 -Python
-
-# Run Python scripts with the interpreter version used during the build
-py -3.12 your_script.py
-```
+The `pycauset` module provides a high-performance interface for working with massive Causal Matrices (up to $N=10^6$). It uses memory-mapped files to handle data larger than RAM.
 
 ## Usage
 
@@ -31,11 +17,12 @@ The library provides several matrix classes optimized for different data types.
 The primary class for representing causal structures. It stores boolean values in a strictly upper triangular format ($i < j$), using bit-packing for efficiency (1 bit per element).
 
 ```python
-# Create a 1000x1000 empty boolean matrix
-C_empty = pycauset.TriangularBitMatrix(1000)
+# Create a 1000x1000 boolean matrix
+# By default, it populates with random Bernoulli(0.5) data
+C = pycauset.TriangularBitMatrix(1000)
 
-# Create a random matrix
-C = pycauset.TriangularBitMatrix.random(1000, p=0.5)
+# Create an empty matrix
+C_empty = pycauset.TriangularBitMatrix(1000, populate=False)
 
 # Create from a NumPy array
 import numpy as np
@@ -83,11 +70,34 @@ All matrices support $O(1)$ scalar multiplication. The actual values are scaled 
 K_scaled = K * 2.5 
 ```
 
+### Saving a Matrix
+Matrices are backed by temporary files that are deleted when the program exits, unless `pycauset.keep_temp_files` is set to `True`. To permanently save a matrix, use `pycauset.save()`. This creates a hard link to the backing file if possible, avoiding data duplication.
 
-
-# Use it as normal
-print(matrix.size())
+```python
+# Save the matrix to a permanent location
+pycauset.save(C, "my_saved_matrix.pycauset")
 ```
+
+### Loading a Matrix
+You can load any previously saved matrix file using `pycauset.load()`. The function automatically detects the matrix type (Causal, Integer, Float, etc.) from the file header.
+
+```python
+# Load a matrix from disk
+matrix = pycauset.load("my_saved_matrix.pycauset")
+
+# Check the type
+print(type(matrix)) 
+# <class 'pycauset.pycauset.CausalMatrix'> (or IntegerMatrix, etc.)
+```
+
+### Temporary Files
+By default, `pycauset` manages backing files automatically. Files are stored in a `.pycauset` directory (or `$PYCAUSET_STORAGE_DIR`).
+- **Automatic Cleanup**: Temporary files are deleted on exit.
+- **Persistence**: Set `pycauset.keep_temp_files = True` to prevent deletion of temporary files (useful for debugging).
+- **Explicit Saving**: Use `pycauset.save()` to keep specific matrices.
+
+### Deprecated Features
+- The `saveas` argument in constructors and functions is deprecated. Use `pycauset.save()` instead.
 
 ### Convenience Creator
 `pycauset.Matrix(...)` is an in-memory helper for quick experiments. Passing an integer mirrors the `CausalMatrix` constructor (minus the file-backed storage); nested Python sequences, NumPy arrays, or any object exposing `.size()`/`.get(i, j)` are accepted as-is—even when the data are dense or contain arbitrary numeric values.
@@ -138,6 +148,51 @@ The default constructor `pycauset.CausalMatrix(N)` creates an empty matrix (all 
 lhs = pycauset.CausalMatrix(100)
 rhs = pycauset.CausalMatrix(100)
 # ... fill both ...
+overlap = lhs * rhs  # still a CausalMatrix
+```
+
+Use `pycauset.matmul(lhs, rhs)` for true matrix multiplication (`numpy.matmul` semantics). The result is an `IntegerMatrix` containing path counts / integer dot products.
+
+```python
+# A -> B -> C implies A -> C
+A = pycauset.CausalMatrix(100, "A.bin")
+A[0, 10] = True
+A[10, 20] = True
+
+Result = pycauset.matmul(A, A)
+print(Result[0, 20])  # 1 path: 0->10->20
+```
+
+### Explicit Multiplication (Control Output File)
+If you want to specify where the result is stored (recommended for large matrices):
+```python
+# Result will be stored in 'paths.bin'
+Result = pycauset.matmul(A, A, saveas="paths.bin")
+# Existing code that calls A.multiply(...) still works; matmul is just the numpy-style entry point.
+
+```
+
+### Storage Lifecycle & Cleanup
+- When no `backing_file` is provided, matrices are written to `<cwd>/.pycauset/<variable>.pycauset`. The file name is inferred from the assignment target (`alpha = pycauset.causalmatrix(...) -> alpha.pycauset`).
+- Set the `PYCAUSET_STORAGE_DIR` environment variable to relocate that hidden directory. Explicit `Path` objects are also respected.
+- Auto-generated `.pycauset` files are deleted when the interpreter exits unless you opt in to persistence via `pycauset.save = True` (the default is `False`).
+- User-specified paths (anything passed to `backing_file`) are never deleted automatically, though creating a new matrix with the same path will overwrite the data.
+- Files left over from a prior `pycauset.save = True` run are removed the next time you exit with `pycauset.save = False`.
+- Call `matrix.close()` when you are done with an explicit backing file (or before a temporary directory is torn down) to release the memory-mapped handle immediately.
+
+### IntegerMatrix
+The result of a multiplication is an `IntegerMatrix`. It is read-only.
+```python
+count = Result[0, 20]
+shape = Result.shape
+```
+
+## Performance Tips
+1. **Avoid Loops**: Do not iterate over the matrix in Python (e.g., `for i in range(N)`). This is slow. Use the C++ operations.
+2. **Storage**: Ensure you have enough disk space. A $10^6 \times 10^6$ matrix requires ~64GB.
+3. **Memory**: The module uses very little RAM, but relies on the OS page cache.
+rhs = pycauset.CausalMatrix(100)
+# ... populate both ...
 overlap = lhs * rhs  # still a CausalMatrix
 ```
 

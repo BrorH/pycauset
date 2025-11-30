@@ -1,6 +1,9 @@
 {
     "files.associations": {
         "*.tikz": "latex",
-        "bit": "cpp"
+        "bit": "cpp",
+        "filesystem": "cpp",
+        "random": "cpp",
+        "memory": "cpp"
     }
 }

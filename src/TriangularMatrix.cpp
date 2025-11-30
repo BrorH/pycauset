@@ -1,7 +1,7 @@
 #include "TriangularMatrix.hpp"
 #include <cmath>
 
-uint64_t TriangularMatrix::calculate_triangular_offsets(uint64_t element_bits, uint64_t alignment_bits) {
+uint64_t TriangularMatrixBase::calculate_triangular_offsets(uint64_t element_bits, uint64_t alignment_bits) {
     row_offsets_.resize(n_);
     uint64_t current_offset_bits = 0;
 
