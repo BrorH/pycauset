@@ -42,6 +42,33 @@ from pycauset import spacetime
 cylinder = spacetime.MinkowskiCylinder(dimension=2, height=2.0, circumference=3.0)
 ```
 
+### MinkowskiBox
+
+The `MinkowskiBox` represents a rectangular block in flat Minkowski space with "hard wall" boundaries. This is useful for studying boundary effects where the boundaries are not null surfaces (unlike the Diamond).
+
+**Coordinates**:
+*   **2D (1+1)**: Uses **Standard Coordinates** $(t, x)$.
+    *   $t \in [0, \text{time\_extent}]$
+    *   $x \in [0, \text{space\_extent}]$
+    *   Causality: Standard Minkowski causality $\Delta t > |\Delta x|$.
+    *   Volume: $\text{time\_extent} \times \text{space\_extent}$.
+
+```python
+from pycauset import spacetime
+
+# Create a box with T=2.0 and L=1.0
+box = spacetime.MinkowskiBox(dimension=2, time_extent=2.0, space_extent=1.0)
+```
+
+## Visualization Support
+
+All standard spacetimes support the visualization interface used by `pycauset.vis`. They implement:
+
+*   `transform_coordinates(coords)`: Converts internal coordinates (like lightcone $u,v$) to visualization-friendly coordinates (like Cartesian $t,x$ or 3D Cylindrical).
+*   `get_boundary()`: Returns the geometry of the spacetime boundary for plotting.
+
+See the [[Visualization Guide]] for more details.
+
 ## Using Spacetimes with CausalSet
 
 You can pass these spacetime objects to the `CausalSet` constructor.

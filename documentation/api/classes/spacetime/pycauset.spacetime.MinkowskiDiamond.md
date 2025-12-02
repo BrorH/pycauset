@@ -33,3 +33,22 @@ def volume(self) -> float
 ```
 
 Returns the volume of the diamond. For the standard unit diamond in lightcone coordinates, the volume is normalized to 1.0.
+
+### transform_coordinates
+
+```python
+def transform_coordinates(self, coords: np.ndarray) -> np.ndarray
+```
+
+*(Extension)* Transforms raw lightcone coordinates to a visualization-friendly basis.
+For 2D, this rotates $(u, v)$ to Cartesian $(t, x)$.
+
+### get_boundary
+
+```python
+def get_boundary(self) -> List[np.ndarray]
+```
+
+*(Extension)* Returns the boundary of the spacetime region in the transformed coordinate system.
+Used by visualization functions to draw the diamond edges.
+

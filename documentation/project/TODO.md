@@ -10,7 +10,7 @@ Goals:
 
 ## Wanted features
 - [x] Figure out how to correctly randomly fill C
-- [ ] Visualizations of causets
+- [x] Visualizations of causets
 - [ ] gpu parallelization
 - [x] Saving/loading causal matrices to/from binary files.
 - [x] Implement matrix operations: addition, subtraction, multiplication.

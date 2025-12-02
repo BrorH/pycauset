@@ -41,16 +41,16 @@ class TestKMatrix(unittest.TestCase):
         a = 1.0
         
         # Empty matrix
-        C1 = CausalMatrix(N, saveas="empty_C.pycauset")
+        C1 = CausalMatrix(N, populate=False)
         K_mat1 = compute_k(C1, a)
         for i in range(N):
             for j in range(N):
                 self.assertEqual(K_mat1.get(i, j), 0.0)
-        C1.close()
-        K_mat1.close()
+        # C1.close() # Not needed for in-memory
+        # K_mat1.close()
                 
         # Full upper triangular
-        C2 = CausalMatrix(N, saveas="full_C.pycauset")
+        C2 = CausalMatrix(N, populate=False)
         for i in range(N):
             for j in range(i + 1, N):
                 C2.set(i, j, True)

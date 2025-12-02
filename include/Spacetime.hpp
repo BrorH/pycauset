@@ -117,6 +117,53 @@ public:
     }
 };
 
+class MinkowskiBox : public CausalSpacetime {
+    int dim;
+    double time_extent;
+    double space_extent;
+public:
+    MinkowskiBox(int dimension, double t_len, double x_len) 
+        : dim(dimension), time_extent(t_len), space_extent(x_len) {}
+    
+    int dimension() const override { return dim; }
+    
+    double get_time_extent() const { return time_extent; }
+    double get_space_extent() const { return space_extent; }
+
+    double volume() const override {
+        // Volume = T * L^(d-1)
+        return time_extent * std::pow(space_extent, dim - 1);
+    }
+    
+    std::vector<double> generate_point(std::mt19937_64& rng) const override {
+        // Coordinates: (t, x, y, ...)
+        std::uniform_real_distribution<double> dist_t(0.0, time_extent);
+        std::uniform_real_distribution<double> dist_x(0.0, space_extent);
+        
+        std::vector<double> p(dim);
+        p[0] = dist_t(rng);
+        for(int i=1; i<dim; ++i) {
+            p[i] = dist_x(rng);
+        }
+        return p;
+    }
+    
+    bool causality(const std::vector<double>& u, const std::vector<double>& v) const override {
+        // u = (t1, x1...), v = (t2, x2...)
+        if (u[0] >= v[0]) return false;
+        
+        double dt = v[0] - u[0];
+        double dx_sq = 0.0;
+        for(int i=1; i<dim; ++i) {
+            double d = v[i] - u[i];
+            dx_sq += d*d;
+        }
+        
+        // dt^2 > dx^2
+        return (dt*dt) > dx_sq;
+    }
+};
+
 }
 
 #endif // PYCAUSET_SPACETIME_HPP

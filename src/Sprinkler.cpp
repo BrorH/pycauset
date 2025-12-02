@@ -75,4 +75,57 @@ std::unique_ptr<MatrixBase> pycauset::Sprinkler::sprinkle(
     return matrix;
 }
 
+std::vector<std::vector<double>> pycauset::Sprinkler::make_coordinates(
+    const pycauset::CausalSpacetime& spacetime, 
+    uint64_t n, 
+    uint64_t seed,
+    std::vector<uint64_t> indices
+) {
+    std::vector<std::vector<double>> results;
+    results.reserve(indices.size());
+
+    // Sort indices to optimize block access
+    std::sort(indices.begin(), indices.end());
+
+    const uint64_t BLOCK_SIZE = 10000; 
+
+    auto get_block_seed = [seed](uint64_t block_idx) {
+        uint64_t z = seed + block_idx * 0x9e3779b97f4a7c15;
+        z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+        z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+        return z ^ (z >> 31);
+    };
+
+    uint64_t current_block_idx = (uint64_t)-1;
+    std::mt19937_64 rng;
+    uint64_t rng_offset = 0; // How many points generated in current block
+
+    for (uint64_t idx : indices) {
+        if (idx >= n) continue; // Safety check
+
+        uint64_t block_idx = idx / BLOCK_SIZE;
+        uint64_t offset = idx % BLOCK_SIZE;
+
+        if (block_idx != current_block_idx) {
+            // New block, reset RNG
+            current_block_idx = block_idx;
+            rng.seed(get_block_seed(block_idx));
+            rng_offset = 0;
+        }
+
+        // Fast forward
+        while (rng_offset < offset) {
+            spacetime.generate_point(rng);
+            rng_offset++;
+        }
+
+        // Generate target
+        results.push_back(spacetime.generate_point(rng));
+        rng_offset++;
+    }
+
+    return results;
 }
+
+}
+

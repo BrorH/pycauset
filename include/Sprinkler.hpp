@@ -17,7 +17,15 @@ public:
         uint64_t seed,
         const std::string& saveas = ""
     );
+
+    static std::vector<std::vector<double>> make_coordinates(
+        const CausalSpacetime& spacetime, 
+        uint64_t n, 
+        uint64_t seed,
+        std::vector<uint64_t> indices
+    );
 };
+
 
 }
 

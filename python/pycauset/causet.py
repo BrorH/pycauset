@@ -5,6 +5,7 @@ import zipfile
 import shutil
 import os
 from pathlib import Path
+from typing import Optional, Sequence, List, Union
 
 # Import the native extension relative to this package
 try:
@@ -19,7 +20,7 @@ except ImportError:  # pragma: no cover - exercised when numpy is absent
     _np = None
 
 class CausalSet:
-    def __init__(self, n: int = None, density: float = None, spacetime=None, seed: int = None, matrix=None):
+    def __init__(self, n: int = None, density: float = None, spacetime=None, seed: Union[int, str] = None, matrix=None):
         """
         Initialize a CausalSet.
         
@@ -32,7 +33,7 @@ class CausalSet:
             density (float, optional): Density of sprinkling. If provided, n is calculated as Poisson(density * volume).
             spacetime (CausalSpacetime, optional): The spacetime to sprinkle into. 
                                              Defaults to 2D MinkowskiDiamond.
-            seed (int, optional): Random seed. Defaults to random.
+            seed (int | str, optional): Random seed. Can be an integer or a string. Defaults to random.
             matrix (TriangularBitMatrix, optional): Pre-existing matrix. If provided, sprinkling is skipped.
         """
         # --- Spacetime Setup ---
@@ -44,8 +45,13 @@ class CausalSet:
         # --- Seed Setup ---
         if seed is None:
             self._seed = random.randint(0, 2**63 - 1)
-        else:
+        elif isinstance(seed, int):
             self._seed = seed
+        else:
+            # Support strings or other hashable objects as seeds
+            # We use Python's random module to deterministically map the seed to an integer
+            rng = random.Random(seed)
+            self._seed = rng.randint(0, 2**63 - 1)
             
         # --- N / Density Setup ---
         if n is not None:
@@ -139,6 +145,34 @@ class CausalSet:
         # Local import to avoid circular dependency
         from . import compute_k
         return compute_k(self.C, a)
+
+    def coordinates(self, indices: Optional[Sequence[int]] = None, force: bool = False):
+        """
+        Retrieve spacetime coordinates for specific elements.
+        
+        Args:
+            indices: List of element indices to retrieve. If None, retrieves all (subject to safety limits).
+            force: If True, bypasses safety limits for large sets.
+            
+        Returns:
+            numpy.ndarray: Array of shape (K, D) where K is number of indices.
+        """
+        if indices is None:
+            if self.n > 100000 and not force:
+                raise UserWarning(
+                    f"CausalSet has {self.n} elements. Retrieving all coordinates is expensive. "
+                    "Use 'indices' to select a subset or set 'force=True' to proceed anyway."
+                )
+            indices = list(range(self.n))
+        
+        # Ensure indices are a list of ints
+        indices = [int(i) for i in indices]
+        
+        coords = _native.make_coordinates(self._spacetime, self._n, self._seed, indices)
+        
+        if _np:
+            return _np.array(coords)
+        return coords
 
     def save(self, path: str | os.PathLike):
         """
