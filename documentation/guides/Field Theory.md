@@ -2,7 +2,7 @@
 
 Causal Set Theory is not just about the discrete structure of spacetime itself; it is also a framework for doing Quantum Field Theory (QFT). To do this, we define **Fields** that live on the causal set.
 
-In PyCauset, the geometry (the `CausalSet`) and the matter (the `Field`) are distinct objects. This separation allows you to study different fields (massless, massive, interacting) on the same underlying spacetime background.
+In PyCauset, the geometry (the [[pycauset.CausalSet]]) and the matter (the [[pycauset.field.Field]]) are distinct objects. This separation allows you to study different fields (massless, massive, interacting) on the same underlying spacetime background.
 
 ## The Scalar Field
 
@@ -46,7 +46,7 @@ c = pc.CausalSet(density=1000, spacetime=st)
 ```
 
 ### 2. Define the Field
-Create a `ScalarField` instance attached to your causal set. This is where you specify the mass.
+Create a [[pycauset.field.ScalarField]] instance attached to your causal set. This is where you specify the mass.
 
 ```python
 from pycauset.field import ScalarField
@@ -56,7 +56,7 @@ field = ScalarField(c, mass=1.5)
 ```
 
 ### 3. Compute the Propagator
-Call `.propagator()` to compute the $K_R$ matrix. This operation is computationally intensive ($O(N^2)$) and returns a `TriangularFloatMatrix`.
+Call `.propagator()` to compute the $K_R$ matrix. This operation is computationally intensive ($O(N^2)$) and returns a [[pycauset.TriangularFloatMatrix]].
 
 ```python
 # Compute K_R
