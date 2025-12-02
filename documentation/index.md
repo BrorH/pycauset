@@ -24,7 +24,7 @@ If you are new to PyCauset, we recommend starting with the following resources:
 ## Documentation Structure
 
 *   **[[guides/index|Guides]]**: In-depth tutorials and conceptual explanations.
-*   **[[api/index|API Reference]]**: Detailed documentation of classes and functions.
+*   **[[docs/index|API Reference]]**: Detailed documentation of classes and functions.
 *   **[[internals/index|Internals]]**: Information about the C++ core, file formats, and algorithms.
 *   **[[project/index|Project]]**: Philosophy, roadmap, and contribution guidelines.
 
