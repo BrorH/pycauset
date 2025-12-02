@@ -22,13 +22,17 @@ from typing import Any, Sequence, Tuple
 from importlib import import_module as _import_module
 
 from ._storage import StorageRegistry, cleanup_storage, set_temporary_file
+from .causet import CausalSet
+
+# Alias for CausalSet
+Causet = CausalSet
 
 try:  # NumPy is optional at runtime
     import numpy as _np
 except ImportError:  # pragma: no cover - exercised when numpy is absent
     _np = None
 
-_native = _import_module(".pycauset", package=__name__)
+_native = _import_module("._pycauset", package=__name__)
 _TriangularBitMatrix = _native.TriangularBitMatrix
 _original_triangular_bit_matrix_init = _TriangularBitMatrix.__init__
 _original_triangular_bit_matrix_random = _TriangularBitMatrix.random
@@ -47,7 +51,7 @@ _BitVector = getattr(_native, "BitVector", None)
 
 _ASSIGNMENT_RE = re.compile(r"^\s*([A-Za-z0-9_.]+)\s*=.+(?:CausalMatrix|TriangularBitMatrix)", re.IGNORECASE)
 _STORAGE_ROOT: Path | None = None
-_EDGE_ITEMS = 3
+_EDGE_ITEMS = 4
 
 
 def _storage_root() -> Path:
@@ -1061,7 +1065,7 @@ def __getattr__(name):
 
 
 __all__ = [name for name in dir(_native) if not name.startswith("__")]
-__all__.extend(["save", "keep_temp_files", "seed", "Matrix", "Vector", "TriangularMatrix", "CausalMatrix", "TriangularBitMatrix", "compute_k", "bitwise_not", "invert", "I"])
+__all__.extend(["save", "keep_temp_files", "seed", "Matrix", "Vector", "TriangularMatrix", "CausalMatrix", "TriangularBitMatrix", "compute_k", "bitwise_not", "invert", "I", "CausalSet", "Causet"])
 # Remove deprecated classes from __all__ if they were added by dir(_native)
 for _deprecated in ["IntegerMatrix", "FloatMatrix", "TriangularFloatMatrix", "TriangularIntegerMatrix", "FloatVector", "IntegerVector", "BitVector"]:
     if _deprecated in __all__:

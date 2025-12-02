@@ -1,3 +1,4 @@
+#include "Spacetime.hpp"
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
@@ -14,8 +15,10 @@
 #include "MatrixOperations.hpp"
 #include "PersistentObject.hpp"
 #include "ComplexMatrix.hpp"
+#include "Sprinkler.hpp"
 
 namespace py = pybind11;
+using namespace pycauset;
 
 using FloatMatrix = DenseMatrix<double>;
 using IntegerMatrix = DenseMatrix<int32_t>;
@@ -211,7 +214,7 @@ bool coerce_bool_like(py::object value) {
 
 } // namespace
 
-PYBIND11_MODULE(pycauset, m) {
+PYBIND11_MODULE(_pycauset, m) {
     m.doc() = "pycauset Python Interface";
 
     // Helper lambdas for casting unique_ptr results to python objects
@@ -1006,4 +1009,19 @@ PYBIND11_MODULE(pycauset, m) {
           
     m.def("get_memory_threshold", &pycauset::get_memory_threshold,
           "Get the current memory threshold in bytes.");
+
+    // Spacetime
+    py::class_<pycauset::CausalSpacetime>(m, "Spacetime");
+
+    py::class_<pycauset::MinkowskiDiamond, pycauset::CausalSpacetime>(m, "MinkowskiDiamond")
+        .def(py::init<int>(), py::arg("dimension"))
+        .def("dimension", &pycauset::MinkowskiDiamond::dimension);
+
+    // Sprinkler
+    m.def("sprinkle", &pycauset::Sprinkler::sprinkle, 
+          py::arg("spacetime"), 
+          py::arg("n"), 
+          py::arg("seed"), 
+          py::arg("saveas") = "",
+          "Sprinkle points into a spacetime and return the causal matrix.");
 }

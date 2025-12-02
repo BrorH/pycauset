@@ -130,24 +130,24 @@ if ($Tests) {
 
 if ($Python) {
     Write-Host "Building pycauset module..." -ForegroundColor Cyan
-    cmake --build . --config Release --target pycauset
+    cmake --build . --config Release --target _pycauset
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Python module build failed." -ForegroundColor Red
         Pop-Location
         exit 1
     }
 
-    $pydFile = Get-ChildItem -Recurse -Filter "pycauset*.pyd" | Select-Object -First 1
+    $pydFile = Get-ChildItem -Recurse -Filter "_pycauset*.pyd" | Select-Object -First 1
     if ($pydFile) {
         $packageDir = Join-Path .. "python/pycauset"
         if (-not (Test-Path $packageDir)) {
             New-Item -ItemType Directory -Path $packageDir | Out-Null
         }
         Copy-Item $pydFile.FullName -Destination $packageDir -Force
-        Copy-Item $pydFile.FullName -Destination ..\ -Force
-        Write-Host "Copied module to python/pycauset and project root" -ForegroundColor Green
+        # Copy-Item $pydFile.FullName -Destination ..\ -Force
+        Write-Host "Copied module to python/pycauset" -ForegroundColor Green
     } else {
-        Write-Host "Could not locate generated pycauset module." -ForegroundColor Red
+        Write-Host "Could not locate generated _pycauset module." -ForegroundColor Red
         Pop-Location
         exit 1
     }

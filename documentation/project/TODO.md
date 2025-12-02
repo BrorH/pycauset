@@ -26,8 +26,11 @@ Goals:
 - [x] vectors
 - [x] complex numbers support
 - [x]  introduce RAM-backed mapping for small temporary objects
+- [ ] Create Pauli-Jordan function $i\Delta$ 
+- [ ] User-configurable spacetimes, geometries and springlings
 
-
+### Qs:
+- [ ] When a CausalSet instances is created, how does one ensure/know that the CausalMAtrix has been saved? Make this intuitive!
 
 
 ## Documentation needed
