@@ -28,50 +28,62 @@ C = pc.CausalMatrix(100)
 
 # Matrix Operations
 
-`pycauset` provides efficient implementations for matrix operations, mirroring `numpy` semantics where appropriate but optimized for the specific matrix structures (e.g., triangular, bit-packed) used in causal analysis.
+`pycauset` provides efficient implementations for matrix operations, mirroring `numpy` semantics where appropriate but optimized for specific matrix structures (e.g., triangular, bit-packed).
 
 ## Matrix Multiplication (`matmul`)
 
-Matrix multiplication is performed using the [[pycauset.matmul]](A, B) function.
-### Supported Types
-Currently, matrix multiplication is optimized and exposed for **[[pycauset.TriangularBitMatrix]]**.
-### Syntax
-```python
-import pycauset as pc
+Matrix multiplication is performed using [[pycauset.matmul]](A, B). It supports all combinations of matrix types, automatically promoting the result to the most general required structure (Dense > TriangularFloat > Integer > Bit).
 
-# A and B are TriangularBitMatrix instances
-C = pc.matmul(A, B)
-```
+| Operand A | Operand B | Result Type |
+| :--- | :--- | :--- |
+| [[pycauset.FloatMatrix]] (Dense) | Any | [[pycauset.FloatMatrix]] |
+| Any | [[pycauset.FloatMatrix]] (Dense) | [[pycauset.FloatMatrix]] |
+| [[pycauset.TriangularFloatMatrix]] | Triangular (Any) | [[pycauset.TriangularFloatMatrix]] |
+| Triangular (Any) | [[pycauset.TriangularFloatMatrix]] | [[pycauset.TriangularFloatMatrix]] |
+| [[pycauset.IntegerMatrix]] | [[pycauset.IntegerMatrix]] or [[pycauset.TriangularBitMatrix]] | [[pycauset.IntegerMatrix]] |
+| [[pycauset.TriangularBitMatrix]] | [[pycauset.IntegerMatrix]] | [[pycauset.IntegerMatrix]] |
+| [[pycauset.TriangularBitMatrix]] | [[pycauset.TriangularBitMatrix]] | [[pycauset.IntegerMatrix]] |
+| [[pycauset.DenseBitMatrix]] | [[pycauset.DenseBitMatrix]] | [[pycauset.IntegerMatrix]] |
 
-### Return Value
-The operation returns an **[[pycauset.IntegerMatrix]]**. 
-- Since [[pycauset.TriangularBitMatrix]] entries are boolean (0 or 1), the dot product of a row and a column results in an integer.
-- Geometrically, if $A$ and $B$ represent adjacency matrices of graphs, $C_{ij}$ counts the number of paths of length 2 from node $i$ to node $j$ (i.e., number of intermediate nodes $k$ such that $i \to k$ and $k \to j$).
+**Note**: [[pycauset.IntegerMatrix]] is a **dense** matrix storing 32-bit integers, commonly returned for discrete path counting operations.
+
+### Implementation Details
+Operations use memory-mapped files to handle large matrices.
+- **Triangular Matrices**: Uses a row-addition algorithm exploiting the strictly upper triangular structure.
+- **Dense Matrices**: Uses a row-wise accumulation (IKJ) algorithm.
+- **Mixed Types**: Optimized to use the sparse structure of triangular matrices while producing dense results.
+- **Scalar Propagation**: $C.scalar = A.scalar \times B.scalar$.
+
 ## Element-wise Multiplication
 
-Element-wise multiplication is performed using the standard multiplication operator `*`.
-### Syntax
-```python
-# A and B can be any matrix type (TriangularBitMatrix, TriangularFloatMatrix, etc.)
-C = A * B
-```
-### Semantics
+Use the standard `*` operator: `C = A * B`.
 -   $C_{ij} = A_{ij} \times B_{ij}$
--   For [[pycauset.TriangularBitMatrix]], this is equivalent to a bitwise AND operation ($1 \times 1 = 1$, others $0$).
+-   For [[pycauset.TriangularBitMatrix]], this is equivalent to bitwise AND.
 -   Returns a new matrix of the same type as the operands.
 
 ## Scalar Multiplication
 
-Scalar multiplication is supported for all matrix types and is highly optimized.
-### Syntax
-```python
-# A is any matrix
-B = A * 5.0
-C = 0.5 * A
-```
+Scalar multiplication is supported for all matrix types and is **lazily evaluated**: `C = 0.5 * A`.
+-   The operation is $O(1)$ and does not iterate over data.
+-   It updates an internal `scalar` field.
+-   Values are multiplied on-the-fly when accessed or converted to numpy.
+
+## Vector-Matrix Multiplication
+
+Use the `@` operator for matrix-vector multiplication.
+-   **Matrix @ Vector**: `M @ v` returns a column vector ($M \times v$).
+-   **Vector @ Matrix**: `v.T @ M` returns a row vector ($v^T \times M$).
 
 # Saving and Storing Matrices
 In pycauset, large matrices are automatically stored on your device's storage disk to allow for work with humongous datasets. Small matrices may live in RAM for performance until they grow too large.
+
+### Temporary Files & Lifecycle
+By default, `pycauset` manages backing files automatically. Files are stored in a `.pycauset` directory in the current working directory.
+
+*   **Configuration**: Set the `PYCAUSET_STORAGE_DIR` environment variable to relocate the storage directory.
+*   **Automatic Cleanup**: Temporary files are deleted when the Python interpreter exits.
+*   **Persistence**: Set `pycauset.keep_temp_files = True` to prevent deletion (useful for debugging).
+*   **Manual Cleanup**: Call `matrix.close()` to release the memory-mapped handle immediately.
 
 ### Saving a Matrix
 Matrices are backed by temporary files that are deleted when the program exits, unless [[pycauset.keep_temp_files]] is set to `True`. To permanently save a specific matrix, use [[pycauset.save]]. 

@@ -1,12 +1,12 @@
 # Spacetime Manifolds
 
-`pycauset` provides a library of standard spacetime manifolds that can be used as the domain for sprinkling causal sets. These are available in the `pycauset.spacetime` module.
+`pycauset` provides a library of standard spacetime manifolds that can be used as the domain for sprinkling causal sets. These are available in the [[pycauset.spacetime]] module.
 
 ## Available Spacetimes
 
 ### MinkowskiDiamond
 
-The `MinkowskiDiamond` represents a causal diamond in flat Minkowski space. This is the intersection of the future lightcone of a point $p$ and the past lightcone of a point $q$.
+The [[pycauset.spacetime.MinkowskiDiamond]] represents a causal diamond in flat Minkowski space. This is the intersection of the future lightcone of a point $p$ and the past lightcone of a point $q$.
 
 **Coordinates**:
 *   **2D (1+1)**: Uses **Lightcone Coordinates** $(u, v)$ where $u, v \in [0, 1]$.
@@ -26,7 +26,7 @@ diamond = spacetime.MinkowskiDiamond(dimension=2)
 
 ### MinkowskiCylinder
 
-The `MinkowskiCylinder` represents a flat Minkowski spacetime with periodic boundary conditions in the spatial dimension. This topology is $S^1 \times \mathbb{R}$ (circle $\times$ time).
+The [[pycauset.spacetime.MinkowskiCylinder]] represents a flat Minkowski spacetime with periodic boundary conditions in the spatial dimension. This topology is $S^1 \times \mathbb{R}$ (circle $\times$ time).
 
 **Coordinates**:
 *   **2D (1+1)**: Uses **Standard Coordinates** $(t, x)$.
@@ -44,7 +44,7 @@ cylinder = spacetime.MinkowskiCylinder(dimension=2, height=2.0, circumference=3.
 
 ### MinkowskiBox
 
-The `MinkowskiBox` represents a rectangular block in flat Minkowski space with "hard wall" boundaries. This is useful for studying boundary effects where the boundaries are not null surfaces (unlike the Diamond).
+The [[pycauset.spacetime.MinkowskiBox]] represents a rectangular block in flat Minkowski space with "hard wall" boundaries. This is useful for studying boundary effects where the boundaries are not null surfaces (unlike the Diamond).
 
 **Coordinates**:
 *   **2D (1+1)**: Uses **Standard Coordinates** $(t, x)$.
@@ -62,7 +62,7 @@ box = spacetime.MinkowskiBox(dimension=2, time_extent=2.0, space_extent=1.0)
 
 ## Visualization Support
 
-All standard spacetimes support the visualization interface used by `pycauset.vis`. They implement:
+All standard spacetimes support the visualization interface used by [[pycauset.vis]]. They implement:
 
 *   `transform_coordinates(coords)`: Converts internal coordinates (like lightcone $u,v$) to visualization-friendly coordinates (like Cartesian $t,x$ or 3D Cylindrical).
 *   `get_boundary()`: Returns the geometry of the spacetime boundary for plotting.
@@ -71,7 +71,7 @@ See the [[Visualization Guide]] for more details.
 
 ## Using Spacetimes with CausalSet
 
-You can pass these spacetime objects to the `CausalSet` constructor.
+You can pass these spacetime objects to the [[pycauset.CausalSet]] constructor.
 
 ### Fixed Number Sprinkling
 

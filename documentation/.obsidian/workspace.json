@@ -41,12 +41,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "guides/Field Theory.md",
+                "file": "guides/Installation.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Field Theory"
+              "title": "Installation"
             }
           },
           {
@@ -199,13 +199,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "guides/Field Theory.md",
+                "file": "guides/Installation.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Field Theory"
+              "title": "Outline of Installation"
             }
           }
         ],
@@ -228,6 +228,8 @@
   },
   "active": "897ac96167f0d34c",
   "lastOpenFiles": [
+    "guides/User Guide.md",
+    "guides/Field Theory.md",
     "guides/Causal Sets.md",
     "project/index.md",
     "internals/Stateless Sprinkling.md",
@@ -252,8 +254,6 @@
     "docs/classes/spacetime/pycauset.spacetime.md",
     "docs/classes/spacetime/pycauset.CausalSet.md",
     "docs/classes/matrix/pycauset.TriangularBitMatrix.md",
-    "docs/classes/matrix/pycauset.TriangularMatrix.md",
-    "docs/classes/matrix/pycauset.TriangularIntegerMatrix.md",
     "docs/classes/vector",
     "docs/classes/spacetime",
     "docs/classes/matrix",

@@ -16,7 +16,6 @@ These guides provide in-depth explanations of PyCauset's features and concepts.
 
 ## Advanced Topics
 
-*   **[[Matrix Guide]]**: Understanding the underlying matrix storage.
+*   **[[Matrix Guide]]**: Understanding the underlying matrix storage and operations.
 *   **[[Vector Guide]]**: Working with dense vectors.
 *   **[[Numpy Integration]]**: Interfacing with Numpy.
-*   **[[Matrix Multiplication]]**: Details on large-scale matrix operations.
