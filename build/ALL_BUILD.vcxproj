@@ -174,9 +174,9 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </ProjectReference>
-    <ProjectReference Include="C:\Users\ireal\Documents\pycauset\build\pycauset.vcxproj">
-      <Project>{38B6E996-5D7D-3489-9C2C-B2E1FCB4CDAF}</Project>
-      <Name>pycauset</Name>
+    <ProjectReference Include="C:\Users\ireal\Documents\pycauset\build\_pycauset.vcxproj">
+      <Project>{6D949BCF-F57A-38B1-A2F1-A9CA5AD30B2E}</Project>
+      <Name>_pycauset</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </ProjectReference>

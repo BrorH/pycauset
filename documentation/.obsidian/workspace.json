@@ -13,12 +13,26 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "index.md",
+                "file": "guides/Causal Sets.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "index"
+              "title": "Causal Sets"
+            }
+          },
+          {
+            "id": "ff68d4a378916f44",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "project/TODO.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "TODO"
             }
           },
           {
@@ -49,7 +63,8 @@
               "title": "Matrix Hierarchy"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -184,13 +199,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "index.md",
+                "file": "project/TODO.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of index"
+              "title": "Outline of TODO"
             }
           }
         ],
@@ -211,9 +226,14 @@
       "bases:Create new base": false
     }
   },
-  "active": "1563eaae446d05e3",
+  "active": "ff68d4a378916f44",
   "lastOpenFiles": [
+    "api/classes/pycauset.CausalSet.md",
+    "api/classes/pycauset.CausalMatrix.md",
+    "guides/Causal Sets.md",
+    "internals/Stateless Sprinkling.md",
     "project/TODO.md",
+    "index.md",
     "project/Philosophy.md",
     "internals/Release Process.md",
     "javascripts/mermaid.js",
@@ -221,7 +241,6 @@
     "stylesheets",
     "javascripts/mathjax.js",
     "javascripts",
-    "index.md",
     "guides/User Guide.md",
     "guides/Inversion.md",
     "api/functions/pycauset.invert.md",
@@ -237,13 +256,9 @@
     "api/classes/pycauset.TriangularFloatMatrix.md",
     "api/classes/pycauset.BitVector.md",
     "api/classes/pycauset.IntegerMatrix.md",
-    "api/classes/pycauset.CausalMatrix.md",
     "api/classes/pycauset.ComplexMatrix.md",
     "api/functions/pycauset.save.md",
     "api/functions/pycauset.dot.md",
-    "api/functions/pycauset.compute_k.md",
-    "api/classes/pycauset.IdentityMatrix.md",
-    "api/functions/pycauset.I.md",
     "api/functions",
     "api/classes",
     "project",

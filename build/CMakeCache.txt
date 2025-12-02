@@ -301,12 +301,6 @@ PYBIND11_TEST:BOOL=OFF
 //Path to a program.
 PYTHON_EXECUTABLE:FILEPATH=C:/Users/ireal/AppData/Local/Programs/Python/Python312/python.exe
 
-//No help, variable specified on the command line.
-Python3_EXECUTABLE:FILEPATH=C:/Users/ireal/Documents/pycauset/.venv/Scripts/python.exe
-
-//No help, variable specified on the command line.
-Python_EXECUTABLE:FILEPATH=C:/Users/ireal/Documents/pycauset/.venv/Scripts/python.exe
-
 //Value Computed by CMake
 pybind11_BINARY_DIR:STATIC=C:/Users/ireal/Documents/pycauset/build/_deps/pybind11-build
 
@@ -488,7 +482,7 @@ FIND_PACKAGE_MESSAGE_DETAILS_OpenMP_CXX:INTERNAL=[-openmp][v2.0()]
 //Details about finding PYTHON
 FIND_PACKAGE_MESSAGE_DETAILS_PYTHON:INTERNAL=C:/Users/ireal/AppData/Local/Programs/Python/Python312/python.exe3.12.10
 //Details about finding Python
-FIND_PACKAGE_MESSAGE_DETAILS_Python:INTERNAL=[C:/Users/ireal/Documents/pycauset/.venv/Scripts/python.exe][C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/python312.lib][C:/Users/ireal/AppData/Local/Programs/Python/Python312/Include][found components: Interpreter Development.Module ][v3.12.10()]
+FIND_PACKAGE_MESSAGE_DETAILS_Python:INTERNAL=[C:/Users/ireal/AppData/Local/Programs/Python/Python312/python.exe][C:/Users/ireal/AppData/Local/Programs/Python/Python312/libs/python312.lib][C:/Users/ireal/AppData/Local/Programs/Python/Python312/Include][found components: Interpreter Development.Module ][v3.12.10()]
 //Details about finding PythonInterp
 FIND_PACKAGE_MESSAGE_DETAILS_PythonInterp:INTERNAL=[C:/Users/ireal/AppData/Local/Programs/Python/Python312/python.exe][v3.12.10(3.6)]
 //Test HAS_MSVC_GL_LTCG
@@ -524,14 +518,15 @@ _Python_Compiler_REASON_FAILURE:INTERNAL=
 _Python_DEVELOPMENT_MODULE_SIGNATURE:INTERNAL=06a5748b3e67356a8f887cd6fe434c3b
 //Development reason failure
 _Python_Development_REASON_FAILURE:INTERNAL=
-_Python_EXECUTABLE:INTERNAL=C:/Users/ireal/Documents/pycauset/.venv/Scripts/python.exe
+//Path to a program.
+_Python_EXECUTABLE:INTERNAL=C:/Users/ireal/AppData/Local/Programs/Python/Python312/python.exe
 //Path to a program.
 _Python_EXECUTABLE_DEBUG:INTERNAL=_Python_EXECUTABLE_DEBUG-NOTFOUND
 //Path to a file.
 _Python_INCLUDE_DIR:INTERNAL=C:/Users/ireal/AppData/Local/Programs/Python/Python312/Include
 //Python Properties
-_Python_INTERPRETER_PROPERTIES:INTERNAL=Python;3;12;5;64;<none>;cp312-win_amd64;;C:\Users\ireal\AppData\Local\Programs\Python\Python312\Lib;C:\Users\ireal\Documents\pycauset\.venv\Lib;C:\Users\ireal\Documents\pycauset\.venv\Lib\site-packages;C:\Users\ireal\Documents\pycauset\.venv\Lib\site-packages
-_Python_INTERPRETER_SIGNATURE:INTERNAL=b1b9e2f41e9ec7614125b2f41bc99327
+_Python_INTERPRETER_PROPERTIES:INTERNAL=Python;3;12;10;64;<none>;cp312-win_amd64;;C:\Users\ireal\AppData\Local\Programs\Python\Python312\Lib;C:\Users\ireal\AppData\Local\Programs\Python\Python312\Lib;C:\Users\ireal\AppData\Local\Programs\Python\Python312\Lib\site-packages;C:\Users\ireal\AppData\Local\Programs\Python\Python312\Lib\site-packages
+_Python_INTERPRETER_SIGNATURE:INTERNAL=e91d91f464a73767be81735efa184ede
 //Interpreter reason failure
 _Python_Interpreter_REASON_FAILURE:INTERNAL=
 //Path to a library.

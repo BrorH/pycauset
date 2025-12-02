@@ -57,25 +57,27 @@ set(PYCAUSET_SOURCES
     src/DenseVector.cpp
     src/MatrixOperations.cpp
     src/MatrixFactory.cpp
+    src/Sprinkler.cpp
 )
 
 # --- Extension Module ---
-# Note: The module name must match what is defined in PYBIND11_MODULE in bindings.cpp (which is "pycauset")
-python_add_library(pycauset MODULE ${PYCAUSET_SOURCES})
+# Note: The module name must match what is defined in PYBIND11_MODULE in bindings.cpp (which is "_pycauset")
+# Touch
+python_add_library(_pycauset MODULE ${PYCAUSET_SOURCES})
 
 # Include directories
-target_include_directories(pycauset PRIVATE include)
+target_include_directories(_pycauset PRIVATE include)
 
 # Link libraries
-target_link_libraries(pycauset PRIVATE pybind11::module)
+target_link_libraries(_pycauset PRIVATE pybind11::module)
 
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(pycauset PRIVATE OpenMP::OpenMP_CXX)
+    target_link_libraries(_pycauset PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
 # --- Installation ---
 # This installs the compiled extension into the python package directory
-install(TARGETS pycauset DESTINATION python/pycauset)
+install(TARGETS _pycauset DESTINATION python/pycauset)
 
 # --- Testing (Only if explicitly requested or not a pip build) ---
 option(BUILD_TESTS "Build tests" OFF)
