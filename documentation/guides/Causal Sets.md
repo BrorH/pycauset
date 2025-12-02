@@ -25,10 +25,14 @@ c = pycauset.Causet(10000)
 
 ### Reproducibility
 
-To ensure your causal set is identical every time you run your code, provide a `seed`:
+To ensure your causal set is identical every time you run your code, provide a `seed`. This can be an integer or a string.
 
 ```python
-c = pycauset.Causet(10000, seed=12345)
+# Using an integer seed
+c1 = pycauset.Causet(10000, seed=12345)
+
+# Using a string seed (useful for naming simulations)
+c2 = pycauset.Causet(10000, seed="simulation_A_run_1")
 ```
 
 ## Accessing the Causal Matrix

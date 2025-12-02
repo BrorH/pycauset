@@ -24,6 +24,19 @@ matrix = c.C
 c.save("my_universe.causet")
 ```
 
+### Visualization
+PyCauset includes a visualization module powered by Plotly. You can generate interactive 3D embeddings of your causal sets.
+
+For a complete guide, see [[Visualization Guide]].
+
+```python
+from pycauset.vis import plot_embedding
+
+# Visualize a causal set
+fig = plot_embedding(c)
+fig.show()
+```
+
 For a detailed guide on generating and analyzing causal sets, see [[Causal Sets]].
 
 ### Field Theory

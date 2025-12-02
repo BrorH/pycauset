@@ -43,6 +43,32 @@ This ensures that at any given moment, we only hold a tiny fraction of the coord
 *   **Disk-Backed Matrices**: The resulting causal matrix is stored in a `TriangularBitMatrix` which is backed by a file on disk. This allows the OS to manage memory paging, so even the matrix doesn't need to be fully loaded into RAM.
 *   **Reproducibility**: The entire causal set is defined by its size $N$ and the `seed`. This makes it easy to save and share "datasets" by just sharing the metadata.
 
-## Summary
+## Coordinate Recovery Algorithm
 
-By trading a small amount of CPU time (re-generating coordinates) for massive memory savings, `pycauset` enables the study of causal sets orders of magnitude larger than traditional in-memory implementations.
+Since coordinates are not stored, retrieving the position of a specific element $i$ (where $0 \le i < N$) requires re-running the generation process for that specific point. To make this efficient, we do not restart from index 0. Instead, we use a **Block-Skipping** algorithm.
+
+### The Algorithm
+
+1.  **Block Decomposition**:
+    The element index $i$ is mapped to a block index $B$ and an offset $k$:
+    $$ B = \lfloor i / \text{BLOCK\_SIZE} \rfloor $$
+    $$ k = i \pmod{\text{BLOCK\_SIZE} } $$
+    Currently, `BLOCK_SIZE` is set to **10,000**.
+
+2.  **Block Seeding**:
+    We compute a unique, deterministic seed for block $B$ using a hash of the global seed and the block index. This uses a `SplitMix64`-style mixing function to ensure good distribution:
+    ```cpp
+    uint64_t z = global_seed + block_idx * 0x9e3779b97f4a7c15;
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+    block_seed = z ^ (z >> 31);
+    ```
+
+3.  **Fast-Forwarding**:
+    We initialize a 64-bit Mersenne Twister (`std::mt19937_64`) with `block_seed`.
+    We then call the spacetime's `generate_point` function $k$ times, discarding the results.
+    The $(k+1)$-th call returns the coordinate for element $i$.
+
+### Performance Note
+This approach means that retrieving a single coordinate takes at most `BLOCK_SIZE` RNG operations, which is effectively constant time $O(1)$ relative to the total size $N$. This allows for efficient random access to coordinates for visualization or analysis without ever instantiating the full coordinate array.
+

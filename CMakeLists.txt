@@ -77,7 +77,7 @@ endif()
 
 # --- Installation ---
 # This installs the compiled extension into the python package directory
-install(TARGETS _pycauset DESTINATION python/pycauset)
+install(TARGETS _pycauset DESTINATION pycauset)
 
 # --- Testing (Only if explicitly requested or not a pip build) ---
 option(BUILD_TESTS "Build tests" OFF)

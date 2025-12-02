@@ -68,6 +68,9 @@ class ScalarField(Field):
         try:
             rho = self._causet.density
         except (ValueError, AttributeError):
+            rho = None
+            
+        if rho is None:
              raise ValueError(
                 "Cannot compute field coefficients: CausalSet density is unknown. "
                 "Ensure the CausalSet was created with density information or provide 'a' and 'b' manually."
@@ -76,8 +79,11 @@ class ScalarField(Field):
         dim = self._causet.spacetime.dimension()
         st_type = self._causet.spacetime.__class__.__name__
         
-        # Currently, we only have formulas for Minkowski spacetime
-        if "Minkowski" not in st_type:
+        # Check if spacetime is Minkowski-like (flat)
+        # This includes Diamond, Cylinder, Box, etc.
+        is_flat = "Minkowski" in st_type
+        
+        if not is_flat:
              raise NotImplementedError(
                 f"Field coefficients for spacetime '{st_type}' are not yet implemented. "
                 "Please provide 'a' and 'b' manually."

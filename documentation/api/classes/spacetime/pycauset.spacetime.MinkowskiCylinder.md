@@ -48,6 +48,24 @@ def dimension(self) -> int
 
 Returns the dimension of the spacetime.
 
+### transform_coordinates
+
+```python
+def transform_coordinates(self, coords: np.ndarray) -> np.ndarray
+```
+
+*(Extension)* Transforms raw coordinates to a visualization-friendly basis.
+For 2D, this maps $(t, x)$ to 3D cylindrical coordinates $(z, x, y)$.
+
+### get_boundary
+
+```python
+def get_boundary(self) -> List[np.ndarray]
+```
+
+*(Extension)* Returns the boundary rings (top and bottom) of the cylinder in the transformed coordinate system.
+
+
 ### volume
 
 ```python

@@ -1030,6 +1030,15 @@ PYBIND11_MODULE(_pycauset, m) {
         .def_property_readonly("height", &pycauset::MinkowskiCylinder::get_height)
         .def_property_readonly("circumference", &pycauset::MinkowskiCylinder::get_circumference);
 
+    py::class_<pycauset::MinkowskiBox, pycauset::CausalSpacetime>(m, "MinkowskiBox")
+        .def(py::init<int, double, double>(),
+             py::arg("dimension"),
+             py::arg("time_extent"),
+             py::arg("space_extent"))
+        .def("dimension", &pycauset::MinkowskiBox::dimension)
+        .def_property_readonly("time_extent", &pycauset::MinkowskiBox::get_time_extent)
+        .def_property_readonly("space_extent", &pycauset::MinkowskiBox::get_space_extent);
+
     // Sprinkler
     m.def("sprinkle", &pycauset::Sprinkler::sprinkle, 
           py::arg("spacetime"), 
@@ -1037,4 +1046,11 @@ PYBIND11_MODULE(_pycauset, m) {
           py::arg("seed"), 
           py::arg("saveas") = "",
           "Sprinkle points into a spacetime and return the causal matrix.");
+
+    m.def("make_coordinates", &pycauset::Sprinkler::make_coordinates,
+          py::arg("spacetime"),
+          py::arg("n"),
+          py::arg("seed"),
+          py::arg("indices"),
+          "Regenerate coordinates for specific indices.");
 }

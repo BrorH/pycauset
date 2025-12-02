@@ -3,16 +3,20 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../python")))
 from pycauset import Causet, spacetime
 
-# 1. Standard Diamond (Fixed N)
-c1 = Causet(n=1000, spacetime=spacetime.MinkowskiDiamond(2))
+from pycauset import CausalSet, MinkowskiDiamond
+from pycauset.vis import plot_hasse, plot_causal_matrix
 
-# 2. Cylinder (Periodic Boundary) with Density
-# This will generate N ~ Poisson(density * volume)
-cyl = spacetime.MinkowskiCylinder(dimension=2, height=10.0, circumference=5.0)
-c2 = Causet(density=100, spacetime=cyl)
+# Generate a small causal set
+c = CausalSet(n=50, spacetime=MinkowskiDiamond(2), seed=42)
 
+# Plot Hasse Diagram
 
+from pycauset import CausalSet, MinkowskiDiamond
+from pycauset.vis import plot_hasse, plot_causal_matrix
 
-print(f"Generated {c2.n} elements in a cylinder of volume {cyl.volume()}")
+# Generate a small causal set
+c = CausalSet(n=50, spacetime=MinkowskiCylinder(2), seed=42)
 
-print(c1.C)
+# Plot Hasse Diagram
+fig_hasse = plot_hasse(c, title="Hasse Diagram")
+fig_hasse.show()
