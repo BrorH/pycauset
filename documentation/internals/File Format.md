@@ -1,6 +1,6 @@
 # PyCauset File Format Specification
 
-PyCauset uses a custom binary format for storing large numerical objects (Matrices, Vectors) efficiently on disk. The format is designed to support memory mapping, allowing datasets larger than available RAM to be processed with high performance.
+PyCauset uses a custom binary format (`.pycauset`) for storing various large numerical objects efficiently on disk. While originally designed for matrices, the format now supports multiple object types including **Dense Matrices**, **Triangular Matrices**, **Bit-Packed Matrices**, and **Vectors**. The format is designed to support memory mapping, allowing datasets larger than available RAM to be processed with high performance.
 
 ## File Structure
 
@@ -31,7 +31,7 @@ The header contains metadata necessary to identify the object type, dimensions, 
 | :----- | :--------- | :-------- | :------------------------- |
 | 0      | 8 bytes    | char[8]   | Magic Number: `"PYCAUSET"` |
 | 8      | 4 bytes    | uint32_t  | Pycauset version (2)       |
-| 12     | 4 bytes    | uint32_t  | Matrix Type (Enum)         |
+| 12     | 4 bytes    | uint32_t  | Object Type (Enum)         |
 | 16     | 4 bytes    | uint32_t  | Data Type (Enum)           |
 | 20     | 8 bytes    | uint64_t  | Rows ($N$)                 |
 | 28     | 8 bytes    | uint64_t  | Columns ($M$)              |
@@ -43,7 +43,7 @@ The header contains metadata necessary to identify the object type, dimensions, 
 
 ### Enums
 
-**Matrix Type (`uint32_t`)**
+**Object Type (`uint32_t`)**
 
 *   `1`: **CAUSAL** (Strictly Upper Triangular Matrix, Boolean/Bit storage)
 *   `2`: **INTEGER** (Strictly Upper Triangular Matrix, 32-bit Integer storage)

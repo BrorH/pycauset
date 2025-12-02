@@ -166,4 +166,4 @@ The $K$ matrix (retarded propagator) is a fundamental quantity.
 K = c.compute_k(a=1.0)
 ```
 
-## What is a CausalSet Instance?
+
