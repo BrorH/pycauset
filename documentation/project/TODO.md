@@ -9,8 +9,8 @@ Goals:
 - [x] Host the documentation (github site?)
 
 ## Wanted features
-- [ ] Figure out how to correctly randomly fill C
-- [ ] Visualizations of matrices
+- [x] Figure out how to correctly randomly fill C
+- [ ] Visualizations of causets
 - [ ] gpu parallelization
 - [x] Saving/loading causal matrices to/from binary files.
 - [x] Implement matrix operations: addition, subtraction, multiplication.
@@ -27,11 +27,12 @@ Goals:
 - [x] complex numbers support
 - [x]  introduce RAM-backed mapping for small temporary objects
 - [ ] Create Pauli-Jordan function $i\Delta$ 
-- [ ] User-configurable spacetimes, geometries and springlings
+- [ ] User-configurable spacetimes, geometries and sprinklings
+- [ ] DISABLE AUTO-versioning being pushed to pypi!!!!!
 
 ### Qs:
 - [ ] When a CausalSet instances is created, how does one ensure/know that the CausalMAtrix has been saved? Make this intuitive!
-
+- [ ] what do we do with pc.CausalMatrix(N, populate=True) now that "populate" uses and outdated version of population? 
 
 ## Documentation needed
 - [x] pycauset.save (deprecated)

@@ -1,21 +1,30 @@
 # pycauset.save
 
 ```python
-pycauset.save(obj: PersistentObject, path: str)
+pycauset.save(obj: Union[PersistentObject, CausalSet], path: str)
 ```
 
-Saves a persistent object (matrix or vector) to a permanent location on disk.
+Saves a persistent object (matrix, vector) or a `CausalSet` to a permanent location on disk.
 
-This function attempts to create a hard link to the object's backing file to avoid data duplication. If a hard link cannot be created (e.g., across different filesystems), it falls back to copying the file.
+*   **For Matrices/Vectors**: Attempts to create a hard link to the backing file. If that fails, it copies the file.
+*   **For CausalSets**: Delegates to `CausalSet.save()`, creating a `.causet` ZIP archive containing metadata and the matrix.
 
 ## Parameters
 
-*   **obj** (*PersistentObject*): The object to save.
-*   **path** (*str*): The destination path where the object should be saved.
+*   **obj** (*PersistentObject* | *CausalSet*): The object to save.
+*   **path** (*str*): The destination path.
 
 ## Example
 
 ```python
-C = pycauset.CausalMatrix(1000)
-pycauset.save(C, "my_saved_matrix.pycauset")
+# Save a raw matrix
+pc.save(matrix, "data.pycauset")
+
+# Save a Causal Set
+pc.save(causet, "universe.causet")
 ```
+
+## See Also
+
+*   [[pycauset.CausalSet.save]]
+

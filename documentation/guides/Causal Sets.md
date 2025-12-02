@@ -37,16 +37,16 @@ The core data of a causal set is its _causal matrix_. In `pycauset`, this is rep
 
 ```python
 # Get the causal matrix
-M = c.CausalMatrix
+C = c.CausalMatrix
 
 # Or using the alias
-M = c.C
+C = c.C
 
-# M is a pycauset.TriangularBitMatrix
-print(M)
+# C is a pycauset.TriangularBitMatrix
+print(C)
 ```
 
-The matrix $M$ is defined such that $M_{ij} = 1$ if element $i$ is in the causal past of element $j$ ($i \prec j$), and $0$ otherwise. Since the points are sorted by their time coordinate during generation, the matrix is strictly upper triangular.
+The matrix $C$ is defined such that $C_{ij} = 1$ if element $i$ is in the causal past of element $j$ ($i \prec j$), and $0$ otherwise. Since the points are sorted by their time coordinate during generation, the matrix is strictly upper triangular.
 
 ## What is a CausalSet Instance?
 
@@ -78,14 +78,88 @@ The "End Product" of the initialization is the **Causal Matrix** stored on disk.
 c_large = pycauset.Causet(1_000_000)
 
 # The matrix is stored on disk, mapped into memory only as needed
-M_large = c_large.C
+C_large = c_large.C
 ```
 
-## Custom Spacetimes
+## Spacetimes
 
-By default, `CausalSet` uses a 2-dimensional Minkowski Diamond. (Future versions will support custom spacetime manifolds).
+You can sprinkle into different spacetime manifolds using the `spacetime` parameter. The `pycauset.spacetime` module provides standard manifolds.
+
+### Minkowski Diamond
+The default spacetime is a 2D Minkowski Diamond (Alexandrov interval).
 
 ```python
-# Currently, only the default 2D Minkowski Diamond is fully exposed via the high-level API
-# but the architecture supports arbitrary dimensions and metrics.
+from pycauset import Causet, spacetime
+
+# Explicitly specifying the diamond
+diamond = spacetime.MinkowskiDiamond(dimension=2)
+c = Causet(n=1000, spacetime=diamond)
 ```
+
+### Minkowski Cylinder
+A flat spacetime with periodic spatial boundary conditions ($S^1 \times \mathbb{R}$).
+
+## Adding Matter (Fields)
+
+Once you have a causal set, you can define quantum fields on it to study particle propagation and entanglement. PyCauset separates the geometry (the set) from the matter (the field).
+
+See the [[Field Theory]] guide for details on how to define Scalar Fields and compute propagators.
+
+```python
+from pycauset.field import ScalarField
+
+# Define a field on the set
+field = ScalarField(c, mass=1.0)
+K = field.propagator()
+```
+
+```python
+# A cylinder with height 2.0 and circumference 5.0
+cyl = spacetime.MinkowskiCylinder(dimension=2, height=2.0, circumference=5.0)
+c = Causet(n=1000, spacetime=cyl)
+```
+
+## Sprinkling Modes
+
+### Fixed N
+Specify `n` to generate exactly that many elements.
+
+```python
+c = Causet(n=1000)
+```
+
+### Fixed Density
+Specify `density` ($\rho$) to generate elements based on a Poisson process. The actual number of elements $N$ will vary according to the Poisson distribution $N \sim \text{Poisson}(\rho V)$.
+
+```python
+# Sprinkle with density 100.0
+# If volume is 1.0, expected N is 100
+c = Causet(density=100.0)
+print(f"Realized N: {c.N}")
+print(f"Realized Density: {c.rho}")
+```
+
+## Saving and Loading
+
+You can save a `CausalSet` to a portable `.causet` file. This archive contains the metadata (parameters, seed, spacetime info) and the binary causal matrix.
+
+```python
+# Save
+c.save("my_simulation") # Creates my_simulation.causet
+
+# Load
+# This reconstructs the object exactly without re-sprinkling
+c_loaded = Causet.load("my_simulation.causet")
+```
+
+## Analysis
+
+### Computing K
+The $K$ matrix (retarded propagator) is a fundamental quantity.
+
+```python
+# Compute K with non-locality scale a=1.0
+K = c.compute_k(a=1.0)
+```
+
+## What is a CausalSet Instance?

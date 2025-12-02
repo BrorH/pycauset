@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "project/TODO.md",
+                "file": "guides/Field Theory.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "TODO"
+              "title": "Field Theory"
             }
           },
           {
@@ -199,13 +199,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "project/TODO.md",
+                "file": "guides/Field Theory.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of TODO"
+              "title": "Outline of Field Theory"
             }
           }
         ],
@@ -228,41 +228,41 @@
   },
   "active": "ff68d4a378916f44",
   "lastOpenFiles": [
-    "api/classes/pycauset.CausalSet.md",
-    "api/classes/pycauset.CausalMatrix.md",
+    "api/classes/field/pycauset.field.ScalarField.md",
+    "api/classes/field/pycauset.field.Field.md",
+    "internals/Math Derivation.md",
+    "guides/Field Theory.md",
+    "api/classes/field",
+    "guides/User Guide.md",
+    "internals/File Format.md",
+    "internals/Matrix Hierarchy.md",
+    "api/classes/spacetime/pycauset.CausalSet.md",
+    "api/classes/core/pycauset.PersistentObject.md",
     "guides/Causal Sets.md",
-    "internals/Stateless Sprinkling.md",
-    "project/TODO.md",
-    "index.md",
-    "project/Philosophy.md",
-    "internals/Release Process.md",
+    "api/classes/pycauset.spacetime.CausalSpacetime.md",
+    "api/classes/vector/pycauset.VectorBase.md",
+    "api/classes/vector/pycauset.Vector.md",
+    "api/classes/vector/pycauset.IntegerVector.md",
+    "api/classes/vector/pycauset.FloatVector.md",
+    "api/classes/vector/pycauset.BitVector.md",
+    "api/classes/matrix/pycauset.TriangularMatrix.md",
+    "api/classes/matrix/pycauset.TriangularIntegerMatrix.md",
+    "api/classes/matrix/pycauset.TriangularFloatMatrix.md",
+    "api/classes/matrix/pycauset.TriangularBitMatrix.md",
+    "api/classes/matrix/pycauset.MatrixBase.md",
+    "api/classes/matrix/pycauset.Matrix.md",
+    "api/classes/matrix/pycauset.IntegerMatrix.md",
+    "api/classes/matrix/pycauset.IdentityMatrix.md",
+    "api/classes/matrix/pycauset.FloatMatrix.md",
+    "api/classes/matrix/pycauset.DenseBitMatrix.md",
+    "api/classes/core",
+    "api/classes/vector",
+    "api/classes/matrix",
+    "api/classes/spacetime",
     "javascripts/mermaid.js",
     "stylesheets/extra.css",
     "stylesheets",
     "javascripts/mathjax.js",
-    "javascripts",
-    "guides/User Guide.md",
-    "guides/Inversion.md",
-    "api/functions/pycauset.invert.md",
-    "guides/Matrix Multiplication.md",
-    "guides/Vector Guide.md",
-    "guides/Numpy Integration.md",
-    "api/functions/pycauset.set_memory_threshold.md",
-    "api/functions/pycauset.get_memory_threshold.md",
-    "api/functions/pycauset.matmul.md",
-    "api/functions/pycauset.compute_k_matrix.md",
-    "api/classes/pycauset.FloatMatrix.md",
-    "api/classes/pycauset.TriangularMatrix.md",
-    "api/classes/pycauset.TriangularFloatMatrix.md",
-    "api/classes/pycauset.BitVector.md",
-    "api/classes/pycauset.IntegerMatrix.md",
-    "api/classes/pycauset.ComplexMatrix.md",
-    "api/functions/pycauset.save.md",
-    "api/functions/pycauset.dot.md",
-    "api/functions",
-    "api/classes",
-    "project",
-    "api/parameters",
-    "internals"
+    "javascripts"
   ]
 }

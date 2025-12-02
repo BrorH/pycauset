@@ -1,4 +1,4 @@
-The back-bone of pycauset is the matrix system. It is built from the ground-up to allow a seamless workflow as similar to possible to numpy.
+The back-bone of pycauset is the matrix system. While most users will interact with the high-level [[pycauset.CausalSet]] class, the matrix engine powers everything underneath. It is built from the ground-up to allow a seamless workflow as similar to possible to numpy.
 
 `pycauset` behaves like NumPy at small scales (storing data in RAM), but converts to a memory-efficient beast at high scales (automatically spilling to disk).
 
@@ -71,9 +71,13 @@ C = 0.5 * A
 ```
 
 # Saving and Storing Matrices
-In pycauset, matrices never live in-memory, but are stored on your device's storage disk. This allows for work humongous matrices.
+In pycauset, large matrices are automatically stored on your device's storage disk to allow for work with humongous datasets. Small matrices may live in RAM for performance until they grow too large.
+
 ### Saving a Matrix
 Matrices are backed by temporary files that are deleted when the program exits, unless [[pycauset.keep_temp_files]] is set to `True`. To permanently save a specific matrix, use [[pycauset.save]]. 
+
+**Note:** If you are working with a [[pycauset.CausalSet]], you should use its `.save()` method (or `pycauset.save(causet)`) to save the entire object including metadata. The method below is for raw matrices.
+
 ```python
 # Save the matrix to a permanent location
 pc.save(C, "my_saved_matrix.pycauset")

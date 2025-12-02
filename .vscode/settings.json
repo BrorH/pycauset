@@ -11,6 +11,7 @@
         "utility": "cpp",
         "variant": "cpp",
         "xutility": "cpp",
-        "stdexcept": "cpp"
+        "stdexcept": "cpp",
+        "vector": "cpp"
     }
 }
