@@ -16,6 +16,7 @@ import weakref
 import uuid
 import shutil
 import abc
+import zipfile
 from collections.abc import Sequence as _SequenceABC
 from pathlib import Path
 from typing import Any, Sequence, Tuple
@@ -23,6 +24,8 @@ from importlib import import_module as _import_module
 
 from ._storage import StorageRegistry, cleanup_storage, set_temporary_file
 from .causet import CausalSet
+from . import spacetime
+from . import field
 
 # Alias for CausalSet
 Causet = CausalSet
@@ -1013,21 +1016,39 @@ def invert(matrix: Any) -> Any:
     raise TypeError("Object does not support matrix inversion.")
 
 
-def save(matrix: Any, path: str | os.PathLike) -> None:
+def load(path: str | os.PathLike) -> Any:
     """
-    Save a matrix to a permanent location.
+    Load a PyCauset object from disk.
     
-    This function attempts to create a hard link to the matrix's backing file.
-    If that fails (e.g. cross-device), it falls back to copying the file.
+    Supports:
+    - .causet files (CausalSet archives)
+    - .pycauset files (Binary Matrix/Vector files)
+    """
+    path_obj = Path(path)
+    # Check for .causet extension or if it's a valid zip file
+    if path_obj.suffix == ".causet" or zipfile.is_zipfile(path):
+        return CausalSet.load(path)
+    
+    return _native.load(str(path))
+
+
+def save(obj: Any, path: str | os.PathLike) -> None:
+    """
+    Save a persistent object (Matrix, Vector, or CausalSet) to disk.
     
     Args:
-        matrix: The matrix object to save. Must have a backing file.
+        obj: The object to save. Can be a Matrix, Vector, or CausalSet.
         path: The destination path.
     """
-    if not hasattr(matrix, "get_backing_file"):
+    # If it's a CausalSet (or anything with a custom save method), delegate
+    if hasattr(obj, "save") and callable(obj.save) and not isinstance(obj, _native.MatrixBase):
+        obj.save(path)
+        return
+
+    if not hasattr(obj, "get_backing_file"):
         raise TypeError("The provided object does not support file-backed storage.")
         
-    source = Path(matrix.get_backing_file())
+    source = Path(obj.get_backing_file())
     if not source.exists():
         raise FileNotFoundError(f"Backing file not found: {source}")
         

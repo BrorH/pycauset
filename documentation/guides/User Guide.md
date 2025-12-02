@@ -1,7 +1,7 @@
 # Pycauset User Guide
 
 ## Overview
-The `pycauset` module provides a high-performance interface for working with massive Causal Matrices. It employs a hybrid storage model: small objects behave like NumPy arrays in RAM, while massive datasets automatically spill over to memory-mapped files on disk. This allows `pycauset` to be memory-efficient at scale without sacrificing performance for smaller tasks.
+The `pycauset` module provides a high-performance interface for working with massive Causal Sets. It employs a hybrid storage model: small objects behave like NumPy arrays in RAM, while massive datasets automatically spill over to memory-mapped files on disk. This allows `pycauset` to be memory-efficient at scale without sacrificing performance for smaller tasks.
 
 ## Usage
 
@@ -10,8 +10,40 @@ The `pycauset` module provides a high-performance interface for working with mas
 import pycauset as pc
 ```
 
-### Creating a Matrix
-The fundamental class in [[pycauset]] is [[pycauset.Matrix]]. You can think of it as similar to a NumPy array, but restricted to square matrices.
+### Working with Causal Sets
+The primary abstraction in PyCauset is the **[[pycauset.CausalSet]]**. This object represents a causal set generated from a spacetime manifold.
+
+```python
+# Generate a causal set of 1000 points in a 2D Minkowski Diamond
+c = pc.CausalSet(1000)
+
+# Access the underlying causal matrix (TriangularBitMatrix)
+matrix = c.C
+
+# Save the entire set (metadata + matrix) to a .causet archive
+c.save("my_universe.causet")
+```
+
+For a detailed guide on generating and analyzing causal sets, see [[Causal Sets]].
+
+### Field Theory
+PyCauset supports defining fields on top of causal sets. The most common is the **Scalar Field**.
+
+For a complete guide, see [[Field Theory]].
+
+```python
+from pycauset.field import ScalarField
+
+# Define a massive scalar field on the causal set 'c'
+field = ScalarField(c, mass=0.5)
+
+# Compute the Retarded Propagator (K_R)
+# This automatically derives coefficients based on spacetime dimension and density
+K = field.propagator()
+```
+
+### Low-Level Matrix Operations
+While `CausalSet` is the high-level interface, `pycauset` exposes its powerful matrix engine directly. The fundamental class is [[pycauset.Matrix]]. You can think of it as similar to a NumPy array, but restricted to square matrices.
 
 #### [[pycauset.Matrix]]
 This is the general-purpose matrix factory. It can be created from lists, NumPy arrays, or by specifying a size. You can optionally specify a `dtype` to force a specific internal representation.
@@ -246,7 +278,7 @@ For more details, see the [NumPy Integration Guide](Numpy%20Integration.md).
 In addition to Matrices, `pycauset` supports efficient 1D Vectors (`FloatVector`, `IntegerVector`, `BitVector`). See the [Vector Guide](Vector%20Guide.md) for details.
 
 ## Matrix Operations
-```
+
 
 ### Creating a Vector
 `pycauset` also supports efficient, disk-backed vectors. See the [Vector Guide](Vector%20Guide.md) for details.
@@ -260,7 +292,7 @@ v_large = pycauset.Vector(1000000, dtype="float")
 ```
 
 ### Matrix Operations
-```
+
 
 #### Other Matrix Types
 The `Matrix` factory returns specialized classes based on the data:
@@ -434,48 +466,34 @@ shape = Result.shape
 1. **Avoid Loops**: Do not iterate over the matrix in Python (e.g., `for i in range(N)`). This is slow. Use the C++ operations.
 2. **Storage**: Ensure you have enough disk space. A $10^6 \times 10^6$ matrix requires ~64GB.
 3. **Memory**: The module uses very little RAM, but relies on the OS page cache.
-rhs = pycauset.CausalMatrix(100)
-# ... populate both ...
-overlap = lhs * rhs  # still a CausalMatrix
-```
 
-Use `pycauset.matmul(lhs, rhs)` for true matrix multiplication (`numpy.matmul` semantics). The result is an `IntegerMatrix` containing path counts / integer dot products.
+## Causal Sets
+
+While `CausalMatrix` handles the raw adjacency data, the [[pycauset.CausalSet]] class (alias `Causet`) represents the physical causal set object, including its spacetime embedding and generation parameters.
+
+### Creating and Saving
+You can generate a causal set and save it to disk for later analysis. The `.save()` method creates a portable `.causet` archive containing both the metadata and the binary matrix data.
 
 ```python
-# A -> B -> C implies A -> C
-A = pycauset.CausalMatrix(100, "A.bin")
-A[0, 10] = True
-A[10, 20] = True
+# Generate a set
+c = pc.Causet(n=5000, density=100.0)
 
-Result = pycauset.matmul(A, A)
-print(Result[0, 20])  # 1 path: 0->10->20
+# Compute properties
+print(f"Generated {c.N} elements in {c.spacetime}")
+# K = c.compute_k() # Deprecated
+
+# Save to disk
+c.save("universe_simulation")
 ```
 
-### Explicit Multiplication (Control Output File)
-If you want to specify where the result is stored (recommended for large matrices):
+### Loading
+Loading restores the exact state of the causal set, including the random seed and spacetime parameters.
+
 ```python
-# Result will be stored in 'paths.bin'
-Result = pycauset.matmul(A, A, saveas="paths.bin")
-# Existing code that calls A.multiply(...) still works; matmul is just the numpy-style entry point.
+# Load from disk
+c_loaded = pc.Causet.load("universe_simulation.causet")
 
+# The matrix is memory-mapped from the extracted file
+# No re-sprinkling occurs.
+print(c_loaded.C.size())
 ```
-
-### Storage Lifecycle & Cleanup
-- When no `backing_file` is provided, matrices are written to `<cwd>/.pycauset/<variable>.pycauset`. The file name is inferred from the assignment target (`alpha = pycauset.causalmatrix(...) -> alpha.pycauset`).
-- Set the `PYCAUSET_STORAGE_DIR` environment variable to relocate that hidden directory. Explicit `Path` objects are also respected.
-- Auto-generated `.pycauset` files are deleted when the interpreter exits unless you opt in to persistence via `pycauset.save = True` (the default is `False`).
-- User-specified paths (anything passed to `backing_file`) are never deleted automatically, though creating a new matrix with the same path will overwrite the data.
-- Files left over from a prior `pycauset.save = True` run are removed the next time you exit with `pycauset.save = False`.
-- Call `matrix.close()` when you are done with an explicit backing file (or before a temporary directory is torn down) to release the memory-mapped handle immediately.
-
-### IntegerMatrix
-The result of a multiplication is an `IntegerMatrix`. It is read-only.
-```python
-count = Result[0, 20]
-shape = Result.shape
-```
-
-## Performance Tips
-1. **Avoid Loops**: Do not iterate over the matrix in Python (e.g., `for i in range(N)`). This is slow. Use the C++ operations.
-2. **Storage**: Ensure you have enough disk space. A $10^6 \times 10^6$ matrix requires ~64GB.
-3. **Memory**: The module uses very little RAM, but relies on the OS page cache.

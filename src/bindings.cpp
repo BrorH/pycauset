@@ -550,7 +550,10 @@ PYBIND11_MODULE(_pycauset, m) {
         .def_property_readonly("seed", &PersistentObject::get_seed)
         .def_property("is_temporary", &PersistentObject::is_temporary, &PersistentObject::set_temporary)
         .def("close", &PersistentObject::close)
-        .def("get_backing_file", &PersistentObject::get_backing_file);
+        .def("get_backing_file", &PersistentObject::get_backing_file)
+        .def("copy_storage", &PersistentObject::copy_storage, 
+             py::arg("result_file_hint") = "",
+             "Create a copy of the backing storage. Handles both disk-backed and memory-backed objects.");
 
     py::class_<MatrixBase, PersistentObject>(m, "MatrixBase");
 
@@ -1011,11 +1014,21 @@ PYBIND11_MODULE(_pycauset, m) {
           "Get the current memory threshold in bytes.");
 
     // Spacetime
-    py::class_<pycauset::CausalSpacetime>(m, "Spacetime");
+    py::class_<pycauset::CausalSpacetime>(m, "Spacetime")
+        .def("volume", &pycauset::CausalSpacetime::volume);
 
     py::class_<pycauset::MinkowskiDiamond, pycauset::CausalSpacetime>(m, "MinkowskiDiamond")
         .def(py::init<int>(), py::arg("dimension"))
         .def("dimension", &pycauset::MinkowskiDiamond::dimension);
+
+    py::class_<pycauset::MinkowskiCylinder, pycauset::CausalSpacetime>(m, "MinkowskiCylinder")
+        .def(py::init<int, double, double>(), 
+             py::arg("dimension"), 
+             py::arg("height"), 
+             py::arg("circumference"))
+        .def("dimension", &pycauset::MinkowskiCylinder::dimension)
+        .def_property_readonly("height", &pycauset::MinkowskiCylinder::get_height)
+        .def_property_readonly("circumference", &pycauset::MinkowskiCylinder::get_circumference);
 
     // Sprinkler
     m.def("sprinkle", &pycauset::Sprinkler::sprinkle, 

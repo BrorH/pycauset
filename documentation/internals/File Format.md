@@ -85,3 +85,51 @@ The header contains metadata necessary to identify the object type, dimensions, 
 ## Loading
 
 The `pycauset.load(path)` function reads the header to determine the object type and instantiates the appropriate Python class (`CausalMatrix`, `IntegerMatrix`, `Vector`, etc.), wrapping the memory-mapped data.
+
+# Causal Set Archive Format (.causet)
+
+While the `.pycauset` format is optimized for raw numerical data, a **Causal Set** is a higher-level object that combines a causal matrix with spacetime metadata (dimension, shape, coordinates, etc.).
+
+To store this efficiently and portably, PyCauset uses a **ZIP-based archive format** with the extension `.causet`.
+
+## Archive Structure
+
+A `.causet` file is a standard ZIP archive containing two specific files:
+
+```
+my_universe.causet (ZIP Archive)
+├── metadata.json    (JSON Object)
+└── matrix.bin       (Binary .pycauset file)
+```
+
+### 1. metadata.json
+
+This file contains all the parameters required to reconstruct the `CausalSpacetime` object that generated the set.
+
+**Example:**
+```json
+{
+    "dim": 4,
+    "shape": "cylinder",
+    "height": 1.5,
+    "radius": 1.0,
+    "size": 1000,
+    "coordinates": [[0.1, 0.2, ...], ...],  // Optional: if coordinates are saved
+    "version": "1.0"
+}
+```
+
+### 2. matrix.bin
+
+This is the raw adjacency matrix of the causal set, stored in the standard **PyCauset Binary Format** (described above). It is usually a `CausalMatrix` (Strictly Upper Triangular Bit Matrix).
+
+## Loading Process
+
+When `pycauset.load("my_universe.causet")` is called:
+
+1.  PyCauset detects the `.causet` extension and treats it as a ZIP archive.
+2.  It extracts `metadata.json` to read the spacetime parameters.
+3.  It extracts `matrix.bin` to a temporary location (or memory maps it directly if supported).
+4.  It reconstructs the `CausalSpacetime` object (e.g., `MinkowskiCylinder`) using the metadata.
+5.  It loads the matrix using the binary loader.
+6.  It returns a `CausalSet` object linking the spacetime and the matrix.

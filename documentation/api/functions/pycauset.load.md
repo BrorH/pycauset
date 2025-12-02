@@ -16,4 +16,7 @@ Loads a matrix or vector from a binary file created by PyCauset.
 
 ## Description
 
-This function reads the header of the specified file to determine the type and data format. It then memory-maps the file and returns the appropriate object.
+## See Also
+
+*   [[pycauset.CausalSet.load]]: For loading `CausalSet` objects from `.causet` archives.
+
