@@ -180,6 +180,10 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </ProjectReference>
+    <ProjectReference Include="C:\Users\ireal\Documents\pycauset\build\benchmark_tests.vcxproj">
+      <Project>{8A13070D-63AC-3D49-863D-BF25357A4410}</Project>
+      <Name>benchmark_tests</Name>
+    </ProjectReference>
     <ProjectReference Include="C:\Users\ireal\Documents\pycauset\build\causal_tests.vcxproj">
       <Project>{8C50655B-B205-3F73-8DFB-049DB7974C74}</Project>
       <Name>causal_tests</Name>

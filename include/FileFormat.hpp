@@ -20,7 +20,9 @@ enum class DataType : uint32_t {
     BIT = 1,
     INT32 = 2,
     FLOAT64 = 3,
-    COMPLEX_FLOAT64 = 4
+    COMPLEX_FLOAT64 = 4,
+    FLOAT32 = 5,
+    FLOAT16 = 6
 };
 
 }

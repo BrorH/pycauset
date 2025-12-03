@@ -18,5 +18,8 @@ A tuple `(w, v)` where:
 
 ## Notes
 
-*   Currently, for dense matrices, the eigenvector computation may return identity placeholders or approximations depending on the solver implementation status.
+*   **Algorithm**: Uses a parallelized **QR Algorithm** with **Hessenberg Reduction**.
+    *   The matrix is first reduced to Upper Hessenberg form using Householder reflections ($O(N^3)$).
+    *   Iterations are performed using implicit shifts and Givens rotations ($O(N^2)$ per step).
+*   **Performance**: This approach is significantly faster than standard QR iterations, making eigenvalue calculations feasible for $N \approx 2000-5000$.
 *   For Identity and Diagonal matrices, the eigenvectors are the standard basis vectors (Identity matrix).

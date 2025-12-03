@@ -101,7 +101,17 @@ if(BUILD_TESTS)
     # test_main.cpp has main(). bindings.cpp does not have main().
     
     target_include_directories(causal_tests PRIVATE include)
-    target_link_libraries(causal_tests PRIVATE GTest::gtest_main OpenMP::OpenMP_CXX)
+    target_link_libraries(causal_tests PRIVATE GTest::gtest_main)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(causal_tests PRIVATE OpenMP::OpenMP_CXX)
+    endif()
     
     add_test(NAME CausalTests COMMAND causal_tests)
+
+    # Benchmark Executable
+    add_executable(benchmark_tests tests/benchmark_parallel.cpp ${PYCAUSET_SOURCES})
+    target_include_directories(benchmark_tests PRIVATE include)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(benchmark_tests PRIVATE OpenMP::OpenMP_CXX)
+    endif()
 endif()

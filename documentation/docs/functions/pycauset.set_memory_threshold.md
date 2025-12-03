@@ -8,7 +8,7 @@ Sets the size threshold (in bytes) below which objects are stored in RAM instead
 
 Objects smaller than this threshold will be created in memory (using anonymous mapping) to improve performance and avoid disk I/O. Objects larger than this threshold will be backed by temporary files on disk.
 
-The default threshold is 10 MB.
+The default threshold is 1 GB.
 
 ## Parameters
 

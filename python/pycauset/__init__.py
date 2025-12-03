@@ -45,6 +45,8 @@ _original_triangular_bit_matrix_random = _TriangularBitMatrix.random
 # Private aliases for native classes
 _IntegerMatrix = _native.IntegerMatrix
 _FloatMatrix = _native.FloatMatrix
+_Float32Matrix = getattr(_native, "Float32Matrix", None)
+_Float16Matrix = getattr(_native, "Float16Matrix", None)
 _TriangularFloatMatrix = _native.TriangularFloatMatrix
 _TriangularIntegerMatrix = getattr(_native, "TriangularIntegerMatrix", None)
 _DenseBitMatrix = getattr(_native, "DenseBitMatrix", None)
@@ -53,6 +55,8 @@ _UnitVector = getattr(_native, "UnitVector", None)
 # Public exports
 IntegerMatrix = _IntegerMatrix
 FloatMatrix = _FloatMatrix
+Float32Matrix = _Float32Matrix
+Float16Matrix = _Float16Matrix
 TriangularFloatMatrix = _TriangularFloatMatrix
 TriangularIntegerMatrix = _TriangularIntegerMatrix
 DenseBitMatrix = _DenseBitMatrix
@@ -890,6 +894,24 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                 return _IntegerMatrix(n, **kwargs) # Fallback
             else:
                 # Default to FloatMatrix if no dtype or float
+                # Check for forced precision
+                force = kwargs.pop("force_precision", None)
+                
+                if force == "double" or force == "float64":
+                    return _FloatMatrix(n, **kwargs)
+                elif force == "single" or force == "float32":
+                    if _Float32Matrix: return _Float32Matrix(n, **kwargs)
+                elif force == "half" or force == "float16":
+                    if _Float16Matrix: return _Float16Matrix(n, **kwargs)
+                
+                # Smart Default
+                if n >= 100000 and _Float16Matrix:
+                    warnings.warn(f"Matrix size {n} >= 100,000. Enforcing Float16 precision for storage efficiency. Use force_precision='double' to override.")
+                    return _Float16Matrix(n, **kwargs)
+                elif n >= 10000 and _Float32Matrix:
+                    warnings.warn(f"Matrix size {n} >= 10,000. Enforcing Float32 precision for storage efficiency. Use force_precision='double' to override.")
+                    return _Float32Matrix(n, **kwargs)
+                
                 return _FloatMatrix(n, **kwargs)
         
         # 2. Handle creation by Data

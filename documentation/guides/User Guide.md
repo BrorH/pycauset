@@ -96,7 +96,7 @@ See the **[[Numpy Integration]]** guide.
 PyCauset automatically manages memory. Small objects stay in RAM; large ones go to disk. You can control the threshold:
 
 ```python
-# Set threshold to 100 MB (default is 10 MB)
+# Set threshold to 100 MB (default is 1 GB)
 pc.set_memory_threshold(100 * 1024 * 1024)
 ```
 

@@ -15,6 +15,7 @@
         "vector": "cpp",
         "iosfwd": "cpp",
         "complex": "cpp",
-        "optional": "cpp"
+        "optional": "cpp",
+        "future": "cpp"
     }
 }

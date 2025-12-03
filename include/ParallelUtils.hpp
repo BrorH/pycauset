@@ -31,6 +31,10 @@ public:
     // Destructor
     ~ThreadPool();
 
+    // Global concurrency control
+    static void set_num_threads(size_t n);
+    static size_t get_num_threads();
+
 private:
     // Private constructor for Singleton
     ThreadPool(size_t threads = std::thread::hardware_concurrency());
@@ -45,6 +49,9 @@ private:
     std::mutex queue_mutex;
     std::condition_variable condition;
     bool stop;
+    
+    // Concurrency setting
+    static size_t global_num_threads;
 };
 
 // Template implementation must be in header
@@ -79,12 +86,11 @@ void ParallelFor(size_t start, size_t end, Func func) {
     size_t range = end - start;
     if (range == 0) return;
 
-    size_t num_threads = std::thread::hardware_concurrency();
-    if (num_threads == 0) num_threads = 2; // Fallback
+    size_t num_threads = ThreadPool::get_num_threads();
+    if (num_threads == 0) num_threads = 1;
 
-    // If range is small, don't spawn tasks (heuristic)
-    // For now, we use a simple heuristic: if range < num_threads, just run sequentially
-    if (range < num_threads) {
+    // If range is small or single thread requested, run sequentially
+    if (range < num_threads || num_threads == 1) {
         for (size_t i = start; i < end; ++i) {
             func(i);
         }
@@ -112,6 +118,26 @@ void ParallelFor(size_t start, size_t end, Func func) {
     for (auto& fut : futures) {
         fut.get(); 
     }
+}
+
+// ParallelBlockMap Helper
+// Iterates over a 2D range [0, rows) x [0, cols) in blocks
+// Kernel signature: void(size_t i_start, size_t i_end, size_t j_start, size_t j_end)
+template<typename Kernel>
+void ParallelBlockMap(size_t rows, size_t cols, size_t block_size, Kernel kernel) {
+    size_t num_block_rows = (rows + block_size - 1) / block_size;
+    
+    ParallelFor(0, num_block_rows, [&](size_t bi) {
+        size_t i_start = bi * block_size;
+        size_t i_end = std::min(i_start + block_size, rows);
+        
+        for (size_t j_start = 0; j_start < cols; j_start += block_size) {
+            size_t j_end = std::min(j_start + block_size, cols);
+            
+            // Execute kernel on the block [i_start, i_end) x [j_start, j_end)
+            kernel(i_start, i_end, j_start, j_end);
+        }
+    });
 }
 
 } // namespace pycauset
