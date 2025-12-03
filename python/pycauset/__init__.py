@@ -191,6 +191,17 @@ def save(obj: Any, path: str | Path) -> None:
             metadata["matrix_type"] = "IDENTITY"
             metadata["data_type"] = "FLOAT64"
         
+        # Add cached properties
+        if hasattr(obj, "cached_trace") and obj.cached_trace is not None:
+            metadata["cached_trace"] = obj.cached_trace
+            
+        if hasattr(obj, "cached_determinant") and obj.cached_determinant is not None:
+            metadata["cached_determinant"] = obj.cached_determinant
+            
+        if hasattr(obj, "cached_eigenvalues") and obj.cached_eigenvalues is not None:
+            # Convert complex to [real, imag]
+            metadata["cached_eigenvalues"] = [[z.real, z.imag] for z in obj.cached_eigenvalues]
+
         with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as zf:
             zf.writestr("metadata.json", json.dumps(metadata, indent=2))
             zf.write(temp_raw, "data.bin")
@@ -210,6 +221,14 @@ def load(path: str | Path) -> Any:
         # Read metadata
         with zf.open("metadata.json") as f:
             metadata = json.load(f)
+            
+        # Check for cache.json (updates to metadata)
+        try:
+            with zf.open("cache.json") as f:
+                cache_meta = json.load(f)
+                metadata.update(cache_meta)
+        except KeyError:
+            pass
             
         # Find offset of data.bin
         # We need the absolute offset in the file
@@ -259,6 +278,20 @@ def load(path: str | Path) -> Any:
         if is_transposed and hasattr(obj, "set_transposed"):
             obj.set_transposed(True)
             
+        # Restore cached properties
+        cached_trace = metadata.get("cached_trace")
+        if cached_trace is not None and hasattr(obj, "cached_trace"):
+            obj.cached_trace = cached_trace
+            
+        cached_determinant = metadata.get("cached_determinant")
+        if cached_determinant is not None and hasattr(obj, "cached_determinant"):
+            obj.cached_determinant = cached_determinant
+            
+        cached_eigenvalues = metadata.get("cached_eigenvalues")
+        if cached_eigenvalues is not None and hasattr(obj, "cached_eigenvalues"):
+            # Convert [real, imag] back to complex
+            obj.cached_eigenvalues = [complex(r, i) for r, i in cached_eigenvalues]
+
         if metadata.get("object_type") == "CausalSet":
             st_meta = metadata.get("spacetime", {})
             st_type = st_meta.get("type")
@@ -285,6 +318,144 @@ if hasattr(_native, "MatrixBase"):
 
 if hasattr(_native, "VectorBase"):
     _native.VectorBase.save = save
+
+
+def eigenvectors(self, save: bool = False) -> Any:
+    """Compute or retrieve cached eigenvectors."""
+    # Check memory cache
+    if hasattr(self, "_cached_eigenvectors"):
+        return self._cached_eigenvectors
+
+    # Check ZIP cache
+    backing = self.get_backing_file()
+    if backing and backing.endswith(".pycauset") and os.path.exists(backing):
+        try:
+            with zipfile.ZipFile(backing, "r") as zf:
+                namelist = zf.namelist()
+                if "eigenvectors.real.bin" in namelist and "eigenvectors.imag.bin" in namelist:
+                    info_real = zf.getinfo("eigenvectors.real.bin")
+                    info_imag = zf.getinfo("eigenvectors.imag.bin")
+                    
+                    def get_data_offset(path, info):
+                        with open(path, "rb") as f:
+                            f.seek(info.header_offset + 26)
+                            n_len, e_len = struct.unpack("<HH", f.read(4))
+                            return info.header_offset + 30 + n_len + e_len
+
+                    offset_real = get_data_offset(backing, info_real)
+                    offset_imag = get_data_offset(backing, info_imag)
+                    
+                    vecs = _native.ComplexMatrix(self.size(), backing, offset_real, backing, offset_imag)
+                    self._cached_eigenvectors = vecs
+                    return vecs
+        except Exception:
+            pass
+
+    # Compute
+    vals, vecs = self._eig()
+    
+    # Cache memory
+    self._cached_eigenvectors = vecs
+    
+    # Cache eigenvalues (C++ side handles this inside _eig -> eig -> eigvals)
+    # But we need to expose them to Python cache for save() to pick them up
+    self.cached_eigenvalues = [complex(vals.get(i).real, vals.get(i).imag) for i in range(vals.size())]
+    
+    if save:
+        if backing and backing.endswith(".pycauset") and os.path.exists(backing):
+            with zipfile.ZipFile(backing, "a") as zf:
+                # Real part
+                real_file = vecs.real.get_backing_file()
+                if real_file and real_file != ":memory:" and os.path.exists(real_file):
+                    zf.write(real_file, "eigenvectors.real.bin")
+                else:
+                    # Memory backed. Copy to temp file first.
+                    temp_real = str(Path(backing).with_suffix(".real.tmp"))
+                    vecs.real.copy_storage(temp_real)
+                    zf.write(temp_real, "eigenvectors.real.bin")
+                    try:
+                        os.unlink(temp_real)
+                    except OSError:
+                        pass
+                
+                # Imag part
+                imag_file = vecs.imag.get_backing_file()
+                if imag_file and imag_file != ":memory:" and os.path.exists(imag_file):
+                    zf.write(imag_file, "eigenvectors.imag.bin")
+                else:
+                    # Memory backed. Copy to temp file first.
+                    temp_imag = str(Path(backing).with_suffix(".imag.tmp"))
+                    vecs.imag.copy_storage(temp_imag)
+                    zf.write(temp_imag, "eigenvectors.imag.bin")
+                    try:
+                        os.unlink(temp_imag)
+                    except OSError:
+                        pass
+                    
+                cache_meta = {"has_eigenvectors": True}
+                zf.writestr("cache.json", json.dumps(cache_meta))
+                
+    return vecs
+
+if hasattr(_native, "MatrixBase"):
+    _native.MatrixBase.eigenvectors = eigenvectors
+
+
+def inverse(self, save: bool = False) -> Any:
+    """Compute or retrieve cached inverse."""
+    if hasattr(self, "_cached_inverse"):
+        return self._cached_inverse
+        
+    backing = self.get_backing_file()
+    if backing and backing.endswith(".pycauset") and os.path.exists(backing):
+        try:
+            with zipfile.ZipFile(backing, "r") as zf:
+                if "inverse.bin" in zf.namelist():
+                    info = zf.getinfo("inverse.bin")
+                    def get_data_offset(path, info):
+                        with open(path, "rb") as f:
+                            f.seek(info.header_offset + 26)
+                            n_len, e_len = struct.unpack("<HH", f.read(4))
+                            return info.header_offset + 30 + n_len + e_len
+                    offset = get_data_offset(backing, info)
+                    
+                    # Inverse is always FloatMatrix (Dense)
+                    inv = _FloatMatrix(self.size(), backing, offset, 0, 1.0, False)
+                    self._cached_inverse = inv
+                    return inv
+        except Exception:
+            pass
+            
+    # Compute using native invert
+    if hasattr(self, "_invert_native"):
+        inv = self._invert_native()
+    else:
+        # Fallback if not patched correctly (should not happen)
+        raise NotImplementedError("Native invert not found")
+
+    self._cached_inverse = inv
+    
+    if save:
+        if backing and backing.endswith(".pycauset") and os.path.exists(backing):
+            with zipfile.ZipFile(backing, "a") as zf:
+                inv_file = inv.get_backing_file()
+                if inv_file and inv_file != ":memory:" and os.path.exists(inv_file):
+                    zf.write(inv_file, "inverse.bin")
+                else:
+                    temp_inv = str(Path(backing).with_suffix(".inv.tmp"))
+                    inv.copy_storage(temp_inv)
+                    zf.write(temp_inv, "inverse.bin")
+                    try:
+                        os.unlink(temp_inv)
+                    except OSError:
+                        pass
+    return inv
+
+# Monkey-patch invert
+for cls in [_FloatMatrix, _IntegerMatrix, _TriangularFloatMatrix, _TriangularIntegerMatrix, _DenseBitMatrix, _TriangularBitMatrix]:
+    if cls and hasattr(cls, "invert"):
+        cls._invert_native = cls.invert
+        cls.invert = inverse
 
 
 def _is_simple_name(candidate: str) -> bool:

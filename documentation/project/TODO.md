@@ -37,8 +37,8 @@ This document outlines the development roadmap for `pycauset`, tracking complete
     - [x] `dtype` specification on creation.
 - [x] **Numpy Compatibility**: Seamless conversion to/from numpy arrays.
 - [x] **Identity Matrix**: `pycauset.I` with automatic sizing.
-- [ ] Create VectorFactory
-	- [ ] move "add_vectors" from "MatrixOperations.cpp"
+- [x] Create VectorFactory
+	- [x] move "add_vectors" from "MatrixOperations.cpp"
 ## 📊 Visualization & Analysis
 
 - [x] **Causet Visualization**: 2D and 3D plotting using Plotly.
@@ -51,6 +51,7 @@ This document outlines the development roadmap for `pycauset`, tracking complete
 - [x] **Hosting**: Setup for GitHub Pages / MkDocs.
 - [ ] **Environment Variables**: Document `$PYCAUSET_STORAGE_DIR`.
 - [ ] **Tutorials**: Add more physics-focused tutorials (e.g., scalar field propagation).
+- [ ] vector cross product
 
 ## 🐛 Known Issues / Maintenance
 

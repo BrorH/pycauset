@@ -74,6 +74,30 @@ Use the `@` operator for matrix-vector multiplication.
 -   **Matrix @ Vector**: `M @ v` returns a column vector ($M \times v$).
 -   **Vector @ Matrix**: `v.T @ M` returns a row vector ($v^T \times M$).
 
+# Linear Algebra
+
+PyCauset includes a suite of linear algebra tools.
+
+## Eigenvalues and Eigenvectors
+
+```python
+# Compute eigenvalues (returns list of complex numbers)
+evals = M.eigenvalues()
+
+# Compute eigenvectors (returns ComplexMatrix)
+vecs = M.eigenvectors()
+```
+
+## Inversion
+
+Matrix inversion is supported for all square matrices.
+
+```python
+# Compute inverse
+Inv = M.inverse()
+```
+
+
 # Saving and Storing Matrices
 In pycauset, large matrices are automatically stored on your device's storage disk to allow for work with humongous datasets. Small matrices may live in RAM for performance until they grow too large.
 
@@ -113,6 +137,27 @@ By default, `pycauset` manages backing files automatically. Files are stored in 
 - **Persistence**: Set `pycauset.keep_temp_files = True` to prevent deletion of temporary files (useful for debugging).
 - **Explicit Saving**: Use [[pycauset.save]] to keep specific matrices.
 
+# Caching and Persistence
+
+Expensive operations can be cached to disk to avoid recomputation.
+
+## Compute-Once Caching
+
+*   **Eigenvalues**: Automatically saved to `metadata.json` when you save the matrix.
+*   **Eigenvectors**: Use `save=True` to append the eigenvector matrix to the `.pycauset` archive.
+*   **Inverse**: Use `save=True` to append the inverse matrix to the archive.
+
+```python
+# Compute and store eigenvectors in the ZIP file
+vecs = M.eigenvectors(save=True)
+
+# Compute and store inverse in the ZIP file
+Inv = M.inverse(save=True)
+
+# ... later ...
+M_loaded = pc.load("matrix.pycauset")
+vecs_loaded = M_loaded.eigenvectors() # Instant load from disk!
+```
 
 
 # Matrix Hierarchy

@@ -54,6 +54,29 @@ The metadata file describes the object stored in `data.bin`.
 *   **`scalar`**: Scaling factor (float).
 *   **`is_transposed`**: Boolean flag indicating if the matrix is logically transposed.
 
+## Caching and Persistence
+
+To support "compute-once" workflows, the `.pycauset` archive can store cached results of expensive computations.
+
+### Cached Properties in `metadata.json`
+
+Small scalar results are stored directly in `metadata.json`:
+
+*   **`cached_trace`**: The trace of the matrix (float).
+*   **`cached_determinant`**: The determinant of the matrix (float).
+*   **`cached_eigenvalues`**: A list of `[real, imag]` pairs representing the eigenvalues.
+
+### Large Cached Objects
+
+Large results (like eigenvectors or the inverse matrix) are stored as additional binary files within the ZIP archive. These are added when `save=True` is passed to the computation method (e.g., `matrix.eigenvectors(save=True)`).
+
+*   **`eigenvectors.real.bin`**: Real part of the eigenvector matrix (Dense Float).
+*   **`eigenvectors.imag.bin`**: Imaginary part of the eigenvector matrix (Dense Float).
+*   **`inverse.bin`**: The inverse matrix (Dense Float).
+*   **`cache.json`**: A supplementary metadata file indicating the presence of these large objects (e.g., `{"has_eigenvectors": true}`).
+
+When loading a matrix, PyCauset checks for these files and automatically populates the cache if they exist.
+
 ## Causal Set Archive Format (`.causet`)
 
 While standard matrices use the generic schema above, Causal Set objects (`CausalSet`) use a specialized metadata schema to preserve the spacetime manifold and sprinkling parameters used to generate them.

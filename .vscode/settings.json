@@ -14,6 +14,7 @@
         "stdexcept": "cpp",
         "vector": "cpp",
         "iosfwd": "cpp",
-        "complex": "cpp"
+        "complex": "cpp",
+        "optional": "cpp"
     }
 }

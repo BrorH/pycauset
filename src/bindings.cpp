@@ -628,7 +628,18 @@ PYBIND11_MODULE(_pycauset, m) {
              py::arg("result_file_hint") = "",
              "Create a copy of the backing storage. Handles both disk-backed and memory-backed objects.");
 
-    py::class_<MatrixBase, PersistentObject>(m, "MatrixBase");
+    py::class_<MatrixBase, PersistentObject>(m, "MatrixBase", py::dynamic_attr())
+        .def("trace", &pycauset::trace)
+        .def("determinant", &pycauset::determinant)
+        .def("eigenvalues", [](const MatrixBase& m, const std::string& saveas_real, const std::string& saveas_imag) {
+            return pycauset::eigvals(m, saveas_real, saveas_imag);
+        }, py::arg("saveas_real") = "", py::arg("saveas_imag") = "")
+        .def("_eig", [](const MatrixBase& m) {
+            return pycauset::eig(m);
+        })
+        .def_property("cached_trace", &MatrixBase::get_cached_trace, &MatrixBase::set_cached_trace)
+        .def_property("cached_determinant", &MatrixBase::get_cached_determinant, &MatrixBase::set_cached_determinant)
+        .def_property("cached_eigenvalues", &MatrixBase::get_cached_eigenvalues, &MatrixBase::set_cached_eigenvalues);
 
     py::class_<VectorBase, PersistentObject>(m, "VectorBase")
         .def_property_readonly("T", [](const VectorBase& v) {
@@ -1134,6 +1145,10 @@ PYBIND11_MODULE(_pycauset, m) {
     py::class_<pycauset::ComplexMatrix>(m, "ComplexMatrix")
         .def(py::init<uint64_t, const std::string&, const std::string&>(), 
              py::arg("n"), py::arg("backing_file_real") = "", py::arg("backing_file_imag") = "")
+        .def(py::init<uint64_t, const std::string&, size_t, const std::string&, size_t>(),
+             py::arg("n"), 
+             py::arg("backing_file_real"), py::arg("offset_real"),
+             py::arg("backing_file_imag"), py::arg("offset_imag"))
         .def("get", &pycauset::ComplexMatrix::get)
         .def("set", &pycauset::ComplexMatrix::set)
         .def("size", &pycauset::ComplexMatrix::size)

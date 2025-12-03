@@ -114,7 +114,36 @@ std::vector<std::complex<double>> qr_algorithm(std::vector<std::vector<double>> 
     return eigvals;
 }
 
+double trace(const MatrixBase& matrix) {
+    if (auto cached = matrix.get_cached_trace()) {
+        return *cached;
+    }
+    
+    double tr = 0.0;
+    uint64_t n = matrix.size();
+    auto type = matrix.get_matrix_type();
+    
+    if (type == MatrixType::IDENTITY) {
+        tr = matrix.get_scalar() * n;
+    } else {
+        for(uint64_t i=0; i<n; ++i) {
+            tr += matrix.get_element_as_double(i, i);
+        }
+    }
+    
+    matrix.set_cached_trace(tr);
+    return tr;
+}
+
 std::unique_ptr<ComplexVector> eigvals(const MatrixBase& matrix, const std::string& saveas_real, const std::string& saveas_imag) {
+    if (auto cached = matrix.get_cached_eigenvalues()) {
+        auto res = std::make_unique<ComplexVector>(matrix.size(), saveas_real, saveas_imag);
+        for(uint64_t i=0; i<matrix.size(); ++i) {
+            res->set(i, (*cached)[i]);
+        }
+        return res;
+    }
+
     uint64_t n = matrix.size();
     auto type = matrix.get_matrix_type();
     
@@ -141,11 +170,61 @@ std::unique_ptr<ComplexVector> eigvals(const MatrixBase& matrix, const std::stri
         vals = qr_algorithm(mat);
     }
 
+    matrix.set_cached_eigenvalues(vals);
+
     auto res = std::make_unique<ComplexVector>(n, saveas_real, saveas_imag);
     for(uint64_t i=0; i<n; ++i) {
         res->set(i, vals[i]);
     }
     return res;
+}
+
+double determinant(const MatrixBase& matrix) {
+    if (auto cached = matrix.get_cached_determinant()) {
+        return *cached;
+    }
+    
+    double det = 0.0;
+    uint64_t n = matrix.size();
+    auto type = matrix.get_matrix_type();
+    
+    if (type == MatrixType::IDENTITY) {
+        det = std::pow(matrix.get_scalar(), n);
+    } else if (type == MatrixType::DIAGONAL) {
+        det = 1.0;
+        for(uint64_t i=0; i<n; ++i) det *= matrix.get_element_as_double(i, i);
+    } else if (type == MatrixType::TRIANGULAR_FLOAT || type == MatrixType::CAUSAL) {
+        // Determinant of triangular matrix is product of diagonal
+        bool has_diag = false;
+        if (auto* m = dynamic_cast<const TriangularMatrix<double>*>(&matrix)) has_diag = m->has_diagonal();
+        else if (auto* m = dynamic_cast<const TriangularMatrix<int32_t>*>(&matrix)) has_diag = m->has_diagonal();
+        
+        if (has_diag) {
+            det = 1.0;
+            for(uint64_t i=0; i<n; ++i) det *= matrix.get_element_as_double(i, i);
+        } else {
+            det = 0.0; // Strictly triangular -> 0 diagonal -> det 0
+        }
+    } else {
+        // Use eigenvalues product
+        // This might be recursive if eigvals calls determinant, but eigvals uses QR which doesn't use determinant.
+        // However, eigvals calls qr_algorithm which computes eigenvalues.
+        // We need to be careful about infinite recursion if I implemented eigvals using determinant (I didn't).
+        
+        // We can call eigvals directly.
+        // But eigvals returns ComplexVector.
+        // We need the raw vector to avoid creating ComplexVector object if possible, but eigvals caches it.
+        
+        // Let's just call eigvals.
+        // Note: eigvals returns unique_ptr<ComplexVector>.
+        auto ev = eigvals(matrix);
+        std::complex<double> prod(1.0, 0.0);
+        for(uint64_t i=0; i<n; ++i) prod *= ev->get(i);
+        det = prod.real();
+    }
+    
+    matrix.set_cached_determinant(det);
+    return det;
 }
 
 std::pair<std::unique_ptr<ComplexVector>, std::unique_ptr<ComplexMatrix>> eig(const MatrixBase& matrix, 

@@ -61,6 +61,7 @@ set(PYCAUSET_SOURCES
     src/Sprinkler.cpp
     src/ComplexVector.cpp
     src/Eigen.cpp
+    src/ParallelUtils.cpp
 )
 
 # --- Extension Module ---
@@ -94,7 +95,7 @@ if(BUILD_TESTS)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
 
-    add_executable(causal_tests tests/test_main.cpp ${PYCAUSET_SOURCES})
+    add_executable(causal_tests tests/test_main.cpp tests/test_parallel.cpp ${PYCAUSET_SOURCES})
     # Remove bindings.cpp from tests if it contains the main module definition which might conflict
     # Actually bindings.cpp has PYBIND11_MODULE, which is fine in a library but maybe not in an executable if it has main?
     # test_main.cpp has main(). bindings.cpp does not have main().
