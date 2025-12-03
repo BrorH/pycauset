@@ -10,6 +10,7 @@ This document outlines the development roadmap for `pycauset`, tracking complete
 - [ ] **User-Defined Spacetimes**: Allow users to define custom spacetime geometries and boundaries in Python.
 - [x] **CI/CD**: Disable auto-versioning push to PyPI on every commit; implement proper release workflow.
 
+
 ## 🌌 Physics & Spacetime
 
 - [x] **Propagator Calculation**: Implemented $K = \Phi (I - b\Phi)^{-1}$ (Eq. 3.5 in Johnston).
@@ -36,7 +37,8 @@ This document outlines the development roadmap for `pycauset`, tracking complete
     - [x] `dtype` specification on creation.
 - [x] **Numpy Compatibility**: Seamless conversion to/from numpy arrays.
 - [x] **Identity Matrix**: `pycauset.I` with automatic sizing.
-
+- [ ] Create VectorFactory
+	- [ ] move "add_vectors" from "MatrixOperations.cpp"
 ## 📊 Visualization & Analysis
 
 - [x] **Causet Visualization**: 2D and 3D plotting using Plotly.

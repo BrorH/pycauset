@@ -29,8 +29,11 @@ public:
 
     virtual double get_element_as_double(uint64_t i, uint64_t j) const = 0;
 
-    virtual std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const = 0;
-    virtual std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const = 0;
+    virtual std::unique_ptr<MatrixBase> multiply_scalar(double scalar, const std::string& result_file = "") const = 0;
+    virtual std::unique_ptr<MatrixBase> multiply_scalar(int64_t scalar, const std::string& result_file = "") const = 0;
+
+    virtual std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const = 0;
+    virtual std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const = 0;
 
     virtual std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const = 0;
 

@@ -54,6 +54,9 @@ public:
         return multiply_scalar(static_cast<double>(factor), result_file);
     }
 
+    std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override;
+    std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const override;
+
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override;
 
     // Bitwise inversion (NOT)

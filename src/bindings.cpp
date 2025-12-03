@@ -13,9 +13,14 @@
 #include "StoragePaths.hpp"
 #include "FileFormat.hpp"
 #include "MatrixOperations.hpp"
+#include "VectorOperations.hpp"
 #include "PersistentObject.hpp"
 #include "ComplexMatrix.hpp"
 #include "Sprinkler.hpp"
+#include "MatrixFactory.hpp"
+
+#include "UnitVector.hpp"
+#include "VectorFactory.hpp"
 
 namespace py = pybind11;
 using namespace pycauset;
@@ -54,18 +59,35 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     auto* a_tfm = dynamic_cast<const TriangularFloatMatrix*>(&a);
     auto* a_tim = dynamic_cast<const TriangularIntegerMatrix*>(&a);
     auto* a_tbm = dynamic_cast<const TriangularBitMatrix*>(&a);
-    auto* a_id = dynamic_cast<const IdentityMatrix*>(&a);
-
+    
     auto* b_fm = dynamic_cast<const FloatMatrix*>(&b);
     auto* b_im = dynamic_cast<const IntegerMatrix*>(&b);
     auto* b_tfm = dynamic_cast<const TriangularFloatMatrix*>(&b);
     auto* b_tim = dynamic_cast<const TriangularIntegerMatrix*>(&b);
     auto* b_tbm = dynamic_cast<const TriangularBitMatrix*>(&b);
-    auto* b_id = dynamic_cast<const IdentityMatrix*>(&b);
+
+    bool a_is_id = (a.get_matrix_type() == MatrixType::IDENTITY);
+    bool b_is_id = (b.get_matrix_type() == MatrixType::IDENTITY);
 
     // Identity x Identity -> Identity
-    if (a_id && b_id) {
-        return a_id->multiply(*b_id, saveas);
+    if (a_is_id && b_is_id) {
+        if (a.size() != b.size()) throw std::invalid_argument("Dimension mismatch");
+        DataType res_dtype = MatrixFactory::resolve_result_type(a.get_data_type(), b.get_data_type());
+        auto res = MatrixFactory::create(a.size(), res_dtype, MatrixType::IDENTITY, saveas);
+        res->set_scalar(a.get_scalar() * b.get_scalar());
+        return res;
+    }
+
+    // Identity x Any -> Any * scalar
+    if (a_is_id) {
+        if (a.size() != b.size()) throw std::invalid_argument("Dimension mismatch");
+        return b.multiply_scalar(a.get_scalar(), saveas);
+    }
+
+    // Any x Identity -> Any * scalar
+    if (b_is_id) {
+        if (a.size() != b.size()) throw std::invalid_argument("Dimension mismatch");
+        return a.multiply_scalar(b.get_scalar(), saveas);
     }
 
     // If either is FloatMatrix (Dense<double>), result is FloatMatrix
@@ -243,7 +265,19 @@ PYBIND11_MODULE(_pycauset, m) {
             res.release();
             return py::cast(m, py::return_value_policy::take_ownership);
         }
-        if (auto* m = dynamic_cast<IdentityMatrix*>(res.get())) {
+        if (auto* m = dynamic_cast<IdentityMatrix<double>*>(res.get())) {
+            res.release();
+            return py::cast(m, py::return_value_policy::take_ownership);
+        }
+        if (auto* m = dynamic_cast<IdentityMatrix<int32_t>*>(res.get())) {
+            res.release();
+            return py::cast(m, py::return_value_policy::take_ownership);
+        }
+        if (auto* m = dynamic_cast<DiagonalMatrix<double>*>(res.get())) {
+            res.release();
+            return py::cast(m, py::return_value_policy::take_ownership);
+        }
+        if (auto* m = dynamic_cast<DiagonalMatrix<int32_t>*>(res.get())) {
             res.release();
             return py::cast(m, py::return_value_policy::take_ownership);
         }
@@ -264,7 +298,11 @@ PYBIND11_MODULE(_pycauset, m) {
             res.release();
             return py::cast(v, py::return_value_policy::take_ownership);
         }
-            
+        if (auto* v = dynamic_cast<UnitVector*>(res.get())) {
+            res.release();
+            return py::cast(v, py::return_value_policy::take_ownership);
+        }
+        
         throw std::runtime_error("Unknown VectorBase subclass in cast_vector_result");
     };
 
@@ -382,14 +420,16 @@ PYBIND11_MODULE(_pycauset, m) {
         });
         
         // NumPy export
-        cls.def("__array__", [](const T& self, py::object dtype, py::object copy) {
+        cls.def("__array__", [](const T& self, py::object dtype, py::object copy) -> py::object {
             uint64_t n = self.size();
+            
             if constexpr (std::is_same_v<T, BitVector>) {
                 py::array_t<bool> result(n);
                 auto ptr = result.mutable_unchecked<1>();
                 for (py::ssize_t i = 0; i < (py::ssize_t)n; ++i) {
                     ptr(i) = self.get(i);
                 }
+                if (self.is_transposed()) return result.reshape({(py::ssize_t)1, (py::ssize_t)n});
                 return result;
             } else if constexpr (std::is_same_v<T, IntegerVector>) {
                 py::array_t<int32_t> result(n);
@@ -397,6 +437,7 @@ PYBIND11_MODULE(_pycauset, m) {
                 for (py::ssize_t i = 0; i < (py::ssize_t)n; ++i) {
                     ptr(i) = self.get(i);
                 }
+                if (self.is_transposed()) return result.reshape({(py::ssize_t)1, (py::ssize_t)n});
                 return result;
             } else {
                 py::array_t<double> result(n);
@@ -404,6 +445,7 @@ PYBIND11_MODULE(_pycauset, m) {
                 for (py::ssize_t i = 0; i < (py::ssize_t)n; ++i) {
                     ptr(i) = self.get_element_as_double(i);
                 }
+                if (self.is_transposed()) return result.reshape({(py::ssize_t)1, (py::ssize_t)n});
                 return result;
             }
         }, py::arg("dtype") = py::none(), py::arg("copy") = py::none());
@@ -419,6 +461,32 @@ PYBIND11_MODULE(_pycauset, m) {
             if (auto* m = dynamic_cast<MatrixBase*>(temp.get())) {
                 return pycauset::add(self, *m, make_unique_storage_file("add"));
             }
+            try {
+                if (py::isinstance<py::int_>(other)) {
+                    int64_t s = py::cast<int64_t>(other);
+                    return self.add_scalar(s, make_unique_storage_file("scalar_add"));
+                }
+                double s = py::cast<double>(other);
+                return self.add_scalar(s, make_unique_storage_file("scalar_add"));
+            } catch (...) {}
+            throw py::type_error("Unsupported operand type for +");
+        });
+        cls.def("__radd__", [](const T& self, py::object other) {
+            if (py::isinstance<MatrixBase>(other)) {
+                return pycauset::add(self, py::cast<const MatrixBase&>(other), make_unique_storage_file("add"));
+            }
+            auto temp = from_numpy(other);
+            if (auto* m = dynamic_cast<MatrixBase*>(temp.get())) {
+                return pycauset::add(self, *m, make_unique_storage_file("add"));
+            }
+            try {
+                if (py::isinstance<py::int_>(other)) {
+                    int64_t s = py::cast<int64_t>(other);
+                    return self.add_scalar(s, make_unique_storage_file("scalar_add"));
+                }
+                double s = py::cast<double>(other);
+                return self.add_scalar(s, make_unique_storage_file("scalar_add"));
+            } catch (...) {}
             throw py::type_error("Unsupported operand type for +");
         });
         cls.def("__sub__", [](const T& self, py::object other) {
@@ -549,8 +617,10 @@ PYBIND11_MODULE(_pycauset, m) {
         .def_property("scalar", &PersistentObject::get_scalar, &PersistentObject::set_scalar)
         .def_property_readonly("seed", &PersistentObject::get_seed)
         .def_property("is_temporary", &PersistentObject::is_temporary, &PersistentObject::set_temporary)
+        .def_property_readonly("__array_priority__", [](const PersistentObject&){ return 1000.0; })
         .def("close", &PersistentObject::close)
         .def("set_transposed", &PersistentObject::set_transposed)
+        .def("is_transposed", &PersistentObject::is_transposed)
         .def("get_backing_file", &PersistentObject::get_backing_file)
         .def("copy_storage", &PersistentObject::copy_storage, 
              py::arg("result_file_hint") = "",
@@ -875,30 +945,104 @@ PYBIND11_MODULE(_pycauset, m) {
 
 
 
-    // IdentityMatrix
-    py::class_<IdentityMatrix, MatrixBase> idm(m, "IdentityMatrix");
-    idm.def(py::init<uint64_t, const std::string&>(), 
+    // DiagonalMatrix (Float)
+    py::class_<DiagonalMatrix<double>, MatrixBase> dm(m, "DiagonalMatrix");
+    dm.def(py::init<uint64_t, const std::string&>(), 
             py::arg("n"), py::arg("backing_file") = "")
-        .def("get", [](const IdentityMatrix& m, uint64_t i, uint64_t j) {
-            return m.get_element_as_double(i, j);
-        })
-        .def("close", &IdentityMatrix::close)
-        .def("size", &IdentityMatrix::size)
-        .def("get_backing_file", &IdentityMatrix::get_backing_file)
-        .def_property_readonly("shape", [](const IdentityMatrix& m) {
+        .def("get", &DiagonalMatrix<double>::get)
+        .def("set", &DiagonalMatrix<double>::set)
+        .def("get_diagonal", &DiagonalMatrix<double>::get_diagonal)
+        .def("set_diagonal", &DiagonalMatrix<double>::set_diagonal)
+        .def("close", &DiagonalMatrix<double>::close)
+        .def("size", &DiagonalMatrix<double>::size)
+        .def("get_backing_file", &DiagonalMatrix<double>::get_backing_file)
+        .def_property_readonly("shape", [](const DiagonalMatrix<double>& m) {
             return std::make_pair(m.size(), m.size());
         })
-        .def("__getitem__", [](const IdentityMatrix& m, std::pair<uint64_t, uint64_t> idx) {
+        .def("__getitem__", [](const DiagonalMatrix<double>& m, std::pair<uint64_t, uint64_t> idx) {
             return m.get_element_as_double(idx.first, idx.second);
         })
-        .def("__repr__", [](const IdentityMatrix& m) {
+        .def("__setitem__", [](DiagonalMatrix<double>& m, std::pair<uint64_t, uint64_t> idx, double val) {
+            m.set(idx.first, idx.second, val);
+        })
+        .def("__repr__", [](const DiagonalMatrix<double>& m) {
+            return "<DiagonalMatrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
+        });
+    bind_arithmetic(dm);
+
+    // DiagonalMatrix (Int)
+    py::class_<DiagonalMatrix<int32_t>, MatrixBase> dmi(m, "DiagonalMatrixInt");
+    dmi.def(py::init<uint64_t, const std::string&>(), 
+            py::arg("n"), py::arg("backing_file") = "")
+        .def("get", &DiagonalMatrix<int32_t>::get)
+        .def("set", &DiagonalMatrix<int32_t>::set)
+        .def("get_diagonal", &DiagonalMatrix<int32_t>::get_diagonal)
+        .def("set_diagonal", &DiagonalMatrix<int32_t>::set_diagonal)
+        .def("close", &DiagonalMatrix<int32_t>::close)
+        .def("size", &DiagonalMatrix<int32_t>::size)
+        .def("get_backing_file", &DiagonalMatrix<int32_t>::get_backing_file)
+        .def_property_readonly("shape", [](const DiagonalMatrix<int32_t>& m) {
+            return std::make_pair(m.size(), m.size());
+        })
+        .def("__getitem__", [](const DiagonalMatrix<int32_t>& m, std::pair<uint64_t, uint64_t> idx) {
+            return m.get_element_as_double(idx.first, idx.second);
+        })
+        .def("__setitem__", [](DiagonalMatrix<int32_t>& m, std::pair<uint64_t, uint64_t> idx, int32_t val) {
+            m.set(idx.first, idx.second, val);
+        })
+        .def("__repr__", [](const DiagonalMatrix<int32_t>& m) {
+            return "<DiagonalMatrixInt shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
+        });
+    bind_arithmetic(dmi);
+
+    // IdentityMatrix (Float)
+    py::class_<IdentityMatrix<double>, MatrixBase> idm(m, "IdentityMatrix");
+    idm.def(py::init<uint64_t, const std::string&>(), 
+            py::arg("n"), py::arg("backing_file") = "")
+        .def("get", [](const IdentityMatrix<double>& m, uint64_t i, uint64_t j) {
+            return m.get_element_as_double(i, j);
+        })
+        .def("close", &IdentityMatrix<double>::close)
+        .def("size", &IdentityMatrix<double>::size)
+        .def("get_backing_file", &IdentityMatrix<double>::get_backing_file)
+        .def_property_readonly("shape", [](const IdentityMatrix<double>& m) {
+            return std::make_pair(m.size(), m.size());
+        })
+        .def("__getitem__", [](const IdentityMatrix<double>& m, std::pair<uint64_t, uint64_t> idx) {
+            return m.get_element_as_double(idx.first, idx.second);
+        })
+        .def("__repr__", [](const IdentityMatrix<double>& m) {
             return "<IdentityMatrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
         });
     bind_arithmetic(idm);
 
+    // IdentityMatrix (Int)
+    py::class_<IdentityMatrix<int32_t>, MatrixBase> idmi(m, "IdentityMatrixInt");
+    idmi.def(py::init<uint64_t, const std::string&>(), 
+            py::arg("n"), py::arg("backing_file") = "")
+        .def("get", [](const IdentityMatrix<int32_t>& m, uint64_t i, uint64_t j) {
+            return m.get_element_as_double(i, j);
+        })
+        .def("close", &IdentityMatrix<int32_t>::close)
+        .def("size", &IdentityMatrix<int32_t>::size)
+        .def("get_backing_file", &IdentityMatrix<int32_t>::get_backing_file)
+        .def_property_readonly("shape", [](const IdentityMatrix<int32_t>& m) {
+            return std::make_pair(m.size(), m.size());
+        })
+        .def("__getitem__", [](const IdentityMatrix<int32_t>& m, std::pair<uint64_t, uint64_t> idx) {
+            return m.get_element_as_double(idx.first, idx.second);
+        })
+        .def("__repr__", [](const IdentityMatrix<int32_t>& m) {
+            return "<IdentityMatrixInt shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
+        });
+    bind_arithmetic(idmi);
+
     // FloatVector
     py::class_<FloatVector, VectorBase> fv(m, "FloatVector");
     fv.def(py::init<uint64_t, const std::string&>(), py::arg("n"), py::arg("backing_file") = "")
+      .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+           py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+           py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
       .def("__getitem__", &FloatVector::get)
       .def("__setitem__", &FloatVector::set)
       .def("__len__", &FloatVector::size)
@@ -917,6 +1061,9 @@ PYBIND11_MODULE(_pycauset, m) {
     // IntegerVector
     py::class_<IntegerVector, VectorBase> iv(m, "IntegerVector");
     iv.def(py::init<uint64_t, const std::string&>(), py::arg("n"), py::arg("backing_file") = "")
+      .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+           py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+           py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
       .def("__getitem__", &IntegerVector::get)
       .def("__setitem__", &IntegerVector::set)
       .def("__len__", &IntegerVector::size)
@@ -935,6 +1082,9 @@ PYBIND11_MODULE(_pycauset, m) {
     // BitVector
     py::class_<BitVector, VectorBase> bv(m, "BitVector");
     bv.def(py::init<uint64_t, const std::string&>(), py::arg("n"), py::arg("backing_file") = "")
+      .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+           py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+           py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
       .def("__getitem__", &BitVector::get)
       .def("__setitem__", [](BitVector& v, uint64_t i, py::object val) {
           v.set(i, coerce_bool_like(val));
@@ -951,6 +1101,32 @@ PYBIND11_MODULE(_pycauset, m) {
           return s;
       });
     bind_vector_arithmetic(bv);
+
+    // UnitVector
+    py::class_<UnitVector, VectorBase> uv(m, "UnitVector");
+    uv.def(py::init<uint64_t, uint64_t, const std::string&>(), 
+           py::arg("n"), py::arg("active_index"), py::arg("backing_file") = "")
+      .def(py::init<uint64_t, uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+           py::arg("n"), py::arg("active_index"), py::arg("backing_file"), py::arg("offset"), py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
+      .def("get", [](const UnitVector& v, uint64_t i) {
+          return v.get_element_as_double(i);
+      })
+      .def("get_active_index", &UnitVector::get_active_index)
+      .def("__len__", &UnitVector::size)
+      .def_property_readonly("shape", [](const UnitVector& v) { 
+          if (v.is_transposed()) return py::make_tuple(1, v.size());
+          return py::make_tuple(v.size()); 
+      })
+      .def("__getitem__", [](const UnitVector& v, uint64_t i) {
+          return v.get_element_as_double(i);
+      })
+      .def("__repr__", [](const UnitVector& v) {
+          std::string s = "<UnitVector size=" + std::to_string(v.size()) + " index=" + std::to_string(v.get_active_index());
+          if (v.is_transposed()) s += " transposed=True";
+          s += ">";
+          return s;
+      });
+    bind_vector_arithmetic(uv);
 
     // ComplexMatrix
     py::class_<pycauset::ComplexMatrix>(m, "ComplexMatrix")
@@ -977,11 +1153,27 @@ PYBIND11_MODULE(_pycauset, m) {
         .def("__mul__", [](const pycauset::ComplexMatrix& self, const pycauset::ComplexMatrix& other) {
             return pycauset::multiply(self, other, make_unique_storage_file("cmul_real"), make_unique_storage_file("cmul_imag"));
         })
+        .def("__mul__", [](const pycauset::ComplexMatrix& self, std::complex<double> scalar) {
+            return pycauset::multiply_scalar(self, scalar, make_unique_storage_file("csmul_real"), make_unique_storage_file("csmul_imag"));
+        })
+        .def("__rmul__", [](const pycauset::ComplexMatrix& self, std::complex<double> scalar) {
+            return pycauset::multiply_scalar(self, scalar, make_unique_storage_file("csmul_real"), make_unique_storage_file("csmul_imag"));
+        })
+        .def("__add__", [](const pycauset::ComplexMatrix& self, std::complex<double> scalar) {
+            return pycauset::add_scalar(self, scalar, make_unique_storage_file("csadd_real"), make_unique_storage_file("csadd_imag"));
+        })
+        .def("__radd__", [](const pycauset::ComplexMatrix& self, std::complex<double> scalar) {
+            return pycauset::add_scalar(self, scalar, make_unique_storage_file("csadd_real"), make_unique_storage_file("csadd_imag"));
+        })
         .def("__repr__", [](const pycauset::ComplexMatrix& m) {
             return "<ComplexMatrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
         });
 
     m.def("dot", &pycauset::dot_product, "Dot product of two vectors");
+    
+    m.def("cross", [](const VectorBase& a, const VectorBase& b) {
+        return pycauset::cross_product(a, b, make_unique_storage_file("cross"));
+    }, "Cross product of two 3D vectors");
 
     m.def("set_memory_threshold", &pycauset::set_memory_threshold, 
           py::arg("bytes"),

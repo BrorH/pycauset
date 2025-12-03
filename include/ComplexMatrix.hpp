@@ -148,4 +148,47 @@ inline std::unique_ptr<ComplexMatrix> multiply(const ComplexMatrix& a, const Com
     return std::make_unique<ComplexMatrix>(std::unique_ptr<FloatMatrix>(r_ptr), std::unique_ptr<FloatMatrix>(i_ptr));
 }
 
+inline std::unique_ptr<ComplexMatrix> multiply_scalar(const ComplexMatrix& m, std::complex<double> s,
+                                               const std::string& res_real = "", const std::string& res_imag = "") {
+    double a = s.real();
+    double b = s.imag();
+    
+    // (R + iI) * (a + ib) = (Ra - Ib) + i(Rb + Ia)
+    
+    // Real part: Ra - Ib
+    auto Ra = m.real()->multiply_scalar(a, make_unique_storage_file("Ra"));
+    auto Ib = m.imag()->multiply_scalar(b, make_unique_storage_file("Ib"));
+    auto real_part = pycauset::subtract(*Ra, *Ib, res_real);
+    
+    // Imag part: Rb + Ia
+    auto Rb = m.real()->multiply_scalar(b, make_unique_storage_file("Rb"));
+    auto Ia = m.imag()->multiply_scalar(a, make_unique_storage_file("Ia"));
+    auto imag_part = pycauset::add(*Rb, *Ia, res_imag);
+    
+    auto* r_ptr = dynamic_cast<FloatMatrix*>(real_part.release());
+    auto* i_ptr = dynamic_cast<FloatMatrix*>(imag_part.release());
+    
+    if (!r_ptr || !i_ptr) throw std::runtime_error("Complex scalar multiplication failed");
+    
+    return std::make_unique<ComplexMatrix>(std::unique_ptr<FloatMatrix>(r_ptr), std::unique_ptr<FloatMatrix>(i_ptr));
+}
+
+inline std::unique_ptr<ComplexMatrix> add_scalar(const ComplexMatrix& m, std::complex<double> s,
+                                          const std::string& res_real = "", const std::string& res_imag = "") {
+    double a = s.real();
+    double b = s.imag();
+    
+    // (R + iI) + (a + ib) = (R + a) + i(I + b)
+    
+    auto real_part = m.real()->add_scalar(a, res_real);
+    auto imag_part = m.imag()->add_scalar(b, res_imag);
+    
+    auto* r_ptr = dynamic_cast<FloatMatrix*>(real_part.release());
+    auto* i_ptr = dynamic_cast<FloatMatrix*>(imag_part.release());
+    
+    if (!r_ptr || !i_ptr) throw std::runtime_error("Complex scalar addition failed");
+    
+    return std::make_unique<ComplexMatrix>(std::unique_ptr<FloatMatrix>(r_ptr), std::unique_ptr<FloatMatrix>(i_ptr));
+}
+
 }

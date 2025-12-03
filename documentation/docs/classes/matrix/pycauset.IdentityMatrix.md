@@ -6,7 +6,7 @@ class pycauset.IdentityMatrix(n)
 
 A memory-efficient representation of an Identity Matrix. It stores no data on disk (only a header) and generates values on the fly ($1.0$ on the diagonal, $0.0$ elsewhere).
 
-Inherits from [[pycauset.MatrixBase]].
+Inherits from [[pycauset.DiagonalMatrix]].
 
 ## Parameters
 
@@ -46,3 +46,14 @@ Performs elementwise multiplication.
 Multiplies the matrix by a scalar factor.
 *   **factor** (*float*): The value to multiply by.
 *   **Returns**: A new `IdentityMatrix` with updated scalar.
+
+## IdentityMatrixInt
+
+There is also an integer version of this class:
+
+```python
+class pycauset.IdentityMatrixInt(n)
+```
+
+It behaves similarly but uses 32-bit integers.
+

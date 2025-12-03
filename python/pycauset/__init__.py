@@ -48,6 +48,7 @@ _FloatMatrix = _native.FloatMatrix
 _TriangularFloatMatrix = _native.TriangularFloatMatrix
 _TriangularIntegerMatrix = getattr(_native, "TriangularIntegerMatrix", None)
 _DenseBitMatrix = getattr(_native, "DenseBitMatrix", None)
+_UnitVector = getattr(_native, "UnitVector", None)
 
 # Public exports
 IntegerMatrix = _IntegerMatrix
@@ -133,6 +134,11 @@ def save(obj: Any, path: str | Path) -> None:
     # copy_storage now writes raw data to the file
     if hasattr(obj, "copy_storage"):
         obj.copy_storage(str(temp_raw))
+    elif isinstance(obj, CausalSet):
+        # For CausalSet, save the underlying matrix
+        obj.CausalMatrix.copy_storage(str(temp_raw))
+        # We should probably use the matrix for metadata extraction too
+        obj = obj.CausalMatrix
     else:
         raise TypeError("Object does not support saving (missing copy_storage)")
     
@@ -178,6 +184,12 @@ def save(obj: Any, path: str | Path) -> None:
         elif _BitVector and isinstance(obj, _BitVector):
             metadata["matrix_type"] = "VECTOR"
             metadata["data_type"] = "BIT"
+        elif _UnitVector and isinstance(obj, _UnitVector):
+            metadata["matrix_type"] = "UNIT_VECTOR"
+            metadata["data_type"] = "FLOAT64"
+        elif isinstance(obj, _native.IdentityMatrix):
+            metadata["matrix_type"] = "IDENTITY"
+            metadata["data_type"] = "FLOAT64"
         
         with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as zf:
             zf.writestr("metadata.json", json.dumps(metadata, indent=2))
@@ -240,10 +252,28 @@ def load(path: str | Path) -> Any:
             obj = _IntegerVector(rows, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "BIT" and _BitVector:
             obj = _BitVector(rows, str(path), data_offset, seed, scalar, is_transposed)
+    elif matrix_type == "UNIT_VECTOR" and _UnitVector:
+        obj = _UnitVector(rows, seed, str(path), data_offset, seed, scalar, is_transposed)
     
     if obj:
         if is_transposed and hasattr(obj, "set_transposed"):
             obj.set_transposed(True)
+            
+        if metadata.get("object_type") == "CausalSet":
+            st_meta = metadata.get("spacetime", {})
+            st_type = st_meta.get("type")
+            st_args = st_meta.get("args", {})
+            
+            st = None
+            if st_type == "MinkowskiDiamond":
+                st = _native.MinkowskiDiamond(st_args.get("dimension", 2))
+            elif st_type == "MinkowskiCylinder":
+                st = _native.MinkowskiCylinder(st_args.get("dimension", 2), st_args.get("height", 1.0), st_args.get("circumference", 1.0))
+            elif st_type == "MinkowskiBox":
+                st = _native.MinkowskiBox(st_args.get("dimension", 2), st_args.get("time_extent", 1.0), st_args.get("space_extent", 1.0))
+                
+            return CausalSet(n=rows, spacetime=st, seed=seed, matrix=obj)
+            
         return obj
     
     raise ValueError(f"Unknown matrix type: {matrix_type}")
@@ -252,6 +282,9 @@ def load(path: str | Path) -> Any:
 # Monkey-patch MatrixBase to add the save method to all matrix classes
 if hasattr(_native, "MatrixBase"):
     _native.MatrixBase.save = save
+
+if hasattr(_native, "VectorBase"):
+    _native.VectorBase.save = save
 
 
 def _is_simple_name(candidate: str) -> bool:
@@ -346,7 +379,9 @@ def _prepare_backing_args(args: Sequence[Any], kwargs: dict[str, Any], target_ar
         )
 
     # Always resolve to a temporary path (None -> temp file)
-    resolved = _resolve_backing_path(None)
+    # We pass empty string to C++ so it can decide between :memory: and a temp file,
+    # and correctly set is_temporary_ flag.
+    resolved = ""
     
     if len(mutable_args) >= 2:
         mutable_args[1] = resolved
@@ -433,6 +468,17 @@ def _mark_temporary_if_auto(matrix: Any) -> None:
 
 def _patched_triangular_bit_matrix_init(self, *args: Any, **kwargs: Any) -> None:
     mutable_args = list(args)
+    
+    # Check if loading (has offset argument)
+    # Constructor signature for loading: (n, backing_file, offset, seed, scalar, is_transposed)
+    is_loading = len(mutable_args) >= 3 or "offset" in kwargs
+    
+    if is_loading:
+        _original_triangular_bit_matrix_init(self, *args, **kwargs)
+        _track_matrix(self)
+        _mark_temporary_if_auto(self)
+        return
+
     if len(mutable_args) > 0 and isinstance(mutable_args[0], float):
         mutable_args[0] = int(mutable_args[0])
     elif "N" in kwargs and isinstance(kwargs["N"], float):
@@ -456,7 +502,9 @@ def _patched_triangular_bit_matrix_init(self, *args: Any, **kwargs: Any) -> None
     kwargs.pop("backing_file", None)
     
     # Generate temp path
-    resolved = _resolve_backing_path(None)
+    # resolved = _resolve_backing_path(None)
+    # Pass empty string to let C++ handle temporary file/memory logic
+    resolved = ""
     
     # Call original init with (N, resolved)
     # Note: C++ signature is now (n, saveas)
@@ -1118,8 +1166,7 @@ def compute_k(matrix: TriangularBitMatrix, a: float):
     resolved = _resolve_backing_path(None, fallback="k_matrix")
     # _STORAGE_REGISTRY.register_auto_file(resolved) # Deprecated
         
-    _native.compute_k_matrix(matrix, a, resolved, 0)
-    result = _native.load(resolved)
+    result = _native.compute_k_matrix(matrix, a, resolved, 0)
     _track_matrix(result)
     _mark_temporary_if_auto(result)
     return result

@@ -127,6 +127,12 @@ void MemoryMapper::open_file(bool create_new) {
         }
     }
 
+    if (data_size_ == 0) {
+        // Zero-sized mapping requested (e.g. IdentityMatrix).
+        // No need to map anything.
+        return;
+    }
+
     hMapping_ = CreateFileMappingA(
         hFile_,
         NULL,
@@ -159,6 +165,15 @@ void MemoryMapper::open_file(bool create_new) {
     }
     
     mapped_ptr_ = static_cast<char*>(base_ptr_) + adjustment;
+    
+    // Debug: print first byte if size > 0
+    /*
+    if (data_size_ > 0) {
+        unsigned char val = static_cast<unsigned char>(static_cast<char*>(mapped_ptr_)[0]);
+        std::cout << "MemoryMapper: mapped " << data_size_ << " bytes at offset " << offset_ 
+                  << ". First byte: " << (int)val << std::endl;
+    }
+    */
 }
 
 void MemoryMapper::close_file() {

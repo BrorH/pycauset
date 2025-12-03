@@ -3,6 +3,7 @@
 #include "MatrixBase.hpp"
 #include "MatrixTraits.hpp"
 #include "StoragePaths.hpp"
+#include "DenseMatrix.hpp"
 #include <vector>
 #include <stdexcept>
 #include <algorithm>
@@ -134,6 +135,28 @@ public:
 
     std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
         return multiply_scalar(static_cast<double>(factor), result_file);
+    }
+
+    std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
+        auto result = std::make_unique<DenseMatrix<T>>(n_, result_file);
+        T* dst_data = result->data();
+        
+        for (uint64_t i = 0; i < n_; ++i) {
+            for (uint64_t j = 0; j < n_; ++j) {
+                // get_element_as_double handles scalar_
+                double val = get_element_as_double(i, j) + scalar;
+                dst_data[i * n_ + j] = static_cast<T>(val);
+            }
+        }
+        
+        if (result_file.empty()) {
+            result->set_temporary(true);
+        }
+        return result;
+    }
+
+    std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const override {
+        return add_scalar(static_cast<double>(scalar), result_file);
     }
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {

@@ -219,3 +219,25 @@ void DenseMatrix<bool>::fill_random(double density, std::optional<uint64_t> seed
         }
     }
 }
+
+std::unique_ptr<MatrixBase> DenseMatrix<bool>::add_scalar(double scalar, const std::string& result_file) const {
+    auto result = std::make_unique<DenseMatrix<double>>(n_, result_file);
+    double* dst_data = result->data();
+    
+    for (uint64_t i = 0; i < n_; ++i) {
+        for (uint64_t j = 0; j < n_; ++j) {
+            double val = (get(i, j) ? scalar_ : 0.0) + scalar;
+            dst_data[i * n_ + j] = val;
+        }
+    }
+    
+    if (result_file.empty()) {
+        result->set_temporary(true);
+    }
+    return result;
+}
+
+std::unique_ptr<MatrixBase> DenseMatrix<bool>::add_scalar(int64_t scalar, const std::string& result_file) const {
+    return add_scalar(static_cast<double>(scalar), result_file);
+}
+

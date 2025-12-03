@@ -93,6 +93,29 @@ public:
         return multiply_scalar(static_cast<double>(factor), result_file);
     }
 
+    std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
+        auto result = std::make_unique<DenseMatrix<T>>(n_, result_file);
+        
+        const T* src_data = data();
+        T* dst_data = result->data();
+        uint64_t total_elements = n_ * n_;
+        
+        for (uint64_t i = 0; i < total_elements; ++i) {
+            double val = static_cast<double>(src_data[i]) * scalar_ + scalar;
+            dst_data[i] = static_cast<T>(val);
+        }
+        
+        result->set_scalar(1.0);
+        if (result_file.empty()) {
+            result->set_temporary(true);
+        }
+        return result;
+    }
+
+    std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const override {
+        return add_scalar(static_cast<double>(scalar), result_file);
+    }
+
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
         std::string new_path = copy_storage(result_file);
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
