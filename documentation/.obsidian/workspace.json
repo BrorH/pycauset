@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "guides/Vector Guide.md",
+                "file": "docs/classes/matrix/pycauset.TriangularIntegerMatrix.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Vector Guide"
+              "title": "pycauset.TriangularIntegerMatrix"
             }
           },
           {
@@ -194,13 +194,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "guides/Vector Guide.md",
+                "file": "docs/classes/matrix/pycauset.TriangularIntegerMatrix.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Vector Guide"
+              "title": "Outline of pycauset.TriangularIntegerMatrix"
             }
           }
         ],
@@ -223,6 +223,10 @@
   },
   "active": "1563eaae446d05e3",
   "lastOpenFiles": [
+    "docs/functions/pycauset.eig.md",
+    "docs/functions/pycauset.eigvals.md",
+    "docs/classes/vector/pycauset.ComplexVector.md",
+    "guides/Vector Guide.md",
     "guides/Storage and Memory.md",
     "internals/Matrix and Vector Architecture.md",
     "project/TODO.md",
@@ -245,10 +249,6 @@
     "guides/Field Theory.md",
     "project/index.md",
     "docs/classes/vector/index.md",
-    "docs/classes/spacetime/index.md",
-    "docs/classes/matrix/index.md",
-    "docs/classes/field/index.md",
-    "docs/classes/core/index.md",
     "docs/classes/vector",
     "docs/classes/spacetime",
     "docs/classes/matrix",

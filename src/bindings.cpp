@@ -16,6 +16,8 @@
 #include "VectorOperations.hpp"
 #include "PersistentObject.hpp"
 #include "ComplexMatrix.hpp"
+#include "ComplexVector.hpp"
+#include "Eigen.hpp"
 #include "Sprinkler.hpp"
 #include "MatrixFactory.hpp"
 
@@ -635,11 +637,11 @@ PYBIND11_MODULE(_pycauset, m) {
 
     // TriangularFloatMatrix
     py::class_<TriangularFloatMatrix, MatrixBase> tfm(m, "TriangularFloatMatrix");
-    tfm.def(py::init<uint64_t, const std::string&>(), 
-            py::arg("n"), py::arg("backing_file") = "")
-       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+    tfm.def(py::init<uint64_t, const std::string&, bool>(), 
+            py::arg("n"), py::arg("backing_file") = "", py::arg("has_diagonal") = false)
+       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool, bool>(),
             py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
-            py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
+            py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"), py::arg("has_diagonal") = false)
         .def("get", &TriangularFloatMatrix::get)
         .def("get_element_as_double", &TriangularFloatMatrix::get_element_as_double)
         .def("set", &TriangularFloatMatrix::set)
@@ -668,11 +670,11 @@ PYBIND11_MODULE(_pycauset, m) {
 
     // TriangularIntegerMatrix
     py::class_<TriangularIntegerMatrix, MatrixBase> tim(m, "TriangularIntegerMatrix");
-    tim.def(py::init<uint64_t, const std::string&>(), 
-            py::arg("n"), py::arg("backing_file") = "")
-       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+    tim.def(py::init<uint64_t, const std::string&, bool>(), 
+            py::arg("n"), py::arg("backing_file") = "", py::arg("has_diagonal") = false)
+       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool, bool>(),
             py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
-            py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
+            py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"), py::arg("has_diagonal") = false)
         .def("get", &TriangularIntegerMatrix::get)
         .def("get_element_as_double", &TriangularIntegerMatrix::get_element_as_double)
         .def("set", &TriangularIntegerMatrix::set)
@@ -1169,11 +1171,66 @@ PYBIND11_MODULE(_pycauset, m) {
             return "<ComplexMatrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
         });
 
+    // ComplexVector
+    py::class_<pycauset::ComplexVector>(m, "ComplexVector")
+        .def(py::init<uint64_t, const std::string&, const std::string&>(), 
+             py::arg("n"), py::arg("backing_file_real") = "", py::arg("backing_file_imag") = "")
+        .def("get", &pycauset::ComplexVector::get)
+        .def("set", &pycauset::ComplexVector::set)
+        .def("size", &pycauset::ComplexVector::size)
+        .def("close", &pycauset::ComplexVector::close)
+        .def_property_readonly("real", static_cast<const pycauset::FloatVector* (pycauset::ComplexVector::*)() const>(&pycauset::ComplexVector::real), py::return_value_policy::reference)
+        .def_property_readonly("imag", static_cast<const pycauset::FloatVector* (pycauset::ComplexVector::*)() const>(&pycauset::ComplexVector::imag), py::return_value_policy::reference)
+        .def("conjugate", [](const pycauset::ComplexVector& v) {
+            return v.conjugate(make_unique_storage_file("conj_real"), make_unique_storage_file("conj_imag"));
+        })
+        .def("__add__", [](const pycauset::ComplexVector& self, const pycauset::ComplexVector& other) {
+            return pycauset::add(self, other, make_unique_storage_file("cadd_real"), make_unique_storage_file("cadd_imag"));
+        })
+        .def("__sub__", [](const pycauset::ComplexVector& self, const pycauset::ComplexVector& other) {
+            return pycauset::subtract(self, other, make_unique_storage_file("csub_real"), make_unique_storage_file("csub_imag"));
+        })
+        .def("__mul__", [](const pycauset::ComplexVector& self, std::complex<double> scalar) {
+            return pycauset::multiply_scalar(self, scalar, make_unique_storage_file("csmul_real"), make_unique_storage_file("csmul_imag"));
+        })
+        .def("__rmul__", [](const pycauset::ComplexVector& self, std::complex<double> scalar) {
+            return pycauset::multiply_scalar(self, scalar, make_unique_storage_file("csmul_real"), make_unique_storage_file("csmul_imag"));
+        })
+        .def("__add__", [](const pycauset::ComplexVector& self, std::complex<double> scalar) {
+            return pycauset::add_scalar(self, scalar, make_unique_storage_file("csadd_real"), make_unique_storage_file("csadd_imag"));
+        })
+        .def("__radd__", [](const pycauset::ComplexVector& self, std::complex<double> scalar) {
+            return pycauset::add_scalar(self, scalar, make_unique_storage_file("csadd_real"), make_unique_storage_file("csadd_imag"));
+        })
+        .def("dot", [](const pycauset::ComplexVector& self, const pycauset::ComplexVector& other) {
+            return pycauset::dot(self, other);
+        })
+        .def("cross", [](const pycauset::ComplexVector& self, const pycauset::ComplexVector& other) {
+            return pycauset::cross(self, other, make_unique_storage_file("ccross_real"), make_unique_storage_file("ccross_imag"));
+        })
+        .def("__len__", &pycauset::ComplexVector::size)
+        .def_property_readonly("shape", [](const pycauset::ComplexVector& v) {
+            return py::make_tuple(v.size());
+        })
+        .def("__repr__", [](const pycauset::ComplexVector& v) {
+            return "<ComplexVector size=" + std::to_string(v.size()) + ">";
+        });
+
     m.def("dot", &pycauset::dot_product, "Dot product of two vectors");
     
     m.def("cross", [](const VectorBase& a, const VectorBase& b) {
         return pycauset::cross_product(a, b, make_unique_storage_file("cross"));
     }, "Cross product of two 3D vectors");
+
+    m.def("eigvals", [](const MatrixBase& matrix) {
+        return pycauset::eigvals(matrix, make_unique_storage_file("eigvals_real"), make_unique_storage_file("eigvals_imag"));
+    }, py::arg("matrix"), "Compute the eigenvalues of a matrix.");
+
+    m.def("eig", [](const MatrixBase& matrix) {
+        return pycauset::eig(matrix, 
+                             make_unique_storage_file("eigvals_real"), make_unique_storage_file("eigvals_imag"),
+                             make_unique_storage_file("eigvecs_real"), make_unique_storage_file("eigvecs_imag"));
+    }, py::arg("matrix"), "Compute the eigenvalues and right eigenvectors of a square matrix.");
 
     m.def("set_memory_threshold", &pycauset::set_memory_threshold, 
           py::arg("bytes"),

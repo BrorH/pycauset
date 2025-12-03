@@ -9,10 +9,15 @@ uint64_t TriangularMatrixBase::calculate_triangular_offsets(uint64_t element_bit
         // Store current offset (converted to bytes)
         row_offsets_[i] = current_offset_bits / 8;
 
-        // Number of elements in this row (strictly upper triangular: columns i+1 to N-1)
-        // Count = (N - 1) - (i + 1) + 1 = N - 1 - i
-        // If i = N-1, count is 0.
-        uint64_t num_elements = (n_ > i) ? (n_ - 1 - i) : 0;
+        // Number of elements in this row
+        // If diagonal: columns i to N-1 => Count = N - i
+        // If strict: columns i+1 to N-1 => Count = N - 1 - i
+        uint64_t num_elements;
+        if (has_diagonal_) {
+            num_elements = (n_ > i) ? (n_ - i) : 0;
+        } else {
+            num_elements = (n_ > i) ? (n_ - 1 - i) : 0;
+        }
         
         if (num_elements > 0) {
             uint64_t row_bits = num_elements * element_bits;
