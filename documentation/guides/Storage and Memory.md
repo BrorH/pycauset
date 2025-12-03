@@ -48,6 +48,30 @@ If you unzip a `.pycauset` file, you can inspect `metadata.json`:
 *   **`scalar`**: A global scaling factor applied to all elements (see "Lazy Evaluation" below).
 *   **`is_transposed`**: A boolean flag indicating if the matrix is logically transposed (see "Lazy Evaluation" below).
 
+## Compute-Once Caching
+
+PyCauset implements a "compute-once" philosophy for expensive mathematical operations.
+
+### Scalar Properties (Trace, Determinant, Eigenvalues)
+When you compute properties like `trace()`, `determinant()`, or `eigenvalues()`, the result is stored in the matrix object's memory.
+*   **Automatic Persistence**: When you call `pycauset.save(matrix, path)`, these cached values are written into the `metadata.json` file.
+*   **Automatic Restoration**: When you `load()` the matrix later, these values are read from metadata, making them available instantly without recomputation.
+
+### Large Objects (Eigenvectors, Inverse)
+For large results that are matrices themselves (like Eigenvectors or the Inverse matrix), PyCauset offers optional persistence to avoid bloating the file unless requested.
+
+```python
+# Compute eigenvectors and SAVE them to the archive
+vecs = matrix.eigenvectors(save=True)
+```
+
+When `save=True` is passed:
+1.  The eigenvectors are computed.
+2.  The result is written to new binary files (`eigenvectors.real.bin`, `eigenvectors.imag.bin`) **inside** the existing `.pycauset` ZIP archive.
+3.  A `cache.json` manifest is updated in the ZIP.
+
+**Future Loads**: When you load this matrix file later, `matrix.eigenvectors()` will detect the presence of these files in the ZIP and load them directly from disk instead of recomputing them.
+
 ## Working with Files
 
 ### Saving

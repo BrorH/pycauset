@@ -20,6 +20,21 @@ public:
         imag_ = std::make_unique<FloatMatrix>(n, backing_file_imag);
     }
 
+    // Constructor for loading from offsets
+    ComplexMatrix(uint64_t n, 
+                  const std::string& backing_file_real, size_t offset_real,
+                  const std::string& backing_file_imag, size_t offset_imag) 
+        : n_(n) {
+        // Calculate size in bytes: n * n * sizeof(double)
+        size_t size_bytes = n * n * sizeof(double);
+        
+        auto mapper_real = std::make_unique<MemoryMapper>(backing_file_real, size_bytes, offset_real, false);
+        real_ = std::make_unique<FloatMatrix>(n, std::move(mapper_real));
+        
+        auto mapper_imag = std::make_unique<MemoryMapper>(backing_file_imag, size_bytes, offset_imag, false);
+        imag_ = std::make_unique<FloatMatrix>(n, std::move(mapper_imag));
+    }
+
     // Construct from existing parts (takes ownership)
     ComplexMatrix(std::unique_ptr<FloatMatrix> real, std::unique_ptr<FloatMatrix> imag)
         : n_(real->size()), real_(std::move(real)), imag_(std::move(imag)) {
