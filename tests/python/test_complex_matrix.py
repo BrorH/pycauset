@@ -64,5 +64,45 @@ class TestComplexMatrix(unittest.TestCase):
         c_h = c1.H
         self.assertEqual(c_h.get(0, 0), complex(1, -2))
 
+    def test_scalar_multiplication(self):
+        """Test scaling ComplexMatrix by a complex scalar."""
+        n = 2
+        cm = pycauset.ComplexMatrix(n)
+        cm.set(0, 0, 1.0 + 1.0j)
+        
+        scalar = 2.0 + 3.0j
+        
+        cm_scaled = cm * scalar
+        res = cm_scaled.get(0, 0)
+        # (1+i) * (2+3i) = (2-3) + (3+2)i = -1 + 5i
+        self.assertAlmostEqual(res.real, -1.0)
+        self.assertAlmostEqual(res.imag, 5.0)
+
+        # Test reverse multiplication
+        cm_scaled_rev = scalar * cm
+        res_rev = cm_scaled_rev.get(0, 0)
+        self.assertAlmostEqual(res_rev.real, -1.0)
+        self.assertAlmostEqual(res_rev.imag, 5.0)
+
+    def test_scalar_addition(self):
+        """Test adding scalar to ComplexMatrix."""
+        n = 2
+        cm = pycauset.ComplexMatrix(n)
+        cm.set(0, 0, 1.0 + 1.0j)
+        
+        scalar = 2.0 + 3.0j
+        
+        cm_added = cm + scalar
+        res = cm_added.get(0, 0)
+        # (1+i) + (2+3i) = 3 + 4i
+        self.assertAlmostEqual(res.real, 3.0)
+        self.assertAlmostEqual(res.imag, 4.0)
+
+        # Test reverse addition
+        cm_added_rev = scalar + cm
+        res_rev = cm_added_rev.get(0, 0)
+        self.assertAlmostEqual(res_rev.real, 3.0)
+        self.assertAlmostEqual(res_rev.imag, 4.0)
+
 if __name__ == '__main__':
     unittest.main()

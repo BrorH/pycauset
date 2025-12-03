@@ -10,7 +10,9 @@ enum class MatrixType : uint32_t {
     TRIANGULAR_FLOAT = 3,
     DENSE_FLOAT = 4,
     IDENTITY = 5,
-    VECTOR = 6
+    VECTOR = 6,
+    DIAGONAL = 7,
+    UNIT_VECTOR = 8
 };
 
 enum class DataType : uint32_t {

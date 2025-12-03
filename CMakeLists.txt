@@ -45,7 +45,6 @@ endif()
 
 # --- Source Files ---
 set(PYCAUSET_SOURCES
-    src/bindings.cpp
     src/MemoryMapper.cpp
     src/PersistentObject.cpp
     src/StoragePaths.cpp
@@ -56,14 +55,16 @@ set(PYCAUSET_SOURCES
     src/DenseBitMatrix.cpp
     src/DenseVector.cpp
     src/MatrixOperations.cpp
+    src/VectorOperations.cpp
     src/MatrixFactory.cpp
+    src/VectorFactory.cpp
     src/Sprinkler.cpp
 )
 
 # --- Extension Module ---
 # Note: The module name must match what is defined in PYBIND11_MODULE in bindings.cpp (which is "_pycauset")
 # Touch
-python_add_library(_pycauset MODULE ${PYCAUSET_SOURCES})
+python_add_library(_pycauset MODULE src/bindings.cpp ${PYCAUSET_SOURCES})
 
 # Include directories
 target_include_directories(_pycauset PRIVATE include)

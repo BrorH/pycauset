@@ -19,9 +19,34 @@ v2 = pc.Vector([1, 2, 3, 4, 5])
 v3 = pc.Vector([True, False, True, True])
 ```
 
+## Unit Vectors
+
+A `UnitVector` is a specialized vector type representing a standard basis vector (a vector with a single `1` at a specific index and `0` everywhere else). It is highly optimized for storage and arithmetic operations.
+
+```python
+import pycauset as pc
+
+# Create a unit vector of size 1000 with the 1 at index 5
+u = pc.UnitVector(1000, 5)
+
+print(u[5]) # 1.0
+print(u[0]) # 0.0
+```
+
+**Benefits:**
+*   **O(1) Storage**: Only stores the index and size.
+*   **O(1) Arithmetic**: Operations like dot products or addition with other unit vectors are computed instantly without iterating over the full size.
+
 ## Vector Arithmetic
 
 Vectors support standard arithmetic operations. These operations are performed element-wise and are optimized for large datasets.
+
+### Optimized Operations
+
+Arithmetic involving `UnitVector` is special-cased for performance.
+*   `UnitVector` + `UnitVector`: Returns a sparse result if possible.
+*   `Vector` + `UnitVector`: Only updates the single active element.
+*   `Vector` . `UnitVector`: Returns the element at the active index (O(1)).
 
 ### Addition
 
@@ -70,6 +95,22 @@ result = pc.dot(v1, v2)  # 1*4 + 2*5 + 3*6 = 32.0
 # OR
 result = v1.dot(v2)
 ```
+
+### Cross Product
+
+You can compute the cross product of two 3D vectors using [[pycauset.cross]].
+
+```python
+import pycauset as pc
+
+v1 = pc.Vector([1, 0, 0])
+v2 = pc.Vector([0, 1, 0])
+
+# v1 x v2 = [0, 0, 1]
+v3 = pc.cross(v1, v2)
+```
+
+**Note**: The cross product is only defined for vectors of size 3. Passing vectors of other sizes will raise a `ValueError`.
 
 ## Transposition & Matrix Operations
 

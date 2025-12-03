@@ -75,6 +75,9 @@ if (-not (Test-Path $buildDir)) {
 Push-Location $buildDir
 
 $cmakeConfigureArgs = @("..")
+if ($Tests) {
+    $cmakeConfigureArgs += "-DBUILD_TESTS=ON"
+}
 if ($resolvedPythonExe) {
     $normalizedExe = $resolvedPythonExe -replace "\\", "/"
     $cmakeConfigureArgs = @("-DPython3_EXECUTABLE:FILEPATH=$normalizedExe", "-DPython_EXECUTABLE:FILEPATH=$normalizedExe") + $cmakeConfigureArgs

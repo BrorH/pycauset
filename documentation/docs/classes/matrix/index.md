@@ -3,6 +3,7 @@
 * **[[pycauset.CausalMatrix|CausalMatrix]]**
 * **[[pycauset.ComplexMatrix|ComplexMatrix]]**
 * **[[pycauset.DenseBitMatrix|DenseBitMatrix]]**
+* **[[pycauset.DiagonalMatrix|DiagonalMatrix]]**
 * **[[pycauset.FloatMatrix|FloatMatrix]]**
 * **[[pycauset.IdentityMatrix|IdentityMatrix]]**
 * **[[pycauset.IntegerMatrix|IntegerMatrix]]**

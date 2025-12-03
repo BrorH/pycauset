@@ -2,6 +2,7 @@
 #include "DenseMatrix.hpp"
 #include "TriangularMatrix.hpp"
 #include "IdentityMatrix.hpp"
+#include "DiagonalMatrix.hpp"
 #include "DenseBitMatrix.hpp"
 #include "TriangularBitMatrix.hpp"
 #include <stdexcept>
@@ -15,7 +16,29 @@ std::unique_ptr<MatrixBase> MatrixFactory::create(
     const std::string& backing_file
 ) {
     if (mtype == MatrixType::IDENTITY) {
-        return std::make_unique<IdentityMatrix>(n);
+        switch (dtype) {
+            case DataType::BIT:
+                return std::make_unique<IdentityMatrix<bool>>(n);
+            case DataType::INT32:
+                return std::make_unique<IdentityMatrix<int32_t>>(n);
+            case DataType::FLOAT64:
+                return std::make_unique<IdentityMatrix<double>>(n);
+            default:
+                throw std::runtime_error("Unsupported DataType for IdentityMatrix");
+        }
+    }
+
+    if (mtype == MatrixType::DIAGONAL) {
+        switch (dtype) {
+            case DataType::BIT:
+                return std::make_unique<DiagonalMatrix<bool>>(n, backing_file);
+            case DataType::INT32:
+                return std::make_unique<DiagonalMatrix<int32_t>>(n, backing_file);
+            case DataType::FLOAT64:
+                return std::make_unique<DiagonalMatrix<double>>(n, backing_file);
+            default:
+                throw std::runtime_error("Unsupported DataType for DiagonalMatrix");
+        }
     }
 
     bool is_triangular = (mtype == MatrixType::TRIANGULAR_FLOAT || mtype == MatrixType::CAUSAL);
@@ -65,7 +88,29 @@ std::unique_ptr<MatrixBase> MatrixFactory::load(
     uint64_t n = rows;
 
     if (mtype == MatrixType::IDENTITY) {
-        return std::make_unique<IdentityMatrix>(n);
+        switch (dtype) {
+            case DataType::BIT:
+                return std::make_unique<IdentityMatrix<bool>>(n, backing_file, offset, seed, scalar, is_transposed);
+            case DataType::INT32:
+                return std::make_unique<IdentityMatrix<int32_t>>(n, backing_file, offset, seed, scalar, is_transposed);
+            case DataType::FLOAT64:
+                return std::make_unique<IdentityMatrix<double>>(n, backing_file, offset, seed, scalar, is_transposed);
+            default:
+                throw std::runtime_error("Unsupported DataType for IdentityMatrix load");
+        }
+    }
+
+    if (mtype == MatrixType::DIAGONAL) {
+        switch (dtype) {
+            case DataType::BIT:
+                return std::make_unique<DiagonalMatrix<bool>>(n, backing_file, offset, seed, scalar, is_transposed);
+            case DataType::INT32:
+                return std::make_unique<DiagonalMatrix<int32_t>>(n, backing_file, offset, seed, scalar, is_transposed);
+            case DataType::FLOAT64:
+                return std::make_unique<DiagonalMatrix<double>>(n, backing_file, offset, seed, scalar, is_transposed);
+            default:
+                throw std::runtime_error("Unsupported DataType for DiagonalMatrix load");
+        }
     }
 
     bool is_triangular = (mtype == MatrixType::TRIANGULAR_FLOAT || mtype == MatrixType::CAUSAL);
@@ -102,21 +147,37 @@ DataType MatrixFactory::resolve_result_type(DataType a, DataType b) {
     if (a == DataType::INT32 || b == DataType::INT32) {
         return DataType::INT32;
     }
-    if (a == DataType::BIT && b == DataType::BIT) {
-        // Arithmetic on bits promotes to integer
-        return DataType::INT32; 
-    }
-    return DataType::FLOAT64; // Fallback
+    return DataType::BIT;
 }
 
 MatrixType MatrixFactory::resolve_result_matrix_type(MatrixType a, MatrixType b) {
-    bool a_tri = (a == MatrixType::TRIANGULAR_FLOAT || a == MatrixType::CAUSAL || a == MatrixType::IDENTITY);
-    bool b_tri = (b == MatrixType::TRIANGULAR_FLOAT || b == MatrixType::CAUSAL || b == MatrixType::IDENTITY);
-    
-    if (a_tri && b_tri) {
-        return MatrixType::TRIANGULAR_FLOAT; // Generic triangular
+    // If either is Dense, result is Dense
+    if (a == MatrixType::DENSE_FLOAT || b == MatrixType::DENSE_FLOAT ||
+        a == MatrixType::INTEGER || b == MatrixType::INTEGER) {
+        return MatrixType::DENSE_FLOAT; // Or generic Dense
     }
-    return MatrixType::DENSE_FLOAT; // Generic dense
+    
+    // If both are Diagonal, result is Diagonal
+    if (a == MatrixType::DIAGONAL && b == MatrixType::DIAGONAL) {
+        return MatrixType::DIAGONAL;
+    }
+
+    // If one is Diagonal and other is Triangular, result is Triangular
+    // (Diag + Tri = Tri)
+    if ((a == MatrixType::DIAGONAL && (b == MatrixType::TRIANGULAR_FLOAT || b == MatrixType::CAUSAL)) ||
+        (b == MatrixType::DIAGONAL && (a == MatrixType::TRIANGULAR_FLOAT || a == MatrixType::CAUSAL))) {
+        return MatrixType::TRIANGULAR_FLOAT; // Or generic Triangular
+    }
+
+    // Identity behaves like Diagonal for structure
+    if (a == MatrixType::IDENTITY && b == MatrixType::IDENTITY) {
+        return MatrixType::IDENTITY;
+    }
+    if (a == MatrixType::IDENTITY) return b;
+    if (b == MatrixType::IDENTITY) return a;
+
+    // Default fallback
+    return MatrixType::DENSE_FLOAT;
 }
 
 }

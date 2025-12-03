@@ -7,7 +7,12 @@
 
 #include "StoragePaths.hpp"
 
-PersistentObject::PersistentObject() {}
+PersistentObject::PersistentObject() 
+    : mapper_(nullptr), 
+      matrix_type_(pycauset::MatrixType::UNKNOWN), 
+      data_type_(pycauset::DataType::UNKNOWN), 
+      rows_(0), cols_(0), seed_(0), scalar_(1.0), 
+      is_transposed_(false), is_temporary_(false) {}
 
 PersistentObject::PersistentObject(std::unique_ptr<MemoryMapper> mapper,
                                    pycauset::MatrixType matrix_type,
@@ -30,20 +35,10 @@ PersistentObject::PersistentObject(std::unique_ptr<MemoryMapper> mapper,
 {
 }
 
-PersistentObject::~PersistentObject() {
-    if (mapper_) {
-        bool temp = is_temporary_;
-        std::string path = mapper_->get_filename();
-        mapper_.reset(); // Close file mapping
+#include <iostream>
 
-        if (temp && !path.empty() && path != ":memory:") {
-            try {
-                std::filesystem::remove(path);
-            } catch (...) {
-                // Best effort deletion
-            }
-        }
-    }
+PersistentObject::~PersistentObject() {
+    close();
 }
 
 std::string PersistentObject::get_backing_file() const {
@@ -54,7 +49,28 @@ std::string PersistentObject::get_backing_file() const {
 }
 
 void PersistentObject::close() {
-    mapper_.reset();
+    if (mapper_) {
+        bool temp = is_temporary_;
+        std::string path = mapper_->get_filename();
+        std::cout << "Closing object. Temp: " << temp << ", Path: " << path << std::endl;
+        mapper_.reset(); // Close file mapping
+
+        if (temp && !path.empty() && path != ":memory:") {
+            try {
+                // Use char8_t cast for UTF-8 string to handle Unicode paths
+                std::filesystem::path p(reinterpret_cast<const char8_t*>(path.c_str()));
+                if (std::filesystem::remove(p)) {
+                    std::cout << "Deleted temp file: " << path << std::endl;
+                } else {
+                    std::cerr << "Failed to delete temp file: " << path << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Exception deleting temp file: " << path << " - " << e.what() << std::endl;
+            } catch (...) {
+                std::cerr << "Unknown exception deleting temp file: " << path << std::endl;
+            }
+        }
+    }
 }
 
 void PersistentObject::initialize_storage(uint64_t size_in_bytes,
@@ -126,6 +142,8 @@ std::string PersistentObject::copy_storage(const std::string& result_file_hint) 
         const char* data = static_cast<const char*>(mapper_->get_data());
         size_t size = mapper_->get_data_size();
         
+        // std::cout << "Copying storage: " << size << " bytes from " << (void*)data << " to " << dest_path << std::endl;
+
         if (!outfile.write(data, size)) {
             throw std::runtime_error("Failed to write object data to disk: " + dest_path);
         }
