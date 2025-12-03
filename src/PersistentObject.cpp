@@ -7,29 +7,32 @@
 
 #include "StoragePaths.hpp"
 
-PersistentObject::PersistentObject() : scalar_(1.0) {}
+PersistentObject::PersistentObject() {}
 
-PersistentObject::PersistentObject(std::unique_ptr<MemoryMapper> mapper) 
-    : mapper_(std::move(mapper)) {
-    if (mapper_) {
-        auto* header = mapper_->get_header();
-        if (header->version >= 2) {
-            scalar_ = header->scalar;
-        } else {
-            scalar_ = 1.0;
-        }
-    } else {
-        scalar_ = 1.0;
-    }
+PersistentObject::PersistentObject(std::unique_ptr<MemoryMapper> mapper,
+                                   pycauset::MatrixType matrix_type,
+                                   pycauset::DataType data_type,
+                                   uint64_t rows,
+                                   uint64_t cols,
+                                   uint64_t seed,
+                                   double scalar,
+                                   bool is_transposed,
+                                   bool is_temporary)
+    : mapper_(std::move(mapper)),
+      matrix_type_(matrix_type),
+      data_type_(data_type),
+      rows_(rows),
+      cols_(cols),
+      seed_(seed),
+      scalar_(scalar),
+      is_transposed_(is_transposed),
+      is_temporary_(is_temporary)
+{
 }
 
 PersistentObject::~PersistentObject() {
     if (mapper_) {
-        bool temp = false;
-        try {
-            temp = is_temporary();
-        } catch (...) {}
-
+        bool temp = is_temporary_;
         std::string path = mapper_->get_filename();
         mapper_.reset(); // Close file mapping
 
@@ -50,22 +53,6 @@ std::string PersistentObject::get_backing_file() const {
     return "";
 }
 
-pycauset::DataType PersistentObject::get_data_type() const {
-    return require_mapper()->get_header()->data_type;
-}
-
-pycauset::MatrixType PersistentObject::get_matrix_type() const {
-    return require_mapper()->get_header()->matrix_type;
-}
-
-bool PersistentObject::is_transposed() const {
-    return require_mapper()->get_header()->is_transposed != 0;
-}
-
-void PersistentObject::set_transposed(bool transposed) {
-    require_mapper()->get_header()->is_transposed = transposed ? 1 : 0;
-}
-
 void PersistentObject::close() {
     mapper_.reset();
 }
@@ -77,7 +64,9 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
                                    pycauset::MatrixType matrix_type,
                                    pycauset::DataType data_type,
                                    uint64_t rows,
-                                   uint64_t cols) {
+                                   uint64_t cols,
+                                   size_t offset,
+                                   bool create_new) {
     uint64_t final_size = size_in_bytes;
     if (final_size < min_size_bytes) {
         final_size = min_size_bytes;
@@ -95,23 +84,18 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
         path = resolve_backing_file(backing_file, fallback_prefix);
     }
     
-    // Create new file with header space
-    mapper_ = std::make_unique<MemoryMapper>(path, final_size, true);
+    // Create new file, no header space needed
+    mapper_ = std::make_unique<MemoryMapper>(path, final_size, offset, create_new);
 
-    // Initialize Header
-    auto* header = mapper_->get_header();
-    std::memset(header, 0, sizeof(pycauset::FileHeader));
-    std::memcpy(header->magic, "PYCAUSET", 8);
-    header->version = 2;
-    header->matrix_type = matrix_type;
-    header->data_type = data_type;
-    header->rows = rows;
-    header->cols = cols;
-    header->scalar = 1.0;
-    // If no backing file was requested, this is an auto-generated temporary file.
-    // RAM-backed files are always temporary.
-    header->is_temporary = (backing_file.empty() || path == ":memory:") ? 1 : 0;
+    // Initialize members
+    matrix_type_ = matrix_type;
+    data_type_ = data_type;
+    rows_ = rows;
+    cols_ = cols;
     scalar_ = 1.0;
+    is_temporary_ = (backing_file.empty() || path == ":memory:");
+    is_transposed_ = false;
+    seed_ = 0;
 }
 
 std::string PersistentObject::copy_storage(const std::string& result_file_hint) const {
@@ -123,18 +107,27 @@ std::string PersistentObject::copy_storage(const std::string& result_file_hint) 
 
     std::string dest_path = resolve_backing_file(result_file_hint, "copy");
     
-    if (source_path == ":memory:") {
-        // For RAM-backed objects, we must write the memory buffer to disk manually
-        std::ofstream outfile(dest_path, std::ios::binary);
+    // Always use manual copy if we have a mapper.
+    // This ensures we copy exactly what is in memory, avoiding issues with
+    // filesystem cache synchronization or file locking on Windows.
+    bool manual_copy = (mapper_ != nullptr);
+
+    if (manual_copy) {
+        // For RAM-backed objects or objects inside a container (offset > 0),
+        // we must write the memory buffer to disk manually to extract just the data.
+        // Use std::filesystem::path to handle Unicode paths correctly on Windows
+        // Since we are using C++20 and pybind11 passes UTF-8 strings, we cast to char8_t
+        std::filesystem::path dest(reinterpret_cast<const char8_t*>(dest_path.c_str()));
+        std::ofstream outfile(dest, std::ios::binary);
         if (!outfile) {
             throw std::runtime_error("Failed to open destination file for writing: " + dest_path);
         }
         
-        const char* data = static_cast<const char*>(static_cast<const void*>(mapper_->get_header()));
-        size_t size = sizeof(pycauset::FileHeader) + mapper_->get_data_size();
+        const char* data = static_cast<const char*>(mapper_->get_data());
+        size_t size = mapper_->get_data_size();
         
         if (!outfile.write(data, size)) {
-            throw std::runtime_error("Failed to write RAM object to disk: " + dest_path);
+            throw std::runtime_error("Failed to write object data to disk: " + dest_path);
         }
         outfile.close();
     } else {
@@ -143,7 +136,9 @@ std::string PersistentObject::copy_storage(const std::string& result_file_hint) 
         }
         // Use filesystem copy
         try {
-            std::filesystem::copy_file(source_path, dest_path, std::filesystem::copy_options::overwrite_existing);
+            std::filesystem::path src(reinterpret_cast<const char8_t*>(source_path.c_str()));
+            std::filesystem::path dst(reinterpret_cast<const char8_t*>(dest_path.c_str()));
+            std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing);
         } catch (const std::filesystem::filesystem_error& e) {
             throw std::runtime_error("Failed to copy backing file: " + std::string(e.what()));
         }
@@ -154,35 +149,18 @@ std::string PersistentObject::copy_storage(const std::string& result_file_hint) 
 
 void PersistentObject::set_scalar(double s) {
     scalar_ = s;
-    if (mapper_) {
-        mapper_->get_header()->scalar = s;
-    }
-}
-
-uint64_t PersistentObject::get_seed() const {
-    if (mapper_) {
-        return mapper_->get_header()->seed;
-    }
-    return 0;
 }
 
 void PersistentObject::set_seed(uint64_t seed) {
-    if (mapper_) {
-        mapper_->get_header()->seed = seed;
-    }
-}
-
-bool PersistentObject::is_temporary() const {
-    if (mapper_) {
-        return mapper_->get_header()->is_temporary != 0;
-    }
-    return false;
+    seed_ = seed;
 }
 
 void PersistentObject::set_temporary(bool temp) {
-    if (mapper_) {
-        mapper_->get_header()->is_temporary = temp ? 1 : 0;
-    }
+    is_temporary_ = temp;
+}
+
+void PersistentObject::set_transposed(bool transposed) {
+    is_transposed_ = transposed;
 }
 
 MemoryMapper* PersistentObject::require_mapper() {

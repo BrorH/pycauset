@@ -10,7 +10,7 @@
 // Explicit template instantiation if needed, but we are defining the specialization here.
 
 TriangularMatrix<bool>::TriangularMatrix(uint64_t n, const std::string& backing_file)
-    : TriangularMatrixBase(n, nullptr) {
+    : TriangularMatrixBase(n, pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT) {
     // Calculate offsets for bits (1 bit per element), aligned to 64 bits
     uint64_t size_in_bytes = calculate_triangular_offsets(1, 64);
     initialize_storage(size_in_bytes, backing_file, "causal_matrix", 8, 
@@ -18,8 +18,26 @@ TriangularMatrix<bool>::TriangularMatrix(uint64_t n, const std::string& backing_
                       n, n);
 }
 
+TriangularMatrix<bool>::TriangularMatrix(uint64_t n, 
+                                         const std::string& backing_file,
+                                         size_t offset,
+                                         uint64_t seed,
+                                         double scalar,
+                                         bool is_transposed)
+    : TriangularMatrixBase(n, pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT) {
+    
+    uint64_t size_in_bytes = calculate_triangular_offsets(1, 64);
+    initialize_storage(size_in_bytes, backing_file, "", 8, 
+                      pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT,
+                      n, n, offset, false);
+    
+    set_seed(seed);
+    set_scalar(scalar);
+    set_transposed(is_transposed);
+}
+
 TriangularMatrix<bool>::TriangularMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
-    : TriangularMatrixBase(n, std::move(mapper)) {
+    : TriangularMatrixBase(n, std::move(mapper), pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT) {
     // Calculate offsets for bits (1 bit per element), aligned to 64 bits
     calculate_triangular_offsets(1, 64);
 }
@@ -74,9 +92,7 @@ std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::random(uint64_t 
                                                    const std::string& backing_file,
                                                    std::optional<uint64_t> seed) {
     auto mat = std::make_unique<TriangularMatrix<bool>>(n, backing_file);
-    if (seed.has_value()) {
-        mat->require_mapper()->get_header()->seed = seed.value();
-    }
+    // Seed storage in header is removed
     mat->fill_random(density, seed);
     return mat;
 }
@@ -267,9 +283,9 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
 
     const size_t CHUNK_SIZE = 64 * 1024 * 1024; // 64 MB
     size_t granularity = MemoryMapper::get_granularity();
-    size_t file_header_size = sizeof(pycauset::FileHeader);
-    size_t data_start_offset = file_header_size;
-    size_t file_size = mapper->get_data_size() + file_header_size;
+    size_t file_header_size = 0;
+    size_t data_start_offset = 0;
+    size_t file_size = mapper->get_data_size();
 
     // Helper to map a chunk covering a specific file offset
     auto map_chunk_for_offset = [&](size_t offset, size_t min_size, void*& view_ptr, size_t& view_start, size_t& view_size) {
@@ -399,7 +415,7 @@ std::unique_ptr<MatrixBase> TriangularMatrix<bool>::multiply_scalar(double facto
     std::string new_path = copy_storage(result_file);
     
     uint64_t file_size = std::filesystem::file_size(new_path);
-    uint64_t data_size = file_size - sizeof(pycauset::FileHeader);
+    uint64_t data_size = file_size;
     auto mapper = std::make_unique<MemoryMapper>(new_path, data_size, false);
     
     auto result = std::make_unique<TriangularMatrix<bool>>(n_, std::move(mapper));

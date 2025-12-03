@@ -17,6 +17,19 @@ public:
         const std::string& backing_file = ""
     );
 
+    // Loads an existing matrix with explicit metadata
+    static std::unique_ptr<MatrixBase> load(
+        const std::string& backing_file,
+        size_t offset,
+        uint64_t rows,
+        uint64_t cols,
+        DataType dtype,
+        MatrixType mtype,
+        uint64_t seed = 0,
+        double scalar = 1.0,
+        bool is_transposed = false
+    );
+
     // Resolves the result data type for binary operations
     // e.g., INT32 + INT32 -> INT32, INT32 + FLOAT64 -> FLOAT64
     static DataType resolve_result_type(DataType a, DataType b);

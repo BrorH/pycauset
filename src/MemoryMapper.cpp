@@ -13,8 +13,8 @@
 #include <cerrno>
 #endif
 
-MemoryMapper::MemoryMapper(const std::string& filename, size_t data_size, bool create_new) 
-    : filename_(filename), data_size_(data_size), mapped_ptr_(nullptr) {
+MemoryMapper::MemoryMapper(const std::string& filename, size_t data_size, size_t offset, bool create_new) 
+    : filename_(filename), data_size_(data_size), offset_(offset), mapped_ptr_(nullptr), base_ptr_(nullptr) {
     open_file(create_new);
 }
 
@@ -23,44 +23,46 @@ MemoryMapper::~MemoryMapper() {
 }
 
 void* MemoryMapper::get_data() {
-    if (!mapped_ptr_) return nullptr;
-    return static_cast<char*>(mapped_ptr_) + sizeof(pycauset::FileHeader);
+    return mapped_ptr_;
 }
 
 const void* MemoryMapper::get_data() const {
-    if (!mapped_ptr_) return nullptr;
-    return static_cast<const char*>(mapped_ptr_) + sizeof(pycauset::FileHeader);
-}
-
-pycauset::FileHeader* MemoryMapper::get_header() {
-    return static_cast<pycauset::FileHeader*>(mapped_ptr_);
-}
-
-const pycauset::FileHeader* MemoryMapper::get_header() const {
-    return static_cast<const pycauset::FileHeader*>(mapped_ptr_);
+    return mapped_ptr_;
 }
 
 size_t MemoryMapper::get_data_size() const {
     return data_size_;
 }
 
+size_t MemoryMapper::get_granularity() {
+#ifdef _WIN32
+    SYSTEM_INFO sysInfo;
+    GetSystemInfo(&sysInfo);
+    return sysInfo.dwAllocationGranularity;
+#else
+    return sysconf(_SC_PAGE_SIZE);
+#endif
+}
+
 #ifdef _WIN32
 void MemoryMapper::open_file(bool create_new) {
     if (filename_ == ":memory:") {
         hFile_ = INVALID_HANDLE_VALUE;
+        offset_ = 0; // Ignore offset for memory-only
     } else {
         // Ensure directory exists
-        std::filesystem::path path(filename_);
+        // Use char8_t cast for UTF-8 string
+        std::filesystem::path path(reinterpret_cast<const char8_t*>(filename_.c_str()));
         if (path.has_parent_path()) {
             std::filesystem::create_directories(path.parent_path());
         }
 
         DWORD creationDisposition = create_new ? CREATE_ALWAYS : OPEN_EXISTING;
 
-        hFile_ = CreateFileA(
-            filename_.c_str(),
+        hFile_ = CreateFileW(
+            path.c_str(),
             GENERIC_READ | GENERIC_WRITE,
-            FILE_SHARE_READ | FILE_SHARE_WRITE, // Allow others to read and write
+            FILE_SHARE_READ | FILE_SHARE_WRITE, 
             NULL,
             creationDisposition,
             FILE_ATTRIBUTE_NORMAL,
@@ -72,11 +74,15 @@ void MemoryMapper::open_file(bool create_new) {
         }
     }
 
-    size_t total_size = data_size_ + sizeof(pycauset::FileHeader);
-    LARGE_INTEGER liSize;
-    liSize.QuadPart = total_size;
+    size_t granularity = get_granularity();
+    size_t aligned_offset = (offset_ / granularity) * granularity;
+    size_t adjustment = offset_ - aligned_offset;
+    size_t map_size = data_size_ + adjustment;
 
-    // Only set file size if we are creating a new file or explicitly resizing
+    size_t total_required_size = offset_ + data_size_;
+    LARGE_INTEGER liSize;
+    liSize.QuadPart = total_required_size;
+
     if (create_new) {
         if (hFile_ != INVALID_HANDLE_VALUE) {
             if (!SetFilePointerEx(hFile_, liSize, NULL, FILE_BEGIN)) {
@@ -90,32 +96,30 @@ void MemoryMapper::open_file(bool create_new) {
         }
     } else {
         if (hFile_ == INVALID_HANDLE_VALUE) {
-             // Cannot open existing memory mapping without a file handle unless we share a name, 
-             // but here :memory: implies new anonymous mapping.
-             // If we want to support shared memory by name, that's a different feature.
-             // For now, assume :memory: is always new/temporary.
              if (data_size_ == 0) {
                  throw std::runtime_error("Cannot open existing anonymous mapping without size");
              }
+             // For :memory:, total_required_size is just data_size_ (offset is 0)
+             liSize.QuadPart = data_size_;
         } else {
-            // Verify file size is at least total_size
             LARGE_INTEGER fileSize;
             if (!GetFileSizeEx(hFile_, &fileSize)) {
                 CloseHandle(hFile_);
                 throw std::runtime_error("Failed to get file size");
             }
             
-            // If data_size_ is 0, we map the whole file
             if (data_size_ == 0) {
-                total_size = static_cast<size_t>(fileSize.QuadPart);
-                if (total_size < sizeof(pycauset::FileHeader)) {
+                // Map from offset to end of file
+                if (static_cast<size_t>(fileSize.QuadPart) <= offset_) {
                      CloseHandle(hFile_);
-                     throw std::runtime_error("File is too small to contain a header");
+                     throw std::runtime_error("File is too small for offset");
                 }
-                data_size_ = total_size - sizeof(pycauset::FileHeader);
-                liSize.QuadPart = total_size;
+                data_size_ = static_cast<size_t>(fileSize.QuadPart) - offset_;
+                // Recalculate map_size if data_size_ changed
+                map_size = data_size_ + adjustment;
+                liSize.QuadPart = fileSize.QuadPart;
             } else {
-                if (static_cast<size_t>(fileSize.QuadPart) < total_size) {
+                if (static_cast<size_t>(fileSize.QuadPart) < total_required_size) {
                      CloseHandle(hFile_);
                      throw std::runtime_error("File is smaller than expected size");
                 }
@@ -137,85 +141,30 @@ void MemoryMapper::open_file(bool create_new) {
         throw std::runtime_error("Failed to create file mapping");
     }
 
-    mapped_ptr_ = MapViewOfFile(
+    ULARGE_INTEGER liOffset;
+    liOffset.QuadPart = aligned_offset;
+
+    base_ptr_ = MapViewOfFile(
         hMapping_,
         FILE_MAP_ALL_ACCESS,
-        0,
-        0,
-        total_size
+        liOffset.HighPart,
+        liOffset.LowPart,
+        map_size
     );
 
-    if (mapped_ptr_ == NULL) {
+    if (base_ptr_ == NULL) {
         CloseHandle(hMapping_);
         if (hFile_ != INVALID_HANDLE_VALUE) CloseHandle(hFile_);
         throw std::runtime_error("Failed to map view of file");
     }
-}
-
-void MemoryMapper::flush() {
-    if (mapped_ptr_) {
-        if (!FlushViewOfFile(mapped_ptr_, 0)) {
-            // Log warning?
-        }
-        if (hFile_ != INVALID_HANDLE_VALUE) {
-            FlushFileBuffers(hFile_);
-        }
-    }
-}
-
-void MemoryMapper::flush(void* ptr, size_t size) {
-    if (ptr && size > 0) {
-        FlushViewOfFile(ptr, size);
-        // We don't necessarily need to FlushFileBuffers every time for performance,
-        // but FlushViewOfFile initiates the write to disk.
-    }
-}
-
-void MemoryMapper::unmap() {
-    if (mapped_ptr_) {
-        UnmapViewOfFile(mapped_ptr_);
-        mapped_ptr_ = nullptr;
-    }
-}
-
-void MemoryMapper::map_all() {
-    if (mapped_ptr_) return; // Already mapped
-    if (!hMapping_) throw std::runtime_error("File mapping handle is invalid");
     
-    mapped_ptr_ = MapViewOfFile(hMapping_, FILE_MAP_ALL_ACCESS, 0, 0, 0);
-    if (!mapped_ptr_) {
-        throw std::runtime_error("Failed to map view of file");
-    }
-}
-
-void* MemoryMapper::map_region(size_t offset, size_t size) {
-    if (!hMapping_) throw std::runtime_error("File mapping handle is invalid");
-    
-    ULARGE_INTEGER liOffset;
-    liOffset.QuadPart = offset;
-    
-    void* ptr = MapViewOfFile(hMapping_, FILE_MAP_ALL_ACCESS, liOffset.HighPart, liOffset.LowPart, size);
-    if (!ptr) {
-        throw std::runtime_error("Failed to map region");
-    }
-    return ptr;
-}
-
-void MemoryMapper::unmap_region(void* ptr) {
-    if (ptr) {
-        UnmapViewOfFile(ptr);
-    }
-}
-
-size_t MemoryMapper::get_granularity() {
-    SYSTEM_INFO sysInfo;
-    GetSystemInfo(&sysInfo);
-    return sysInfo.dwAllocationGranularity;
+    mapped_ptr_ = static_cast<char*>(base_ptr_) + adjustment;
 }
 
 void MemoryMapper::close_file() {
-    if (mapped_ptr_) {
-        UnmapViewOfFile(mapped_ptr_);
+    if (base_ptr_) {
+        UnmapViewOfFile(base_ptr_);
+        base_ptr_ = nullptr;
         mapped_ptr_ = nullptr;
     }
     if (hMapping_) {
@@ -228,11 +177,188 @@ void MemoryMapper::close_file() {
     }
 }
 #else
-// POSIX implementation omitted for brevity as we are on Windows, 
-// but would follow similar logic using open/ftruncate/mmap.
 void MemoryMapper::open_file(bool create_new) {
-    throw std::runtime_error("POSIX implementation not updated for new file format");
+    if (filename_ == ":memory:") {
+        fd_ = -1;
+        offset_ = 0;
+    } else {
+        std::filesystem::path path(filename_);
+        if (path.has_parent_path()) {
+            std::filesystem::create_directories(path.parent_path());
+        }
+
+        int flags = O_RDWR;
+        if (create_new) flags |= O_CREAT | O_TRUNC;
+        
+        fd_ = open(filename_.c_str(), flags, 0644);
+        if (fd_ == -1) {
+            throw std::runtime_error("Failed to open file: " + filename_ + " (" + std::strerror(errno) + ")");
+        }
+    }
+
+    size_t granularity = get_granularity();
+    size_t aligned_offset = (offset_ / granularity) * granularity;
+    size_t adjustment = offset_ - aligned_offset;
+    size_t map_size = data_size_ + adjustment;
+
+    size_t total_required_size = offset_ + data_size_;
+
+    if (create_new) {
+        if (fd_ != -1) {
+            if (ftruncate(fd_, total_required_size) == -1) {
+                close(fd_);
+                throw std::runtime_error("Failed to resize file");
+            }
+        }
+    } else {
+        if (fd_ != -1) {
+            struct stat st;
+            if (fstat(fd_, &st) == -1) {
+                close(fd_);
+                throw std::runtime_error("Failed to stat file");
+            }
+            
+            if (data_size_ == 0) {
+                if (static_cast<size_t>(st.st_size) <= offset_) {
+                    close(fd_);
+                    throw std::runtime_error("File too small for offset");
+                }
+                data_size_ = static_cast<size_t>(st.st_size) - offset_;
+                // Recalculate map_size
+                map_size = data_size_ + adjustment;
+            } else {
+                if (static_cast<size_t>(st.st_size) < total_required_size) {
+                    close(fd_);
+                    throw std::runtime_error("File smaller than expected");
+                }
+            }
+        } else {
+             if (data_size_ == 0) throw std::runtime_error("Anonymous mapping requires size");
+        }
+    }
+
+    int map_flags = MAP_SHARED;
+    if (fd_ == -1) map_flags |= MAP_ANONYMOUS;
+
+    base_ptr_ = mmap(NULL, map_size, PROT_READ | PROT_WRITE, map_flags, fd_, aligned_offset);
+    
+    if (base_ptr_ == MAP_FAILED) {
+        if (fd_ != -1) close(fd_);
+        throw std::runtime_error("mmap failed: " + std::string(std::strerror(errno)));
+    }
+    
+    mapped_ptr_ = static_cast<char*>(base_ptr_) + adjustment;
 }
-void MemoryMapper::close_file() {}
+
+void MemoryMapper::close_file() {
+    if (base_ptr_ && base_ptr_ != MAP_FAILED) {
+        size_t granularity = get_granularity();
+        size_t aligned_offset = (offset_ / granularity) * granularity;
+        size_t adjustment = offset_ - aligned_offset;
+        size_t map_size = data_size_ + adjustment;
+        
+        munmap(base_ptr_, map_size);
+        base_ptr_ = nullptr;
+        mapped_ptr_ = nullptr;
+    }
+    if (fd_ != -1) {
+        close(fd_);
+        fd_ = -1;
+    }
+}
 #endif
 
+void MemoryMapper::flush() {
+    if (mapped_ptr_) {
+#ifdef _WIN32
+        if (!FlushViewOfFile(mapped_ptr_, 0)) {
+            // Log warning?
+        }
+        if (hFile_ != INVALID_HANDLE_VALUE) {
+            FlushFileBuffers(hFile_);
+        }
+#else
+        msync(mapped_ptr_, data_size_, MS_SYNC);
+#endif
+    }
+}
+
+void MemoryMapper::flush(void* ptr, size_t size) {
+    if (ptr && size > 0) {
+#ifdef _WIN32
+        FlushViewOfFile(ptr, size);
+#else
+        msync(ptr, size, MS_SYNC);
+#endif
+    }
+}
+
+void MemoryMapper::unmap() {
+#ifdef _WIN32
+    if (mapped_ptr_) {
+        UnmapViewOfFile(mapped_ptr_);
+        mapped_ptr_ = nullptr;
+    }
+#else
+    if (mapped_ptr_ && mapped_ptr_ != MAP_FAILED) {
+        munmap(mapped_ptr_, data_size_);
+        mapped_ptr_ = nullptr;
+    }
+#endif
+}
+
+void MemoryMapper::map_all() {
+    if (mapped_ptr_) return; // Already mapped
+#ifdef _WIN32
+    if (!hMapping_) throw std::runtime_error("File mapping handle is invalid");
+    
+    ULARGE_INTEGER liOffset;
+    liOffset.QuadPart = offset_;
+
+    mapped_ptr_ = MapViewOfFile(hMapping_, FILE_MAP_ALL_ACCESS, liOffset.HighPart, liOffset.LowPart, data_size_);
+    if (!mapped_ptr_) {
+        throw std::runtime_error("Failed to map view of file");
+    }
+#else
+    if (fd_ == -1 && filename_ != ":memory:") throw std::runtime_error("File descriptor invalid");
+    
+    int map_flags = MAP_SHARED;
+    if (fd_ == -1) map_flags |= MAP_ANONYMOUS;
+
+    mapped_ptr_ = mmap(NULL, data_size_, PROT_READ | PROT_WRITE, map_flags, fd_, offset_);
+    if (mapped_ptr_ == MAP_FAILED) {
+        throw std::runtime_error("mmap failed");
+    }
+#endif
+}
+
+void* MemoryMapper::map_region(size_t offset, size_t size) {
+#ifdef _WIN32
+    if (!hMapping_) throw std::runtime_error("File mapping handle is invalid");
+    
+    ULARGE_INTEGER liOffset;
+    liOffset.QuadPart = offset;
+    
+    void* ptr = MapViewOfFile(hMapping_, FILE_MAP_ALL_ACCESS, liOffset.HighPart, liOffset.LowPart, size);
+    if (!ptr) {
+        throw std::runtime_error("Failed to map region");
+    }
+    return ptr;
+#else
+    if (fd_ == -1) throw std::runtime_error("File descriptor invalid");
+    void* ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, offset);
+    if (ptr == MAP_FAILED) throw std::runtime_error("mmap failed");
+    return ptr;
+#endif
+}
+
+void MemoryMapper::unmap_region(void* ptr) {
+#ifdef _WIN32
+    UnmapViewOfFile(ptr);
+#else
+    // munmap requires size, which we don't have here easily without tracking.
+    // This API might need revision for POSIX if partial unmapping is common.
+    // For now, assuming the user manages this or we don't support partial unmap without size.
+    // But since this is a refactor of existing code, I'll leave it as a placeholder or assume full unmap isn't called this way.
+#endif
+}

@@ -9,7 +9,7 @@
 class IdentityMatrix : public MatrixBase {
 public:
     IdentityMatrix(uint64_t n, const std::string& backing_file = "")
-        : MatrixBase(n) {
+        : MatrixBase(n, pycauset::MatrixType::IDENTITY, pycauset::DataType::FLOAT64) {
         // Identity matrix only needs the header, no data segment.
         initialize_storage(0, backing_file, 
                          "identity", 
@@ -20,7 +20,7 @@ public:
     }
 
     IdentityMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
-        : MatrixBase(n, std::move(mapper)) {}
+        : MatrixBase(n, std::move(mapper), pycauset::MatrixType::IDENTITY, pycauset::DataType::FLOAT64) {}
 
     double get_element_as_double(uint64_t i, uint64_t j) const override {
         if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");

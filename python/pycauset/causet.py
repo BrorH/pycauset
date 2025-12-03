@@ -4,6 +4,7 @@ import json
 import zipfile
 import shutil
 import os
+import struct
 from pathlib import Path
 from typing import Optional, Sequence, List, Union
 
@@ -186,8 +187,8 @@ class CausalSet:
             path: Destination path.
         """
         path = Path(path)
-        if path.suffix != ".causet":
-            path = path.with_suffix(".causet")
+        # if path.suffix != ".causet":
+        #     path = path.with_suffix(".causet")
             
         # Prepare metadata
         st_type = self._spacetime.__class__.__name__
@@ -206,33 +207,45 @@ class CausalSet:
             "spacetime": {
                 "type": st_type,
                 "args": st_args
-            }
+            },
+            "pycauset_version": "3.0",
+            "object_type": "CausalSet",
+            "matrix_type": "CAUSAL",
+            "data_type": "BIT",
+            "rows": self._matrix.size(),
+            "cols": self._matrix.size(),
+            "scalar": 1.0,
+            "is_transposed": False
         }
         
         # Create ZIP
         # We need to handle both file-backed and memory-backed matrices.
         # copy_storage() creates a physical file copy regardless of the source type.
-        temp_matrix_path = self._matrix.copy_storage("")
+        path = path.resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        
+        temp_raw = path.with_suffix(".raw_tmp")
+        self._matrix.copy_storage(str(temp_raw))
         
         try:
-            with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            with zipfile.ZipFile(path, 'w', zipfile.ZIP_STORED) as zf:
                 zf.writestr("metadata.json", json.dumps(metadata, indent=2))
-                zf.write(temp_matrix_path, "matrix.bin")
+                zf.write(temp_raw, "data.bin")
         finally:
             # Clean up the temporary copy
-            if os.path.exists(temp_matrix_path):
+            if temp_raw.exists():
                 try:
-                    os.remove(temp_matrix_path)
+                    temp_raw.unlink()
                 except OSError:
                     pass
 
     @staticmethod
     def load(path: str | os.PathLike) -> 'CausalSet':
         """
-        Load a CausalSet from a .causet file.
+        Load a CausalSet from a file.
         
         Args:
-            path: Path to the .causet file.
+            path: Path to the file.
             
         Returns:
             CausalSet: The reconstructed object.
@@ -243,56 +256,54 @@ class CausalSet:
             
         with zipfile.ZipFile(path, 'r') as zf:
             # 1. Read Metadata
-            metadata = json.loads(zf.read("metadata.json"))
+            with zf.open("metadata.json") as f:
+                metadata = json.load(f)
             
             # 2. Reconstruct Spacetime
-            st_info = metadata["spacetime"]
-            st_type = st_info["type"]
-            st_args = st_info["args"]
+            st_info = metadata.get("spacetime", {})
+            st_type = st_info.get("type", "MinkowskiDiamond")
+            st_args = st_info.get("args", {"dimension": 2})
             
             if st_type == "MinkowskiDiamond":
-                spacetime = _native.MinkowskiDiamond(st_args["dimension"])
+                spacetime = _native.MinkowskiDiamond(st_args.get("dimension", 2))
             elif st_type == "MinkowskiCylinder":
                 spacetime = _native.MinkowskiCylinder(
-                    st_args["dimension"], 
-                    st_args["height"], 
-                    st_args["circumference"]
+                    st_args.get("dimension", 2), 
+                    st_args.get("height", 1.0), 
+                    st_args.get("circumference", 1.0)
                 )
             else:
-                # Fallback or error for unknown types
-                raise ValueError(f"Unknown spacetime type: {st_type}")
+                # Fallback
+                spacetime = _native.MinkowskiDiamond(2)
                 
-            # 3. Extract Matrix
-            # We need to extract matrix.bin to a temporary location that persists
-            # so the TriangularBitMatrix can map it.
-            # We use the _storage module's mechanism if possible, or just a temp file.
-            from . import _storage_root
-            from ._storage import set_temporary_file
+            # 3. Find offset of data.bin
+            try:
+                info = zf.getinfo("data.bin")
+                with open(path, "rb") as f:
+                    f.seek(info.header_offset + 26)
+                    n_len, e_len = struct.unpack("<HH", f.read(4))
+                    data_offset = info.header_offset + 30 + n_len + e_len
+            except KeyError:
+                raise ValueError("Invalid file format: missing data.bin")
+
+            # 4. Load Matrix directly from ZIP
+            rows = metadata.get("rows", metadata.get("n"))
+            seed = metadata.get("seed", 0)
             
-            # Generate a unique path in our storage directory
-            import uuid
-            temp_name = f"loaded_{uuid.uuid4().hex}.bin"
-            temp_path = _storage_root() / temp_name
-            
-            with zf.open("matrix.bin") as source, open(temp_path, "wb") as target:
-                shutil.copyfileobj(source, target)
-                
-            # Register for cleanup by marking it as temporary in the header
-            set_temporary_file(temp_path, True)
-            
-            # 4. Load Matrix
-            # We use _native.load() because it correctly handles opening existing files
-            # without overwriting them (unlike the constructor which might default to new).
-            matrix = _native.load(str(temp_path))
-            
-            if not isinstance(matrix, _native.TriangularBitMatrix):
-                 # If it's not the right type, something is wrong with the file or logic
-                 raise TypeError(f"Loaded matrix is not a TriangularBitMatrix, got {type(matrix)}")
+            matrix = _native.TriangularBitMatrix(
+                rows, 
+                str(path), 
+                data_offset, 
+                seed, 
+                1.0, 
+                False
+            )
 
             # 5. Create CausalSet
             return CausalSet(
-                n=metadata["n"], # Use n from metadata, though matrix.size() should match
+                n=metadata.get("n"),
                 spacetime=spacetime,
-                seed=metadata["seed"],
+                seed=seed,
                 matrix=matrix
             )
+

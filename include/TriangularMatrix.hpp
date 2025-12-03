@@ -19,9 +19,6 @@ public:
     }
 
 protected:
-    TriangularMatrixBase(uint64_t n, std::unique_ptr<MemoryMapper> mapper) 
-        : MatrixBase(n, std::move(mapper)) {}
-
     std::vector<uint64_t> row_offsets_;
 
     uint64_t calculate_triangular_offsets(uint64_t element_bits, uint64_t alignment_bits);
@@ -31,19 +28,43 @@ template <typename T>
 class TriangularMatrix : public TriangularMatrixBase {
 public:
     TriangularMatrix(uint64_t n, const std::string& backing_file = "")
-        : TriangularMatrixBase(n, nullptr) { // Initialize with nullptr mapper first
+        : TriangularMatrixBase(n, pycauset::MatrixType::TRIANGULAR_FLOAT, MatrixTraits<T>::data_type) {
         // Calculate offsets for T (sizeof(T)*8 bits per element), aligned to 64 bits
         uint64_t size_in_bytes = calculate_triangular_offsets(sizeof(T) * 8, 64);
         initialize_storage(size_in_bytes, backing_file, 
                          std::string("triangular_") + MatrixTraits<T>::name, 
                          8,
-                         pycauset::MatrixType::TRIANGULAR_FLOAT, // Placeholder
+                         pycauset::MatrixType::TRIANGULAR_FLOAT, 
                          MatrixTraits<T>::data_type,
                          n, n);
     }
 
+    // Constructor for loading with explicit metadata
+    TriangularMatrix(uint64_t n, 
+                     const std::string& backing_file,
+                     size_t offset,
+                     uint64_t seed,
+                     double scalar,
+                     bool is_transposed)
+        : TriangularMatrixBase(n, pycauset::MatrixType::TRIANGULAR_FLOAT, MatrixTraits<T>::data_type) {
+        
+        uint64_t size_in_bytes = calculate_triangular_offsets(sizeof(T) * 8, 64);
+        initialize_storage(size_in_bytes, backing_file, 
+                         "", 
+                         8,
+                         pycauset::MatrixType::TRIANGULAR_FLOAT, 
+                         MatrixTraits<T>::data_type,
+                         n, n,
+                         offset,
+                         false);
+        
+        set_seed(seed);
+        set_scalar(scalar);
+        set_transposed(is_transposed);
+    }
+
     TriangularMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
-        : TriangularMatrixBase(n, std::move(mapper)) {
+        : TriangularMatrixBase(n, std::move(mapper), pycauset::MatrixType::TRIANGULAR_FLOAT, MatrixTraits<T>::data_type) {
         calculate_triangular_offsets(sizeof(T) * 8, 64);
     }
 
