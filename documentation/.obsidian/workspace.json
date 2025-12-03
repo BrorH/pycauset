@@ -41,12 +41,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "guides/Installation.md",
+                "file": "guides/index.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Installation"
+              "title": "index"
             }
           },
           {
@@ -199,13 +199,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "guides/Installation.md",
+                "file": "guides/index.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Installation"
+              "title": "Outline of index"
             }
           }
         ],
@@ -228,12 +228,17 @@
   },
   "active": "897ac96167f0d34c",
   "lastOpenFiles": [
+    "internals/File Format.md",
+    "internals/Stateless Sprinkling.md",
+    "internals/Release Process.md",
+    "guides/Storage and Memory.md",
+    "project/Philosophy.md",
+    "project/TODO.md",
+    "guides/Installation.md",
     "guides/User Guide.md",
     "guides/Field Theory.md",
     "guides/Causal Sets.md",
     "project/index.md",
-    "internals/Stateless Sprinkling.md",
-    "internals/File Format.md",
     "docs/classes/vector/index.md",
     "docs/classes/spacetime/index.md",
     "docs/classes/matrix/index.md",
@@ -249,11 +254,6 @@
     "docs/classes/vector/pycauset.FloatVector.md",
     "docs/classes/spacetime/pycauset.spacetime.MinkowskiDiamond.md",
     "docs/classes/spacetime/pycauset.spacetime.MinkowskiCylinder.md",
-    "docs/classes/spacetime/pycauset.spacetime.MinkowskiBox.md",
-    "docs/classes/spacetime/pycauset.spacetime.CausalSpacetime.md",
-    "docs/classes/spacetime/pycauset.spacetime.md",
-    "docs/classes/spacetime/pycauset.CausalSet.md",
-    "docs/classes/matrix/pycauset.TriangularBitMatrix.md",
     "docs/classes/vector",
     "docs/classes/spacetime",
     "docs/classes/matrix",

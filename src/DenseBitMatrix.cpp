@@ -19,23 +19,36 @@ void DenseMatrix<bool>::calculate_stride() {
 }
 
 DenseMatrix<bool>::DenseMatrix(uint64_t n, const std::string& backing_file)
-    : MatrixBase(n) {
+    : MatrixBase(n, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT) {
     calculate_stride();
     uint64_t size_in_bytes = n_ * stride_bytes_;
     
-    // We use DENSE_FLOAT as a placeholder type for now, or we should add DENSE_BIT.
-    // But since we are using DataType::BIT, it should be fine.
-    // Let's check FileFormat.hpp for MatrixType enum.
-    // Assuming DENSE_FLOAT is 0 or similar.
-    // Ideally we should add DENSE_BIT to the enum, but I can't change the enum definition easily without seeing it.
-    // I'll use DENSE_FLOAT and rely on DataType::BIT to distinguish.
     initialize_storage(size_in_bytes, backing_file, "dense_bit_matrix", 8, 
                       pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT,
                       n, n);
 }
 
+DenseMatrix<bool>::DenseMatrix(uint64_t n, 
+                               const std::string& backing_file,
+                               size_t offset,
+                               uint64_t seed,
+                               double scalar,
+                               bool is_transposed)
+    : MatrixBase(n, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT) {
+    calculate_stride();
+    uint64_t size_in_bytes = n_ * stride_bytes_;
+    
+    initialize_storage(size_in_bytes, backing_file, "", 8, 
+                      pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT,
+                      n, n, offset, false);
+    
+    set_seed(seed);
+    set_scalar(scalar);
+    set_transposed(is_transposed);
+}
+
 DenseMatrix<bool>::DenseMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
-    : MatrixBase(n, std::move(mapper)) {
+    : MatrixBase(n, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT) {
     calculate_stride();
 }
 

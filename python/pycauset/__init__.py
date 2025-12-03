@@ -17,6 +17,8 @@ import uuid
 import shutil
 import abc
 import zipfile
+import json
+import struct
 from collections.abc import Sequence as _SequenceABC
 from pathlib import Path
 from typing import Any, Sequence, Tuple
@@ -47,10 +49,21 @@ _TriangularFloatMatrix = _native.TriangularFloatMatrix
 _TriangularIntegerMatrix = getattr(_native, "TriangularIntegerMatrix", None)
 _DenseBitMatrix = getattr(_native, "DenseBitMatrix", None)
 
+# Public exports
+IntegerMatrix = _IntegerMatrix
+FloatMatrix = _FloatMatrix
+TriangularFloatMatrix = _TriangularFloatMatrix
+TriangularIntegerMatrix = _TriangularIntegerMatrix
+DenseBitMatrix = _DenseBitMatrix
+
 # Vector classes
 _FloatVector = getattr(_native, "FloatVector", None)
 _IntegerVector = getattr(_native, "IntegerVector", None)
 _BitVector = getattr(_native, "BitVector", None)
+
+FloatVector = _FloatVector
+IntegerVector = _IntegerVector
+BitVector = _BitVector
 
 _ASSIGNMENT_RE = re.compile(r"^\s*([A-Za-z0-9_.]+)\s*=.+(?:CausalMatrix|TriangularBitMatrix)", re.IGNORECASE)
 _STORAGE_ROOT: Path | None = None
@@ -104,6 +117,141 @@ def _register_cleanup() -> None:
 
 
 _register_cleanup()
+
+
+def save(obj: Any, path: str | Path) -> None:
+    """Save a matrix or vector to a file (ZIP format)."""
+    path = Path(path).resolve()
+    
+    # Ensure parent directory exists
+    path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Get raw data
+    # We use a temporary file for the raw data
+    temp_raw = path.with_suffix(".raw_tmp")
+    
+    # copy_storage now writes raw data to the file
+    if hasattr(obj, "copy_storage"):
+        obj.copy_storage(str(temp_raw))
+    else:
+        raise TypeError("Object does not support saving (missing copy_storage)")
+    
+    try:
+        # Prepare metadata
+        is_transposed = getattr(obj, "is_transposed", False)
+        if callable(is_transposed):
+            is_transposed = is_transposed()
+
+        metadata = {
+            "rows": obj.size() if hasattr(obj, "size") else len(obj),
+            "cols": obj.size() if hasattr(obj, "size") else 1,
+            "seed": getattr(obj, "seed", 0),
+            "scalar": getattr(obj, "scalar", 1.0),
+            "is_transposed": is_transposed,
+        }
+        
+        # Determine matrix_type and data_type based on class
+        if isinstance(obj, _TriangularBitMatrix):
+            metadata["matrix_type"] = "CAUSAL"
+            metadata["data_type"] = "BIT"
+        elif _DenseBitMatrix and isinstance(obj, _DenseBitMatrix):
+            metadata["matrix_type"] = "DENSE_FLOAT"
+            metadata["data_type"] = "BIT"
+        elif isinstance(obj, _FloatMatrix):
+            metadata["matrix_type"] = "DENSE_FLOAT"
+            metadata["data_type"] = "FLOAT64"
+        elif isinstance(obj, _IntegerMatrix):
+            metadata["matrix_type"] = "INTEGER"
+            metadata["data_type"] = "INT32"
+        elif isinstance(obj, _TriangularFloatMatrix):
+            metadata["matrix_type"] = "TRIANGULAR_FLOAT"
+            metadata["data_type"] = "FLOAT64"
+        elif _TriangularIntegerMatrix and isinstance(obj, _TriangularIntegerMatrix):
+            metadata["matrix_type"] = "TRIANGULAR_INTEGER"
+            metadata["data_type"] = "INT32"
+        elif _FloatVector and isinstance(obj, _FloatVector):
+            metadata["matrix_type"] = "VECTOR"
+            metadata["data_type"] = "FLOAT64"
+        elif _IntegerVector and isinstance(obj, _IntegerVector):
+            metadata["matrix_type"] = "VECTOR"
+            metadata["data_type"] = "INT32"
+        elif _BitVector and isinstance(obj, _BitVector):
+            metadata["matrix_type"] = "VECTOR"
+            metadata["data_type"] = "BIT"
+        
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as zf:
+            zf.writestr("metadata.json", json.dumps(metadata, indent=2))
+            zf.write(temp_raw, "data.bin")
+            
+    finally:
+        if temp_raw.exists():
+            temp_raw.unlink()
+
+
+def load(path: str | Path) -> Any:
+    """Load a matrix or vector from a file (ZIP format)."""
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+        
+    with zipfile.ZipFile(path, "r") as zf:
+        # Read metadata
+        with zf.open("metadata.json") as f:
+            metadata = json.load(f)
+            
+        # Find offset of data.bin
+        # We need the absolute offset in the file
+        info = zf.getinfo("data.bin")
+        
+        # Calculate offset of content
+        with open(path, "rb") as f:
+            f.seek(info.header_offset + 26)
+            n_len, e_len = struct.unpack("<HH", f.read(4))
+            data_offset = info.header_offset + 30 + n_len + e_len
+            
+    # Construct object
+    matrix_type = metadata.get("matrix_type")
+    data_type = metadata.get("data_type")
+    rows = metadata.get("rows", 0)
+    cols = metadata.get("cols", 0)
+    seed = metadata.get("seed", 0)
+    scalar = metadata.get("scalar", 1.0)
+    is_transposed = metadata.get("is_transposed", False)
+    
+    # Dispatch
+    obj = None
+    if matrix_type == "CAUSAL":
+        obj = _TriangularBitMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
+    elif matrix_type == "DENSE_FLOAT":
+        if data_type == "BIT" and _DenseBitMatrix:
+            obj = _DenseBitMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
+        else:
+            obj = _FloatMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
+    elif matrix_type == "INTEGER":
+        obj = _IntegerMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
+    elif matrix_type == "TRIANGULAR_FLOAT":
+        obj = _TriangularFloatMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
+    elif matrix_type == "TRIANGULAR_INTEGER" and _TriangularIntegerMatrix:
+        obj = _TriangularIntegerMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
+    elif matrix_type == "VECTOR":
+        if data_type == "FLOAT64" and _FloatVector:
+            obj = _FloatVector(rows, str(path), data_offset, seed, scalar, is_transposed)
+        elif data_type == "INT32" and _IntegerVector:
+            obj = _IntegerVector(rows, str(path), data_offset, seed, scalar, is_transposed)
+        elif data_type == "BIT" and _BitVector:
+            obj = _BitVector(rows, str(path), data_offset, seed, scalar, is_transposed)
+    
+    if obj:
+        if is_transposed and hasattr(obj, "set_transposed"):
+            obj.set_transposed(True)
+        return obj
+    
+    raise ValueError(f"Unknown matrix type: {matrix_type}")
+
+
+# Monkey-patch MatrixBase to add the save method to all matrix classes
+if hasattr(_native, "MatrixBase"):
+    _native.MatrixBase.save = save
 
 
 def _is_simple_name(candidate: str) -> bool:
@@ -355,7 +503,15 @@ def _patch_matrix_class(cls: Any, target_arg: str = "backing_file") -> None:
         elif "N" in kwargs and isinstance(kwargs["N"], float):
             kwargs["N"] = int(kwargs["N"])
             
-        new_args, new_kwargs = _prepare_backing_args(tuple(mutable_args), kwargs, target_arg=target_arg)
+        # Check if loading (has offset argument)
+        # Constructor signature for loading: (n, backing_file, offset, seed, scalar, is_transposed)
+        is_loading = len(mutable_args) >= 3 or "offset" in kwargs
+        
+        if is_loading:
+            new_args = tuple(mutable_args)
+            new_kwargs = kwargs
+        else:
+            new_args, new_kwargs = _prepare_backing_args(tuple(mutable_args), kwargs, target_arg=target_arg)
         
         original_init(self, *new_args, **new_kwargs)
         _track_matrix(self)
@@ -1016,65 +1172,7 @@ def invert(matrix: Any) -> Any:
     raise TypeError("Object does not support matrix inversion.")
 
 
-def load(path: str | os.PathLike) -> Any:
-    """
-    Load a PyCauset object from disk.
-    
-    Supports:
-    - .causet files (CausalSet archives)
-    - .pycauset files (Binary Matrix/Vector files)
-    """
-    path_obj = Path(path)
-    # Check for .causet extension or if it's a valid zip file
-    if path_obj.suffix == ".causet" or zipfile.is_zipfile(path):
-        return CausalSet.load(path)
-    
-    return _native.load(str(path))
 
-
-def save(obj: Any, path: str | os.PathLike) -> None:
-    """
-    Save a persistent object (Matrix, Vector, or CausalSet) to disk.
-    
-    Args:
-        obj: The object to save. Can be a Matrix, Vector, or CausalSet.
-        path: The destination path.
-    """
-    # If it's a CausalSet (or anything with a custom save method), delegate
-    if hasattr(obj, "save") and callable(obj.save) and not isinstance(obj, _native.MatrixBase):
-        obj.save(path)
-        return
-
-    if not hasattr(obj, "get_backing_file"):
-        raise TypeError("The provided object does not support file-backed storage.")
-        
-    source = Path(obj.get_backing_file())
-    if not source.exists():
-        raise FileNotFoundError(f"Backing file not found: {source}")
-        
-    dest = Path(path).resolve()
-    if dest.is_dir():
-        dest = dest / source.name
-        
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    
-    if dest.exists():
-        if os.path.samefile(source, dest):
-            return
-        os.unlink(dest)
-        
-    # Always copy to ensure the saved file is independent of the temporary one.
-    # Hardlinking would share the file header, so marking the destination as
-    # permanent would also mark the source as permanent, preventing cleanup.
-    shutil.copy2(source, dest)
-        
-    # Ensure the saved file is marked as permanent
-    set_temporary_file(dest, False)
-
-
-# Monkey-patch MatrixBase to add the save method to all matrix classes
-if hasattr(_native, "MatrixBase"):
-    _native.MatrixBase.save = save
 
 
 # Alias for IdentityMatrix

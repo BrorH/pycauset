@@ -1,63 +1,120 @@
 # PyCauset File Format Specification
 
-PyCauset uses a custom binary format (`.pycauset`) for storing various large numerical objects efficiently on disk. While originally designed for matrices, the format now supports multiple object types including **Dense Matrices**, **Triangular Matrices**, **Bit-Packed Matrices**, and **Vectors**. The format is designed to support memory mapping, allowing datasets larger than available RAM to be processed with high performance.
+PyCauset uses a **ZIP-based container format** (`.pycauset`) for storing large numerical objects efficiently on disk. This format replaces the legacy raw binary format (v2) and provides a self-describing, extensible structure while maintaining high-performance memory mapping capabilities.
 
 ## File Structure
 
-Each file consists of a **4096-byte header** followed immediately by the raw binary data.
+A `.pycauset` file is a standard ZIP archive containing two primary files:
+
+1.  **`metadata.json`**: A JSON file containing all object metadata (dimensions, type, seed, etc.).
+2.  **`data.bin`**: A raw binary file containing the matrix/vector data.
+
+**Crucially**, the `data.bin` file is stored **uncompressed** (`ZIP_STORED`) and is **aligned** to a 4096-byte page boundary within the ZIP archive. This allows the C++ engine to memory-map the data directly from the ZIP file without extraction, achieving zero-copy performance.
 
 ```
+[ ZIP Archive Structure ]
 +-----------------------+
-|      File Header      |  4096 Bytes (Page Aligned)
+|     ZIP Headers       |
 +-----------------------+
-|                       |
-|      Binary Data      |  Variable Size
-|                       |
+|    metadata.json      | (Compressed or Stored)
++-----------------------+
+|      Padding          | (To align data.bin)
++-----------------------+
+|      data.bin         | (UNCOMPRESSED, Page Aligned)
+|  [ Raw Binary Data ]  |
++-----------------------+
+|   Central Directory   |
 +-----------------------+
 ```
 
-### Why 4096 Bytes?
-The header size is explicitly set to 4096 bytes to match the standard **Memory Page Size** of most modern Operating Systems (Windows, Linux, macOS). 
+## Metadata Schema (`metadata.json`)
 
-*   **Page Alignment**: By reserving exactly one page for the header, the actual data payload starts at the beginning of the second page (Offset 4096). This ensures that the data is **page-aligned**, which is critical for performance.
-*   **Vectorization**: Aligned data allows the CPU to use SIMD (Single Instruction, Multiple Data) instructions (like AVX2/AVX-512) more effectively.
-*   **Future Proofing**: The large header provides ample space for future metadata (e.g., coordinate systems, labels, JSON descriptions) without needing to shift the massive binary data that follows.
+The metadata file describes the object stored in `data.bin`.
 
-## File Header
+```json
+{
+  "pycauset_version": "3.0",
+  "object_type": "IntegerMatrix",
+  "shape": [1000, 1000],
+  "dtype": "int32",
+  "storage": "dense",
+  "seed": 12345,
+  "scalar": 1.0,
+  "is_transposed": false
+}
+```
 
-The header contains metadata necessary to identify the object type, dimensions, and data format. It is defined as follows:
+### Fields
 
-| Offset | Size       | Type      | Description                |
-| :----- | :--------- | :-------- | :------------------------- |
-| 0      | 8 bytes    | char[8]   | Magic Number: `"PYCAUSET"` |
-| 8      | 4 bytes    | uint32_t  | Pycauset version (2)       |
-| 12     | 4 bytes    | uint32_t  | Object Type (Enum)         |
-| 16     | 4 bytes    | uint32_t  | Data Type (Enum)           |
-| 20     | 8 bytes    | uint64_t  | Rows ($N$)                 |
-| 28     | 8 bytes    | uint64_t  | Columns ($M$)              |
-| 36     | 8 bytes    | uint64_t  | Seed (0 if not applicable) |
-| 44     | 8 bytes    | double    | Scalar (Scaling factor)    |
-| 52     | 1 byte     | uint8_t   | Is Temporary (1=True, 0=False) |
-| 53     | 1 byte     | uint8_t   | Is Transposed (1=True, 0=False) |
-| 54     | 4042 bytes | uint8_t[] | Reserved / Padding         |
+*   **`object_type`**: The high-level class name (e.g., `CausalMatrix`, `IntegerMatrix`, `DenseMatrix`, `Vector`).
+*   **`shape`**: Array `[rows, cols]`.
+*   **`dtype`**: The data type of elements (`bit`, `int32`, `float64`, `complex128`).
+*   **`storage`**: The storage layout (`dense`, `triangular`).
+*   **`seed`**: Generation seed (integer).
+*   **`scalar`**: Scaling factor (float).
+*   **`is_transposed`**: Boolean flag indicating if the matrix is logically transposed.
 
-### Enums
+## Causal Set Archive Format (`.causet`)
 
-**Object Type (`uint32_t`)**
+While standard matrices use the generic schema above, Causal Set objects (`CausalSet`) use a specialized metadata schema to preserve the spacetime manifold and sprinkling parameters used to generate them.
 
-*   `1`: **CAUSAL** (Strictly Upper Triangular Matrix, Boolean/Bit storage)
-*   `2`: **INTEGER** (Strictly Upper Triangular Matrix, 32-bit Integer storage)
-*   `3`: **TRIANGULAR_FLOAT** (Strictly Upper Triangular Matrix, 64-bit Float storage)
-*   `4`: **DENSE_FLOAT** (Dense $N \times M$ Matrix)
-*   `5`: **IDENTITY** (Virtual Identity Matrix, no data on disk)
-*   `6`: **VECTOR** (Dense Vector, $N$ elements)
+A `.causet` file is also a ZIP archive containing `metadata.json` and `data.bin`, but the `metadata.json` has additional fields.
 
-**Data Type (`uint32_t`)**
+### Causal Set Metadata Schema
 
-*   `1`: **BIT** (1 bit per element)
-*   `2`: **INT32** (32-bit signed integer)
-*   `3`: **FLOAT64** (64-bit double precision float)
-*   `4`: **COMPLEX_FLOAT64** (128-bit complex number: 2x double)
+```json
+{
+  "pycauset_version": "3.0",
+  "object_type": "CausalSet",
+  "n": 5000,
+  "seed": 987654321,
+  "spacetime": {
+    "type": "MinkowskiDiamond",
+    "args": {
+      "dimension": 4
+    }
+  },
+  "matrix_type": "CAUSAL",
+  "data_type": "BIT",
+  "rows": 5000,
+  "cols": 5000,
+  "scalar": 1.0,
+  "is_transposed": false
+}
+```
+
+### Specific Fields
+
+*   **`object_type`**: Must be `"CausalSet"`.
+*   **`n`**: The number of elements in the set.
+*   **`spacetime`**: An object describing the manifold.
+    *   **`type`**: Class name of the spacetime (e.g., `MinkowskiDiamond`, `MinkowskiCylinder`).
+    *   **`args`**: Dictionary of arguments to reconstruct the spacetime (e.g., `dimension`, `height`, `circumference`).
+*   **`matrix_type`**: Always `"CAUSAL"` for the underlying adjacency matrix.
+*   **`data_type`**: Always `"BIT"`.
+
+The `data.bin` file in a `.causet` archive contains the **Causal Matrix** (Triangular Bit Matrix) representing the causal relations between the sprinkled points.
+
+## Binary Data (`data.bin`)
+
+The `data.bin` file contains the raw binary representation of the matrix elements. It has **no header**.
+
+### Layouts
+
+#### Dense Layout
+Elements are stored row-major.
+*   **Size**: $N \times M \times \text{sizeof(T)}$ bytes.
+*   **Bit Matrices**: Stored as packed bits. Each row is padded to a 64-bit word boundary.
+
+#### Triangular Layout
+Strictly upper triangular matrices store only the elements above the diagonal ($j > i$).
+*   **Row 0**: Elements $(0, 1) \dots (0, N-1)$
+*   **Row 1**: Elements $(1, 2) \dots (1, N-1)$
+*   ...
+*   **Row N-2**: Element $(N-2, N-1)$
+
+Each row is padded to a 64-bit boundary for alignment.
+
 
 ## Storage Strategies
 

@@ -21,20 +21,4 @@ enum class DataType : uint32_t {
     COMPLEX_FLOAT64 = 4
 };
 
-struct FileHeader {
-    char magic[8];          // "PYCAUSET"
-    uint32_t version;       // 2
-    MatrixType matrix_type;
-    DataType data_type;
-    uint64_t rows;
-    uint64_t cols;
-    uint64_t seed;          // 0 if not applicable
-    double scalar;          // Scaling factor (default 1.0)
-    uint8_t is_temporary;   // 1 if temporary, 0 if permanent
-    uint8_t is_transposed;  // 1 if transposed (Row Vector), 0 if normal (Column Vector)
-    uint8_t reserved[4038]; // Padding to 4096 bytes
-};
-
-static_assert(sizeof(FileHeader) == 4096, "FileHeader must be 4096 bytes");
-
 }

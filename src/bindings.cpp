@@ -550,6 +550,7 @@ PYBIND11_MODULE(_pycauset, m) {
         .def_property_readonly("seed", &PersistentObject::get_seed)
         .def_property("is_temporary", &PersistentObject::is_temporary, &PersistentObject::set_temporary)
         .def("close", &PersistentObject::close)
+        .def("set_transposed", &PersistentObject::set_transposed)
         .def("get_backing_file", &PersistentObject::get_backing_file)
         .def("copy_storage", &PersistentObject::copy_storage, 
              py::arg("result_file_hint") = "",
@@ -566,6 +567,9 @@ PYBIND11_MODULE(_pycauset, m) {
     py::class_<TriangularFloatMatrix, MatrixBase> tfm(m, "TriangularFloatMatrix");
     tfm.def(py::init<uint64_t, const std::string&>(), 
             py::arg("n"), py::arg("backing_file") = "")
+       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+            py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+            py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
         .def("get", &TriangularFloatMatrix::get)
         .def("get_element_as_double", &TriangularFloatMatrix::get_element_as_double)
         .def("set", &TriangularFloatMatrix::set)
@@ -596,12 +600,16 @@ PYBIND11_MODULE(_pycauset, m) {
     py::class_<TriangularIntegerMatrix, MatrixBase> tim(m, "TriangularIntegerMatrix");
     tim.def(py::init<uint64_t, const std::string&>(), 
             py::arg("n"), py::arg("backing_file") = "")
+       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+            py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+            py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
         .def("get", &TriangularIntegerMatrix::get)
         .def("get_element_as_double", &TriangularIntegerMatrix::get_element_as_double)
         .def("set", &TriangularIntegerMatrix::set)
         .def("close", &TriangularIntegerMatrix::close)
         .def("size", &TriangularIntegerMatrix::size)
         .def("get_backing_file", &TriangularIntegerMatrix::get_backing_file)
+        .def("is_transposed", &TriangularIntegerMatrix::is_transposed)
         .def_property_readonly("shape", [](const TriangularIntegerMatrix& m) {
             return std::make_pair(m.size(), m.size());
         })
@@ -626,12 +634,16 @@ PYBIND11_MODULE(_pycauset, m) {
     py::class_<FloatMatrix, MatrixBase> fm(m, "FloatMatrix");
     fm.def(py::init<uint64_t, const std::string&>(), 
            py::arg("n"), py::arg("backing_file") = "")
+      .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+           py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+           py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
         .def("get", &FloatMatrix::get)
         .def("get_element_as_double", &FloatMatrix::get_element_as_double)
         .def("set", &FloatMatrix::set)
         .def("close", &FloatMatrix::close)
         .def("size", &FloatMatrix::size)
         .def("get_backing_file", &FloatMatrix::get_backing_file)
+        .def("is_transposed", &FloatMatrix::is_transposed)
         .def_property_readonly("shape", [](const FloatMatrix& m) {
             return std::make_pair(m.size(), m.size());
         })
@@ -650,6 +662,9 @@ PYBIND11_MODULE(_pycauset, m) {
         .def("__invert__", [](const FloatMatrix& m) {
             return m.bitwise_not(make_unique_storage_file("bitwise_not"));
         })
+        .def("transpose", [](const FloatMatrix& m, const std::string& saveas) {
+            return m.transpose(saveas);
+        }, py::arg("saveas") = "")
         .def("multiply", [](const FloatMatrix& self, const FloatMatrix& other, const std::string& saveas) {
             std::string target = saveas.empty() ? make_unique_storage_file("matmul_fm") : saveas;
             return self.multiply(other, target);
@@ -664,12 +679,16 @@ PYBIND11_MODULE(_pycauset, m) {
     py::class_<IntegerMatrix, MatrixBase> im(m, "IntegerMatrix");
     im.def(py::init<uint64_t, const std::string&>(), 
            py::arg("n"), py::arg("backing_file") = "")
+      .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+           py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+           py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
         .def("get", &IntegerMatrix::get)
         .def("get_element_as_double", &IntegerMatrix::get_element_as_double)
         .def("set", &IntegerMatrix::set)
         .def("close", &IntegerMatrix::close)
         .def("size", &IntegerMatrix::size)
         .def("get_backing_file", &IntegerMatrix::get_backing_file)
+        .def("is_transposed", &IntegerMatrix::is_transposed)
         .def_property_readonly("shape", [](const IntegerMatrix& m) {
             return std::make_pair(m.size(), m.size());
         })
@@ -688,6 +707,9 @@ PYBIND11_MODULE(_pycauset, m) {
         .def("__invert__", [](const IntegerMatrix& m) {
             return m.bitwise_not(make_unique_storage_file("bitwise_not"));
         })
+        .def("transpose", [](const IntegerMatrix& m, const std::string& saveas) {
+            return m.transpose(saveas);
+        }, py::arg("saveas") = "")
         .def("multiply", [](const IntegerMatrix& self, const IntegerMatrix& other, const std::string& saveas) {
             std::string target = saveas.empty() ? make_unique_storage_file("matmul_im") : saveas;
             return self.multiply(other, target);
@@ -698,6 +720,9 @@ PYBIND11_MODULE(_pycauset, m) {
     py::class_<DenseBitMatrix, MatrixBase> dbm(m, "DenseBitMatrix");
     dbm.def(py::init<uint64_t, const std::string&>(), 
            py::arg("n"), py::arg("backing_file") = "")
+       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+           py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+           py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
         .def_static("random", &DenseBitMatrix::random, 
             py::arg("n"), py::arg("density") = 0.5, py::arg("backing_file") = "",
             py::arg("seed") = py::none())
@@ -709,6 +734,7 @@ PYBIND11_MODULE(_pycauset, m) {
         .def("close", &DenseBitMatrix::close)
         .def("size", &DenseBitMatrix::size)
         .def("get_backing_file", &DenseBitMatrix::get_backing_file)
+        .def("is_transposed", &DenseBitMatrix::is_transposed)
         .def_property_readonly("shape", [](const DenseBitMatrix& m) {
             return std::make_pair(m.size(), m.size());
         })
@@ -740,7 +766,10 @@ PYBIND11_MODULE(_pycauset, m) {
     // TriangularBitMatrix
     py::class_<TriangularBitMatrix, MatrixBase> tbm(m, "TriangularBitMatrix");
     tbm.def(py::init<uint64_t, const std::string&>(), 
-             py::arg("n"), py::arg("saveas") = "")
+             py::arg("n"), py::arg("backing_file") = "")
+       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+           py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+           py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
         // Numpy Constructor
         .def(py::init([](py::array_t<bool> arr, std::string backing_file) {
             auto buf = arr.unchecked<2>();
@@ -819,6 +848,9 @@ PYBIND11_MODULE(_pycauset, m) {
                 m.set(r, c, values(k));
             }
         })
+        .def("transpose", [](const TriangularBitMatrix& m, const std::string& saveas) {
+            return m.transpose(saveas);
+        }, py::arg("saveas") = "")
         .def("multiply", &TriangularBitMatrix::multiply, 
              py::arg("other"), py::arg("result_file") = "",
              "Multiply this matrix by another TriangularBitMatrix. Returns a TriangularIntegerMatrix.")
@@ -832,6 +864,7 @@ PYBIND11_MODULE(_pycauset, m) {
             return m.bitwise_not(make_unique_storage_file("bitwise_not"));
         })
         .def("get_backing_file", &TriangularBitMatrix::get_backing_file)
+        .def("is_transposed", &TriangularBitMatrix::is_transposed)
         .def("__repr__", [](const TriangularBitMatrix& m) {
             return "<TriangularBitMatrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
         });
@@ -840,63 +873,7 @@ PYBIND11_MODULE(_pycauset, m) {
     m.def("matmul", &dispatch_matmul, py::arg("a"), py::arg("b"), py::arg("saveas") = "",
           "Generic matrix multiplication. Supports mixed types (Dense/Triangular).");
 
-    m.def("save", [](const PersistentObject& obj, const std::string& path) {
-        obj.copy_storage(path);
-    }, "Save a persistent object to a specific path");
 
-    m.def("load", [](const std::string& path) -> py::object {
-        std::ifstream file(path, std::ios::binary);
-        if (!file) {
-            throw std::runtime_error("Failed to open file: " + path);
-        }
-        
-        pycauset::FileHeader header;
-        if (!file.read(reinterpret_cast<char*>(&header), sizeof(header))) {
-             throw std::runtime_error("Failed to read file header: " + path);
-        }
-        file.close();
-
-        if (std::strncmp(header.magic, "PYCAUSET", 8) != 0) {
-             throw std::runtime_error("Invalid file format (Magic mismatch)");
-        }
-        
-        uint64_t n = header.rows;
-        uint64_t file_size = std::filesystem::file_size(path);
-        if (file_size < sizeof(pycauset::FileHeader)) {
-             throw std::runtime_error("File too small");
-        }
-        uint64_t data_size = file_size - sizeof(pycauset::FileHeader);
-        
-        auto mapper = std::make_unique<MemoryMapper>(path, data_size, false);
-        
-        switch (header.matrix_type) {
-            case pycauset::MatrixType::CAUSAL:
-                return py::cast(new TriangularBitMatrix(n, std::move(mapper)));
-            case pycauset::MatrixType::INTEGER:
-                // Assuming INTEGER is now Dense Integer
-                return py::cast(new IntegerMatrix(n, std::move(mapper)));
-            case pycauset::MatrixType::TRIANGULAR_FLOAT:
-                 return py::cast(new TriangularFloatMatrix(n, std::move(mapper)));
-            case pycauset::MatrixType::DENSE_FLOAT:
-                 if (header.data_type == pycauset::DataType::BIT) {
-                     return py::cast(new DenseBitMatrix(n, std::move(mapper)));
-                 }
-                 return py::cast(new FloatMatrix(n, std::move(mapper)));
-            case pycauset::MatrixType::IDENTITY:
-                 return py::cast(new IdentityMatrix(n, std::move(mapper)));
-            case pycauset::MatrixType::VECTOR:
-                 if (header.data_type == pycauset::DataType::BIT) {
-                     return py::cast(new BitVector(n, std::move(mapper)));
-                 } else if (header.data_type == pycauset::DataType::INT32) {
-                     return py::cast(new IntegerVector(n, std::move(mapper)));
-                 } else if (header.data_type == pycauset::DataType::FLOAT64) {
-                     return py::cast(new FloatVector(n, std::move(mapper)));
-                 }
-                 throw std::runtime_error("Unknown vector data type");
-            default:
-                throw std::runtime_error("Unknown matrix type in file");
-        }
-    }, "Load a matrix from a file");
 
     // IdentityMatrix
     py::class_<IdentityMatrix, MatrixBase> idm(m, "IdentityMatrix");

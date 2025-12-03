@@ -19,7 +19,10 @@ public:
 
 protected:
     // Constructor for loading from existing mapper
-    VectorBase(uint64_t n, std::unique_ptr<MemoryMapper> mapper);
+    VectorBase(uint64_t n, 
+               std::unique_ptr<MemoryMapper> mapper,
+               pycauset::MatrixType matrix_type,
+               pycauset::DataType data_type);
 
     uint64_t n_;
 };

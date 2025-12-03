@@ -12,6 +12,7 @@
         "variant": "cpp",
         "xutility": "cpp",
         "stdexcept": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "iosfwd": "cpp"
     }
 }

@@ -14,23 +14,42 @@ template <typename T>
 class DenseMatrix : public MatrixBase {
 public:
     DenseMatrix(uint64_t n, const std::string& backing_file = "")
-        : MatrixBase(n) {
+        : MatrixBase(n, pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {
         uint64_t size_in_bytes = n * n * sizeof(T);
         initialize_storage(size_in_bytes, backing_file, 
                          std::string("dense_") + MatrixTraits<T>::name, 
                          sizeof(T),
-                         pycauset::MatrixType::DENSE_FLOAT, // We might need to adjust this enum if we want DENSE_INT
+                         pycauset::MatrixType::DENSE_FLOAT, 
                          MatrixTraits<T>::data_type,
                          n, n);
+    }
+
+    // Constructor for loading with explicit metadata
+    DenseMatrix(uint64_t n, 
+                const std::string& backing_file,
+                size_t offset,
+                uint64_t seed,
+                double scalar,
+                bool is_transposed)
+        : MatrixBase(n, pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {
         
-        // Note: MatrixType::DENSE_FLOAT is currently the only dense type in the enum.
-        // If we want to support Dense Integer matrices properly in the file format, 
-        // we might need to add DENSE_INTEGER to the enum or reuse DENSE_FLOAT but check DataType.
-        // For now, we'll use DENSE_FLOAT as a placeholder for "Dense" structure.
+        uint64_t size_in_bytes = n * n * sizeof(T);
+        initialize_storage(size_in_bytes, backing_file, 
+                         "", // No fallback needed for loading
+                         sizeof(T),
+                         pycauset::MatrixType::DENSE_FLOAT, 
+                         MatrixTraits<T>::data_type,
+                         n, n,
+                         offset,
+                         false); // Do not create new file, open existing
+        
+        set_seed(seed);
+        set_scalar(scalar);
+        set_transposed(is_transposed);
     }
 
     DenseMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
-        : MatrixBase(n, std::move(mapper)) {}
+        : MatrixBase(n, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {}
 
     void set(uint64_t i, uint64_t j, T value) {
         if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");

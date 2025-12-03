@@ -20,6 +20,14 @@ public:
     // If backingFile is provided, it uses disk storage.
     TriangularMatrix(uint64_t n, const std::string& backingFile = "");
 
+    // Constructor for loading with explicit metadata
+    TriangularMatrix(uint64_t n, 
+                     const std::string& backing_file,
+                     size_t offset,
+                     uint64_t seed,
+                     double scalar,
+                     bool is_transposed);
+
     // Constructor for loading from existing mapper
     TriangularMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper);
 

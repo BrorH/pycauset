@@ -12,8 +12,29 @@ DenseVector<bool>::DenseVector(uint64_t n, const std::string& backing_file)
                       n, 1);
 }
 
+DenseVector<bool>::DenseVector(uint64_t n, 
+                               const std::string& backing_file,
+                               size_t offset,
+                               uint64_t seed,
+                               double scalar,
+                               bool is_transposed)
+    : VectorBase(n) {
+    uint64_t words = (n + 63) / 64;
+    uint64_t size_in_bytes = words * 8;
+    
+    initialize_storage(size_in_bytes, backing_file, "", 8, 
+                      pycauset::MatrixType::VECTOR, pycauset::DataType::BIT,
+                      n, 1,
+                      offset,
+                      false);
+                      
+    set_seed(seed);
+    set_scalar(scalar);
+    set_transposed(is_transposed);
+}
+
 DenseVector<bool>::DenseVector(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
-    : VectorBase(n, std::move(mapper)) {}
+    : VectorBase(n, std::move(mapper), pycauset::MatrixType::VECTOR, pycauset::DataType::BIT) {}
 
 void DenseVector<bool>::set(uint64_t i, bool value) {
     if (i >= n_) throw std::out_of_range("Index out of bounds");
@@ -50,9 +71,9 @@ std::unique_ptr<VectorBase> DenseVector<bool>::transpose(const std::string& save
     }
     std::string new_path = this->copy_storage(target);
     
-    // Calculate data size (file size - header)
+    // Calculate data size (file size)
     uint64_t file_size = std::filesystem::file_size(new_path);
-    uint64_t data_size = file_size - sizeof(pycauset::FileHeader);
+    uint64_t data_size = file_size;
 
     auto mapper = std::make_unique<MemoryMapper>(new_path, data_size, false);
     auto new_vec = std::make_unique<DenseVector<bool>>(this->size(), std::move(mapper));

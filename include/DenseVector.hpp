@@ -25,8 +25,32 @@ public:
                          n, 1);
     }
 
+    // Constructor for loading with explicit metadata
+    DenseVector(uint64_t n, 
+                const std::string& backing_file,
+                size_t offset,
+                uint64_t seed,
+                double scalar,
+                bool is_transposed)
+        : VectorBase(n) {
+        
+        uint64_t size_in_bytes = n * sizeof(T);
+        initialize_storage(size_in_bytes, backing_file, 
+                         "", 
+                         sizeof(T),
+                         pycauset::MatrixType::VECTOR,
+                         MatrixTraits<T>::data_type,
+                         n, 1,
+                         offset,
+                         false);
+        
+        set_seed(seed);
+        set_scalar(scalar);
+        set_transposed(is_transposed);
+    }
+
     DenseVector(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
-        : VectorBase(n, std::move(mapper)) {}
+        : VectorBase(n, std::move(mapper), pycauset::MatrixType::VECTOR, MatrixTraits<T>::data_type) {}
 
     void set(uint64_t i, T value) {
         if (i >= n_) throw std::out_of_range("Index out of bounds");
@@ -52,9 +76,9 @@ public:
         }
         std::string new_path = this->copy_storage(target);
         
-        // Calculate data size (file size - header)
+        // Calculate data size (file size)
         uint64_t file_size = std::filesystem::file_size(new_path);
-        uint64_t data_size = file_size - sizeof(pycauset::FileHeader);
+        uint64_t data_size = file_size;
 
         auto mapper = std::make_unique<MemoryMapper>(new_path, data_size, false);
         auto new_vec = std::make_unique<DenseVector<T>>(this->size(), std::move(mapper));
@@ -74,6 +98,12 @@ template <>
 class DenseVector<bool> : public VectorBase {
 public:
     DenseVector(uint64_t n, const std::string& backing_file = "");
+    DenseVector(uint64_t n, 
+                const std::string& backing_file,
+                size_t offset,
+                uint64_t seed,
+                double scalar,
+                bool is_transposed);
     DenseVector(uint64_t n, std::unique_ptr<MemoryMapper> mapper);
 
     void set(uint64_t i, bool value);

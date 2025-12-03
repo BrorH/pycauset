@@ -33,7 +33,7 @@ inline std::filesystem::path get_storage_root() {
 
 inline std::string make_unique_storage_file(const std::string& prefix) {
     static std::atomic<uint64_t> counter{0};
-    auto filename = prefix + "_" + std::to_string(counter++) + ".pycauset";
+    auto filename = prefix + "_" + std::to_string(counter++) + ".tmp";
     return (get_storage_root() / filename).string();
 }
 

@@ -3,21 +3,18 @@
 #include <string>
 #include <cstdint>
 #include <stdexcept>
-#include "FileFormat.hpp"
 
 class MemoryMapper {
 public:
-    // size is the size of the DATA section. The file will be size + 4096.
-    MemoryMapper(const std::string& filename, size_t data_size, bool create_new = false);
+    // size is the size of the DATA section.
+    MemoryMapper(const std::string& filename, size_t data_size, size_t offset = 0, bool create_new = false);
     ~MemoryMapper();
 
     void* get_data();
     const void* get_data() const;
     
-    pycauset::FileHeader* get_header();
-    const pycauset::FileHeader* get_header() const;
-
     size_t get_data_size() const;
+    size_t get_offset() const { return offset_; }
     const std::string& get_filename() const { return filename_; }
 
     void flush();
@@ -33,7 +30,9 @@ public:
 private:
     std::string filename_;
     size_t data_size_;
-    void* mapped_ptr_; // Pointer to the start of the file (header)
+    size_t offset_;
+    void* mapped_ptr_; 
+    void* base_ptr_; // The actual start of the mapping (aligned)
     
 #ifdef _WIN32
     void* hFile_;

@@ -8,7 +8,21 @@
 
 class MatrixBase : public PersistentObject {
 public:
-    explicit MatrixBase(uint64_t n);
+    // Constructor for creating new matrix
+    MatrixBase(uint64_t n, 
+               pycauset::MatrixType matrix_type,
+               pycauset::DataType data_type);
+
+    // Constructor for loading/wrapping existing storage
+    MatrixBase(uint64_t n, 
+               std::unique_ptr<MemoryMapper> mapper,
+               pycauset::MatrixType matrix_type,
+               pycauset::DataType data_type,
+               uint64_t seed = 0,
+               double scalar = 1.0,
+               bool is_transposed = false,
+               bool is_temporary = false);
+
     virtual ~MatrixBase() = default;
 
     uint64_t size() const { return n_; }
@@ -21,8 +35,5 @@ public:
     virtual std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const = 0;
 
 protected:
-    // Constructor for loading from existing mapper
-    MatrixBase(uint64_t n, std::unique_ptr<MemoryMapper> mapper);
-
     uint64_t n_;
 };
