@@ -10,6 +10,7 @@ This section documents the internal architecture and design decisions of PyCause
 
 ## Algorithms
 
+*   **[[Algorithms]]**: Details of the solvers (Eigenvalue, Matrix Multiplication) and their implementations.
 *   **[[Math Derivation]]**: Mathematical background for the implemented algorithms.
 
 ## Process

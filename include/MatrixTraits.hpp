@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FileFormat.hpp"
+#include "Float16.hpp"
 #include <cstdint>
 
 template <typename T>
@@ -10,6 +11,18 @@ template <>
 struct MatrixTraits<double> {
     static constexpr pycauset::DataType data_type = pycauset::DataType::FLOAT64;
     static constexpr const char* name = "float";
+};
+
+template <>
+struct MatrixTraits<float> {
+    static constexpr pycauset::DataType data_type = pycauset::DataType::FLOAT32;
+    static constexpr const char* name = "float32";
+};
+
+template <>
+struct MatrixTraits<pycauset::Float16> {
+    static constexpr pycauset::DataType data_type = pycauset::DataType::FLOAT16;
+    static constexpr const char* name = "float16";
 };
 
 template <>

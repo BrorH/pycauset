@@ -2,6 +2,17 @@
 
 namespace pycauset {
 
+size_t ThreadPool::global_num_threads = std::thread::hardware_concurrency();
+
+void ThreadPool::set_num_threads(size_t n) {
+    if (n == 0) n = 1;
+    global_num_threads = n;
+}
+
+size_t ThreadPool::get_num_threads() {
+    return global_num_threads;
+}
+
 ThreadPool& ThreadPool::instance() {
     static ThreadPool pool;
     return pool;

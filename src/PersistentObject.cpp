@@ -52,7 +52,7 @@ void PersistentObject::close() {
     if (mapper_) {
         bool temp = is_temporary_;
         std::string path = mapper_->get_filename();
-        std::cout << "Closing object. Temp: " << temp << ", Path: " << path << std::endl;
+        // std::cout << "Closing object. Temp: " << temp << ", Path: " << path << std::endl;
         mapper_.reset(); // Close file mapping
 
         if (temp && !path.empty() && path != ":memory:") {

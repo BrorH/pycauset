@@ -49,6 +49,7 @@ public:
 
     std::optional<std::vector<std::complex<double>>> get_cached_eigenvalues() const { return cached_eigenvalues_; }
     void set_cached_eigenvalues(const std::vector<std::complex<double>>& val) const { cached_eigenvalues_ = val; }
+    void clear_cached_eigenvalues() const { cached_eigenvalues_ = std::nullopt; }
 
 protected:
     uint64_t n_;

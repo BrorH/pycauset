@@ -63,6 +63,10 @@ std::unique_ptr<MatrixBase> MatrixFactory::create(
                 return std::make_unique<DenseMatrix<int32_t>>(n, backing_file);
             case DataType::FLOAT64:
                 return std::make_unique<DenseMatrix<double>>(n, backing_file);
+            case DataType::FLOAT32:
+                return std::make_unique<DenseMatrix<float>>(n, backing_file);
+            case DataType::FLOAT16:
+                return std::make_unique<DenseMatrix<pycauset::Float16>>(n, backing_file);
             default:
                 throw std::runtime_error("Unsupported DataType for DenseMatrix");
         }
@@ -134,6 +138,10 @@ std::unique_ptr<MatrixBase> MatrixFactory::load(
                 return std::make_unique<DenseMatrix<int32_t>>(n, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT64:
                 return std::make_unique<DenseMatrix<double>>(n, backing_file, offset, seed, scalar, is_transposed);
+            case DataType::FLOAT32:
+                return std::make_unique<DenseMatrix<float>>(n, backing_file, offset, seed, scalar, is_transposed);
+            case DataType::FLOAT16:
+                return std::make_unique<DenseMatrix<pycauset::Float16>>(n, backing_file, offset, seed, scalar, is_transposed);
             default:
                 throw std::runtime_error("Unsupported DataType for DenseMatrix load");
         }

@@ -20,6 +20,8 @@
 #include "Eigen.hpp"
 #include "Sprinkler.hpp"
 #include "MatrixFactory.hpp"
+#include "Float16.hpp"
+#include "ParallelUtils.hpp"
 
 #include "UnitVector.hpp"
 #include "VectorFactory.hpp"
@@ -28,6 +30,8 @@ namespace py = pybind11;
 using namespace pycauset;
 
 using FloatMatrix = DenseMatrix<double>;
+using Float32Matrix = DenseMatrix<float>;
+using Float16Matrix = DenseMatrix<pycauset::Float16>;
 using IntegerMatrix = DenseMatrix<int32_t>;
 using DenseBitMatrix = DenseMatrix<bool>;
 using FloatVector = DenseVector<double>;
@@ -754,6 +758,86 @@ PYBIND11_MODULE(_pycauset, m) {
         }, py::arg("other"), py::arg("saveas") = "");
     bind_arithmetic(fm);
 
+    // Float32Matrix (Dense)
+    py::class_<Float32Matrix, MatrixBase> f32m(m, "Float32Matrix");
+    f32m.def(py::init<uint64_t, const std::string&>(), 
+           py::arg("n"), py::arg("backing_file") = "")
+      .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+           py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+           py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
+        .def("get", &Float32Matrix::get)
+        .def("get_element_as_double", &Float32Matrix::get_element_as_double)
+        .def("set", &Float32Matrix::set)
+        .def("close", &Float32Matrix::close)
+        .def("size", &Float32Matrix::size)
+        .def("get_backing_file", &Float32Matrix::get_backing_file)
+        .def("is_transposed", &Float32Matrix::is_transposed)
+        .def_property_readonly("shape", [](const Float32Matrix& m) {
+            return std::make_pair(m.size(), m.size());
+        })
+        .def("__getitem__", [](const Float32Matrix& m, std::pair<uint64_t, uint64_t> idx) {
+            return m.get(idx.first, idx.second) * m.get_scalar();
+        })
+        .def("__setitem__", [](Float32Matrix& m, std::pair<uint64_t, uint64_t> idx, float value) {
+            m.set(idx.first, idx.second, value);
+        })
+        .def("__repr__", [](const Float32Matrix& m) {
+            return "<Float32Matrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
+        })
+        .def("invert", [](const Float32Matrix& m) {
+            return m.inverse(make_unique_storage_file("inverse"));
+        }, "Matrix Inversion (Linear Algebra)")
+        .def("transpose", [](const Float32Matrix& m, const std::string& saveas) {
+            return m.transpose(saveas);
+        }, py::arg("saveas") = "")
+        .def("multiply", [](const Float32Matrix& self, const Float32Matrix& other, const std::string& saveas) {
+            std::string target = saveas.empty() ? make_unique_storage_file("matmul_f32m") : saveas;
+            return self.multiply(other, target);
+        }, py::arg("other"), py::arg("saveas") = "");
+    bind_arithmetic(f32m);
+
+    // Float16Matrix (Dense)
+    py::class_<Float16Matrix, MatrixBase> f16m(m, "Float16Matrix");
+    f16m.def(py::init<uint64_t, const std::string&>(), 
+           py::arg("n"), py::arg("backing_file") = "")
+      .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+           py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+           py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
+        .def("get", [](const Float16Matrix& m, uint64_t i, uint64_t j) {
+            return (float)m.get(i, j);
+        })
+        .def("get_element_as_double", &Float16Matrix::get_element_as_double)
+        .def("set", [](Float16Matrix& m, uint64_t i, uint64_t j, float val) {
+            m.set(i, j, val);
+        })
+        .def("close", &Float16Matrix::close)
+        .def("size", &Float16Matrix::size)
+        .def("get_backing_file", &Float16Matrix::get_backing_file)
+        .def("is_transposed", &Float16Matrix::is_transposed)
+        .def_property_readonly("shape", [](const Float16Matrix& m) {
+            return std::make_pair(m.size(), m.size());
+        })
+        .def("__getitem__", [](const Float16Matrix& m, std::pair<uint64_t, uint64_t> idx) {
+            return (double)m.get(idx.first, idx.second) * m.get_scalar();
+        })
+        .def("__setitem__", [](Float16Matrix& m, std::pair<uint64_t, uint64_t> idx, float value) {
+            m.set(idx.first, idx.second, value);
+        })
+        .def("__repr__", [](const Float16Matrix& m) {
+            return "<Float16Matrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
+        })
+        .def("invert", [](const Float16Matrix& m) {
+            return m.inverse(make_unique_storage_file("inverse"));
+        }, "Matrix Inversion (Linear Algebra)")
+        .def("transpose", [](const Float16Matrix& m, const std::string& saveas) {
+            return m.transpose(saveas);
+        }, py::arg("saveas") = "")
+        .def("multiply", [](const Float16Matrix& self, const Float16Matrix& other, const std::string& saveas) {
+            std::string target = saveas.empty() ? make_unique_storage_file("matmul_f16m") : saveas;
+            return self.multiply(other, target);
+        }, py::arg("other"), py::arg("saveas") = "");
+    bind_arithmetic(f16m);
+
     m.def("compute_k_matrix", &compute_k_matrix, 
           py::arg("C"), py::arg("a"), py::arg("output_path"), py::arg("num_threads") = 0,
           "Compute K = C(aI + C)^-1");
@@ -1247,12 +1331,33 @@ PYBIND11_MODULE(_pycauset, m) {
                              make_unique_storage_file("eigvecs_real"), make_unique_storage_file("eigvecs_imag"));
     }, py::arg("matrix"), "Compute the eigenvalues and right eigenvectors of a square matrix.");
 
+    m.def("eigvals_arnoldi", [](const MatrixBase& matrix, int k, int max_iter, double tol) {
+        return pycauset::eigvals_arnoldi(matrix, k, max_iter, tol, 
+                                         make_unique_storage_file("eigvals_arnoldi_real"), 
+                                         make_unique_storage_file("eigvals_arnoldi_imag"));
+    }, py::arg("matrix"), py::arg("k"), py::arg("max_iter") = 100, py::arg("tol") = 1e-10,
+    "Compute k largest magnitude eigenvalues using Arnoldi iteration.");
+
+    m.def("eigvals_skew", [](const MatrixBase& matrix, int k, int max_iter, double tol) {
+        return pycauset::eigvals_skew(matrix, k, max_iter, tol, 
+                                      make_unique_storage_file("eigvals_skew_real"), 
+                                      make_unique_storage_file("eigvals_skew_imag"));
+    }, py::arg("matrix"), py::arg("k"), py::arg("max_iter") = 100, py::arg("tol") = 1e-10,
+    "Compute k largest magnitude eigenvalues for a Real Skew-Symmetric matrix using Block Skew-Lanczos.");
+
     m.def("set_memory_threshold", &pycauset::set_memory_threshold, 
           py::arg("bytes"),
           "Set the size threshold (in bytes) below which objects are stored in RAM instead of on disk.");
           
     m.def("get_memory_threshold", &pycauset::get_memory_threshold,
           "Get the current memory threshold in bytes.");
+
+    m.def("set_num_threads", &pycauset::ThreadPool::set_num_threads,
+          py::arg("n"),
+          "Set the number of threads to use for parallel operations.");
+
+    m.def("get_num_threads", &pycauset::ThreadPool::get_num_threads,
+          "Get the current number of threads used for parallel operations.");
 
     // Spacetime
     py::class_<pycauset::CausalSpacetime>(m, "Spacetime")

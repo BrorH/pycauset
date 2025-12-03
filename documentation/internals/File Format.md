@@ -48,7 +48,7 @@ The metadata file describes the object stored in `data.bin`.
 
 *   **`object_type`**: The high-level class name (e.g., `CausalMatrix`, `IntegerMatrix`, `DenseMatrix`, `Vector`).
 *   **`shape`**: Array `[rows, cols]`.
-*   **`dtype`**: The data type of elements (`bit`, `int32`, `float64`, `complex128`).
+*   **`dtype`**: The data type of elements (`bit`, `int32`, `float64`, `complex128`, `float32`, `float16`).
 *   **`storage`**: The storage layout (`dense`, `triangular`).
 *   **`seed`**: Generation seed (integer).
 *   **`scalar`**: Scaling factor (float).
