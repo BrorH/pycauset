@@ -19,8 +19,11 @@ public:
         return row_offsets_[i]; 
     }
 
+    bool has_diagonal() const { return has_diagonal_; }
+
 protected:
     std::vector<uint64_t> row_offsets_;
+    bool has_diagonal_ = false;
 
     uint64_t calculate_triangular_offsets(uint64_t element_bits, uint64_t alignment_bits);
 };
@@ -28,8 +31,9 @@ protected:
 template <typename T>
 class TriangularMatrix : public TriangularMatrixBase {
 public:
-    TriangularMatrix(uint64_t n, const std::string& backing_file = "")
+    TriangularMatrix(uint64_t n, const std::string& backing_file = "", bool has_diagonal = false)
         : TriangularMatrixBase(n, pycauset::MatrixType::TRIANGULAR_FLOAT, MatrixTraits<T>::data_type) {
+        has_diagonal_ = has_diagonal;
         // Calculate offsets for T (sizeof(T)*8 bits per element), aligned to 64 bits
         uint64_t size_in_bytes = calculate_triangular_offsets(sizeof(T) * 8, 64);
         initialize_storage(size_in_bytes, backing_file, 
@@ -46,9 +50,10 @@ public:
                      size_t offset,
                      uint64_t seed,
                      double scalar,
-                     bool is_transposed)
+                     bool is_transposed,
+                     bool has_diagonal = false)
         : TriangularMatrixBase(n, pycauset::MatrixType::TRIANGULAR_FLOAT, MatrixTraits<T>::data_type) {
-        
+        has_diagonal_ = has_diagonal;
         uint64_t size_in_bytes = calculate_triangular_offsets(sizeof(T) * 8, 64);
         initialize_storage(size_in_bytes, backing_file, 
                          "", 
@@ -64,8 +69,9 @@ public:
         set_transposed(is_transposed);
     }
 
-    TriangularMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
+    TriangularMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper, bool has_diagonal = false)
         : TriangularMatrixBase(n, std::move(mapper), pycauset::MatrixType::TRIANGULAR_FLOAT, MatrixTraits<T>::data_type) {
+        has_diagonal_ = has_diagonal;
         calculate_triangular_offsets(sizeof(T) * 8, 64);
     }
 
@@ -73,16 +79,26 @@ public:
         if (is_transposed()) {
             // Transposed: Lower Triangular.
             // User sets (i, j). If i > j (lower), we map to (j, i) (upper) in storage.
-            if (i <= j) throw std::invalid_argument("Strictly lower triangular (transposed)");
+            if (has_diagonal_) {
+                if (i < j) throw std::invalid_argument("Lower triangular (transposed)");
+            } else {
+                if (i <= j) throw std::invalid_argument("Strictly lower triangular (transposed)");
+            }
             std::swap(i, j);
         } else {
-            if (i >= j) throw std::invalid_argument("Strictly upper triangular");
+            if (has_diagonal_) {
+                if (i > j) throw std::invalid_argument("Upper triangular");
+            } else {
+                if (i >= j) throw std::invalid_argument("Strictly upper triangular");
+            }
         }
         
         if (j >= n_) throw std::out_of_range("Index out of bounds");
 
         uint64_t row_offset_bytes = get_row_offset(i);
-        uint64_t col_index = j - (i + 1);
+        // If strict: col_index = j - (i + 1)
+        // If diagonal: col_index = j - i
+        uint64_t col_index = has_diagonal_ ? (j - i) : (j - (i + 1));
         
         char* base_ptr = static_cast<char*>(require_mapper()->get_data());
         T* row_ptr = reinterpret_cast<T*>(base_ptr + row_offset_bytes);
@@ -94,17 +110,25 @@ public:
         if (is_transposed()) {
             // Transposed: Lower Triangular.
             // User gets (i, j). If i > j (lower), we map to (j, i) (upper).
-            // If i <= j (upper/diag), it's 0.
-            if (i <= j) return static_cast<T>(0);
+            // If i <= j (upper/diag), it's 0 (unless diag and i==j).
+            if (has_diagonal_) {
+                if (i < j) return static_cast<T>(0);
+            } else {
+                if (i <= j) return static_cast<T>(0);
+            }
             std::swap(i, j);
         } else {
-            if (i >= j) return static_cast<T>(0);
+            if (has_diagonal_) {
+                if (i > j) return static_cast<T>(0);
+            } else {
+                if (i >= j) return static_cast<T>(0);
+            }
         }
         
         if (j >= n_) throw std::out_of_range("Index out of bounds");
 
         uint64_t row_offset_bytes = get_row_offset(i);
-        uint64_t col_index = j - (i + 1);
+        uint64_t col_index = has_diagonal_ ? (j - i) : (j - (i + 1));
         
         const char* base_ptr = static_cast<const char*>(require_mapper()->get_data());
         const T* row_ptr = reinterpret_cast<const T*>(base_ptr + row_offset_bytes);

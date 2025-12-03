@@ -59,6 +59,8 @@ set(PYCAUSET_SOURCES
     src/MatrixFactory.cpp
     src/VectorFactory.cpp
     src/Sprinkler.cpp
+    src/ComplexVector.cpp
+    src/Eigen.cpp
 )
 
 # --- Extension Module ---
