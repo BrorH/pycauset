@@ -1100,7 +1100,23 @@ std::unique_ptr<ComplexVector> eigvals_skew(const MatrixBase& matrix, int k, int
         }
     }
     
-    return eigvals(*T_mat, saveas_real, saveas_imag);
+    auto full_evals = eigvals(*T_mat, "", "");
+    
+    // Sort and truncate to k
+    std::vector<std::complex<double>> vals;
+    vals.reserve(full_evals->size());
+    for(size_t i=0; i<full_evals->size(); ++i) vals.push_back(full_evals->get(i));
+    
+    std::sort(vals.begin(), vals.end(), [](const std::complex<double>& a, const std::complex<double>& b) {
+        return std::abs(a) > std::abs(b);
+    });
+    
+    if (vals.size() > (size_t)k) vals.resize(k);
+    
+    auto res = std::make_unique<ComplexVector>(vals.size(), saveas_real, saveas_imag);
+    for(size_t i=0; i<vals.size(); ++i) res->set(i, vals[i]);
+    
+    return res;
 }
 
 }
