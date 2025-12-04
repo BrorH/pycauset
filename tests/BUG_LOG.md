@@ -357,3 +357,51 @@ The `bindings.cpp` definition for `ComplexMatrix` only binds `__add__` and `__mu
 **Fix**:
 Implemented `multiply_scalar` and `add_scalar` in `include/ComplexMatrix.hpp` which perform element-wise operations on the real and imaginary parts. Updated `src/bindings.cpp` to expose `__mul__`, `__rmul__`, `__add__`, and `__radd__` overloads accepting `std::complex<double>`.
 
+---
+
+## [2025-12-04] Skew Solver Returns Excess Eigenvalues
+
+**Status**: Fixed
+**Severity**: Medium
+**Component**: Eigenvalue Solver
+
+**Description**:
+The `eigvals_skew` function returned all eigenvalues found in the Krylov subspace (size $m \ge k$) instead of the requested top $k$. This caused test failures where `evals.size() != k`.
+
+**Reproduction**:
+```python
+N = 5
+k = 2
+evals = pycauset.eigvals_skew(matrix, k)
+assert evals.size() == k # Failed, returned 4 or 6
+```
+
+**Root Cause**:
+The solver returned the full spectrum of the projected matrix $T$ without filtering.
+
+**Fix**:
+Modified `src/Eigen.cpp` to sort the eigenvalues by magnitude and truncate the result vector to size $k$ before returning.
+
+---
+
+## [2025-12-04] ComplexVector Not Iterable in Python
+
+**Status**: Fixed
+**Severity**: Medium
+**Component**: Python Bindings
+
+**Description**:
+`ComplexVector` could not be iterated over in Python (e.g., `[x for x in vec]`), raising `TypeError`.
+
+**Reproduction**:
+```python
+v = pycauset.eigvals_skew(A, k=10)
+l = list(v) # TypeError: 'ComplexVector' object is not iterable
+```
+
+**Root Cause**:
+Missing `__iter__` or `__getitem__` binding for iteration support.
+
+**Fix**:
+Added `__len__` and `__getitem__` to `ComplexVector` bindings in `src/bindings.cpp`.
+
