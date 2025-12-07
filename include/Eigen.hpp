@@ -8,6 +8,9 @@
 
 namespace pycauset {
 
+// CPU Implementation of eigenvalue solver
+void eigvals_cpu(const MatrixBase& matrix, ComplexVector& result);
+
 // Returns eigenvalues as a ComplexVector
 std::unique_ptr<ComplexVector> eigvals(const MatrixBase& matrix, const std::string& saveas_real = "", const std::string& saveas_imag = "");
 

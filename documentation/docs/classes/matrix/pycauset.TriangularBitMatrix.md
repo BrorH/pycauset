@@ -31,6 +31,7 @@ Sets the value at row `i` and column `j`.
 Multiplies this matrix by another `TriangularBitMatrix`.
 *   **other**: Another `TriangularBitMatrix`.
 *   **Returns**: A [[pycauset.TriangularIntegerMatrix]].
+*   **Performance Note**: This operation runs on the **CPU** even if GPU acceleration is enabled. To force GPU execution (which may be slower due to conversion overhead), cast the matrices to `FloatMatrix` first.
 
 ### `elementwise_multiply(other)`
 Performs elementwise logical AND.

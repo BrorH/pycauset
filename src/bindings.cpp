@@ -4,6 +4,8 @@
 #include <pybind11/numpy.h>
 #include <fstream>
 #include <filesystem>
+#include <cmath>
+#include <iostream>
 #include "TriangularBitMatrix.hpp"
 #include "DenseMatrix.hpp"
 #include "DenseBitMatrix.hpp"
@@ -25,6 +27,9 @@
 
 #include "UnitVector.hpp"
 #include "VectorFactory.hpp"
+#include "ComputeContext.hpp"
+#include "AcceleratorConfig.hpp"
+#include "ComputeDevice.hpp"
 
 namespace py = pybind11;
 using namespace pycauset;
@@ -35,9 +40,11 @@ using Float16Matrix = DenseMatrix<pycauset::Float16>;
 using IntegerMatrix = DenseMatrix<int32_t>;
 using DenseBitMatrix = DenseMatrix<bool>;
 using FloatVector = DenseVector<double>;
+using Float32Vector = DenseVector<float>;
 using IntegerVector = DenseVector<int32_t>;
 using BitVector = DenseVector<bool>;
 using TriangularFloatMatrix = TriangularMatrix<double>;
+using TriangularFloat32Matrix = TriangularMatrix<float>;
 using TriangularIntegerMatrix = TriangularMatrix<int32_t>;
 using TriangularBitMatrix = TriangularMatrix<bool>;
 
@@ -54,23 +61,13 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
 
 // bind_vector_arithmetic and bind_arithmetic moved to PYBIND11_MODULE
 
-
 // Dispatcher
 std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBase& b, std::string saveas) {
     if (saveas.empty()) saveas = make_unique_storage_file("matmul");
 
     // Try to cast to known types
     auto* a_fm = dynamic_cast<const FloatMatrix*>(&a);
-    auto* a_im = dynamic_cast<const IntegerMatrix*>(&a);
-    auto* a_tfm = dynamic_cast<const TriangularFloatMatrix*>(&a);
-    auto* a_tim = dynamic_cast<const TriangularIntegerMatrix*>(&a);
-    auto* a_tbm = dynamic_cast<const TriangularBitMatrix*>(&a);
-    
     auto* b_fm = dynamic_cast<const FloatMatrix*>(&b);
-    auto* b_im = dynamic_cast<const IntegerMatrix*>(&b);
-    auto* b_tfm = dynamic_cast<const TriangularFloatMatrix*>(&b);
-    auto* b_tim = dynamic_cast<const TriangularIntegerMatrix*>(&b);
-    auto* b_tbm = dynamic_cast<const TriangularBitMatrix*>(&b);
 
     bool a_is_id = (a.get_matrix_type() == MatrixType::IDENTITY);
     bool b_is_id = (b.get_matrix_type() == MatrixType::IDENTITY);
@@ -96,42 +93,33 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
         return a.multiply_scalar(b.get_scalar(), saveas);
     }
 
-    // If either is FloatMatrix (Dense<double>), result is FloatMatrix
-    if (a_fm || b_fm) {
-        // We need to implement mixed multiplication for all combinations.
-        // For now, we can rely on DenseMatrix<double>::multiply which might handle templates if we implemented it.
-        // But DenseMatrix::multiply expects DenseMatrix<T>.
-        // We haven't implemented generic mixed multiply in DenseMatrix.hpp yet.
-        // We only implemented multiply(const DenseMatrix<T>&).
-        
-        // Fallback: Convert both to FloatMatrix and multiply?
-        // Or implement specific dispatch here.
-        // Given the complexity, let's throw for mixed types not explicitly supported, 
-        // or implement a slow fallback using get_element_as_double.
-        
-        // Implementing slow fallback for now to ensure correctness over speed for mixed types.
-        // Ideally we would have optimized kernels.
-        
-        // Actually, let's just support FloatMatrix x FloatMatrix for now, and maybe others if easy.
-        if (a_fm && b_fm) return a_fm->multiply(*b_fm, saveas);
-        
-        // TODO: Implement mixed kernels or conversion.
-        throw std::runtime_error("Mixed Dense/Triangular multiplication not yet optimized. Convert to Dense first.");
+    // Use ComputeDevice for FloatMatrix x FloatMatrix
+    if (a_fm && b_fm && ComputeContext::instance().is_gpu_active()) {
+        auto res = std::make_unique<FloatMatrix>(a.size(), saveas);
+        ComputeContext::instance().get_device()->matmul(*a_fm, *b_fm, *res);
+        return res;
     }
+
+    // Fallback to existing logic for other types
+    if (a_fm && b_fm) {
+         return a_fm->multiply(*b_fm, saveas);
+    }
+    auto* a_im = dynamic_cast<const IntegerMatrix*>(&a);
+    auto* a_tbm = dynamic_cast<const TriangularBitMatrix*>(&a);
+    
+    auto* b_im = dynamic_cast<const IntegerMatrix*>(&b);
+    auto* b_tbm = dynamic_cast<const TriangularBitMatrix*>(&b);
 
     // IntegerMatrix x IntegerMatrix
     if (a_im && b_im) return a_im->multiply(*b_im, saveas);
 
     // TriangularBitMatrix x TriangularBitMatrix -> TriangularIntegerMatrix
-    if (a_tbm && b_tbm) return a_tbm->multiply(*b_tbm, saveas);
+    if (a_tbm && b_tbm) {
+        // GPU Acceleration for BitMatrices is disabled by default due to overhead.
+        // Users must explicitly convert to FloatMatrix/Float32Matrix to use GPU.
+        return a_tbm->multiply(*b_tbm, saveas);
+    }
 
-    // TriangularFloatMatrix x TriangularFloatMatrix -> TriangularFloatMatrix
-    // We need to implement multiply for TriangularMatrix<T>.
-    // Currently only TriangularMatrix<bool> has multiply implemented in .cpp.
-    // TriangularMatrix<T> in .hpp doesn't have multiply implemented?
-    // Wait, I didn't check TriangularMatrix.hpp for multiply implementation.
-    // I should check.
-    
     throw std::runtime_error("Unsupported matrix multiplication types.");
 }
 
@@ -179,8 +167,36 @@ std::unique_ptr<PersistentObject> from_numpy(py::object obj) {
         uint64_t n = info.shape[0];
         
         if (py::isinstance<py::array_t<double>>(arr)) {
-            auto m = std::make_unique<FloatMatrix>(n, make_unique_storage_file("numpy_mat_float"));
-            auto unchecked = arr.unchecked<double, 2>();
+            // Check preferred precision
+            int pref = 1; // Default Float32
+            if (ComputeContext::instance().is_gpu_active()) {
+                pref = ComputeContext::instance().get_device()->preferred_precision();
+            }
+            
+            if (pref == 1) {
+                // Downcast to Float32
+                auto m = std::make_unique<Float32Matrix>(n, make_unique_storage_file("numpy_mat_float32"));
+                auto unchecked = arr.unchecked<double, 2>();
+                for (uint64_t i = 0; i < n; ++i) {
+                    for (uint64_t j = 0; j < n; ++j) {
+                        m->set(i, j, (float)unchecked(i, j));
+                    }
+                }
+                return m;
+            } else {
+                // Keep as Float64
+                auto m = std::make_unique<FloatMatrix>(n, make_unique_storage_file("numpy_mat_float"));
+                auto unchecked = arr.unchecked<double, 2>();
+                for (uint64_t i = 0; i < n; ++i) {
+                    for (uint64_t j = 0; j < n; ++j) {
+                        m->set(i, j, unchecked(i, j));
+                    }
+                }
+                return m;
+            }
+        } else if (py::isinstance<py::array_t<float>>(arr)) {
+            auto m = std::make_unique<Float32Matrix>(n, make_unique_storage_file("numpy_mat_float32"));
+            auto unchecked = arr.unchecked<float, 2>();
             for (uint64_t i = 0; i < n; ++i) {
                 for (uint64_t j = 0; j < n; ++j) {
                     m->set(i, j, unchecked(i, j));
@@ -251,6 +267,10 @@ PYBIND11_MODULE(_pycauset, m) {
             res.release();
             return py::cast(m, py::return_value_policy::take_ownership);
         }
+        if (auto* m = dynamic_cast<Float32Matrix*>(res.get())) {
+            res.release();
+            return py::cast(m, py::return_value_policy::take_ownership);
+        }
         if (auto* m = dynamic_cast<IntegerMatrix*>(res.get())) {
             res.release();
             return py::cast(m, py::return_value_policy::take_ownership);
@@ -260,6 +280,10 @@ PYBIND11_MODULE(_pycauset, m) {
             return py::cast(m, py::return_value_policy::take_ownership);
         }
         if (auto* m = dynamic_cast<TriangularFloatMatrix*>(res.get())) {
+            res.release();
+            return py::cast(m, py::return_value_policy::take_ownership);
+        }
+        if (auto* m = dynamic_cast<TriangularFloat32Matrix*>(res.get())) {
             res.release();
             return py::cast(m, py::return_value_policy::take_ownership);
         }
@@ -293,6 +317,10 @@ PYBIND11_MODULE(_pycauset, m) {
 
     auto cast_vector_result = [](std::unique_ptr<VectorBase> res) -> py::object {
         if (auto* v = dynamic_cast<FloatVector*>(res.get())) {
+            res.release();
+            return py::cast(v, py::return_value_policy::take_ownership);
+        }
+        if (auto* v = dynamic_cast<Float32Vector*>(res.get())) {
             res.release();
             return py::cast(v, py::return_value_policy::take_ownership);
         }
@@ -650,8 +678,8 @@ PYBIND11_MODULE(_pycauset, m) {
             return v.transpose();
         });
 
-    // TriangularFloatMatrix
-    py::class_<TriangularFloatMatrix, MatrixBase> tfm(m, "TriangularFloatMatrix");
+    // TriangularFloat64Matrix
+    py::class_<TriangularFloatMatrix, MatrixBase> tfm(m, "TriangularFloat64Matrix");
     tfm.def(py::init<uint64_t, const std::string&, bool>(), 
             py::arg("n"), py::arg("backing_file") = "", py::arg("has_diagonal") = false)
        .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool, bool>(),
@@ -673,7 +701,7 @@ PYBIND11_MODULE(_pycauset, m) {
             m.set(idx.first, idx.second, value);
         })
         .def("__repr__", [](const TriangularFloatMatrix& m) {
-            return "<TriangularFloatMatrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
+            return "<TriangularFloat64Matrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
         })
         .def("invert", [](const TriangularFloatMatrix& m) {
             return m.inverse(make_unique_storage_file("inverse"));
@@ -682,6 +710,39 @@ PYBIND11_MODULE(_pycauset, m) {
             return m.bitwise_not(make_unique_storage_file("bitwise_not"));
         });
     bind_arithmetic(tfm);
+
+    // TriangularFloatMatrix (Float32)
+    py::class_<TriangularFloat32Matrix, MatrixBase> tf32m(m, "TriangularFloatMatrix");
+    tf32m.def(py::init<uint64_t, const std::string&, bool>(), 
+            py::arg("n"), py::arg("backing_file") = "", py::arg("has_diagonal") = false)
+       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool, bool>(),
+            py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+            py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"), py::arg("has_diagonal") = false)
+        .def("get", &TriangularFloat32Matrix::get)
+        .def("get_element_as_double", &TriangularFloat32Matrix::get_element_as_double)
+        .def("set", &TriangularFloat32Matrix::set)
+        .def("close", &TriangularFloat32Matrix::close)
+        .def("size", &TriangularFloat32Matrix::size)
+        .def("get_backing_file", &TriangularFloat32Matrix::get_backing_file)
+        .def_property_readonly("shape", [](const TriangularFloat32Matrix& m) {
+            return std::make_pair(m.size(), m.size());
+        })
+        .def("__getitem__", [](const TriangularFloat32Matrix& m, std::pair<uint64_t, uint64_t> idx) {
+            return m.get(idx.first, idx.second) * m.get_scalar();
+        })
+        .def("__setitem__", [](TriangularFloat32Matrix& m, std::pair<uint64_t, uint64_t> idx, double value) {
+            m.set(idx.first, idx.second, value);
+        })
+        .def("__repr__", [](const TriangularFloat32Matrix& m) {
+            return "<TriangularFloatMatrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
+        })
+        .def("invert", [](const TriangularFloat32Matrix& m) {
+            return m.inverse(make_unique_storage_file("inverse"));
+        }, "Matrix Inversion (Linear Algebra)")
+        .def("__invert__", [](const TriangularFloat32Matrix& m) {
+            return m.bitwise_not(make_unique_storage_file("bitwise_not"));
+        });
+    bind_arithmetic(tf32m);
 
     // TriangularIntegerMatrix
     py::class_<TriangularIntegerMatrix, MatrixBase> tim(m, "TriangularIntegerMatrix");
@@ -717,13 +778,27 @@ PYBIND11_MODULE(_pycauset, m) {
         });
     bind_arithmetic(tim);
 
-    // FloatMatrix (Dense)
-    py::class_<FloatMatrix, MatrixBase> fm(m, "FloatMatrix");
+    // Float64Matrix (Dense)
+    py::class_<FloatMatrix, MatrixBase> fm(m, "Float64Matrix");
     fm.def(py::init<uint64_t, const std::string&>(), 
            py::arg("n"), py::arg("backing_file") = "")
       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
            py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
            py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
+        .def_static("random", [](uint64_t n, const std::string& backing_file) {
+            auto mat = std::make_unique<FloatMatrix>(n, backing_file);
+            double* data = mat->data();
+            pycauset::ParallelFor(0, n, [&](size_t i) {
+                unsigned int seed = (unsigned int)i; 
+                for (size_t j = 0; j < n; ++j) {
+                    seed = seed * 1103515245 + 12345;
+                    double val = (double)(seed & 0x7FFFFFFF) / 2147483648.0;
+                    data[i * n + j] = val;
+                }
+                data[i * n + i] += (double)n;
+            });
+            return mat;
+        }, py::arg("n"), py::arg("backing_file") = "")
         .def("get", &FloatMatrix::get)
         .def("get_element_as_double", &FloatMatrix::get_element_as_double)
         .def("set", &FloatMatrix::set)
@@ -744,7 +819,14 @@ PYBIND11_MODULE(_pycauset, m) {
             return "<FloatMatrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
         })
         .def("invert", [](const FloatMatrix& m) {
-            return m.inverse(make_unique_storage_file("inverse"));
+            auto res = std::make_unique<FloatMatrix>(m.size(), make_unique_storage_file("inverse"));
+            ComputeContext::instance().get_device()->inverse(m, *res);
+            return res;
+        }, "Matrix Inversion (Linear Algebra)")
+        .def("inverse", [](const FloatMatrix& m) {
+            auto res = std::make_unique<FloatMatrix>(m.size(), make_unique_storage_file("inverse"));
+            ComputeContext::instance().get_device()->inverse(m, *res);
+            return res;
         }, "Matrix Inversion (Linear Algebra)")
         .def("__invert__", [](const FloatMatrix& m) {
             return m.bitwise_not(make_unique_storage_file("bitwise_not"));
@@ -753,18 +835,35 @@ PYBIND11_MODULE(_pycauset, m) {
             return m.transpose(saveas);
         }, py::arg("saveas") = "")
         .def("multiply", [](const FloatMatrix& self, const FloatMatrix& other, const std::string& saveas) {
-            std::string target = saveas.empty() ? make_unique_storage_file("matmul_fm") : saveas;
-            return self.multiply(other, target);
-        }, py::arg("other"), py::arg("saveas") = "");
+            return dispatch_matmul(self, other, saveas);
+        }, py::arg("other"), py::arg("saveas") = "")
+        .def("__matmul__", [](const FloatMatrix& self, const FloatMatrix& other) {
+             return dispatch_matmul(self, other, "");
+        });
     bind_arithmetic(fm);
 
-    // Float32Matrix (Dense)
-    py::class_<Float32Matrix, MatrixBase> f32m(m, "Float32Matrix");
+    // FloatMatrix (Dense) - Default to Float32
+    py::class_<Float32Matrix, MatrixBase> f32m(m, "FloatMatrix");
+    m.attr("Float32Matrix") = m.attr("FloatMatrix");
     f32m.def(py::init<uint64_t, const std::string&>(), 
            py::arg("n"), py::arg("backing_file") = "")
       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
            py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
            py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
+        .def_static("random", [](uint64_t n, const std::string& backing_file) {
+            auto mat = std::make_unique<Float32Matrix>(n, backing_file);
+            float* data = mat->data();
+            pycauset::ParallelFor(0, n, [&](size_t i) {
+                unsigned int seed = (unsigned int)i; 
+                for (size_t j = 0; j < n; ++j) {
+                    seed = seed * 1103515245 + 12345;
+                    float val = (float)((seed & 0x7FFFFFFF) / 2147483648.0);
+                    data[i * n + j] = val;
+                }
+                data[i * n + i] += (float)n;
+            });
+            return mat;
+        }, py::arg("n"), py::arg("backing_file") = "")
         .def("get", &Float32Matrix::get)
         .def("get_element_as_double", &Float32Matrix::get_element_as_double)
         .def("set", &Float32Matrix::set)
@@ -785,15 +884,35 @@ PYBIND11_MODULE(_pycauset, m) {
             return "<Float32Matrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
         })
         .def("invert", [](const Float32Matrix& m) {
-            return m.inverse(make_unique_storage_file("inverse"));
+            auto res = std::make_unique<Float32Matrix>(m.size(), make_unique_storage_file("inverse"));
+            ComputeContext::instance().get_device()->inverse(m, *res);
+            return res;
+        }, "Matrix Inversion (Linear Algebra)")
+        .def("inverse", [](const Float32Matrix& m) {
+            auto res = std::make_unique<Float32Matrix>(m.size(), make_unique_storage_file("inverse"));
+            ComputeContext::instance().get_device()->inverse(m, *res);
+            return res;
         }, "Matrix Inversion (Linear Algebra)")
         .def("transpose", [](const Float32Matrix& m, const std::string& saveas) {
             return m.transpose(saveas);
         }, py::arg("saveas") = "")
         .def("multiply", [](const Float32Matrix& self, const Float32Matrix& other, const std::string& saveas) {
+            if (ComputeContext::instance().is_gpu_active()) {
+                auto res = std::make_unique<Float32Matrix>(self.size(), saveas);
+                ComputeContext::instance().get_device()->matmul(self, other, *res);
+                return res;
+            }
             std::string target = saveas.empty() ? make_unique_storage_file("matmul_f32m") : saveas;
             return self.multiply(other, target);
-        }, py::arg("other"), py::arg("saveas") = "");
+        }, py::arg("other"), py::arg("saveas") = "")
+        .def("__matmul__", [](const Float32Matrix& self, const Float32Matrix& other) {
+            if (ComputeContext::instance().is_gpu_active()) {
+                auto res = std::make_unique<Float32Matrix>(self.size(), "");
+                ComputeContext::instance().get_device()->matmul(self, other, *res);
+                return res;
+            }
+            return self.multiply(other, "");
+        });
     bind_arithmetic(f32m);
 
     // Float16Matrix (Dense)
@@ -827,6 +946,9 @@ PYBIND11_MODULE(_pycauset, m) {
             return "<Float16Matrix shape=(" + std::to_string(m.size()) + ", " + std::to_string(m.size()) + ")>";
         })
         .def("invert", [](const Float16Matrix& m) {
+            return m.inverse(make_unique_storage_file("inverse"));
+        }, "Matrix Inversion (Linear Algebra)")
+        .def("inverse", [](const Float16Matrix& m) {
             return m.inverse(make_unique_storage_file("inverse"));
         }, "Matrix Inversion (Linear Algebra)")
         .def("transpose", [](const Float16Matrix& m, const std::string& saveas) {
@@ -1134,8 +1256,8 @@ PYBIND11_MODULE(_pycauset, m) {
         });
     bind_arithmetic(idmi);
 
-    // FloatVector
-    py::class_<FloatVector, VectorBase> fv(m, "FloatVector");
+    // Float64Vector
+    py::class_<FloatVector, VectorBase> fv(m, "Float64Vector");
     fv.def(py::init<uint64_t, const std::string&>(), py::arg("n"), py::arg("backing_file") = "")
       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
            py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
@@ -1148,12 +1270,33 @@ PYBIND11_MODULE(_pycauset, m) {
           return py::make_tuple(v.size()); 
       })
       .def("__repr__", [](const FloatVector& v) {
-          std::string s = "<FloatVector size=" + std::to_string(v.size());
+          std::string s = "<Float64Vector size=" + std::to_string(v.size());
           if (v.is_transposed()) s += " transposed=True";
           s += ">";
           return s;
       });
     bind_vector_arithmetic(fv);
+
+    // FloatVector (Float32)
+    py::class_<Float32Vector, VectorBase> f32v(m, "FloatVector");
+    f32v.def(py::init<uint64_t, const std::string&>(), py::arg("n"), py::arg("backing_file") = "")
+      .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
+           py::arg("n"), py::arg("backing_file"), py::arg("offset"), 
+           py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"))
+      .def("__getitem__", &Float32Vector::get)
+      .def("__setitem__", &Float32Vector::set)
+      .def("__len__", &Float32Vector::size)
+      .def_property_readonly("shape", [](const Float32Vector& v) { 
+          if (v.is_transposed()) return py::make_tuple(1, v.size());
+          return py::make_tuple(v.size()); 
+      })
+      .def("__repr__", [](const Float32Vector& v) {
+          std::string s = "<FloatVector size=" + std::to_string(v.size());
+          if (v.is_transposed()) s += " transposed=True";
+          s += ">";
+          return s;
+      });
+    bind_vector_arithmetic(f32v);
 
     // IntegerVector
     py::class_<IntegerVector, VectorBase> iv(m, "IntegerVector");
@@ -1399,4 +1542,32 @@ PYBIND11_MODULE(_pycauset, m) {
           py::arg("seed"),
           py::arg("indices"),
           "Regenerate coordinates for specific indices.");
+
+    // CUDA / Accelerator Control
+    auto cuda_mod = m.def_submodule("cuda", "GPU Acceleration Control");
+    
+    cuda_mod.def("is_available", []() {
+        return ComputeContext::instance().is_gpu_active();
+    }, "Check if GPU acceleration is currently active.");
+    
+    cuda_mod.def("current_device", []() {
+        return ComputeContext::instance().get_device()->name();
+    }, "Get the name of the current compute device.");
+
+    cuda_mod.def("enable", [](int device_id, size_t memory_limit, bool enable_async) {
+        AcceleratorConfig config;
+        config.device_id = device_id;
+        config.memory_limit_bytes = memory_limit;
+        config.enable_async = enable_async;
+        ComputeContext::instance().enable_gpu(config);
+    }, 
+    py::arg("device_id") = 0,
+    py::arg("memory_limit") = 0,
+    py::arg("enable_async") = true,
+    "Try to enable GPU acceleration with specific configuration.");
+
+    cuda_mod.def("disable", []() {
+        ComputeContext::instance().disable_gpu();
+    }, "Disable GPU acceleration and fall back to CPU.");
 }
+

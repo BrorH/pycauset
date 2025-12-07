@@ -9,6 +9,14 @@ except ImportError:
 import atexit
 import inspect
 import os
+
+# Ensure DLLs in this directory are found (for Windows)
+if os.name == 'nt' and hasattr(os, 'add_dll_directory'):
+    try:
+        os.add_dll_directory(os.path.dirname(__file__))
+    except OSError:
+        pass
+
 import random
 import re
 import warnings
@@ -1412,7 +1420,28 @@ def invert(matrix: Any) -> Any:
     raise TypeError("Object does not support matrix inversion.")
 
 
+_native_eigvals = getattr(_native, "eigvals")
+_native_eigvals_arnoldi = getattr(_native, "eigvals_arnoldi", None)
 
+def eigvals(matrix: Any, k: int | None = None, method: str = "dense", max_iter: int = 1000, tol: float = 1e-10) -> Any:
+    """
+    Compute eigenvalues of a matrix.
+    
+    Args:
+        matrix: The input matrix.
+        k: Number of eigenvalues to compute (for Arnoldi method).
+        method: 'dense' (default) or 'arnoldi'.
+        max_iter: Maximum iterations for Arnoldi.
+        tol: Tolerance for Arnoldi.
+    """
+    if method == "arnoldi":
+        if _native_eigvals_arnoldi is None:
+             raise NotImplementedError("Arnoldi method not available in native extension.")
+        if k is None:
+            raise ValueError("k must be specified for Arnoldi method.")
+        return _native_eigvals_arnoldi(matrix, k, max_iter, tol)
+    else:
+        return _native_eigvals(matrix)
 
 
 # Alias for IdentityMatrix

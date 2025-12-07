@@ -18,7 +18,7 @@ file(MAKE_DIRECTORY
   "C:/Users/ireal/Documents/pycauset/build/_deps/pybind11-subbuild/pybind11-populate-prefix/src/pybind11-populate-stamp"
 )
 
-set(configSubDirs Debug)
+set(configSubDirs )
 foreach(subDir IN LISTS configSubDirs)
     file(MAKE_DIRECTORY "C:/Users/ireal/Documents/pycauset/build/_deps/pybind11-subbuild/pybind11-populate-prefix/src/pybind11-populate-stamp/${subDir}")
 endforeach()

@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # --- Dependencies ---
 
 # 1. Python (Required for the extension)
-find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+find_package(Python COMPONENTS Interpreter Development REQUIRED)
 
 # 2. Pybind11 (Required)
 # If built via pip/scikit-build-core, pybind11 is provided.
@@ -62,12 +62,14 @@ set(PYCAUSET_SOURCES
     src/ComplexVector.cpp
     src/Eigen.cpp
     src/ParallelUtils.cpp
+    src/ComputeContext.cpp
+    src/CpuDevice.cpp
 )
 
 # --- Extension Module ---
 # Note: The module name must match what is defined in PYBIND11_MODULE in bindings.cpp (which is "_pycauset")
 # Touch
-python_add_library(_pycauset MODULE src/bindings.cpp ${PYCAUSET_SOURCES})
+python_add_library(_pycauset SHARED src/bindings.cpp ${PYCAUSET_SOURCES})
 
 # Include directories
 target_include_directories(_pycauset PRIVATE include)
@@ -75,8 +77,53 @@ target_include_directories(_pycauset PRIVATE include)
 # Link libraries
 target_link_libraries(_pycauset PRIVATE pybind11::module)
 
+if(MSVC)
+    target_compile_options(_pycauset PRIVATE /bigobj)
+endif()
+
+# Export symbols for plugins
+set_target_properties(_pycauset PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
 if(OpenMP_CXX_FOUND)
     target_link_libraries(_pycauset PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
+# --- CUDA Acceleration (Optional) ---
+include(CheckLanguage)
+check_language(CUDA)
+
+if(CMAKE_CUDA_COMPILER)
+    # Target the native architecture of the build machine (supports Pascal 6.1 on CUDA 12)
+    set(CMAKE_CUDA_ARCHITECTURES "native")
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)
+    
+    message(STATUS "CUDA found. Building pycauset_cuda accelerator.")
+    
+    add_library(pycauset_cuda SHARED
+        src/accelerators/cuda/CudaDevice.cu
+        src/accelerators/cuda/CudaSolver.cu
+    )
+    
+    target_include_directories(pycauset_cuda PRIVATE include)
+    
+    # Link against CUDA libraries
+    target_link_libraries(pycauset_cuda PRIVATE 
+        CUDA::cudart 
+        CUDA::cublas 
+        CUDA::cusolver
+        _pycauset
+    )
+    
+    # Set properties
+    set_target_properties(pycauset_cuda PROPERTIES 
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+        CUDA_SEPARABLE_COMPILATION ON
+    )
+    
+    install(TARGETS pycauset_cuda DESTINATION pycauset)
+else()
+    message(STATUS "CUDA not found. Skipping pycauset_cuda accelerator.")
 endif()
 
 # --- Installation ---

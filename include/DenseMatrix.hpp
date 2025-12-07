@@ -249,30 +249,32 @@ public:
         return result;
     }
 
-    // Inverse is only implemented for double
-    std::unique_ptr<DenseMatrix<double>> inverse(const std::string& result_file = "") const {
-        if constexpr (!std::is_same_v<T, double>) {
-            throw std::runtime_error("Inverse only supported for FloatMatrix (DenseMatrix<double>)");
+    // Inverse implementation
+    std::unique_ptr<DenseMatrix<T>> inverse(const std::string& result_file = "") const {
+        if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
+            throw std::runtime_error("Inverse only supported for FloatMatrix (double) or Float32Matrix (float)");
         } else {
             // Implementation copied from KMatrix.cpp
-            if (n_ == 0) return std::make_unique<DenseMatrix<double>>(0, result_file);
+            if (n_ == 0) return std::make_unique<DenseMatrix<T>>(0, result_file);
             if (scalar_ == 0.0) throw std::runtime_error("Matrix scalar is 0, cannot invert");
 
             std::string work_path = copy_storage(pycauset::make_unique_storage_file("inverse_work"));
             auto work_mapper = std::make_unique<MemoryMapper>(work_path, 0, false);
-            DenseMatrix<double> work(n_, std::move(work_mapper));
+            DenseMatrix<T> work(n_, std::move(work_mapper));
             work.set_temporary(true); // Ensure work file is deleted
             
-            auto result = std::make_unique<DenseMatrix<double>>(n_, result_file);
+            auto result = std::make_unique<DenseMatrix<T>>(n_, result_file);
             
-            double* w = work.data();
-            double* r = result->data();
+            T* w = work.data();
+            T* r = result->data();
             
-            std::fill(r, r + n_ * n_, 0.0);
-            for (uint64_t i = 0; i < n_; ++i) r[i * n_ + i] = 1.0;
+            std::fill(r, r + n_ * n_, (T)0.0);
+            for (uint64_t i = 0; i < n_; ++i) r[i * n_ + i] = (T)1.0;
 
             // Block Gauss-Jordan
             size_t block_size = 64;
+            T epsilon = std::is_same_v<T, float> ? 1e-5f : 1e-12;
+            T zero_threshold = std::is_same_v<T, float> ? 1e-7f : 1e-15;
             
             for (size_t k_start = 0; k_start < n_; k_start += block_size) {
                 size_t k_end = std::min(k_start + block_size, (size_t)n_);
@@ -282,16 +284,16 @@ public:
                 for (size_t i = k_start; i < k_end; ++i) {
                     // Pivot
                     size_t pivot = i;
-                    double max_val = std::abs(w[i * n_ + i]);
+                    T max_val = std::abs(w[i * n_ + i]);
                     for (size_t k = i + 1; k < n_; ++k) {
-                        double val = std::abs(w[k * n_ + i]);
+                        T val = std::abs(w[k * n_ + i]);
                         if (val > max_val) {
                             max_val = val;
                             pivot = k;
                         }
                     }
 
-                    if (max_val < 1e-12) {
+                    if (max_val < epsilon) {
                         work.close();
                         std::filesystem::remove(work_path);
                         throw std::runtime_error("Matrix is singular or nearly singular");
@@ -307,8 +309,8 @@ public:
                         }
                     }
 
-                    double div = w[i * n_ + i];
-                    double inv_div = 1.0 / div;
+                    T div = w[i * n_ + i];
+                    T inv_div = (T)1.0 / div;
                     
                     // Scale pivot row
                     // Parallelize scaling for large N
@@ -324,15 +326,15 @@ public:
                         }
                     }
                     // Ensure pivot is exactly 1.0
-                    w[i * n_ + i] = 1.0;
+                    w[i * n_ + i] = (T)1.0;
 
                     // Eliminate within the block rows (k_start..k_end)
                     // This makes the diagonal block Identity
                     for (size_t k = k_start; k < k_end; ++k) {
                         if (k != i) {
-                            double factor = w[k * n_ + i];
-                            if (std::abs(factor) > 1e-15) {
-                                w[k * n_ + i] = 0.0; // Explicitly zero out
+                            T factor = w[k * n_ + i];
+                            if (std::abs(factor) > zero_threshold) {
+                                w[k * n_ + i] = (T)0.0; // Explicitly zero out
                                 // Row operation: Row_k -= factor * Row_i
                                 // This is small enough to do sequentially or with simple vectorization
                                 for (size_t j = i + 1; j < n_; ++j) w[k * n_ + j] -= factor * w[i * n_ + j];

@@ -37,6 +37,31 @@ If you want to build from source or contribute:
     pip install .
     ```
 
+## GPU Acceleration
+
+PyCauset supports GPU acceleration for matrix operations using NVIDIA CUDA.
+
+**Requirements:**
+*   NVIDIA GPU with Compute Capability 7.0+ (Volta, Turing, Ampere, Ada, Hopper, Blackwell).
+*   **Note:** Pascal (GTX 10 series) and older GPUs are **not supported** by the bundled CUDA 13.0 backend.
+*   Drivers: NVIDIA Driver 520.00 or later.
+
+The GPU backend is automatically detected and used if available. If initialization fails (e.g., unsupported hardware), PyCauset seamlessly falls back to the CPU backend.
+
+## GPU Acceleration
+
+PyCauset supports GPU acceleration for matrix operations using NVIDIA CUDA.
+
+**Requirements:**
+*   NVIDIA GPU with Compute Capability 7.0+ (Volta, Turing, Ampere, Ada, Hopper, Blackwell).
+*   **Note:** Pascal (GTX 10 series) and older GPUs are **not supported** by the bundled CUDA 13.0 backend.
+*   Drivers: NVIDIA Driver 520.00 or later.
+
+**Automatic Fix for Older GPUs:**
+If you have a Pascal GPU (e.g., GTX 1060, 1070, 1080) and CUDA 13 installed, the build system will detect the incompatibility and offer to automatically install CUDA 12.6 via `winget`. This allows PyCauset to compile a compatible backend for your hardware.
+
+The GPU backend is automatically detected and used if available. If initialization fails (e.g., unsupported hardware), PyCauset seamlessly falls back to the CPU backend.
+
 ## Quick Start
 
 ### 1. Creating Matrices

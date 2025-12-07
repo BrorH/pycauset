@@ -405,3 +405,41 @@ Missing `__iter__` or `__getitem__` binding for iteration support.
 **Fix**:
 Added `__len__` and `__getitem__` to `ComplexVector` bindings in `src/bindings.cpp`.
 
+
+## [Date: 2025-12-07 14:30] StoragePaths API Mismatch
+
+**Status**: Fixed
+**Severity**: Medium
+**Component**: C++ Storage / CUDA Accelerator
+
+**Description**:
+Compilation error in `CudaSolver.cu`: `name followed by "::" must be a class or namespace name`. The code attempted to call `pycauset::StoragePaths::get_instance()`, but `StoragePaths` is a namespace containing inline functions, not a singleton class.
+
+**Reproduction**:
+Compile `src/accelerators/cuda/CudaSolver.cu` with the previous code.
+
+**Root Cause**:
+Incorrect assumption about the `StoragePaths` API structure. It was refactored to be a namespace of functions, but the CUDA code was written assuming a Singleton pattern.
+
+**Fix**:
+Updated `CudaSolver.cu` to call `pycauset::make_unique_storage_file()` directly.
+
+
+## [2025-12-07 15:00] Out-of-Core Solver Pivoting Logic Error
+
+**Status**: Fixed
+**Severity**: Critical
+**Component**: CUDA Solver (Out-of-Core)
+
+**Description**:
+The Out-of-Core Inverse solver produced incorrect results for matrices larger than the block size (e.g., N=1024 with BlockSize=512). The solver worked for single-block matrices (N=512) but failed for multi-block ones.
+
+**Reproduction**:
+Run 	ests/python/test_inverse_correctness.py with N=1024. Max Error was ~3.28 instead of ~1e-13.
+
+**Root Cause**:
+In the blocked LU factorization with partial pivoting, when a pivot is applied to swap rows, it must be applied to the *entire* row, including the previously computed L factors (columns 0 to k-1). The pply_pivots function was only swapping the trailing submatrix (columns k+b to N), leaving the L factors inconsistent with the permuted rows.
+
+**Fix**:
+Updated pply_pivots in src/accelerators/cuda/CudaSolver.cu to swap columns 0 to k (L part) and k+b to N (Trailing part) when ull_row is false.
+
