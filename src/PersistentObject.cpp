@@ -60,14 +60,14 @@ void PersistentObject::close() {
                 // Use char8_t cast for UTF-8 string to handle Unicode paths
                 std::filesystem::path p(reinterpret_cast<const char8_t*>(path.c_str()));
                 if (std::filesystem::remove(p)) {
-                    std::cout << "Deleted temp file: " << path << std::endl;
+                    // std::cout << "Deleted temp file: " << path << std::endl;
                 } else {
-                    std::cerr << "Failed to delete temp file: " << path << std::endl;
+                    // std::cerr << "Failed to delete temp file: " << path << std::endl;
                 }
             } catch (const std::exception& e) {
-                std::cerr << "Exception deleting temp file: " << path << " - " << e.what() << std::endl;
+                // std::cerr << "Exception deleting temp file: " << path << " - " << e.what() << std::endl;
             } catch (...) {
-                std::cerr << "Unknown exception deleting temp file: " << path << std::endl;
+                // std::cerr << "Unknown exception deleting temp file: " << path << std::endl;
             }
         }
     }

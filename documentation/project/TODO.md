@@ -5,10 +5,10 @@ This document outlines the development roadmap for `pycauset`, tracking complete
 ## 🚀 High Priority
 
 - [ ] **Large Scale Simulation**: Calculate a 100GB propagator matrix $K$.
+- [ ] **Further I/O Optimization**: The read/write speed to disk is currently the main bottleneck
 - [ ] **Pauli-Jordan Function**: Implement the $i\Delta$ function derived from the propagator.
 - [ ] **GPU Acceleration**: Investigate CUDA/OpenCL support for matrix operations.
 - [ ] **User-Defined Spacetimes**: Allow users to define custom spacetime geometries and boundaries in Python.
-- [x] **CI/CD**: Disable auto-versioning push to PyPI on every commit; implement proper release workflow.
 
 
 ## 🌌 Physics & Spacetime

@@ -7,6 +7,8 @@
 #include "StoragePaths.hpp"
 #include "ParallelUtils.hpp"
 #include "Float16.hpp"
+#include "ComputeContext.hpp"
+#include "ComputeDevice.hpp"
 #include <stdexcept>
 #include <cmath>
 #include <iostream>
@@ -20,36 +22,7 @@ namespace pycauset {
 // X: N x b (Row Major flat vector)
 // Y: N x b (Row Major flat vector)
 void parallel_block_multiply(const MatrixBase& A, const std::vector<double>& X, std::vector<double>& Y, size_t n, size_t b) {
-    // Check for optimized types
-    auto* f32 = dynamic_cast<const DenseMatrix<float>*>(&A);
-    auto* f16 = dynamic_cast<const DenseMatrix<pycauset::Float16>*>(&A);
-    auto* f64 = dynamic_cast<const DenseMatrix<double>*>(&A);
-
-    pycauset::ParallelFor(0, n, [&](size_t i) {
-        // Accumulator for row i of Y (size b)
-        std::vector<double> acc(b, 0.0);
-        
-        // Scan row i of A
-        for (size_t j = 0; j < n; ++j) {
-            double a_val;
-            if (f32) a_val = (double)f32->get(i, j);
-            else if (f16) a_val = (double)f16->get(i, j);
-            else if (f64) a_val = f64->get(i, j);
-            else a_val = A.get_element_as_double(i, j);
-
-            // SAXPY: acc += a_val * X[j, :]
-            size_t x_row_offset = j * b;
-            for (size_t k = 0; k < b; ++k) {
-                acc[k] += a_val * X[x_row_offset + k];
-            }
-        }
-
-        // Store result
-        size_t y_row_offset = i * b;
-        for (size_t k = 0; k < b; ++k) {
-            Y[y_row_offset + k] = acc[k];
-        }
-    });
+    ComputeContext::instance().get_device()->batch_gemv(A, X.data(), Y.data(), b);
 }
 
 // Helper: Load matrix into memory (FLAT vector for cache locality)
@@ -482,15 +455,7 @@ double trace(const MatrixBase& matrix) {
     return tr;
 }
 
-std::unique_ptr<ComplexVector> eigvals(const MatrixBase& matrix, const std::string& saveas_real, const std::string& saveas_imag) {
-    if (auto cached = matrix.get_cached_eigenvalues()) {
-        auto res = std::make_unique<ComplexVector>(matrix.size(), saveas_real, saveas_imag);
-        for(uint64_t i=0; i<matrix.size(); ++i) {
-            res->set(i, (*cached)[i]);
-        }
-        return res;
-    }
-
+void eigvals_cpu(const MatrixBase& matrix, ComplexVector& result) {
     uint64_t n = matrix.size();
     auto type = matrix.get_matrix_type();
     
@@ -523,9 +488,6 @@ std::unique_ptr<ComplexVector> eigvals(const MatrixBase& matrix, const std::stri
             temp.set_temporary(true);
             
             // Copy data
-            // This is slow (element-wise), but necessary for generic MatrixBase
-            // Parallelize if possible? MatrixBase doesn't expose raw pointer easily.
-            // But we can use ParallelFor over rows.
             double* data = temp.data();
             pycauset::ParallelFor(0, n, [&](size_t i) {
                 for(size_t j=0; j<n; ++j) {
@@ -537,12 +499,30 @@ std::unique_ptr<ComplexVector> eigvals(const MatrixBase& matrix, const std::stri
         }
     }
 
-    matrix.set_cached_eigenvalues(vals);
-
-    auto res = std::make_unique<ComplexVector>(n, saveas_real, saveas_imag);
     for(uint64_t i=0; i<n; ++i) {
-        res->set(i, vals[i]);
+        result.set(i, vals[i]);
     }
+}
+
+std::unique_ptr<ComplexVector> eigvals(const MatrixBase& matrix, const std::string& saveas_real, const std::string& saveas_imag) {
+    if (auto cached = matrix.get_cached_eigenvalues()) {
+        auto res = std::make_unique<ComplexVector>(matrix.size(), saveas_real, saveas_imag);
+        for(uint64_t i=0; i<matrix.size(); ++i) {
+            res->set(i, (*cached)[i]);
+        }
+        return res;
+    }
+
+    auto res = std::make_unique<ComplexVector>(matrix.size(), saveas_real, saveas_imag);
+    ComputeContext::instance().get_device()->eigvals(matrix, *res);
+    
+    // Cache the result
+    std::vector<std::complex<double>> vals(matrix.size());
+    for(uint64_t i=0; i<matrix.size(); ++i) {
+        vals[i] = res->get(i);
+    }
+    matrix.set_cached_eigenvalues(vals);
+    
     return res;
 }
 

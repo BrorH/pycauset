@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "internals/Parallelization Scheme.md",
+                "file": "internals/GPU Memory Management.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Parallelization Scheme"
+              "title": "GPU Memory Management"
             }
           },
           {
@@ -194,13 +194,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "internals/Parallelization Scheme.md",
+                "file": "internals/GPU Memory Management.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Parallelization Scheme"
+              "title": "Outline of GPU Memory Management"
             }
           }
         ],
@@ -221,34 +221,34 @@
       "bases:Create new base": false
     }
   },
-  "active": "4afc83a8e9d97142",
+  "active": "1563eaae446d05e3",
   "lastOpenFiles": [
+    "internals/Parallelization Scheme.md",
+    "docs/classes/matrix/pycauset.TriangularBitMatrix.md",
+    "internals/GPU Acceleration Plan.md",
+    "internals/Algorithms.md",
+    "internals/HardwareDetection.md",
+    "guides/Performance_and_Precision.md",
+    "guides/Matrix Guide.md",
+    "guides/Storage and Memory.md",
+    "project/TODO.md",
+    "guides/GPU Acceleration.md",
+    "internals/GPU Memory Management.md",
     "docs/functions/pycauset.get_num_threads.md",
     "docs/functions/pycauset.set_num_threads.md",
     "internals/Documentation Protocol.md",
-    "guides/Matrix Guide.md",
     "docs/functions/pycauset.eigvals_skew.md",
-    "internals/Algorithms.md",
-    "internals/Parallelization Scheme.md",
     "docs/classes/matrix/pycauset.Float16Matrix.md",
     "docs/classes/matrix/pycauset.Float32Matrix.md",
     "docs/functions/pycauset.eigvals_arnoldi.md",
     "internals/Matrix and Vector Architecture.md",
     "internals/Parallelization Plan.md",
-    "guides/Storage and Memory.md",
     "docs/classes/matrix/pycauset.MatrixBase.md",
     "docs/functions/pycauset.eigvals.md",
     "docs/functions/pycauset.eig.md",
-    "project/TODO.md",
     "docs/functions/pycauset.dot.md",
     "docs/classes/matrix/pycauset.TriangularIntegerMatrix.md",
     "docs/classes/vector/pycauset.ComplexVector.md",
-    "guides/Vector Guide.md",
-    "docs/classes/vector/pycauset.UnitVector.md",
-    "Untitled.md",
-    "docs/classes/matrix/pycauset.DiagonalMatrix.md",
-    "internals/File Format.md",
-    "internals/Math Derivation.md",
     "docs/classes/vector",
     "docs/classes/spacetime",
     "docs/classes/matrix",

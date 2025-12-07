@@ -1,4 +1,5 @@
 #include "TriangularBitMatrix.hpp"
+#include "ParallelUtils.hpp"
 #include <stdexcept>
 #include <bit>
 #include <vector>
@@ -6,6 +7,7 @@
 #include <random>
 #include <cmath>
 #include <filesystem>
+#include <future>
 
 // Explicit template instantiation if needed, but we are defining the specialization here.
 
@@ -152,76 +154,94 @@ std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(cons
     
     auto result = std::make_unique<TriangularMatrix<int32_t>>(n_, result_file);
     
-    // Buffer to accumulate one row of results
-    std::vector<uint32_t> accumulator(n_);
-
     const char* a_base = static_cast<const char*>(require_mapper()->get_data());
     const char* b_base = static_cast<const char*>(other.require_mapper()->get_data());
 
-    for (uint64_t i = 0; i < n_; ++i) {
-        // Clear accumulator for Row i
-        std::fill(accumulator.begin(), accumulator.end(), 0);
-        
-        // Iterate over Row i of A
-        // Row i has length N - 1 - i
-        uint64_t row_len_a = (n_ - 1) - i;
-        if (row_len_a == 0) continue;
+    std::vector<std::future<void>> futures;
+    auto& pool = pycauset::ThreadPool::instance();
+    TriangularMatrix<int32_t>* result_ptr = result.get();
 
-        uint64_t words_a = (row_len_a + 63) / 64;
-        const uint64_t* a_row_ptr = (const uint64_t*)(a_base + row_offsets_[i]);
+    size_t num_threads = pycauset::ThreadPool::get_num_threads();
+    uint64_t chunk_size = (n_ + num_threads - 1) / num_threads;
 
-        for (uint64_t w = 0; w < words_a; ++w) {
-            uint64_t word = a_row_ptr[w];
-            if (word == 0) continue;
+    for (size_t t = 0; t < num_threads; ++t) {
+        uint64_t start = t * chunk_size;
+        uint64_t end = std::min(start + chunk_size, n_);
+        if (start >= end) break;
 
-            // Iterate set bits in word
-            while (word) {
-                int bit = std::countr_zero(word); // Number of trailing zeros
-                // The column index k in A corresponding to this bit
-                // bit 0 corresponds to col i+1 + w*64
-                uint64_t k = (i + 1) + w * 64 + bit;
+        futures.emplace_back(pool.enqueue([this, start, end, &other, result_ptr, a_base, b_base]() {
+            // Buffer to accumulate one row of results
+            std::vector<uint32_t> accumulator(n_);
+
+            for (uint64_t i = start; i < end; ++i) {
+                std::fill(accumulator.begin(), accumulator.end(), 0);
                 
-                if (k < n_) {
-                    // Add Row k of B to accumulator
-                    // Row k of B starts at col k+1
-                    uint64_t row_len_b = (n_ - 1) - k;
-                    if (row_len_b > 0) {
-                        uint64_t words_b = (row_len_b + 63) / 64;
-                        const uint64_t* b_row_ptr = (const uint64_t*)(b_base + other.get_row_offset(k));
+                // Iterate over Row i of A
+                // Row i has length N - 1 - i
+                uint64_t row_len_a = (n_ - 1) - i;
+                if (row_len_a == 0) continue;
+
+                uint64_t words_a = (row_len_a + 63) / 64;
+                const uint64_t* a_row_ptr = (const uint64_t*)(a_base + row_offsets_[i]);
+
+                for (uint64_t w = 0; w < words_a; ++w) {
+                    uint64_t word = a_row_ptr[w];
+                    if (word == 0) continue;
+
+                    // Iterate set bits in word
+                    while (word) {
+                        int bit = std::countr_zero(word); // Number of trailing zeros
+                        // The column index k in A corresponding to this bit
+                        // bit 0 corresponds to col i+1 + w*64
+                        uint64_t k = (i + 1) + w * 64 + bit;
                         
-                        for (uint64_t wb = 0; wb < words_b; ++wb) {
-                            uint64_t word_b = b_row_ptr[wb];
-                            if (word_b == 0) continue;
-                            
-                            // Add bits of B[k] to accumulator
-                            // bit b in wordB corresponds to col (k+1) + wb*64 + b
-                            uint64_t base_col = (k + 1) + wb * 64;
-                            
-                            // Unroll loop for performance?
-                            while (word_b) {
-                                int bit_b = std::countr_zero(word_b);
-                                uint64_t col = base_col + bit_b;
-                                if (col < n_) {
-                                    accumulator[col]++;
+                        if (k < n_) {
+                            // Add Row k of B to accumulator
+                            // Row k of B starts at col k+1
+                            uint64_t row_len_b = (n_ - 1) - k;
+                            if (row_len_b > 0) {
+                                uint64_t words_b = (row_len_b + 63) / 64;
+                                const uint64_t* b_row_ptr = (const uint64_t*)(b_base + other.get_row_offset(k));
+                                
+                                for (uint64_t wb = 0; wb < words_b; ++wb) {
+                                    uint64_t word_b = b_row_ptr[wb];
+                                    if (word_b == 0) continue;
+                                    
+                                    // Add bits of B[k] to accumulator
+                                    // bit b in wordB corresponds to col (k+1) + wb*64 + b
+                                    uint64_t base_col = (k + 1) + wb * 64;
+                                    
+                                    // Unroll loop for performance?
+                                    while (word_b) {
+                                        int bit_b = std::countr_zero(word_b);
+                                        uint64_t col = base_col + bit_b;
+                                        if (col < n_) {
+                                            accumulator[col]++;
+                                        }
+                                        word_b &= ~(1ULL << bit_b);
+                                    }
                                 }
-                                word_b &= ~(1ULL << bit_b);
                             }
                         }
+                        
+                        // Clear the processed bit
+                        word &= ~(1ULL << bit);
                     }
                 }
-                
-                // Clear the processed bit
-                word &= ~(1ULL << bit);
-            }
-        }
 
-        // Write accumulator to result matrix
-        // Result is strictly upper triangular, so we only care about cols > i
-        for (uint64_t j = i + 1; j < n_; ++j) {
-            if (accumulator[j] > 0) {
-                result->set(i, j, accumulator[j]);
+                // Write accumulator to result matrix
+                // Result is strictly upper triangular, so we only care about cols > i
+                for (uint64_t j = i + 1; j < n_; ++j) {
+                    if (accumulator[j] > 0) {
+                        result_ptr->set(i, j, accumulator[j]);
+                    }
+                }
             }
-        }
+        }));
+    }
+    
+    for(auto& f : futures) {
+        f.get();
     }
     
     result->set_scalar(scalar_ * other.get_scalar());
