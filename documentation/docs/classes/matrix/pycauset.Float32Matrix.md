@@ -12,6 +12,10 @@ This class is functionally identical to [[pycauset.FloatMatrix]] (which uses 64-
 
 **Use this class for large matrices** where memory/disk I/O is the bottleneck and extreme precision is not required.
 
+**GPU Acceleration:**
+Matrix multiplication (`multiply` or `@`) is **GPU-accelerated** for `Float32Matrix`. It is significantly faster than `FloatMatrix` (Double Precision) on consumer GPUs (e.g., GeForce series) which often have much higher FP32 throughput than FP64.
+
+
 ## Constructor
 
 ```python

@@ -37,6 +37,11 @@ if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   include("C:/Users/ireal/Documents/pycauset/build/_deps/pybind11-build/cmake_install.cmake")
 endif()
 
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
+  include("C:/Users/ireal/Documents/pycauset/build/_deps/eigen3-build/cmake_install.cmake")
+endif()
+
 if(CMAKE_INSTALL_COMPONENT STREQUAL "Unspecified" OR NOT CMAKE_INSTALL_COMPONENT)
   file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/pycauset" TYPE STATIC_LIBRARY OPTIONAL FILES "C:/Users/ireal/Documents/pycauset/build/pycauset_cuda.lib")
 endif()

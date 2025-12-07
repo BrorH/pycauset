@@ -15,6 +15,9 @@
 #include <vector>
 #include <random>
 
+#include <Eigen/Dense>
+#include <Eigen/Eigenvalues>
+
 namespace pycauset {
 
 // Helper: Block Matrix Multiply Y = A * X
@@ -26,6 +29,7 @@ void parallel_block_multiply(const MatrixBase& A, const std::vector<double>& X, 
 }
 
 // Helper: Load matrix into memory (FLAT vector for cache locality)
+// Used by Arnoldi
 std::vector<double> to_memory_flat(const MatrixBase& m) {
     uint64_t n = m.size();
     std::vector<double> mat(n * n);
@@ -43,395 +47,6 @@ std::vector<double> to_memory_flat(const MatrixBase& m) {
         });
     }
     return mat;
-}
-
-// Helper: Hessenberg Reduction
-// Reduces A to upper Hessenberg form H = Q^T A Q
-// Uses flat vector A[i*n + j]
-void to_hessenberg(std::vector<double>& A, size_t n) {
-    // Thresholds for parallelization
-    // We want to ensure the work per thread is significant enough to outweigh overhead.
-    // A safe heuristic is ~10,000 operations per parallel region.
-    const size_t MIN_WORK_FOR_PARALLEL = 10000;
-    size_t num_threads = pycauset::ThreadPool::get_num_threads();
-
-    for (size_t k = 0; k < n - 2; ++k) {
-        // Compute Householder vector v for column k below diagonal
-        size_t v_len = n - (k + 1);
-        std::vector<double> v(v_len);
-        
-        double norm_sq = 0.0;
-        for (size_t i = 0; i < v_len; ++i) {
-            double val = A[(k + 1 + i)*n + k];
-            v[i] = val;
-            norm_sq += val * val;
-        }
-        
-        double norm = std::sqrt(norm_sq);
-        if (norm < 1e-10) continue; // Already zero
-        
-        // v = x + sign(x[0]) * ||x|| * e1
-        double alpha = (v[0] > 0) ? -norm : norm;
-        double v0 = v[0] - alpha;
-        double v_norm = std::sqrt(v0*v0 + (norm_sq - v[0]*v[0]));
-        
-        if (v_norm < 1e-10) continue;
-        
-        // Normalize v
-        v[0] = v0;
-        for(double& val : v) val /= v_norm;
-        
-        // Apply Householder reflection P = I - 2vv^T
-        // A = P A P
-        
-        // 1. Apply from left: A = P A = A - 2v(v^T A)
-        // w = v^T A[k+1:n, :]
-        std::vector<double> w(n, 0.0);
-        
-        // w[j] = sum(v[i] * A[k+1+i][j])
-        // Work: (n-k) columns * v_len rows
-        size_t work_w = (n - k) * v_len;
-        
-        if (work_w > MIN_WORK_FOR_PARALLEL && (n - k) >= num_threads) {
-            pycauset::ParallelFor(k, n, [&](size_t j) {
-                double sum = 0.0;
-                for (size_t i = 0; i < v_len; ++i) {
-                    sum += v[i] * A[(k + 1 + i)*n + j];
-                }
-                w[j] = sum;
-            });
-        } else {
-            for (size_t j = k; j < n; ++j) {
-                double sum = 0.0;
-                for (size_t i = 0; i < v_len; ++i) {
-                    sum += v[i] * A[(k + 1 + i)*n + j];
-                }
-                w[j] = sum;
-            }
-        }
-        
-        // A -= 2 v w
-        // Work: v_len rows * (n-k) columns
-        if (work_w > MIN_WORK_FOR_PARALLEL && v_len >= num_threads) {
-             pycauset::ParallelFor(0, v_len, [&](size_t i) {
-                size_t row = k + 1 + i;
-                double vi_2 = 2.0 * v[i];
-                for (size_t j = k; j < n; ++j) {
-                    A[row*n + j] -= vi_2 * w[j];
-                }
-            });
-        } else {
-            for (size_t i = 0; i < v_len; ++i) {
-                size_t row = k + 1 + i;
-                double vi_2 = 2.0 * v[i];
-                for (size_t j = k; j < n; ++j) {
-                    A[row*n + j] -= vi_2 * w[j];
-                }
-            }
-        }
-        
-        // 2. Apply from right: A = A P = A - 2(A v)v^T
-        // q = A v (column vector)
-        // Work: n rows * v_len columns
-        size_t work_q = n * v_len;
-        std::vector<double> q(n, 0.0);
-        
-        if (work_q > MIN_WORK_FOR_PARALLEL && n >= num_threads) {
-            pycauset::ParallelFor(0, n, [&](size_t i) {
-                double sum = 0.0;
-                for (size_t j = 0; j < v_len; ++j) {
-                    sum += A[i*n + (k + 1 + j)] * v[j];
-                }
-                q[i] = sum;
-            });
-        } else {
-            for (size_t i = 0; i < n; ++i) {
-                double sum = 0.0;
-                for (size_t j = 0; j < v_len; ++j) {
-                    sum += A[i*n + (k + 1 + j)] * v[j];
-                }
-                q[i] = sum;
-            }
-        }
-        
-        // A -= 2 q v^T
-        // Work: n rows * v_len columns
-        if (work_q > MIN_WORK_FOR_PARALLEL && n >= num_threads) {
-            pycauset::ParallelFor(0, n, [&](size_t i) {
-                double qi_2 = 2.0 * q[i];
-                for (size_t j = 0; j < v_len; ++j) {
-                    A[i*n + (k + 1 + j)] -= qi_2 * v[j];
-                }
-            });
-        } else {
-            for (size_t i = 0; i < n; ++i) {
-                double qi_2 = 2.0 * q[i];
-                for (size_t j = 0; j < v_len; ++j) {
-                    A[i*n + (k + 1 + j)] -= qi_2 * v[j];
-                }
-            }
-        }
-        
-        // Force zeros below subdiagonal
-        A[(k+1)*n + k] = alpha;
-        for(size_t i = k+2; i < n; ++i) A[i*n + k] = 0.0;
-    }
-}
-
-// Helper: Francis QR Step on Hessenberg Matrix (Blocked / Deferred Update)
-// Uses a blocked approach to improve cache locality and enable parallelism.
-void hessenberg_qr_step(std::vector<double>& H, size_t n, size_t n_active) {
-    if (n_active < 2) return;
-    
-    // Wilkinson Shift
-    double d = H[(n_active-1)*n + (n_active-1)];
-    double c = H[(n_active-1)*n + (n_active-2)];
-    double a = H[(n_active-2)*n + (n_active-2)];
-    double b = H[(n_active-2)*n + (n_active-1)];
-    
-    double tr = a + d;
-    double det = a*d - b*c;
-    double disc = std::sqrt(std::max(0.0, tr*tr - 4*det));
-    double mu1 = (tr + disc) / 2.0;
-    double mu2 = (tr - disc) / 2.0;
-    double mu = (std::abs(mu1 - d) < std::abs(mu2 - d)) ? mu1 : mu2;
-    
-    double x = H[0] - mu;
-    double z = H[n]; // H[1][0]
-    
-    // Block size for deferred updates
-    const size_t BLOCK_SIZE = 64; 
-    
-    for (size_t k_start = 0; k_start < n_active - 1; k_start += BLOCK_SIZE) {
-        size_t k_end = std::min(k_start + BLOCK_SIZE, n_active - 1);
-        size_t block_len = k_end - k_start;
-        
-        // Store rotations for this block
-        std::vector<double> cs(block_len);
-        std::vector<double> ss(block_len);
-        
-        // 1. Generate rotations and update the "active window" (diagonal block)
-        // This part is sequential but small (fits in L1 cache)
-        for (size_t k = k_start; k < k_end; ++k) {
-            double r = std::hypot(x, z);
-            double c_rot = x / r;
-            double s_rot = -z / r;
-            
-            cs[k - k_start] = c_rot;
-            ss[k - k_start] = s_rot;
-            
-            // Apply to rows within the block strip
-            // Rows k, k+1. Cols k_start to k_end + 1 (approx)
-            // We need to update enough of the matrix to compute the NEXT rotation
-            // The next rotation depends on H[k+1][k] and H[k+2][k]
-            // So we must update columns k to k+1 at least.
-            // For simplicity, update the whole block strip of columns + a bit more
-            size_t update_col_end = std::min(k_end + 2, n_active);
-            
-            for (size_t j = k_start; j < update_col_end; ++j) {
-                double t1 = H[k*n + j];
-                double t2 = H[(k+1)*n + j];
-                H[k*n + j] = c_rot * t1 - s_rot * t2;
-                H[(k+1)*n + j] = s_rot * t1 + c_rot * t2;
-            }
-            
-            // Apply to cols within the block strip
-            // Cols k, k+1. Rows 0 to k+2.
-            // We only need to update rows k_start to k+2 to proceed?
-            // Actually, right update affects H[i][k] and H[i][k+1].
-            // These values might be needed for next rotations? 
-            // No, next rotation depends on subdiagonal H[k+1][k].
-            // H[k+1][k] is affected by Left update (done above) and Right update (cols k, k+1).
-            // Right update at col k affects H[k+1][k].
-            // So we MUST perform right update on row k+1.
-            
-            size_t update_row_start = k_start;
-            size_t update_row_end = std::min(k + 3, n_active);
-            
-            for (size_t i = update_row_start; i < update_row_end; ++i) {
-                double t1 = H[i*n + k];
-                double t2 = H[i*n + k+1];
-                H[i*n + k] = c_rot * t1 - s_rot * t2;
-                H[i*n + k+1] = s_rot * t1 + c_rot * t2;
-            }
-            
-            // Prepare next bulge
-            if (k < n_active - 2) {
-                x = H[(k+1)*n + k];
-                z = H[(k+2)*n + k];
-            }
-        }
-        
-        // 2. Apply accumulated rotations to the REST of the matrix
-        // This is where we get parallelism and cache reuse.
-        
-        // Threshold for parallelizing the update
-        // For N=1000, parallel overhead dominates (work per thread is small).
-        // We only parallelize for very large matrices.
-        const size_t QR_PARALLEL_THRESHOLD = 2000;
-        
-        // A. Left Updates (Rows)
-        // We updated columns k_start to k_end+2 in the loop.
-        // Now update columns k_end+2 to n_active.
-        size_t left_col_start = std::min(k_end + 2, n_active);
-        size_t num_cols = (n_active > left_col_start) ? (n_active - left_col_start) : 0;
-        
-        if (num_cols > 0) {
-            if (n_active > QR_PARALLEL_THRESHOLD) {
-                // Manually chunk to allow vectorization inside the thread
-                size_t num_threads = pycauset::ThreadPool::get_num_threads();
-                size_t chunk_size = (num_cols + num_threads - 1) / num_threads;
-                
-                pycauset::ParallelFor(0, num_threads, [&](size_t t) {
-                    size_t j_start = left_col_start + t * chunk_size;
-                    size_t j_end = std::min(j_start + chunk_size, n_active);
-                    
-                    if (j_start >= j_end) return;
-                    
-                    // For this chunk of columns, apply ALL rotations
-                    for (size_t k = k_start; k < k_end; ++k) {
-                        double c_rot = cs[k - k_start];
-                        double s_rot = ss[k - k_start];
-                        for (size_t j = j_start; j < j_end; ++j) {
-                            double t1 = H[k*n + j];
-                            double t2 = H[(k+1)*n + j];
-                            H[k*n + j] = c_rot * t1 - s_rot * t2;
-                            H[(k+1)*n + j] = s_rot * t1 + c_rot * t2;
-                        }
-                    }
-                });
-            } else {
-                // Sequential blocked update (SIMD friendly)
-                for (size_t k = k_start; k < k_end; ++k) {
-                    double c_rot = cs[k - k_start];
-                    double s_rot = ss[k - k_start];
-                    for (size_t j = left_col_start; j < n_active; ++j) {
-                        double t1 = H[k*n + j];
-                        double t2 = H[(k+1)*n + j];
-                        H[k*n + j] = c_rot * t1 - s_rot * t2;
-                        H[(k+1)*n + j] = s_rot * t1 + c_rot * t2;
-                    }
-                }
-            }
-        }
-        
-        // B. Right Updates (Cols)
-        if (k_start > 0) {
-            size_t num_rows = k_start;
-            
-            if (n_active > QR_PARALLEL_THRESHOLD) {
-                size_t num_threads = pycauset::ThreadPool::get_num_threads();
-                size_t chunk_size = (num_rows + num_threads - 1) / num_threads;
-
-                pycauset::ParallelFor(0, num_threads, [&](size_t t) {
-                    size_t i_start = t * chunk_size;
-                    size_t i_end = std::min(i_start + chunk_size, num_rows);
-                    
-                    if (i_start >= i_end) return;
-
-                    for (size_t k = k_start; k < k_end; ++k) {
-                        double c_rot = cs[k - k_start];
-                        double s_rot = ss[k - k_start];
-                        for (size_t i = i_start; i < i_end; ++i) {
-                            double t1 = H[i*n + k];
-                            double t2 = H[i*n + k+1];
-                            H[i*n + k] = c_rot * t1 - s_rot * t2;
-                            H[i*n + k+1] = s_rot * t1 + c_rot * t2;
-                        }
-                    }
-                });
-            } else {
-                // Sequential blocked update
-                for (size_t k = k_start; k < k_end; ++k) {
-                    double c_rot = cs[k - k_start];
-                    double s_rot = ss[k - k_start];
-                    for (size_t i = 0; i < num_rows; ++i) {
-                        double t1 = H[i*n + k];
-                        double t2 = H[i*n + k+1];
-                        H[i*n + k] = c_rot * t1 - s_rot * t2;
-                        H[i*n + k+1] = s_rot * t1 + c_rot * t2;
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-// Basic QR Algorithm for Eigenvalues
-// Note: This converges to Schur form. For real matrices with complex eigenvalues, 
-// it converges to block upper triangular with 1x1 and 2x2 blocks on diagonal.
-std::vector<std::complex<double>> qr_algorithm(const DenseMatrix<double>& matrix, int max_iter=1000) { // Increased max_iter
-    size_t n = matrix.size();
-    
-    // 1. Load into memory for speed (FLAT vector)
-    // We avoid disk I/O during the iterative process
-    std::vector<double> H = to_memory_flat(matrix);
-    
-    // 2. Hessenberg Reduction
-    // O(N^3) but much faster than full QR per step
-    to_hessenberg(H, n);
-    
-    // 3. QR Iterations
-    // Deflation logic
-    size_t n_active = n;
-    int iter_count = 0;
-    int max_iter_per_eig = 30; // Limit iterations per eigenvalue to prevent stalling on complex pairs
-    
-    while (n_active > 1) {
-        // Check for deflation
-        // If subdiagonal entry is small, we can split
-        // H[n_active-1][n_active-2] -> H[(n_active-1)*n + (n_active-2)]
-        double subdiag = H[(n_active-1)*n + (n_active-2)];
-        double diag1 = H[(n_active-1)*n + (n_active-1)];
-        double diag2 = H[(n_active-2)*n + (n_active-2)];
-        
-        if (std::abs(subdiag) < 1e-9 * (std::abs(diag1) + std::abs(diag2))) {
-            H[(n_active-1)*n + (n_active-2)] = 0.0;
-            n_active--;
-            iter_count = 0; // Reset count for new submatrix
-            continue;
-        }
-        
-        // Safety break for non-convergence (e.g. complex pairs with single shift)
-        if (iter_count > max_iter_per_eig) {
-            // Force deflation
-            // We assume it's a 2x2 block or just accept the value
-            n_active--;
-            iter_count = 0;
-            continue;
-        }
-        
-        // Perform implicit QR step
-        hessenberg_qr_step(H, n, n_active);
-        iter_count++;
-    }
-    
-    // 4. Extract Eigenvalues from Schur form
-    std::vector<std::complex<double>> eigvals;
-    
-    for(size_t i=0; i<n; ++i) {
-        if (i < n - 1 && std::abs(H[(i+1)*n + i]) > 1e-9) {
-            // 2x2 block found at i, i+1
-            // | a b |
-            // | c d |
-            double a = H[i*n + i];
-            double b = H[i*n + i+1];
-            double c = H[(i+1)*n + i];
-            double d = H[(i+1)*n + i+1];
-            
-            double trace = a + d;
-            double det = a*d - b*c;
-            std::complex<double> disc = std::sqrt(std::complex<double>(trace*trace - 4*det));
-            
-            eigvals.push_back((trace + disc) / 2.0);
-            eigvals.push_back((trace - disc) / 2.0);
-            i++; // Skip next
-        } else {
-            eigvals.push_back(H[i*n + i]);
-        }
-    }
-    return eigvals;
 }
 
 double trace(const MatrixBase& matrix) {
@@ -458,6 +73,7 @@ double trace(const MatrixBase& matrix) {
 void eigvals_cpu(const MatrixBase& matrix, ComplexVector& result) {
     uint64_t n = matrix.size();
     auto type = matrix.get_matrix_type();
+    auto dtype = matrix.get_data_type();
     
     std::vector<std::complex<double>> vals;
 
@@ -478,24 +94,31 @@ void eigvals_cpu(const MatrixBase& matrix, ComplexVector& result) {
         }
     } else {
         // Dense or other
-        // Convert to DenseMatrix<double> if not already
-        if (auto* dm = dynamic_cast<const DenseMatrix<double>*>(&matrix)) {
-            vals = qr_algorithm(*dm);
+        if (dtype == DataType::FLOAT64 && type == MatrixType::DENSE_FLOAT) {
+            const auto* dm = dynamic_cast<const DenseMatrix<double>*>(&matrix);
+            Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
+                mat_eigen(dm->data(), n, n);
+            Eigen::EigenSolver<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> es(mat_eigen, false);
+            auto evals = es.eigenvalues();
+            vals.resize(n);
+            for(uint64_t i=0; i<n; ++i) vals[i] = evals[i];
+        } else if (dtype == DataType::FLOAT32 && type == MatrixType::DENSE_FLOAT) {
+            const auto* dm = dynamic_cast<const DenseMatrix<float>*>(&matrix);
+            Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
+                mat_eigen(dm->data(), n, n);
+            Eigen::EigenSolver<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> es(mat_eigen, false);
+            auto evals = es.eigenvalues();
+            vals.resize(n);
+            for(uint64_t i=0; i<n; ++i) vals[i] = std::complex<double>(evals[i].real(), evals[i].imag());
         } else {
-            // Create temp DenseMatrix
-            std::string temp_path = pycauset::make_unique_storage_file("eig_temp_conv");
-            DenseMatrix<double> temp(n, temp_path);
-            temp.set_temporary(true);
-            
-            // Copy data
-            double* data = temp.data();
-            pycauset::ParallelFor(0, n, [&](size_t i) {
-                for(size_t j=0; j<n; ++j) {
-                    data[i*n + j] = matrix.get_element_as_double(i, j);
-                }
-            });
-            
-            vals = qr_algorithm(temp);
+            // Fallback: Convert to double dense
+            std::vector<double> data = to_memory_flat(matrix);
+            Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
+                mat_eigen(data.data(), n, n);
+            Eigen::EigenSolver<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> es(mat_eigen, false);
+            auto evals = es.eigenvalues();
+            vals.resize(n);
+            for(uint64_t i=0; i<n; ++i) vals[i] = evals[i];
         }
     }
 
@@ -522,6 +145,59 @@ std::unique_ptr<ComplexVector> eigvals(const MatrixBase& matrix, const std::stri
         vals[i] = res->get(i);
     }
     matrix.set_cached_eigenvalues(vals);
+    
+    return res;
+}
+
+std::unique_ptr<ComplexVector> eigvals(const ComplexMatrix& matrix, const std::string& saveas_real, const std::string& saveas_imag) {
+    uint64_t n = matrix.size();
+    auto res = std::make_unique<ComplexVector>(n, saveas_real, saveas_imag);
+
+    // Load complex matrix into Eigen
+    // We need to interleave real and imag parts or use Eigen::Map with stride?
+    // Eigen::MatrixXcd stores complex numbers contiguously (real, imag, real, imag...)
+    // Our ComplexMatrix stores real part in one file, imag part in another.
+    // So we must copy.
+    
+    std::vector<std::complex<double>> data(n * n);
+    
+    // Parallel copy
+    const auto* real_mat = matrix.real();
+    const auto* imag_mat = matrix.imag();
+    
+    // Assuming dense float64 for now
+    // TODO: Handle Float32
+    
+    if (real_mat->get_data_type() == DataType::FLOAT64) {
+        const double* r_ptr = dynamic_cast<const DenseMatrix<double>*>(real_mat)->data();
+        const double* i_ptr = dynamic_cast<const DenseMatrix<double>*>(imag_mat)->data();
+        
+        pycauset::ParallelFor(0, n * n, [&](size_t i) {
+            data[i] = std::complex<double>(r_ptr[i], i_ptr[i]);
+        });
+    } else {
+        // Fallback
+        pycauset::ParallelFor(0, n, [&](size_t i) {
+            for(size_t j=0; j<n; ++j) {
+                data[i*n + j] = matrix.get(i, j);
+            }
+        });
+    }
+    
+    // Use Eigen::ComplexEigenSolver
+    // Eigen default is Column Major.
+    // If we fill data as Row Major (i*n + j), we should tell Eigen it's Row Major.
+    
+    Eigen::Map<Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
+        mat_eigen_row(data.data(), n, n);
+        
+    Eigen::ComplexEigenSolver<Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> ces;
+    ces.compute(mat_eigen_row, false); // false = no eigenvectors
+    
+    auto evals = ces.eigenvalues();
+    for(uint64_t i=0; i<n; ++i) {
+        res->set(i, evals[i]);
+    }
     
     return res;
 }
@@ -579,43 +255,155 @@ std::pair<std::unique_ptr<ComplexVector>, std::unique_ptr<ComplexMatrix>> eig(co
                                                                               const std::string& saveas_vals_imag,
                                                                               const std::string& saveas_vecs_real,
                                                                               const std::string& saveas_vecs_imag) {
-    // For full eig, we need eigenvectors.
-    // QR algorithm accumulates Q matrices to get eigenvectors.
-    // A = Q0 R0 -> A1 = R0 Q0 = Q0^T A Q0
-    // A_k = Q_k^T ... Q0^T A Q0 ... Q_k
-    // Eigenvectors of A are columns of product(Q_i).
-    
-    // This is getting complicated to implement robustly in one go.
-    // I'll implement a placeholder that calls eigvals and returns identity eigenvectors for now,
-    // or implement the accumulation if possible.
-    
-    // Actually, for Triangular matrices, eigenvectors are easy to compute (back substitution).
-    // For Diagonal/Identity, they are standard basis vectors.
-    
     uint64_t n = matrix.size();
-    auto vals_vec = eigvals(matrix, saveas_vals_real, saveas_vals_imag);
-    
-    // Create eigenvectors matrix
+    auto vals_vec = std::make_unique<ComplexVector>(n, saveas_vals_real, saveas_vals_imag);
     auto vecs_mat = std::make_unique<ComplexMatrix>(n, saveas_vecs_real, saveas_vecs_imag);
     
-    // If Identity or Diagonal, eigenvectors are Identity
     auto type = matrix.get_matrix_type();
-    if (type == MatrixType::IDENTITY || type == MatrixType::DIAGONAL) {
-        for(uint64_t i=0; i<n; ++i) vecs_mat->set(i, i, 1.0);
-        return {std::move(vals_vec), std::move(vecs_mat)};
+    auto dtype = matrix.get_data_type();
+    
+    if (type == MatrixType::IDENTITY) {
+        double val = matrix.get_scalar();
+        for(uint64_t i=0; i<n; ++i) {
+            vals_vec->set(i, std::complex<double>(val, 0));
+            vecs_mat->set(i, i, 1.0);
+        }
+    } else if (type == MatrixType::DIAGONAL) {
+        for(uint64_t i=0; i<n; ++i) {
+            vals_vec->set(i, matrix.get_element_as_double(i, i));
+            vecs_mat->set(i, i, 1.0);
+        }
+    } else {
+        // Dense or other
+        if (dtype == DataType::FLOAT64 && type == MatrixType::DENSE_FLOAT) {
+            const auto* dm = dynamic_cast<const DenseMatrix<double>*>(&matrix);
+            Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
+                mat_eigen(dm->data(), n, n);
+            Eigen::EigenSolver<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> es(mat_eigen, true);
+            
+            auto evals = es.eigenvalues();
+            auto evecs = es.eigenvectors();
+            
+            for(uint64_t i=0; i<n; ++i) {
+                vals_vec->set(i, evals[i]);
+                for(uint64_t j=0; j<n; ++j) {
+                    vecs_mat->set(j, i, evecs(j, i));
+                }
+            }
+        } else if (dtype == DataType::FLOAT32 && type == MatrixType::DENSE_FLOAT) {
+            const auto* dm = dynamic_cast<const DenseMatrix<float>*>(&matrix);
+            Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
+                mat_eigen(dm->data(), n, n);
+            Eigen::EigenSolver<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> es(mat_eigen, true);
+            
+            auto evals = es.eigenvalues();
+            auto evecs = es.eigenvectors();
+            
+            for(uint64_t i=0; i<n; ++i) {
+                vals_vec->set(i, std::complex<double>(evals[i].real(), evals[i].imag()));
+                for(uint64_t j=0; j<n; ++j) {
+                    vecs_mat->set(j, i, std::complex<double>(evecs(j, i).real(), evecs(j, i).imag()));
+                }
+            }
+        } else {
+            // Fallback: Convert to double dense
+            std::vector<double> data = to_memory_flat(matrix);
+            Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
+                mat_eigen(data.data(), n, n);
+            Eigen::EigenSolver<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> es(mat_eigen, true);
+            
+            auto evals = es.eigenvalues();
+            auto evecs = es.eigenvectors();
+            
+            for(uint64_t i=0; i<n; ++i) {
+                vals_vec->set(i, evals[i]);
+                for(uint64_t j=0; j<n; ++j) {
+                    vecs_mat->set(j, i, evecs(j, i));
+                }
+            }
+        }
     }
     
-    // For others, we need to compute them.
-    // Inverse iteration is a good way if we have eigenvalues.
-    // (A - lambda*I)v = 0
-    // We can solve this for each lambda.
+    return {std::move(vals_vec), std::move(vecs_mat)};
+}
+
+std::pair<std::unique_ptr<ComplexVector>, std::unique_ptr<ComplexMatrix>> eig(const ComplexMatrix& matrix, 
+                                                                              const std::string& saveas_vals_real, 
+                                                                              const std::string& saveas_vals_imag,
+                                                                              const std::string& saveas_vecs_real,
+                                                                              const std::string& saveas_vecs_imag) {
+    uint64_t n = matrix.size();
+    auto vals_vec = std::make_unique<ComplexVector>(n, saveas_vals_real, saveas_vals_imag);
+    auto vecs_mat = std::make_unique<ComplexMatrix>(n, saveas_vecs_real, saveas_vecs_imag);
     
-    // For now, I will leave the eigenvectors as Identity (placeholder) for the dense case 
-    // and warn, or try to implement inverse iteration.
-    // Given the user wants "full solver", I should probably try inverse iteration.
+    std::vector<std::complex<double>> data(n * n);
     
-    // Placeholder: Identity
-    for(uint64_t i=0; i<n; ++i) vecs_mat->set(i, i, 1.0);
+    const auto* real_mat = matrix.real();
+    const auto* imag_mat = matrix.imag();
+    
+    const double* r_data = real_mat->data();
+    const double* i_data = imag_mat->data();
+    
+    double r_scalar = real_mat->get_scalar();
+    double i_scalar = imag_mat->get_scalar();
+    
+    bool r_trans = real_mat->is_transposed();
+    bool i_trans = imag_mat->is_transposed();
+    
+    if (!r_trans && !i_trans) {
+        // Fast path: both row-major
+        if (r_scalar == 1.0 && i_scalar == 1.0) {
+            for(uint64_t k=0; k<n*n; ++k) {
+                data[k] = std::complex<double>(r_data[k], i_data[k]);
+            }
+        } else {
+            for(uint64_t k=0; k<n*n; ++k) {
+                data[k] = std::complex<double>(r_data[k] * r_scalar, i_data[k] * i_scalar);
+            }
+        }
+    } else {
+        // Slow path (one or both transposed)
+        for(uint64_t i=0; i<n; ++i) {
+            for(uint64_t j=0; j<n; ++j) {
+                double r_val = r_trans ? r_data[j*n + i] : r_data[i*n + j];
+                double i_val = i_trans ? i_data[j*n + i] : i_data[i*n + j];
+                data[i*n + j] = std::complex<double>(r_val * r_scalar, i_val * i_scalar);
+            }
+        }
+    }
+    
+    Eigen::Map<Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
+        mat_eigen(data.data(), n, n);
+        
+    Eigen::ComplexEigenSolver<Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> ces(mat_eigen, true);
+    
+    auto evals = ces.eigenvalues();
+    auto evecs = ces.eigenvectors();
+    
+    // Optimize output copy
+    auto* res_real = vals_vec->real();
+    auto* res_imag = vals_vec->imag();
+    double* rr_data = res_real->data();
+    double* ri_data = res_imag->data();
+    
+    for(uint64_t i=0; i<n; ++i) {
+        rr_data[i] = evals[i].real();
+        ri_data[i] = evals[i].imag();
+    }
+    
+    auto* v_real = vecs_mat->real();
+    auto* v_imag = vecs_mat->imag();
+    double* vr_data = v_real->data();
+    double* vi_data = v_imag->data();
+    
+    for(uint64_t i=0; i<n; ++i) {
+        for(uint64_t j=0; j<n; ++j) {
+            std::complex<double> val = evecs(j, i);
+            uint64_t idx = j*n + i;
+            vr_data[idx] = val.real();
+            vi_data[idx] = val.imag();
+        }
+    }
     
     return {std::move(vals_vec), std::move(vecs_mat)};
 }

@@ -8,6 +8,8 @@
 #include "MatrixFactory.hpp"
 #include "UnitVector.hpp"
 #include "ParallelUtils.hpp"
+#include "ComputeContext.hpp"
+#include "ComputeDevice.hpp"
 #include <stdexcept>
 #include <bit>
 #include <vector>
@@ -23,6 +25,41 @@ template <typename T, typename Op>
 void execute_binary_op(const MatrixBase& a, const MatrixBase& b, MatrixBase& result, Op op) {
     uint64_t n = a.size();
     
+    // Optimization: Dense<T> op Dense<T> -> Dense<T>
+    auto* a_dense = dynamic_cast<const DenseMatrix<T>*>(&a);
+    auto* b_dense = dynamic_cast<const DenseMatrix<T>*>(&b);
+    auto* res_dense = dynamic_cast<DenseMatrix<T>*>(&result);
+
+    if (a_dense && b_dense && res_dense) {
+        const T* a_data = a_dense->data();
+        const T* b_data = b_dense->data();
+        T* res_data = res_dense->data();
+        
+        bool ta = a_dense->is_transposed();
+        bool tb = b_dense->is_transposed();
+        
+        // Handle scalars (cast to T to avoid promotion if T is float/int)
+        T sa = static_cast<T>(a_dense->get_scalar());
+        T sb = static_cast<T>(b_dense->get_scalar());
+
+        if (!ta && !tb) {
+            // Fast path: contiguous memory
+            ParallelFor(0, n * n, [&](size_t k) {
+                res_data[k] = op(a_data[k] * sa, b_data[k] * sb);
+            });
+        } else {
+            // Transposed path
+            ParallelFor(0, n, [&](size_t i) {
+                for (size_t j = 0; j < n; ++j) {
+                    T val_a = (ta ? a_data[j * n + i] : a_data[i * n + j]) * sa;
+                    T val_b = (tb ? b_data[j * n + i] : b_data[i * n + j]) * sb;
+                    res_data[i * n + j] = op(val_a, val_b);
+                }
+            });
+        }
+        return;
+    }
+
     // Try to cast to TriangularMatrix<T>
     auto* tri_res = dynamic_cast<TriangularMatrix<T>*>(&result);
     if (tri_res) {
@@ -61,14 +98,13 @@ void execute_binary_op(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
         return;
     }
 
-    // Try to cast to DenseMatrix<T>
-    auto* dense_res = dynamic_cast<DenseMatrix<T>*>(&result);
-    if (dense_res) {
+    // Fallback for mixed types (Dense result)
+    if (res_dense) {
         ParallelFor(0, n, [&](size_t i) {
             for (uint64_t j = 0; j < n; ++j) {
                 T val = op(static_cast<T>(a.get_element_as_double(i, j)), 
                            static_cast<T>(b.get_element_as_double(i, j)));
-                dense_res->set(i, j, val);
+                res_dense->set(i, j, val);
             }
         });
         return;
@@ -105,6 +141,9 @@ std::unique_ptr<MatrixBase> dispatch_binary_op(
         case DataType::FLOAT64:
             execute_binary_op<double>(a, b, *result, op);
             break;
+        case DataType::FLOAT32:
+            execute_binary_op<float>(a, b, *result, op);
+            break;
         default:
             throw std::runtime_error("Unsupported result data type");
     }
@@ -138,6 +177,26 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
         }
     }
 
+    // GPU Acceleration
+    if (ComputeContext::instance().is_gpu_active()) {
+        DataType type_a = a.get_data_type();
+        DataType type_b = b.get_data_type();
+        // Only support same-type dense float/double for now
+        if (type_a == type_b && (type_a == DataType::FLOAT64 || type_a == DataType::FLOAT32)) {
+             // Check if both are dense (or compatible)
+             // For now, just try to create result and call device
+             try {
+                 DataType res_dtype = type_a;
+                 MatrixType res_mtype = MatrixType::DENSE_FLOAT;
+                 auto result = MatrixFactory::create(a.size(), res_dtype, res_mtype, result_file);
+                 ComputeContext::instance().get_device()->add(a, b, *result);
+                 return result;
+             } catch (...) {
+                 // Fallback to CPU
+             }
+        }
+    }
+
     return dispatch_binary_op(a, b, result_file, std::plus<>());
 }
 
@@ -152,6 +211,23 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
             const auto& a_id = static_cast<const IdentityMatrix<int32_t>&>(a);
             const auto& b_id = static_cast<const IdentityMatrix<int32_t>&>(b);
             return a_id.subtract(b_id, result_file);
+        }
+    }
+
+    // GPU Acceleration
+    if (ComputeContext::instance().is_gpu_active()) {
+        DataType type_a = a.get_data_type();
+        DataType type_b = b.get_data_type();
+        if (type_a == type_b && (type_a == DataType::FLOAT64 || type_a == DataType::FLOAT32)) {
+             try {
+                 DataType res_dtype = type_a;
+                 MatrixType res_mtype = MatrixType::DENSE_FLOAT;
+                 auto result = MatrixFactory::create(a.size(), res_dtype, res_mtype, result_file);
+                 ComputeContext::instance().get_device()->subtract(a, b, *result);
+                 return result;
+             } catch (...) {
+                 // Fallback to CPU
+             }
         }
     }
 

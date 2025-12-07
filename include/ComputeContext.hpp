@@ -22,6 +22,12 @@ public:
 
     const AcceleratorConfig& get_config() const { return current_config; }
 
+    // Memory Management
+    void* allocate_pinned(size_t size);
+    void free_pinned(void* ptr);
+    void register_host_memory(void* ptr, size_t size);
+    void unregister_host_memory(void* ptr);
+
 private:
     ComputeContext();
     void try_load_cuda(const AcceleratorConfig& config);

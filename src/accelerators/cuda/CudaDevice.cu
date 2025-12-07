@@ -2,6 +2,7 @@
 #include "CudaSolver.hpp"
 #include "AsyncStreamer.hpp"
 #include "DenseMatrix.hpp"
+#include "DenseBitMatrix.hpp"
 #include "ComplexVector.hpp"
 #include "Eigen.hpp"
 #include "ParallelUtils.hpp"
@@ -59,6 +60,11 @@ void CudaDevice::free_buffers() {
     if (d_B_float_) { cudaFree(d_B_float_); d_B_float_ = nullptr; }
     if (d_C_float_) { cudaFree(d_C_float_); d_C_float_ = nullptr; }
     buffer_size_float_ = 0;
+
+    if (d_A_half_) { cudaFree(d_A_half_); d_A_half_ = nullptr; }
+    if (d_B_half_) { cudaFree(d_B_half_); d_B_half_ = nullptr; }
+    if (d_C_half_) { cudaFree(d_C_half_); d_C_half_ = nullptr; }
+    buffer_size_half_ = 0;
 }
 
 void CudaDevice::ensure_buffers(size_t n_elements) {
@@ -91,6 +97,22 @@ void CudaDevice::ensure_float_buffers(size_t n_elements) {
     check_cuda(cudaMalloc(&d_B_float_, size_bytes), "cudaMalloc B float");
     check_cuda(cudaMalloc(&d_C_float_, size_bytes), "cudaMalloc C float");
     buffer_size_float_ = n_elements;
+}
+
+void CudaDevice::ensure_half_buffers(size_t n_elements) {
+    if (n_elements <= buffer_size_half_) return;
+
+    // Only free half buffers
+    if (d_A_half_) { cudaFree(d_A_half_); d_A_half_ = nullptr; }
+    if (d_B_half_) { cudaFree(d_B_half_); d_B_half_ = nullptr; }
+    if (d_C_half_) { cudaFree(d_C_half_); d_C_half_ = nullptr; }
+    buffer_size_half_ = 0;
+
+    size_t size_bytes = n_elements * sizeof(__half);
+    check_cuda(cudaMalloc(&d_A_half_, size_bytes), "cudaMalloc A half");
+    check_cuda(cudaMalloc(&d_B_half_, size_bytes), "cudaMalloc B half");
+    check_cuda(cudaMalloc(&d_C_half_, size_bytes), "cudaMalloc C half");
+    buffer_size_half_ = n_elements;
 }
 
 size_t CudaDevice::get_available_memory() {
@@ -132,34 +154,49 @@ void CudaDevice::check_cusolver(cusolverStatus_t result, const char* func) {
 }
 
 void CudaDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    // Try Float32 first
+    // Try BitMatrix
+    auto* a_bit = dynamic_cast<const DenseBitMatrix*>(&a);
+    auto* b_bit = dynamic_cast<const DenseBitMatrix*>(&b);
+    auto* c_int = dynamic_cast<DenseMatrix<int32_t>*>(&result);
+
+    if (a_bit && b_bit && c_int) {
+        CudaSolver solver(this);
+        solver.matmul_bit(*a_bit, *b_bit, *c_int);
+        return;
+    }
+
+    uint64_t n = a.size();
+    if (b.size() != n || result.size() != n) {
+        throw std::invalid_argument("Dimension mismatch");
+    }
+    size_t free_mem = get_available_memory();
+
+    // Try Float32
     auto* a_float = dynamic_cast<const DenseMatrix<float>*>(&a);
     auto* b_float = dynamic_cast<const DenseMatrix<float>*>(&b);
     auto* c_float = dynamic_cast<DenseMatrix<float>*>(&result);
 
     if (a_float && b_float && c_float) {
-        uint64_t n = a.size();
-        if (b.size() != n || result.size() != n) {
-            throw std::invalid_argument("Dimension mismatch");
+        size_t size_bytes = n * n * sizeof(float);
+        
+        if (n * n > buffer_size_float_) {
+            if (3 * size_bytes > free_mem + (buffer_size_float_ * sizeof(float) * 3)) {
+                 matmul_streaming(a_float, b_float, c_float, free_mem);
+                 return;
+            }
+            ensure_float_buffers(n * n);
         }
-
-        ensure_float_buffers(n * n);
 
         float *d_A = d_A_float_;
         float *d_B = d_B_float_;
         float *d_C = d_C_float_;
 
-        size_t size_bytes = n * n * sizeof(float);
-        
-        auto t1 = std::chrono::high_resolution_clock::now();
         check_cuda(cudaMemcpy(d_A, a_float->data(), size_bytes, cudaMemcpyHostToDevice), "cudaMemcpy A float");
         check_cuda(cudaMemcpy(d_B, b_float->data(), size_bytes, cudaMemcpyHostToDevice), "cudaMemcpy B float");
-        auto t2 = std::chrono::high_resolution_clock::now();
 
         float alpha = 1.0f;
         float beta = 0.0f;
 
-        // C = B * A (Row Major trick: A*B in RowMajor is B*A in ColMajor)
         check_cublas(cublasSgemm(cublas_handle_,
                                  CUBLAS_OP_N, CUBLAS_OP_N,
                                  n, n, n,
@@ -170,39 +207,62 @@ void CudaDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
                                  d_C, n), "cublasSgemm");
         
         check_cuda(cudaMemcpy(c_float->data(), d_C, size_bytes, cudaMemcpyDeviceToHost), "cudaMemcpy C float");
+        c_float->set_scalar(a_float->get_scalar() * b_float->get_scalar());
         return;
     }
 
+    // Try Float16
+    auto* a_half = dynamic_cast<const DenseMatrix<Float16>*>(&a);
+    auto* b_half = dynamic_cast<const DenseMatrix<Float16>*>(&b);
+    auto* c_half = dynamic_cast<DenseMatrix<Float16>*>(&result);
+
+    if (a_half && b_half && c_half) {
+        size_t size_bytes = n * n * sizeof(uint16_t);
+        
+        if (n * n > buffer_size_half_) {
+            if (3 * size_bytes > free_mem + (buffer_size_half_ * sizeof(uint16_t) * 3)) {
+                 matmul_streaming(a_half, b_half, c_half, free_mem);
+                 return;
+            }
+            ensure_half_buffers(n * n);
+        }
+
+        __half *d_A = d_A_half_;
+        __half *d_B = d_B_half_;
+        __half *d_C = d_C_half_;
+
+        check_cuda(cudaMemcpy(d_A, a_half->data(), size_bytes, cudaMemcpyHostToDevice), "cudaMemcpy A half");
+        check_cuda(cudaMemcpy(d_B, b_half->data(), size_bytes, cudaMemcpyHostToDevice), "cudaMemcpy B half");
+
+        __half alpha = __float2half(1.0f);
+        __half beta = __float2half(0.0f);
+
+        check_cublas(cublasHgemm(cublas_handle_,
+                                 CUBLAS_OP_N, CUBLAS_OP_N,
+                                 n, n, n,
+                                 &alpha,
+                                 d_B, n,
+                                 d_A, n,
+                                 &beta,
+                                 d_C, n), "cublasHgemm");
+        
+        check_cuda(cudaMemcpy(c_half->data(), d_C, size_bytes, cudaMemcpyDeviceToHost), "cudaMemcpy C half");
+        c_half->set_scalar(a_half->get_scalar() * b_half->get_scalar());
+        return;
+    }
+
+    // Try Double
     auto* a_dense = dynamic_cast<const DenseMatrix<double>*>(&a);
     auto* b_dense = dynamic_cast<const DenseMatrix<double>*>(&b);
     auto* c_dense = dynamic_cast<DenseMatrix<double>*>(&result);
 
     if (!a_dense || !b_dense || !c_dense) {
-        throw std::runtime_error("CudaDevice::matmul only supports DenseMatrix<double> or DenseMatrix<float>");
+        throw std::runtime_error("CudaDevice::matmul only supports DenseMatrix<double>, <float>, or <Float16>");
     }
 
-    uint64_t n = a.size();
-    if (b.size() != n || result.size() != n) {
-        throw std::invalid_argument("Dimension mismatch");
-    }
-
-    // Check memory
     size_t size_bytes = n * n * sizeof(double);
-    size_t free_mem = get_available_memory();
-    
-    // We need 3 matrices in memory: A, B, C
-    // Note: If we already have buffers, we don't count them against free_mem because we can reuse/realloc them.
-    // But get_available_memory returns free memory. If we hold memory, it is not free.
-    // So if we need to grow, we free first, then check.
     
     if (n * n > buffer_size_) {
-        // We might need to reallocate.
-        // Check if we have enough space *after* freeing current buffers (if any)
-        // But free_buffers() frees them.
-        // Let's just try to ensure buffers.
-        // But we want to fallback to streaming if it fails or if we know it won't fit.
-        
-        // Simple check:
         if (3 * size_bytes > free_mem + (buffer_size_ * sizeof(double) * 3)) {
              matmul_streaming(a_dense, b_dense, c_dense, free_mem);
              return;
@@ -210,61 +270,27 @@ void CudaDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
         ensure_buffers(n * n);
     }
 
-    // Use persistent buffers
     double *d_A = d_A_;
     double *d_B = d_B_;
     double *d_C = d_C_;
 
-    auto t1 = std::chrono::high_resolution_clock::now();
-
-    // Copy Host -> Device
     check_cuda(cudaMemcpy(d_A, a_dense->data(), size_bytes, cudaMemcpyHostToDevice), "cudaMemcpy A");
     check_cuda(cudaMemcpy(d_B, b_dense->data(), size_bytes, cudaMemcpyHostToDevice), "cudaMemcpy B");
 
-    auto t2 = std::chrono::high_resolution_clock::now();
-
-    // cuBLAS uses Column Major, but our matrices are Row Major.
-    // ... (comments) ...
-    
     double alpha = 1.0;
     double beta = 0.0;
 
-    // Note: A, B, C are N x N.
-    // We perform C = B * A (in cuBLAS view)
     check_cublas(cublasDgemm(cublas_handle_,
                              CUBLAS_OP_N, CUBLAS_OP_N,
                              n, n, n,
                              &alpha,
-                             d_B, n, // B (which is B^T)
-                             d_A, n, // A (which is A^T)
+                             d_B, n,
+                             d_A, n,
                              &beta,
                              d_C, n), "cublasDgemm");
     
-    // Synchronize to measure compute time correctly
     cudaDeviceSynchronize();
-    auto t3 = std::chrono::high_resolution_clock::now();
-
-    // Copy Device -> Host
     check_cuda(cudaMemcpy(c_dense->data(), d_C, size_bytes, cudaMemcpyDeviceToHost), "cudaMemcpy C");
-
-    auto t4 = std::chrono::high_resolution_clock::now();
-
-    /*
-    std::cerr << "GPU Timing (ms): H2D=" 
-              << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
-              << " Compute=" 
-              << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count()
-              << " D2H=" 
-              << std::chrono::duration_cast<std::chrono::milliseconds>(t4 - t3).count()
-              << std::endl;
-    */
-
-    // Cleanup (Buffers are persistent now)
-    // cudaFree(d_A);
-    // cudaFree(d_B);
-    // cudaFree(d_C);
-
-    // Handle scalars
     c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
 }
 
@@ -412,12 +438,8 @@ void CudaDevice::inverse_incore(const MatrixBase& in, MatrixBase& out) {
 }
 
 void CudaDevice::eigvals(const MatrixBase& matrix, ComplexVector& result) {
-    // Currently disabling GPU Eigenvalues because cusolverDnDgeev is deprecated/removed in CUDA 12
-    // and we don't want to use syevd (symmetric) on potentially non-symmetric matrices.
-    // Fallback to CPU.
-    std::cerr << "[PyCauset] GPU Eigenvalues not supported in this build (missing geev). Falling back to CPU." << std::endl;
-    pycauset::eigvals_cpu(matrix, result);
-    return;
+    CudaSolver solver(this);
+    solver.eigvals(matrix, result);
 }
 
 void CudaDevice::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {
@@ -772,10 +794,215 @@ void CudaDevice::matmul_streaming(const DenseMatrix<double>* a, const DenseMatri
     c->set_scalar(a->get_scalar() * b->get_scalar());
 }
 
+void CudaDevice::matmul_streaming(const DenseMatrix<float>* a, const DenseMatrix<float>* b, DenseMatrix<float>* c, size_t available_mem) {
+    size_t n = a->size();
+    size_t tile_dim = 1024;
+    
+    while (5 * tile_dim * tile_dim * sizeof(float) > available_mem * 0.8 && tile_dim > 32) {
+        tile_dim /= 2;
+    }
+    
+    size_t tile_elements = tile_dim * tile_dim;
+    size_t tile_bytes = tile_elements * sizeof(float);
+    
+    float *d_C;
+    check_cuda(cudaMalloc(&d_C, tile_bytes), "cudaMalloc Tile C float");
+    
+    float *h_pinned_C;
+    check_cuda(cudaMallocHost(&h_pinned_C, tile_bytes), "cudaMallocHost Tile C float");
+    
+    AsyncStreamer<float> streamer(2 * tile_elements, config_.device_id, config_.enable_async);
+    
+    cudaStream_t compute_stream;
+    check_cuda(cudaStreamCreate(&compute_stream), "cudaStreamCreate");
+    check_cublas(cublasSetStream(cublas_handle_, compute_stream), "cublasSetStream");
+
+    const float* a_ptr = a->data();
+    const float* b_ptr = b->data();
+    float* c_ptr = c->data();
+    
+    float alpha = 1.0f;
+    float beta = 1.0f;
+    
+    for (size_t i = 0; i < n; i += tile_dim) {
+        size_t h = std::min(tile_dim, n - i);
+        
+        for (size_t j = 0; j < n; j += tile_dim) {
+            size_t w = std::min(tile_dim, n - j);
+            
+            check_cuda(cudaMemsetAsync(d_C, 0, tile_bytes, compute_stream), "cudaMemset C float");
+            
+            for (size_t k = 0; k < n; k += tile_dim) {
+                size_t d = std::min(tile_dim, n - k);
+                
+                streamer.wait_for_write_buffer();
+                
+                float* h_buf = streamer.get_host_write_buffer();
+                float* h_A = h_buf;
+                float* h_B = h_buf + tile_elements;
+                
+                ParallelFor(0, h, [&](size_t r) {
+                    std::copy(a_ptr + (i + r) * n + k, 
+                              a_ptr + (i + r) * n + k + d, 
+                              h_A + r * tile_dim); 
+                });
+                
+                ParallelFor(0, d, [&](size_t r) {
+                    std::copy(b_ptr + (k + r) * n + j, 
+                              b_ptr + (k + r) * n + j + w, 
+                              h_B + r * tile_dim);
+                });
+                
+                streamer.submit_transfer(2 * tile_elements);
+                
+                float* d_buf = streamer.get_device_read_buffer(compute_stream);
+                float* d_A = d_buf;
+                float* d_B = d_buf + tile_elements;
+                
+                check_cublas(cublasSgemm(cublas_handle_,
+                                         CUBLAS_OP_N, CUBLAS_OP_N,
+                                         w, h, d,
+                                         &alpha,
+                                         d_B, tile_dim,
+                                         d_A, tile_dim,
+                                         &beta,
+                                         d_C, tile_dim), "GEMM Tile float");
+                                         
+                streamer.release_device_buffer(compute_stream);
+            }
+            
+            check_cuda(cudaMemcpyAsync(h_pinned_C, d_C, tile_bytes, cudaMemcpyDeviceToHost, compute_stream), "Memcpy C float");
+            check_cuda(cudaStreamSynchronize(compute_stream), "Sync C float");
+            
+            ParallelFor(0, h, [&](size_t r) {
+                std::copy(h_pinned_C + r * tile_dim, 
+                          h_pinned_C + r * tile_dim + w, 
+                          c_ptr + (i + r) * n + j);
+            });
+        }
+    }
+    
+    cudaFree(d_C);
+    cudaFreeHost(h_pinned_C);
+    cudaStreamDestroy(compute_stream);
+    
+    c->set_scalar(a->get_scalar() * b->get_scalar());
+}
+
+void CudaDevice::matmul_streaming(const DenseMatrix<Float16>* a, const DenseMatrix<Float16>* b, DenseMatrix<Float16>* c, size_t available_mem) {
+    size_t n = a->size();
+    size_t tile_dim = 1024;
+    
+    while (5 * tile_dim * tile_dim * sizeof(uint16_t) > available_mem * 0.8 && tile_dim > 32) {
+        tile_dim /= 2;
+    }
+    
+    size_t tile_elements = tile_dim * tile_dim;
+    size_t tile_bytes = tile_elements * sizeof(uint16_t);
+    
+    __half *d_C;
+    check_cuda(cudaMalloc(&d_C, tile_bytes), "cudaMalloc Tile C half");
+    
+    uint16_t *h_pinned_C;
+    check_cuda(cudaMallocHost(&h_pinned_C, tile_bytes), "cudaMallocHost Tile C half");
+    
+    AsyncStreamer<uint16_t> streamer(2 * tile_elements, config_.device_id, config_.enable_async);
+    
+    cudaStream_t compute_stream;
+    check_cuda(cudaStreamCreate(&compute_stream), "cudaStreamCreate");
+    check_cublas(cublasSetStream(cublas_handle_, compute_stream), "cublasSetStream");
+
+    const Float16* a_ptr = a->data();
+    const Float16* b_ptr = b->data();
+    Float16* c_ptr = c->data();
+    
+    __half alpha = __float2half(1.0f);
+    __half beta = __float2half(1.0f);
+    
+    for (size_t i = 0; i < n; i += tile_dim) {
+        size_t h = std::min(tile_dim, n - i);
+        
+        for (size_t j = 0; j < n; j += tile_dim) {
+            size_t w = std::min(tile_dim, n - j);
+            
+            check_cuda(cudaMemsetAsync(d_C, 0, tile_bytes, compute_stream), "cudaMemset C half");
+            
+            for (size_t k = 0; k < n; k += tile_dim) {
+                size_t d = std::min(tile_dim, n - k);
+                
+                streamer.wait_for_write_buffer();
+                
+                uint16_t* h_buf = streamer.get_host_write_buffer();
+                uint16_t* h_A = h_buf;
+                uint16_t* h_B = h_buf + tile_elements;
+                
+                ParallelFor(0, h, [&](size_t r) {
+                    const uint16_t* src = (const uint16_t*)(a_ptr + (i + r) * n + k);
+                    std::copy(src, src + d, h_A + r * tile_dim); 
+                });
+                
+                ParallelFor(0, d, [&](size_t r) {
+                    const uint16_t* src = (const uint16_t*)(b_ptr + (k + r) * n + j);
+                    std::copy(src, src + w, h_B + r * tile_dim);
+                });
+                
+                streamer.submit_transfer(2 * tile_elements);
+                
+                uint16_t* d_buf = streamer.get_device_read_buffer(compute_stream);
+                __half* d_A = (__half*)d_buf;
+                __half* d_B = (__half*)(d_buf + tile_elements);
+                
+                check_cublas(cublasHgemm(cublas_handle_,
+                                         CUBLAS_OP_N, CUBLAS_OP_N,
+                                         w, h, d,
+                                         &alpha,
+                                         d_B, tile_dim,
+                                         d_A, tile_dim,
+                                         &beta,
+                                         d_C, tile_dim), "GEMM Tile half");
+                                         
+                streamer.release_device_buffer(compute_stream);
+            }
+            
+            check_cuda(cudaMemcpyAsync(h_pinned_C, d_C, tile_bytes, cudaMemcpyDeviceToHost, compute_stream), "Memcpy C half");
+            check_cuda(cudaStreamSynchronize(compute_stream), "Sync C half");
+            
+            ParallelFor(0, h, [&](size_t r) {
+                uint16_t* dst = (uint16_t*)(c_ptr + (i + r) * n + j);
+                std::copy(h_pinned_C + r * tile_dim, 
+                          h_pinned_C + r * tile_dim + w, 
+                          dst);
+            });
+        }
+    }
+    
+    cudaFree(d_C);
+    cudaFreeHost(h_pinned_C);
+    cudaStreamDestroy(compute_stream);
+    
+    c->set_scalar(a->get_scalar() * b->get_scalar());
+}
+
 extern "C" {
     __declspec(dllexport) ComputeDevice* create_cuda_device(const AcceleratorConfig* config) {
         return new CudaDevice(*config);
     }
 }
 
+void CudaDevice::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
+    CudaSolver solver(this);
+    solver.add(a, b, result);
+}
+
+void CudaDevice::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
+    CudaSolver solver(this);
+    solver.subtract(a, b, result);
+}
+
+void CudaDevice::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {
+    CudaSolver solver(this);
+    solver.multiply_scalar(a, scalar, result);
+}
+
 } // namespace pycauset
+

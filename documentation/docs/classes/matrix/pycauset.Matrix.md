@@ -9,6 +9,7 @@ The `Matrix` class serves as a smart factory for creating matrix objects in `pyc
 *   If `dtype` is specified, it forces the creation of a specific matrix type:
     *   `dtype=int` (or `np.int32`, `np.int64`): Creates an `IntegerMatrix` (or `TriangularIntegerMatrix` if applicable).
     *   `dtype=float` (or `np.float64`): Creates a `FloatMatrix` (or `TriangularFloatMatrix` if applicable).
+    *   `dtype="float32"` (or `np.float32`): Creates a `Float32Matrix`.
     *   `dtype=bool` (or `np.bool_`): Creates a `DenseBitMatrix` (or `TriangularBitMatrix` if applicable).
 *   If `dtype` is NOT specified, it infers the type from the data:
     *   Integers + Strictly Upper Triangular -> `TriangularIntegerMatrix`
@@ -36,6 +37,7 @@ The `Matrix` factory returns instances of specialized classes optimized for spec
 
 *   **`IntegerMatrix`**: Dense matrix storing 32-bit signed integers.
 *   **`FloatMatrix`**: Dense matrix storing 64-bit floating-point numbers.
+*   **`Float32Matrix`**: Dense matrix storing 32-bit floating-point numbers.
 *   **`DenseBitMatrix`**: Dense matrix storing boolean values (1 bit per element).
 *   **`TriangularIntegerMatrix`**: Strictly upper triangular matrix storing 32-bit integers.
 *   **`TriangularFloatMatrix`**: Strictly upper triangular matrix storing 64-bit floats.

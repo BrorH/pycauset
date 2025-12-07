@@ -68,6 +68,8 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     // Try to cast to known types
     auto* a_fm = dynamic_cast<const FloatMatrix*>(&a);
     auto* b_fm = dynamic_cast<const FloatMatrix*>(&b);
+    auto* a_fm32 = dynamic_cast<const Float32Matrix*>(&a);
+    auto* b_fm32 = dynamic_cast<const Float32Matrix*>(&b);
 
     bool a_is_id = (a.get_matrix_type() == MatrixType::IDENTITY);
     bool b_is_id = (b.get_matrix_type() == MatrixType::IDENTITY);
@@ -97,6 +99,13 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     if (a_fm && b_fm && ComputeContext::instance().is_gpu_active()) {
         auto res = std::make_unique<FloatMatrix>(a.size(), saveas);
         ComputeContext::instance().get_device()->matmul(*a_fm, *b_fm, *res);
+        return res;
+    }
+
+    // Use ComputeDevice for Float32Matrix x Float32Matrix
+    if (a_fm32 && b_fm32 && ComputeContext::instance().is_gpu_active()) {
+        auto res = std::make_unique<Float32Matrix>(a.size(), saveas);
+        ComputeContext::instance().get_device()->matmul(*a_fm32, *b_fm32, *res);
         return res;
     }
 
@@ -779,7 +788,8 @@ PYBIND11_MODULE(_pycauset, m) {
     bind_arithmetic(tim);
 
     // Float64Matrix (Dense)
-    py::class_<FloatMatrix, MatrixBase> fm(m, "Float64Matrix");
+    py::class_<FloatMatrix, MatrixBase> fm(m, "FloatMatrix");
+    m.attr("Float64Matrix") = m.attr("FloatMatrix");
     fm.def(py::init<uint64_t, const std::string&>(), 
            py::arg("n"), py::arg("backing_file") = "")
       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
@@ -843,8 +853,7 @@ PYBIND11_MODULE(_pycauset, m) {
     bind_arithmetic(fm);
 
     // FloatMatrix (Dense) - Default to Float32
-    py::class_<Float32Matrix, MatrixBase> f32m(m, "FloatMatrix");
-    m.attr("Float32Matrix") = m.attr("FloatMatrix");
+    py::class_<Float32Matrix, MatrixBase> f32m(m, "Float32Matrix");
     f32m.def(py::init<uint64_t, const std::string&>(), 
            py::arg("n"), py::arg("backing_file") = "")
       .def(py::init<uint64_t, const std::string&, size_t, uint64_t, double, bool>(),
@@ -897,21 +906,10 @@ PYBIND11_MODULE(_pycauset, m) {
             return m.transpose(saveas);
         }, py::arg("saveas") = "")
         .def("multiply", [](const Float32Matrix& self, const Float32Matrix& other, const std::string& saveas) {
-            if (ComputeContext::instance().is_gpu_active()) {
-                auto res = std::make_unique<Float32Matrix>(self.size(), saveas);
-                ComputeContext::instance().get_device()->matmul(self, other, *res);
-                return res;
-            }
-            std::string target = saveas.empty() ? make_unique_storage_file("matmul_f32m") : saveas;
-            return self.multiply(other, target);
+            return dispatch_matmul(self, other, saveas);
         }, py::arg("other"), py::arg("saveas") = "")
         .def("__matmul__", [](const Float32Matrix& self, const Float32Matrix& other) {
-            if (ComputeContext::instance().is_gpu_active()) {
-                auto res = std::make_unique<Float32Matrix>(self.size(), "");
-                ComputeContext::instance().get_device()->matmul(self, other, *res);
-                return res;
-            }
-            return self.multiply(other, "");
+            return dispatch_matmul(self, other, "");
         });
     bind_arithmetic(f32m);
 
@@ -1468,11 +1466,21 @@ PYBIND11_MODULE(_pycauset, m) {
         return pycauset::eigvals(matrix, make_unique_storage_file("eigvals_real"), make_unique_storage_file("eigvals_imag"));
     }, py::arg("matrix"), "Compute the eigenvalues of a matrix.");
 
+    m.def("eigvals", [](const ComplexMatrix& matrix) {
+        return pycauset::eigvals(matrix, make_unique_storage_file("eigvals_real"), make_unique_storage_file("eigvals_imag"));
+    }, py::arg("matrix"), "Compute the eigenvalues of a complex matrix.");
+
     m.def("eig", [](const MatrixBase& matrix) {
         return pycauset::eig(matrix, 
                              make_unique_storage_file("eigvals_real"), make_unique_storage_file("eigvals_imag"),
                              make_unique_storage_file("eigvecs_real"), make_unique_storage_file("eigvecs_imag"));
     }, py::arg("matrix"), "Compute the eigenvalues and right eigenvectors of a square matrix.");
+
+    m.def("eig", [](const ComplexMatrix& matrix) {
+        return pycauset::eig(matrix, 
+                             make_unique_storage_file("eigvals_real"), make_unique_storage_file("eigvals_imag"),
+                             make_unique_storage_file("eigvecs_real"), make_unique_storage_file("eigvecs_imag"));
+    }, py::arg("matrix"), "Compute the eigenvalues and right eigenvectors of a complex matrix.");
 
     m.def("eigvals_arnoldi", [](const MatrixBase& matrix, int k, int max_iter, double tol) {
         return pycauset::eigvals_arnoldi(matrix, k, max_iter, tol, 

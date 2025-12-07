@@ -51,6 +51,24 @@ M = pc.Matrix(5000, force_precision="half")
 
 `pycauset` provides efficient implementations for matrix operations, mirroring `numpy` semantics where appropriate but optimized for specific matrix structures (e.g., triangular, bit-packed).
 
+## GPU Acceleration
+
+If a compatible NVIDIA GPU is detected, PyCauset will automatically accelerate:
+*   **Multiplication**: $A \times B$ for Float64, Float32, and Boolean matrices.
+*   **Inversion**: $A^{-1}$ for Float64 and Float32 matrices.
+
+**Boolean Matrix Acceleration:**
+Multiplying `DenseBitMatrix` (boolean) on the GPU is highly optimized. It uses bit-packing to perform 64 operations per cycle, making it ideal for path counting in large causal sets.
+
+```python
+A = pc.Matrix(4096, dtype=bool)
+B = pc.Matrix(4096, dtype=bool)
+# ... fill matrices ...
+
+# Extremely fast GPU multiplication
+C = A @ B 
+```
+
 ## Matrix Multiplication (`matmul`)
 
 Matrix multiplication is performed using [[pycauset.matmul]](A, B). It supports all combinations of matrix types, automatically promoting the result to the most general required structure (Dense > TriangularFloat > Integer > Bit).

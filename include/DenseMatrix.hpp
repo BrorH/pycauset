@@ -101,9 +101,19 @@ public:
         T* dst_data = result->data();
         uint64_t total_elements = n_ * n_;
         
-        for (uint64_t i = 0; i < total_elements; ++i) {
-            double val = static_cast<double>(src_data[i]) * scalar_ + scalar;
-            dst_data[i] = static_cast<T>(val);
+        // Use ParallelFor for large matrices
+        // And avoid double promotion if T is float
+        if constexpr (std::is_same_v<T, float>) {
+            float s = static_cast<float>(scalar);
+            float s_self = static_cast<float>(scalar_);
+            pycauset::ParallelFor(0, total_elements, [&](size_t i) {
+                dst_data[i] = src_data[i] * s_self + s;
+            });
+        } else {
+            pycauset::ParallelFor(0, total_elements, [&](size_t i) {
+                double val = static_cast<double>(src_data[i]) * scalar_ + scalar;
+                dst_data[i] = static_cast<T>(val);
+            });
         }
         
         result->set_scalar(1.0);

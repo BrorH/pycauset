@@ -248,7 +248,7 @@ if ($useNinja -and $vcvarsPath) {
     }
     
     if ($Python) {
-        $batchContent += "cmake --build . --config Release`n"
+        $batchContent += "cmake --build . --config Release -j 1`n"
         $batchContent += "if %errorlevel% neq 0 exit /b %errorlevel%`n"
     }
     
@@ -268,12 +268,12 @@ if ($useNinja -and $vcvarsPath) {
     if ($LASTEXITCODE -ne 0) { Pop-Location; exit 1 }
     
     if ($Tests) {
-        cmake --build . --config Release --target causal_tests
+        cmake --build . --config Release --target causal_tests -j 1
         if ($LASTEXITCODE -ne 0) { Pop-Location; exit 1 }
     }
     
     if ($Python) {
-        cmake --build . --config Release
+        cmake --build . --config Release -j 1
         if ($LASTEXITCODE -ne 0) { Pop-Location; exit 1 }
     }
     Pop-Location
