@@ -53,40 +53,52 @@ endif()
 
 # --- Source Files ---
 set(PYCAUSET_SOURCES
-    src/MemoryMapper.cpp
-    src/PersistentObject.cpp
-    src/StoragePaths.cpp
-    src/MatrixBase.cpp
-    src/VectorBase.cpp
-    src/TriangularMatrix.cpp
-    src/TriangularBitMatrix.cpp
-    src/DenseBitMatrix.cpp
-    src/DenseVector.cpp
-    src/MatrixOperations.cpp
-    src/VectorOperations.cpp
-    src/MatrixFactory.cpp
-    src/VectorFactory.cpp
-    src/Sprinkler.cpp
-    src/ComplexVector.cpp
-    src/Eigen.cpp
-    src/ParallelUtils.cpp
-    src/ComputeContext.cpp
-    src/CpuDevice.cpp
-    src/CpuSolver.cpp
-    src/SystemUtils.cpp
-    src/AutoSolver.cpp
+    src/core/MemoryMapper.cpp
+    src/core/PersistentObject.cpp
+    src/core/StorageUtils.cpp
+    src/core/SystemUtils.cpp
+    src/core/ParallelUtils.cpp
+    src/matrix/MatrixBase.cpp
+    src/matrix/DenseBitMatrix.cpp
+    src/matrix/TriangularMatrix.cpp
+    src/matrix/TriangularBitMatrix.cpp
+    src/core/ObjectFactory.cpp
+    src/vector/VectorBase.cpp
+    src/vector/DenseVector.cpp
+    src/vector/ComplexVector.cpp
+    src/compute/ComputeContext.cpp
+    src/compute/AutoSolver.cpp
+    src/compute/cpu/CpuDevice.cpp
+    src/compute/cpu/CpuSolver.cpp
+    src/math/Eigen.cpp
+    src/math/LinearAlgebra.cpp
+    src/causet/Sprinkler.cpp
 )
+
+# Create a static library for the core functionality to avoid recompiling for every test
+add_library(pycauset_core STATIC ${PYCAUSET_SOURCES})
+target_include_directories(pycauset_core PUBLIC include)
+target_link_libraries(pycauset_core PUBLIC Eigen3::Eigen)
+set_property(TARGET pycauset_core PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(pycauset_core PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
+if(MSVC)
+    target_compile_options(pycauset_core PRIVATE /bigobj)
+endif()
 
 # --- Extension Module ---
 # Note: The module name must match what is defined in PYBIND11_MODULE in bindings.cpp (which is "_pycauset")
 # Touch
-python_add_library(_pycauset SHARED src/bindings.cpp ${PYCAUSET_SOURCES})
+python_add_library(_pycauset SHARED src/bindings.cpp)
 
 # Include directories
 target_include_directories(_pycauset PRIVATE include)
 
 # Link libraries
-target_link_libraries(_pycauset PRIVATE pybind11::module Eigen3::Eigen)
+target_link_libraries(_pycauset PRIVATE pybind11::module pycauset_core)
 
 if(MSVC)
     target_compile_options(_pycauset PRIVATE /bigobj)
@@ -153,13 +165,13 @@ if(BUILD_TESTS)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
 
-    add_executable(causal_tests tests/test_main.cpp tests/test_parallel.cpp tests/test_gpu.cpp ${PYCAUSET_SOURCES})
+    add_executable(causal_tests tests/test_main.cpp tests/test_parallel.cpp tests/test_gpu.cpp)
     # Remove bindings.cpp from tests if it contains the main module definition which might conflict
     # Actually bindings.cpp has PYBIND11_MODULE, which is fine in a library but maybe not in an executable if it has main?
     # test_main.cpp has main(). bindings.cpp does not have main().
     
     target_include_directories(causal_tests PRIVATE include)
-    target_link_libraries(causal_tests PRIVATE GTest::gtest_main Eigen3::Eigen)
+    target_link_libraries(causal_tests PRIVATE GTest::gtest_main pycauset_core)
     if(OpenMP_CXX_FOUND)
         target_link_libraries(causal_tests PRIVATE OpenMP::OpenMP_CXX)
     endif()
@@ -173,9 +185,9 @@ if(BUILD_TESTS)
     add_test(NAME CausalTests COMMAND causal_tests)
 
     # Type System Tests
-    add_executable(test_types tests/test_types.cpp ${PYCAUSET_SOURCES})
+    add_executable(test_types tests/test_types.cpp)
     target_include_directories(test_types PRIVATE include)
-    target_link_libraries(test_types PRIVATE GTest::gtest_main Eigen3::Eigen)
+    target_link_libraries(test_types PRIVATE GTest::gtest_main pycauset_core)
     if(OpenMP_CXX_FOUND)
         target_link_libraries(test_types PRIVATE OpenMP::OpenMP_CXX)
     endif()
@@ -186,17 +198,17 @@ if(BUILD_TESTS)
     add_test(NAME TypeTests COMMAND test_types)
 
     # Benchmark Executable
-    add_executable(benchmark_tests tests/benchmark_parallel.cpp ${PYCAUSET_SOURCES})
+    add_executable(benchmark_tests tests/benchmark_parallel.cpp)
     target_include_directories(benchmark_tests PRIVATE include)
-    target_link_libraries(benchmark_tests PRIVATE Eigen3::Eigen)
+    target_link_libraries(benchmark_tests PRIVATE pycauset_core)
     if(OpenMP_CXX_FOUND)
         target_link_libraries(benchmark_tests PRIVATE OpenMP::OpenMP_CXX)
     endif()
 
     # Optimization Benchmark
-    add_executable(benchmark_optimizations tests/benchmark_optimizations.cpp ${PYCAUSET_SOURCES})
+    add_executable(benchmark_optimizations tests/benchmark_optimizations.cpp)
     target_include_directories(benchmark_optimizations PRIVATE include)
-    target_link_libraries(benchmark_optimizations PRIVATE Eigen3::Eigen)
+    target_link_libraries(benchmark_optimizations PRIVATE pycauset_core)
     if(OpenMP_CXX_FOUND)
         target_link_libraries(benchmark_optimizations PRIVATE OpenMP::OpenMP_CXX)
     endif()
@@ -207,9 +219,9 @@ if(BUILD_TESTS)
 
     # GPU Benchmark Executable
     if(CUDAToolkit_FOUND)
-        add_executable(benchmark_gpu tests/benchmark_gpu.cpp ${PYCAUSET_SOURCES})
+        add_executable(benchmark_gpu tests/benchmark_gpu.cpp)
         target_include_directories(benchmark_gpu PRIVATE include)
-        target_link_libraries(benchmark_gpu PRIVATE CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda Eigen3::Eigen)
+        target_link_libraries(benchmark_gpu PRIVATE CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda pycauset_core)
         target_compile_definitions(benchmark_gpu PRIVATE ENABLE_CUDA)
         if(OpenMP_CXX_FOUND)
             target_link_libraries(benchmark_gpu PRIVATE OpenMP::OpenMP_CXX)
@@ -218,9 +230,9 @@ if(BUILD_TESTS)
 
     # GPU Float16 Tests
     if(CUDAToolkit_FOUND)
-        add_executable(test_gpu_float16 tests/test_gpu_float16.cpp ${PYCAUSET_SOURCES})
+        add_executable(test_gpu_float16 tests/test_gpu_float16.cpp)
         target_include_directories(test_gpu_float16 PRIVATE include src/accelerators/cuda)
-        target_link_libraries(test_gpu_float16 PRIVATE GTest::gtest_main CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda Eigen3::Eigen)
+        target_link_libraries(test_gpu_float16 PRIVATE GTest::gtest_main CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda pycauset_core)
         target_compile_definitions(test_gpu_float16 PRIVATE ENABLE_CUDA)
         if(OpenMP_CXX_FOUND)
             target_link_libraries(test_gpu_float16 PRIVATE OpenMP::OpenMP_CXX)
@@ -229,9 +241,9 @@ if(BUILD_TESTS)
     endif()
 
     # Pinned Memory Tests
-    add_executable(test_pinned_memory tests/test_pinned_memory.cpp ${PYCAUSET_SOURCES})
+    add_executable(test_pinned_memory tests/test_pinned_memory.cpp)
     target_include_directories(test_pinned_memory PRIVATE include src/accelerators/cuda)
-    target_link_libraries(test_pinned_memory PRIVATE GTest::gtest_main Eigen3::Eigen)
+    target_link_libraries(test_pinned_memory PRIVATE GTest::gtest_main pycauset_core)
     if(OpenMP_CXX_FOUND)
         target_link_libraries(test_pinned_memory PRIVATE OpenMP::OpenMP_CXX)
     endif()
@@ -242,9 +254,9 @@ if(BUILD_TESTS)
     add_test(NAME PinnedMemoryTests COMMAND test_pinned_memory)
 
     # Pinned Memory Extended Tests
-    add_executable(test_pinned_memory_extended tests/test_pinned_memory_extended.cpp ${PYCAUSET_SOURCES})
+    add_executable(test_pinned_memory_extended tests/test_pinned_memory_extended.cpp)
     target_include_directories(test_pinned_memory_extended PRIVATE include src/accelerators/cuda)
-    target_link_libraries(test_pinned_memory_extended PRIVATE GTest::gtest_main Eigen3::Eigen)
+    target_link_libraries(test_pinned_memory_extended PRIVATE GTest::gtest_main pycauset_core)
     if(OpenMP_CXX_FOUND)
         target_link_libraries(test_pinned_memory_extended PRIVATE OpenMP::OpenMP_CXX)
     endif()
@@ -255,9 +267,9 @@ if(BUILD_TESTS)
     add_test(NAME PinnedMemoryExtendedTests COMMAND test_pinned_memory_extended)
 
     # Solver Tests
-    add_executable(test_solvers tests/test_solvers.cpp ${PYCAUSET_SOURCES})
+    add_executable(test_solvers tests/test_solvers.cpp)
     target_include_directories(test_solvers PRIVATE include src/accelerators/cuda)
-    target_link_libraries(test_solvers PRIVATE GTest::gtest_main Eigen3::Eigen)
+    target_link_libraries(test_solvers PRIVATE GTest::gtest_main pycauset_core)
     if(OpenMP_CXX_FOUND)
         target_link_libraries(test_solvers PRIVATE OpenMP::OpenMP_CXX)
     endif()
@@ -268,9 +280,9 @@ if(BUILD_TESTS)
     add_test(NAME SolverTests COMMAND test_solvers)
 
     # Extensive Solver Benchmark
-    add_executable(benchmark_solvers_extensive tests/benchmark_solvers_extensive.cpp ${PYCAUSET_SOURCES})
+    add_executable(benchmark_solvers_extensive tests/benchmark_solvers_extensive.cpp)
     target_include_directories(benchmark_solvers_extensive PRIVATE include src/accelerators/cuda)
-    target_link_libraries(benchmark_solvers_extensive PRIVATE Eigen3::Eigen)
+    target_link_libraries(benchmark_solvers_extensive PRIVATE pycauset_core)
     if(OpenMP_CXX_FOUND)
         target_link_libraries(benchmark_solvers_extensive PRIVATE OpenMP::OpenMP_CXX)
     endif()

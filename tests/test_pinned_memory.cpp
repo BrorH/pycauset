@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
-#include "MemoryMapper.hpp"
-#include "ComputeContext.hpp"
-#include "SystemUtils.hpp"
+#include "pycauset/core/MemoryMapper.hpp"
+#include "pycauset/compute/ComputeContext.hpp"
+#include "pycauset/core/SystemUtils.hpp"
 #include <vector>
 #include <chrono>
 #include <iostream>

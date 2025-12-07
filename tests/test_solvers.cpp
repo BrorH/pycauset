@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
-#include "DenseMatrix.hpp"
-#include "DenseBitMatrix.hpp"
-#include "TriangularMatrix.hpp"
-#include "DiagonalMatrix.hpp"
-#include "ComputeContext.hpp"
-#include "AutoSolver.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/matrix/DenseBitMatrix.hpp"
+#include "pycauset/matrix/TriangularMatrix.hpp"
+#include "pycauset/matrix/DiagonalMatrix.hpp"
+#include "pycauset/compute/ComputeContext.hpp"
+#include "pycauset/compute/AutoSolver.hpp"
 #include <memory>
 #include <cmath>
 

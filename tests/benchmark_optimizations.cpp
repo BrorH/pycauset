@@ -7,13 +7,13 @@
 #include <filesystem>
 #include <bit>
 
-#include "DenseMatrix.hpp"
-#include "DenseBitMatrix.hpp"
-#include "DenseVector.hpp"
-#include "TriangularMatrix.hpp"
-#include "ComputeContext.hpp"
-#include "MatrixOperations.hpp"
-#include "VectorOperations.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/matrix/DenseBitMatrix.hpp"
+#include "pycauset/vector/DenseVector.hpp"
+#include "pycauset/matrix/TriangularMatrix.hpp"
+#include "pycauset/compute/ComputeContext.hpp"
+#include "pycauset/math/LinearAlgebra.hpp"
+#include "pycauset/math/LinearAlgebra.hpp"
 
 using namespace pycauset;
 

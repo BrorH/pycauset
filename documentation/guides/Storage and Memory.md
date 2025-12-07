@@ -28,22 +28,22 @@ If you unzip a `.pycauset` file, you can inspect `metadata.json`:
 
 ```json
 {
-  "object_type": "IntegerMatrix",
   "rows": 1000,
   "cols": 1000,
-  "data_type": "INT32",
-  "matrix_type": "INTEGER",
   "seed": 12345,
   "scalar": 1.0,
-  "is_transposed": false
+  "is_transposed": false,
+  "matrix_type": "INTEGER",
+  "data_type": "INT32"
 }
 ```
 
 ### Metadata Fields Explained
 
-*   **`object_type`**: The Python class name (e.g., `IntegerMatrix`, `CausalSet`).
-*   **`data_type`**: The underlying binary format of elements (`INT32`, `FLOAT64`, `BIT`).
 *   **`matrix_type`**: The logical mathematical structure (`INTEGER`, `DENSE_FLOAT`, `CAUSAL`, `TRIANGULAR_FLOAT`).
+*   **`data_type`**: The underlying binary format of elements (`INT32`, `FLOAT64`, `BIT`).
+*   **`rows`**: Number of rows.
+*   **`cols`**: Number of columns.
 *   **`seed`**: The random seed used to generate the object (if applicable). This allows for reproducibility.
 *   **`scalar`**: A global scaling factor applied to all elements (see "Lazy Evaluation" below).
 *   **`is_transposed`**: A boolean flag indicating if the matrix is logically transposed (see "Lazy Evaluation" below).
@@ -105,11 +105,7 @@ print(M_loaded.get(0, 0)) # 42
 When you create a matrix without loading it, PyCauset creates a temporary file to back it.
 
 *   **Location**: By default, these are stored in a `.pycauset` folder in your current working directory.
-*   **Changing Location**: You can change this by setting the `PYCAUSET_STORAGE` environment variable or by configuring it in your script:
-    ```python
-    import pycauset
-    pycauset.set_storage_root("/path/to/fast/ssd/temp")
-    ```
+*   **Changing Location**: You can change this by setting the `PYCAUSET_STORAGE_DIR` environment variable before importing the library.
 *   **Cleanup**: These files are **automatically deleted** when the Python object is garbage collected or the script exits. To keep the data, you *must* use `pycauset.save()`.
 
 ## Memory Efficiency

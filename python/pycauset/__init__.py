@@ -514,11 +514,7 @@ def _infer_assignment_target() -> str | None:
 
 def _resolve_backing_path(backing: Any, fallback: str | None = None) -> str:
     if backing in (None, ""):
-        inferred = _infer_assignment_target()
-        base = inferred if inferred else (fallback or "matrix")
-        # Append UUID to ensure uniqueness for temporary files
-        unique_name = f"{base}_{uuid.uuid4().hex[:8]}.pycauset"
-        return str(_storage_root() / unique_name)
+        return ""
 
     if isinstance(backing, os.PathLike):
         candidate = Path(backing).expanduser()

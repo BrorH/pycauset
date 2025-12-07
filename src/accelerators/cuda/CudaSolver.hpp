@@ -1,8 +1,8 @@
 #pragma once
 
 #include "CudaDevice.hpp"
-#include "DenseMatrix.hpp"
-#include "Float16.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/core/Float16.hpp"
 #include <vector>
 
 namespace pycauset {

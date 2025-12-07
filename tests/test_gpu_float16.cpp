@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
-#include "DenseMatrix.hpp"
-#include "Float16.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/core/Float16.hpp"
 #include "CudaDevice.hpp"
-#include "AcceleratorConfig.hpp"
+#include "pycauset/compute/AcceleratorConfig.hpp"
 #include <filesystem>
 #include <memory>
 

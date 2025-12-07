@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
-#include "DenseBitMatrix.hpp"
-#include "DenseMatrix.hpp"
-#include "ComputeContext.hpp"
-#include "AcceleratorConfig.hpp"
-#include "ComputeDevice.hpp"
+#include "pycauset/matrix/DenseBitMatrix.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/compute/ComputeContext.hpp"
+#include "pycauset/compute/AcceleratorConfig.hpp"
+#include "pycauset/compute/ComputeDevice.hpp"
 #include <filesystem>
 #include <vector>
 #include <random>

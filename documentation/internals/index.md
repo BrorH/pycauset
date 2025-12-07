@@ -4,15 +4,9 @@ This section documents the internal architecture and design decisions of PyCause
 
 ## Architecture
 
-*   **[[ComputeSystem]]**: The unified CPU/GPU compute architecture, including `ComputeContext`, `AutoSolver`, and parallelization strategies.
-*   **[[MemorySystem]]**: Memory management, file-backed storage, and the `.pycauset` file format.
-*   **[[Matrix and Vector Architecture]]**: The C++ class hierarchy for matrix and vector types.
-*   **[[Stateless Sprinkling]]**: How coordinates are regenerated on demand.
-
-## Algorithms
-
+*   **[[Compute Architecture]]**: The unified CPU/GPU compute architecture, including `ComputeContext`, `AutoSolver`, and parallelization strategies.
+*   **[[Memory and Data]]**: Memory management, file-backed storage, and the `.pycauset` file format.
 *   **[[Algorithms]]**: Details of the solvers (Eigenvalue, Matrix Multiplication) and their implementations.
-*   **[[Math Derivation]]**: Mathematical background for the implemented algorithms.
 
 ## Process
 

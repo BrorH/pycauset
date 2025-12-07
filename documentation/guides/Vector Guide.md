@@ -98,6 +98,14 @@ result = v1.dot(v2)
 
 ### Cross Product
 
+The cross product is defined for 3D vectors.
+
+```python
+v1 = pc.Vector([1, 0, 0])
+v2 = pc.Vector([0, 1, 0])
+v3 = v1.cross(v2)  # [0, 0, 1]
+```
+
 You can compute the cross product of two 3D vectors using [[pycauset.cross]].
 
 ```python

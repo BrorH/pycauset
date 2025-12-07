@@ -1,11 +1,11 @@
 #include "CudaDevice.hpp"
 #include "CudaSolver.hpp"
 #include "AsyncStreamer.hpp"
-#include "DenseMatrix.hpp"
-#include "DenseBitMatrix.hpp"
-#include "ComplexVector.hpp"
-#include "Eigen.hpp"
-#include "ParallelUtils.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/matrix/DenseBitMatrix.hpp"
+#include "pycauset/vector/ComplexVector.hpp"
+#include "pycauset/math/Eigen.hpp"
+#include "pycauset/core/ParallelUtils.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <vector>

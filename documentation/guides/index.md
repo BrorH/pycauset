@@ -18,4 +18,6 @@ These guides provide in-depth explanations of PyCauset's features and concepts.
 
 *   **[[Matrix Guide]]**: Understanding the underlying matrix storage and operations.
 *   **[[Vector Guide]]**: Working with dense vectors.
+*   **[[Storage and Memory]]**: How PyCauset handles large datasets on disk.
+*   **[[Performance Guide]]**: Tips for optimizing your simulations.
 *   **[[Numpy Integration]]**: Interfacing with Numpy.

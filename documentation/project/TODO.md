@@ -7,7 +7,7 @@ This document outlines the development roadmap for `pycauset`, tracking complete
 - [ ] **Large Scale Simulation**: Calculate a 100GB propagator matrix $K$.
 - [ ] **Further I/O Optimization**: The read/write speed to disk is currently the main bottleneck
 - [ ] **Pauli-Jordan Function**: Implement the $i\Delta$ function derived from the propagator.
-- [ ] **GPU Acceleration**: Investigate CUDA/OpenCL support for matrix operations.
+- [x] **GPU Acceleration**: Investigate CUDA/OpenCL support for matrix operations.
 - [ ] **User-Defined Spacetimes**: Allow users to define custom spacetime geometries and boundaries in Python.
 
 
@@ -37,8 +37,9 @@ This document outlines the development roadmap for `pycauset`, tracking complete
     - [x] `dtype` specification on creation.
 - [x] **Numpy Compatibility**: Seamless conversion to/from numpy arrays.
 - [x] **Identity Matrix**: `pycauset.I` with automatic sizing.
-- [x] Create VectorFactory
-	- [x] move "add_vectors" from "MatrixOperations.cpp"
+- [x] **Vector Factory**: `pycauset.Vector` factory function.
+- [x] **Vector Cross Product**: Implemented `v.cross(u)`.
+
 ## 📊 Visualization & Analysis
 
 - [x] **Causet Visualization**: 2D and 3D plotting using Plotly.
@@ -51,7 +52,6 @@ This document outlines the development roadmap for `pycauset`, tracking complete
 - [x] **Hosting**: Setup for GitHub Pages / MkDocs.
 - [ ] **Environment Variables**: Document `$PYCAUSET_STORAGE_DIR`.
 - [ ] **Tutorials**: Add more physics-focused tutorials (e.g., scalar field propagation).
-- [ ] vector cross product
 
 ## 🐛 Known Issues / Maintenance
 
