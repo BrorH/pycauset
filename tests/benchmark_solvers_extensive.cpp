@@ -6,12 +6,12 @@
 #include <functional>
 #include <filesystem>
 
-#include "DenseMatrix.hpp"
-#include "DenseBitMatrix.hpp"
-#include "TriangularMatrix.hpp"
-#include "DiagonalMatrix.hpp"
-#include "ComputeContext.hpp"
-#include "CpuSolver.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/matrix/DenseBitMatrix.hpp"
+#include "pycauset/matrix/TriangularMatrix.hpp"
+#include "pycauset/matrix/DiagonalMatrix.hpp"
+#include "pycauset/compute/ComputeContext.hpp"
+#include "pycauset/compute/cpu/CpuSolver.hpp"
 
 using namespace pycauset;
 

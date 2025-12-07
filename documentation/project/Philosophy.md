@@ -9,7 +9,7 @@ Pycauset is designed to handle causal sets where $N$ is large enough that $O(N^2
 Originally, PyCauset was built solely for scale ("If it fits in RAM, use numpy"). However, as the project has evolved into a full-fledged framework for Causal Set Theory, it now offers unique value even for small simulations:
 *   **Spacetime Generation**: Built-in manifolds and sprinkling algorithms.
 *   **Causal Set Abstractions**: Objects that bundle topology, geometry, and causality.
-*   **Reproducibility**: Standardized serialization formats (`.causet`).
+*   **Reproducibility**: Standardized serialization formats (`.pycauset`).
 
 ## Core Mantras
 

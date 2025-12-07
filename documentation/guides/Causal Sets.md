@@ -52,8 +52,7 @@ print(C)
 
 > **Performance Note:** The `TriangularBitMatrix` and `DenseBitMatrix` classes now use hardware-accelerated bit manipulation (AVX-512/NEON `popcount`). Operations like dot products, matrix multiplication, and transitive closure are approximately **30x faster** than in previous versions.
 
-## Analyzing Causal Structure
-```
+### Causal Structure
 
 The matrix $C$ is defined such that $C_{ij} = 1$ if element $i$ is in the causal past of element $j$ ($i \prec j$), and $0$ otherwise. Since the points are sorted by their time coordinate during generation, the matrix is strictly upper triangular.
 
@@ -79,7 +78,7 @@ The "End Product" of the initialization is the **Causal Matrix** stored on disk.
 
 ## Large Scale Simulations
 
-`pycauset` is designed for large-scale simulations. The [[pycauset.CausalSet]] class uses a **stateless sprinkling** technique (see [Stateless Sprinkling](../internals/Stateless Sprinkling.md)) that avoids storing the coordinates of the points. This means you can generate causal sets with billions of elements without running out of RAM, provided you have enough disk space to store the resulting bit matrix.
+`pycauset` is designed for large-scale simulations. The [[pycauset.CausalSet]] class uses a **stateless sprinkling** technique (see [Stateless Sprinkling](../internals/Algorithms.md#stateless-sprinkling-spacetime-generation)) that avoids storing the coordinates of the points. This means you can generate causal sets with billions of elements without running out of RAM, provided you have enough disk space to store the resulting bit matrix.
 
 ```python
 # Generating a very large causal set (e.g., 1 million elements)
@@ -107,20 +106,6 @@ c = Causet(n=1000, spacetime=diamond)
 
 ### Minkowski Cylinder
 A flat spacetime with periodic spatial boundary conditions ($S^1 \times \mathbb{R}$).
-
-## Adding Matter (Fields)
-
-Once you have a causal set, you can define quantum fields on it to study particle propagation and entanglement. PyCauset separates the geometry (the set) from the matter (the field).
-
-See the [[Field Theory]] guide for details on how to define Scalar Fields and compute propagators.
-
-```python
-from pycauset.field import ScalarField
-
-# Define a field on the set
-field = ScalarField(c, mass=1.0)
-K = field.propagator()
-```
 
 ```python
 # A cylinder with height 2.0 and circumference 5.0
@@ -150,25 +135,29 @@ print(f"Realized Density: {c.rho}")
 
 ## Saving and Loading
 
-You can save a `CausalSet` to a portable `.causet` file. This archive contains the metadata (parameters, seed, spacetime info) and the binary causal matrix.
+You can save a `CausalSet` to a portable `.pycauset` file. This archive contains the metadata (parameters, seed, spacetime info) and the binary causal matrix.
 
 ```python
 # Save
-c.save("my_simulation") # Creates my_simulation.causet
+c.save("my_simulation.pycauset")
 
 # Load
 # This reconstructs the object exactly without re-sprinkling
-c_loaded = Causet.load("my_simulation.causet")
+c_loaded = Causet.load("my_simulation.pycauset")
 ```
 
-## Analysis
+## Adding Matter (Fields)
 
-### Computing K
-The $K$ matrix (retarded propagator) is a fundamental quantity.
+Once you have a causal set, you can define quantum fields on it to study particle propagation and entanglement. PyCauset separates the geometry (the set) from the matter (the field).
+
+See the [[Field Theory]] guide for details on how to define Scalar Fields and compute propagators.
 
 ```python
-# Compute K with non-locality scale a=1.0
-K = c.compute_k(a=1.0)
+from pycauset.field import ScalarField
+
+# Define a field on the set
+field = ScalarField(c, mass=1.0)
+K = field.propagator()
 ```
 
 

@@ -1,7 +1,7 @@
 #include "CudaSolver.hpp"
-#include "StoragePaths.hpp"
-#include "Eigen.hpp"
-#include "DenseBitMatrix.hpp"
+#include "pycauset/core/StorageUtils.hpp"
+#include "pycauset/math/Eigen.hpp"
+#include "pycauset/matrix/DenseBitMatrix.hpp"
 #include <iostream>
 #include <vector>
 #include <algorithm>

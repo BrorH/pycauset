@@ -4,7 +4,7 @@
 
 ## Converting NumPy Arrays to PyCauset
 
-You can convert NumPy arrays into `pycauset` objects using the [[pycauset.asarray]] function. This function automatically detects the data type and shape of the NumPy array and creates the corresponding [[pycauset.Matrix]] or [[pycauset.Vector]].
+You can convert NumPy arrays into `pycauset` objects using the [[pycauset.Matrix]] and [[pycauset.Vector]] factory functions. These functions automatically detect the data type of the NumPy array and create the corresponding optimized object.
 
 ```python
 import numpy as np
@@ -12,15 +12,15 @@ import pycauset as pc
 
 # Convert 1D NumPy array to Vector
 arr_1d = np.array([1.0, 2.0, 3.0])
-vec = pc.asarray(arr_1d)  # Returns [[pycauset.FloatVector]]
+vec = pc.Vector(arr_1d)  # Returns [[pycauset.FloatVector]]
 
 # Convert 2D NumPy array to Matrix
 arr_2d = np.array([[1, 2], [3, 4]], dtype=np.int32)
-mat = pc.asarray(arr_2d)  # Returns [[pycauset.IntegerMatrix]]
+mat = pc.Matrix(arr_2d)  # Returns [[pycauset.IntegerMatrix]]
 
 # Convert Boolean array
 arr_bool = np.array([True, False], dtype=bool)
-vec_bool = pc.asarray(arr_bool)  # Returns [[pycauset.BitVector]]
+vec_bool = pc.Vector(arr_bool)  # Returns [[pycauset.BitVector]]
 ```
 
 **Note**: This operation creates a **copy** of the data. Depending on the size and the configured memory threshold, the new object will be stored in RAM or on disk, see [[User Guide#Storage Management]]

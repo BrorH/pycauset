@@ -3,10 +3,10 @@
 #include <vector>
 #include <string>
 #include <iomanip>
-#include "DenseMatrix.hpp"
-#include "ParallelUtils.hpp"
-#include "MatrixFactory.hpp"
-#include "Eigen.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/core/ParallelUtils.hpp"
+#include "pycauset/core/ObjectFactory.hpp"
+#include "pycauset/math/Eigen.hpp"
 
 using namespace pycauset;
 

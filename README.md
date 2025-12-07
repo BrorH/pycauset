@@ -1,138 +1,115 @@
 # PyCauset
 
 [![Documentation](https://img.shields.io/badge/docs-live-blue)](https://brorh.github.io/pycauset/)
+[![PyPI version](https://badge.fury.io/py/pycauset.svg)](https://badge.fury.io/py/pycauset)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**PyCauset** is a high-performance Python module designed for numerical work with [Causal Sets](https://en.wikipedia.org/wiki/Causal_sets). It is built to handle massive matrices that exceed available RAM by leveraging memory-mapped files and efficient C++ backends.
+**PyCauset** is a high-performance Python library for **Causal Set Theory**. It bridges the gap between abstract mathematical models and large-scale numerical simulations, allowing researchers to work with causal sets of millions of elements on consumer hardware.
 
-**[Explore the Full Documentation / Wiki »](https://brorh.github.io/pycauset/)**
+**[Explore the Full Documentation »](https://brorh.github.io/pycauset/)**
 
-## Why PyCauset?
+## Key Features
 
-For a causal set of size $N$, the relevant mathematical objects are typically of order $\mathcal O(N^2)$ and operations are $\mathcal O(N^3)$. For even moderate sizes like $N=10,000$, standard in-memory libraries like NumPy can struggle with memory limits.
-
-**PyCauset solves this by:**
-*   **Hybrid Storage**: Automatically keeping small matrices in RAM for speed, while seamlessly spilling large matrices to disk.
-*   **Memory Mapping**: Storing massive matrices on disk and loading only necessary chunks into RAM.
-*   **Bit Packing**: Storing boolean matrices (causal relations) as individual bits, reducing storage requirements by 8x-64x compared to standard types.
-*   **C++ Efficiency**: Core operations are implemented in optimized C++.
+*   **Hybrid Storage Architecture**: PyCauset automatically manages memory. Small matrices live in RAM for speed, while massive datasets spill seamlessly to **memory-mapped disk storage** (ZIP-compressed archives).
+*   **GPU Acceleration**: Built-in NVIDIA CUDA backend for matrix multiplication, inversion, and eigenvalue problems. Includes custom kernels for **accelerated bit-matrix operations**.
+*   **Smart Precision**: Automatically selects `Float64`, `Float32`, or `Float16` based on matrix size and hardware capabilities to maximize throughput.
+*   **Physics Engines**:
+    *   **Spacetimes**: Minkowski Diamond, Cylinder, and Box manifolds.
+    *   **Fields**: Scalar field propagators ($K_R$) and path integrals.
+*   **Visualization**: Interactive 3D visualization of embeddings and causal structures using Plotly.
 
 ## Installation
 
 ### From PyPI (Recommended)
-The easiest way to install PyCauset is via pip:
-
 ```bash
 pip install pycauset
 ```
-
-We provide pre-compiled binary wheels for Windows, macOS, and Linux. No C++ compiler is required for installation.
+We provide pre-compiled binary wheels for Windows, macOS, and Linux.
 
 ### From Source
-If you want to build from source or contribute:
-
-1.  Clone the repository.
-2.  Install build dependencies: `pip install scikit-build-core pybind11`.
-3.  Build and install:
-    ```bash
-    pip install .
-    ```
-
-## GPU Acceleration
-
-PyCauset supports GPU acceleration for matrix operations using NVIDIA CUDA.
-
-**Requirements:**
-*   NVIDIA GPU with Compute Capability 7.0+ (Volta, Turing, Ampere, Ada, Hopper, Blackwell).
-*   **Note:** Pascal (GTX 10 series) and older GPUs are **not supported** by the bundled CUDA 13.0 backend.
-*   Drivers: NVIDIA Driver 520.00 or later.
-
-The GPU backend is automatically detected and used if available. If initialization fails (e.g., unsupported hardware), PyCauset seamlessly falls back to the CPU backend.
-
-## GPU Acceleration
-
-PyCauset supports GPU acceleration for matrix operations using NVIDIA CUDA.
-
-**Requirements:**
-*   NVIDIA GPU with Compute Capability 7.0+ (Volta, Turing, Ampere, Ada, Hopper, Blackwell).
-*   **Note:** Pascal (GTX 10 series) and older GPUs are **not supported** by the bundled CUDA 13.0 backend.
-*   Drivers: NVIDIA Driver 520.00 or later.
-
-**Automatic Fix for Older GPUs:**
-If you have a Pascal GPU (e.g., GTX 1060, 1070, 1080) and CUDA 13 installed, the build system will detect the incompatibility and offer to automatically install CUDA 12.6 via `winget`. This allows PyCauset to compile a compatible backend for your hardware.
-
-The GPU backend is automatically detected and used if available. If initialization fails (e.g., unsupported hardware), PyCauset seamlessly falls back to the CPU backend.
+```bash
+git clone https://github.com/BrorH/pycauset.git
+cd pycauset
+pip install .
+```
 
 ## Quick Start
 
-### 1. Creating Matrices
-The primary structure for causal sets is the `TriangularBitMatrix` (aliased as `CausalMatrix`).
+### 1. Simulating Spacetime
+The `CausalSet` class is the main entry point for physics simulations.
 
 ```python
-import pycauset
+import pycauset as pc
+from pycauset.vis import plot_embedding
 
-# Create a random 1000x1000 causal matrix (Bernoulli p=0.5)
-C = pycauset.CausalMatrix.random(1000, density=0.5)
+# 1. Sprinkle 5000 points into a 2D Minkowski Diamond
+c = pc.CausalSet(n=5000, density=100, seed=42)
 
-# Create an empty matrix (initialized to zeros)
-C_empty = pycauset.CausalMatrix(1000)
+# 2. Access the Causal Matrix (TriangularBitMatrix)
+# Stored efficiently (1 bit per element)
+C = c.C
 
-# Create from a NumPy array
-import numpy as np
-arr = np.triu(np.random.randint(0, 2, (10, 10)), k=1).astype(bool)
-C_from_np = pycauset.CausalMatrix(arr)
+# 3. Visualize the embedding
+fig = plot_embedding(c)
+fig.show()
 ```
 
-### 2. Matrix Operations
-PyCauset supports standard arithmetic and specialized causal set operations.
+### 2. Quantum Field Theory
+Compute the Retarded Propagator ($K_R$) for a scalar field.
 
 ```python
-# Matrix Multiplication (Counting paths of length 2)
-# Returns an IntegerMatrix
-M = pycauset.matmul(C, C)
+from pycauset.field import ScalarField
 
-# Elementwise Multiplication
-E = C * C
+# Define a massive scalar field (m=1.5) on the causal set
+field = ScalarField(c, mass=1.5)
 
-# Bitwise Inversion (NOT)
-C_inv = ~C
-
-# Linear Algebra Inversion (for dense float matrices)
-# Returns a FloatMatrix
-F = pycauset.FloatMatrix(100)
-F_inv = pycauset.invert(F)
+# Compute the propagator K = aC(I - b aC)^-1
+# This uses GPU acceleration if available
+K = field.propagator()
 ```
 
-### 3. Computing the K-Matrix
-A common operation in causal set theory is computing $K = C(aI + C)^{-1}$.
+### 3. Pure Linear Algebra
+You can use PyCauset as a high-performance sparse/dense matrix library.
 
 ```python
-# Compute K with scalar a=1.0
-# Returns a TriangularFloatMatrix
-K = pycauset.compute_k(C, a=1.0)
+# Create a random boolean matrix (10k x 10k)
+A = pc.CausalMatrix(10000, populate=True)
+B = pc.CausalMatrix(10000, populate=True)
+
+# Fast GPU-accelerated BitMatrix multiplication
+# Returns an IntegerMatrix of path counts
+Paths = A @ B 
+
+# Invert a dense float matrix
+M = pc.Matrix(2000, dtype="float32")
+M_inv = ~M # or M.inverse()
 ```
 
-## Matrix Types
+## GPU Acceleration
 
-PyCauset uses a template-based architecture to support efficient storage for different data types:
+PyCauset automatically detects compatible NVIDIA GPUs.
 
-| Class | Description | Storage |
-|-------|-------------|---------|
-| `TriangularBitMatrix` | Strictly upper-triangular boolean matrix. | 1 bit / element |
-| `IntegerMatrix` | Dense matrix of 32-bit integers. | 4 bytes / element |
-| `FloatMatrix` | Dense matrix of 64-bit floats. | 8 bytes / element |
-| `TriangularFloatMatrix` | Strictly upper-triangular float matrix. | 8 bytes / element |
+*   **Requirements**: NVIDIA GPU (Compute Capability 6.0+ recommended).
+*   **Drivers**: Recent NVIDIA Drivers.
+*   **Operations**: `matmul`, `inverse`, `eigvals`, `popcount`.
 
-## Storage Management
+If no GPU is found, PyCauset falls back to a highly optimized multi-threaded CPU backend (OpenMP + AVX-512).
 
-PyCauset manages disk storage automatically to keep your workspace clean.
+## Storage Format
 
-*   **Temporary Files**: All matrices are created as temporary files in a `.pycauset/` directory. These files are **automatically deleted** when your Python script exits (even if it crashes or is interrupted).
-*   **Permanent Storage**: To keep a matrix, you **must** use the `save()` function.
+Large datasets are stored in the **`.pycauset`** format, which is a standard ZIP archive containing:
+1.  `metadata.json`: Dimensions, types, and generation parameters.
+2.  `data.bin`: Raw binary data (memory-mapped directly from the archive).
 
 ```python
-# This matrix is temporary and will be deleted at exit
-temp = pycauset.CausalMatrix(500)
+# Save your simulation
+c.save("simulation_run_1.pycauset")
 
-# Save it permanently to a specific path
-pycauset.save(temp, "my_causet.pycauset")
+# Load it later (instantaneous, no RAM overhead)
+c_loaded = pc.CausalSet.load("simulation_run_1.pycauset")
 ```
+
+## Citation
+
+If you use PyCauset in your research, please cite:
+[https://github.com/BrorH/pycauset](https://github.com/BrorH/pycauset)

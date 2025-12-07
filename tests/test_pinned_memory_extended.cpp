@@ -1,10 +1,12 @@
 #include <gtest/gtest.h>
-#include "TriangularMatrix.hpp"
-#include "DenseVector.hpp"
-#include "DenseBitMatrix.hpp"
-#include "DiagonalMatrix.hpp"
-#include "ComputeContext.hpp"
+#include "pycauset/matrix/TriangularMatrix.hpp"
+#include "pycauset/vector/DenseVector.hpp"
+#include "pycauset/matrix/DenseBitMatrix.hpp"
+#include "pycauset/matrix/DiagonalMatrix.hpp"
+#include "pycauset/compute/ComputeContext.hpp"
 #include <iostream>
+
+using namespace pycauset;
 
 #ifdef ENABLE_CUDA
 #include <cuda_runtime.h>

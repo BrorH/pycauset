@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
-#include "DenseMatrix.hpp"
-#include "MatrixOperations.hpp"
-#include "MatrixFactory.hpp"
-#include "ComputeContext.hpp"
-#include "ComputeDevice.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/math/LinearAlgebra.hpp"
+#include "pycauset/core/ObjectFactory.hpp"
+#include "pycauset/compute/ComputeContext.hpp"
+#include "pycauset/compute/ComputeDevice.hpp"
 #include <filesystem>
 #include <cmath>
 

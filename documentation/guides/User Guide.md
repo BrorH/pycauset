@@ -46,10 +46,10 @@ You can save your entire causal set (including the causal matrix, coordinates, a
 
 ```python
 # Save to disk
-c.save("my_universe.causet")
+c.save("my_universe.pycauset")
 
 # Load it back later
-c_loaded = pc.load("my_universe.causet")
+c_loaded = pc.load("my_universe.pycauset")
 ```
 
 ## Physics & Analysis
@@ -86,7 +86,7 @@ See the **[[Vector Guide]]**.
 ### NumPy Integration
 PyCauset is designed to work seamlessly with the scientific Python ecosystem.
 *   Convert PyCauset objects to NumPy arrays: `np.array(matrix)`
-*   Create PyCauset objects from NumPy arrays: `pc.asarray(array)`
+*   Create PyCauset objects from NumPy arrays: `pc.Matrix(array)` or `pc.Vector(array)`
 
 See the **[[Numpy Integration]]** guide.
 

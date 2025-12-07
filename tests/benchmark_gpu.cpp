@@ -3,11 +3,11 @@
 #include <vector>
 #include <string>
 #include <filesystem>
-#include "DenseMatrix.hpp"
-#include "DenseBitMatrix.hpp"
-#include "ComputeContext.hpp"
-#include "AcceleratorConfig.hpp"
-#include "ComputeDevice.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/matrix/DenseBitMatrix.hpp"
+#include "pycauset/compute/ComputeContext.hpp"
+#include "pycauset/compute/AcceleratorConfig.hpp"
+#include "pycauset/compute/ComputeDevice.hpp"
 
 using namespace pycauset;
 

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "ComputeDevice.hpp"
-#include "AcceleratorConfig.hpp"
-#include "DenseMatrix.hpp"
-#include "Float16.hpp"
+#include "pycauset/compute/ComputeDevice.hpp"
+#include "pycauset/compute/AcceleratorConfig.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/core/Float16.hpp"
 #include <cublas_v2.h>
 #include <cusolverDn.h>
 #include <cuda_runtime.h>

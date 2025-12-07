@@ -1,14 +1,16 @@
 #include <gtest/gtest.h>
-#include "TriangularBitMatrix.hpp"
-#include "TriangularMatrix.hpp"
-#include "DenseMatrix.hpp"
-#include "IdentityMatrix.hpp"
-#include "FileFormat.hpp"
-#include "MemoryMapper.hpp"
-#include "MatrixOperations.hpp"
+#include "pycauset/matrix/TriangularBitMatrix.hpp"
+#include "pycauset/matrix/TriangularMatrix.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/matrix/IdentityMatrix.hpp"
+#include "pycauset/core/StorageUtils.hpp"
+#include "pycauset/core/MemoryMapper.hpp"
+#include "pycauset/math/LinearAlgebra.hpp"
 #include <filesystem>
 #include <fstream>
 #include <cmath>
+
+using namespace pycauset;
 
 // Aliases for convenience
 using FloatMatrix = DenseMatrix<double>;
