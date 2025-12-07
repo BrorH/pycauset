@@ -99,4 +99,35 @@ void ComputeContext::disable_gpu() {
     }
 }
 
+void* ComputeContext::allocate_pinned(size_t size) {
+    if (is_gpu_active()) {
+        void* ptr = current_device->allocate_pinned(size);
+        if (ptr) return ptr;
+    }
+    // Fallback to standard malloc
+    return std::malloc(size);
+}
+
+void ComputeContext::free_pinned(void* ptr) {
+    if (!ptr) return;
+    if (is_gpu_active()) {
+        current_device->free_pinned(ptr);
+        return;
+    }
+    std::free(ptr);
+}
+
+void ComputeContext::register_host_memory(void* ptr, size_t size) {
+    if (is_gpu_active()) {
+        current_device->register_host_memory(ptr, size);
+    }
+}
+
+void ComputeContext::unregister_host_memory(void* ptr) {
+    if (is_gpu_active()) {
+        current_device->unregister_host_memory(ptr);
+    }
+}
+
+} // namespace pycauset
 } // namespace pycauset

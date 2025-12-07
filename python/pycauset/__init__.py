@@ -879,14 +879,20 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
         if dtype is not None:
             if dtype in (int, "int", "int32", "int64"):
                 target_dtype = "int"
-            elif dtype in (float, "float", "float64", "float32"):
+            elif dtype in (float, "float", "float64"):
                 target_dtype = "float"
+            elif dtype == "float32":
+                target_dtype = "float32"
             elif dtype in (bool, "bool", "bool_"):
                 target_dtype = "bool"
             elif _np is not None:
                 if dtype in (_np.int32, _np.int64, _np.integer):
                     target_dtype = "int"
-                elif dtype in (_np.float64, _np.float32, _np.floating):
+                elif dtype == _np.float64:
+                    target_dtype = "float"
+                elif dtype == _np.float32:
+                    target_dtype = "float32"
+                elif isinstance(dtype, type) and issubclass(dtype, _np.floating):
                     target_dtype = "float"
                 elif dtype in (_np.bool_, _np.bool):
                     target_dtype = "bool"
@@ -900,6 +906,9 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                 if _DenseBitMatrix:
                     return _DenseBitMatrix(n, **kwargs)
                 return _IntegerMatrix(n, **kwargs) # Fallback
+            elif target_dtype == "float32":
+                if _Float32Matrix: return _Float32Matrix(n, **kwargs)
+                return _FloatMatrix(n, **kwargs)
             else:
                 # Default to FloatMatrix if no dtype or float
                 # Check for forced precision
@@ -934,7 +943,10 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                     if data.dtype.kind in ('i', 'u'):
                         target_dtype = "int"
                     elif data.dtype.kind == 'f':
-                        target_dtype = "float"
+                        if data.dtype == np.float32:
+                            target_dtype = "float32"
+                        else:
+                            target_dtype = "float"
                     elif data.dtype.kind == 'b':
                         target_dtype = "bool"
                 data = data.tolist()
@@ -988,6 +1000,11 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                 if _DenseBitMatrix:
                     return create_and_fill(_DenseBitMatrix, data)
                 return create_and_fill(_IntegerMatrix, data)
+
+            elif target_dtype == "float32":
+                if _Float32Matrix:
+                    return create_and_fill(_Float32Matrix, data)
+                return create_and_fill(_FloatMatrix, data)
 
             elif target_dtype == "float":
                 if is_triangular:

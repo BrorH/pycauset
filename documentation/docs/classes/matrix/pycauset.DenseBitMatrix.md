@@ -26,8 +26,15 @@ Get the value at row `i` and column `j`.
 ### `set(i: int, j: int, value: bool)`
 Set the value at row `i` and column `j`.
 
-### `multiply(other: DenseBitMatrix, saveas: str = "") -> DenseBitMatrix`
+### `multiply(other: DenseBitMatrix, saveas: str = "") -> IntegerMatrix`
 Multiply this matrix by another `DenseBitMatrix`.
+
+**Returns:**
+*   `IntegerMatrix`: The result of the multiplication. Note that this performs integer matrix multiplication (counting paths), not boolean multiplication. The result at $(i, j)$ is the number of paths of length 1 from $i$ to $j$ (which is just the dot product).
+
+**GPU Acceleration:**
+This operation is **GPU-accelerated** if a compatible NVIDIA GPU is detected. The implementation uses a highly optimized bit-packed kernel that performs 64 operations per cycle per thread.
+
 
 ### `__invert__() -> DenseBitMatrix`
 Compute the bitwise NOT of the matrix.

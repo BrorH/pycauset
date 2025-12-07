@@ -1,4 +1,6 @@
 #include "DenseBitMatrix.hpp"
+#include "ComputeContext.hpp"
+#include "ComputeDevice.hpp"
 #include <stdexcept>
 #include <bit>
 #include <vector>
@@ -100,6 +102,11 @@ std::unique_ptr<DenseMatrix<int32_t>> DenseMatrix<bool>::multiply(const DenseMat
     }
 
     auto result = std::make_unique<DenseMatrix<int32_t>>(n_, result_file);
+
+    if (pycauset::ComputeContext::instance().is_gpu_active()) {
+        pycauset::ComputeContext::instance().get_device()->matmul(*this, other, *result);
+        return result;
+    }
     
     // Naive implementation: O(N^3) bit ops.
     // Optimization: Transpose 'other' to allow row-row operations (popcount).

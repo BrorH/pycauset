@@ -1,9 +1,11 @@
 #include "PersistentObject.hpp"
+#include "SystemUtils.hpp"
 
 #include <stdexcept>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 
 #include "StoragePaths.hpp"
 
@@ -91,7 +93,12 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     std::string path;
     if (backing_file.empty()) {
         // Check if we should use RAM-backed storage
-        if (final_size <= pycauset::get_memory_threshold()) {
+        // Use all available RAM logic (Step 0 of Hyper-Optimization Plan)
+        uint64_t available_ram = SystemUtils::get_available_ram();
+        // Reserve 10% or 500MB, whichever is larger, for OS stability
+        uint64_t reserve = std::max<uint64_t>(available_ram / 10, 500 * 1024 * 1024);
+
+        if (final_size + reserve <= available_ram) {
             path = ":memory:";
         } else {
             path = resolve_backing_file(backing_file, fallback_prefix);

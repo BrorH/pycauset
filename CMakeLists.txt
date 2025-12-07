@@ -22,7 +22,15 @@ if(NOT pybind11_FOUND)
     FetchContent_MakeAvailable(pybind11)
 endif()
 
-# 3. OpenMP (Optional but recommended)
+# 3. Eigen (Required for advanced solvers)
+include(FetchContent)
+FetchContent_Declare(
+  Eigen3
+  URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
+)
+FetchContent_MakeAvailable(Eigen3)
+
+# 4. OpenMP (Optional but recommended)
 find_package(OpenMP)
 if(NOT OpenMP_CXX_FOUND AND APPLE)
     # Try to find OpenMP in Homebrew paths on macOS
@@ -64,6 +72,8 @@ set(PYCAUSET_SOURCES
     src/ParallelUtils.cpp
     src/ComputeContext.cpp
     src/CpuDevice.cpp
+    src/CpuSolver.cpp
+    src/SystemUtils.cpp
 )
 
 # --- Extension Module ---
@@ -75,7 +85,7 @@ python_add_library(_pycauset SHARED src/bindings.cpp ${PYCAUSET_SOURCES})
 target_include_directories(_pycauset PRIVATE include)
 
 # Link libraries
-target_link_libraries(_pycauset PRIVATE pybind11::module)
+target_link_libraries(_pycauset PRIVATE pybind11::module Eigen3::Eigen)
 
 if(MSVC)
     target_compile_options(_pycauset PRIVATE /bigobj)
@@ -142,23 +152,66 @@ if(BUILD_TESTS)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
 
-    add_executable(causal_tests tests/test_main.cpp tests/test_parallel.cpp ${PYCAUSET_SOURCES})
+    add_executable(causal_tests tests/test_main.cpp tests/test_parallel.cpp tests/test_gpu.cpp ${PYCAUSET_SOURCES})
     # Remove bindings.cpp from tests if it contains the main module definition which might conflict
     # Actually bindings.cpp has PYBIND11_MODULE, which is fine in a library but maybe not in an executable if it has main?
     # test_main.cpp has main(). bindings.cpp does not have main().
     
     target_include_directories(causal_tests PRIVATE include)
-    target_link_libraries(causal_tests PRIVATE GTest::gtest_main)
+    target_link_libraries(causal_tests PRIVATE GTest::gtest_main Eigen3::Eigen)
     if(OpenMP_CXX_FOUND)
         target_link_libraries(causal_tests PRIVATE OpenMP::OpenMP_CXX)
     endif()
     
+    # Link CUDA if available for GPU tests
+    if(CUDAToolkit_FOUND)
+        target_link_libraries(causal_tests PRIVATE CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda)
+        target_compile_definitions(causal_tests PRIVATE ENABLE_CUDA)
+    endif()
+    
     add_test(NAME CausalTests COMMAND causal_tests)
+
+    # Type System Tests
+    add_executable(test_types tests/test_types.cpp ${PYCAUSET_SOURCES})
+    target_include_directories(test_types PRIVATE include)
+    target_link_libraries(test_types PRIVATE GTest::gtest_main Eigen3::Eigen)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(test_types PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+    if(CUDAToolkit_FOUND)
+        target_link_libraries(test_types PRIVATE CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda)
+        target_compile_definitions(test_types PRIVATE ENABLE_CUDA)
+    endif()
+    add_test(NAME TypeTests COMMAND test_types)
 
     # Benchmark Executable
     add_executable(benchmark_tests tests/benchmark_parallel.cpp ${PYCAUSET_SOURCES})
     target_include_directories(benchmark_tests PRIVATE include)
+    target_link_libraries(benchmark_tests PRIVATE Eigen3::Eigen)
     if(OpenMP_CXX_FOUND)
         target_link_libraries(benchmark_tests PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+
+    # GPU Benchmark Executable
+    if(CUDAToolkit_FOUND)
+        add_executable(benchmark_gpu tests/benchmark_gpu.cpp ${PYCAUSET_SOURCES})
+        target_include_directories(benchmark_gpu PRIVATE include)
+        target_link_libraries(benchmark_gpu PRIVATE CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda Eigen3::Eigen)
+        target_compile_definitions(benchmark_gpu PRIVATE ENABLE_CUDA)
+        if(OpenMP_CXX_FOUND)
+            target_link_libraries(benchmark_gpu PRIVATE OpenMP::OpenMP_CXX)
+        endif()
+    endif()
+
+    # GPU Float16 Tests
+    if(CUDAToolkit_FOUND)
+        add_executable(test_gpu_float16 tests/test_gpu_float16.cpp ${PYCAUSET_SOURCES})
+        target_include_directories(test_gpu_float16 PRIVATE include src/accelerators/cuda)
+        target_link_libraries(test_gpu_float16 PRIVATE GTest::gtest_main CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda Eigen3::Eigen)
+        target_compile_definitions(test_gpu_float16 PRIVATE ENABLE_CUDA)
+        if(OpenMP_CXX_FOUND)
+            target_link_libraries(test_gpu_float16 PRIVATE OpenMP::OpenMP_CXX)
+        endif()
+        add_test(NAME GpuFloat16Tests COMMAND test_gpu_float16)
     endif()
 endif()
