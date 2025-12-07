@@ -35,6 +35,9 @@ Multiply this matrix by another `DenseBitMatrix`.
 **GPU Acceleration:**
 This operation is **GPU-accelerated** if a compatible NVIDIA GPU is detected. The implementation uses a highly optimized bit-packed kernel that performs 64 operations per cycle per thread.
 
+**CPU Fallback:**
+If no GPU is available, the operation uses optimized AVX-512/NEON `popcount` instructions on the CPU, providing significant speedups over standard loops.
+
 
 ### `__invert__() -> DenseBitMatrix`
 Compute the bitwise NOT of the matrix.

@@ -243,49 +243,9 @@ public:
 
         auto result = std::make_unique<TriangularMatrix<T>>(n_, result_file);
         
-        std::vector<T> accumulator(n_);
-
-        const char* a_base = static_cast<const char*>(require_mapper()->get_data());
-        const char* b_base = static_cast<const char*>(other.require_mapper()->get_data());
-        char* c_base = static_cast<char*>(result->require_mapper()->get_data());
-
-        for (uint64_t i = 0; i < n_; ++i) {
-            std::fill(accumulator.begin(), accumulator.end(), static_cast<T>(0));
-
-            uint64_t row_len_a = (n_ - 1) - i;
-            if (row_len_a == 0) continue;
-
-            uint64_t a_offset = get_row_offset(i);
-            const T* a_row = reinterpret_cast<const T*>(a_base + a_offset);
-
-            for (uint64_t k_idx = 0; k_idx < row_len_a; ++k_idx) {
-                T val_a = a_row[k_idx];
-                if (val_a == static_cast<T>(0)) continue;
-
-                uint64_t k = i + 1 + k_idx;
-
-                uint64_t row_len_b = (n_ - 1) - k;
-                if (row_len_b > 0) {
-                    uint64_t b_offset = other.get_row_offset(k);
-                    const T* b_row = reinterpret_cast<const T*>(b_base + b_offset);
-                    
-                    for (uint64_t j_idx = 0; j_idx < row_len_b; ++j_idx) {
-                        uint64_t j = k + 1 + j_idx;
-                        accumulator[j] += val_a * b_row[j_idx];
-                    }
-                }
-            }
-
-            uint64_t c_offset = result->get_row_offset(i);
-            T* c_row = reinterpret_cast<T*>(c_base + c_offset);
-            
-            for (uint64_t j_idx = 0; j_idx < row_len_a; ++j_idx) {
-                uint64_t j = i + 1 + j_idx;
-                c_row[j_idx] = accumulator[j];
-            }
-        }
+        // Delegate to ComputeContext (AutoSolver)
+        pycauset::ComputeContext::instance().get_device()->matmul(*this, other, *result);
         
-        result->set_scalar(scalar_ * other.get_scalar());
         return result;
     }
 

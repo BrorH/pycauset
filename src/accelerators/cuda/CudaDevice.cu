@@ -50,6 +50,38 @@ CudaDevice::~CudaDevice() {
     cusolverDnDestroy(cusolver_handle_);
 }
 
+void* CudaDevice::allocate_pinned(size_t size) {
+    void* ptr = nullptr;
+    // cudaHostAllocPortable: memory is portable to all CUDA contexts
+    // cudaHostAllocMapped: maps allocation into device address space (Zero Copy) - Optional, but good for integrated GPUs
+    // For discrete GPUs, we just want pinned memory for faster transfer.
+    cudaError_t err = cudaHostAlloc(&ptr, size, cudaHostAllocDefault);
+    if (err != cudaSuccess) {
+        // Fallback or return null?
+        // std::cerr << "cudaHostAlloc failed: " << cudaGetErrorString(err) << std::endl;
+        return nullptr;
+    }
+    return ptr;
+}
+
+void CudaDevice::free_pinned(void* ptr) {
+    if (ptr) {
+        cudaFreeHost(ptr);
+    }
+}
+
+void CudaDevice::register_host_memory(void* ptr, size_t size) {
+    if (ptr && size > 0) {
+        cudaHostRegister(ptr, size, cudaHostRegisterDefault);
+    }
+}
+
+void CudaDevice::unregister_host_memory(void* ptr) {
+    if (ptr) {
+        cudaHostUnregister(ptr);
+    }
+}
+
 void CudaDevice::free_buffers() {
     if (d_A_) { cudaFree(d_A_); d_A_ = nullptr; }
     if (d_B_) { cudaFree(d_B_); d_B_ = nullptr; }
@@ -1002,6 +1034,26 @@ void CudaDevice::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& 
 void CudaDevice::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {
     CudaSolver solver(this);
     solver.multiply_scalar(a, scalar, result);
+}
+
+double CudaDevice::dot(const VectorBase& a, const VectorBase& b) {
+    throw std::runtime_error("CudaDevice::dot not implemented");
+}
+
+void CudaDevice::add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
+    throw std::runtime_error("CudaDevice::add_vector not implemented");
+}
+
+void CudaDevice::subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
+    throw std::runtime_error("CudaDevice::subtract_vector not implemented");
+}
+
+void CudaDevice::scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) {
+    throw std::runtime_error("CudaDevice::scalar_multiply_vector not implemented");
+}
+
+void CudaDevice::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
+    throw std::runtime_error("CudaDevice::scalar_add_vector not implemented");
 }
 
 } // namespace pycauset

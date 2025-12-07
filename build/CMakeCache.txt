@@ -129,33 +129,13 @@ CMAKEPACKAGE_INSTALL_DIR:PATH=share/eigen3/cmake
 //Path to a program.
 CMAKE_AR:FILEPATH=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/lib.exe
 
-//Choose the type of build, options are: None Debug Release RelWithDebInfo
-// MinSizeRel ...
-CMAKE_BUILD_TYPE:STRING=Release
+//Semicolon separated list of supported configuration types, only
+// supports Debug, Release, MinSizeRel, and RelWithDebInfo, anything
+// else will be ignored.
+CMAKE_CONFIGURATION_TYPES:STRING=Debug;Release;MinSizeRel;RelWithDebInfo
 
-//No help, variable specified on the command line.
-CMAKE_CUDA_COMPILER:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe
-
-//Flags used by the CUDA compiler during all build types.
-CMAKE_CUDA_FLAGS:STRING=-allow-unsupported-compiler
-
-//Flags used by the CUDA compiler during DEBUG builds.
-CMAKE_CUDA_FLAGS_DEBUG:STRING=-Xcompiler=" -Zi -Ob0 -Od /RTC1"
-
-//Flags used by the CUDA compiler during MINSIZEREL builds.
-CMAKE_CUDA_FLAGS_MINSIZEREL:STRING=-Xcompiler="-O1 -Ob1" -DNDEBUG
-
-//Flags used by the CUDA compiler during RELEASE builds.
-CMAKE_CUDA_FLAGS_RELEASE:STRING=-Xcompiler="-O2 -Ob2" -DNDEBUG
-
-//Flags used by the CUDA compiler during RELWITHDEBINFO builds.
-CMAKE_CUDA_FLAGS_RELWITHDEBINFO:STRING=-Xcompiler=" -Zi -O2 -Ob1" -DNDEBUG
-
-//Libraries linked by default with all CUDA applications.
-CMAKE_CUDA_STANDARD_LIBRARIES:STRING=kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib
-
-//CXX compiler
-CMAKE_CXX_COMPILER:FILEPATH=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe
+//CUDA compiler
+CMAKE_CUDA_COMPILER:FILEPATH=NOTFOUND
 
 //Flags used by the CXX compiler during all build types.
 CMAKE_CXX_FLAGS:STRING=/DWIN32 /D_WINDOWS /GR /EHsc
@@ -174,9 +154,6 @@ CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O2 /Ob1 /DNDEBUG
 
 //Libraries linked by default with all C++ applications.
 CMAKE_CXX_STANDARD_LIBRARIES:STRING=kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib
-
-//C compiler
-CMAKE_C_COMPILER:FILEPATH=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe
 
 //Flags used by the C compiler during all build types.
 CMAKE_C_FLAGS:STRING=/DWIN32 /D_WINDOWS
@@ -210,12 +187,6 @@ CMAKE_EXE_LINKER_FLAGS_RELEASE:STRING=/INCREMENTAL:NO
 
 //Flags used by the linker during RELWITHDEBINFO builds.
 CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO:STRING=/debug /INCREMENTAL
-
-//Enable/Disable output of build database during the build.
-CMAKE_EXPORT_BUILD_DATABASE:BOOL=
-
-//Enable/Disable output of compile commands during generation.
-CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=
 
 //Value Computed by CMake.
 CMAKE_FIND_PACKAGE_REDIRECTS_DIR:STATIC=C:/Users/ireal/Documents/pycauset/build/CMakeFiles/pkgRedirects
@@ -277,9 +248,6 @@ CMAKE_INSTALL_SYSCONFDIR:PATH=etc
 //Path to a program.
 CMAKE_LINKER:FILEPATH=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/link.exe
 
-//Program used to build from build.ninja files.
-CMAKE_MAKE_PROGRAM:FILEPATH=C:/Users/ireal/AppData/Local/Programs/Python/Python312/Scripts/ninja.exe
-
 //Flags used by the linker during the creation of modules during
 // all build types.
 CMAKE_MODULE_LINKER_FLAGS:STRING=/machine:x64
@@ -301,7 +269,7 @@ CMAKE_MODULE_LINKER_FLAGS_RELEASE:STRING=/INCREMENTAL:NO
 CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO:STRING=/debug /INCREMENTAL
 
 //Path to a program.
-CMAKE_MT:FILEPATH=C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/mt.exe
+CMAKE_MT:FILEPATH=CMAKE_MT-NOTFOUND
 
 //Value Computed by CMake
 CMAKE_PROJECT_COMPAT_VERSION:STATIC=
@@ -334,7 +302,7 @@ CMAKE_PROJECT_VERSION_PATCH:STATIC=0
 CMAKE_PROJECT_VERSION_TWEAK:STATIC=
 
 //RC compiler
-CMAKE_RC_COMPILER:FILEPATH=C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/rc.exe
+CMAKE_RC_COMPILER:FILEPATH=rc
 
 //Flags for Windows Resource Compiler during all build types.
 CMAKE_RC_FLAGS:STRING=-DWIN32
@@ -420,12 +388,6 @@ CTEST_SUBMIT_RETRY_COUNT:STRING=3
 //How long to wait between timed-out CTest submissions.
 CTEST_SUBMIT_RETRY_DELAY:STRING=5
 
-//Path to a file.
-CUDAToolkit_CUPTI_INCLUDE_DIR:PATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/include/../extras/CUPTI/include
-
-//No help, variable specified on the command line.
-CUDAToolkit_ROOT:PATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6
-
 //Compile device code in 64 bit mode
 CUDA_64_BIT_DEVICE_CODE:BOOL=ON
 
@@ -438,9 +400,6 @@ CUDA_BUILD_CUBIN:BOOL=OFF
 
 //Build in Emulation mode
 CUDA_BUILD_EMULATION:BOOL=OFF
-
-//Path to a library.
-CUDA_CUDART:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cudart.lib
 
 //"cudart" library
 CUDA_CUDART_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cudart.lib
@@ -456,7 +415,7 @@ CUDA_GENERATED_OUTPUT_DIR:PATH=
 CUDA_HOST_COMPILATION_CPP:BOOL=ON
 
 //Host side compiler used by NVCC
-CUDA_HOST_COMPILER:FILEPATH=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe
+CUDA_HOST_COMPILER:FILEPATH=$(VCInstallDir)Tools/MSVC/$(VCToolsVersion)/bin/Host$(Platform)/$(PlatformTarget)
 
 //Path to a program.
 CUDA_NVCC_EXECUTABLE:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe
@@ -477,7 +436,7 @@ CUDA_NVCC_FLAGS_RELEASE:STRING=
 // builds.
 CUDA_NVCC_FLAGS_RELWITHDEBINFO:STRING=
 
-//Path to a library.
+//"OpenCL" library
 CUDA_OpenCL_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/OpenCL.lib
 
 //Propagate C/CXX_FLAGS and friends to the host compiler via -Xcompile
@@ -508,172 +467,64 @@ CUDA_VERBOSE_BUILD:BOOL=OFF
 //Version of CUDA as computed from nvcc.
 CUDA_VERSION:STRING=12.6
 
-//Path to a library.
-CUDA_cuFile_LIBRARY:FILEPATH=CUDA_cuFile_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_cuFile_rdma_LIBRARY:FILEPATH=CUDA_cuFile_rdma_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_cuFile_rdma_static_LIBRARY:FILEPATH=CUDA_cuFile_rdma_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_cuFile_static_LIBRARY:FILEPATH=CUDA_cuFile_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_cublasLt_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cublasLt.lib
-
-//Path to a library.
-CUDA_cublasLt_static_LIBRARY:FILEPATH=CUDA_cublasLt_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"cublas" library
 CUDA_cublas_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cublas.lib
-
-//Path to a library.
-CUDA_cublas_static_LIBRARY:FILEPATH=CUDA_cublas_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_cuda_driver_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cuda.lib
 
 //"cudadevrt" library
 CUDA_cudadevrt_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cudadevrt.lib
 
-//Path to a library.
-CUDA_cudart_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cudart.lib
-
-//Path to a library.
+//static CUDA runtime library
 CUDA_cudart_static_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cudart_static.lib
 
-//Path to a library.
-CUDA_cudla_LIBRARY:FILEPATH=CUDA_cudla_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"cufft" library
 CUDA_cufft_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cufft.lib
 
-//Path to a library.
-CUDA_cufft_static_LIBRARY:FILEPATH=CUDA_cufft_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_cufft_static_nocallback_LIBRARY:FILEPATH=CUDA_cufft_static_nocallback_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_cufftw_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cufftw.lib
-
-//Path to a library.
-CUDA_cufftw_static_LIBRARY:FILEPATH=CUDA_cufftw_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_culibos_LIBRARY:FILEPATH=CUDA_culibos_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"cupti" library
 CUDA_cupti_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/extras/CUPTI/lib64/cupti.lib
 
-//Path to a library.
-CUDA_cupti_static_LIBRARY:FILEPATH=CUDA_cupti_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"curand" library
 CUDA_curand_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/curand.lib
 
-//Path to a library.
-CUDA_curand_static_LIBRARY:FILEPATH=CUDA_curand_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"cusolver" library
 CUDA_cusolver_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cusolver.lib
 
-//Path to a library.
-CUDA_cusolver_lapack_static_LIBRARY:FILEPATH=CUDA_cusolver_lapack_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_cusolver_metis_static_LIBRARY:FILEPATH=CUDA_cusolver_metis_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_cusolver_static_LIBRARY:FILEPATH=CUDA_cusolver_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"cusparse" library
 CUDA_cusparse_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cusparse.lib
 
-//Path to a library.
-CUDA_cusparse_static_LIBRARY:FILEPATH=CUDA_cusparse_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"nppc" library
 CUDA_nppc_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nppc.lib
 
-//Path to a library.
-CUDA_nppc_static_LIBRARY:FILEPATH=CUDA_nppc_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"nppial" library
 CUDA_nppial_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nppial.lib
 
-//Path to a library.
-CUDA_nppial_static_LIBRARY:FILEPATH=CUDA_nppial_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"nppicc" library
 CUDA_nppicc_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nppicc.lib
 
-//Path to a library.
-CUDA_nppicc_static_LIBRARY:FILEPATH=CUDA_nppicc_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_nppicom_LIBRARY:FILEPATH=CUDA_nppicom_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_nppicom_static_LIBRARY:FILEPATH=CUDA_nppicom_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"nppidei" library
 CUDA_nppidei_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nppidei.lib
 
-//Path to a library.
-CUDA_nppidei_static_LIBRARY:FILEPATH=CUDA_nppidei_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"nppif" library
 CUDA_nppif_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nppif.lib
 
-//Path to a library.
-CUDA_nppif_static_LIBRARY:FILEPATH=CUDA_nppif_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"nppig" library
 CUDA_nppig_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nppig.lib
 
-//Path to a library.
-CUDA_nppig_static_LIBRARY:FILEPATH=CUDA_nppig_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"nppim" library
 CUDA_nppim_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nppim.lib
 
-//Path to a library.
-CUDA_nppim_static_LIBRARY:FILEPATH=CUDA_nppim_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"nppist" library
 CUDA_nppist_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nppist.lib
 
-//Path to a library.
-CUDA_nppist_static_LIBRARY:FILEPATH=CUDA_nppist_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"nppisu" library
 CUDA_nppisu_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nppisu.lib
 
-//Path to a library.
-CUDA_nppisu_static_LIBRARY:FILEPATH=CUDA_nppisu_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"nppitc" library
 CUDA_nppitc_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nppitc.lib
 
-//Path to a library.
-CUDA_nppitc_static_LIBRARY:FILEPATH=CUDA_nppitc_static_LIBRARY-NOTFOUND
-
-//Path to a library.
+//"npps" library
 CUDA_npps_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/npps.lib
 
-//Path to a library.
-CUDA_npps_static_LIBRARY:FILEPATH=CUDA_npps_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_nvJitLink_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nvJitLink.lib
-
-//Path to a library.
-CUDA_nvJitLink_static_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nvJitLink_static.lib
-
-//Path to a library.
+//"nvToolsExt" library
 CUDA_nvToolsExt_LIBRARY:FILEPATH=CUDA_nvToolsExt_LIBRARY-NOTFOUND
 
 //"nvcuvenc" library
@@ -681,57 +532,6 @@ CUDA_nvcuvenc_LIBRARY:FILEPATH=CUDA_nvcuvenc_LIBRARY-NOTFOUND
 
 //"nvcuvid" library
 CUDA_nvcuvid_LIBRARY:FILEPATH=CUDA_nvcuvid_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_nvfatbin_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nvfatbin.lib
-
-//Path to a library.
-CUDA_nvfatbin_static_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nvfatbin_static.lib
-
-//Path to a library.
-CUDA_nvgraph_LIBRARY:FILEPATH=CUDA_nvgraph_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_nvgraph_static_LIBRARY:FILEPATH=CUDA_nvgraph_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_nvjpeg_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nvjpeg.lib
-
-//Path to a library.
-CUDA_nvjpeg_static_LIBRARY:FILEPATH=CUDA_nvjpeg_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_nvml_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nvml.lib
-
-//Path to a library.
-CUDA_nvml_static_LIBRARY:FILEPATH=CUDA_nvml_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_nvperf_host_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/extras/CUPTI/lib64/nvperf_host.lib
-
-//Path to a library.
-CUDA_nvperf_host_static_LIBRARY:FILEPATH=CUDA_nvperf_host_static_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_nvperf_target_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/extras/CUPTI/lib64/nvperf_target.lib
-
-//Path to a library.
-CUDA_nvptxcompiler_static_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nvptxcompiler_static.lib
-
-//Path to a library.
-CUDA_nvrtc_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nvrtc.lib
-
-//Path to a library.
-CUDA_nvrtc_builtins_LIBRARY:FILEPATH=CUDA_nvrtc_builtins_LIBRARY-NOTFOUND
-
-//Path to a library.
-CUDA_nvrtc_builtins_static_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nvrtc-builtins_static.lib
-
-//Path to a library.
-CUDA_nvrtc_static_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/nvrtc_static.lib
-
-//Path to a library.
-CUDA_pcsamplingutil_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/extras/CUPTI/lib64/pcsamplingutil.lib
 
 //Maximum time allowed before CTest will kill the test.
 DART_TESTING_TIMEOUT:STRING=1500
@@ -1215,20 +1015,6 @@ CMAKE_CTEST_COMMAND-ADVANCED:INTERNAL=1
 CMAKE_CTEST_COMMAND:INTERNAL=C:/Program Files/CMake/bin/ctest.exe
 //ADVANCED property for variable: CMAKE_CUDA_COMPILER
 CMAKE_CUDA_COMPILER-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CMAKE_CUDA_FLAGS
-CMAKE_CUDA_FLAGS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CMAKE_CUDA_FLAGS_DEBUG
-CMAKE_CUDA_FLAGS_DEBUG-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CMAKE_CUDA_FLAGS_MINSIZEREL
-CMAKE_CUDA_FLAGS_MINSIZEREL-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CMAKE_CUDA_FLAGS_RELEASE
-CMAKE_CUDA_FLAGS_RELEASE-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CMAKE_CUDA_FLAGS_RELWITHDEBINFO
-CMAKE_CUDA_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CMAKE_CUDA_STANDARD_LIBRARIES
-CMAKE_CUDA_STANDARD_LIBRARIES-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CMAKE_CXX_COMPILER
-CMAKE_CXX_COMPILER-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_CXX_FLAGS
 CMAKE_CXX_FLAGS-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_CXX_FLAGS_DEBUG
@@ -1241,8 +1027,6 @@ CMAKE_CXX_FLAGS_RELEASE-ADVANCED:INTERNAL=1
 CMAKE_CXX_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_CXX_STANDARD_LIBRARIES
 CMAKE_CXX_STANDARD_LIBRARIES-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CMAKE_C_COMPILER
-CMAKE_C_COMPILER-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_C_FLAGS
 CMAKE_C_FLAGS-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_C_FLAGS_DEBUG
@@ -1255,8 +1039,6 @@ CMAKE_C_FLAGS_RELEASE-ADVANCED:INTERNAL=1
 CMAKE_C_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_C_STANDARD_LIBRARIES
 CMAKE_C_STANDARD_LIBRARIES-ADVANCED:INTERNAL=1
-//Path to cache edit program executable.
-CMAKE_EDIT_COMMAND:INTERNAL=C:/Program Files/CMake/bin/cmake-gui.exe
 //Executable file format
 CMAKE_EXECUTABLE_FORMAT:INTERNAL=Unknown
 //ADVANCED property for variable: CMAKE_EXE_LINKER_FLAGS
@@ -1269,18 +1051,14 @@ CMAKE_EXE_LINKER_FLAGS_MINSIZEREL-ADVANCED:INTERNAL=1
 CMAKE_EXE_LINKER_FLAGS_RELEASE-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO
 CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CMAKE_EXPORT_BUILD_DATABASE
-CMAKE_EXPORT_BUILD_DATABASE-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CMAKE_EXPORT_COMPILE_COMMANDS
-CMAKE_EXPORT_COMPILE_COMMANDS-ADVANCED:INTERNAL=1
 //Name of external makefile project generator.
 CMAKE_EXTRA_GENERATOR:INTERNAL=
 //ADVANCED property for variable: CMAKE_Fortran_COMPILER
 CMAKE_Fortran_COMPILER-ADVANCED:INTERNAL=1
 //Name of generator.
-CMAKE_GENERATOR:INTERNAL=Ninja
+CMAKE_GENERATOR:INTERNAL=Visual Studio 18 2026
 //Generator instance identifier.
-CMAKE_GENERATOR_INSTANCE:INTERNAL=
+CMAKE_GENERATOR_INSTANCE:INTERNAL=C:/Program Files/Microsoft Visual Studio/18/Community
 //Name of generator platform.
 CMAKE_GENERATOR_PLATFORM:INTERNAL=
 //Name of generator toolset.
@@ -1330,8 +1108,6 @@ CMAKE_INSTALL_SYSCONFDIR-ADVANCED:INTERNAL=1
 CMAKE_LINKER-ADVANCED:INTERNAL=1
 //Name of CMakeLists files to read
 CMAKE_LIST_FILE_NAME:INTERNAL=CMakeLists.txt
-//ADVANCED property for variable: CMAKE_MAKE_PROGRAM
-CMAKE_MAKE_PROGRAM-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_MODULE_LINKER_FLAGS
 CMAKE_MODULE_LINKER_FLAGS-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_MODULE_LINKER_FLAGS_DEBUG
@@ -1407,8 +1183,6 @@ COVERAGE_EXTRA_FLAGS-ADVANCED:INTERNAL=1
 CTEST_SUBMIT_RETRY_COUNT-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CTEST_SUBMIT_RETRY_DELAY
 CTEST_SUBMIT_RETRY_DELAY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDAToolkit_CUPTI_INCLUDE_DIR
-CUDAToolkit_CUPTI_INCLUDE_DIR-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_64_BIT_DEVICE_CODE
 CUDA_64_BIT_DEVICE_CODE-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_ATTACH_VS_BUILD_RULE_TO_CUDA_FILE
@@ -1417,8 +1191,6 @@ CUDA_ATTACH_VS_BUILD_RULE_TO_CUDA_FILE-ADVANCED:INTERNAL=1
 CUDA_BUILD_CUBIN-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_BUILD_EMULATION
 CUDA_BUILD_EMULATION-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_CUDART
-CUDA_CUDART-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_CUDART_LIBRARY
 CUDA_CUDART_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_CUDA_LIBRARY
@@ -1460,160 +1232,54 @@ CUDA_TOOLKIT_TARGET_DIR_INTERNAL:INTERNAL=C:/Program Files/NVIDIA GPU Computing 
 CUDA_VERBOSE_BUILD-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_VERSION
 CUDA_VERSION-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cuFile_LIBRARY
-CUDA_cuFile_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cuFile_rdma_LIBRARY
-CUDA_cuFile_rdma_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cuFile_rdma_static_LIBRARY
-CUDA_cuFile_rdma_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cuFile_static_LIBRARY
-CUDA_cuFile_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cublasLt_LIBRARY
-CUDA_cublasLt_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cublasLt_static_LIBRARY
-CUDA_cublasLt_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_cublas_LIBRARY
 CUDA_cublas_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cublas_static_LIBRARY
-CUDA_cublas_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cuda_driver_LIBRARY
-CUDA_cuda_driver_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_cudadevrt_LIBRARY
 CUDA_cudadevrt_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cudart_LIBRARY
-CUDA_cudart_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_cudart_static_LIBRARY
 CUDA_cudart_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cudla_LIBRARY
-CUDA_cudla_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_cufft_LIBRARY
 CUDA_cufft_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cufft_static_LIBRARY
-CUDA_cufft_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cufft_static_nocallback_LIBRARY
-CUDA_cufft_static_nocallback_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cufftw_LIBRARY
-CUDA_cufftw_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cufftw_static_LIBRARY
-CUDA_cufftw_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_culibos_LIBRARY
-CUDA_culibos_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_cupti_LIBRARY
 CUDA_cupti_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cupti_static_LIBRARY
-CUDA_cupti_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_curand_LIBRARY
 CUDA_curand_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_curand_static_LIBRARY
-CUDA_curand_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_cusolver_LIBRARY
 CUDA_cusolver_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cusolver_lapack_static_LIBRARY
-CUDA_cusolver_lapack_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cusolver_metis_static_LIBRARY
-CUDA_cusolver_metis_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cusolver_static_LIBRARY
-CUDA_cusolver_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_cusparse_LIBRARY
 CUDA_cusparse_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_cusparse_static_LIBRARY
-CUDA_cusparse_static_LIBRARY-ADVANCED:INTERNAL=1
 //Location of make2cmake.cmake
 CUDA_make2cmake:INTERNAL=C:/Program Files/CMake/share/cmake-4.2/Modules/FindCUDA/make2cmake.cmake
 //ADVANCED property for variable: CUDA_nppc_LIBRARY
 CUDA_nppc_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppc_static_LIBRARY
-CUDA_nppc_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nppial_LIBRARY
 CUDA_nppial_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppial_static_LIBRARY
-CUDA_nppial_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nppicc_LIBRARY
 CUDA_nppicc_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppicc_static_LIBRARY
-CUDA_nppicc_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppicom_LIBRARY
-CUDA_nppicom_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppicom_static_LIBRARY
-CUDA_nppicom_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nppidei_LIBRARY
 CUDA_nppidei_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppidei_static_LIBRARY
-CUDA_nppidei_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nppif_LIBRARY
 CUDA_nppif_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppif_static_LIBRARY
-CUDA_nppif_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nppig_LIBRARY
 CUDA_nppig_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppig_static_LIBRARY
-CUDA_nppig_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nppim_LIBRARY
 CUDA_nppim_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppim_static_LIBRARY
-CUDA_nppim_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nppist_LIBRARY
 CUDA_nppist_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppist_static_LIBRARY
-CUDA_nppist_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nppisu_LIBRARY
 CUDA_nppisu_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppisu_static_LIBRARY
-CUDA_nppisu_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nppitc_LIBRARY
 CUDA_nppitc_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nppitc_static_LIBRARY
-CUDA_nppitc_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_npps_LIBRARY
 CUDA_npps_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_npps_static_LIBRARY
-CUDA_npps_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvJitLink_LIBRARY
-CUDA_nvJitLink_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvJitLink_static_LIBRARY
-CUDA_nvJitLink_static_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nvToolsExt_LIBRARY
 CUDA_nvToolsExt_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nvcuvenc_LIBRARY
 CUDA_nvcuvenc_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nvcuvid_LIBRARY
 CUDA_nvcuvid_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvfatbin_LIBRARY
-CUDA_nvfatbin_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvfatbin_static_LIBRARY
-CUDA_nvfatbin_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvgraph_LIBRARY
-CUDA_nvgraph_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvgraph_static_LIBRARY
-CUDA_nvgraph_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvjpeg_LIBRARY
-CUDA_nvjpeg_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvjpeg_static_LIBRARY
-CUDA_nvjpeg_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvml_LIBRARY
-CUDA_nvml_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvml_static_LIBRARY
-CUDA_nvml_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvperf_host_LIBRARY
-CUDA_nvperf_host_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvperf_host_static_LIBRARY
-CUDA_nvperf_host_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvperf_target_LIBRARY
-CUDA_nvperf_target_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvptxcompiler_static_LIBRARY
-CUDA_nvptxcompiler_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvrtc_LIBRARY
-CUDA_nvrtc_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvrtc_builtins_LIBRARY
-CUDA_nvrtc_builtins_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvrtc_builtins_static_LIBRARY
-CUDA_nvrtc_builtins_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvrtc_static_LIBRARY
-CUDA_nvrtc_static_LIBRARY-ADVANCED:INTERNAL=1
 //Location of parse_cubin.cmake
 CUDA_parse_cubin:INTERNAL=C:/Program Files/CMake/share/cmake-4.2/Modules/FindCUDA/parse_cubin.cmake
-//ADVANCED property for variable: CUDA_pcsamplingutil_LIBRARY
-CUDA_pcsamplingutil_LIBRARY-ADVANCED:INTERNAL=1
 //Location of run_nvcc.cmake
 CUDA_run_nvcc:INTERNAL=C:/Program Files/CMake/share/cmake-4.2/Modules/FindCUDA/run_nvcc.cmake
 //ADVANCED property for variable: DART_TESTING_TIMEOUT
@@ -1624,8 +1290,6 @@ EIGEN_COMPILER_SUPPORT_CPP11:INTERNAL=
 EIGEN_TEST_EIGEN2-ADVANCED:INTERNAL=1
 //Details about finding CUDA
 FIND_PACKAGE_MESSAGE_DETAILS_CUDA:INTERNAL=[C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6][C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe][C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/include][C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cudart_static.lib][v12.6(7.0)]
-//Details about finding CUDAToolkit
-FIND_PACKAGE_MESSAGE_DETAILS_CUDAToolkit:INTERNAL=[C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/include][C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/cudart.lib][C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin][v12.6.85()]
 //Details about finding OpenMP
 FIND_PACKAGE_MESSAGE_DETAILS_OpenMP:INTERNAL=[TRUE][ ][v2.0()]
 //Details about finding OpenMP_CXX
@@ -1756,8 +1420,6 @@ _Python_LIBRARY_RELEASE:INTERNAL=C:/Users/ireal/AppData/Local/Programs/Python/Py
 _Python_NumPy_REASON_FAILURE:INTERNAL=
 //Path to a library.
 _Python_RUNTIME_LIBRARY_RELEASE:INTERNAL=C:/Users/ireal/AppData/Local/Programs/Python/Python312/python312.dll
-//Result of try_run()
-_RunResult:INTERNAL=0
 cmake_package_name:INTERNAL=GTest
 generated_dir:INTERNAL=C:/Users/ireal/Documents/pycauset/build/_deps/googletest-build/googletest/generated
 //ADVANCED property for variable: gmock_build_tests

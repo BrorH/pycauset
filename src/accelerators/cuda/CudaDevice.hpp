@@ -32,6 +32,12 @@ public:
     void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) override;
 
+    double dot(const VectorBase& a, const VectorBase& b) override;
+    void add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) override;
+    void subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) override;
+    void scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) override;
+    void scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) override;
+
     std::string name() const override { return "CUDA (NVIDIA GPU)"; }
     bool is_gpu() const override { return true; }
     

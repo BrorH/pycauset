@@ -2,6 +2,7 @@
 
 #include "ComputeDevice.hpp"
 #include "AcceleratorConfig.hpp"
+#include "AutoSolver.hpp"
 #include <memory>
 
 namespace pycauset {
@@ -10,8 +11,8 @@ class ComputeContext {
 public:
     static ComputeContext& instance();
     
-    ComputeDevice* get_device();
-    void set_device(std::unique_ptr<ComputeDevice> device);
+    ComputeDevice* get_device() { return &auto_solver_; }
+    // void set_device(std::unique_ptr<ComputeDevice> device); // Removed, use AutoSolver
     
     // Helper to check if GPU is available/active
     bool is_gpu_active() const;
@@ -31,7 +32,8 @@ public:
 private:
     ComputeContext();
     void try_load_cuda(const AcceleratorConfig& config);
-    std::unique_ptr<ComputeDevice> current_device;
+    
+    AutoSolver auto_solver_;
     AcceleratorConfig current_config;
 };
 

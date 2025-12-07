@@ -115,12 +115,17 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     }
     auto* a_im = dynamic_cast<const IntegerMatrix*>(&a);
     auto* a_tbm = dynamic_cast<const TriangularBitMatrix*>(&a);
+    auto* a_dbm = dynamic_cast<const DenseBitMatrix*>(&a);
     
     auto* b_im = dynamic_cast<const IntegerMatrix*>(&b);
     auto* b_tbm = dynamic_cast<const TriangularBitMatrix*>(&b);
+    auto* b_dbm = dynamic_cast<const DenseBitMatrix*>(&b);
 
     // IntegerMatrix x IntegerMatrix
     if (a_im && b_im) return a_im->multiply(*b_im, saveas);
+
+    // DenseBitMatrix x DenseBitMatrix
+    if (a_dbm && b_dbm) return a_dbm->multiply(*b_dbm, saveas);
 
     // TriangularBitMatrix x TriangularBitMatrix -> TriangularIntegerMatrix
     if (a_tbm && b_tbm) {
