@@ -152,6 +152,9 @@ DataType MatrixFactory::resolve_result_type(DataType a, DataType b) {
     if (a == DataType::FLOAT64 || b == DataType::FLOAT64) {
         return DataType::FLOAT64;
     }
+    if (a == DataType::FLOAT32 || b == DataType::FLOAT32) {
+        return DataType::FLOAT32;
+    }
     if (a == DataType::INT32 || b == DataType::INT32) {
         return DataType::INT32;
     }

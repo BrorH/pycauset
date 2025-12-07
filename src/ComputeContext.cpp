@@ -18,8 +18,7 @@ ComputeContext& ComputeContext::instance() {
 }
 
 ComputeContext::ComputeContext() {
-    // Default to CPU
-    current_device = std::make_unique<CpuDevice>();
+    // AutoSolver initializes with CPU by default
     try_load_cuda(AcceleratorConfig());
 }
 
@@ -63,7 +62,7 @@ void ComputeContext::try_load_cuda(const AcceleratorConfig& config) {
             ComputeDevice* device = create_func(&config);
             if (device) {
                 // std::cerr << "[PyCauset] CUDA device created successfully. Switching to GPU." << std::endl;
-                current_device.reset(device);
+                auto_solver_.set_gpu_device(std::unique_ptr<ComputeDevice>(device));
                 current_config = config;
             } else {
                 std::cerr << "[PyCauset] create_cuda_device() returned null." << std::endl;
@@ -76,16 +75,10 @@ void ComputeContext::try_load_cuda(const AcceleratorConfig& config) {
     }
 }
 
-ComputeDevice* ComputeContext::get_device() {
-    return current_device.get();
-}
 
-void ComputeContext::set_device(std::unique_ptr<ComputeDevice> device) {
-    current_device = std::move(device);
-}
 
 bool ComputeContext::is_gpu_active() const {
-    return current_device->is_gpu();
+    return auto_solver_.is_gpu_active();
 }
 
 void ComputeContext::enable_gpu(const AcceleratorConfig& config) {
@@ -94,40 +87,23 @@ void ComputeContext::enable_gpu(const AcceleratorConfig& config) {
 }
 
 void ComputeContext::disable_gpu() {
-    if (is_gpu_active()) {
-        current_device = std::make_unique<CpuDevice>();
-    }
+    auto_solver_.disable_gpu();
 }
 
 void* ComputeContext::allocate_pinned(size_t size) {
-    if (is_gpu_active()) {
-        void* ptr = current_device->allocate_pinned(size);
-        if (ptr) return ptr;
-    }
-    // Fallback to standard malloc
-    return std::malloc(size);
+    return auto_solver_.allocate_pinned(size);
 }
 
 void ComputeContext::free_pinned(void* ptr) {
-    if (!ptr) return;
-    if (is_gpu_active()) {
-        current_device->free_pinned(ptr);
-        return;
-    }
-    std::free(ptr);
+    auto_solver_.free_pinned(ptr);
 }
 
 void ComputeContext::register_host_memory(void* ptr, size_t size) {
-    if (is_gpu_active()) {
-        current_device->register_host_memory(ptr, size);
-    }
+    auto_solver_.register_host_memory(ptr, size);
 }
 
 void ComputeContext::unregister_host_memory(void* ptr) {
-    if (is_gpu_active()) {
-        current_device->unregister_host_memory(ptr);
-    }
+    auto_solver_.unregister_host_memory(ptr);
 }
 
-} // namespace pycauset
 } // namespace pycauset

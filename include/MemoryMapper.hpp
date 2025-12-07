@@ -40,6 +40,7 @@ private:
 #else
     int fd_;
 #endif
+    bool is_pinned_ = false;
 
     void open_file(bool create_new);
     void close_file();

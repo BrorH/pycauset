@@ -9,62 +9,6 @@
 
 namespace pycauset {
 
-// Helper template for executing binary operations (Moved from MatrixOperations.cpp)
-template <typename T, typename Op>
-void execute_binary_op_cpu(const MatrixBase& a, const MatrixBase& b, MatrixBase& result, Op op) {
-    uint64_t n = a.size();
-    
-    // Try to cast to TriangularMatrix<T>
-    auto* tri_res = dynamic_cast<TriangularMatrix<T>*>(&result);
-    if (tri_res) {
-        ParallelFor(0, n, [&](size_t i) {
-            for (uint64_t j = i + 1; j < n; ++j) {
-                T val = op(static_cast<T>(a.get_element_as_double(i, j)), 
-                           static_cast<T>(b.get_element_as_double(i, j)));
-                if (val != static_cast<T>(0)) {
-                    tri_res->set(i, j, val);
-                }
-            }
-        });
-        return;
-    }
-
-    // Try to cast to DiagonalMatrix<T>
-    auto* diag_res = dynamic_cast<DiagonalMatrix<T>*>(&result);
-    if (diag_res) {
-        if (result.get_matrix_type() == MatrixType::IDENTITY) {
-             if (n > 0) {
-                 T val = op(static_cast<T>(a.get_element_as_double(0, 0)), 
-                            static_cast<T>(b.get_element_as_double(0, 0)));
-                 result.set_scalar(static_cast<double>(val));
-             }
-             return;
-        }
-
-        ParallelFor(0, n, [&](size_t i) {
-            T val = op(static_cast<T>(a.get_element_as_double(i, i)), 
-                       static_cast<T>(b.get_element_as_double(i, i)));
-            diag_res->set(i, i, val);
-        });
-        return;
-    }
-
-    // Try to cast to DenseMatrix<T>
-    auto* dense_res = dynamic_cast<DenseMatrix<T>*>(&result);
-    if (dense_res) {
-        ParallelFor(0, n, [&](size_t i) {
-            for (uint64_t j = 0; j < n; ++j) {
-                T val = op(static_cast<T>(a.get_element_as_double(i, j)), 
-                           static_cast<T>(b.get_element_as_double(i, j)));
-                dense_res->set(i, j, val);
-            }
-        });
-        return;
-    }
-
-    throw std::runtime_error("Unknown result matrix type in execute_binary_op_cpu");
-}
-
 void CpuDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     solver_.matmul(a, b, result);
 }
@@ -81,6 +25,18 @@ void CpuDevice::batch_gemv(const MatrixBase& A, const double* x_data, double* y_
     solver_.batch_gemv(A, x_data, y_data, b);
 }
 
+void CpuDevice::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) {
+    solver_.matrix_vector_multiply(m, v, result);
+}
+
+void CpuDevice::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) {
+    solver_.vector_matrix_multiply(v, m, result);
+}
+
+void CpuDevice::outer_product(const VectorBase& a, const VectorBase& b, MatrixBase& result) {
+    solver_.outer_product(a, b, result);
+}
+
 void CpuDevice::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     solver_.add(a, b, result);
 }
@@ -89,8 +45,32 @@ void CpuDevice::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& r
     solver_.subtract(a, b, result);
 }
 
+void CpuDevice::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
+    solver_.elementwise_multiply(a, b, result);
+}
+
 void CpuDevice::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {
     solver_.multiply_scalar(a, scalar, result);
+}
+
+double CpuDevice::dot(const VectorBase& a, const VectorBase& b) {
+    return solver_.dot(a, b);
+}
+
+void CpuDevice::add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
+    solver_.add_vector(a, b, result);
+}
+
+void CpuDevice::subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
+    solver_.subtract_vector(a, b, result);
+}
+
+void CpuDevice::scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) {
+    solver_.scalar_multiply_vector(a, scalar, result);
+}
+
+void CpuDevice::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
+    solver_.scalar_add_vector(a, scalar, result);
 }
 
 } // namespace pycauset

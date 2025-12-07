@@ -27,10 +27,23 @@ public:
     // Y is N x b (Row Major)
     virtual void batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) = 0;
 
+    // Matrix-Vector Operations
+    virtual void matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) = 0;
+    virtual void vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) = 0;
+    virtual void outer_product(const VectorBase& a, const VectorBase& b, MatrixBase& result) = 0;
+
     // Element-wise Operations
     virtual void add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
     virtual void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
+    virtual void elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
     virtual void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) = 0;
+
+    // Vector Operations
+    virtual double dot(const VectorBase& a, const VectorBase& b) = 0;
+    virtual void add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
+    virtual void subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
+    virtual void scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) = 0;
+    virtual void scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) = 0;
 
     // Device Info
     virtual std::string name() const = 0;

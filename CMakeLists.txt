@@ -74,6 +74,7 @@ set(PYCAUSET_SOURCES
     src/CpuDevice.cpp
     src/CpuSolver.cpp
     src/SystemUtils.cpp
+    src/AutoSolver.cpp
 )
 
 # --- Extension Module ---
@@ -192,6 +193,18 @@ if(BUILD_TESTS)
         target_link_libraries(benchmark_tests PRIVATE OpenMP::OpenMP_CXX)
     endif()
 
+    # Optimization Benchmark
+    add_executable(benchmark_optimizations tests/benchmark_optimizations.cpp ${PYCAUSET_SOURCES})
+    target_include_directories(benchmark_optimizations PRIVATE include)
+    target_link_libraries(benchmark_optimizations PRIVATE Eigen3::Eigen)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(benchmark_optimizations PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+    if(CUDAToolkit_FOUND)
+        target_link_libraries(benchmark_optimizations PRIVATE CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda)
+        target_compile_definitions(benchmark_optimizations PRIVATE ENABLE_CUDA)
+    endif()
+
     # GPU Benchmark Executable
     if(CUDAToolkit_FOUND)
         add_executable(benchmark_gpu tests/benchmark_gpu.cpp ${PYCAUSET_SOURCES})
@@ -213,5 +226,56 @@ if(BUILD_TESTS)
             target_link_libraries(test_gpu_float16 PRIVATE OpenMP::OpenMP_CXX)
         endif()
         add_test(NAME GpuFloat16Tests COMMAND test_gpu_float16)
+    endif()
+
+    # Pinned Memory Tests
+    add_executable(test_pinned_memory tests/test_pinned_memory.cpp ${PYCAUSET_SOURCES})
+    target_include_directories(test_pinned_memory PRIVATE include src/accelerators/cuda)
+    target_link_libraries(test_pinned_memory PRIVATE GTest::gtest_main Eigen3::Eigen)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(test_pinned_memory PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+    if(CUDAToolkit_FOUND)
+        target_link_libraries(test_pinned_memory PRIVATE CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda)
+        target_compile_definitions(test_pinned_memory PRIVATE ENABLE_CUDA)
+    endif()
+    add_test(NAME PinnedMemoryTests COMMAND test_pinned_memory)
+
+    # Pinned Memory Extended Tests
+    add_executable(test_pinned_memory_extended tests/test_pinned_memory_extended.cpp ${PYCAUSET_SOURCES})
+    target_include_directories(test_pinned_memory_extended PRIVATE include src/accelerators/cuda)
+    target_link_libraries(test_pinned_memory_extended PRIVATE GTest::gtest_main Eigen3::Eigen)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(test_pinned_memory_extended PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+    if(CUDAToolkit_FOUND)
+        target_link_libraries(test_pinned_memory_extended PRIVATE CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda)
+        target_compile_definitions(test_pinned_memory_extended PRIVATE ENABLE_CUDA)
+    endif()
+    add_test(NAME PinnedMemoryExtendedTests COMMAND test_pinned_memory_extended)
+
+    # Solver Tests
+    add_executable(test_solvers tests/test_solvers.cpp ${PYCAUSET_SOURCES})
+    target_include_directories(test_solvers PRIVATE include src/accelerators/cuda)
+    target_link_libraries(test_solvers PRIVATE GTest::gtest_main Eigen3::Eigen)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(test_solvers PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+    if(CUDAToolkit_FOUND)
+        target_link_libraries(test_solvers PRIVATE CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda)
+        target_compile_definitions(test_solvers PRIVATE ENABLE_CUDA)
+    endif()
+    add_test(NAME SolverTests COMMAND test_solvers)
+
+    # Extensive Solver Benchmark
+    add_executable(benchmark_solvers_extensive tests/benchmark_solvers_extensive.cpp ${PYCAUSET_SOURCES})
+    target_include_directories(benchmark_solvers_extensive PRIVATE include src/accelerators/cuda)
+    target_link_libraries(benchmark_solvers_extensive PRIVATE Eigen3::Eigen)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(benchmark_solvers_extensive PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+    if(CUDAToolkit_FOUND)
+        target_link_libraries(benchmark_solvers_extensive PRIVATE CUDA::cudart CUDA::cublas CUDA::cusolver pycauset_cuda)
+        target_compile_definitions(benchmark_solvers_extensive PRIVATE ENABLE_CUDA)
     endif()
 endif()

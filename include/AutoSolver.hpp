@@ -1,14 +1,32 @@
 #pragma once
 
 #include "ComputeDevice.hpp"
-#include "CpuSolver.hpp"
-#include "MatrixBase.hpp"
-#include "VectorBase.hpp"
+#include "CpuDevice.hpp"
+#include "AcceleratorConfig.hpp"
+#include <memory>
+#include <string>
 
 namespace pycauset {
 
-class CpuDevice : public ComputeDevice {
+// Forward declaration to avoid including CudaDevice header here if possible,
+// but we might need it for the unique_ptr.
+// Actually, we can use ComputeDevice pointer for the GPU device to keep this header clean
+// of CUDA dependencies if we want, but we need to know it's a CudaDevice to construct it.
+class CudaDevice;
+
+class AutoSolver : public ComputeDevice {
 public:
+    AutoSolver();
+    ~AutoSolver() override;
+
+    // Initialize GPU support
+    // Takes ownership of the GPU device
+    void set_gpu_device(std::unique_ptr<ComputeDevice> device);
+    void disable_gpu();
+    bool is_gpu_active() const;
+
+    // --- ComputeDevice Interface ---
+
     void matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void inverse(const MatrixBase& in, MatrixBase& out) override;
     void eigvals(const MatrixBase& matrix, ComplexVector& result) override;
@@ -29,11 +47,26 @@ public:
     void scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) override;
     void scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) override;
 
-    std::string name() const override { return "CPU"; }
-    bool is_gpu() const override { return false; }
+    std::string name() const override;
+    bool is_gpu() const override; // Returns true if GPU is *enabled* and *active*
+    int preferred_precision() const override;
+
+    // Memory Management
+    void* allocate_pinned(size_t size) override;
+    void free_pinned(void* ptr) override;
+    void register_host_memory(void* ptr, size_t size) override;
+    void unregister_host_memory(void* ptr) override;
 
 private:
-    CpuSolver solver_;
+    std::unique_ptr<CpuDevice> cpu_device_;
+    std::unique_ptr<ComputeDevice> gpu_device_; // Polymorphic to avoid CUDA headers here?
+    
+    // Thresholds
+    uint64_t gpu_threshold_elements_ = 512 * 512; // Default threshold (approx 250K elements)
+
+    // Helper to decide device
+    ComputeDevice* select_device(uint64_t n_elements) const;
+    ComputeDevice* select_device_for_matrix(const MatrixBase& m) const;
 };
 
 } // namespace pycauset

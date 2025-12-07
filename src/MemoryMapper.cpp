@@ -1,4 +1,5 @@
 #include "MemoryMapper.hpp"
+#include "ComputeContext.hpp"
 #include <iostream>
 #include <filesystem>
 
@@ -14,7 +15,7 @@
 #endif
 
 MemoryMapper::MemoryMapper(const std::string& filename, size_t data_size, size_t offset, bool create_new) 
-    : filename_(filename), data_size_(data_size), offset_(offset), mapped_ptr_(nullptr), base_ptr_(nullptr) {
+    : filename_(filename), data_size_(data_size), offset_(offset), mapped_ptr_(nullptr), base_ptr_(nullptr), is_pinned_(false) {
     open_file(create_new);
 }
 
@@ -47,6 +48,20 @@ size_t MemoryMapper::get_granularity() {
 #ifdef _WIN32
 void MemoryMapper::open_file(bool create_new) {
     if (filename_ == ":memory:") {
+        // Try Pinned Memory if GPU is active
+        if (pycauset::ComputeContext::instance().is_gpu_active()) {
+            mapped_ptr_ = pycauset::ComputeContext::instance().allocate_pinned(data_size_);
+            if (mapped_ptr_) {
+                // Success! We are using pinned memory.
+                // base_ptr_ is same as mapped_ptr_ for malloc/pinned
+                base_ptr_ = mapped_ptr_;
+                hFile_ = INVALID_HANDLE_VALUE;
+                hMapping_ = NULL;
+                is_pinned_ = true;
+                return;
+            }
+        }
+
         hFile_ = INVALID_HANDLE_VALUE;
         offset_ = 0; // Ignore offset for memory-only
     } else {
@@ -178,7 +193,12 @@ void MemoryMapper::open_file(bool create_new) {
 
 void MemoryMapper::close_file() {
     if (base_ptr_) {
-        UnmapViewOfFile(base_ptr_);
+        // Check if it was pinned memory
+        if (is_pinned_) {
+            pycauset::ComputeContext::instance().free_pinned(base_ptr_);
+        } else {
+            UnmapViewOfFile(base_ptr_);
+        }
         base_ptr_ = nullptr;
         mapped_ptr_ = nullptr;
     }
@@ -194,6 +214,17 @@ void MemoryMapper::close_file() {
 #else
 void MemoryMapper::open_file(bool create_new) {
     if (filename_ == ":memory:") {
+        // Try Pinned Memory if GPU is active
+        if (pycauset::ComputeContext::instance().is_gpu_active()) {
+            mapped_ptr_ = pycauset::ComputeContext::instance().allocate_pinned(data_size_);
+            if (mapped_ptr_) {
+                base_ptr_ = mapped_ptr_;
+                fd_ = -1;
+                is_pinned_ = true;
+                return;
+            }
+        }
+
         fd_ = -1;
         offset_ = 0;
     } else {
@@ -267,12 +298,16 @@ void MemoryMapper::open_file(bool create_new) {
 
 void MemoryMapper::close_file() {
     if (base_ptr_ && base_ptr_ != MAP_FAILED) {
-        size_t granularity = get_granularity();
-        size_t aligned_offset = (offset_ / granularity) * granularity;
-        size_t adjustment = offset_ - aligned_offset;
-        size_t map_size = data_size_ + adjustment;
-        
-        munmap(base_ptr_, map_size);
+        if (is_pinned_) {
+            pycauset::ComputeContext::instance().free_pinned(base_ptr_);
+        } else {
+            size_t granularity = get_granularity();
+            size_t aligned_offset = (offset_ / granularity) * granularity;
+            size_t adjustment = offset_ - aligned_offset;
+            size_t map_size = data_size_ + adjustment;
+            
+            munmap(base_ptr_, map_size);
+        }
         base_ptr_ = nullptr;
         mapped_ptr_ = nullptr;
     }

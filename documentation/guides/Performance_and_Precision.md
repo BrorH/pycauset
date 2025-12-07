@@ -1,31 +1,41 @@
 # Performance and Precision Guide
 
-PyCauset is designed to automatically optimize performance based on your hardware. This guide explains how precision (Float32 vs Float64) is handled and how you can control it.
+PyCauset is designed to automatically optimize performance based on your hardware using a unified **Compute Context**. This guide explains how the solver architecture works, how precision (Float32 vs Float64) is handled, and how you can control it.
+
+## Solver Architecture
+
+PyCauset uses a global singleton called the **ComputeContext** to manage all computational resources.
+
+1.  **AutoSolver**: The default interface. It automatically selects the best available device (CPU or GPU) for each operation.
+2.  **ComputeDevice**: The abstract base class for all backends (e.g., CpuDevice, CudaDevice).
+3.  **Dynamic Dispatch**: When you perform an operation (like matrix multiplication), the AutoSolver checks if a GPU is available and capable. If so, it dispatches the work to the GPU; otherwise, it falls back to the optimized CPU implementation.
 
 ## Automatic Hardware Detection
 
-When you load the CUDA accelerator, PyCauset queries your GPU's Compute Capability to determine the optimal floating-point precision.
+When PyCauset initializes, the ComputeContext queries your system:
 
-*   **Consumer GPUs (GeForce GTX/RTX)**: These cards typically have excellent single-precision (Float32) performance but poor double-precision (Float64) performance (often 1/32 or 1/64 rate). PyCauset defaults to **Float32** on these systems.
-*   **Data Center GPUs (Tesla P100/V100/A100)**: These cards have dedicated hardware for double-precision. PyCauset may default to **Float64** (or respect your input type more strictly) on these systems.
+*   **CPU**: Detects AVX2/AVX-512 support for vectorized operations.
+*   **GPU**: Checks for CUDA-capable devices.
+    *   **Consumer GPUs (GeForce GTX/RTX)**: Typically default to **Float32** due to hardware constraints (poor Float64 performance).
+    *   **Data Center GPUs (Tesla/A100)**: May default to **Float64** if supported.
 
 ## Memory Management Strategy
 
 PyCauset uses a **"RAM-First"** architecture to maximize speed.
 
-1.  **Use All Available RAM**: Unlike previous versions that imposed artificial limits (e.g., 1GB chunks), the system now aggressively utilizes all available physical RAM. If your machine has 64GB of RAM, PyCauset will use it to keep matrices in memory for maximum throughput.
-2.  **Automatic Disk Spillover**: When physical RAM is exhausted, the system seamlessly switches to disk-backed storage (memory-mapped files). This allows you to process datasets larger than RAM without crashing, albeit at reduced speed.
-3.  **No Configuration Needed**: This behavior is automatic. You do not need to configure memory limits manually.
+1.  **Use All Available RAM**: The system aggressively utilizes available physical RAM to keep matrices in memory for maximum throughput.
+2.  **Automatic Disk Spillover**: When physical RAM is exhausted, the system seamlessly switches to disk-backed storage (memory-mapped files).
+3.  **No Configuration Needed**: This behavior is automatic.
 
 ## Default Behavior
 
-When you convert a NumPy array to a PyCauset matrix using `pycauset.asarray()`:
+When you convert a NumPy array to a PyCauset matrix using pycauset.asarray():
 
-1.  **Float32 Input**: Always creates a `Float32Matrix`.
-2.  **Float16 Input**: Always creates a `Float16Matrix` (native support).
+1.  **Float32 Input**: Always creates a Float32Matrix.
+2.  **Float16 Input**: Always creates a Float16Matrix (native support).
 3.  **Float64 Input (Standard NumPy)**:
-    *   If your hardware prefers Float32 (e.g., GTX 1060), PyCauset will **automatically downcast** to `Float32Matrix` for a 15-30x speedup.
-    *   If your hardware supports fast Float64, it creates a `Float64Matrix`.
+    *   If your hardware prefers Float32 (e.g., GTX 1060), PyCauset will **automatically downcast** to Float32Matrix for a 15-30x speedup.
+    *   If your hardware supports fast Float64, it creates a Float64Matrix.
 
 ## Forcing Precision
 
@@ -34,7 +44,7 @@ If you require specific precision regardless of performance, you can force it by
 ### Force Float64 (High Precision)
 Use this if you need 64-bit accuracy, even if it runs slowly on your GPU.
 
-```python
+`python
 import numpy as np
 import pycauset
 
@@ -45,32 +55,29 @@ a_np = np.random.rand(1000, 1000).astype(np.float64)
 # To force Float64, you currently need to use the specific class constructor (if exposed) 
 # or ensure the auto-detection is disabled (feature coming soon).
 # Currently, asarray() performs the optimization.
-```
-
+``n
 ### Force Float32 (High Performance)
 Use this to ensure maximum speed.
 
-```python
+`python
 import numpy as np
 import pycauset
 
 # Explicitly cast to float32
 a_np = np.random.rand(1000, 1000).astype(np.float32)
 a = pycauset.asarray(a_np) # Always creates Float32Matrix
-```
-
+``n
 ### Force Float16 (Tensor Core Performance)
 Use this for maximum throughput on Volta/Turing/Ampere GPUs.
 
-```python
+`python
 import numpy as np
 import pycauset
 
 # Explicitly cast to float16
 a_np = np.random.rand(1000, 1000).astype(np.float16)
 a = pycauset.asarray(a_np) # Always creates Float16Matrix
-```
-
+``n
 ## Benchmarks
 
 On a GTX 1060 (Pascal):
@@ -86,17 +93,17 @@ PyCauset implements a hybrid CPU/GPU strategy for complex linear algebra operati
 
 ### Matrix Inversion & Eigenvalues
 
-*   **GPU Acceleration**: If a CUDA-capable GPU is detected, operations like `inverse()` and `eigvals()` (dense) use NVIDIA's `cuSolver` library. This provides massive parallelism for $O(N^3)$ operations.
+*   **GPU Acceleration**: If a CUDA-capable GPU is detected, operations like inverse() and eigvals() (dense) use NVIDIA's cuSolver library. This provides massive parallelism for (N^3)$ operations.
 *   **Automatic Fallback**: GPU memory (VRAM) is limited. If your matrix is too large for the GPU, or if the operation fails for any reason, PyCauset **automatically falls back** to the multi-threaded CPU implementation. You do not need to write try-catch blocks or check memory manually.
 *   **CPU Parallelism**: The CPU fallback uses OpenMP to parallelize block operations across all available cores.
-*   **Unified Type Support**: Solvers now respect the input type. `Float32` matrices use `Float32` solvers (saving 50% memory and bandwidth), and `Float16` matrices use `Float16` Tensor Core operations where available.
+*   **Unified Type Support**: Solvers now respect the input type. Float32 matrices use Float32 solvers (saving 50% memory and bandwidth), and Float16 matrices use Float16 Tensor Core operations where available.
 
 | Operation | GPU Implementation | CPU Implementation |
 | :--- | :--- | :--- |
-| **Matrix Multiply** | `cuBLAS` (Async Pipelined) | OpenMP Blocked |
-| **Inversion** | `cuSolver` (LU + Getri) | Block Gauss-Jordan (Parallel) |
-| **Eigenvalues (Dense)** | `cuSolver` (QR/GeeV) | Sequential QR (w/ Parallel Reduction) |
-| **Eigenvalues (Arnoldi)** | `cuBLAS` (Async Pipelined) | OpenMP (Mat-Vec) |
+| **Matrix Multiply** | cuBLAS (Async Pipelined) | OpenMP Blocked |
+| **Inversion** | cuSolver (LU + Getri) | Block Gauss-Jordan (Parallel) |
+| **Eigenvalues (Dense)** | cuSolver (QR/GeeV) | Sequential QR (w/ Parallel Reduction) |
+| **Eigenvalues (Arnoldi)** | cuBLAS (Async Pipelined) | OpenMP (Mat-Vec) |
 
 
 ## Benchmark Results (Out-of-Core Solver)
@@ -126,4 +133,3 @@ Consumer GPUs excel at single-precision arithmetic.
 | 4096 | 0.5419 | 0.1929 | **2.81x** |
 
 **Recommendation**: Use **Float32** for maximum performance on consumer hardware unless 64-bit precision is strictly required.
-

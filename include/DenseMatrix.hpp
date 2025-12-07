@@ -4,6 +4,7 @@
 #include "MatrixTraits.hpp"
 #include "StoragePaths.hpp"
 #include "ParallelUtils.hpp"
+#include "ComputeContext.hpp"
 #include <stdexcept>
 #include <string>
 #include <algorithm>
@@ -175,87 +176,9 @@ public:
 
         auto result = std::make_unique<DenseMatrix<T>>(n_, result_file);
         
-        const T* a_data = data();
-        const T* b_data = other.data();
-        T* c_data = result->data();
+        // Delegate to ComputeContext (AutoSolver)
+        pycauset::ComputeContext::instance().get_device()->matmul(*this, other, *result);
         
-        std::fill(c_data, c_data + n_ * n_, static_cast<T>(0));
-
-        bool t_a = this->is_transposed();
-        bool t_b = other.is_transposed();
-        
-        size_t block_size = 64;
-
-        pycauset::ParallelBlockMap(n_, n_, block_size, [&](size_t i_start, size_t i_end, size_t j_start, size_t j_end) {
-            for (size_t k_start = 0; k_start < n_; k_start += block_size) {
-                size_t k_end = std::min(k_start + block_size, (size_t)n_);
-                
-                if (!t_a && !t_b) {
-                    // A * B (Standard)
-                    // IKJ algorithm: A sequential, B sequential, C sequential
-                    for (size_t i = i_start; i < i_end; ++i) {
-                        for (size_t k = k_start; k < k_end; ++k) {
-                            T val_a = a_data[i * n_ + k];
-                            if (val_a == static_cast<T>(0)) continue;
-                            
-                            const T* b_ptr = b_data + k * n_;
-                            T* c_ptr = c_data + i * n_;
-                            
-                            for (size_t j = j_start; j < j_end; ++j) {
-                                c_ptr[j] += val_a * b_ptr[j];
-                            }
-                        }
-                    }
-                } else if (!t_a && t_b) {
-                    // A * B^T
-                    // IJK algorithm (Dot Product): A sequential, B sequential
-                    for (size_t i = i_start; i < i_end; ++i) {
-                        const T* a_ptr = a_data + i * n_;
-                        T* c_ptr = c_data + i * n_;
-                        
-                        for (size_t j = j_start; j < j_end; ++j) {
-                            T sum = 0;
-                            const T* b_ptr = b_data + j * n_;
-                            
-                            for (size_t k = k_start; k < k_end; ++k) {
-                                sum += a_ptr[k] * b_ptr[k];
-                            }
-                            c_ptr[j] += sum;
-                        }
-                    }
-                } else if (t_a && !t_b) {
-                    // A^T * B
-                    // IKJ algorithm: A stride-N, B sequential
-                    for (size_t i = i_start; i < i_end; ++i) {
-                        T* c_ptr = c_data + i * n_;
-                        for (size_t k = k_start; k < k_end; ++k) {
-                            T val_a = a_data[k * n_ + i];
-                            if (val_a == static_cast<T>(0)) continue;
-                            
-                            const T* b_ptr = b_data + k * n_;
-                            for (size_t j = j_start; j < j_end; ++j) {
-                                c_ptr[j] += val_a * b_ptr[j];
-                            }
-                        }
-                    }
-                } else {
-                    // A^T * B^T
-                    // IJK algorithm: A stride-N, B stride-N
-                    for (size_t i = i_start; i < i_end; ++i) {
-                        T* c_ptr = c_data + i * n_;
-                        for (size_t j = j_start; j < j_end; ++j) {
-                            T sum = 0;
-                            for (size_t k = k_start; k < k_end; ++k) {
-                                sum += a_data[k * n_ + i] * b_data[j * n_ + k];
-                            }
-                            c_ptr[j] += sum;
-                        }
-                    }
-                }
-            }
-        });
-        
-        result->set_scalar(scalar_ * other.get_scalar());
         return result;
     }
 
@@ -264,136 +187,11 @@ public:
         if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
             throw std::runtime_error("Inverse only supported for FloatMatrix (double) or Float32Matrix (float)");
         } else {
-            // Implementation copied from KMatrix.cpp
-            if (n_ == 0) return std::make_unique<DenseMatrix<T>>(0, result_file);
-            if (scalar_ == 0.0) throw std::runtime_error("Matrix scalar is 0, cannot invert");
-
-            std::string work_path = copy_storage(pycauset::make_unique_storage_file("inverse_work"));
-            auto work_mapper = std::make_unique<MemoryMapper>(work_path, 0, false);
-            DenseMatrix<T> work(n_, std::move(work_mapper));
-            work.set_temporary(true); // Ensure work file is deleted
-            
             auto result = std::make_unique<DenseMatrix<T>>(n_, result_file);
             
-            T* w = work.data();
-            T* r = result->data();
+            // Delegate to ComputeContext (AutoSolver)
+            pycauset::ComputeContext::instance().get_device()->inverse(*this, *result);
             
-            std::fill(r, r + n_ * n_, (T)0.0);
-            for (uint64_t i = 0; i < n_; ++i) r[i * n_ + i] = (T)1.0;
-
-            // Block Gauss-Jordan
-            size_t block_size = 64;
-            T epsilon = std::is_same_v<T, float> ? 1e-5f : 1e-12;
-            T zero_threshold = std::is_same_v<T, float> ? 1e-7f : 1e-15;
-            
-            for (size_t k_start = 0; k_start < n_; k_start += block_size) {
-                size_t k_end = std::min(k_start + block_size, (size_t)n_);
-                
-                // Phase 1: Process the pivot block rows (Sequential within the block logic)
-                // We must clear the columns k_start..k_end for the rows k_start..k_end
-                for (size_t i = k_start; i < k_end; ++i) {
-                    // Pivot
-                    size_t pivot = i;
-                    T max_val = std::abs(w[i * n_ + i]);
-                    for (size_t k = i + 1; k < n_; ++k) {
-                        T val = std::abs(w[k * n_ + i]);
-                        if (val > max_val) {
-                            max_val = val;
-                            pivot = k;
-                        }
-                    }
-
-                    if (max_val < epsilon) {
-                        work.close();
-                        std::filesystem::remove(work_path);
-                        throw std::runtime_error("Matrix is singular or nearly singular");
-                    }
-
-                    if (pivot != i) {
-                        // Swap rows in W and R
-                        // This is O(N), but done only B times per block.
-                        // We can parallelize this swap if needed, but it's memory bound.
-                        for (size_t j = 0; j < n_; ++j) {
-                            std::swap(w[i * n_ + j], w[pivot * n_ + j]);
-                            std::swap(r[i * n_ + j], r[pivot * n_ + j]);
-                        }
-                    }
-
-                    T div = w[i * n_ + i];
-                    T inv_div = (T)1.0 / div;
-                    
-                    // Scale pivot row
-                    // Parallelize scaling for large N
-                    if (n_ > 1000) {
-                        pycauset::ParallelFor(0, n_, [&](size_t j) {
-                            w[i * n_ + j] *= inv_div;
-                            r[i * n_ + j] *= inv_div;
-                        });
-                    } else {
-                        for (size_t j = 0; j < n_; ++j) {
-                            w[i * n_ + j] *= inv_div;
-                            r[i * n_ + j] *= inv_div;
-                        }
-                    }
-                    // Ensure pivot is exactly 1.0
-                    w[i * n_ + i] = (T)1.0;
-
-                    // Eliminate within the block rows (k_start..k_end)
-                    // This makes the diagonal block Identity
-                    for (size_t k = k_start; k < k_end; ++k) {
-                        if (k != i) {
-                            T factor = w[k * n_ + i];
-                            if (std::abs(factor) > zero_threshold) {
-                                w[k * n_ + i] = (T)0.0; // Explicitly zero out
-                                // Row operation: Row_k -= factor * Row_i
-                                // This is small enough to do sequentially or with simple vectorization
-                                for (size_t j = i + 1; j < n_; ++j) w[k * n_ + j] -= factor * w[i * n_ + j];
-                                for (size_t j = 0; j < n_; ++j) r[k * n_ + j] -= factor * r[i * n_ + j];
-                            }
-                        }
-                    }
-                }
-
-                // Phase 2: Eliminate these columns in ALL other rows (Parallel)
-                // We need to eliminate columns k_start..k_end for rows 0..k_start and k_end..n_
-                // For a row 'row_idx', and column 'col_idx' in [k_start, k_end):
-                // Row_row_idx -= W[row_idx, col_idx] * Row_col_idx
-                // Since Row_col_idx (the pivot row) has 1.0 at col_idx and 0.0 at other pivot cols (due to Phase 1),
-                // we can process the whole strip at once.
-                
-                // We can treat this as a matrix multiplication update.
-                // TargetRows -= Coefficients * PivotRows
-                // Coefficients is size (NumTargetRows x BlockSize)
-                // PivotRows is size (BlockSize x N)
-                
-                auto update_rows = [&](size_t r_start, size_t r_end) {
-                    pycauset::ParallelFor(r_start, r_end, [&](size_t i) {
-                        // For each row i, we want to eliminate columns k_start..k_end
-                        // We do this by subtracting multiples of rows k_start..k_end
-                        // Since the block k_start..k_end is Identity (from Phase 1),
-                        // the coefficient for Row_j (where j in k_start..k_end) is simply W[i, j].
-                        
-                        for (size_t k = k_start; k < k_end; ++k) {
-                            double factor = w[i * n_ + k];
-                            if (std::abs(factor) > 1e-15) {
-                                w[i * n_ + k] = 0.0;
-                                // Subtract factor * Row_k from Row_i
-                                // Optimization: Only update W from k_end onwards (previous cols are 0)
-                                // But R needs full update.
-                                for (size_t j = k_end; j < n_; ++j) w[i * n_ + j] -= factor * w[k * n_ + j];
-                                for (size_t j = 0; j < n_; ++j) r[i * n_ + j] -= factor * r[k * n_ + j];
-                            }
-                        }
-                    });
-                };
-
-                if (k_start > 0) update_rows(0, k_start);
-                if (k_end < n_) update_rows(k_end, n_);
-            }
-            
-            if (scalar_ != 1.0) result->set_scalar(1.0 / scalar_);
-            work.close();
-            std::filesystem::remove(work_path);
             return result;
         }
     }

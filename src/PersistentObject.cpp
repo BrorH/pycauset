@@ -94,7 +94,7 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     if (backing_file.empty()) {
         // Check if we should use RAM-backed storage
         // Use all available RAM logic (Step 0 of Hyper-Optimization Plan)
-        uint64_t available_ram = SystemUtils::get_available_ram();
+        uint64_t available_ram = pycauset::SystemUtils::get_available_ram();
         // Reserve 10% or 500MB, whichever is larger, for OS stability
         uint64_t reserve = std::max<uint64_t>(available_ram / 10, 500 * 1024 * 1024);
 

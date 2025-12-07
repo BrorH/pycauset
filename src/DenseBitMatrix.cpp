@@ -103,48 +103,10 @@ std::unique_ptr<DenseMatrix<int32_t>> DenseMatrix<bool>::multiply(const DenseMat
 
     auto result = std::make_unique<DenseMatrix<int32_t>>(n_, result_file);
 
-    if (pycauset::ComputeContext::instance().is_gpu_active()) {
-        pycauset::ComputeContext::instance().get_device()->matmul(*this, other, *result);
-        return result;
-    }
-    
-    // Naive implementation: O(N^3) bit ops.
-    // Optimization: Transpose 'other' to allow row-row operations (popcount).
-    
-    // 1. Create temporary transpose of 'other' in memory (or disk if too large?)
-    // For simplicity, let's do an in-memory transpose if it fits, or just slow access.
-    // Given we want "efficient", let's do a block-based approach or just transpose.
-    // Let's assume we can allocate a temporary buffer for the transpose of B.
-    // Since it's bits, N=10000 is ~12MB. It fits in memory easily.
-    
-    std::vector<uint64_t> b_transposed(n_ * (stride_bytes_ / 8));
-    // Fill transpose
-    for (uint64_t i = 0; i < n_; ++i) {
-        for (uint64_t j = 0; j < n_; ++j) {
-            if (other.get(i, j)) {
-                // Set (j, i) in transposed
-                uint64_t word_idx = i / 64;
-                uint64_t bit_idx = i % 64;
-                b_transposed[j * (stride_bytes_ / 8) + word_idx] |= (1ULL << bit_idx);
-            }
-        }
-    }
-
-    const uint64_t* a_data = data();
-    uint64_t words_per_row = stride_bytes_ / 8;
-    
-    for (uint64_t i = 0; i < n_; ++i) {
-        const uint64_t* a_row = a_data + i * words_per_row;
-        for (uint64_t j = 0; j < n_; ++j) {
-            const uint64_t* b_col = b_transposed.data() + j * words_per_row;
-            
-            int32_t dot_product = 0;
-            for (uint64_t k = 0; k < words_per_row; ++k) {
-                dot_product += popcount64(a_row[k] & b_col[k]);
-            }
-            result->set(i, j, dot_product);
-        }
-    }
+    // Delegate to ComputeContext (AutoSolver)
+    // AutoSolver will choose between GPU and CPU (CpuSolver)
+    // CpuSolver now contains the optimized bit matrix multiplication logic
+    pycauset::ComputeContext::instance().get_device()->matmul(*this, other, *result);
     
     return result;
 }
