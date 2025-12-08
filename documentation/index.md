@@ -2,7 +2,7 @@
 
 **PyCauset** is a high-performance Python library for numerical Causal Set Theory. It is designed to bridge the gap between abstract mathematical models and large-scale numerical simulations.
 
-## The Philosophy: "Disk is Infinite"
+## The Philosophy: Tiered Storage
 
 Causal sets are computationally demanding. For a set of size $N$, the causal matrix is $O(N^2)$. For $N=100,000$, a dense matrix requires gigabytes of memory.
 
@@ -30,6 +30,7 @@ Detailed documentation of classes and functions.
 ### 🧠 [[internals/index|Internals]]
 Deep dive into the C++ core for contributors.
 *   **[[internals/Compute Architecture|Compute Architecture]]**: CPU/GPU dispatch and solvers.
+*   **[[internals/MemoryArchitecture|Memory Architecture]]**: Tiered storage, Governor, and CoW.
 *   **[[internals/Memory and Data|Memory & Data]]**: The `.pycauset` ZIP format and memory mapping.
 *   **[[internals/Algorithms|Algorithms]]**: Mathematical derivations and implementation details.
 

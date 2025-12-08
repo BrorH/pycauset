@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "index.md",
+                "file": "internals/Memory and Data.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "index"
+              "title": "Memory and Data"
             }
           },
           {
@@ -194,13 +194,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "index.md",
+                "file": "internals/Memory and Data.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of index"
+              "title": "Outline of Memory and Data"
             }
           }
         ],
@@ -223,7 +223,16 @@
   },
   "active": "1563eaae446d05e3",
   "lastOpenFiles": [
+    "guides/Storage and Memory.md",
     "project/Protocols.md",
+    "internals/MemoryArchitecture.md",
+    "internals/Memory and Data.md",
+    "internals/Algorithms.md",
+    "internals/CooperativeArchitecture.md",
+    "internals/Compute Architecture.md",
+    "project/Philosophy.md",
+    "internals/plans/io_optimization_plan.md",
+    "internals/plans",
     "index.md",
     "project/Contributing.md",
     "guides/Vector Guide.md",
@@ -231,12 +240,7 @@
     "guides/Performance Guide.md",
     "guides/Numpy Integration.md",
     "guides/Field Theory.md",
-    "internals/Memory and Data.md",
-    "guides/Storage and Memory.md",
-    "project/Philosophy.md",
     "project/index.md",
-    "internals/Compute Architecture.md",
-    "internals/Algorithms.md",
     "internals/ComputeSystem.md",
     "internals/PROTOCOL_ADDING_OPERATIONS.md",
     "guides/Performance_and_Precision.md",
@@ -244,11 +248,8 @@
     "internals/MemorySystem.md",
     "internals/SolverArchitecture.md",
     "internals/gpu_architecture.md",
-    "internals/MemoryArchitecture.md",
     "internals/PLAN_HYPER_OPTIMIZATION.md",
     "internals/PLAN_GLOBAL_PIVOTING.md",
-    "internals/TypeSystem.md",
-    "internals/GPU Memory Management.md",
     "docs/classes/vector",
     "docs/classes/spacetime",
     "docs/classes/matrix",
@@ -257,7 +258,6 @@
     "docs/pycauset.vis",
     "docs/parameters",
     "docs/functions",
-    "docs/classes",
-    "docs"
+    "docs/classes"
   ]
 }

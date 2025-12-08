@@ -24,10 +24,12 @@
 #include "pycauset/core/ObjectFactory.hpp"
 #include "pycauset/core/Float16.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
+#include "pycauset/core/MemoryHints.hpp"
 
 #include "pycauset/vector/UnitVector.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
+#include "pycauset/core/IOAccelerator.hpp"
 #include "pycauset/compute/AcceleratorConfig.hpp"
 #include "pycauset/compute/ComputeDevice.hpp"
 
@@ -539,9 +541,23 @@ PYBIND11_MODULE(_pycauset, m) {
         .def("set_transposed", &PersistentObject::set_transposed)
         .def("is_transposed", &PersistentObject::is_transposed)
         .def("get_backing_file", &PersistentObject::get_backing_file)
+        .def("copy", [](const PersistentObject& self) {
+            return self.clone();
+        }, "Create a lazy copy (Copy-on-Write) of the object.")
         .def("copy_storage", &PersistentObject::copy_storage, 
              py::arg("result_file_hint") = "",
-             "Create a copy of the backing storage. Handles both disk-backed and memory-backed objects.");
+             "Create a copy of the backing storage. Handles both disk-backed and memory-backed objects.")
+        .def("prefetch", [](PersistentObject& self, size_t offset, size_t size) {
+            if (auto* acc = self.get_accelerator()) {
+                acc->prefetch(offset, size);
+            }
+        }, py::arg("offset"), py::arg("size"), "Prefetch a range of memory from disk.")
+        .def("discard", [](PersistentObject& self, size_t offset, size_t size) {
+            if (auto* acc = self.get_accelerator()) {
+                acc->discard(offset, size);
+            }
+        }, py::arg("offset"), py::arg("size"), "Discard a range of memory (mark as unneeded).")
+        .def("hint", &PersistentObject::hint, py::arg("hint"), "Send a memory access hint to the IO Accelerator.");
 
     py::class_<MatrixBase, PersistentObject>(m, "MatrixBase", py::dynamic_attr())
         .def("trace", &pycauset::trace)
@@ -1587,6 +1603,22 @@ PYBIND11_MODULE(_pycauset, m) {
 
     m.def("get_num_threads", &pycauset::ThreadPool::get_num_threads,
           "Get the current number of threads used for parallel operations.");
+
+    // --- Memory Hints ---
+    py::enum_<pycauset::core::AccessPattern>(m, "AccessPattern")
+        .value("Sequential", pycauset::core::AccessPattern::Sequential)
+        .value("Reverse", pycauset::core::AccessPattern::Reverse)
+        .value("Strided", pycauset::core::AccessPattern::Strided)
+        .value("Random", pycauset::core::AccessPattern::Random)
+        .value("Once", pycauset::core::AccessPattern::Once)
+        .export_values();
+
+    py::class_<pycauset::core::MemoryHint>(m, "MemoryHint")
+        .def(py::init<>())
+        .def_static("sequential", &pycauset::core::MemoryHint::sequential, 
+                    py::arg("start"), py::arg("len"))
+        .def_static("strided", &pycauset::core::MemoryHint::strided,
+                    py::arg("start"), py::arg("len"), py::arg("stride"), py::arg("block"));
 
     m.def("is_gpu_available", []() {
         return ComputeContext::instance().is_gpu_active();

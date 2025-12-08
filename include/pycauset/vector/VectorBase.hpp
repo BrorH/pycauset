@@ -13,7 +13,7 @@ public:
     explicit VectorBase(uint64_t n);
 
     VectorBase(uint64_t n, 
-               std::unique_ptr<::MemoryMapper> mapper,
+               std::shared_ptr<::MemoryMapper> mapper,
                pycauset::MatrixType matrix_type,
                pycauset::DataType data_type);
 
@@ -35,6 +35,8 @@ public:
                pycauset::DataType data_type);
 
     virtual ~VectorBase() = default;
+
+    std::unique_ptr<PersistentObject> clone() const override;
 
     uint64_t size() const { return n_; }
 

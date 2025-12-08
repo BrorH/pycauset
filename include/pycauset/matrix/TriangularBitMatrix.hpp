@@ -31,7 +31,7 @@ public:
                      bool is_transposed);
 
     // Constructor for loading from existing mapper
-    TriangularMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper);
+    TriangularMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper);
 
     // Set bit at (i, j). Only valid for i < j.
     void set(uint64_t i, uint64_t j, bool value);

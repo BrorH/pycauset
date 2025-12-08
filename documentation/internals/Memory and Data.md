@@ -2,9 +2,9 @@
 
 This document details the internal architecture of the Pycauset memory system, matrix/vector hierarchy, and type system.
 
-## 1. Memory System: "Everything is a File"
+## 1. Memory System: Tiered Storage
 
-PyCauset is designed to handle causal sets that exceed physical RAM. To achieve this, it adopts a memory-mapped architecture where almost all large objects are backed by files on disk.
+PyCauset is designed to handle causal sets that exceed physical RAM. To achieve this, it adopts a tiered storage architecture where objects can live in RAM or be backed by files on disk.
 
 *   **Persistence**: Objects survive process termination if saved.
 *   **Virtual Memory**: The OS handles paging, allowing datasets larger than RAM.
@@ -66,11 +66,13 @@ The system is built on a hierarchy designed to separate **storage management** f
 ```mermaid
 classDiagram
     class PersistentObject {
-        +MemoryMapper mapper_
+        +shared_ptr~MemoryMapper~ mapper_
         +double scalar_
         +bool is_transposed_
         +initialize_storage()
         +copy_storage()
+        +ensure_unique()
+        +clone()
     }
     
     class MatrixBase {

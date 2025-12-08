@@ -53,10 +53,11 @@ public:
         set_transposed(is_transposed);
     }
 
-    DenseMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
+    DenseMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
         : MatrixBase(n, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {}
 
     void set(uint64_t i, uint64_t j, T value) {
+        ensure_unique();
         if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
         if (is_transposed()) {
             data()[j * n_ + i] = value;

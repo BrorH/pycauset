@@ -33,6 +33,18 @@ public:
         bool is_transposed = false
     );
 
+    // Clones a matrix (Lazy Copy / CoW) sharing the same storage
+    static std::unique_ptr<MatrixBase> clone_matrix(
+        std::shared_ptr<MemoryMapper> mapper,
+        uint64_t rows,
+        uint64_t cols,
+        DataType dtype,
+        MatrixType mtype,
+        uint64_t seed = 0,
+        double scalar = 1.0,
+        bool is_transposed = false
+    );
+
     // --- Vector Creation ---
 
     static std::unique_ptr<VectorBase> create_vector(
@@ -52,6 +64,17 @@ public:
         uint64_t seed,
         double scalar,
         bool is_transposed
+    );
+
+    static std::unique_ptr<VectorBase> clone_vector(
+        std::shared_ptr<MemoryMapper> mapper,
+        uint64_t rows,
+        uint64_t cols,
+        DataType dtype,
+        MatrixType mtype,
+        uint64_t seed = 0,
+        double scalar = 1.0,
+        bool is_transposed = false
     );
 
     // --- Type Resolution ---

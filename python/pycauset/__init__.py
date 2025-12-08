@@ -1466,7 +1466,7 @@ def __getattr__(name):
 
 
 __all__ = [name for name in dir(_native) if not name.startswith("__")]
-__all__.extend(["save", "keep_temp_files", "seed", "Matrix", "Vector", "TriangularMatrix", "CausalMatrix", "TriangularBitMatrix", "compute_k", "bitwise_not", "invert", "I", "CausalSet", "Causet"])
+__all__.extend(["save", "keep_temp_files", "seed", "Matrix", "Vector", "TriangularMatrix", "CausalMatrix", "TriangularBitMatrix", "compute_k", "bitwise_not", "invert", "I", "CausalSet", "Causet", "MemoryHint", "AccessPattern"])
 # Remove deprecated classes from __all__ if they were added by dir(_native)
 for _deprecated in ["IntegerMatrix", "FloatMatrix", "TriangularFloatMatrix", "TriangularIntegerMatrix", "FloatVector", "IntegerVector", "BitVector"]:
     if _deprecated in __all__:

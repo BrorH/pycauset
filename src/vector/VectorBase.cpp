@@ -1,5 +1,6 @@
 #include "pycauset/vector/VectorBase.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
+#include "pycauset/core/ObjectFactory.hpp"
 #include <memory>
 
 namespace pycauset {
@@ -7,7 +8,7 @@ namespace pycauset {
 VectorBase::VectorBase(uint64_t n) : PersistentObject(), n_(n) {}
 
 VectorBase::VectorBase(uint64_t n, 
-                       std::unique_ptr<::MemoryMapper> mapper,
+                       std::shared_ptr<::MemoryMapper> mapper,
                        pycauset::MatrixType matrix_type,
                        pycauset::DataType data_type) 
     : PersistentObject(std::move(mapper), matrix_type, data_type, n, 1), n_(n) {}
@@ -40,6 +41,10 @@ VectorBase::VectorBase(uint64_t n,
     set_seed(seed);
     set_scalar(scalar);
     set_transposed(is_transposed);
+}
+
+std::unique_ptr<PersistentObject> VectorBase::clone() const {
+    return ObjectFactory::clone_vector(mapper_, rows_, cols_, data_type_, matrix_type_, seed_, scalar_, is_transposed_);
 }
 
 } // namespace pycauset

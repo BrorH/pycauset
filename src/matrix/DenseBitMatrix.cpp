@@ -53,12 +53,13 @@ DenseMatrix<bool>::DenseMatrix(uint64_t n,
     set_transposed(is_transposed);
 }
 
-DenseMatrix<bool>::DenseMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
+DenseMatrix<bool>::DenseMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
     : MatrixBase(n, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT) {
     calculate_stride();
 }
 
 void DenseMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
+    ensure_unique();
     if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
 
     if (is_transposed()) {

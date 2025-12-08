@@ -1,12 +1,15 @@
 #include "pycauset/core/PersistentObject.hpp"
 #include "pycauset/core/SystemUtils.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
+#include "pycauset/core/MemoryGovernor.hpp"
+#include "pycauset/core/IOAccelerator.hpp"
 
 #include <stdexcept>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <iostream>
 
 #include "pycauset/core/StorageUtils.hpp"
 
@@ -15,9 +18,10 @@ PersistentObject::PersistentObject()
       matrix_type_(pycauset::MatrixType::UNKNOWN), 
       data_type_(pycauset::DataType::UNKNOWN), 
       rows_(0), cols_(0), seed_(0), scalar_(1.0), 
-      is_transposed_(false), is_temporary_(false) {}
+      is_transposed_(false), is_temporary_(false),
+      storage_state_(pycauset::core::StorageState::DISK_BACKED) {}
 
-PersistentObject::PersistentObject(std::unique_ptr<MemoryMapper> mapper,
+PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
                                    pycauset::MatrixType matrix_type,
                                    pycauset::DataType data_type,
                                    uint64_t rows,
@@ -36,9 +40,14 @@ PersistentObject::PersistentObject(std::unique_ptr<MemoryMapper> mapper,
       is_transposed_(is_transposed),
       is_temporary_(is_temporary)
 {
+    // Determine initial state
+    if (mapper_ && mapper_->get_filename() == ":memory:") {
+        storage_state_ = pycauset::core::StorageState::RAM_ONLY;
+        pycauset::core::MemoryGovernor::instance().register_object(this, mapper_->get_data_size());
+    } else {
+        storage_state_ = pycauset::core::StorageState::DISK_BACKED;
+    }
 }
-
-#include <iostream>
 
 PersistentObject::~PersistentObject() {
     close();
@@ -53,6 +62,11 @@ std::string PersistentObject::get_backing_file() const {
 
 void PersistentObject::close() {
     if (mapper_) {
+        // Unregister from Governor if we were in RAM
+        if (storage_state_ == pycauset::core::StorageState::RAM_ONLY) {
+            pycauset::core::MemoryGovernor::instance().unregister_object(this);
+        }
+
         bool temp = is_temporary_;
         std::string path = mapper_->get_filename();
         // std::cout << "Closing object. Temp: " << temp << ", Path: " << path << std::endl;
@@ -76,6 +90,147 @@ void PersistentObject::close() {
     }
 }
 
+void PersistentObject::ensure_unique() {
+    if (mapper_ && mapper_.use_count() > 1) {
+        size_t size = mapper_->get_data_size();
+        std::string new_path;
+        bool use_ram = (storage_state_ == pycauset::core::StorageState::RAM_ONLY);
+        
+        if (use_ram) {
+             if (!pycauset::core::MemoryGovernor::instance().request_ram(size)) {
+                 use_ram = false;
+             }
+        }
+        
+        if (use_ram) {
+            new_path = ":memory:";
+        } else {
+            new_path = pycauset::make_unique_storage_file("cow_copy");
+        }
+        
+        auto new_mapper = std::make_unique<MemoryMapper>(new_path, size, 0, true);
+        std::memcpy(new_mapper->get_data(), mapper_->get_data(), size);
+        
+        if (!use_ram) {
+            new_mapper->flush();
+        }
+        
+        mapper_ = std::move(new_mapper);
+        accelerator_.reset();
+        
+        if (!use_ram) {
+            storage_state_ = pycauset::core::StorageState::DISK_BACKED;
+        } else {
+            storage_state_ = pycauset::core::StorageState::RAM_ONLY;
+        }
+    }
+}
+
+void PersistentObject::touch() {
+    if (storage_state_ == pycauset::core::StorageState::RAM_ONLY) {
+        pycauset::core::MemoryGovernor::instance().touch(this);
+    }
+}
+
+bool PersistentObject::spill_to_disk() {
+    if (storage_state_ != pycauset::core::StorageState::RAM_ONLY || !mapper_) {
+        return false;
+    }
+
+    // 1. Create temp file path
+    std::string temp_path = pycauset::make_unique_storage_file("spill");
+    size_t size = mapper_->get_data_size();
+
+    // Log warning for large files
+    if (size > 1024 * 1024 * 100) { // 100MB
+        std::cout << "PyCauset: Evicting object to disk to free RAM (" << (size / 1024 / 1024) << " MB)..." << std::endl;
+    }
+
+    try {
+        storage_state_ = pycauset::core::StorageState::TRANSITIONING;
+
+        // 2. Create new file-backed mapper
+        auto new_mapper = std::make_unique<MemoryMapper>(temp_path, size, 0, true);
+
+        // 3. Copy data
+        std::memcpy(new_mapper->get_data(), mapper_->get_data(), size);
+        new_mapper->flush();
+
+        // 4. Swap mappers
+        mapper_ = std::move(new_mapper);
+        accelerator_.reset();
+
+        // 5. Update state
+        storage_state_ = pycauset::core::StorageState::DISK_BACKED;
+        is_temporary_ = true; // Spilled files are always temporary
+
+        // 6. Unregister from Governor (RAM usage is now 0)
+        pycauset::core::MemoryGovernor::instance().unregister_object(this);
+
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to spill object to disk: " << e.what() << std::endl;
+        // Revert state (data is still in RAM)
+        storage_state_ = pycauset::core::StorageState::RAM_ONLY;
+        return false;
+    }
+}
+
+bool PersistentObject::promote_to_ram() {
+    if (storage_state_ != pycauset::core::StorageState::DISK_BACKED || !mapper_) {
+        return false;
+    }
+
+    size_t size = mapper_->get_data_size();
+
+    // 1. Ask Governor for RAM
+    if (!pycauset::core::MemoryGovernor::instance().request_ram(size)) {
+        return false;
+    }
+
+    try {
+        storage_state_ = pycauset::core::StorageState::TRANSITIONING;
+
+        // 2. Create new RAM-backed mapper
+        auto new_mapper = std::make_unique<MemoryMapper>(":memory:", size, 0, true);
+
+        // 3. Copy data
+        std::memcpy(new_mapper->get_data(), mapper_->get_data(), size);
+
+        // 4. Swap mappers
+        // Note: Old file is closed when unique_ptr is overwritten.
+        // If it was temporary, it will be deleted by close() logic if we didn't move it out.
+        // Wait, mapper_ is overwritten. The old mapper's destructor runs.
+        // If is_temporary_ is true, we want the old file deleted.
+        // But PersistentObject::close() handles deletion based on is_temporary_.
+        // MemoryMapper destructor just unmaps. It doesn't delete files.
+        // So we need to manually delete the old file if it was temporary.
+        
+        std::string old_path = mapper_->get_filename();
+        bool was_temp = is_temporary_;
+
+        mapper_ = std::move(new_mapper);
+        accelerator_.reset();
+
+        if (was_temp && old_path != ":memory:") {
+             std::filesystem::remove(reinterpret_cast<const char8_t*>(old_path.c_str()));
+        }
+
+        // 5. Update state
+        storage_state_ = pycauset::core::StorageState::RAM_ONLY;
+        
+        // 6. Register with Governor
+        pycauset::core::MemoryGovernor::instance().register_object(this, size);
+
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to promote object to RAM: " << e.what() << std::endl;
+        storage_state_ = pycauset::core::StorageState::DISK_BACKED;
+        // Also unregister if we failed after registering? No, we register at end.
+        return false;
+    }
+}
+
 void PersistentObject::initialize_storage(uint64_t size_in_bytes,
                                    const std::string& backing_file,
                                    const std::string& fallback_prefix,
@@ -92,27 +247,20 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     }
     
     std::string path;
-    if (backing_file.empty()) {
-        // Check user-defined threshold first
-        uint64_t threshold = pycauset::get_memory_threshold();
-        bool force_disk = (final_size > threshold);
+    bool use_ram = false;
 
-        if (!force_disk) {
-            // Check if we should use RAM-backed storage
-            // Use all available RAM logic (Step 0 of Hyper-Optimization Plan)
-            uint64_t available_ram = pycauset::SystemUtils::get_available_ram();
-            // Reserve 10% or 500MB, whichever is larger, for OS stability
-            uint64_t reserve = std::max<uint64_t>(available_ram / 10, 500 * 1024 * 1024);
-
-            if (final_size + reserve > available_ram) {
-                force_disk = true;
-            }
-        }
-
-        if (!force_disk) {
+    if (backing_file.empty() || backing_file == ":memory:") {
+        // Ask MemoryGovernor
+        if (pycauset::core::MemoryGovernor::instance().request_ram(final_size)) {
+            use_ram = true;
             path = ":memory:";
         } else {
-            path = resolve_backing_file(backing_file, fallback_prefix);
+            // Fallback to disk if RAM is full
+            if (final_size > 1024 * 1024 * 100) { // Log for >100MB
+                 std::cout << "PyCauset: RAM full (or object too large), falling back to disk for " 
+                           << (final_size / 1024 / 1024) << " MB object." << std::endl;
+            }
+            path = resolve_backing_file("", fallback_prefix);
         }
     } else {
         path = resolve_backing_file(backing_file, fallback_prefix);
@@ -120,6 +268,7 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     
     // Create new file, no header space needed
     mapper_ = std::make_unique<MemoryMapper>(path, final_size, offset, create_new);
+    accelerator_.reset();
 
     // Initialize members
     matrix_type_ = matrix_type;
@@ -130,7 +279,15 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     is_temporary_ = (backing_file.empty() || path == ":memory:" || backing_file.ends_with(".tmp"));
     is_transposed_ = false;
     seed_ = 0;
+
+    if (use_ram) {
+        storage_state_ = pycauset::core::StorageState::RAM_ONLY;
+        pycauset::core::MemoryGovernor::instance().register_object(this, final_size);
+    } else {
+        storage_state_ = pycauset::core::StorageState::DISK_BACKED;
+    }
 }
+
 
 std::string PersistentObject::copy_storage(const std::string& result_file_hint) const {
     std::string source_path = get_backing_file();
@@ -220,3 +377,19 @@ std::string PersistentObject::resolve_backing_file(const std::string& requested,
     }
     return pycauset::make_unique_storage_file(fallback_prefix);
 }
+
+pycauset::core::IOAccelerator* PersistentObject::get_accelerator() const {
+    if (!accelerator_) {
+        if (mapper_) {
+            accelerator_ = std::make_unique<pycauset::core::IOAccelerator>(mapper_.get());
+        }
+    }
+    return accelerator_.get();
+}
+
+void PersistentObject::hint(const pycauset::core::MemoryHint& hint) const {
+    if (auto* acc = get_accelerator()) {
+        acc->process_hint(hint);
+    }
+}
+
