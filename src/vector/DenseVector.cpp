@@ -38,7 +38,7 @@ DenseVector<bool>::DenseVector(uint64_t n,
     set_transposed(is_transposed);
 }
 
-DenseVector<bool>::DenseVector(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
+DenseVector<bool>::DenseVector(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
     : VectorBase(n, std::move(mapper), pycauset::MatrixType::VECTOR, pycauset::DataType::BIT) {}
 
 void DenseVector<bool>::set(uint64_t i, bool value) {

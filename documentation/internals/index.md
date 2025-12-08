@@ -5,7 +5,8 @@ This section documents the internal architecture and design decisions of PyCause
 ## Architecture
 
 *   **[[Compute Architecture]]**: The unified CPU/GPU compute architecture, including `ComputeContext`, `AutoSolver`, and parallelization strategies.
-*   **[[Memory and Data]]**: Memory management, file-backed storage, and the `.pycauset` file format.
+*   **[[MemoryArchitecture]]**: The Tiered Storage system, Memory Governor, IO Accelerator, and Copy-on-Write mechanism.
+*   **[[Memory and Data]]**: The `.pycauset` file format and the Object Hierarchy.
 *   **[[Algorithms]]**: Details of the solvers (Eigenvalue, Matrix Multiplication) and their implementations.
 
 ## Process

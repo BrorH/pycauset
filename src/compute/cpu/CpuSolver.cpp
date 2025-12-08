@@ -11,6 +11,7 @@
 #include "pycauset/math/Eigen.hpp"
 #include "pycauset/core/Float16.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
+#include "pycauset/core/MemoryHints.hpp"
 #include <stdexcept>
 #include <algorithm>
 #include <cmath>
@@ -37,6 +38,30 @@ namespace {
         bool t_a = a_dense->is_transposed();
         bool t_b = b_dense->is_transposed();
         
+        // --- Lookahead Protocol: Send Memory Hints ---
+        using namespace pycauset::core;
+        size_t total_bytes = n * n * sizeof(T);
+        size_t stride_bytes = n * sizeof(T);
+        size_t block_bytes = sizeof(T);
+
+        // Hint A
+        if (t_a) {
+            // A is transposed, so we access it column-wise (Strided)
+            a_dense->hint(MemoryHint::strided(0, total_bytes, stride_bytes, block_bytes));
+        } else {
+            // A is normal, accessed row-wise (Sequential)
+            a_dense->hint(MemoryHint::sequential(0, total_bytes));
+        }
+
+        // Hint B
+        // B is always accessed sequentially in the inner loops of our optimized kernels
+        // (See logic below: we switch loop order to favor B's row-major layout)
+        b_dense->hint(MemoryHint::sequential(0, total_bytes));
+
+        // Hint C (Write)
+        c_dense->hint(MemoryHint::sequential(0, total_bytes));
+        // ---------------------------------------------
+
         size_t block_size = 64;
 
         ParallelBlockMap(n, n, block_size, [&](size_t i_start, size_t i_end, size_t j_start, size_t j_end) {

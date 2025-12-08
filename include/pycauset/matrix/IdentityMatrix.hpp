@@ -37,7 +37,7 @@ public:
                             MatrixTraits<T>::data_type) {
     }
 
-    IdentityMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
+    IdentityMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
         : DiagonalMatrix<T>(n, std::move(mapper), pycauset::MatrixType::IDENTITY, MatrixTraits<T>::data_type) {}
 
     // Override set/get to avoid accessing data()

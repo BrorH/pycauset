@@ -42,13 +42,14 @@ TriangularMatrix<bool>::TriangularMatrix(uint64_t n,
     set_transposed(is_transposed);
 }
 
-TriangularMatrix<bool>::TriangularMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
+TriangularMatrix<bool>::TriangularMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
     : TriangularMatrixBase(n, std::move(mapper), pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT) {
     // Calculate offsets for bits (1 bit per element), aligned to 64 bits
     calculate_triangular_offsets(1, 64);
 }
 
 void TriangularMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
+    ensure_unique();
     if (is_transposed()) {
         std::swap(i, j);
     }

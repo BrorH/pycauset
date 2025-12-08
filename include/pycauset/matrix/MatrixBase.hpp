@@ -20,7 +20,7 @@ public:
 
     // Constructor for loading/wrapping existing storage
     MatrixBase(uint64_t n, 
-               std::unique_ptr<MemoryMapper> mapper,
+               std::shared_ptr<MemoryMapper> mapper,
                pycauset::MatrixType matrix_type,
                pycauset::DataType data_type,
                uint64_t seed = 0,
@@ -29,6 +29,8 @@ public:
                bool is_temporary = false);
 
     virtual ~MatrixBase() = default;
+
+    std::unique_ptr<PersistentObject> clone() const override;
 
     uint64_t size() const { return n_; }
     uint64_t rows() const { return n_; }

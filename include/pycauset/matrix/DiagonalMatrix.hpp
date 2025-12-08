@@ -51,10 +51,11 @@ public:
         set_transposed(is_transposed);
     }
 
-    DiagonalMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
+    DiagonalMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
         : MatrixBase(n, std::move(mapper), pycauset::MatrixType::DIAGONAL, MatrixTraits<T>::data_type) {}
 
     virtual void set(uint64_t i, uint64_t j, T value) {
+        ensure_unique();
         if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
         if (i != j) {
             if (value != T(0)) throw std::invalid_argument("Cannot set off-diagonal element to non-zero");
@@ -64,6 +65,7 @@ public:
     }
 
     virtual void set_diagonal(uint64_t i, T value) {
+        ensure_unique();
         if (i >= n_) throw std::out_of_range("Index out of bounds");
         data()[i] = value;
     }
@@ -204,7 +206,7 @@ protected:
         set_transposed(is_transposed);
     }
 
-    DiagonalMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper, pycauset::MatrixType mtype, pycauset::DataType dtype)
+    DiagonalMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper, pycauset::MatrixType mtype, pycauset::DataType dtype)
         : MatrixBase(n, std::move(mapper), mtype, dtype) {}
 };
 

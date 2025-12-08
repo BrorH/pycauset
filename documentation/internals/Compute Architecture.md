@@ -51,6 +51,12 @@ The `AutoSolver` is a smart dispatcher that implements the `ComputeDevice` inter
 *   **Hardware Availability**: If no GPU is detected, it falls back to the CPU.
 *   **Data Type**: It ensures the device supports the required precision (Float32/Float64/Int32).
 
+### 1.3 IO Acceleration Integration
+To minimize page faults during computation, the compute backend integrates with the **IO Accelerator** (see [[MemoryArchitecture]]).
+
+*   **Prefetching**: Before starting a heavy operation (like `matmul` or `inverse`), the solver calls `matrix->get_accelerator()->prefetch()`. This hints the OS to load the data into RAM asynchronously.
+*   **Discarding**: For temporary intermediate results, the solver may call `discard()` after usage to free up memory immediately.
+
 ## 2. CPU Backend
 
 The CPU backend is designed for low-latency execution of small-to-medium workloads and robust fallback for all operations.

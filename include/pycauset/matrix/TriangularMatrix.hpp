@@ -71,13 +71,14 @@ public:
         set_transposed(is_transposed);
     }
 
-    TriangularMatrix(uint64_t n, std::unique_ptr<MemoryMapper> mapper, bool has_diagonal = false)
+    TriangularMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper, bool has_diagonal = false)
         : TriangularMatrixBase(n, std::move(mapper), pycauset::MatrixType::TRIANGULAR_FLOAT, MatrixTraits<T>::data_type) {
         has_diagonal_ = has_diagonal;
         calculate_triangular_offsets(sizeof(T) * 8, 64);
     }
 
     void set(uint64_t i, uint64_t j, T value) {
+        ensure_unique();
         if (is_transposed()) {
             // Transposed: Lower Triangular.
             // User sets (i, j). If i > j (lower), we map to (j, i) (upper) in storage.

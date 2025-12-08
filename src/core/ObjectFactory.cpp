@@ -209,6 +209,92 @@ std::unique_ptr<VectorBase> ObjectFactory::load_vector(
     throw std::runtime_error("Unknown Vector Type for load");
 }
 
+std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
+    std::shared_ptr<MemoryMapper> mapper,
+    uint64_t rows,
+    uint64_t cols,
+    DataType dtype,
+    MatrixType mtype,
+    uint64_t seed,
+    double scalar,
+    bool is_transposed
+) {
+    uint64_t n = rows;
+    std::unique_ptr<MatrixBase> mat;
+
+    if (mtype == MatrixType::IDENTITY) {
+        switch (dtype) {
+            case DataType::BIT: mat = std::make_unique<IdentityMatrix<bool>>(n, mapper); break;
+            case DataType::INT32: mat = std::make_unique<IdentityMatrix<int32_t>>(n, mapper); break;
+            case DataType::FLOAT64: mat = std::make_unique<IdentityMatrix<double>>(n, mapper); break;
+            default: throw std::runtime_error("Unsupported DataType for IdentityMatrix clone");
+        }
+    } else if (mtype == MatrixType::DIAGONAL) {
+        switch (dtype) {
+            case DataType::BIT: mat = std::make_unique<DiagonalMatrix<bool>>(n, mapper); break;
+            case DataType::INT32: mat = std::make_unique<DiagonalMatrix<int32_t>>(n, mapper); break;
+            case DataType::FLOAT64: mat = std::make_unique<DiagonalMatrix<double>>(n, mapper); break;
+            default: throw std::runtime_error("Unsupported DataType for DiagonalMatrix clone");
+        }
+    } else if (mtype == MatrixType::TRIANGULAR_FLOAT || mtype == MatrixType::CAUSAL) {
+        switch (dtype) {
+            case DataType::BIT: mat = std::make_unique<TriangularMatrix<bool>>(n, mapper); break;
+            case DataType::INT32: mat = std::make_unique<TriangularMatrix<int32_t>>(n, mapper); break;
+            case DataType::FLOAT64: mat = std::make_unique<TriangularMatrix<double>>(n, mapper); break;
+            default: throw std::runtime_error("Unsupported DataType for TriangularMatrix clone");
+        }
+    } else {
+        switch (dtype) {
+            case DataType::BIT: mat = std::make_unique<DenseMatrix<bool>>(n, mapper); break;
+            case DataType::INT32: mat = std::make_unique<DenseMatrix<int32_t>>(n, mapper); break;
+            case DataType::FLOAT64: mat = std::make_unique<DenseMatrix<double>>(n, mapper); break;
+            case DataType::FLOAT32: mat = std::make_unique<DenseMatrix<float>>(n, mapper); break;
+            case DataType::FLOAT16: mat = std::make_unique<DenseMatrix<pycauset::Float16>>(n, mapper); break;
+            default: throw std::runtime_error("Unsupported DataType for DenseMatrix clone");
+        }
+    }
+
+    if (mat) {
+        mat->set_seed(seed);
+        mat->set_scalar(scalar);
+        mat->set_transposed(is_transposed);
+    }
+    return mat;
+}
+
+std::unique_ptr<VectorBase> ObjectFactory::clone_vector(
+    std::shared_ptr<MemoryMapper> mapper,
+    uint64_t rows,
+    uint64_t cols,
+    DataType dtype,
+    MatrixType mtype,
+    uint64_t seed,
+    double scalar,
+    bool is_transposed
+) {
+    uint64_t n = rows;
+    std::unique_ptr<VectorBase> vec;
+
+    if (mtype == MatrixType::UNIT_VECTOR) {
+        vec = std::make_unique<UnitVector>(n, mapper);
+    } else {
+        switch (dtype) {
+            case DataType::BIT: vec = std::make_unique<DenseVector<bool>>(n, mapper); break;
+            case DataType::INT32: vec = std::make_unique<DenseVector<int32_t>>(n, mapper); break;
+            case DataType::FLOAT64: vec = std::make_unique<DenseVector<double>>(n, mapper); break;
+            case DataType::FLOAT32: vec = std::make_unique<DenseVector<float>>(n, mapper); break;
+            default: throw std::runtime_error("Unsupported DataType for DenseVector clone");
+        }
+    }
+
+    if (vec) {
+        vec->set_seed(seed);
+        vec->set_scalar(scalar);
+        vec->set_transposed(is_transposed);
+    }
+    return vec;
+}
+
 // --- Type Resolution ---
 
 DataType ObjectFactory::resolve_result_type(DataType a, DataType b) {

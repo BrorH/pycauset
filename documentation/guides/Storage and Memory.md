@@ -1,15 +1,20 @@
 # Storage and Memory Management
 
-PyCauset is designed to handle causal sets and matrices that are too large to fit in your computer's RAM. It achieves this by using **memory-mapped files** for almost all data storage.
+PyCauset is designed to handle causal sets and matrices of any size, from small test cases to massive simulations that exceed physical RAM. It achieves this through a **Tiered Storage Architecture**.
 
-## The Philosophy: Disk is Memory
+## The Philosophy: Tiered Storage
 
-In standard Python (e.g., NumPy), creating a matrix allocates memory in RAM. If you create a $50,000 \times 50,000$ matrix of integers, it requires about 10 GB of RAM. If you run out of RAM, your program crashes or slows to a crawl.
+In standard Python (e.g., NumPy), creating a matrix allocates memory in RAM. If you run out of RAM, your program crashes.
 
-In PyCauset, creating a matrix allocates space on your **Disk** (SSD/HDD). The operating system then maps this file into memory.
-*   **Instant Access**: You can read/write elements as if they were in RAM.
-*   **Automatic Caching**: The OS automatically keeps frequently used parts of the matrix in RAM and flushes unused parts to disk.
-*   **Persistence**: Your data is already saved. "Saving" is just closing the file or copying it.
+In PyCauset, we treat storage as a hierarchy:
+
+1.  **L1 (RAM)**: Small matrices and frequently accessed data live here for maximum speed.
+2.  **L2 (Disk)**: Large matrices automatically spill to **memory-mapped files** on your SSD/HDD.
+
+The **Memory Governor** manages this automatically. It monitors your system's available RAM and decides where to place each new object.
+*   **Instant Access**: Whether in RAM or on Disk, the API is identical.
+*   **Automatic Caching**: For disk-backed objects, the OS automatically keeps frequently used parts in RAM.
+*   **Persistence**: Disk-backed objects are persistent. RAM objects are transient but can be saved easily.
 
 ## The File Format (`.pycauset`)
 

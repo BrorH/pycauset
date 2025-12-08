@@ -5,13 +5,28 @@
 #include <string>
 
 #include "pycauset/core/Types.hpp"
+#include "pycauset/core/MemoryHints.hpp"
 
 class MemoryMapper;
+
+namespace pycauset {
+namespace core {
+
+class IOAccelerator; // Forward declaration
+
+enum class StorageState {
+    RAM_ONLY,       // Data is in anonymous memory (RAM)
+    DISK_BACKED,    // Data is memory-mapped from a file
+    TRANSITIONING   // Currently moving between states
+};
+
+} // namespace core
+} // namespace pycauset
 
 class PersistentObject {
 public:
     // Constructor for loading/creating with explicit metadata
-    PersistentObject(std::unique_ptr<MemoryMapper> mapper,
+    PersistentObject(std::shared_ptr<MemoryMapper> mapper,
                      pycauset::MatrixType matrix_type,
                      pycauset::DataType data_type,
                      uint64_t rows,
@@ -23,8 +38,43 @@ public:
 
     virtual ~PersistentObject();
 
+    virtual std::unique_ptr<PersistentObject> clone() const = 0;
+
     std::string get_backing_file() const;
     void close();
+
+    // --- Tiered Storage Management ---
+    
+    /**
+     * @brief Ensures that this object has exclusive access to its storage.
+     * If the storage is shared (CoW), this triggers a deep copy.
+     */
+    void ensure_unique();
+
+    /**
+     * @brief Notifies the MemoryGovernor that this object is being accessed.
+     * Should be called by Solvers before heavy operations.
+     */
+    void touch();
+
+    /**
+     * @brief Moves the object from RAM to Disk to free up memory.
+     * @return true if successful, false if already on disk or failed.
+     */
+    bool spill_to_disk();
+
+    /**
+     * @brief Moves the object from Disk to RAM for performance.
+     * @return true if successful, false if RAM is full or already in RAM.
+     */
+    bool promote_to_ram();
+
+    /**
+     * @brief Returns the current storage state.
+     */
+    pycauset::core::StorageState get_storage_state() const { return storage_state_; }
+
+    // --- Metadata Accessors ---
 
     double get_scalar() const { return scalar_; }
     void set_scalar(double s); 
@@ -47,6 +97,15 @@ public:
     // Creates a copy of the backing file and returns the new path
     std::string copy_storage(const std::string& result_file_hint) const;
 
+    // Access to IO Accelerator
+    pycauset::core::IOAccelerator* get_accelerator() const;
+
+    /**
+     * @brief Sends a memory access hint to the IO Accelerator.
+     * This is part of the "Lookahead Protocol".
+     */
+    void hint(const pycauset::core::MemoryHint& hint) const;
+
 protected:
     // Default constructor for subclasses that initialize later
     PersistentObject();
@@ -68,7 +127,7 @@ protected:
     static std::string resolve_backing_file(const std::string& requested,
                                           const std::string& fallback_prefix);
 
-    std::unique_ptr<MemoryMapper> mapper_;
+    std::shared_ptr<MemoryMapper> mapper_;
     
     // Metadata members
     pycauset::MatrixType matrix_type_ = pycauset::MatrixType::UNKNOWN;
@@ -79,4 +138,11 @@ protected:
     double scalar_ = 1.0;
     bool is_transposed_ = false;
     bool is_temporary_ = false;
+
+    // Tiered Storage State
+    pycauset::core::StorageState storage_state_ = pycauset::core::StorageState::DISK_BACKED; // Default for legacy compatibility
+
+    // IO Accelerator
+    mutable std::unique_ptr<pycauset::core::IOAccelerator> accelerator_;
 };
+

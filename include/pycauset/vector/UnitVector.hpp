@@ -48,7 +48,7 @@ public:
           active_index_(active_index) {
     }
 
-    UnitVector(uint64_t n, std::unique_ptr<MemoryMapper> mapper)
+    UnitVector(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
         : VectorBase(n, std::move(mapper), pycauset::MatrixType::UNIT_VECTOR, pycauset::DataType::FLOAT64) {
         // Recover active index from seed
         active_index_ = get_seed();
