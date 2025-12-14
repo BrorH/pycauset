@@ -54,3 +54,23 @@ We may keep convenience scripts like `build.ps1`, but **they must remain wrapper
 
 - Allowed: “one-liner wrappers” calling pip with standard args.
 - Not allowed: scripts that introduce separate build flags, separate output layouts, or separate dependency logic.
+
+## build.ps1
+
+`build.ps1` is intentionally small and only wraps `pip`.
+
+- Editable install (default): `./build.ps1`
+- Non-editable install: `./build.ps1 -Action install`
+- Build a wheel into `dist/`: `./build.ps1 -Action wheel`
+
+### Choosing a Python
+
+- Resolve via Windows py launcher: `./build.ps1 -PythonVersion 3.12`
+- Use an explicit interpreter: `./build.ps1 -PythonExe C:\\Path\\To\\python.exe`
+
+### Passing CMake arguments
+
+Use `-CMakeArg` to add flags for this run (it appends to `CMAKE_ARGS` for the pip build):
+
+- `./build.ps1 -CMakeArg "-DENABLE_CUDA=ON"`
+- `./build.ps1 -CMakeArg "-DCMAKE_BUILD_TYPE=Release"`
