@@ -9,6 +9,7 @@
 * **[[pycauset.IntegerMatrix|IntegerMatrix]]**
 * **[[pycauset.Matrix|Matrix]]**
 * **[[pycauset.MatrixBase|MatrixBase]]**
+* **[[pycauset.SymmetricMatrix|SymmetricMatrix]]**
 * **[[pycauset.TriangularBitMatrix|TriangularBitMatrix]]**
 * **[[pycauset.TriangularFloatMatrix|TriangularFloatMatrix]]**
 * **[[pycauset.TriangularIntegerMatrix|TriangularIntegerMatrix]]**

@@ -8,6 +8,7 @@ This document outlines the development roadmap for `pycauset`, tracking complete
 - [ ] **Further I/O Optimization**: The read/write speed to disk is currently the main bottleneck
 - [ ] **Pauli-Jordan Function**: Implement the $i\Delta$ function derived from the propagator.
 - [x] **GPU Acceleration**: Investigate CUDA/OpenCL support for matrix operations.
+- [ ] converting from numpy to pycasuet matrix is very slow - must be optimized
 - [ ] **User-Defined Spacetimes**: Allow users to define custom spacetime geometries and boundaries in Python.
 
 
@@ -39,6 +40,9 @@ This document outlines the development roadmap for `pycauset`, tracking complete
 - [x] **Identity Matrix**: `pycauset.I` with automatic sizing.
 - [x] **Vector Factory**: `pycauset.Vector` factory function.
 - [x] **Vector Cross Product**: Implemented `v.cross(u)`.
+- [ ] element-wise matrix/vector division 
+- [ ] **NxM Matrices (All Types)**: Expand from square-only (NxN) assumptions to support arbitrary 2D shapes (NxM) across the matrix system (dense, triangular, symmetric, bit, etc.).
+    - **Non-goal**: Do not attempt general N-dimensional arrays like NumPy; PyCauset remains focused on 2D matrices and vectors.
 
 ## 📊 Visualization & Analysis
 

@@ -1,7 +1,7 @@
 import unittest
 import os
 import numpy as np
-from pycauset import Matrix, Float32Matrix, Float16Matrix, eigvals_arnoldi
+from pycauset import Matrix, Float32Matrix, eigvals_arnoldi
 
 class TestFloatTypes(unittest.TestCase):
     def test_01_float32_matrix(self):
@@ -28,25 +28,6 @@ class TestFloatTypes(unittest.TestCase):
         m2.close()
         res.close()
 
-    def test_02_float16_matrix(self):
-        print("\nTesting Float16Matrix...")
-        n = 100
-        m = Float16Matrix(n, "test_f16")
-        m.set(0, 0, 3.14159)
-        val = m.get(0, 0)
-        # Float16 has low precision, so 3.14159 might be 3.140625 or similar
-        self.assertAlmostEqual(val, 3.14159, places=2)
-        
-        m2 = Float16Matrix(n, "test_f16_2")
-        m2.set(0, 0, 2.0)
-        
-        res = m.multiply(m2, "test_f16_res")
-        self.assertAlmostEqual(res.get(0, 0), 6.28, places=1)
-        
-        m.close()
-        m2.close()
-        res.close()
-
     def test_03_smart_defaults(self):
         print("\nTesting Smart Defaults...")
         # Small matrix -> Float64 (standard FloatMatrix)
@@ -62,10 +43,6 @@ class TestFloatTypes(unittest.TestCase):
         m_f32 = Matrix(100, force_precision="float32")
         self.assertEqual(m_f32.__class__.__name__, "Float32Matrix")
         m_f32.close()
-        
-        m_f16 = Matrix(100, force_precision="float16")
-        self.assertEqual(m_f16.__class__.__name__, "Float16Matrix")
-        m_f16.close()
 
     def test_04_arnoldi_float32(self):
         print("\nTesting Arnoldi on Float32...")
@@ -86,25 +63,6 @@ class TestFloatTypes(unittest.TestCase):
         # Largest eigenvalues should be close to n, n-1, ...
         print(f"Top eigenvalues (Float32): {evals[-5:]}")
         self.assertTrue(np.abs(evals[-1] - n) < 0.5)
-        m.close()
-
-    def test_05_arnoldi_float16(self):
-        print("\nTesting Arnoldi on Float16...")
-        n = 50
-        m = Float16Matrix(n, "test_arnoldi_f16")
-        for i in range(n):
-            m.set(i, i, float(i + 1))
-            
-        evals = eigvals_arnoldi(m, k=5, max_iter=100, tol=1e-2) # Lower tolerance for F16
-        # Convert ComplexVector to numpy array
-        evals_list = []
-        for i in range(evals.size()):
-            evals_list.append(evals.get(i))
-        evals = np.array(evals_list)
-        evals = np.sort(np.abs(evals))
-        
-        print(f"Top eigenvalues (Float16): {evals[-5:]}")
-        self.assertTrue(np.abs(evals[-1] - n) < 1.0) # Looser bound
         m.close()
 
 if __name__ == '__main__':

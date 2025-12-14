@@ -51,8 +51,7 @@ When PyCauset initializes, the ComputeContext queries your system:
 When you convert a NumPy array to a PyCauset matrix using `pycauset.asarray()`:
 
 1.  **Float32 Input**: Always creates a `Float32Matrix`.
-2.  **Float16 Input**: Always creates a `Float16Matrix` (native support).
-3.  **Float64 Input (Standard NumPy)**:
+2.  **Float64 Input (Standard NumPy)**:
     *   If your hardware prefers Float32 (e.g., GTX 1060), PyCauset will **automatically downcast** to `Float32Matrix` for a 15-30x speedup.
     *   If your hardware supports fast Float64, it creates a `Float64Matrix`.
 
@@ -60,7 +59,6 @@ When you convert a NumPy array to a PyCauset matrix using `pycauset.asarray()`:
 
 *   **Float64**: ~135 GFLOPS
 *   **Float32**: ~4400 GFLOPS (**32x faster**)
-*   **Float16**: ~8800 GFLOPS (Simulated/Tensor Core equivalent)
 
 PyCauset ensures you get this speedup by default.
 

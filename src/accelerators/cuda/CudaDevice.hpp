@@ -3,7 +3,6 @@
 #include "pycauset/compute/ComputeDevice.hpp"
 #include "pycauset/compute/AcceleratorConfig.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
-#include "pycauset/core/Float16.hpp"
 #include <cublas_v2.h>
 #include <cusolverDn.h>
 #include <cuda_runtime.h>
@@ -96,7 +95,6 @@ private:
     void batch_gemv_streaming(const MatrixBase& A, const double* x_data, double* y_data, size_t b, size_t available_mem);
     void matmul_streaming(const DenseMatrix<double>* a, const DenseMatrix<double>* b, DenseMatrix<double>* c, size_t available_mem);
     void matmul_streaming(const DenseMatrix<float>* a, const DenseMatrix<float>* b, DenseMatrix<float>* c, size_t available_mem);
-    void matmul_streaming(const DenseMatrix<Float16>* a, const DenseMatrix<Float16>* b, DenseMatrix<Float16>* c, size_t available_mem);
 
     // Persistent buffers
     double *d_A_ = nullptr;
@@ -111,15 +109,8 @@ private:
     float *d_C_float_ = nullptr;
     size_t buffer_size_float_ = 0;
 
-    // Persistent buffers for Float16
-    __half *d_A_half_ = nullptr;
-    __half *d_B_half_ = nullptr;
-    __half *d_C_half_ = nullptr;
-    size_t buffer_size_half_ = 0;
-
     void ensure_buffers(size_t n_elements);
     void ensure_float_buffers(size_t n_elements);
-    void ensure_half_buffers(size_t n_elements);
     void free_buffers();
 };
 

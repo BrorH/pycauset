@@ -1,8 +1,64 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.24)
+
+# Set policies to silence warnings about timestamps and other modern features
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
+if(POLICY CMP0146)
+  cmake_policy(SET CMP0146 OLD) # Allow FindCUDA for now if needed, though we use CUDAToolkit
+endif()
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 OLD) # Allow FindBoost for now
+endif()
+if(POLICY CMP0169)
+  cmake_policy(SET CMP0169 OLD) # Allow FetchContent_Populate
+endif()
+
 project(pycauset VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_UNITY_BUILD OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# --- Optimization: Unity Build (Jumbo Build) ---
+# Merges source files into larger batches to reduce compiler overhead and link times.
+# This is often the single most effective way to speed up C++ builds.
+set(CMAKE_UNITY_BUILD OFF)
+
+# --- Compiler Options ---
+if(MSVC)
+    # Define _CRT_SECURE_NO_WARNINGS to silence getenv/sprintf warnings globally
+    # Define NOMINMAX to prevent Windows.h from defining min/max macros that conflict with std::min/std::max
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS NOMINMAX)
+
+    # /MP: Multi-processor compilation (CXX Only - NVCC doesn't like it directly)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/MP>)
+
+    # /wd4251: Suppress "needs to have dll-interface" warning
+    # /wd4996: Suppress "deprecated/unsafe" warnings (getenv, etc.)
+    # /wd4244: Suppress "conversion from 'type1' to 'type2', possible loss of data"
+    # /wd4267: Suppress "conversion from 'size_t' to 'type', possible loss of data"
+    # /wd4018: Suppress "signed/unsigned mismatch"
+    # /wd4101: Suppress "unreferenced local variable"
+    # /wd4804: Suppress "unsafe use of type 'bool' in operation"
+    # Note: We do NOT add /W3 manually as CMake adds it by default, and adding it again can cause D9025 warnings if targets override it.
+    add_compile_options(
+        $<$<COMPILE_LANGUAGE:CXX>:/wd4251>
+        $<$<COMPILE_LANGUAGE:CXX>:/wd4996>
+        $<$<COMPILE_LANGUAGE:CXX>:/wd4244>
+        $<$<COMPILE_LANGUAGE:CXX>:/wd4267>
+        $<$<COMPILE_LANGUAGE:CXX>:/wd4018>
+        $<$<COMPILE_LANGUAGE:CXX>:/wd4101>
+        $<$<COMPILE_LANGUAGE:CXX>:/wd4804>
+    )
+    
+    # Disable LTO in Debug/RelWithDebInfo to speed up linking
+    # In Release, we keep it default (usually off unless requested)
+endif()
+
+# --- CUDA Compiler Options ---
+# (Moved to target definition to ensure correct application)
 
 # --- Dependencies ---
 
@@ -23,12 +79,61 @@ if(NOT pybind11_FOUND)
 endif()
 
 # 3. Eigen (Required for advanced solvers)
+# Disable Eigen documentation and tests to silence build warnings
+set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
+set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
+set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+
 include(FetchContent)
 FetchContent_Declare(
   Eigen3
   URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
 )
 FetchContent_MakeAvailable(Eigen3)
+
+# 3.5 OpenBLAS (Required for high-performance matrix ops)
+# Try to find it on the system first
+find_package(OpenBLAS QUIET)
+
+if(NOT OpenBLAS_FOUND)
+    message(STATUS "OpenBLAS not found on system. Downloading...")
+    
+    if(WIN32)
+        # On Windows, download pre-built binaries to avoid Fortran requirement
+        message(STATUS "Downloading OpenBLAS binaries for Windows (v0.3.26)...")
+        FetchContent_Declare(
+            OpenBLAS_Binaries
+            URL https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.26/OpenBLAS-0.3.26-x64.zip
+        )
+        FetchContent_GetProperties(OpenBLAS_Binaries)
+        if(NOT openblas_binaries_POPULATED)
+            FetchContent_Populate(OpenBLAS_Binaries)
+        endif()
+        
+        # Define the target manually
+        if(NOT TARGET OpenBLAS::OpenBLAS)
+            add_library(OpenBLAS::OpenBLAS SHARED IMPORTED)
+            set_target_properties(OpenBLAS::OpenBLAS PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${openblas_binaries_SOURCE_DIR}/include"
+                IMPORTED_IMPLIB "${openblas_binaries_SOURCE_DIR}/lib/libopenblas.lib"
+            )
+            message(STATUS "OpenBLAS configured from binaries at ${openblas_binaries_SOURCE_DIR}")
+            
+            # Install the DLL so it ends up in the wheel/install directory
+            install(FILES "${openblas_binaries_SOURCE_DIR}/bin/libopenblas.dll" DESTINATION bin)
+            install(FILES "${openblas_binaries_SOURCE_DIR}/bin/libopenblas.dll" DESTINATION pycauset)
+        endif()
+        
+    else()
+        # On Linux/Mac, try to build from source (requires Fortran)
+        message(STATUS "Downloading OpenBLAS source...")
+        FetchContent_Declare(
+            OpenBLAS
+            URL https://github.com/OpenMathLib/OpenBLAS/archive/v0.3.26.zip
+        )
+        FetchContent_MakeAvailable(OpenBLAS)
+    endif()
+endif()
 
 # 4. OpenMP (Optional but recommended)
 find_package(OpenMP)
@@ -71,6 +176,7 @@ set(PYCAUSET_SOURCES
     src/compute/ComputeContext.cpp
     src/compute/AutoSolver.cpp
     src/compute/cpu/CpuDevice.cpp
+    src/compute/cpu/CpuEigenSolver.cpp
     src/compute/cpu/CpuSolver.cpp
     src/math/Eigen.cpp
     src/math/LinearAlgebra.cpp
@@ -80,7 +186,7 @@ set(PYCAUSET_SOURCES
 # Create a shared library for the core functionality to avoid recompiling for every test
 add_library(pycauset_core SHARED ${PYCAUSET_SOURCES})
 target_include_directories(pycauset_core PUBLIC include)
-target_link_libraries(pycauset_core PUBLIC Eigen3::Eigen)
+target_link_libraries(pycauset_core PUBLIC Eigen3::Eigen OpenBLAS::OpenBLAS)
 set_property(TARGET pycauset_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(pycauset_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
@@ -94,8 +200,8 @@ endif()
 
 # --- Extension Module ---
 # Note: The module name must match what is defined in PYBIND11_MODULE in bindings.cpp (which is "_pycauset")
-# Touch
-python_add_library(_pycauset SHARED src/bindings.cpp)
+# Touch 2
+python_add_library(_pycauset MODULE src/bindings.cpp)
 
 # Include directories
 target_include_directories(_pycauset PRIVATE include)
@@ -115,41 +221,59 @@ if(OpenMP_CXX_FOUND)
 endif()
 
 # --- CUDA Acceleration (Optional) ---
-include(CheckLanguage)
-check_language(CUDA)
+option(ENABLE_CUDA "Enable CUDA acceleration" OFF)
 
-if(CMAKE_CUDA_COMPILER)
-    # Target the native architecture of the build machine (supports Pascal 6.1 on CUDA 12)
-    set(CMAKE_CUDA_ARCHITECTURES "native")
-    enable_language(CUDA)
-    find_package(CUDAToolkit REQUIRED)
-    
-    message(STATUS "CUDA found. Building pycauset_cuda accelerator.")
-    
-    add_library(pycauset_cuda SHARED
-        src/accelerators/cuda/CudaDevice.cu
-        src/accelerators/cuda/CudaSolver.cu
-    )
-    
-    target_include_directories(pycauset_cuda PRIVATE include)
-    
-    # Link against CUDA libraries
-    target_link_libraries(pycauset_cuda PRIVATE 
-        CUDA::cudart 
-        CUDA::cublas 
-        CUDA::cusolver
-        pycauset_core
-    )
-    
-    # Set properties
-    set_target_properties(pycauset_cuda PROPERTIES 
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
-        CUDA_SEPARABLE_COMPILATION ON
-    )
-    
-    install(TARGETS pycauset_cuda DESTINATION pycauset)
+if(ENABLE_CUDA)
+    include(CheckLanguage)
+    check_language(CUDA)
+
+    if(CMAKE_CUDA_COMPILER)
+        # Target the native architecture of the build machine (supports Pascal 6.1 on CUDA 12)
+        set(CMAKE_CUDA_ARCHITECTURES "native")
+        enable_language(CUDA)
+        find_package(CUDAToolkit REQUIRED)
+        
+        message(STATUS "CUDA found. Building pycauset_cuda accelerator.")
+        
+        add_library(pycauset_cuda SHARED
+            src/accelerators/cuda/CudaDevice.cu
+            src/accelerators/cuda/CudaSolver.cu
+        )
+        
+        target_include_directories(pycauset_cuda PRIVATE include)
+        
+        # Link against CUDA libraries
+        target_link_libraries(pycauset_cuda PRIVATE 
+            CUDA::cudart 
+            CUDA::cublas 
+            CUDA::cusolver
+            pycauset_core
+        )
+        
+        # Set properties
+        set_target_properties(pycauset_cuda PROPERTIES 
+            WINDOWS_EXPORT_ALL_SYMBOLS ON
+            CUDA_SEPARABLE_COMPILATION ON
+        )
+        
+        # Suppress specific NVCC warnings
+        # 611: overloaded virtual function is only partially overridden
+        # 177: variable was declared but never referenced
+        # Note: We pass these flags individually without SHELL: prefix because CMake 3.24+ handles them correctly
+        # and the SHELL: prefix combined with generator expressions can sometimes cause quoting issues with NVCC on Windows.
+        target_compile_options(pycauset_cuda PRIVATE 
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe>
+            $<$<COMPILE_LANGUAGE:CUDA>:--diag_suppress=611>
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe>
+            $<$<COMPILE_LANGUAGE:CUDA>:--diag_suppress=177>
+        )
+        
+        install(TARGETS pycauset_cuda DESTINATION pycauset)
+    else()
+        message(STATUS "CUDA not found. Skipping pycauset_cuda accelerator.")
+    endif()
 else()
-    message(STATUS "CUDA not found. Skipping pycauset_cuda accelerator.")
+    message(STATUS "CUDA disabled by configuration.")
 endif()
 
 # --- Installation ---
@@ -189,8 +313,19 @@ if(BUILD_TESTS)
     target_link_libraries(test_cow PRIVATE GTest::gtest_main pycauset_core)
     add_test(NAME CoWTests COMMAND test_cow)
 
+    # Symmetric Matrix Tests
+    add_executable(test_symmetric_matrix tests/test_symmetric_matrix.cpp)
+    target_include_directories(test_symmetric_matrix PRIVATE include)
+    target_link_libraries(test_symmetric_matrix PRIVATE GTest::gtest_main pycauset_core)
+    add_test(NAME SymmetricMatrixTests COMMAND test_symmetric_matrix)
+
     # Other tests disabled for now as source files are missing in this context
     # add_executable(causal_tests tests/test_main.cpp tests/test_parallel.cpp tests/test_gpu.cpp)
     # ...
 
 endif()
+
+# --- Benchmarks ---
+# add_executable(benchmark_native benchmarks/benchmark_native.cpp)
+# target_include_directories(benchmark_native PRIVATE include)
+# target_link_libraries(benchmark_native PRIVATE pycauset_core)

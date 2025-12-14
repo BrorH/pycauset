@@ -24,7 +24,7 @@ public:
                    const std::string& backing_file,
                    size_t offset,
                    uint64_t seed,
-                   double scalar,
+                   std::complex<double> scalar,
                    bool is_transposed)
         : DiagonalMatrix<T>(n, 
                             0, // No storage
@@ -63,7 +63,7 @@ public:
     double get_element_as_double(uint64_t i, uint64_t j) const override {
         if (i >= this->n_ || j >= this->n_) throw std::out_of_range("Index out of bounds");
         if (i == j) {
-            return this->scalar_;
+            return this->scalar_.real();
         }
         return 0.0;
     }
@@ -124,7 +124,7 @@ public:
         for (uint64_t i = 0; i < this->n_; ++i) {
             for (uint64_t j = 0; j < this->n_; ++j) {
                 if (i == j) {
-                    dst_data[i * this->n_ + j] = this->scalar_ + scalar;
+                    dst_data[i * this->n_ + j] = (this->scalar_ + scalar).real();
                 } else {
                     dst_data[i * this->n_ + j] = scalar;
                 }

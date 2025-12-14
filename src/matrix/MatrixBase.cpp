@@ -21,7 +21,7 @@ MatrixBase::MatrixBase(uint64_t n,
                        pycauset::MatrixType matrix_type,
                        pycauset::DataType data_type,
                        uint64_t seed,
-                       double scalar,
+                       std::complex<double> scalar,
                        bool is_transposed,
                        bool is_temporary)
     : PersistentObject(std::move(mapper), matrix_type, data_type, n, n, seed, scalar, is_transposed, is_temporary), 

@@ -32,7 +32,7 @@ public:
                 const std::string& backing_file,
                 size_t offset,
                 uint64_t seed,
-                double scalar,
+                std::complex<double> scalar,
                 bool is_transposed)
         : MatrixBase(n, pycauset::MatrixType::DIAGONAL, MatrixTraits<T>::data_type) {
         
@@ -85,7 +85,7 @@ public:
         if (scalar_ == 1.0) {
             return static_cast<double>(get(i, j));
         }
-        return static_cast<double>(get(i, j)) * scalar_;
+        return (static_cast<double>(get(i, j)) * scalar_).real();
     }
 
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }
@@ -120,7 +120,7 @@ public:
                 for (uint64_t j = 0; j < n_; ++j) {
                     T val;
                     if (i == j) {
-                        val = static_cast<T>(src_data[i] * scalar_ + scalar);
+                        val = static_cast<T>((static_cast<double>(src_data[i]) * scalar_ + scalar).real());
                     } else {
                         val = static_cast<T>(scalar);
                     }
@@ -139,7 +139,7 @@ public:
             for (uint64_t i = 0; i < n_; ++i) {
                 for (uint64_t j = 0; j < n_; ++j) {
                     if (i == j) {
-                        dst_data[i * n_ + j] = static_cast<T>(src_data[i] * scalar_ + scalar);
+                        dst_data[i * n_ + j] = static_cast<T>((static_cast<double>(src_data[i]) * scalar_ + scalar).real());
                     } else {
                         dst_data[i * n_ + j] = static_cast<T>(scalar);
                     }
@@ -186,7 +186,7 @@ protected:
                    const std::string& backing_file,
                    size_t offset,
                    uint64_t seed,
-                   double scalar,
+                   std::complex<double> scalar,
                    bool is_transposed,
                    pycauset::MatrixType mtype,
                    pycauset::DataType dtype)

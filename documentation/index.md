@@ -39,6 +39,11 @@ Deep dive into the C++ core for contributors.
 *   **[[project/Contributing|Contributing]]**: How to build and test.
 *   **[[project/TODO|Roadmap]]**: Future plans.
 
+### 🧰 [[dev/index|Dev Handbook]]
+High-signal onboarding for contributors and AI agents.
+*   **[[dev/Agent Bootstrap|Agent Bootstrap]]**: Safe AI onboarding prompt and rules.
+*   **[[dev/Restructure Plan|Restructure Plan]]**: The approved reorganization plan and gates.
+
 ## Citation
 
 If you use PyCauset in your research, please cite the repository:

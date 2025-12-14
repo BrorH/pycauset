@@ -46,6 +46,7 @@ class ScalarField(Field):
         """
         super().__init__(causet)
         self._mass = float(mass)
+        self._cached_propagator = None
         
         # Validate that we have the necessary info to compute physics
         if self._causet.density is None:
@@ -108,7 +109,7 @@ class ScalarField(Field):
             
         return a, b
 
-    def propagator(self, a: Optional[float] = None, b: Optional[float] = None):
+    def compute_retarded_propagator(self, a: Optional[float] = None, b: Optional[float] = None):
         """
         Compute the Retarded Propagator K_R.
         
@@ -119,6 +120,9 @@ class ScalarField(Field):
         Returns:
             TriangularFloatMatrix: The K_R matrix.
         """
+        if self._cached_propagator is not None and a is None and b is None:
+            return self._cached_propagator
+
         # 1. Determine coefficients
         if a is None or b is None:
             calc_a, calc_b = self._get_coeffs()
@@ -131,18 +135,61 @@ class ScalarField(Field):
         # If mass is 0, b is 0.
         if abs(b) < 1e-15:
             # K_R = a * C
-            return a * C
+            result = a * C
+        else:
+            # 3. Compute Massive Propagator
+            # Formula: K_R = (-1/b) * C * (alpha_eff * I + C)^-1
+            # Where alpha_eff = -1 / (a * b)
             
-        # 3. Compute Massive Propagator
-        # Formula: K_R = (-1/b) * C * (alpha_eff * I + C)^-1
-        # Where alpha_eff = -1 / (a * b)
+            alpha_eff = -1.0 / (a * b)
+            
+            # X = C * (alpha_eff * I + C)^-1
+            # This is exactly what compute_k(C, alpha) calculates
+            from . import compute_k
+            X = compute_k(C, alpha_eff)
+            
+            # Result is (-1/b) * X
+            result = (-1.0 / b) * X
         
-        alpha_eff = -1.0 / (a * b)
+        if a is None and b is None: # Only cache if using default coefficients
+            self._cached_propagator = result
+            
+        return result
+
+    def propagator(self, a: Optional[float] = None, b: Optional[float] = None):
+        """Alias for compute_retarded_propagator."""
+        return self.compute_retarded_propagator(a, b)
+
+    def pauli_jordan(self):
+        """
+        Compute the Pauli-Jordan function i*Delta, where Delta = K - K^T.
         
-        # X = C * (alpha_eff * I + C)^-1
-        # This is exactly what compute_k(C, alpha) calculates
-        from . import compute_k
-        X = compute_k(C, alpha_eff)
+        Returns:
+            AntiSymmetricFloat64Matrix: The matrix Delta, with scalar set to 1j (imaginary unit).
+            This represents the operator i*Delta.
+        """
+        K = self.compute_retarded_propagator()
         
-        # Result is (-1/b) * X
-        return (-1.0 / b) * X
+        # Create Delta = K - K^T efficiently using AntiSymmetricMatrix.from_triangular
+        # This copies the upper triangle of K into an AntiSymmetricMatrix.
+        # Since K is triangular, K - K^T is exactly what AntiSymmetricMatrix represents
+        # when initialized from K (assuming K is upper triangular).
+        # If K is lower triangular, we might need to transpose first, but standard K is upper packed?
+        # Wait, TriangularMatrix usually stores upper triangle.
+        # If K is Retarded, it is non-zero for causal future.
+        # If indices are sorted by time, future is i < j (upper) or i > j (lower)?
+        # In PyCauset, C[i, j] = 1 if i < j and i prec j. So C is Upper Triangular.
+        # So K is Upper Triangular.
+        # So Delta = K - K^T has K in upper triangle and -K^T in lower.
+        # AntiSymmetricMatrix stores upper triangle and negates for lower access.
+        # So AntiSymmetricMatrix(K) effectively represents K - K^T.
+        
+        from . import AntiSymmetricFloat64Matrix
+        Delta = AntiSymmetricFloat64Matrix.from_triangular(K)
+        
+        # Set scalar to i (imaginary unit) to represent i*Delta
+        # We use a complex scalar if supported, or just document it.
+        # The user requested storing the factor of i in the scalar.
+        Delta.set_scalar(1j)
+        
+        return Delta

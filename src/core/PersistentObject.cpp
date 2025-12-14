@@ -27,7 +27,7 @@ PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
                                    uint64_t rows,
                                    uint64_t cols,
                                    uint64_t seed,
-                                   double scalar,
+                                   std::complex<double> scalar,
                                    bool is_transposed,
                                    bool is_temporary)
     : mapper_(std::move(mapper)),
@@ -49,9 +49,8 @@ PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
     }
 }
 
-PersistentObject::~PersistentObject() {
-    close();
-}
+// PersistentObject::~PersistentObject() {
+// }
 
 std::string PersistentObject::get_backing_file() const {
     if (mapper_) {
@@ -62,6 +61,7 @@ std::string PersistentObject::get_backing_file() const {
 
 void PersistentObject::close() {
     if (mapper_) {
+        std::cout << "DEBUG: PersistentObject::close() called for " << (void*)this << std::endl;
         // Unregister from Governor if we were in RAM
         if (storage_state_ == pycauset::core::StorageState::RAM_ONLY) {
             pycauset::core::MemoryGovernor::instance().unregister_object(this);
@@ -340,7 +340,7 @@ std::string PersistentObject::copy_storage(const std::string& result_file_hint) 
     return dest_path;
 }
 
-void PersistentObject::set_scalar(double s) {
+void PersistentObject::set_scalar(std::complex<double> s) {
     scalar_ = s;
 }
 

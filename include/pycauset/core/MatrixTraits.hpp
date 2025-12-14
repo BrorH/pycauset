@@ -1,7 +1,6 @@
 #pragma once
 
 #include "pycauset/core/StorageUtils.hpp"
-#include "pycauset/core/Float16.hpp"
 #include <cstdint>
 
 template <typename T>
@@ -19,11 +18,7 @@ struct MatrixTraits<float> {
     static constexpr const char* name = "float32";
 };
 
-template <>
-struct MatrixTraits<pycauset::Float16> {
-    static constexpr pycauset::DataType data_type = pycauset::DataType::FLOAT16;
-    static constexpr const char* name = "float16";
-};
+
 
 template <>
 struct MatrixTraits<int32_t> {

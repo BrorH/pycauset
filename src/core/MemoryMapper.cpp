@@ -412,3 +412,25 @@ void MemoryMapper::unmap_region(void* ptr) {
     // But since this is a refactor of existing code, I'll leave it as a placeholder or assume full unmap isn't called this way.
 #endif
 }
+
+bool MemoryMapper::pin_region(void* ptr, size_t size) const {
+#ifdef _WIN32
+    if (VirtualLock(ptr, size)) {
+        return true;
+    }
+    return false;
+#else
+    if (mlock(ptr, size) == 0) {
+        return true;
+    }
+    return false;
+#endif
+}
+
+void MemoryMapper::unpin_region(void* ptr, size_t size) const {
+#ifdef _WIN32
+    VirtualUnlock(ptr, size);
+#else
+    munlock(ptr, size);
+#endif
+}

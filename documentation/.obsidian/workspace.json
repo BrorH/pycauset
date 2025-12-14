@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "internals/Memory and Data.md",
+                "file": "project/TODO.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Memory and Data"
+              "title": "TODO"
             }
           },
           {
@@ -194,13 +194,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "internals/Memory and Data.md",
+                "file": "project/TODO.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Memory and Data"
+              "title": "Outline of TODO"
             }
           }
         ],
@@ -223,33 +223,33 @@
   },
   "active": "1563eaae446d05e3",
   "lastOpenFiles": [
-    "guides/Storage and Memory.md",
-    "project/Protocols.md",
     "internals/MemoryArchitecture.md",
-    "internals/Memory and Data.md",
-    "internals/Algorithms.md",
-    "internals/CooperativeArchitecture.md",
     "internals/Compute Architecture.md",
+    "internals/plans/BLAS_INTEGRATION_PLAN.md",
     "project/Philosophy.md",
+    "internals/OPTIMIZATION_CHECKLIST.md",
+    "project/index.md",
+    "project/Protocols.md",
+    "internals/CooperativeArchitecture.md",
+    "internals/index.md",
+    "guides/Performance Guide.md",
+    "project/TODO.md",
+    "internals/plans/eigenvalue_optimization_plan.md",
+    "docs/classes/AntiSymmetricMatrix.md",
+    "docs/classes/matrix/pycauset.SymmetricMatrix.md",
+    "internals/Memory and Data.md",
+    "docs/classes/SymmetricMatrix.md",
+    "guides/Storage and Memory.md",
+    "internals/Algorithms.md",
     "internals/plans/io_optimization_plan.md",
     "internals/plans",
     "index.md",
     "project/Contributing.md",
     "guides/Vector Guide.md",
     "guides/User Guide.md",
-    "guides/Performance Guide.md",
     "guides/Numpy Integration.md",
     "guides/Field Theory.md",
-    "project/index.md",
     "internals/ComputeSystem.md",
-    "internals/PROTOCOL_ADDING_OPERATIONS.md",
-    "guides/Performance_and_Precision.md",
-    "internals/GPU Architecture.md",
-    "internals/MemorySystem.md",
-    "internals/SolverArchitecture.md",
-    "internals/gpu_architecture.md",
-    "internals/PLAN_HYPER_OPTIMIZATION.md",
-    "internals/PLAN_GLOBAL_PIVOTING.md",
     "docs/classes/vector",
     "docs/classes/spacetime",
     "docs/classes/matrix",

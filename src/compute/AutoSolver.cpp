@@ -1,8 +1,12 @@
 #include "pycauset/compute/AutoSolver.hpp"
 #include "pycauset/compute/cpu/CpuDevice.hpp"
+#include "pycauset/compute/cpu/CpuEigenSolver.hpp"
+#include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/vector/ComplexVector.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 
 namespace pycauset {
 
@@ -14,6 +18,60 @@ AutoSolver::~AutoSolver() = default;
 
 void AutoSolver::set_gpu_device(std::unique_ptr<ComputeDevice> device) {
     gpu_device_ = std::move(device);
+    if (gpu_device_) {
+        run_benchmark();
+    }
+}
+
+void AutoSolver::run_benchmark() {
+    if (benchmark_done_ || !gpu_device_) return;
+    
+    try {
+        // Micro-benchmark: 1024x1024 Matrix Multiply
+        uint64_t n = 1024;
+        DenseMatrix<double> A(n);
+        DenseMatrix<double> B(n);
+        DenseMatrix<double> C_cpu(n);
+        DenseMatrix<double> C_gpu(n);
+        
+        // Initialize with dummy data to avoid NaN/Inf issues
+        // We don't need random data for performance test, just valid floats.
+        // Parallel initialization to be fast
+        // Actually, A and B are zero-initialized by default constructor (or uninitialized?)
+        // DenseMatrix constructor initializes storage.
+        // Let's just run.
+        
+        // Warmup CPU
+        cpu_device_->matmul(A, B, C_cpu);
+        
+        // Measure CPU
+        auto start_cpu = std::chrono::high_resolution_clock::now();
+        cpu_device_->matmul(A, B, C_cpu);
+        auto end_cpu = std::chrono::high_resolution_clock::now();
+        
+        // Warmup GPU
+        gpu_device_->matmul(A, B, C_gpu);
+        
+        // Measure GPU
+        auto start_gpu = std::chrono::high_resolution_clock::now();
+        gpu_device_->matmul(A, B, C_gpu);
+        auto end_gpu = std::chrono::high_resolution_clock::now();
+        
+        double cpu_time = std::chrono::duration<double>(end_cpu - start_cpu).count();
+        double gpu_time = std::chrono::duration<double>(end_gpu - start_gpu).count();
+        
+        if (gpu_time > 0) {
+            gpu_speedup_factor_ = cpu_time / gpu_time;
+        }
+        
+        // std::cout << "[PyCauset] Hardware Profiling: CPU=" << cpu_time << "s, GPU=" << gpu_time << "s. Speedup=" << gpu_speedup_factor_ << "x." << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "[PyCauset] Warning: Hardware profiling failed (" << e.what() << "). Defaulting to GPU enabled." << std::endl;
+        gpu_speedup_factor_ = 1.5; // Assume GPU is decent if benchmark fails
+    }
+    
+    benchmark_done_ = true;
 }
 
 void AutoSolver::disable_gpu() {
@@ -79,25 +137,28 @@ void AutoSolver::unregister_host_memory(void* ptr) {
 
 ComputeDevice* AutoSolver::select_device(uint64_t n_elements) const {
     if (is_gpu_active() && n_elements >= gpu_threshold_elements_) {
+        // Smart Dispatch: If GPU is slower than CPU (speedup < 0.9), prefer CPU.
+        if (gpu_speedup_factor_ < 0.9) {
+            return cpu_device_.get();
+        }
         return gpu_device_.get();
     }
     return cpu_device_.get();
 }
 
 ComputeDevice* AutoSolver::select_device_for_matrix(const MatrixBase& m) const {
-    // Check if matrix type is supported by GPU
-    // Currently CudaDevice supports Dense, DenseBit, and handles Triangular/Diagonal by converting/copying?
-    // Actually CudaDevice::matmul checks for DenseBitMatrix.
-    // For now, we assume GPU supports everything via fallback or direct implementation,
-    // but for performance, we only send large matrices.
-    
-    // Special case: If matrix is very small, always CPU.
     uint64_t n = m.size();
-    if (n * n < gpu_threshold_elements_) {
+    uint64_t elements = n * n;
+    
+    if (elements < gpu_threshold_elements_) {
         return cpu_device_.get();
     }
     
     if (is_gpu_active()) {
+        // Smart Dispatch
+        if (gpu_speedup_factor_ < 0.9) {
+            return cpu_device_.get();
+        }
         return gpu_device_.get();
     }
     
@@ -164,18 +225,34 @@ void AutoSolver::eigvals(const MatrixBase& matrix, ComplexVector& result) {
     bool use_gpu = false;
     if (is_gpu_active() && elements >= gpu_threshold_elements_) {
         // GPU supports Dense Float/Double eigvals
-        if (matrix.get_matrix_type() == MatrixType::DENSE_FLOAT) {
-            DataType dt = matrix.get_data_type();
-            if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
-                use_gpu = true;
-            }
+        // AND Symmetric/Antisymmetric (via expansion)
+        MatrixType mtype = matrix.get_matrix_type();
+        DataType dt = matrix.get_data_type();
+        
+        bool type_ok = (mtype == MatrixType::DENSE_FLOAT || 
+                        mtype == MatrixType::SYMMETRIC || 
+                        mtype == MatrixType::ANTISYMMETRIC);
+                        
+        if (type_ok && (dt == DataType::FLOAT64 || dt == DataType::FLOAT32)) {
+            use_gpu = true;
         }
     }
     
     if (use_gpu) {
         gpu_device_->eigvals(matrix, result);
     } else {
-        cpu_device_->eigvals(matrix, result);
+        // CPU Dispatch Logic: In-Memory vs Out-of-Core
+        // Check if matrix fits in RAM
+        size_t required_bytes = matrix.size() * matrix.size() * sizeof(double); // Approx for dense
+        
+        // If we can fit 2 copies (original + working) in RAM, use fast in-memory solver
+        if (core::MemoryGovernor::instance().request_ram(required_bytes * 2)) {
+            cpu_device_->eigvals(matrix, result);
+        } else {
+            // Use Out-of-Core Parallel Solver
+            // std::cout << "[AutoSolver] Matrix too large for RAM (" << (required_bytes/1024/1024) << " MB). Using Out-of-Core CPU Solver." << std::endl;
+            CpuEigenSolver::eigvals_outofcore(matrix, result);
+        }
     }
 }
 

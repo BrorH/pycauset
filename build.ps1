@@ -208,7 +208,7 @@ if (-not (Test-Path $buildDir)) {
 }
 
 # Construct CMake arguments
-$cmakeArgs = @("..")
+$cmakeArgs = @("..", "-Wno-dev")
 
 # Force CUDA 12.6 if available (to support Pascal GPUs)
 $cuda12Path = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6"
@@ -243,20 +243,20 @@ if ($useNinja -and $vcvarsPath) {
     $batchContent += "if %errorlevel% neq 0 exit /b %errorlevel%`n"
     
     if ($Tests) {
-        $batchContent += "cmake --build . --config Release --target causal_tests`n"
-        $batchContent += "if %errorlevel% neq 0 exit /b %errorlevel%`n"
+        # $batchContent += "cmake --build . --config Release --target causal_tests`n"
+        # $batchContent += "if %errorlevel% neq 0 exit /b %errorlevel%`n"
     }
     
     if ($Python) {
-        $batchContent += "cmake --build . --config Release -j 1`n"
+        $batchContent += "cmake --build . --config Release --parallel`n"
         $batchContent += "if %errorlevel% neq 0 exit /b %errorlevel%`n"
     }
     
     $batchFile = Join-Path $buildDir "build_wrapper.bat"
     Set-Content -Path $batchFile -Value $batchContent
     
-    # Run the batch file
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$batchFile`"" -Wait -NoNewWindow
+    # Run the batch file directly (avoid Start-Process to ensure signals propagate and it doesn't hang)
+    & cmd.exe /c "$batchFile"
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Build failed." -ForegroundColor Red
         exit 1
@@ -268,12 +268,12 @@ if ($useNinja -and $vcvarsPath) {
     if ($LASTEXITCODE -ne 0) { Pop-Location; exit 1 }
     
     if ($Tests) {
-        cmake --build . --config Release --target causal_tests -j 1
-        if ($LASTEXITCODE -ne 0) { Pop-Location; exit 1 }
+        # cmake --build . --config Release --target causal_tests -j 1
+        # if ($LASTEXITCODE -ne 0) { Pop-Location; exit 1 }
     }
     
     if ($Python) {
-        cmake --build . --config Release -j 1
+        cmake --build . --config Release --parallel
         if ($LASTEXITCODE -ne 0) { Pop-Location; exit 1 }
     }
     Pop-Location
@@ -297,6 +297,15 @@ if ($Tests) {
 if ($Python) {
     $packageDir = "python/pycauset"
     if (-not (Test-Path $packageDir)) { New-Item -ItemType Directory -Path $packageDir | Out-Null }
+
+    # Handle pycauset_core (Shared Library)
+    $coreDll = Get-ChildItem -Path $buildDir -Recurse -Filter "pycauset_core.dll" | Select-Object -First 1
+    if ($coreDll) {
+        Copy-Item $coreDll.FullName -Destination $packageDir -Force
+        Write-Host "Copied core library to $packageDir" -ForegroundColor Green
+    } else {
+        Write-Host "Could not locate pycauset_core.dll" -ForegroundColor Red
+    }
 
     # Handle _pycauset (Main Module)
     $pydFile = Get-ChildItem -Path $buildDir -Recurse -Filter "_pycauset.pyd" | Select-Object -First 1

@@ -29,7 +29,7 @@ public:
         DataType dtype,
         MatrixType mtype,
         uint64_t seed = 0,
-        double scalar = 1.0,
+        std::complex<double> scalar = 1.0,
         bool is_transposed = false
     );
 
@@ -41,7 +41,7 @@ public:
         DataType dtype,
         MatrixType mtype,
         uint64_t seed = 0,
-        double scalar = 1.0,
+        std::complex<double> scalar = 1.0,
         bool is_transposed = false
     );
 
@@ -62,7 +62,7 @@ public:
         DataType dtype,
         MatrixType mtype,
         uint64_t seed,
-        double scalar,
+        std::complex<double> scalar,
         bool is_transposed
     );
 
@@ -73,7 +73,7 @@ public:
         DataType dtype,
         MatrixType mtype,
         uint64_t seed = 0,
-        double scalar = 1.0,
+        std::complex<double> scalar = 1.0,
         bool is_transposed = false
     );
 

@@ -21,7 +21,7 @@ DenseVector<bool>::DenseVector(uint64_t n,
                                const std::string& backing_file,
                                size_t offset,
                                uint64_t seed,
-                               double scalar,
+                               std::complex<double> scalar,
                                bool is_transposed)
     : VectorBase(n) {
     uint64_t words = (n + 63) / 64;
@@ -66,7 +66,7 @@ bool DenseVector<bool>::get(uint64_t i) const {
 }
 
 double DenseVector<bool>::get_element_as_double(uint64_t i) const {
-    return get(i) ? scalar_ : 0.0;
+    return get(i) ? scalar_.real() : 0.0;
 }
 
 std::unique_ptr<VectorBase> DenseVector<bool>::transpose(const std::string& saveas) const {
@@ -117,7 +117,7 @@ std::unique_ptr<VectorBase> DenseVector<bool>::add_scalar(double scalar, const s
     double* dst = result->data();
     
     double val_0 = scalar;
-    double val_1 = scalar_ + scalar;
+    double val_1 = (scalar_ + scalar).real();
     
     for (uint64_t i = 0; i < n_; ++i) {
         dst[i] = get(i) ? val_1 : val_0;

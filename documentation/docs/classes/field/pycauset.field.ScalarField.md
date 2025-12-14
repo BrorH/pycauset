@@ -52,3 +52,17 @@ If `a` and `b` are not provided, they are automatically calculated based on the 
 
 *   **ValueError**: If the causal set density is unknown and coefficients are not manually provided.
 *   **NotImplementedError**: If the spacetime dimension/type is not supported for automatic derivation.
+
+### pauli_jordan
+
+```python
+def pauli_jordan(self) -> AntiSymmetricFloat64Matrix
+```
+
+Computes the Pauli-Jordan function $i\Delta$, where $\Delta = K - K^T$.
+
+This function returns an `AntiSymmetricFloat64Matrix` representing the operator $i\Delta$. The matrix stores the values of $\Delta$, but its `scalar` property is set to `1j` (the imaginary unit), so that accessing elements or performing arithmetic operations treats it as $i\Delta$.
+
+**Returns:**
+
+*   **AntiSymmetricFloat64Matrix**: The matrix $i\Delta$.

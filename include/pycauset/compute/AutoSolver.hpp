@@ -64,6 +64,11 @@ private:
     // Thresholds
     uint64_t gpu_threshold_elements_ = 512 * 512; // Default threshold (approx 250K elements)
 
+    // Smart Dispatch
+    double gpu_speedup_factor_ = 1.0;
+    bool benchmark_done_ = false;
+    void run_benchmark();
+
     // Helper to decide device
     ComputeDevice* select_device(uint64_t n_elements) const;
     ComputeDevice* select_device_for_matrix(const MatrixBase& m) const;

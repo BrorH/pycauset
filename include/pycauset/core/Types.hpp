@@ -13,7 +13,9 @@ enum class MatrixType : uint32_t {
     IDENTITY = 5,
     VECTOR = 6,
     DIAGONAL = 7,
-    UNIT_VECTOR = 8
+    UNIT_VECTOR = 8,
+    SYMMETRIC = 9,
+    ANTISYMMETRIC = 10
 };
 
 enum class DataType : uint32_t {
@@ -22,8 +24,7 @@ enum class DataType : uint32_t {
     INT32 = 2,
     FLOAT64 = 3,
     COMPLEX_FLOAT64 = 4,
-    FLOAT32 = 5,
-    FLOAT16 = 6
+    FLOAT32 = 5
 };
 
 }

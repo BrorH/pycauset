@@ -12,7 +12,6 @@
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/compute/ComputeDevice.hpp"
-#include "pycauset/core/Float16.hpp"
 #include <stdexcept>
 #include <bit>
 #include <vector>
@@ -311,7 +310,6 @@ std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const Ma
 }
 
 using Float32Matrix = DenseMatrix<float>;
-using Float16Matrix = DenseMatrix<pycauset::Float16>;
 using TriangularBitMatrix = TriangularMatrix<bool>;
 using DenseBitMatrix = DenseMatrix<bool>;
 
@@ -323,8 +321,6 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     auto* b_fm = dynamic_cast<const FloatMatrix*>(&b);
     auto* a_fm32 = dynamic_cast<const Float32Matrix*>(&a);
     auto* b_fm32 = dynamic_cast<const Float32Matrix*>(&b);
-    auto* a_fm16 = dynamic_cast<const Float16Matrix*>(&a);
-    auto* b_fm16 = dynamic_cast<const Float16Matrix*>(&b);
 
     bool a_is_id = (a.get_matrix_type() == MatrixType::IDENTITY);
     bool b_is_id = (b.get_matrix_type() == MatrixType::IDENTITY);
@@ -371,9 +367,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     if (a_fm32 && b_fm32) {
          return a_fm32->multiply(*b_fm32, saveas);
     }
-    if (a_fm16 && b_fm16) {
-         return a_fm16->multiply(*b_fm16, saveas);
-    }
+
     auto* a_im = dynamic_cast<const IntegerMatrix*>(&a);
     auto* a_tbm = dynamic_cast<const TriangularBitMatrix*>(&a);
     auto* a_dbm = dynamic_cast<const DenseBitMatrix*>(&a);

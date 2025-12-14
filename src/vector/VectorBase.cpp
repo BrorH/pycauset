@@ -31,7 +31,7 @@ VectorBase::VectorBase(uint64_t n,
                        const std::string& backing_file, 
                        size_t offset,
                        uint64_t seed,
-                       double scalar,
+                       std::complex<double> scalar,
                        bool is_transposed,
                        pycauset::MatrixType matrix_type, 
                        pycauset::DataType data_type)

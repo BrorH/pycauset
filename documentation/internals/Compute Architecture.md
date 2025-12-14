@@ -65,6 +65,7 @@ The CPU backend is designed for low-latency execution of small-to-medium workloa
 *   **`CpuDevice`**: A thin wrapper that implements the `ComputeDevice` interface.
 *   **`CpuSolver`**: The core implementation class containing the algorithms. It handles:
     *   **Dense Matrix Ops**: Blocked matrix multiplication (tiled for cache efficiency).
+        *   **Lazy Initialization**: Uses dynamic `beta` parameter (0.0 for first block, 1.0 for others) to avoid global zero-filling of output matrices. This prevents unnecessary page faults for out-of-core datasets.
     *   **Bit Matrix Ops**: Optimized using `std::popcount` (AVX-512/NEON) for 30x speedups over naive loops.
     *   **Element-wise Ops**: Parallelized addition, subtraction, and multiplication.
 

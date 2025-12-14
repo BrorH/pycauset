@@ -2,6 +2,14 @@
 
 Pycauset is designed to handle causal sets where $N$ is large enough that $O(N^2)$ storage becomes the primary bottleneck. To achieve this, we adhere to a strict set of design principles and "mantras" that guide every architectural decision.
 
+## Core Philosophy (North Star)
+
+**PyCauset is _NumPy for causal sets_.**
+
+- Users should interact with **top-level Python objects and functions** (e.g., `pycauset.Matrix`, `pycauset.CausalMatrix`, `pycauset.matmul`).
+- Storage, backend dispatch (CPU/GPU), dtype decisions, and performance optimizations happen **automatically behind the scenes**.
+- We may reorganize internal folders and modules freely, but the **public Python surface remains stable**.
+
 ## Developer Ethos
 
 > "If you just need a matrix, use numpy. If you need a Causal Set, use Pycauset."

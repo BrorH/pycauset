@@ -121,7 +121,57 @@ Expose the frontend function to Python via `pybind11`.
 
 ---
 
-## 3. Release Process
+## 3. Protocol: Adding New Matrix Types
+
+**Objective**: Ensure new matrix structures (e.g., Symmetric, Sparse) are fully integrated into the factory, storage, compute, and Python ecosystems.
+
+### Step-by-Step Implementation Guide
+
+#### 1. Core Definitions (`include/pycauset/core/Types.hpp`)
+*   Add a new enum value to `MatrixType`.
+
+#### 2. Define the Class (`include/pycauset/matrix/`)
+*   Create a new header file (e.g., `MyMatrix.hpp`).
+*   Inherit from `MatrixBase` (or a specialized base like `TriangularMatrixBase`).
+*   Implement required virtual methods:
+    *   `get_element_as_double(i, j)`
+    *   `multiply_scalar`, `add_scalar`, `transpose`
+    *   `clone` (usually delegates to `ObjectFactory`)
+*   **Expose Raw Memory**: If the matrix is intended for GPU acceleration or BLAS operations, it MUST expose a `data()` method returning a raw pointer (`T*`) to the underlying memory. This is critical for `cudaMemcpy` and interoperability.
+*   Implement storage access logic (`get`, `set`) using `MemoryMapper`.
+    *   **Crucial**: Ensure pointer arithmetic correctly handles byte vs. bit offsets.
+
+#### 3. Update the Factory (`src/core/ObjectFactory.cpp`)
+The factory is the central registry for creating and loading matrices.
+*   **`create_matrix`**: Add a case for your `MatrixType` enum. Initialize the object with `create_new=true`.
+*   **`load_matrix`**: Add a case to reconstruct the object from an existing file (`create_new=false`).
+*   **`clone_matrix`**: Ensure the new type can be deep-copied.
+
+#### 4. Update the Solver (`src/compute/cpu/CpuSolver.cpp`)
+The CPU solver handles mathematical operations.
+*   **`binary_op_impl`**: Add a `dynamic_cast` block to handle your new type as a *result* of operations (e.g., `A + B -> NewType`).
+*   **Specific Operations**: If your matrix requires specialized algorithms (e.g., Cholesky for Symmetric), implement them in `CpuSolver`.
+
+#### 5. Python Bindings (`src/bindings.cpp`)
+*   Bind the class using `pybind11`.
+*   Expose constructors, accessors, and properties.
+*   Update `cast_matrix_result` to allow returning this type to Python.
+*   Bind arithmetic operations (if applicable).
+
+#### 6. Testing (`tests/`)
+*   Create a dedicated test file (e.g., `test_my_matrix.cpp`).
+*   Verify:
+    *   Creation and Access (`get`/`set`).
+    *   Persistence (Save/Load).
+    *   Arithmetic (Add/Multiply) - check for `inf`/`nan` which often indicate offset errors.
+
+#### 7. Documentation
+*   Add API reference in `documentation/docs/classes/`.
+*   Update `documentation/docs/classes/index.md`.
+
+---
+
+## 4. Release Process
 
 PyCauset uses an automated release pipeline based on GitHub Actions. This document outlines how versioning and publishing to PyPI are handled.
 
@@ -188,7 +238,7 @@ The workflow is defined in `.github/workflows/publish.yml`.
 
 ---
 
-## 4. Testing and Bug Tracking Protocol
+## 5. Testing and Bug Tracking Protocol
 
 **Objective:** Maintain a strict protocol for automated testing and bug tracking to ensure code quality and stability.
 

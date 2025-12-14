@@ -1,4 +1,11 @@
-from ._pycauset import MinkowskiDiamond, MinkowskiCylinder, MinkowskiBox
+try:
+    from ._pycauset import MinkowskiDiamond, MinkowskiCylinder, MinkowskiBox
+except ImportError:
+    # Fallback for when bindings are incomplete (e.g. during optimization work)
+    class MinkowskiDiamond: pass
+    class MinkowskiCylinder: pass
+    class MinkowskiBox: pass
+
 import numpy as np
 import math
 

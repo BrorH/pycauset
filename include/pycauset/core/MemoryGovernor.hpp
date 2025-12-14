@@ -25,6 +25,7 @@ namespace core {
 class MemoryGovernor {
 public:
     static MemoryGovernor& instance();
+    ~MemoryGovernor();
 
     // Delete copy/move
     MemoryGovernor(const MemoryGovernor&) = delete;
@@ -66,6 +67,28 @@ public:
      * @brief Explicitly updates the size of a tracked object (e.g. resize).
      */
     void update_size(PersistentObject* obj, size_t new_size_bytes);
+
+    /**
+     * @brief Checks if the requested amount of memory fits in RAM without eviction.
+     * This is a lightweight check for optimization purposes.
+     * 
+     * @param size_bytes The amount of memory to check.
+     * @return true if available RAM > size_bytes + safety_margin.
+     */
+    bool can_fit_in_ram(size_t size_bytes) const;
+
+    /**
+     * @brief Determines if an operation should use the "Direct Path" (RAM-resident)
+     * or the "Streaming Path" (Out-of-Core).
+     * 
+     * This encapsulates the "Anti-Nanny" logic:
+     * 1. If data fits in RAM, prefer Direct Path (even if pinning fails).
+     * 2. If data is huge, force Streaming Path.
+     * 
+     * @param total_operation_bytes Total memory footprint of the operation (Inputs + Output).
+     * @return true if the operation should be performed in-memory (Direct Path).
+     */
+    bool should_use_direct_path(size_t total_operation_bytes) const;
 
     // --- Pinned Memory Management (Phase 4) ---
 
@@ -134,7 +157,7 @@ public:
 
 private:
     MemoryGovernor();
-    ~MemoryGovernor() = default;
+    // ~MemoryGovernor() = default;
 
     // Internal helper to poll OS memory
     void refresh_system_stats() const;

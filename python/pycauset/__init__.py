@@ -46,28 +46,42 @@ except ImportError:  # pragma: no cover - exercised when numpy is absent
     _np = None
 
 _native = _import_module("._pycauset", package=__name__)
-_TriangularBitMatrix = _native.TriangularBitMatrix
-_original_triangular_bit_matrix_init = _TriangularBitMatrix.__init__
-_original_triangular_bit_matrix_random = _TriangularBitMatrix.random
+
+# Helper to safely get attributes
+def _safe_get(name):
+    return getattr(_native, name, None)
+
+_TriangularBitMatrix = _safe_get("TriangularBitMatrix")
+if _TriangularBitMatrix:
+    _original_triangular_bit_matrix_init = _TriangularBitMatrix.__init__
+    _original_triangular_bit_matrix_random = _TriangularBitMatrix.random
+else:
+    class _TriangularBitMatrix: pass
+    _original_triangular_bit_matrix_init = None
+    _original_triangular_bit_matrix_random = None
 
 # Private aliases for native classes
-_IntegerMatrix = _native.IntegerMatrix
-_FloatMatrix = _native.FloatMatrix
-_Float32Matrix = getattr(_native, "Float32Matrix", None)
-_Float16Matrix = getattr(_native, "Float16Matrix", None)
-_TriangularFloatMatrix = _native.TriangularFloatMatrix
-_TriangularIntegerMatrix = getattr(_native, "TriangularIntegerMatrix", None)
-_DenseBitMatrix = getattr(_native, "DenseBitMatrix", None)
-_UnitVector = getattr(_native, "UnitVector", None)
+_IntegerMatrix = _safe_get("IntegerMatrix")
+_FloatMatrix = _safe_get("FloatMatrix") or _safe_get("DenseMatrixFloat64")
+_Float32Matrix = _safe_get("Float32Matrix")
+_TriangularFloatMatrix = _safe_get("TriangularFloatMatrix")
+_TriangularIntegerMatrix = _safe_get("TriangularIntegerMatrix")
+_DenseBitMatrix = _safe_get("DenseBitMatrix")
+_UnitVector = _safe_get("UnitVector")
+_SymmetricMatrix = getattr(_native, "SymmetricMatrix", None)
+_AntiSymmetricMatrix = getattr(_native, "AntiSymmetricMatrix", None)
 
 # Public exports
 IntegerMatrix = _IntegerMatrix
 FloatMatrix = _FloatMatrix
 Float32Matrix = _Float32Matrix
-Float16Matrix = _Float16Matrix
 TriangularFloatMatrix = _TriangularFloatMatrix
 TriangularIntegerMatrix = _TriangularIntegerMatrix
 DenseBitMatrix = _DenseBitMatrix
+SymmetricMatrix = _SymmetricMatrix
+AntiSymmetricMatrix = _AntiSymmetricMatrix
+SymmetricFloat64Matrix = _SymmetricMatrix
+AntiSymmetricFloat64Matrix = _AntiSymmetricMatrix
 
 # Vector classes
 _FloatVector = getattr(_native, "FloatVector", None)
@@ -164,9 +178,14 @@ def save(obj: Any, path: str | Path) -> None:
             "rows": obj.size() if hasattr(obj, "size") else len(obj),
             "cols": obj.size() if hasattr(obj, "size") else 1,
             "seed": getattr(obj, "seed", 0),
-            "scalar": getattr(obj, "scalar", 1.0),
             "is_transposed": is_transposed,
         }
+        
+        scalar = getattr(obj, "scalar", 1.0)
+        if isinstance(scalar, complex):
+            metadata["scalar"] = {"real": scalar.real, "imag": scalar.imag}
+        else:
+            metadata["scalar"] = scalar
         
         # Determine matrix_type and data_type based on class
         if isinstance(obj, _TriangularBitMatrix):
@@ -259,6 +278,8 @@ def load(path: str | Path) -> Any:
     cols = metadata.get("cols", 0)
     seed = metadata.get("seed", 0)
     scalar = metadata.get("scalar", 1.0)
+    if isinstance(scalar, dict) and "real" in scalar and "imag" in scalar:
+        scalar = complex(scalar["real"], scalar["imag"])
     is_transposed = metadata.get("is_transposed", False)
     
     # Dispatch
@@ -914,14 +935,9 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                     return _FloatMatrix(n, **kwargs)
                 elif force == "single" or force == "float32":
                     if _Float32Matrix: return _Float32Matrix(n, **kwargs)
-                elif force == "half" or force == "float16":
-                    if _Float16Matrix: return _Float16Matrix(n, **kwargs)
                 
                 # Smart Default
-                if n >= 100000 and _Float16Matrix:
-                    warnings.warn(f"Matrix size {n} >= 100,000. Enforcing Float16 precision for storage efficiency. Use force_precision='double' to override.")
-                    return _Float16Matrix(n, **kwargs)
-                elif n >= 10000 and _Float32Matrix:
+                if n >= 10000 and _Float32Matrix:
                     warnings.warn(f"Matrix size {n} >= 10,000. Enforcing Float32 precision for storage efficiency. Use force_precision='double' to override.")
                     return _Float32Matrix(n, **kwargs)
                 
@@ -934,6 +950,10 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
         try:
             import numpy as np
             if isinstance(data, np.ndarray):
+                # Optimization: Use native asarray if available and dtype matches
+                if data.dtype == np.float64 and hasattr(_native, "asarray"):
+                    return _native.asarray(data)
+
                 if dtype is None:
                     # Infer dtype from numpy array
                     if data.dtype.kind in ('i', 'u'):
@@ -1101,9 +1121,10 @@ class TriangularMatrix(Matrix):
 
 # Inject methods and register subclasses
 for cls in (_TriangularBitMatrix, _IntegerMatrix, _FloatMatrix, _TriangularFloatMatrix):
-    cls.__str__ = MatrixMixin.__str__
-    cls.__repr__ = MatrixMixin.__repr__
-    Matrix.register(cls)
+    if cls:
+        cls.__str__ = MatrixMixin.__str__
+        cls.__repr__ = MatrixMixin.__repr__
+        Matrix.register(cls)
 
 if _TriangularIntegerMatrix:
     _TriangularIntegerMatrix.__str__ = MatrixMixin.__str__
@@ -1116,20 +1137,26 @@ if _DenseBitMatrix:
     Matrix.register(_DenseBitMatrix)
 
 # Register triangular subclasses
-TriangularMatrix.register(_TriangularBitMatrix)
-TriangularMatrix.register(_TriangularFloatMatrix)
+if _TriangularBitMatrix:
+    TriangularMatrix.register(_TriangularBitMatrix)
+if _TriangularFloatMatrix:
+    TriangularMatrix.register(_TriangularFloatMatrix)
 if _TriangularIntegerMatrix:
     TriangularMatrix.register(_TriangularIntegerMatrix)
 
 # Patch TriangularBitMatrix init/random
-_TriangularBitMatrix.__init__ = _patched_triangular_bit_matrix_init
-_TriangularBitMatrix.random = staticmethod(_patched_triangular_bit_matrix_random)
-_patch_matrix_methods(_TriangularBitMatrix)
+if _TriangularBitMatrix:
+    _TriangularBitMatrix.__init__ = _patched_triangular_bit_matrix_init
+    _TriangularBitMatrix.random = staticmethod(_patched_triangular_bit_matrix_random)
+    _patch_matrix_methods(_TriangularBitMatrix)
 
 # Patch other matrix classes to ensure cleanup
-_patch_matrix_class(_IntegerMatrix, target_arg="backing_file")
-_patch_matrix_class(_FloatMatrix, target_arg="backing_file")
-_patch_matrix_class(_TriangularFloatMatrix, target_arg="backing_file")
+if _IntegerMatrix:
+    _patch_matrix_class(_IntegerMatrix, target_arg="backing_file")
+if _FloatMatrix:
+    _patch_matrix_class(_FloatMatrix, target_arg="backing_file")
+if _TriangularFloatMatrix:
+    _patch_matrix_class(_TriangularFloatMatrix, target_arg="backing_file")
 if _TriangularIntegerMatrix:
     _patch_matrix_class(_TriangularIntegerMatrix, target_arg="backing_file")
 
@@ -1300,7 +1327,7 @@ def CausalMatrix(source: Any, populate: bool = True, **kwargs):
 
 CausalMatrix.random = TriangularBitMatrix.random
 
-_native_matmul = getattr(_native, "matmul")
+_native_matmul = getattr(_native, "matmul", None)
 
 def matmul(a: Any, b: Any, saveas: str | None = None) -> Any:
     """
@@ -1458,7 +1485,7 @@ def eigvals(matrix: Any, k: int | None = None, method: str = "dense", max_iter: 
 
 
 # Alias for IdentityMatrix
-I = _native.IdentityMatrix
+I = getattr(_native, "IdentityMatrix", None)
 
 
 def __getattr__(name):

@@ -3,16 +3,19 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <complex>
 
 #include "pycauset/core/Types.hpp"
 #include "pycauset/core/MemoryHints.hpp"
+#include "pycauset/core/IOAccelerator.hpp"
 
-class MemoryMapper;
+// class MemoryMapper; // Already included in IOAccelerator.hpp? No, IOAccelerator.hpp includes MemoryMapper.hpp.
+// But PersistentObject.hpp uses MemoryMapper* in constructor.
 
 namespace pycauset {
 namespace core {
 
-class IOAccelerator; // Forward declaration
+// class IOAccelerator; // Forward declaration removed
 
 enum class StorageState {
     RAM_ONLY,       // Data is in anonymous memory (RAM)
@@ -32,11 +35,12 @@ public:
                      uint64_t rows,
                      uint64_t cols,
                      uint64_t seed = 0,
-                     double scalar = 1.0,
+                     std::complex<double> scalar = 1.0,
                      bool is_transposed = false,
                      bool is_temporary = false);
 
-    virtual ~PersistentObject();
+    virtual ~PersistentObject() {
+    }
 
     virtual std::unique_ptr<PersistentObject> clone() const = 0;
 
@@ -76,8 +80,8 @@ public:
 
     // --- Metadata Accessors ---
 
-    double get_scalar() const { return scalar_; }
-    void set_scalar(double s); 
+    std::complex<double> get_scalar() const { return scalar_; }
+    void set_scalar(std::complex<double> s); 
     
     uint64_t get_seed() const { return seed_; }
     void set_seed(uint64_t seed);
@@ -135,7 +139,7 @@ protected:
     uint64_t rows_ = 0;
     uint64_t cols_ = 0;
     uint64_t seed_ = 0;
-    double scalar_ = 1.0;
+    std::complex<double> scalar_ = 1.0;
     bool is_transposed_ = false;
     bool is_temporary_ = false;
 

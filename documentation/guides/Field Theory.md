@@ -81,3 +81,21 @@ If you are working with a non-standard spacetime or want to experiment with diff
 # Manually specifying coefficients (bypasses automatic derivation)
 K_custom = field.propagator(a=0.5, b=-0.02)
 ```
+
+## The Pauli-Jordan Function ($i\Delta$)
+
+The Pauli-Jordan function $\Delta$ is defined as the difference between the retarded and advanced propagators:
+$$ \Delta = K_R - K_A $$
+Since $K_A = K_R^T$, this is equivalent to:
+$$ \Delta = K - K^T $$
+
+In Quantum Field Theory, the operator of interest is often $i\Delta$. PyCauset provides a dedicated method to compute this efficiently.
+
+```python
+# Compute i*Delta
+Delta = field.pauli_jordan()
+```
+
+The result is an `AntiSymmetricFloat64Matrix`. To represent the factor of $i$ without storing complex numbers for every element (which would double the storage requirement), PyCauset stores the real values of $\Delta$ and sets the matrix's `scalar` property to `1j`.
+
+When you access elements or perform arithmetic with this matrix, the factor of $i$ is automatically applied.

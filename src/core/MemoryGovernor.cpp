@@ -5,7 +5,6 @@
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <windows.h>
 #else
 #include <sys/sysinfo.h>
@@ -32,6 +31,9 @@ MemoryGovernor::MemoryGovernor() {
     uint64_t twenty_percent = cached_total_ram_ / 5;
     uint64_t four_gb = 4ULL * 1024 * 1024 * 1024;
     max_pinned_memory_ = std::min(twenty_percent, four_gb);
+}
+
+MemoryGovernor::~MemoryGovernor() {
 }
 
 void MemoryGovernor::refresh_system_stats() const {
@@ -87,6 +89,27 @@ void MemoryGovernor::reset_for_testing() {
     tracked_ram_usage_ = 0;
     pinned_memory_usage_ = 0;
     // Don't reset safety margin or cached stats as they are system dependent
+}
+
+bool MemoryGovernor::can_fit_in_ram(size_t size_bytes) const {
+    refresh_system_stats();
+    uint64_t available = cached_available_ram_;
+    uint64_t margin = safety_margin_;
+    
+    // Check if we have enough space including the safety margin
+    return available > (size_bytes + margin);
+}
+
+bool MemoryGovernor::should_use_direct_path(size_t total_operation_bytes) const {
+    // 1. If it fits in RAM (with safety margin), use Direct Path.
+    // This is the "Anti-Nanny" rule: Don't force streaming just because we can't pin.
+    // OS paging is efficient enough for RAM-resident workloads.
+    if (can_fit_in_ram(total_operation_bytes)) {
+        return true;
+    }
+
+    // 2. If it doesn't fit in RAM, we MUST use Streaming Path.
+    return false;
 }
 
 bool MemoryGovernor::try_pin_memory(size_t size_bytes) {

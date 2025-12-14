@@ -5,9 +5,9 @@
 #include "pycauset/matrix/DiagonalMatrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
+#include "pycauset/matrix/SymmetricMatrix.hpp"
 #include "pycauset/vector/DenseVector.hpp"
 #include "pycauset/vector/UnitVector.hpp"
-#include "pycauset/core/Float16.hpp"
 #include <stdexcept>
 
 namespace pycauset {
@@ -46,6 +46,22 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
         }
     }
 
+    if (mtype == MatrixType::SYMMETRIC || mtype == MatrixType::ANTISYMMETRIC) {
+        bool is_anti = (mtype == MatrixType::ANTISYMMETRIC);
+        switch (dtype) {
+            case DataType::BIT:
+                return std::make_unique<SymmetricMatrix<bool>>(n, backing_file, is_anti);
+            case DataType::INT32:
+                return std::make_unique<SymmetricMatrix<int32_t>>(n, backing_file, is_anti);
+            case DataType::FLOAT64:
+                return std::make_unique<SymmetricMatrix<double>>(n, backing_file, is_anti);
+            case DataType::FLOAT32:
+                return std::make_unique<SymmetricMatrix<float>>(n, backing_file, is_anti);
+            default:
+                throw std::runtime_error("Unsupported DataType for SymmetricMatrix");
+        }
+    }
+
     bool is_triangular = (mtype == MatrixType::TRIANGULAR_FLOAT || mtype == MatrixType::CAUSAL);
     
     if (is_triangular) {
@@ -70,8 +86,6 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
                 return std::make_unique<DenseMatrix<double>>(n, backing_file);
             case DataType::FLOAT32:
                 return std::make_unique<DenseMatrix<float>>(n, backing_file);
-            case DataType::FLOAT16:
-                return std::make_unique<DenseMatrix<pycauset::Float16>>(n, backing_file);
             default:
                 throw std::runtime_error("Unsupported DataType for DenseMatrix");
         }
@@ -86,7 +100,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::load_matrix(
     DataType dtype,
     MatrixType mtype,
     uint64_t seed,
-    double scalar,
+    std::complex<double> scalar,
     bool is_transposed
 ) {
     uint64_t n = rows; // Assuming square for now, or handled by specific classes
@@ -117,6 +131,22 @@ std::unique_ptr<MatrixBase> ObjectFactory::load_matrix(
         }
     }
 
+    if (mtype == MatrixType::SYMMETRIC || mtype == MatrixType::ANTISYMMETRIC) {
+        bool is_anti = (mtype == MatrixType::ANTISYMMETRIC);
+        switch (dtype) {
+            case DataType::BIT:
+                return std::make_unique<SymmetricMatrix<bool>>(n, backing_file, offset, seed, scalar, is_transposed, is_anti);
+            case DataType::INT32:
+                return std::make_unique<SymmetricMatrix<int32_t>>(n, backing_file, offset, seed, scalar, is_transposed, is_anti);
+            case DataType::FLOAT64:
+                return std::make_unique<SymmetricMatrix<double>>(n, backing_file, offset, seed, scalar, is_transposed, is_anti);
+            case DataType::FLOAT32:
+                return std::make_unique<SymmetricMatrix<float>>(n, backing_file, offset, seed, scalar, is_transposed, is_anti);
+            default:
+                throw std::runtime_error("Unsupported DataType for SymmetricMatrix load");
+        }
+    }
+
     bool is_triangular = (mtype == MatrixType::TRIANGULAR_FLOAT || mtype == MatrixType::CAUSAL);
     
     if (is_triangular) {
@@ -140,8 +170,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::load_matrix(
                 return std::make_unique<DenseMatrix<double>>(n, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT32:
                 return std::make_unique<DenseMatrix<float>>(n, backing_file, offset, seed, scalar, is_transposed);
-            case DataType::FLOAT16:
-                return std::make_unique<DenseMatrix<pycauset::Float16>>(n, backing_file, offset, seed, scalar, is_transposed);
+
             default:
                 throw std::runtime_error("Unsupported DataType for DenseMatrix load");
         }
@@ -184,7 +213,7 @@ std::unique_ptr<VectorBase> ObjectFactory::load_vector(
     DataType dtype,
     MatrixType mtype,
     uint64_t seed,
-    double scalar,
+    std::complex<double> scalar,
     bool is_transposed
 ) {
     uint64_t n = (rows > cols) ? rows : cols;
@@ -216,7 +245,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
     DataType dtype,
     MatrixType mtype,
     uint64_t seed,
-    double scalar,
+    std::complex<double> scalar,
     bool is_transposed
 ) {
     uint64_t n = rows;
@@ -243,13 +272,21 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
             case DataType::FLOAT64: mat = std::make_unique<TriangularMatrix<double>>(n, mapper); break;
             default: throw std::runtime_error("Unsupported DataType for TriangularMatrix clone");
         }
+    } else if (mtype == MatrixType::SYMMETRIC || mtype == MatrixType::ANTISYMMETRIC) {
+        bool is_anti = (mtype == MatrixType::ANTISYMMETRIC);
+        switch (dtype) {
+            case DataType::BIT: mat = std::make_unique<SymmetricMatrix<bool>>(n, mapper, is_anti); break;
+            case DataType::INT32: mat = std::make_unique<SymmetricMatrix<int32_t>>(n, mapper, is_anti); break;
+            case DataType::FLOAT64: mat = std::make_unique<SymmetricMatrix<double>>(n, mapper, is_anti); break;
+            case DataType::FLOAT32: mat = std::make_unique<SymmetricMatrix<float>>(n, mapper, is_anti); break;
+            default: throw std::runtime_error("Unsupported DataType for SymmetricMatrix clone");
+        }
     } else {
         switch (dtype) {
             case DataType::BIT: mat = std::make_unique<DenseMatrix<bool>>(n, mapper); break;
             case DataType::INT32: mat = std::make_unique<DenseMatrix<int32_t>>(n, mapper); break;
             case DataType::FLOAT64: mat = std::make_unique<DenseMatrix<double>>(n, mapper); break;
             case DataType::FLOAT32: mat = std::make_unique<DenseMatrix<float>>(n, mapper); break;
-            case DataType::FLOAT16: mat = std::make_unique<DenseMatrix<pycauset::Float16>>(n, mapper); break;
             default: throw std::runtime_error("Unsupported DataType for DenseMatrix clone");
         }
     }
@@ -269,7 +306,7 @@ std::unique_ptr<VectorBase> ObjectFactory::clone_vector(
     DataType dtype,
     MatrixType mtype,
     uint64_t seed,
-    double scalar,
+    std::complex<double> scalar,
     bool is_transposed
 ) {
     uint64_t n = rows;
@@ -300,13 +337,16 @@ std::unique_ptr<VectorBase> ObjectFactory::clone_vector(
 DataType ObjectFactory::resolve_result_type(DataType a, DataType b) {
     if (a == DataType::FLOAT64 || b == DataType::FLOAT64) return DataType::FLOAT64;
     if (a == DataType::FLOAT32 || b == DataType::FLOAT32) return DataType::FLOAT32;
-    if (a == DataType::FLOAT16 || b == DataType::FLOAT16) return DataType::FLOAT16;
     if (a == DataType::INT32 || b == DataType::INT32) return DataType::INT32;
     return DataType::BIT;
 }
 
 MatrixType ObjectFactory::resolve_result_matrix_type(MatrixType a, MatrixType b) {
     if (a == MatrixType::DENSE_FLOAT || b == MatrixType::DENSE_FLOAT) return MatrixType::DENSE_FLOAT;
+    
+    if (a == MatrixType::SYMMETRIC && b == MatrixType::SYMMETRIC) return MatrixType::SYMMETRIC;
+    if (a == MatrixType::ANTISYMMETRIC && b == MatrixType::ANTISYMMETRIC) return MatrixType::ANTISYMMETRIC;
+
     if (a == MatrixType::TRIANGULAR_FLOAT && b == MatrixType::TRIANGULAR_FLOAT) return MatrixType::TRIANGULAR_FLOAT;
     if (a == MatrixType::CAUSAL && b == MatrixType::CAUSAL) return MatrixType::CAUSAL;
     return MatrixType::DENSE_FLOAT; // Default fallback

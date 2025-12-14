@@ -34,7 +34,7 @@ public:
                const std::string& backing_file,
                size_t offset,
                uint64_t seed,
-               double scalar,
+               std::complex<double> scalar,
                bool is_transposed)
         : VectorBase(n, 
                      0, // No storage
@@ -57,7 +57,7 @@ public:
     double get_element_as_double(uint64_t i) const override {
         if (i >= n_) throw std::out_of_range("Index out of bounds");
         if (i == active_index_) {
-            return scalar_;
+            return scalar_.real();
         }
         return 0.0;
     }
@@ -80,7 +80,7 @@ public:
         auto result = std::make_unique<DenseVector<double>>(n_, result_file);
         double* ptr = result->data();
         double background = scalar;
-        double active_val = scalar_ + scalar;
+        double active_val = scalar_.real() + scalar;
         
         std::fill_n(ptr, n_, background);
         if (active_index_ < n_) {

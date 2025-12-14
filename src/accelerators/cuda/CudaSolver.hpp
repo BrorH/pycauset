@@ -2,7 +2,6 @@
 
 #include "CudaDevice.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
-#include "pycauset/core/Float16.hpp"
 #include <vector>
 
 namespace pycauset {
@@ -51,15 +50,7 @@ private:
         float* C, size_t ldc
     );
 
-    // Half Precision
-    void gemm_streaming(
-        size_t m, size_t n, size_t k,
-        float alpha,
-        const Float16* A, size_t lda,
-        const Float16* B, size_t ldb,
-        float beta,
-        Float16* C, size_t ldc
-    );
+
 
     // --- Helper Methods for Blocked LU ---
 

@@ -2,11 +2,13 @@
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/math/Eigen.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
+#include "pycauset/matrix/SymmetricMatrix.hpp"
 #include <iostream>
 #include <vector>
 #include <algorithm>
 #include <stdexcept>
 #include <cuda_runtime.h>
+#include <cuComplex.h>
 
 using namespace pycauset;
 
@@ -16,6 +18,48 @@ namespace {
         size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
         if (idx < n) {
             c[idx] = a[idx] + b[idx];
+        }
+    }
+
+    // Kernel to expand Symmetric/Antisymmetric packed matrix to Dense Complex
+    // A: Packed data (byte offsets in row_offsets)
+    // C: Dense Complex Output (N x N)
+    // row_offsets: Byte offset for each row start
+    // scalar: Complex scalar to multiply
+    // is_antisymmetric: If true, A is antisymmetric (A_ji = -A_ij)
+    __global__ void k_expand_symmetric_complex(
+        const char* A_bytes, 
+        cuDoubleComplex* C, 
+        size_t n, 
+        const uint64_t* row_offsets,
+        cuDoubleComplex scalar,
+        bool is_antisymmetric
+    ) {
+        size_t i = blockIdx.y * blockDim.y + threadIdx.y;
+        size_t j = blockIdx.x * blockDim.x + threadIdx.x;
+        
+        if (i < n && j < n) {
+            double val = 0.0;
+            
+            if (i <= j) {
+                // Upper triangle (stored)
+                // Row i, Col j. Index in row is (j - i).
+                const double* row_ptr = (const double*)(A_bytes + row_offsets[i]);
+                val = row_ptr[j - i];
+            } else {
+                // Lower triangle (implied)
+                // Element (i, j) corresponds to stored (j, i).
+                const double* row_ptr = (const double*)(A_bytes + row_offsets[j]);
+                val = row_ptr[i - j];
+                if (is_antisymmetric) val = -val;
+            }
+            
+            // C[i, j] = scalar * val
+            // scalar = (s_r, s_i)
+            // val is real.
+            // res = (s_r * val, s_i * val)
+            
+            C[i * n + j] = make_cuDoubleComplex(cuCreal(scalar) * val, cuCimag(scalar) * val);
         }
     }
 
@@ -207,9 +251,7 @@ CudaSolver::CudaSolver(CudaDevice* device) : device_(device) {}
 
 void CudaSolver::invert(const MatrixBase& in, MatrixBase& out) {
     size_t n = in.size();
-    size_t element_size = (in.get_data_type() == DataType::FLOAT64) ? 8 : 
-                          (in.get_data_type() == DataType::FLOAT32) ? 4 : 
-                          (in.get_data_type() == DataType::FLOAT16) ? 2 : 8;
+    size_t element_size = (in.get_data_type() == DataType::FLOAT64) ? 8 : 4;
     size_t bytes = n * n * element_size;
     size_t available = device_->get_available_memory_bytes();
     
@@ -912,6 +954,91 @@ void CudaSolver::eigvals(const MatrixBase& matrix, ComplexVector& result) {
         return;
     }
 
+    // Symmetric Matrix (Double)
+    if (auto* mat_sym = dynamic_cast<const SymmetricMatrix<double>*>(&matrix)) {
+        std::complex<double> scalar = mat_sym->get_scalar();
+        bool is_anti = mat_sym->is_antisymmetric();
+        
+        // Case: Antisymmetric + Imaginary Scalar -> Hermitian
+        bool is_hermitian_via_anti = is_anti && (std::abs(scalar.real()) < 1e-12);
+        
+        if (is_hermitian_via_anti) {
+            // std::cout << "[PyCauset] Using GPU for Antisymmetric Matrix (Hermitian path)..." << std::endl;
+            
+            cuDoubleComplex* d_A;
+            double* d_W; 
+            cuDoubleComplex* d_Work;
+            int* d_Info;
+            uint64_t* d_Offsets;
+            char* d_Packed;
+            
+            // 1. Copy Offsets
+            std::vector<uint64_t> offsets(n);
+            for(size_t i=0; i<n; ++i) offsets[i] = mat_sym->get_row_offset(i);
+            
+            device_->check_cuda_error(cudaMalloc(&d_Offsets, n * sizeof(uint64_t)), "Malloc Offsets");
+            device_->check_cuda_error(cudaMemcpy(d_Offsets, offsets.data(), n * sizeof(uint64_t), cudaMemcpyHostToDevice), "Copy Offsets");
+            
+            // 2. Copy Packed Data
+            // Calculate size: Offset of last row + size of last row
+            // Last row index is n-1.
+            // SymmetricMatrix always has diagonal, so last row has 1 element.
+            // Element size is 8 bytes. Alignment is 8 bytes.
+            size_t total_bytes = offsets[n-1] + 8;
+            
+            device_->check_cuda_error(cudaMalloc(&d_Packed, total_bytes), "Malloc Packed");
+            device_->check_cuda_error(cudaMemcpy(d_Packed, mat_sym->data(), total_bytes, cudaMemcpyHostToDevice), "Copy Packed");
+            
+            // 3. Allocate Dense Complex Matrix
+            device_->check_cuda_error(cudaMalloc(&d_A, n * n * sizeof(cuDoubleComplex)), "Malloc A Complex");
+            device_->check_cuda_error(cudaMalloc(&d_W, n * sizeof(double)), "Malloc W Real");
+            device_->check_cuda_error(cudaMalloc(&d_Info, sizeof(int)), "Malloc Info");
+            
+            // 4. Expand
+            dim3 block(16, 16);
+            dim3 grid((unsigned int)((n + 15) / 16), (unsigned int)((n + 15) / 16));
+            cuDoubleComplex c_scalar = make_cuDoubleComplex(scalar.real(), scalar.imag());
+            
+            k_expand_symmetric_complex<<<grid, block>>>(d_Packed, d_A, n, d_Offsets, c_scalar, is_anti);
+            
+            // 5. Solve (Zheevd)
+            int lwork = 0;
+            cusolverDnZheevd_bufferSize(device_->get_cusolver_handle(), 
+                                       CUSOLVER_EIG_MODE_NOVECTOR, 
+                                       CUBLAS_FILL_MODE_LOWER, 
+                                       (int)n, d_A, (int)n, d_W, &lwork);
+                                       
+            device_->check_cuda_error(cudaMalloc(&d_Work, lwork * sizeof(cuDoubleComplex)), "Malloc Work");
+            
+            cusolverDnZheevd(device_->get_cusolver_handle(),
+                            CUSOLVER_EIG_MODE_NOVECTOR,
+                            CUBLAS_FILL_MODE_LOWER,
+                            (int)n, d_A, (int)n, d_W,
+                            d_Work, lwork, d_Info);
+                            
+            int info = 0;
+            cudaMemcpy(&info, d_Info, sizeof(int), cudaMemcpyDeviceToHost);
+            
+            if (info != 0) {
+                std::cerr << "[PyCauset] GPU Eigenvalues (Zheevd) failed (Info=" << info << "). Falling back to CPU." << std::endl;
+                cudaFree(d_A); cudaFree(d_W); cudaFree(d_Work); cudaFree(d_Info); cudaFree(d_Packed); cudaFree(d_Offsets);
+                pycauset::eigvals_cpu(matrix, result);
+                return;
+            }
+            
+            // 6. Copy Result
+            std::vector<double> h_W(n);
+            cudaMemcpy(h_W.data(), d_W, n * sizeof(double), cudaMemcpyDeviceToHost);
+            
+            for(size_t i=0; i<n; ++i) {
+                result.set(i, std::complex<double>(h_W[i], 0.0));
+            }
+            
+            cudaFree(d_A); cudaFree(d_W); cudaFree(d_Work); cudaFree(d_Info); cudaFree(d_Packed); cudaFree(d_Offsets);
+            return;
+        }
+    }
+
     // Fallback
     pycauset::eigvals_cpu(matrix, result);
 }
@@ -1472,83 +1599,5 @@ void CudaSolver::gemm_streaming(
     }
 }
 
-void CudaSolver::gemm_streaming(
-    size_t m, size_t n, size_t k,
-    float alpha,
-    const Float16* A, size_t lda,
-    const Float16* B, size_t ldb,
-    float beta,
-    Float16* C, size_t ldc
-) {
-    size_t available = device_->get_available_memory_bytes();
-    size_t tile_size = 1024;
-    
-    while (3 * tile_size * tile_size * sizeof(uint16_t) > available * 0.8 && tile_size > 32) {
-        tile_size /= 2;
-    }
-    
-    device_->ensure_half_buffers(tile_size * tile_size);
-    
-    __half* d_A = device_->d_A_half_;
-    __half* d_B = device_->d_B_half_;
-    __half* d_C = device_->d_C_half_;
 
-    __half h_alpha = __float2half(alpha);
-    __half h_beta = __float2half(beta);
-    __half h_one = __float2half(1.0f);
-
-    for (size_t i = 0; i < m; i += tile_size) {
-        size_t tm = std::min(tile_size, m - i);
-        for (size_t j = 0; j < n; j += tile_size) {
-            size_t tn = std::min(tile_size, n - j);
-            
-            std::vector<uint16_t> h_C(tm * tn);
-            for(size_t r=0; r<tm; ++r) {
-                for(size_t c=0; c<tn; ++c) {
-                    h_C[c*tm + r] = C[(i+r)*ldc + (j+c)].data;
-                }
-            }
-            
-            cudaMemcpy(d_C, h_C.data(), tm * tn * sizeof(uint16_t), cudaMemcpyHostToDevice);
-            
-            for (size_t l = 0; l < k; l += tile_size) {
-                size_t tk = std::min(tile_size, k - l);
-                
-                std::vector<uint16_t> h_A(tm * tk);
-                for(size_t r=0; r<tm; ++r) {
-                    for(size_t c=0; c<tk; ++c) {
-                        h_A[c*tm + r] = A[(i+r)*lda + (l+c)].data;
-                    }
-                }
-                cudaMemcpy(d_A, h_A.data(), tm * tk * sizeof(uint16_t), cudaMemcpyHostToDevice);
-                
-                std::vector<uint16_t> h_B(tk * tn);
-                for(size_t r=0; r<tk; ++r) {
-                    for(size_t c=0; c<tn; ++c) {
-                        h_B[c*tk + r] = B[(l+r)*ldb + (j+c)].data;
-                    }
-                }
-                cudaMemcpy(d_B, h_B.data(), tk * tn * sizeof(uint16_t), cudaMemcpyHostToDevice);
-                
-                __half current_beta = (l == 0) ? h_beta : h_one;
-                cublasHgemm(device_->get_cublas_handle(),
-                            CUBLAS_OP_N, CUBLAS_OP_N,
-                            tm, tn, tk,
-                            &h_alpha,
-                            d_A, tm,
-                            d_B, tk,
-                            &current_beta,
-                            d_C, tm);
-            }
-            
-            cudaMemcpy(h_C.data(), d_C, tm * tn * sizeof(uint16_t), cudaMemcpyDeviceToHost);
-            
-            for(size_t r=0; r<tm; ++r) {
-                for(size_t c=0; c<tn; ++c) {
-                    C[(i+r)*ldc + (j+c)].data = h_C[c*tm + r];
-                }
-            }
-        }
-    }
-}
 

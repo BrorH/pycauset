@@ -12,6 +12,7 @@
 #include <cmath>
 #include <vector>
 #include <type_traits>
+#include <iostream>
 
 namespace pycauset {
 
@@ -34,7 +35,7 @@ public:
                 const std::string& backing_file,
                 size_t offset,
                 uint64_t seed,
-                double scalar,
+                std::complex<double> scalar,
                 bool is_transposed)
         : MatrixBase(n, pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {
         
@@ -55,6 +56,29 @@ public:
 
     DenseMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
         : MatrixBase(n, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {}
+
+    void set_identity() {
+        T* ptr = this->data();
+        uint64_t n = this->rows();
+        // Only set diagonal. Assumes matrix is zero-initialized (which is true for new files).
+        for (uint64_t i = 0; i < n; ++i) {
+            ptr[i * n + i] = static_cast<T>(1.0);
+        }
+    }
+
+    void fill(T value) {
+        T* ptr = this->data();
+        uint64_t total = this->rows() * this->cols();
+        for (uint64_t i = 0; i < total; ++i) {
+            ptr[i] = value;
+        }
+    }
+
+    DenseMatrix(const DenseMatrix& other) : MatrixBase(other) {
+    }
+
+    ~DenseMatrix() override {
+    }
 
     void set(uint64_t i, uint64_t j, T value) {
         ensure_unique();
@@ -78,11 +102,31 @@ public:
         if (scalar_ == 1.0) {
             return static_cast<double>(get(i, j));
         }
+        return (static_cast<double>(get(i, j)) * scalar_).real();
+    }
+
+    std::complex<double> get_element_as_complex(uint64_t i, uint64_t j) const override {
+        if (scalar_ == 1.0) {
+            return std::complex<double>(static_cast<double>(get(i, j)), 0.0);
+        }
         return static_cast<double>(get(i, j)) * scalar_;
     }
 
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }
     const T* data() const { return static_cast<const T*>(require_mapper()->get_data()); }
+
+    // Pinning Support
+    bool pin_range(size_t start_idx, size_t count) const {
+        T* ptr = const_cast<T*>(data()) + start_idx;
+        size_t bytes = count * sizeof(T);
+        return require_mapper()->pin_region(ptr, bytes);
+    }
+
+    void unpin_range(size_t start_idx, size_t count) const {
+        T* ptr = const_cast<T*>(data()) + start_idx;
+        size_t bytes = count * sizeof(T);
+        require_mapper()->unpin_region(ptr, bytes);
+    }
 
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
         std::string new_path = copy_storage(result_file);
@@ -110,13 +154,13 @@ public:
         // And avoid double promotion if T is float
         if constexpr (std::is_same_v<T, float>) {
             float s = static_cast<float>(scalar);
-            float s_self = static_cast<float>(scalar_);
+            float s_self = static_cast<float>(scalar_.real());
             pycauset::ParallelFor(0, total_elements, [&](size_t i) {
                 dst_data[i] = src_data[i] * s_self + s;
             });
         } else {
             pycauset::ParallelFor(0, total_elements, [&](size_t i) {
-                double val = static_cast<double>(src_data[i]) * scalar_ + scalar;
+                double val = static_cast<double>(src_data[i]) * scalar_.real() + scalar;
                 dst_data[i] = static_cast<T>(val);
             });
         }
@@ -184,6 +228,17 @@ public:
         pycauset::ComputeContext::instance().get_device()->matmul(*this, other, *result);
         
         return result;
+    }
+
+    void inverse_to(DenseMatrix<T>& out) const {
+        if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
+            throw std::runtime_error("Inverse only supported for FloatMatrix (double) or Float32Matrix (float)");
+        } else {
+            if (out.rows() != n_ || out.cols() != n_) {
+                throw std::runtime_error("Output matrix dimension mismatch");
+            }
+            pycauset::ComputeContext::instance().get_device()->inverse(*this, out);
+        }
     }
 
     // Inverse implementation

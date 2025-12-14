@@ -28,7 +28,7 @@ TriangularMatrix<bool>::TriangularMatrix(uint64_t n,
                                          const std::string& backing_file,
                                          size_t offset,
                                          uint64_t seed,
-                                         double scalar,
+                                         std::complex<double> scalar,
                                          bool is_transposed)
     : TriangularMatrixBase(n, pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT) {
     
@@ -92,7 +92,7 @@ double TriangularMatrix<bool>::get_element_as_double(uint64_t i, uint64_t j) con
     if (scalar_ == 1.0) {
         return get(i, j) ? 1.0 : 0.0;
     }
-    return get(i, j) ? scalar_ : 0.0;
+    return get(i, j) ? scalar_.real() : 0.0;
 }
 
 std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::random(uint64_t n, double density,

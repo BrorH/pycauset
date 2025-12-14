@@ -1,4 +1,12 @@
 #include "pycauset/compute/cpu/CpuSolver.hpp"
+#include <complex>
+#define lapack_complex_float std::complex<float>
+#define lapack_complex_double std::complex<double>
+// Force 64-bit integers for LAPACK to match the DLL expectation (likely ILP64)
+// or at least to prevent buffer overflow if the DLL writes 64-bit integers.
+// #define LAPACK_ILP64
+#include <cblas.h>
+#include <lapacke.h>
 #include "pycauset/vector/ComplexVector.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
@@ -6,21 +14,102 @@
 #include "pycauset/vector/DenseVector.hpp"
 #include "pycauset/vector/UnitVector.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
+#include "pycauset/matrix/SymmetricMatrix.hpp"
 #include "pycauset/matrix/DiagonalMatrix.hpp"
 #include "pycauset/matrix/IdentityMatrix.hpp"
 #include "pycauset/math/Eigen.hpp"
-#include "pycauset/core/Float16.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/core/MemoryHints.hpp"
+#include "pycauset/core/MemoryGovernor.hpp"
 #include <stdexcept>
 #include <algorithm>
 #include <cmath>
 #include <bit>
 #include <filesystem>
+#include <vector>
+#include <cstring>
+#include <iostream>
 
 namespace pycauset {
 
 namespace {
+    // Forward declaration
+    template <typename T>
+    void matmul_streaming(const DenseMatrix<T>* a_dense, const DenseMatrix<T>* b_dense, DenseMatrix<T>* c_dense);
+
+    // --- Helper: Direct Path Optimization ---
+    // Tries to pin all matrices and run BLAS directly.
+    // Returns true if successful, false if memory budget didn't allow it.
+    template <typename T>
+    bool attempt_direct_path(const DenseMatrix<T>* a_dense, const DenseMatrix<T>* b_dense, DenseMatrix<T>* c_dense) {
+        // Only supported for Float/Double where we have BLAS
+        if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
+            uint64_t n = a_dense->size();
+            size_t matrix_bytes = n * n * sizeof(T);
+            size_t total_bytes = matrix_bytes * 3; // A + B + C
+            
+            auto& governor = pycauset::core::MemoryGovernor::instance();
+            
+            // Check 1: Does it fit in RAM?
+            // Check 2: Do we have enough Pinned Memory Budget?
+            if (governor.can_fit_in_ram(total_bytes) && governor.try_pin_memory(total_bytes)) {
+                // Attempt to pin all three matrices
+                bool pinned = true;
+                // We use const_cast because pinning is a logical const operation (doesn't change data)
+                // but might change internal OS handles.
+                pinned &= const_cast<DenseMatrix<T>*>(a_dense)->pin_range(0, n * n);
+                pinned &= const_cast<DenseMatrix<T>*>(b_dense)->pin_range(0, n * n);
+                pinned &= c_dense->pin_range(0, n * n);
+                
+                if (pinned) {
+                    const T* a_data = a_dense->data();
+                    const T* b_data = b_dense->data();
+                    T* c_data = c_dense->data();
+                    
+                    bool t_a = a_dense->is_transposed();
+                    bool t_b = b_dense->is_transposed();
+                    
+                    if constexpr (std::is_same_v<T, double>) {
+                        cblas_dgemm(
+                            CblasRowMajor,
+                            t_a ? CblasTrans : CblasNoTrans,
+                            t_b ? CblasTrans : CblasNoTrans,
+                            n, n, n,
+                            1.0, a_data, n,
+                            b_data, n,
+                            0.0, c_data, n
+                        );
+                    } else {
+                        cblas_sgemm(
+                            CblasRowMajor,
+                            t_a ? CblasTrans : CblasNoTrans,
+                            t_b ? CblasTrans : CblasNoTrans,
+                            n, n, n,
+                            1.0f, a_data, n,
+                            b_data, n,
+                            0.0f, c_data, n
+                        );
+                    }
+                    
+                    // Cleanup
+                    // Unpinning is important to release the "locked" status
+                    const_cast<DenseMatrix<T>*>(a_dense)->unpin_range(0, n * n);
+                    const_cast<DenseMatrix<T>*>(b_dense)->unpin_range(0, n * n);
+                    c_dense->unpin_range(0, n * n);
+                    
+                    governor.unpin_memory(total_bytes);
+                    
+                    c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
+                    return true;
+                } else {
+                    // Pinning failed (OS limit?), release budget and fall back
+                    governor.unpin_memory(total_bytes);
+                }
+            }
+        }
+        return false;
+    }
+
     template <typename T>
     void matmul_impl(const DenseMatrix<T>* a_dense, const DenseMatrix<T>* b_dense, DenseMatrix<T>* c_dense) {
         uint64_t n = a_dense->size();
@@ -28,15 +117,57 @@ namespace {
             throw std::invalid_argument("Matrix dimensions must match");
         }
 
+        // Try Direct Path first (Generalized for Float/Double)
+        if (attempt_direct_path(a_dense, b_dense, c_dense)) {
+            return;
+        }
+
         const T* a_data = a_dense->data();
         const T* b_data = b_dense->data();
         T* c_data = c_dense->data();
 
-        // Initialize result to 0
-        std::fill(c_data, c_data + n * n, static_cast<T>(0));
-
         bool t_a = a_dense->is_transposed();
         bool t_b = b_dense->is_transposed();
+
+        // --- Optimization: Use OpenBLAS for double/float (Fallback if Direct Path failed) ---
+        if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
+            size_t total_bytes = 3 * n * n * sizeof(T);
+            
+            // Check if we should use Direct Path (OS Paging) or Streaming
+            if (false && pycauset::core::MemoryGovernor::instance().should_use_direct_path(total_bytes)) {
+                std::cout << "DEBUG: Using Direct Path (BLAS)" << std::endl;
+                if constexpr (std::is_same_v<T, double>) {
+                    cblas_dgemm(
+                        CblasRowMajor,
+                        t_a ? CblasTrans : CblasNoTrans,
+                        t_b ? CblasTrans : CblasNoTrans,
+                        n, n, n,
+                        1.0, a_data, n,
+                        b_data, n,
+                        0.0, c_data, n
+                    );
+                } else {
+                    cblas_sgemm(
+                        CblasRowMajor,
+                        t_a ? CblasTrans : CblasNoTrans,
+                        t_b ? CblasTrans : CblasNoTrans,
+                        n, n, n,
+                        1.0f, a_data, n,
+                        b_data, n,
+                        0.0f, c_data, n
+                    );
+                }
+                c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
+                return;
+            } else {
+                // Fallback to Streaming (Out-of-Core)
+                matmul_streaming(a_dense, b_dense, c_dense);
+                return;
+            }
+        }
+        
+        // Initialize result to 0
+        std::fill(c_data, c_data + n * n, static_cast<T>(0));
         
         // --- Lookahead Protocol: Send Memory Hints ---
         using namespace pycauset::core;
@@ -136,12 +267,91 @@ namespace {
         c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
     }
 
+    // Specializations for Double/Float are now handled by the template above
+    // which includes the Direct Path optimization.
+
+    // --- Helper: Direct Path Inverse (LAPACK) ---
+    template <typename T>
+    void inverse_direct(const DenseMatrix<T>* in_dense, DenseMatrix<T>* out_dense) {
+        uint64_t n = in_dense->size();
+        
+        // 1. Copy input to output (LAPACK inverts in-place)
+        const T* src = in_dense->data();
+        T* dst = out_dense->data();
+        
+        bool is_transposed = in_dense->is_transposed();
+        
+        if (is_transposed) {
+            ParallelFor(0, n, [&](size_t i) {
+                for (size_t j = 0; j < n; ++j) {
+                    dst[i * n + j] = src[j * n + i];
+                }
+            });
+        } else {
+            // Direct copy
+            std::copy(src, src + n * n, dst);
+        }
+        
+        // 2. LU Factorization (dgetrf)
+        std::vector<lapack_int> ipiv(n);
+        lapack_int info = 0;
+        
+        if constexpr (std::is_same_v<T, double>) {
+            info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)n, dst, (lapack_int)n, ipiv.data());
+        } else {
+            info = LAPACKE_sgetrf(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)n, dst, (lapack_int)n, ipiv.data());
+        }
+        
+        if (info > 0) {
+            throw std::runtime_error("Matrix is singular");
+        } else if (info < 0) {
+            throw std::runtime_error("Illegal argument in LAPACK dgetrf");
+        }
+        
+        // 3. Inverse (dgetri)
+        if constexpr (std::is_same_v<T, double>) {
+            info = LAPACKE_dgetri(LAPACK_ROW_MAJOR, (lapack_int)n, dst, (lapack_int)n, ipiv.data());
+        } else {
+            info = LAPACKE_sgetri(LAPACK_ROW_MAJOR, (lapack_int)n, dst, (lapack_int)n, ipiv.data());
+        }
+        
+        if (info > 0) {
+            throw std::runtime_error("Matrix is singular");
+        } else if (info < 0) {
+            throw std::runtime_error("Illegal argument in LAPACK dgetri");
+        }
+        
+        // Handle scalar
+        std::complex<double> s = in_dense->get_scalar();
+        if (s != 1.0) {
+            out_dense->set_scalar(1.0 / s);
+        }
+    }
+
+
+
     template <typename T>
     void inverse_impl(const DenseMatrix<T>* in_dense, DenseMatrix<T>* out_dense) {
         uint64_t n = in_dense->size();
         if (out_dense->size() != n) throw std::invalid_argument("Output matrix size mismatch");
         if (in_dense->get_scalar() == 0.0) throw std::runtime_error("Matrix scalar is 0, cannot invert");
 
+        // --- Optimization: Direct Path (LAPACK) ---
+        // If it fits in RAM, use LAPACK. It's orders of magnitude faster than manual Gauss-Jordan.
+        // We need space for Input (already there) + Output (already there) + Pivot Array (negligible).
+        // So we just check if Output fits in RAM (Input is likely already in RAM or mapped).
+        // Actually, we need to ensure we don't cause thrashing.
+        // Total footprint ~ 2 * N^2 * sizeof(T).
+        size_t total_bytes = 2 * n * n * sizeof(T);
+        
+        if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
+            // if (pycauset::core::MemoryGovernor::instance().should_use_direct_path(total_bytes)) {
+                inverse_direct(in_dense, out_dense);
+                return;
+            // }
+        }
+
+        // --- Fallback: Out-of-Core Block Gauss-Jordan ---
         // Create temporary work matrix
         std::string work_path = pycauset::make_unique_storage_file("inverse_work");
         // We need to copy input to work, but input might be transposed or scaled.
@@ -193,13 +403,39 @@ namespace {
         });
 
         // Block Gauss-Jordan
-        size_t block_size = 64;
+        // Calculate optimal block size based on available RAM
+        // We need to hold 2 * block_size * n * sizeof(T) in RAM (Panel for W and R)
+        // Plus some overhead.
+        size_t available_ram = pycauset::core::MemoryGovernor::instance().get_available_system_ram();
+        size_t row_size = n * sizeof(T);
+        // Use 50% of available RAM for the panel to be safe and leave room for OS cache/streaming
+        size_t panel_budget = available_ram / 2;
+        size_t max_block_size = panel_budget / (2 * row_size);
+        
+        // Clamp block size
+        size_t block_size = std::clamp(max_block_size, (size_t)64, (size_t)16384);
+        // Align to 64
+        block_size = (block_size / 64) * 64;
+        if (block_size == 0) block_size = 64;
+
+        std::cout << "PyCauset: Out-of-Core Inverse using Block Size: " << block_size 
+                  << " (Panel Size: " << (2 * block_size * row_size / 1024 / 1024) << " MB)" << std::endl;
+
         T epsilon = std::is_same_v<T, float> ? 1e-5f : 1e-12;
         T zero_threshold = std::is_same_v<T, float> ? 1e-7f : 1e-15;
         
         for (size_t k_start = 0; k_start < n; k_start += block_size) {
             size_t k_end = std::min(k_start + block_size, (size_t)n);
-            
+            size_t current_block_size = k_end - k_start;
+
+            // Pin the current panel (rows k_start to k_end) for both W and R
+            // This ensures the pivot rows stay in RAM while we stream the rest of the matrix against them.
+            // Note: pin_range takes offset in elements, not bytes? No, usually bytes or elements.
+            // DenseMatrix::pin_range takes (offset, length) in elements.
+            // Rows are contiguous.
+            work.pin_range(k_start * n, current_block_size * n);
+            out_dense->pin_range(k_start * n, current_block_size * n);
+
             for (size_t i = k_start; i < k_end; ++i) {
                 // Pivot
                 size_t pivot = i;
@@ -268,6 +504,10 @@ namespace {
 
             if (k_start > 0) update_rows(0, k_start);
             if (k_end < n) update_rows(k_end, n);
+
+            // Unpin the panel
+            work.unpin_range(k_start * n, current_block_size * n);
+            out_dense->unpin_range(k_start * n, current_block_size * n);
         }
         
         if (in_dense->get_scalar() != 1.0) {
@@ -288,6 +528,108 @@ namespace {
         
         work.close();
         std::filesystem::remove(work_path);
+    }
+
+    inline void blas_gemm(CBLAS_LAYOUT layout, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB,
+                          const int M, const int N, const int K,
+                          const double alpha, const double *A, const int lda,
+                          const double *B, const int ldb, const double beta,
+                          double *C, const int ldc) {
+        cblas_dgemm(layout, TransA, TransB, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+    }
+
+    inline void blas_gemm(CBLAS_LAYOUT layout, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB,
+                          const int M, const int N, const int K,
+                          const float alpha, const float *A, const int lda,
+                          const float *B, const int ldb, const float beta,
+                          float *C, const int ldc) {
+        cblas_sgemm(layout, TransA, TransB, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+    }
+
+    template <typename T>
+    void matmul_streaming(const DenseMatrix<T>* a_dense, const DenseMatrix<T>* b_dense, DenseMatrix<T>* c_dense) {
+        size_t n = a_dense->rows();
+        auto& governor = pycauset::core::MemoryGovernor::instance();
+
+        // DYNAMIC BLOCK SIZING
+        // Target 80% of available RAM
+        size_t available_ram = governor.get_available_system_ram();
+        size_t target_ram = static_cast<size_t>(available_ram * 0.8);
+        
+        // We need 3 blocks: A, B, C. 
+        // 3 * (B^2) * sizeof(T) = RAM
+        size_t optimal_block_size = static_cast<size_t>(std::sqrt(target_ram / (3.0 * sizeof(T))));
+        
+        // Clamp to reasonable limits
+        // Min: 4096 elements (small)
+        // Max: n (full matrix)
+        size_t block_size = std::max(static_cast<size_t>(4096), optimal_block_size);
+        if (block_size > n) block_size = n;
+        
+        // Ensure even multiple of 8 for SIMD alignment (optional but good)
+        block_size = (block_size / 8) * 8;
+
+        std::cout << "[PyCauset] Out-of-Core MatMul: N=" << n 
+                  << ", BlockSize=" << block_size 
+                  << " (" << (block_size*block_size*sizeof(T))/(1024.0*1024.0) << " MB/block)" << std::endl;
+
+        // Ensure OpenBLAS threading
+        // int num_threads = omp_get_max_threads();
+        // openblas_set_num_threads(num_threads);
+
+        const T* a_data = a_dense->data();
+        const T* b_data = b_dense->data();
+        T* c_data = c_dense->data();
+
+        // Allocate buffers
+        std::vector<T> a_block(block_size * block_size);
+        std::vector<T> b_block(block_size * block_size);
+        std::vector<T> c_block(block_size * block_size);
+
+        // Tiled Matrix Multiplication
+        // Loop Order: i, j, k (Standard)
+        for (size_t i = 0; i < n; i += block_size) {
+            size_t ib = std::min(block_size, n - i);
+            
+            for (size_t j = 0; j < n; j += block_size) {
+                size_t jb = std::min(block_size, n - j);
+                
+                // Reset Accumulator
+                std::fill(c_block.begin(), c_block.end(), static_cast<T>(0));
+
+                for (size_t k = 0; k < n; k += block_size) {
+                    size_t kb = std::min(block_size, n - k);
+
+                    // Load A tile
+                    for (size_t row = 0; row < ib; ++row) {
+                        std::memcpy(&a_block[row * kb], &a_data[(i + row) * n + k], kb * sizeof(T));
+                    }
+
+                    // Load B tile
+                    for (size_t row = 0; row < kb; ++row) {
+                        std::memcpy(&b_block[row * jb], &b_data[(k + row) * n + j], jb * sizeof(T));
+                    }
+
+                    // Compute
+                    T alpha = 1.0;
+                    T beta = 1.0; // Accumulate
+                    if constexpr (std::is_same_v<T, double>) {
+                        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 
+                                    ib, jb, kb, alpha, a_block.data(), kb, b_block.data(), jb, beta, c_block.data(), jb);
+                    } else {
+                        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 
+                                    ib, jb, kb, alpha, a_block.data(), kb, b_block.data(), jb, beta, c_block.data(), jb);
+                    }
+                }
+
+                // Write C tile
+                for (size_t row = 0; row < ib; ++row) {
+                    std::memcpy(&c_data[(i + row) * n + j], &c_block[row * jb], jb * sizeof(T));
+                }
+            }
+        }
+        
+        c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
     }
 } // namespace
 
@@ -321,16 +663,6 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
 
     if (a_i32 && b_i32 && c_i32) {
         matmul_impl(a_i32, b_i32, c_i32);
-        return;
-    }
-
-    // 4. Half Precision (Float16)
-    auto* a_f16 = dynamic_cast<const DenseMatrix<pycauset::Float16>*>(&a);
-    auto* b_f16 = dynamic_cast<const DenseMatrix<pycauset::Float16>*>(&b);
-    auto* c_f16 = dynamic_cast<DenseMatrix<pycauset::Float16>*>(&result);
-
-    if (a_f16 && b_f16 && c_f16) {
-        matmul_impl(a_f16, b_f16, c_f16);
         return;
     }
 
@@ -484,7 +816,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
         
         // Scale rows of B by A's diagonal
         ParallelFor(0, n, [&](size_t i) {
-            double scale = a_data[i] * a_diag->get_scalar();
+            double scale = (a_data[i] * a_diag->get_scalar()).real();
             const double* b_row = b_data + i * n;
             double* c_row = c_data + i * n;
             for (size_t j = 0; j < n; ++j) {
@@ -507,7 +839,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
             const double* a_row = a_data + i * n;
             double* c_row = c_data + i * n;
             for (size_t j = 0; j < n; ++j) {
-                c_row[j] = a_row[j] * b_data[j] * b_diag->get_scalar();
+                c_row[j] = (a_row[j] * b_data[j] * b_diag->get_scalar()).real();
             }
         });
         c_dense_dbl->set_scalar(a_f64->get_scalar());
@@ -642,7 +974,6 @@ void CpuSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_
     
     // Check for optimized types
     auto* f32 = dynamic_cast<const DenseMatrix<float>*>(&A);
-    auto* f16 = dynamic_cast<const DenseMatrix<pycauset::Float16>*>(&A);
     auto* f64 = dynamic_cast<const DenseMatrix<double>*>(&A);
 
     ParallelFor(0, n, [&](size_t i) {
@@ -653,7 +984,6 @@ void CpuSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_
         for (size_t j = 0; j < n; ++j) {
             double a_val;
             if (f32) a_val = (double)f32->get(i, j);
-            else if (f16) a_val = (double)f16->get(i, j);
             else if (f64) a_val = f64->get(i, j);
             else a_val = A.get_element_as_double(i, j);
 
@@ -738,6 +1068,19 @@ namespace {
                 T val = op(static_cast<T>(a.get_element_as_double(i, i)), 
                            static_cast<T>(b.get_element_as_double(i, i)));
                 res_diag->set(i, i, val);
+            });
+            return;
+        }
+
+        // 4. SymmetricMatrix Result
+        if (auto* res_sym = dynamic_cast<SymmetricMatrix<T>*>(&result)) {
+            ParallelFor(0, n, [&](size_t i) {
+                // SymmetricMatrix stores upper triangle (including diagonal)
+                for (uint64_t j = i; j < n; ++j) {
+                    T val = op(static_cast<T>(a.get_element_as_double(i, j)), 
+                               static_cast<T>(b.get_element_as_double(i, j)));
+                    res_sym->set(i, j, val);
+                }
             });
             return;
         }
@@ -869,7 +1212,7 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
 
     // Identity Optimization
     if (m.get_matrix_type() == MatrixType::IDENTITY) {
-        double scalar = m.get_scalar();
+        double scalar = m.get_scalar().real();
         if (auto* res_int = dynamic_cast<DenseVector<int32_t>*>(&result)) {
             ParallelFor(0, n, [&](size_t i) {
                 res_int->set(i, (int32_t)(v.get_element_as_double(i) * scalar));
@@ -934,7 +1277,7 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
 
     // Identity Optimization
     if (m.get_matrix_type() == MatrixType::IDENTITY) {
-        double scalar = m.get_scalar();
+        double scalar = m.get_scalar().real();
         if (auto* res_int = dynamic_cast<DenseVector<int32_t>*>(&result)) {
             ParallelFor(0, n, [&](size_t i) {
                 res_int->set(i, (int32_t)(v.get_element_as_double(i) * scalar));

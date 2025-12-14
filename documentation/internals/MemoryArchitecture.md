@@ -68,35 +68,35 @@ The `IOAccelerator` optimizes the interaction between the application and the OS
 2.  **Compute**: The CPU accesses the memory. Since pages are likely already in RAM, major page faults are minimized.
 3.  **Discard**: After the operation, if the data is intermediate or unlikely to be reused soon, `accelerator->discard()` is called. This uses `OfferVirtualMemory` (Windows) or `MADV_DONTNEED` (Linux) to tell the OS these pages can be evicted immediately, freeing up RAM for other tasks.
 
-## 3. Copy-on-Write (Lazy Copy) (Phase 4)
+## 4. Pinned Memory & Direct Path (Phase 4)
 
-To support efficient object duplication (e.g., `B = A.copy()`), PyCauset implements a **Copy-on-Write (CoW)** mechanism. This ensures that copying a large matrix is instant ($O(1)$), and data is only duplicated when one of the copies is modified.
+To achieve maximum performance for operations that fit entirely in RAM, PyCauset implements a **Direct Path** optimization that bypasses the standard paging/tiling overhead.
 
-### Shared Ownership
+### The "Nanny Problem" & Anti-Nanny Logic
+Standard memory-mapped files rely on the OS to page data in and out. While safe, this introduces latency (page faults).
+However, forcing "Streaming/Tiling" on RAM-resident data that *could* be handled by the OS pager is also inefficient (the "Nanny Problem").
 
-The core of this mechanism is the transition from `std::unique_ptr<MemoryMapper>` to `std::shared_ptr<MemoryMapper>` in `PersistentObject`.
+### The Solution: `should_use_direct_path()`
 
-*   **Shallow Copy**: When `clone()` is called, a new `PersistentObject` is created, but it points to the *same* `MemoryMapper` (and thus the same underlying file/RAM buffer).
-*   **Reference Counting**: The `std::shared_ptr` tracks how many objects are using the storage.
+The `MemoryGovernor` now exposes a centralized decision method: `should_use_direct_path(total_bytes)`.
 
-### The `ensure_unique()` Guard
+1.  **Check 1 (Pinning)**: If data fits in the **Pinned Memory Budget**, we pin it and use the BLAS Direct Path. This is the fastest possible mode.
+2.  **Check 2 (Anti-Nanny)**: If data fits in **Total Available RAM** (but exceeds the pinning budget), we *still* use the Direct Path (without pinning). We trust the OS pager to handle the memory efficiently, avoiding the overhead of manual tiling.
+3.  **Fallback**: Only if the data exceeds Available RAM do we switch to the **Streaming/Out-of-Core Solver**.
 
-Every method that modifies data (e.g., `set()`, `set_diagonal()`) must first call `ensure_unique()`.
+### Direct Path Workflow
 
-```cpp
-void PersistentObject::ensure_unique() {
-    // If we are sharing storage with others (use_count > 1)
-    if (mapper_.use_count() > 1) {
-        // 1. Create a new, independent storage (Deep Copy)
-        auto new_mapper = mapper_->clone();
-        
-        // 2. Point this object to the new storage
-        mapper_ = std::move(new_mapper);
-        
-        // Now use_count() is 1, and we are safe to write.
-    }
-}
-```
+In `CpuSolver`, before starting a heavy operation (like Matrix Multiplication):
+
+1.  **Attempt Pinning**: Call `attempt_direct_path()`. If successful, run BLAS on pinned memory.
+2.  **Check Anti-Nanny**: Call `MemoryGovernor::should_use_direct_path()`. If true, run BLAS on unpinned memory (OS Paging).
+3.  **Streaming Fallback**: If both fail, run `matmul_streaming` (Manual Tiling + Prefetching).
+
+This strategy allows PyCauset to match the performance of in-memory libraries (like NumPy) for medium-sized datasets, while gracefully falling back to the robust, tiled, out-of-core solver for massive datasets.
+
+### Generalized Implementation
+
+The "Direct Path" logic is implemented in a generalized helper `attempt_direct_path<T>` which supports both `double` and `float`. It is automatically attempted before falling back to the streaming/tiling logic.
 
 ### Diagram
 

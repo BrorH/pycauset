@@ -1,14 +1,15 @@
 #include "pycauset/math/Eigen.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
+#include "pycauset/matrix/SymmetricMatrix.hpp"
 #include "pycauset/matrix/DiagonalMatrix.hpp"
 #include "pycauset/matrix/IdentityMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
-#include "pycauset/core/Float16.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/compute/ComputeDevice.hpp"
+#include "pycauset/compute/cpu/CpuEigenSolver.hpp"
 #include <stdexcept>
 #include <cmath>
 #include <iostream>
@@ -49,6 +50,18 @@ std::vector<double> to_memory_flat(const MatrixBase& m) {
     return mat;
 }
 
+std::vector<std::complex<double>> to_memory_flat_complex(const MatrixBase& m) {
+    uint64_t n = m.size();
+    std::vector<std::complex<double>> mat(n * n);
+    
+    pycauset::ParallelFor(0, n, [&](size_t i) {
+        for(size_t j=0; j<n; ++j) {
+            mat[i*n + j] = m.get_element_as_complex(i, j);
+        }
+    });
+    return mat;
+}
+
 double trace(const MatrixBase& matrix) {
     if (auto cached = matrix.get_cached_trace()) {
         return *cached;
@@ -59,7 +72,7 @@ double trace(const MatrixBase& matrix) {
     auto type = matrix.get_matrix_type();
     
     if (type == MatrixType::IDENTITY) {
-        tr = matrix.get_scalar() * n;
+        tr = matrix.get_scalar().real() * n;
     } else {
         for(uint64_t i=0; i<n; ++i) {
             tr += matrix.get_element_as_double(i, i);
@@ -78,23 +91,75 @@ void eigvals_cpu(const MatrixBase& matrix, ComplexVector& result) {
     std::vector<std::complex<double>> vals;
 
     if (type == MatrixType::IDENTITY) {
-        double val = matrix.get_scalar();
-        vals.assign(n, std::complex<double>(val, 0));
+        std::complex<double> val = matrix.get_scalar();
+        vals.assign(n, val);
     } else if (type == MatrixType::DIAGONAL) {
-        for(uint64_t i=0; i<n; ++i) vals.push_back(matrix.get_element_as_double(i, i));
+        for(uint64_t i=0; i<n; ++i) vals.push_back(matrix.get_element_as_complex(i, i));
     } else if (type == MatrixType::TRIANGULAR_FLOAT || type == MatrixType::CAUSAL) {
         bool has_diag = false;
         if (auto* m = dynamic_cast<const TriangularMatrix<double>*>(&matrix)) has_diag = m->has_diagonal();
         else if (auto* m = dynamic_cast<const TriangularMatrix<int32_t>*>(&matrix)) has_diag = m->has_diagonal();
         
         if (has_diag) {
-            for(uint64_t i=0; i<n; ++i) vals.push_back(matrix.get_element_as_double(i, i));
+            for(uint64_t i=0; i<n; ++i) vals.push_back(matrix.get_element_as_complex(i, i));
         } else {
             vals.assign(n, 0.0);
         }
     } else {
         // Dense or other
-        if (dtype == DataType::FLOAT64 && type == MatrixType::DENSE_FLOAT) {
+        bool is_complex_scalar = std::abs(matrix.get_scalar().imag()) > 1e-14;
+        
+        // Check for Symmetric/Hermitian optimization
+        bool is_symmetric = false;
+        bool is_hermitian = false;
+        
+        if (auto* sym = dynamic_cast<const SymmetricMatrix<double>*>(&matrix)) {
+            if (!sym->is_antisymmetric() && !is_complex_scalar) {
+                is_symmetric = true;
+            } else if (sym->is_antisymmetric() && is_complex_scalar && std::abs(matrix.get_scalar().real()) < 1e-14) {
+                // Anti-symmetric * i = Hermitian
+                is_hermitian = true;
+            }
+        }
+
+        if (is_symmetric) {
+             // Optimization: Use Out-of-Core Block Jacobi for large matrices
+             // This avoids loading the entire matrix into RAM if it's huge, and uses parallel updates.
+             // Threshold: 512 (Small enough for L2 cache blocks, large enough to matter)
+             if (n >= 512) {
+                 try {
+                     CpuEigenSolver::eigvals_outofcore(matrix, result);
+                     return; // Result is already set in result vector
+                 } catch (const std::exception& e) {
+                     // Fallback to in-memory if out-of-core fails (e.g. disk error)
+                     std::cerr << "[PyCauset] Warning: Out-of-core solver failed (" << e.what() << "). Falling back to in-memory." << std::endl;
+                 }
+             }
+
+             std::vector<double> data = to_memory_flat(matrix);
+             Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
+                mat_eigen(data.data(), n, n);
+             Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> es(mat_eigen, false);
+             auto evals = es.eigenvalues();
+             vals.resize(n);
+             for(uint64_t i=0; i<n; ++i) vals[i] = evals[i];
+        } else if (is_hermitian) {
+             std::vector<std::complex<double>> data = to_memory_flat_complex(matrix);
+             Eigen::Map<Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
+                mat_eigen(data.data(), n, n);
+             Eigen::SelfAdjointEigenSolver<Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> es(mat_eigen, false);
+             auto evals = es.eigenvalues();
+             vals.resize(n);
+             for(uint64_t i=0; i<n; ++i) vals[i] = evals[i];
+        } else if (is_complex_scalar) {
+             std::vector<std::complex<double>> data = to_memory_flat_complex(matrix);
+             Eigen::Map<Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
+                mat_eigen(data.data(), n, n);
+             Eigen::ComplexEigenSolver<Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> es(mat_eigen, false);
+             auto evals = es.eigenvalues();
+             vals.resize(n);
+             for(uint64_t i=0; i<n; ++i) vals[i] = evals[i];
+        } else if (dtype == DataType::FLOAT64 && type == MatrixType::DENSE_FLOAT) {
             const auto* dm = dynamic_cast<const DenseMatrix<double>*>(&matrix);
             Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> 
                 mat_eigen(dm->data(), n, n);
@@ -128,6 +193,7 @@ void eigvals_cpu(const MatrixBase& matrix, ComplexVector& result) {
 }
 
 std::unique_ptr<ComplexVector> eigvals(const MatrixBase& matrix, const std::string& saveas_real, const std::string& saveas_imag) {
+    /*
     if (auto cached = matrix.get_cached_eigenvalues()) {
         auto res = std::make_unique<ComplexVector>(matrix.size(), saveas_real, saveas_imag);
         for(uint64_t i=0; i<matrix.size(); ++i) {
@@ -135,16 +201,19 @@ std::unique_ptr<ComplexVector> eigvals(const MatrixBase& matrix, const std::stri
         }
         return res;
     }
+    */
 
     auto res = std::make_unique<ComplexVector>(matrix.size(), saveas_real, saveas_imag);
     ComputeContext::instance().get_device()->eigvals(matrix, *res);
     
+    /*
     // Cache the result
     std::vector<std::complex<double>> vals(matrix.size());
     for(uint64_t i=0; i<matrix.size(); ++i) {
         vals[i] = res->get(i);
     }
     matrix.set_cached_eigenvalues(vals);
+    */
     
     return res;
 }
@@ -212,7 +281,7 @@ double determinant(const MatrixBase& matrix) {
     auto type = matrix.get_matrix_type();
     
     if (type == MatrixType::IDENTITY) {
-        det = std::pow(matrix.get_scalar(), n);
+        det = std::pow(matrix.get_scalar(), n).real();
     } else if (type == MatrixType::DIAGONAL) {
         det = 1.0;
         for(uint64_t i=0; i<n; ++i) det *= matrix.get_element_as_double(i, i);
@@ -263,7 +332,7 @@ std::pair<std::unique_ptr<ComplexVector>, std::unique_ptr<ComplexMatrix>> eig(co
     auto dtype = matrix.get_data_type();
     
     if (type == MatrixType::IDENTITY) {
-        double val = matrix.get_scalar();
+        double val = matrix.get_scalar().real();
         for(uint64_t i=0; i<n; ++i) {
             vals_vec->set(i, std::complex<double>(val, 0));
             vecs_mat->set(i, i, 1.0);
@@ -344,8 +413,8 @@ std::pair<std::unique_ptr<ComplexVector>, std::unique_ptr<ComplexMatrix>> eig(co
     const double* r_data = real_mat->data();
     const double* i_data = imag_mat->data();
     
-    double r_scalar = real_mat->get_scalar();
-    double i_scalar = imag_mat->get_scalar();
+    double r_scalar = real_mat->get_scalar().real();
+    double i_scalar = imag_mat->get_scalar().real();
     
     bool r_trans = real_mat->is_transposed();
     bool i_trans = imag_mat->is_transposed();

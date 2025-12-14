@@ -33,7 +33,7 @@ public:
                 const std::string& backing_file,
                 size_t offset,
                 uint64_t seed,
-                double scalar,
+                std::complex<double> scalar,
                 bool is_transposed)
         : VectorBase(n) {
         
@@ -70,7 +70,7 @@ public:
         if (scalar_ == 1.0) {
             return static_cast<double>(get(i));
         }
-        return static_cast<double>(get(i)) * scalar_;
+        return (static_cast<double>(get(i)) * scalar_).real();
     }
 
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }
@@ -94,7 +94,7 @@ public:
         T* dst_data = result->data();
         
         for (uint64_t i = 0; i < n_; ++i) {
-            double val = static_cast<double>(src_data[i]) * scalar_ + scalar;
+            double val = static_cast<double>(src_data[i]) * scalar_.real() + scalar;
             dst_data[i] = static_cast<T>(val);
         }
         
@@ -128,7 +128,7 @@ public:
                 const std::string& backing_file,
                 size_t offset,
                 uint64_t seed,
-                double scalar,
+                std::complex<double> scalar,
                 bool is_transposed);
 
     DenseVector(uint64_t n, std::shared_ptr<MemoryMapper> mapper);

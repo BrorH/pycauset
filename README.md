@@ -6,13 +6,15 @@
 
 **PyCauset** is a high-performance Python library for **Causal Set Theory**. It bridges the gap between abstract mathematical models and large-scale numerical simulations, allowing researchers to work with causal sets of millions of elements on consumer hardware.
 
+**Core philosophy:** PyCauset is **NumPy for causal sets**. Users should interact only with Python objects and a NumPy-like API, while storage, hardware dispatch (CPU/GPU), and performance optimizations happen automatically behind the scenes.
+
 **[Explore the Full Documentation »](https://brorh.github.io/pycauset/)**
 
 ## Key Features
 
 *   **Hybrid Storage Architecture**: PyCauset automatically manages memory. Small matrices live in RAM for speed, while massive datasets spill seamlessly to **memory-mapped disk storage** (ZIP-compressed archives).
 *   **GPU Acceleration**: Built-in NVIDIA CUDA backend for matrix multiplication, inversion, and eigenvalue problems. Includes custom kernels for **accelerated bit-matrix operations**.
-*   **Smart Precision**: Automatically selects `Float64`, `Float32`, or `Float16` based on matrix size and hardware capabilities to maximize throughput.
+*   **Smart Precision**: Automatically selects `Float64` or `Float32` based on matrix size and hardware capabilities to maximize throughput.
 *   **Physics Engines**:
     *   **Spacetimes**: Minkowski Diamond, Cylinder, and Box manifolds.
     *   **Fields**: Scalar field propagators ($K_R$) and path integrals.
@@ -31,6 +33,13 @@ We provide pre-compiled binary wheels for Windows, macOS, and Linux.
 git clone https://github.com/BrorH/pycauset.git
 cd pycauset
 pip install .
+```
+
+### Development Install
+For contributors, an editable install builds the native extension via `scikit-build-core`:
+
+```bash
+pip install -e .
 ```
 
 ## Quick Start

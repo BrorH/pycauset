@@ -27,6 +27,10 @@ public:
     void unmap_region(void* ptr);
     static size_t get_granularity();
 
+    // Pinning support (VirtualLock/mlock)
+    bool pin_region(void* ptr, size_t size) const;
+    void unpin_region(void* ptr, size_t size) const;
+
 private:
     std::string filename_;
     size_t data_size_;

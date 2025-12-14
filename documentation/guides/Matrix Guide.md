@@ -33,8 +33,7 @@ For extremely large matrices ($N > 10,000$), PyCauset automatically adjusts the 
 | Matrix Size ($N$) | Default Precision | Storage per Element | Class |
 | :--- | :--- | :--- | :--- |
 | $N < 10,000$ | Double (64-bit) | 8 bytes | [[pycauset.FloatMatrix]] |
-| $10,000 \le N < 100,000$ | Single (32-bit) | 4 bytes | [[pycauset.Float32Matrix]] |
-| $N \ge 100,000$ | Half (16-bit) | 2 bytes | [[pycauset.Float16Matrix]] |
+| $N \ge 10,000$ | Single (32-bit) | 4 bytes | [[pycauset.Float32Matrix]] |
 
 **Overriding Defaults:**
 You can force a specific precision using the `force_precision` argument:
@@ -326,4 +325,4 @@ This makes it possible to analyze matrices that are far larger than RAM (e.g., $
 | 2,000 | Float64 | Dense QR | ~5s |
 | 10,000 | Float32 | Arnoldi | ~10s |
 | 30,000 | Float64 | Skew-Lanczos | ~10s |
-| 100,000 | Float16 | Block Arnoldi | ~2-5 mins |
+| 100,000 | Float32 | Block Arnoldi | ~2-5 mins |

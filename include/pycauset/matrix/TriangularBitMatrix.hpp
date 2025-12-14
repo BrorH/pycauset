@@ -27,7 +27,7 @@ public:
                      const std::string& backing_file,
                      size_t offset,
                      uint64_t seed,
-                     double scalar,
+                     std::complex<double> scalar,
                      bool is_transposed);
 
     // Constructor for loading from existing mapper

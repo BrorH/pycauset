@@ -38,7 +38,7 @@ The metadata file describes how to interpret the binary data.
   "rows": 1000,
   "cols": 1000,
   "seed": 12345,
-  "scalar": 1.0,
+  "scalar": 1.0,            // Can be a float or a complex object: {"real": 0.0, "imag": 1.0}
   "is_transposed": false,
   "matrix_type": "CAUSAL",      // e.g., CAUSAL, DENSE_FLOAT, VECTOR
   "data_type": "BIT",           // e.g., BIT, FLOAT64, INT32
@@ -150,7 +150,7 @@ The data on disk is the "canonical" storage. The C++ object is a "view" onto tha
 
 ## 3. Type System and Dispatch
 
-This document explains how PyCauset handles different data types (`double`, `float`, `Float16`, `bool`) and how operations are dispatched to the correct implementation.
+This document explains how PyCauset handles different data types (`double`, `float`, `bool`) and how operations are dispatched to the correct implementation.
 
 ### Philosophy: Anti-Promotion
 
@@ -161,8 +161,7 @@ A core principle of PyCauset's type system is **Anti-Promotion**.
 
 **Rules:**
 1.  `Float32` op `Float32` -> `Float32`
-2.  `Float16` op `Float16` -> `Float16` (or `Float32` accumulator if needed for stability, but stored as `Float16`)
-3.  `Float32` op `Float64` -> `Float64` (Promotion allowed for mixed types)
+2.  `Float32` op `Float64` -> `Float64` (Promotion allowed for mixed types)
 
 ### The Dispatcher
 

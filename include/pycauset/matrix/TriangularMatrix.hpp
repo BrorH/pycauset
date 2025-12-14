@@ -51,7 +51,7 @@ public:
                      const std::string& backing_file,
                      size_t offset,
                      uint64_t seed,
-                     double scalar,
+                     std::complex<double> scalar,
                      bool is_transposed,
                      bool has_diagonal = false)
         : TriangularMatrixBase(n, pycauset::MatrixType::TRIANGULAR_FLOAT, MatrixTraits<T>::data_type) {
@@ -142,6 +142,13 @@ public:
     double get_element_as_double(uint64_t i, uint64_t j) const override {
         if (scalar_ == 1.0) {
             return static_cast<double>(get(i, j));
+        }
+        return (static_cast<double>(get(i, j)) * scalar_).real();
+    }
+
+    std::complex<double> get_element_as_complex(uint64_t i, uint64_t j) const override {
+        if (scalar_ == 1.0) {
+            return std::complex<double>(static_cast<double>(get(i, j)), 0.0);
         }
         return static_cast<double>(get(i, j)) * scalar_;
     }

@@ -92,11 +92,6 @@ void CudaDevice::free_buffers() {
     if (d_B_float_) { cudaFree(d_B_float_); d_B_float_ = nullptr; }
     if (d_C_float_) { cudaFree(d_C_float_); d_C_float_ = nullptr; }
     buffer_size_float_ = 0;
-
-    if (d_A_half_) { cudaFree(d_A_half_); d_A_half_ = nullptr; }
-    if (d_B_half_) { cudaFree(d_B_half_); d_B_half_ = nullptr; }
-    if (d_C_half_) { cudaFree(d_C_half_); d_C_half_ = nullptr; }
-    buffer_size_half_ = 0;
 }
 
 void CudaDevice::ensure_buffers(size_t n_elements) {
@@ -131,21 +126,7 @@ void CudaDevice::ensure_float_buffers(size_t n_elements) {
     buffer_size_float_ = n_elements;
 }
 
-void CudaDevice::ensure_half_buffers(size_t n_elements) {
-    if (n_elements <= buffer_size_half_) return;
 
-    // Only free half buffers
-    if (d_A_half_) { cudaFree(d_A_half_); d_A_half_ = nullptr; }
-    if (d_B_half_) { cudaFree(d_B_half_); d_B_half_ = nullptr; }
-    if (d_C_half_) { cudaFree(d_C_half_); d_C_half_ = nullptr; }
-    buffer_size_half_ = 0;
-
-    size_t size_bytes = n_elements * sizeof(__half);
-    check_cuda(cudaMalloc(&d_A_half_, size_bytes), "cudaMalloc A half");
-    check_cuda(cudaMalloc(&d_B_half_, size_bytes), "cudaMalloc B half");
-    check_cuda(cudaMalloc(&d_C_half_, size_bytes), "cudaMalloc C half");
-    buffer_size_half_ = n_elements;
-}
 
 size_t CudaDevice::get_available_memory() {
     size_t free_byte, total_byte;
@@ -243,45 +224,7 @@ void CudaDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
         return;
     }
 
-    // Try Float16
-    auto* a_half = dynamic_cast<const DenseMatrix<Float16>*>(&a);
-    auto* b_half = dynamic_cast<const DenseMatrix<Float16>*>(&b);
-    auto* c_half = dynamic_cast<DenseMatrix<Float16>*>(&result);
 
-    if (a_half && b_half && c_half) {
-        size_t size_bytes = n * n * sizeof(uint16_t);
-        
-        if (n * n > buffer_size_half_) {
-            if (3 * size_bytes > free_mem + (buffer_size_half_ * sizeof(uint16_t) * 3)) {
-                 matmul_streaming(a_half, b_half, c_half, free_mem);
-                 return;
-            }
-            ensure_half_buffers(n * n);
-        }
-
-        __half *d_A = d_A_half_;
-        __half *d_B = d_B_half_;
-        __half *d_C = d_C_half_;
-
-        check_cuda(cudaMemcpy(d_A, a_half->data(), size_bytes, cudaMemcpyHostToDevice), "cudaMemcpy A half");
-        check_cuda(cudaMemcpy(d_B, b_half->data(), size_bytes, cudaMemcpyHostToDevice), "cudaMemcpy B half");
-
-        __half alpha = __float2half(1.0f);
-        __half beta = __float2half(0.0f);
-
-        check_cublas(cublasHgemm(cublas_handle_,
-                                 CUBLAS_OP_N, CUBLAS_OP_N,
-                                 n, n, n,
-                                 &alpha,
-                                 d_B, n,
-                                 d_A, n,
-                                 &beta,
-                                 d_C, n), "cublasHgemm");
-        
-        check_cuda(cudaMemcpy(c_half->data(), d_C, size_bytes, cudaMemcpyDeviceToHost), "cudaMemcpy C half");
-        c_half->set_scalar(a_half->get_scalar() * b_half->get_scalar());
-        return;
-    }
 
     // Try Double
     auto* a_dense = dynamic_cast<const DenseMatrix<double>*>(&a);
@@ -289,7 +232,7 @@ void CudaDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
     auto* c_dense = dynamic_cast<DenseMatrix<double>*>(&result);
 
     if (!a_dense || !b_dense || !c_dense) {
-        throw std::runtime_error("CudaDevice::matmul only supports DenseMatrix<double>, <float>, or <Float16>");
+        throw std::runtime_error("CudaDevice::matmul only supports DenseMatrix<double> or <float>");
     }
 
     size_t size_bytes = n * n * sizeof(double);
@@ -937,99 +880,7 @@ void CudaDevice::matmul_streaming(const DenseMatrix<float>* a, const DenseMatrix
     c->set_scalar(a->get_scalar() * b->get_scalar());
 }
 
-void CudaDevice::matmul_streaming(const DenseMatrix<Float16>* a, const DenseMatrix<Float16>* b, DenseMatrix<Float16>* c, size_t available_mem) {
-    size_t n = a->size();
-    size_t tile_dim = 1024;
-    
-    while (5 * tile_dim * tile_dim * sizeof(uint16_t) > available_mem * 0.8 && tile_dim > 32) {
-        tile_dim /= 2;
-    }
-    
-    size_t tile_elements = tile_dim * tile_dim;
-    size_t tile_bytes = tile_elements * sizeof(uint16_t);
-    
-    __half *d_C;
-    check_cuda(cudaMalloc(&d_C, tile_bytes), "cudaMalloc Tile C half");
-    
-    uint16_t *h_pinned_C;
-    check_cuda(cudaMallocHost(&h_pinned_C, tile_bytes), "cudaMallocHost Tile C half");
-    
-    AsyncStreamer<uint16_t> streamer(2 * tile_elements, config_.device_id, config_.enable_async);
-    
-    cudaStream_t compute_stream;
-    check_cuda(cudaStreamCreate(&compute_stream), "cudaStreamCreate");
-    check_cublas(cublasSetStream(cublas_handle_, compute_stream), "cublasSetStream");
 
-    const Float16* a_ptr = a->data();
-    const Float16* b_ptr = b->data();
-    Float16* c_ptr = c->data();
-    
-    __half alpha = __float2half(1.0f);
-    __half beta = __float2half(1.0f);
-    
-    for (size_t i = 0; i < n; i += tile_dim) {
-        size_t h = std::min(tile_dim, n - i);
-        
-        for (size_t j = 0; j < n; j += tile_dim) {
-            size_t w = std::min(tile_dim, n - j);
-            
-            check_cuda(cudaMemsetAsync(d_C, 0, tile_bytes, compute_stream), "cudaMemset C half");
-            
-            for (size_t k = 0; k < n; k += tile_dim) {
-                size_t d = std::min(tile_dim, n - k);
-                
-                streamer.wait_for_write_buffer();
-                
-                uint16_t* h_buf = streamer.get_host_write_buffer();
-                uint16_t* h_A = h_buf;
-                uint16_t* h_B = h_buf + tile_elements;
-                
-                ParallelFor(0, h, [&](size_t r) {
-                    const uint16_t* src = (const uint16_t*)(a_ptr + (i + r) * n + k);
-                    std::copy(src, src + d, h_A + r * tile_dim); 
-                });
-                
-                ParallelFor(0, d, [&](size_t r) {
-                    const uint16_t* src = (const uint16_t*)(b_ptr + (k + r) * n + j);
-                    std::copy(src, src + w, h_B + r * tile_dim);
-                });
-                
-                streamer.submit_transfer(2 * tile_elements);
-                
-                uint16_t* d_buf = streamer.get_device_read_buffer(compute_stream);
-                __half* d_A = (__half*)d_buf;
-                __half* d_B = (__half*)(d_buf + tile_elements);
-                
-                check_cublas(cublasHgemm(cublas_handle_,
-                                         CUBLAS_OP_N, CUBLAS_OP_N,
-                                         w, h, d,
-                                         &alpha,
-                                         d_B, tile_dim,
-                                         d_A, tile_dim,
-                                         &beta,
-                                         d_C, tile_dim), "GEMM Tile half");
-                                         
-                streamer.release_device_buffer(compute_stream);
-            }
-            
-            check_cuda(cudaMemcpyAsync(h_pinned_C, d_C, tile_bytes, cudaMemcpyDeviceToHost, compute_stream), "Memcpy C half");
-            check_cuda(cudaStreamSynchronize(compute_stream), "Sync C half");
-            
-            ParallelFor(0, h, [&](size_t r) {
-                uint16_t* dst = (uint16_t*)(c_ptr + (i + r) * n + j);
-                std::copy(h_pinned_C + r * tile_dim, 
-                          h_pinned_C + r * tile_dim + w, 
-                          dst);
-            });
-        }
-    }
-    
-    cudaFree(d_C);
-    cudaFreeHost(h_pinned_C);
-    cudaStreamDestroy(compute_stream);
-    
-    c->set_scalar(a->get_scalar() * b->get_scalar());
-}
 
 extern "C" {
     __declspec(dllexport) ComputeDevice* create_cuda_device(const AcceleratorConfig* config) {

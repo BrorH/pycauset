@@ -1,0 +1,57 @@
+# Testing & Benchmarks
+
+This page documents how to validate correctness and performance.
+
+## Test layers
+
+### 1) Python tests (primary user-surface validation)
+
+Location:
+- `tests/python/`
+
+These tests validate:
+- top-level `pycauset.*` API behavior,
+- interoperability (NumPy integration),
+- storage/persistence behavior,
+- GPU feature gating,
+- out-of-core behaviors.
+
+### 2) C++ unit tests (engine invariants)
+
+Location:
+- `tests/*.cpp`
+
+These tests validate:
+- memory governor behavior,
+- I/O accelerator behavior,
+- core matrix invariants.
+
+## Benchmarks
+
+Location:
+- `benchmarks/`
+
+Benchmarks exist to compare:
+- PyCauset vs NumPy for in-memory matrices,
+- direct vs streaming paths,
+- CPU vs GPU paths.
+
+Recommended baseline:
+- run the “CPU vs NumPy” benchmark suite after solver changes.
+
+## Protocol
+
+- Correctness first: tests must pass before trusting benchmarks.
+- Benchmarks should be run with stable conditions:
+  - consistent seeds,
+  - clear dtype,
+  - documented hardware.
+
+## Link to optimization tracking
+
+The authoritative checklist for dtype/op coverage is:
+- `documentation/internals/OPTIMIZATION_CHECKLIST.md`
+
+When a checklist item changes status:
+- ensure a corresponding test exists (or is added),
+- ensure a benchmark script exists (or is updated).
