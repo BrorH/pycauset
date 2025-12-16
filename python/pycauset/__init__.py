@@ -6,33 +6,66 @@ try:
 except ImportError:
     __version__ = "unknown"
 
-import atexit
-import inspect
 import os
-
-# Ensure DLLs in this directory are found (for Windows)
-if os.name == 'nt' and hasattr(os, 'add_dll_directory'):
-    try:
-        os.add_dll_directory(os.path.dirname(__file__))
-    except OSError:
-        pass
-
-import random
-import re
 import warnings
-import weakref
-import uuid
-import shutil
-import abc
-import zipfile
-import json
-import struct
-from collections.abc import Sequence as _SequenceABC
 from pathlib import Path
-from typing import Any, Sequence, Tuple
+from types import SimpleNamespace as _SimpleNamespace
+from typing import Any
 from importlib import import_module as _import_module
 
-from ._storage import StorageRegistry, cleanup_storage, set_temporary_file
+from ._internal import persistence as _persistence
+from ._internal import linalg_cache as _linalg_cache
+from ._internal import runtime as _runtime_mod
+from ._internal import coercion as _coercion
+from ._internal import formatting as _formatting
+from ._internal import patching as _patching
+from ._internal import factories as _factories
+from ._internal import ops as _ops
+from ._internal import native as _native_mod
+from ._internal import matrix_api as _matrix_api
+from ._internal.warnings import (
+    PyCausetWarning,
+    PyCausetDTypeWarning,
+    PyCausetOverflowRiskWarning,
+    PyCausetPerformanceWarning,
+)
+
+try:  # NumPy is optional at runtime
+    import numpy as _np
+except ImportError:  # pragma: no cover - exercised when numpy is absent
+    _np = None
+
+# Public dtype tokens (NumPy-like). These are simple sentinels accepted by
+# Matrix/Vector factories and native interop.
+int8 = "int8"
+int16 = "int16"
+int32 = "int32"
+int64 = "int64"
+int_ = "int32"
+uint8 = "uint8"
+uint16 = "uint16"
+uint32 = "uint32"
+uint64 = "uint64"
+uint = "uint32"
+float16 = "float16"
+float32 = "float32"
+float64 = "float64"
+float_ = "float64"
+bool_ = "bool"
+bit = "bit"
+
+# Complex float dtype tokens (Phase 3)
+complex_float16 = "complex_float16"
+complex_float32 = "complex_float32"
+complex_float64 = "complex_float64"
+complex64 = "complex_float32"
+complex128 = "complex_float64"
+
+_native_mod.configure_windows_dll_search_paths(package_dir=os.path.dirname(__file__))
+_native = _native_mod.import_native_extension(package=__name__)
+
+# Import modules that depend on the native extension after it is loaded.
+from ._storage import cleanup_storage, set_temporary_file
 from .causet import CausalSet
 from . import spacetime
 from . import field
@@ -40,30 +73,59 @@ from . import field
 # Alias for CausalSet
 Causet = CausalSet
 
-try:  # NumPy is optional at runtime
-    import numpy as _np
-except ImportError:  # pragma: no cover - exercised when numpy is absent
-    _np = None
 
-_native = _import_module("._pycauset", package=__name__)
+def _debug_resolve_promotion(op: str, a_dtype: str, b_dtype: str) -> dict[str, object]:
+    """Internal/test helper: return promotion resolver decision without running kernels."""
+    fn = getattr(_native, "_debug_resolve_promotion", None)
+    if fn is None:
+        raise RuntimeError("Native helper _debug_resolve_promotion is not available")
+    return fn(op, a_dtype, b_dtype)
+
+
+def _debug_last_kernel_trace() -> str:
+    """Internal/test helper: last dispatched kernel tag (thread-local)."""
+    fn = getattr(_native, "_debug_last_kernel_trace", None)
+    if fn is None:
+        raise RuntimeError("Native helper _debug_last_kernel_trace is not available")
+    return str(fn())
+
+
+def _debug_clear_kernel_trace() -> None:
+    """Internal/test helper: clear last dispatched kernel tag (thread-local)."""
+    fn = getattr(_native, "_debug_clear_kernel_trace", None)
+    if fn is None:
+        raise RuntimeError("Native helper _debug_clear_kernel_trace is not available")
+    fn()
 
 # Helper to safely get attributes
 def _safe_get(name):
-    return getattr(_native, name, None)
+    return _native_mod.safe_get(_native, name)
 
 _TriangularBitMatrix = _safe_get("TriangularBitMatrix")
 if _TriangularBitMatrix:
-    _original_triangular_bit_matrix_init = _TriangularBitMatrix.__init__
-    _original_triangular_bit_matrix_random = _TriangularBitMatrix.random
+    _original_triangular_bit_matrix_init = getattr(_TriangularBitMatrix, "__init__", None)
+    _original_triangular_bit_matrix_random = getattr(_TriangularBitMatrix, "random", None)
 else:
-    class _TriangularBitMatrix: pass
+    class _TriangularBitMatrix:  # pragma: no cover
+        pass
     _original_triangular_bit_matrix_init = None
     _original_triangular_bit_matrix_random = None
 
 # Private aliases for native classes
 _IntegerMatrix = _safe_get("IntegerMatrix")
-_FloatMatrix = _safe_get("FloatMatrix") or _safe_get("DenseMatrixFloat64")
+_Int8Matrix = _safe_get("Int8Matrix")
+_Int16Matrix = _safe_get("Int16Matrix")
+_Int64Matrix = _safe_get("Int64Matrix")
+_UInt8Matrix = _safe_get("UInt8Matrix")
+_UInt16Matrix = _safe_get("UInt16Matrix")
+_UInt32Matrix = _safe_get("UInt32Matrix")
+_UInt64Matrix = _safe_get("UInt64Matrix")
+_FloatMatrix = _safe_get("FloatMatrix")
+_Float16Matrix = _safe_get("Float16Matrix")
 _Float32Matrix = _safe_get("Float32Matrix")
+_ComplexFloat16Matrix = _safe_get("ComplexFloat16Matrix")
+_ComplexFloat32Matrix = _safe_get("ComplexFloat32Matrix")
+_ComplexFloat64Matrix = _safe_get("ComplexFloat64Matrix")
 _TriangularFloatMatrix = _safe_get("TriangularFloatMatrix")
 _TriangularIntegerMatrix = _safe_get("TriangularIntegerMatrix")
 _DenseBitMatrix = _safe_get("DenseBitMatrix")
@@ -73,8 +135,19 @@ _AntiSymmetricMatrix = getattr(_native, "AntiSymmetricMatrix", None)
 
 # Public exports
 IntegerMatrix = _IntegerMatrix
+Int8Matrix = _Int8Matrix
+Int16Matrix = _Int16Matrix
+Int64Matrix = _Int64Matrix
+UInt8Matrix = _UInt8Matrix
+UInt16Matrix = _UInt16Matrix
+UInt32Matrix = _UInt32Matrix
+UInt64Matrix = _UInt64Matrix
 FloatMatrix = _FloatMatrix
+Float16Matrix = _Float16Matrix
 Float32Matrix = _Float32Matrix
+ComplexFloat16Matrix = _ComplexFloat16Matrix
+ComplexFloat32Matrix = _ComplexFloat32Matrix
+ComplexFloat64Matrix = _ComplexFloat64Matrix
 TriangularFloatMatrix = _TriangularFloatMatrix
 TriangularIntegerMatrix = _TriangularIntegerMatrix
 DenseBitMatrix = _DenseBitMatrix
@@ -85,1153 +158,270 @@ AntiSymmetricFloat64Matrix = _AntiSymmetricMatrix
 
 # Vector classes
 _FloatVector = getattr(_native, "FloatVector", None)
+_Float32Vector = getattr(_native, "Float32Vector", None)
+_Float16Vector = getattr(_native, "Float16Vector", None)
+_ComplexFloat16Vector = getattr(_native, "ComplexFloat16Vector", None)
+_ComplexFloat32Vector = getattr(_native, "ComplexFloat32Vector", None)
+_ComplexFloat64Vector = getattr(_native, "ComplexFloat64Vector", None)
+_Int8Vector = getattr(_native, "Int8Vector", None)
 _IntegerVector = getattr(_native, "IntegerVector", None)
+_Int16Vector = getattr(_native, "Int16Vector", None)
+_Int64Vector = getattr(_native, "Int64Vector", None)
+_UInt8Vector = getattr(_native, "UInt8Vector", None)
+_UInt16Vector = getattr(_native, "UInt16Vector", None)
+_UInt32Vector = getattr(_native, "UInt32Vector", None)
+_UInt64Vector = getattr(_native, "UInt64Vector", None)
 _BitVector = getattr(_native, "BitVector", None)
 
 FloatVector = _FloatVector
+Float32Vector = _Float32Vector
+Float16Vector = _Float16Vector
+ComplexFloat16Vector = _ComplexFloat16Vector
+ComplexFloat32Vector = _ComplexFloat32Vector
+ComplexFloat64Vector = _ComplexFloat64Vector
+Int8Vector = _Int8Vector
 IntegerVector = _IntegerVector
+Int16Vector = _Int16Vector
+Int64Vector = _Int64Vector
+UInt8Vector = _UInt8Vector
+UInt16Vector = _UInt16Vector
+UInt32Vector = _UInt32Vector
+UInt64Vector = _UInt64Vector
 BitVector = _BitVector
 
-_ASSIGNMENT_RE = re.compile(r"^\s*([A-Za-z0-9_.]+)\s*=.+(?:CausalMatrix|TriangularBitMatrix)", re.IGNORECASE)
-_STORAGE_ROOT: Path | None = None
-_EDGE_ITEMS = 4
+_runtime = _runtime_mod.Runtime(
+    cleanup_storage=cleanup_storage,
+    set_temporary_file=set_temporary_file,
+)
+
+keep_temp_files: bool = False
+seed: int | None = None
 
 
 def _storage_root() -> Path:
-    global _STORAGE_ROOT
-    if _STORAGE_ROOT is not None:
-        return _STORAGE_ROOT
-    env = os.environ.get("PYCAUSET_STORAGE_DIR")
-    if env:
-        base = Path(env).expanduser()
-    else:
-        base = Path.cwd().resolve() / ".pycauset"
-    base.mkdir(parents=True, exist_ok=True)
-    _STORAGE_ROOT = base
-    return base
+    return _runtime.storage_root()
+
 
 # Perform initial cleanup of temporary files from previous runs
-cleanup_storage(_storage_root())
+_runtime.initial_cleanup()
 
-_STORAGE_REGISTRY = StorageRegistry(_storage_root())
-_LIVE_MATRICES: weakref.WeakSet = weakref.WeakSet()
-keep_temp_files: bool = False
-seed: int | None = None
+
 def _track_matrix(instance: Any) -> None:
-    try:
-        _LIVE_MATRICES.add(instance)
-    except TypeError:
-        pass
+    _runtime.track_matrix(instance)
 
 
 def _release_tracked_matrices() -> None:
-    for matrix in list(_LIVE_MATRICES):
-        close = getattr(matrix, "close", None)
-        if callable(close):
-            try:
-                close()
-            except Exception:
-                pass
+    _runtime.release_tracked_matrices()
 
 
 def _register_cleanup() -> None:
-    def _finalize() -> None:
-        _release_tracked_matrices()
-        if not keep_temp_files:
-            cleanup_storage(_storage_root())
-
-    atexit.register(_finalize)
+    _runtime.register_cleanup(keep_temp_files_getter=lambda: keep_temp_files)
 
 
 _register_cleanup()
 
+_PERSISTENCE_DEPS = _SimpleNamespace(
+    CausalSet=CausalSet,
+    TriangularBitMatrix=_TriangularBitMatrix,
+    DenseBitMatrix=_DenseBitMatrix,
+    FloatMatrix=_FloatMatrix,
+    Float16Matrix=_Float16Matrix,
+    Float32Matrix=_Float32Matrix,
+    ComplexFloat16Matrix=_ComplexFloat16Matrix,
+    ComplexFloat32Matrix=_ComplexFloat32Matrix,
+    ComplexFloat64Matrix=_ComplexFloat64Matrix,
+    IntegerMatrix=_IntegerMatrix,
+    Int8Matrix=_Int8Matrix,
+    Int16Matrix=_Int16Matrix,
+    Int64Matrix=_Int64Matrix,
+    UInt8Matrix=_UInt8Matrix,
+    UInt16Matrix=_UInt16Matrix,
+    UInt32Matrix=_UInt32Matrix,
+    UInt64Matrix=_UInt64Matrix,
+    TriangularFloatMatrix=_TriangularFloatMatrix,
+    TriangularIntegerMatrix=_TriangularIntegerMatrix,
+    FloatVector=_FloatVector,
+    Float32Vector=_Float32Vector,
+    Float16Vector=_Float16Vector,
+    ComplexFloat16Vector=_ComplexFloat16Vector,
+    ComplexFloat32Vector=_ComplexFloat32Vector,
+    ComplexFloat64Vector=_ComplexFloat64Vector,
+    Int8Vector=_Int8Vector,
+    IntegerVector=_IntegerVector,
+    Int16Vector=_Int16Vector,
+    Int64Vector=_Int64Vector,
+    UInt8Vector=_UInt8Vector,
+    UInt16Vector=_UInt16Vector,
+    UInt32Vector=_UInt32Vector,
+    UInt64Vector=_UInt64Vector,
+    BitVector=_BitVector,
+    UnitVector=_UnitVector,
+    IdentityMatrix=getattr(_native, "IdentityMatrix", None),
+    native=_native,
+)
+
 
 def save(obj: Any, path: str | Path) -> None:
-    """Save a matrix or vector to a file (ZIP format)."""
-    path = Path(path).resolve()
-    
-    # Ensure parent directory exists
-    path.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Get raw data
-    # We use a temporary file for the raw data
-    temp_raw = path.with_suffix(".raw_tmp")
-    
-    # copy_storage now writes raw data to the file
-    if hasattr(obj, "copy_storage"):
-        obj.copy_storage(str(temp_raw))
-    elif isinstance(obj, CausalSet):
-        # For CausalSet, save the underlying matrix
-        obj.CausalMatrix.copy_storage(str(temp_raw))
-        # We should probably use the matrix for metadata extraction too
-        obj = obj.CausalMatrix
-    else:
-        raise TypeError("Object does not support saving (missing copy_storage)")
-    
-    try:
-        # Prepare metadata
-        is_transposed = getattr(obj, "is_transposed", False)
-        if callable(is_transposed):
-            is_transposed = is_transposed()
-
-        metadata = {
-            "rows": obj.size() if hasattr(obj, "size") else len(obj),
-            "cols": obj.size() if hasattr(obj, "size") else 1,
-            "seed": getattr(obj, "seed", 0),
-            "is_transposed": is_transposed,
-        }
-        
-        scalar = getattr(obj, "scalar", 1.0)
-        if isinstance(scalar, complex):
-            metadata["scalar"] = {"real": scalar.real, "imag": scalar.imag}
-        else:
-            metadata["scalar"] = scalar
-        
-        # Determine matrix_type and data_type based on class
-        if isinstance(obj, _TriangularBitMatrix):
-            metadata["matrix_type"] = "CAUSAL"
-            metadata["data_type"] = "BIT"
-        elif _DenseBitMatrix and isinstance(obj, _DenseBitMatrix):
-            metadata["matrix_type"] = "DENSE_FLOAT"
-            metadata["data_type"] = "BIT"
-        elif isinstance(obj, _FloatMatrix):
-            metadata["matrix_type"] = "DENSE_FLOAT"
-            metadata["data_type"] = "FLOAT64"
-        elif isinstance(obj, _IntegerMatrix):
-            metadata["matrix_type"] = "INTEGER"
-            metadata["data_type"] = "INT32"
-        elif isinstance(obj, _TriangularFloatMatrix):
-            metadata["matrix_type"] = "TRIANGULAR_FLOAT"
-            metadata["data_type"] = "FLOAT64"
-        elif _TriangularIntegerMatrix and isinstance(obj, _TriangularIntegerMatrix):
-            metadata["matrix_type"] = "TRIANGULAR_INTEGER"
-            metadata["data_type"] = "INT32"
-        elif _FloatVector and isinstance(obj, _FloatVector):
-            metadata["matrix_type"] = "VECTOR"
-            metadata["data_type"] = "FLOAT64"
-        elif _IntegerVector and isinstance(obj, _IntegerVector):
-            metadata["matrix_type"] = "VECTOR"
-            metadata["data_type"] = "INT32"
-        elif _BitVector and isinstance(obj, _BitVector):
-            metadata["matrix_type"] = "VECTOR"
-            metadata["data_type"] = "BIT"
-        elif _UnitVector and isinstance(obj, _UnitVector):
-            metadata["matrix_type"] = "UNIT_VECTOR"
-            metadata["data_type"] = "FLOAT64"
-        elif isinstance(obj, _native.IdentityMatrix):
-            metadata["matrix_type"] = "IDENTITY"
-            metadata["data_type"] = "FLOAT64"
-        
-        # Add cached properties
-        if hasattr(obj, "cached_trace") and obj.cached_trace is not None:
-            metadata["cached_trace"] = obj.cached_trace
-            
-        if hasattr(obj, "cached_determinant") and obj.cached_determinant is not None:
-            metadata["cached_determinant"] = obj.cached_determinant
-            
-        if hasattr(obj, "cached_eigenvalues") and obj.cached_eigenvalues is not None:
-            # Convert complex to [real, imag]
-            metadata["cached_eigenvalues"] = [[z.real, z.imag] for z in obj.cached_eigenvalues]
-
-        with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as zf:
-            zf.writestr("metadata.json", json.dumps(metadata, indent=2))
-            zf.write(temp_raw, "data.bin")
-            
-    finally:
-        if temp_raw.exists():
-            temp_raw.unlink()
+    return _persistence.save(obj, path, deps=_PERSISTENCE_DEPS)
 
 
 def load(path: str | Path) -> Any:
-    """Load a matrix or vector from a file (ZIP format)."""
-    path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {path}")
-        
-    with zipfile.ZipFile(path, "r") as zf:
-        # Read metadata
-        with zf.open("metadata.json") as f:
-            metadata = json.load(f)
-            
-        # Check for cache.json (updates to metadata)
-        try:
-            with zf.open("cache.json") as f:
-                cache_meta = json.load(f)
-                metadata.update(cache_meta)
-        except KeyError:
-            pass
-            
-        # Find offset of data.bin
-        # We need the absolute offset in the file
-        info = zf.getinfo("data.bin")
-        
-        # Calculate offset of content
-        with open(path, "rb") as f:
-            f.seek(info.header_offset + 26)
-            n_len, e_len = struct.unpack("<HH", f.read(4))
-            data_offset = info.header_offset + 30 + n_len + e_len
-            
-    # Construct object
-    matrix_type = metadata.get("matrix_type")
-    data_type = metadata.get("data_type")
-    rows = metadata.get("rows", 0)
-    cols = metadata.get("cols", 0)
-    seed = metadata.get("seed", 0)
-    scalar = metadata.get("scalar", 1.0)
-    if isinstance(scalar, dict) and "real" in scalar and "imag" in scalar:
-        scalar = complex(scalar["real"], scalar["imag"])
-    is_transposed = metadata.get("is_transposed", False)
-    
-    # Dispatch
-    obj = None
-    if matrix_type == "CAUSAL":
-        obj = _TriangularBitMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "DENSE_FLOAT":
-        if data_type == "BIT" and _DenseBitMatrix:
-            obj = _DenseBitMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
-        else:
-            obj = _FloatMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "INTEGER":
-        obj = _IntegerMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "TRIANGULAR_FLOAT":
-        obj = _TriangularFloatMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "TRIANGULAR_INTEGER" and _TriangularIntegerMatrix:
-        obj = _TriangularIntegerMatrix(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "VECTOR":
-        if data_type == "FLOAT64" and _FloatVector:
-            obj = _FloatVector(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "INT32" and _IntegerVector:
-            obj = _IntegerVector(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "BIT" and _BitVector:
-            obj = _BitVector(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "UNIT_VECTOR" and _UnitVector:
-        obj = _UnitVector(rows, seed, str(path), data_offset, seed, scalar, is_transposed)
-    
-    if obj:
-        if is_transposed and hasattr(obj, "set_transposed"):
-            obj.set_transposed(True)
-            
-        # Restore cached properties
-        cached_trace = metadata.get("cached_trace")
-        if cached_trace is not None and hasattr(obj, "cached_trace"):
-            obj.cached_trace = cached_trace
-            
-        cached_determinant = metadata.get("cached_determinant")
-        if cached_determinant is not None and hasattr(obj, "cached_determinant"):
-            obj.cached_determinant = cached_determinant
-            
-        cached_eigenvalues = metadata.get("cached_eigenvalues")
-        if cached_eigenvalues is not None and hasattr(obj, "cached_eigenvalues"):
-            # Convert [real, imag] back to complex
-            obj.cached_eigenvalues = [complex(r, i) for r, i in cached_eigenvalues]
-
-        if metadata.get("object_type") == "CausalSet":
-            st_meta = metadata.get("spacetime", {})
-            st_type = st_meta.get("type")
-            st_args = st_meta.get("args", {})
-            
-            st = None
-            if st_type == "MinkowskiDiamond":
-                st = _native.MinkowskiDiamond(st_args.get("dimension", 2))
-            elif st_type == "MinkowskiCylinder":
-                st = _native.MinkowskiCylinder(st_args.get("dimension", 2), st_args.get("height", 1.0), st_args.get("circumference", 1.0))
-            elif st_type == "MinkowskiBox":
-                st = _native.MinkowskiBox(st_args.get("dimension", 2), st_args.get("time_extent", 1.0), st_args.get("space_extent", 1.0))
-                
-            return CausalSet(n=rows, spacetime=st, seed=seed, matrix=obj)
-            
-        return obj
-    
-    raise ValueError(f"Unknown matrix type: {matrix_type}")
+    return _persistence.load(path, deps=_PERSISTENCE_DEPS)
 
 
-# Monkey-patch MatrixBase to add the save method to all matrix classes
-if hasattr(_native, "MatrixBase"):
-    _native.MatrixBase.save = save
+_linalg_cache.patch_matrixbase_save(_native, save)
+if _FloatMatrix is not None:
+    _linalg_cache.patch_inverse(
+        FloatMatrix=_FloatMatrix,
+        classes=[
+            _FloatMatrix,
+            _IntegerMatrix,
+            _TriangularFloatMatrix,
+            _TriangularIntegerMatrix,
+            _DenseBitMatrix,
+            _TriangularBitMatrix,
+        ],
+    )
 
-if hasattr(_native, "VectorBase"):
-    _native.VectorBase.save = save
-
-
-def eigenvectors(self, save: bool = False) -> Any:
-    """Compute or retrieve cached eigenvectors."""
-    # Check memory cache
-    if hasattr(self, "_cached_eigenvectors"):
-        return self._cached_eigenvectors
-
-    # Check ZIP cache
-    backing = self.get_backing_file()
-    if backing and backing.endswith(".pycauset") and os.path.exists(backing):
-        try:
-            with zipfile.ZipFile(backing, "r") as zf:
-                namelist = zf.namelist()
-                if "eigenvectors.real.bin" in namelist and "eigenvectors.imag.bin" in namelist:
-                    info_real = zf.getinfo("eigenvectors.real.bin")
-                    info_imag = zf.getinfo("eigenvectors.imag.bin")
-                    
-                    def get_data_offset(path, info):
-                        with open(path, "rb") as f:
-                            f.seek(info.header_offset + 26)
-                            n_len, e_len = struct.unpack("<HH", f.read(4))
-                            return info.header_offset + 30 + n_len + e_len
-
-                    offset_real = get_data_offset(backing, info_real)
-                    offset_imag = get_data_offset(backing, info_imag)
-                    
-                    vecs = _native.ComplexMatrix(self.size(), backing, offset_real, backing, offset_imag)
-                    self._cached_eigenvectors = vecs
-                    return vecs
-        except Exception:
-            pass
-
-    # Compute
-    vals, vecs = self._eig()
-    
-    # Cache memory
-    self._cached_eigenvectors = vecs
-    
-    # Cache eigenvalues (C++ side handles this inside _eig -> eig -> eigvals)
-    # But we need to expose them to Python cache for save() to pick them up
-    self.cached_eigenvalues = [complex(vals.get(i).real, vals.get(i).imag) for i in range(vals.size())]
-    
-    if save:
-        if backing and backing.endswith(".pycauset") and os.path.exists(backing):
-            with zipfile.ZipFile(backing, "a") as zf:
-                # Real part
-                real_file = vecs.real.get_backing_file()
-                if real_file and real_file != ":memory:" and os.path.exists(real_file):
-                    zf.write(real_file, "eigenvectors.real.bin")
-                else:
-                    # Memory backed. Copy to temp file first.
-                    temp_real = str(Path(backing).with_suffix(".real.tmp"))
-                    vecs.real.copy_storage(temp_real)
-                    zf.write(temp_real, "eigenvectors.real.bin")
-                    try:
-                        os.unlink(temp_real)
-                    except OSError:
-                        pass
-                
-                # Imag part
-                imag_file = vecs.imag.get_backing_file()
-                if imag_file and imag_file != ":memory:" and os.path.exists(imag_file):
-                    zf.write(imag_file, "eigenvectors.imag.bin")
-                else:
-                    # Memory backed. Copy to temp file first.
-                    temp_imag = str(Path(backing).with_suffix(".imag.tmp"))
-                    vecs.imag.copy_storage(temp_imag)
-                    zf.write(temp_imag, "eigenvectors.imag.bin")
-                    try:
-                        os.unlink(temp_imag)
-                    except OSError:
-                        pass
-                    
-                cache_meta = {"has_eigenvectors": True}
-                zf.writestr("cache.json", json.dumps(cache_meta))
-                
-    return vecs
-
-if hasattr(_native, "MatrixBase"):
-    _native.MatrixBase.eigenvectors = eigenvectors
-
-
-def inverse(self, save: bool = False) -> Any:
-    """Compute or retrieve cached inverse."""
-    if hasattr(self, "_cached_inverse"):
-        return self._cached_inverse
-        
-    backing = self.get_backing_file()
-    if backing and backing.endswith(".pycauset") and os.path.exists(backing):
-        try:
-            with zipfile.ZipFile(backing, "r") as zf:
-                if "inverse.bin" in zf.namelist():
-                    info = zf.getinfo("inverse.bin")
-                    def get_data_offset(path, info):
-                        with open(path, "rb") as f:
-                            f.seek(info.header_offset + 26)
-                            n_len, e_len = struct.unpack("<HH", f.read(4))
-                            return info.header_offset + 30 + n_len + e_len
-                    offset = get_data_offset(backing, info)
-                    
-                    # Inverse is always FloatMatrix (Dense)
-                    inv = _FloatMatrix(self.size(), backing, offset, 0, 1.0, False)
-                    self._cached_inverse = inv
-                    return inv
-        except Exception:
-            pass
-            
-    # Compute using native invert
-    if hasattr(self, "_invert_native"):
-        inv = self._invert_native()
-    else:
-        # Fallback if not patched correctly (should not happen)
-        raise NotImplementedError("Native invert not found")
-
-    self._cached_inverse = inv
-    
-    if save:
-        if backing and backing.endswith(".pycauset") and os.path.exists(backing):
-            with zipfile.ZipFile(backing, "a") as zf:
-                inv_file = inv.get_backing_file()
-                if inv_file and inv_file != ":memory:" and os.path.exists(inv_file):
-                    zf.write(inv_file, "inverse.bin")
-                else:
-                    temp_inv = str(Path(backing).with_suffix(".inv.tmp"))
-                    inv.copy_storage(temp_inv)
-                    zf.write(temp_inv, "inverse.bin")
-                    try:
-                        os.unlink(temp_inv)
-                    except OSError:
-                        pass
-    return inv
-
-# Monkey-patch invert
-for cls in [_FloatMatrix, _IntegerMatrix, _TriangularFloatMatrix, _TriangularIntegerMatrix, _DenseBitMatrix, _TriangularBitMatrix]:
-    if cls and hasattr(cls, "invert"):
-        cls._invert_native = cls.invert
-        cls.invert = inverse
-
-
-def _is_simple_name(candidate: str) -> bool:
-    if not candidate:
-        return False
-    seps = [os.sep]
-    if os.altsep:
-        seps.append(os.altsep)
-    return not any(sep in candidate for sep in seps)
-
-
-def _sanitize_name(name: str | None, fallback: str) -> str:
-    target = (name or fallback or "matrix").strip()
-    if not target:
-        target = fallback or "matrix"
-    cleaned = re.sub(r"[^A-Za-z0-9._-]", "_", target)
-    if not cleaned:
-        cleaned = fallback or "matrix"
-    if cleaned in {".", ".."}:
-        cleaned = fallback or "matrix"
-    if not cleaned.endswith(".pycauset"):
-        cleaned = f"{cleaned}.pycauset"
-    return cleaned
-
-
-def _infer_assignment_target() -> str | None:
-    try:
-        stack = inspect.stack()
-    except OSError:
-        return None
-    try:
-        for frame_info in stack[2:8]:
-            context = frame_info.code_context
-            if not context:
-                continue
-            for line in context:
-                match = _ASSIGNMENT_RE.match(line.strip())
-                if match:
-                    return match.group(1)
-    finally:
-        del stack
-    return None
-
-
-def _resolve_backing_path(backing: Any, fallback: str | None = None) -> str:
-    if backing in (None, ""):
-        return ""
-
-    if isinstance(backing, os.PathLike):
-        candidate = Path(backing).expanduser()
-    else:
-        candidate = Path(str(backing)).expanduser()
-
-    if _is_simple_name(str(backing)) and candidate.parent == Path('.') and not candidate.is_absolute():
-        filename = _sanitize_name(str(backing), fallback or "matrix")
-        return str(_storage_root() / filename)
-
-    if candidate.suffix != ".pycauset":
-        candidate = candidate.with_suffix(candidate.suffix + ".pycauset" if candidate.suffix else ".pycauset")
-    candidate.parent.mkdir(parents=True, exist_ok=True)
-    return str(candidate)
-
-
-def _should_register_auto(backing: Any) -> bool:
-    return backing in (None, "")
-
-
-def _prepare_backing_args(args: Sequence[Any], kwargs: dict[str, Any], target_arg: str = "saveas") -> Tuple[Tuple[Any, ...], dict[str, Any]]:
-    mutable_args = list(args)
-    provided = None
-    kw_alias = None
-    if len(mutable_args) >= 2:
-        provided = mutable_args[1]
-    else:
-        for candidate in ("saveas", "backing_file"):
-            if candidate in kwargs:
-                provided = kwargs[candidate]
-                kw_alias = candidate
-                break
-
-    if provided is not None:
-        warnings.warn(
-            "The 'backing_file' (or 'saveas') argument is deprecated and will be ignored. "
-            "All matrices are now created as temporary files. "
-            "Use 'pycauset.save(matrix, path)' to save the matrix to a specific location.",
-            DeprecationWarning,
-            stacklevel=3
-        )
-
-    # Always resolve to a temporary path (None -> temp file)
-    # We pass empty string to C++ so it can decide between :memory: and a temp file,
-    # and correctly set is_temporary_ flag.
-    resolved = ""
-    
-    if len(mutable_args) >= 2:
-        mutable_args[1] = resolved
-    else:
-        if kw_alias and kw_alias != target_arg:
-            kwargs.pop(kw_alias, None)
-        kwargs[target_arg] = resolved
-
-    return tuple(mutable_args), kwargs
-
-
-def _extract_size_hint(args: Sequence[Any], kwargs: dict[str, Any]) -> Any:
-    if args:
-        return args[0]
-    return kwargs.get("N")
-
-
-def _is_sequence_like(value: Any) -> bool:
-    return isinstance(value, _SequenceABC) and not isinstance(value, (str, bytes, bytearray))
-
-
-def _coerce_sequence_rows(candidate: Any) -> tuple[int, list[list[Any]]]:
-    if not _is_sequence_like(candidate):
-        raise TypeError("Matrix data must be provided as a square nested sequence or a NumPy array.")
-    rows = [list(row) for row in candidate]
-    if not rows:
-        raise ValueError("Matrix data must not be empty.")
-    size = len(rows)
-    for row in rows:
-        if not _is_sequence_like(row):
-            raise TypeError("Each matrix row must be a sequence of entries.")
-        if len(row) != size:
-            raise ValueError("Matrix data must describe a square matrix (same number of rows and columns).")
-    return size, rows
-
-
-def _coerce_general_matrix(candidate: Any) -> tuple[int, list[list[Any]]]:
-    size_attr = getattr(candidate, "size", None)
-    get_attr = getattr(candidate, "get", None)
-    if callable(size_attr) and callable(get_attr):
-        size = int(size_attr())
-        if size < 0:
-            raise ValueError("Matrix size must be non-negative.")
-        rows: list[list[Any]] = []
-        for i in range(size):
-            row: list[Any] = []
-            for j in range(size):
-                row.append(get_attr(i, j))
-            rows.append(row)
-        return size, rows
-
-    if _np is not None:
-        try:
-            array = _np.asarray(candidate)
-        except Exception:
-            array = None
-        else:
-            if array.ndim != 2:
-                raise ValueError("Matrix input must be a 2D square structure.")
-            if array.shape[0] != array.shape[1]:
-                raise ValueError("Matrix input must be square (rows == columns).")
-            return int(array.shape[0]), array.tolist()
-
-    return _coerce_sequence_rows(candidate)
+_formatting.configure(np_module=_np, edge_items=4)
+if _TriangularBitMatrix and callable(getattr(_TriangularBitMatrix, "size", None)) and callable(
+    getattr(_TriangularBitMatrix, "get", None)
+):
+    _TriangularBitMatrix.__str__ = _formatting.matrix_str
 
 
 def _mark_temporary_if_auto(matrix: Any) -> None:
-    """Mark the matrix file as temporary if it resides in the storage root."""
-    if not hasattr(matrix, "get_backing_file"):
-        return
-    try:
-        path = Path(matrix.get_backing_file()).resolve()
-        root = _storage_root().resolve()
-        # Check if path is inside root (implies auto-generated)
-        if path.is_relative_to(root):
-            # It's an auto-generated file, mark it as temporary
-            if hasattr(matrix, "set_temporary"):
-                matrix.set_temporary(True)
-            else:
-                # Fallback if method not available (should be on all MatrixBase)
-                set_temporary_file(path, True)
-    except (ValueError, OSError, AttributeError):
-        pass
-
-def _patched_triangular_bit_matrix_init(self, *args: Any, **kwargs: Any) -> None:
-    mutable_args = list(args)
-    
-    # Check if loading (has offset argument)
-    # Constructor signature for loading: (n, backing_file, offset, seed, scalar, is_transposed)
-    is_loading = len(mutable_args) >= 3 or "offset" in kwargs
-    
-    if is_loading:
-        _original_triangular_bit_matrix_init(self, *args, **kwargs)
-        _track_matrix(self)
-        _mark_temporary_if_auto(self)
-        return
-
-    if len(mutable_args) > 0 and isinstance(mutable_args[0], float):
-        mutable_args[0] = int(mutable_args[0])
-    elif "N" in kwargs and isinstance(kwargs["N"], float):
-        kwargs["N"] = int(kwargs["N"])
-    
-    # Enforce temporary storage: ignore user provided backing_file/saveas
-    
-    # Check if user tried to provide a path
-    if len(mutable_args) >= 2 or "saveas" in kwargs or "backing_file" in kwargs:
-         warnings.warn(
-            "Providing a backing file during creation is deprecated. "
-            "Matrices are now created as temporary files. Use pycauset.save(matrix, path) to persist them.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-    
-    # Strip path arguments
-    if len(mutable_args) >= 2:
-        mutable_args = mutable_args[:1]
-    kwargs.pop("saveas", None)
-    kwargs.pop("backing_file", None)
-    
-    # Generate temp path
-    # resolved = _resolve_backing_path(None)
-    # Pass empty string to let C++ handle temporary file/memory logic
-    resolved = ""
-    
-    # Call original init with (N, resolved)
-    # Note: C++ signature is now (n, saveas)
-    _original_triangular_bit_matrix_init(self, mutable_args[0], resolved)
-    _track_matrix(self)
-    _mark_temporary_if_auto(self)
+    _runtime.mark_temporary_if_auto(matrix)
 
 
-def _maybe_register_result(result: Any) -> None:
-    if result is None:
-        return
-    if not hasattr(result, "get_backing_file"):
-        return
-    _track_matrix(result)
-    _mark_temporary_if_auto(result)
+def _coerce_general_matrix(candidate: Any) -> tuple[int, list[list[Any]]]:
+    return _coercion.coerce_general_matrix(candidate, np_module=_np)
 
+_matrix_api.configure(
+    np_module=_np,
+    warnings_module=warnings,
+    native=_native,
+    track_matrix=_track_matrix,
+    coerce_general_matrix=_coerce_general_matrix,
+    IntegerMatrix=_IntegerMatrix,
+    Int8Matrix=_Int8Matrix,
+    Int16Matrix=_Int16Matrix,
+    Int64Matrix=_Int64Matrix,
+    UInt8Matrix=_UInt8Matrix,
+    UInt16Matrix=_UInt16Matrix,
+    UInt32Matrix=_UInt32Matrix,
+    UInt64Matrix=_UInt64Matrix,
+    FloatMatrix=_FloatMatrix,
+    Float16Matrix=_Float16Matrix,
+    Float32Matrix=_Float32Matrix,
+    ComplexFloat16Matrix=_ComplexFloat16Matrix,
+    ComplexFloat32Matrix=_ComplexFloat32Matrix,
+    ComplexFloat64Matrix=_ComplexFloat64Matrix,
+    TriangularFloatMatrix=_TriangularFloatMatrix,
+    TriangularIntegerMatrix=_TriangularIntegerMatrix,
+    DenseBitMatrix=_DenseBitMatrix,
+    TriangularBitMatrix=_TriangularBitMatrix,
+)
 
-_METHODS_RETURNING_MATRIX = ["multiply", "invert", "__invert__", "__add__", "__sub__", "__mul__", "__rmul__"]
+Matrix = _matrix_api.Matrix
+TriangularMatrix = _matrix_api.TriangularMatrix
 
+_matrix_api.register_native_matrices(
+    TriangularBitMatrix=_TriangularBitMatrix,
+    IntegerMatrix=_IntegerMatrix,
+    Int8Matrix=_Int8Matrix,
+    Int16Matrix=_Int16Matrix,
+    Int64Matrix=_Int64Matrix,
+    UInt8Matrix=_UInt8Matrix,
+    UInt16Matrix=_UInt16Matrix,
+    UInt32Matrix=_UInt32Matrix,
+    UInt64Matrix=_UInt64Matrix,
+    FloatMatrix=_FloatMatrix,
+    Float16Matrix=_Float16Matrix,
+    Float32Matrix=_Float32Matrix,
+    ComplexFloat16Matrix=_ComplexFloat16Matrix,
+    ComplexFloat32Matrix=_ComplexFloat32Matrix,
+    ComplexFloat64Matrix=_ComplexFloat64Matrix,
+    TriangularFloatMatrix=_TriangularFloatMatrix,
+    TriangularIntegerMatrix=_TriangularIntegerMatrix,
+    DenseBitMatrix=_DenseBitMatrix,
+)
 
-def _patch_matrix_methods(cls: Any) -> None:
-    for name in _METHODS_RETURNING_MATRIX:
-        if not hasattr(cls, name):
-            continue
-        original = getattr(cls, name)
-        
-        def make_wrapper(orig: Any) -> Any:
-            def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-                result = orig(self, *args, **kwargs)
-                _maybe_register_result(result)
-                return result
-            return wrapper
-            
-        setattr(cls, name, make_wrapper(original))
-
-
-def _patch_matrix_class(cls: Any, target_arg: str = "backing_file") -> None:
-    original_init = cls.__init__
-    
-    def _patched_init(self, *args: Any, **kwargs: Any) -> None:
-        mutable_args = list(args)
-        if len(mutable_args) > 0 and isinstance(mutable_args[0], float):
-            mutable_args[0] = int(mutable_args[0])
-        elif "N" in kwargs and isinstance(kwargs["N"], float):
-            kwargs["N"] = int(kwargs["N"])
-            
-        # Check if loading (has offset argument)
-        # Constructor signature for loading: (n, backing_file, offset, seed, scalar, is_transposed)
-        is_loading = len(mutable_args) >= 3 or "offset" in kwargs
-        
-        if is_loading:
-            new_args = tuple(mutable_args)
-            new_kwargs = kwargs
-        else:
-            new_args, new_kwargs = _prepare_backing_args(tuple(mutable_args), kwargs, target_arg=target_arg)
-        
-        original_init(self, *new_args, **new_kwargs)
-        _track_matrix(self)
-        _mark_temporary_if_auto(self)
-        
-    cls.__init__ = _patched_init
-    _patch_matrix_methods(cls)
-
-
-def _patched_triangular_bit_matrix_random(
-    N: int, p: float = 0.5, backing_file: Any = None, seed: int | None = None, seed_override: int | None = None
-):
-    N = int(N)
-    resolved = _resolve_backing_path(backing_file, fallback="random")
-    # if _should_register_auto(backing_file):
-    #     _STORAGE_REGISTRY.register_auto_file(resolved)
-    
-    actual_seed = seed
-    if actual_seed is None:
-        actual_seed = seed_override
-    if actual_seed is None:
-        actual_seed = globals().get("seed")
-
-    matrix = _original_triangular_bit_matrix_random(N, p, resolved, actual_seed)
-    _track_matrix(matrix)
-    _mark_temporary_if_auto(matrix)
-    return matrix
-
-
-
-def _edge_indices(length: int) -> tuple[list[int], list[int], bool]:
-    if length <= _EDGE_ITEMS * 2:
-        return list(range(length)), [], False
-    head = list(range(_EDGE_ITEMS))
-    tail = list(range(length - _EDGE_ITEMS, length))
-    return head, tail, True
-
-
-def _format_value(value: Any) -> str:
-    if _np is not None and isinstance(value, _np.generic):
-        value = value.item()
-    if isinstance(value, bool):
-        return "1" if value else "0"
-    if isinstance(value, int):
-        return str(value)
-    if isinstance(value, float):
-        return f"{value:g}"
-    return str(value)
-
-
-def _format_matrix_row(matrix: Any, row_index: int, col_head: list[int], col_tail: list[int], truncated: bool) -> str:
-    entries: list[str] = []
-    
-    # Check for scalar scaling
-    scalar = getattr(matrix, "scalar", 1.0)
-    use_scaling = scalar != 1.0
-
-    for col in col_head:
-        val = matrix.get(row_index, col)
-        if use_scaling:
-            val = val * scalar
-        entries.append(_format_value(val))
-    if truncated:
-        entries.append("...")
-    for col in col_tail:
-        val = matrix.get(row_index, col)
-        if use_scaling:
-            val = val * scalar
-        entries.append(_format_value(val))
-    return " ".join(entries)
-
-
-def _matrix_str(self) -> str:
-    size = self.size()
-    
-    # Build header info
-    info = [f"shape=({size}, {size})"]
-    
-    # Check for scalar
-    if hasattr(self, "scalar") and self.scalar != 1.0:
-        info.append(f"scalar={self.scalar}")
-        
-    # Check for seed
-    if hasattr(self, "seed") and self.seed != 0:
-        info.append(f"seed={self.seed}")
-        
-    header = f"{self.__class__.__name__}({', '.join(info)})"
-
-    if size == 0:
-        return header + "\n[]"
-    row_head, row_tail, rows_truncated = _edge_indices(size)
-    col_head, col_tail, cols_truncated = _edge_indices(size)
-
-    lines = [header, "["]
-    for row_index in row_head:
-        row_repr = _format_matrix_row(self, row_index, col_head, col_tail, cols_truncated)
-        lines.append(f" [{row_repr}]")
-    if rows_truncated:
-        lines.append(" ...")
-    for row_index in row_tail:
-        row_repr = _format_matrix_row(self, row_index, col_head, col_tail, cols_truncated)
-        lines.append(f" [{row_repr}]")
-    lines.append("]")
-    return "\n".join(lines)
-
-
-_TriangularBitMatrix.__str__ = _matrix_str
-
-
-class MatrixMixin:
-    def __str__(self) -> str:
-        return _matrix_str(self)
-    
-    def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} shape={self.shape}>"
-
-
-class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
-    """
-    The Matrix class. 
-    
-    This class acts as a smart factory. 
-    - If you provide data that fits into an optimized C++ backend (integers, triangular), 
-      it returns an instance of that optimized class.
-    - Otherwise, it initializes a standard Python-list based Matrix.
-    """
-    def __new__(cls, size_or_data: Any, dtype: Any = None, **kwargs: Any):
-        # If subclassing, behave like a normal class
-        if cls is not Matrix:
-            return super().__new__(cls)
-            
-        # Resolve dtype
-        target_dtype = None
-        if dtype is not None:
-            if dtype in (int, "int", "int32", "int64"):
-                target_dtype = "int"
-            elif dtype in (float, "float", "float64"):
-                target_dtype = "float"
-            elif dtype == "float32":
-                target_dtype = "float32"
-            elif dtype in (bool, "bool", "bool_"):
-                target_dtype = "bool"
-            elif _np is not None:
-                if dtype in (_np.int32, _np.int64, _np.integer):
-                    target_dtype = "int"
-                elif dtype == _np.float64:
-                    target_dtype = "float"
-                elif dtype == _np.float32:
-                    target_dtype = "float32"
-                elif isinstance(dtype, type) and issubclass(dtype, _np.floating):
-                    target_dtype = "float"
-                elif dtype in (_np.bool_, _np.bool):
-                    target_dtype = "bool"
-        
-        # 1. Handle creation by Size
-        if isinstance(size_or_data, (int, float)) and (isinstance(size_or_data, int) or size_or_data.is_integer()):
-            n = int(size_or_data)
-            if target_dtype == "int":
-                return _IntegerMatrix(n, **kwargs)
-            elif target_dtype == "bool":
-                if _DenseBitMatrix:
-                    return _DenseBitMatrix(n, **kwargs)
-                return _IntegerMatrix(n, **kwargs) # Fallback
-            elif target_dtype == "float32":
-                if _Float32Matrix: return _Float32Matrix(n, **kwargs)
-                return _FloatMatrix(n, **kwargs)
-            else:
-                # Default to FloatMatrix if no dtype or float
-                # Check for forced precision
-                force = kwargs.pop("force_precision", None)
-                
-                if force == "double" or force == "float64":
-                    return _FloatMatrix(n, **kwargs)
-                elif force == "single" or force == "float32":
-                    if _Float32Matrix: return _Float32Matrix(n, **kwargs)
-                
-                # Smart Default
-                if n >= 10000 and _Float32Matrix:
-                    warnings.warn(f"Matrix size {n} >= 10,000. Enforcing Float32 precision for storage efficiency. Use force_precision='double' to override.")
-                    return _Float32Matrix(n, **kwargs)
-                
-                return _FloatMatrix(n, **kwargs)
-        
-        # 2. Handle creation by Data
-        data = size_or_data
-        
-        # Check for NumPy
-        try:
-            import numpy as np
-            if isinstance(data, np.ndarray):
-                # Optimization: Use native asarray if available and dtype matches
-                if data.dtype == np.float64 and hasattr(_native, "asarray"):
-                    return _native.asarray(data)
-
-                if dtype is None:
-                    # Infer dtype from numpy array
-                    if data.dtype.kind in ('i', 'u'):
-                        target_dtype = "int"
-                    elif data.dtype.kind == 'f':
-                        if data.dtype == np.float32:
-                            target_dtype = "float32"
-                        else:
-                            target_dtype = "float"
-                    elif data.dtype.kind == 'b':
-                        target_dtype = "bool"
-                data = data.tolist()
-        except ImportError:
-            pass
-
-        # Analyze data to pick the best backend
-        try:
-            is_integer = True
-            is_triangular = True
-            rows = len(data)
-            
-            if rows == 0:
-                return _FloatMatrix(0, **kwargs)
-
-            for i, row in enumerate(data):
-                if len(row) != rows:
-                    # Not square? Fallback to standard Python Matrix (this class)
-                    return super(Matrix, cls).__new__(cls)
-                
-                for j, val in enumerate(row):
-                    # Check Type (only if not forced)
-                    if target_dtype is None:
-                        if is_integer and not isinstance(val, (int, bool)):
-                            is_integer = False
-                    
-                    # Check Triangularity (strictly upper)
-                    if is_triangular and j <= i and val != 0:
-                        is_triangular = False
-            
-            # Helper to create and fill
-            def create_and_fill(cls_type, data_source):
-                size, rows = _coerce_general_matrix(data_source)
-                mat = cls_type(size, **kwargs)
-                for i in range(size):
-                    for j in range(size):
-                        val = rows[i][j]
-                        if val != 0:
-                            mat.set(i, j, val)
-                return mat
-
-            # Dispatch Logic
-            if target_dtype == "int":
-                if is_triangular and _TriangularIntegerMatrix:
-                    return create_and_fill(_TriangularIntegerMatrix, data)
-                return create_and_fill(_IntegerMatrix, data)
-            
-            elif target_dtype == "bool":
-                if is_triangular:
-                    return create_and_fill(_TriangularBitMatrix, data)
-                if _DenseBitMatrix:
-                    return create_and_fill(_DenseBitMatrix, data)
-                return create_and_fill(_IntegerMatrix, data)
-
-            elif target_dtype == "float32":
-                if _Float32Matrix:
-                    return create_and_fill(_Float32Matrix, data)
-                return create_and_fill(_FloatMatrix, data)
-
-            elif target_dtype == "float":
-                if is_triangular:
-                    return create_and_fill(_TriangularFloatMatrix, data)
-                return create_and_fill(_FloatMatrix, data)
-
-            # Auto-detection (target_dtype is None)
-            if is_integer:
-                if is_triangular and _TriangularIntegerMatrix:
-                    return create_and_fill(_TriangularIntegerMatrix, data)
-                else:
-                    return create_and_fill(_IntegerMatrix, data)
-            else:
-                if is_triangular:
-                    return create_and_fill(_TriangularFloatMatrix, data)
-                else:
-                    return create_and_fill(_FloatMatrix, data)
-
-        except Exception:
-            # If anything goes wrong during analysis, fallback to standard Python Matrix
-            return super(Matrix, cls).__new__(cls)
-
-    def __init__(self, size_or_data: Any, saveas: Any = None):
-        """
-        Initializes the Python-based Matrix. 
-        NOTE: This is ONLY called if __new__ returns a standard Matrix object.
-        If __new__ returns a C++ object, this __init__ is skipped.
-        """
-        if saveas not in (None, ""):
-            warnings.warn(
-                "pycauset.Matrix does not persist to disk; use pycauset.save() for storage.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-
-        if isinstance(size_or_data, float):
-            size_or_data = int(size_or_data)
-
-        if isinstance(size_or_data, int):
-            if size_or_data < 0:
-                raise ValueError("Matrix dimension must be non-negative.")
-            self._size = size_or_data
-            self._data: list[list[Any]] = [
-                [0 for _ in range(size_or_data)] for _ in range(size_or_data)
-            ]
-        else:
-            size, rows = _coerce_general_matrix(size_or_data)
-            self._size = size
-            self._data = rows
-
-        _track_matrix(self)
-
-    def size(self) -> int:
-        return self._size
-
-    @property
-    def shape(self) -> tuple[int, int]:
-        return (self._size, self._size)
-
-    def __len__(self) -> int:
-        return self._size
-
-    def _validate_indices(self, i: int, j: int) -> None:
-        if not (isinstance(i, int) and isinstance(j, int)):
-            raise TypeError("Matrix indices must be integers.")
-        if i < 0 or j < 0 or i >= self._size or j >= self._size:
-            raise IndexError("Matrix indices out of range.")
-
-    def get(self, i: int, j: int) -> Any:
-        self._validate_indices(i, j)
-        return self._data[i][j]
-
-    def set(self, i: int, j: int, value: Any) -> None:
-        self._validate_indices(i, j)
-        self._data[i][j] = value
-
-    def __getitem__(self, key: Any) -> Any:
-        if not (isinstance(key, tuple) and len(key) == 2):
-            raise TypeError("matrix indices must be provided as [row, col].")
-        i, j = key
-        return self.get(i, j)
-
-    def __setitem__(self, key: Any, value: Any) -> None:
-        if not (isinstance(key, tuple) and len(key) == 2):
-            raise TypeError("matrix indices must be provided as [row, col].")
-        i, j = key
-        self.set(i, j, value)
-
-    def close(self) -> None:
-        self._data = []
-        self._size = 0
-
-
-class TriangularMatrix(Matrix):
-    """Base class for triangular matrices."""
-    pass
-
-
-# Inject methods and register subclasses
-for cls in (_TriangularBitMatrix, _IntegerMatrix, _FloatMatrix, _TriangularFloatMatrix):
-    if cls:
-        cls.__str__ = MatrixMixin.__str__
-        cls.__repr__ = MatrixMixin.__repr__
-        Matrix.register(cls)
-
-if _TriangularIntegerMatrix:
-    _TriangularIntegerMatrix.__str__ = MatrixMixin.__str__
-    _TriangularIntegerMatrix.__repr__ = MatrixMixin.__repr__
-    Matrix.register(_TriangularIntegerMatrix)
-
-if _DenseBitMatrix:
-    _DenseBitMatrix.__str__ = MatrixMixin.__str__
-    _DenseBitMatrix.__repr__ = MatrixMixin.__repr__
-    Matrix.register(_DenseBitMatrix)
-
-# Register triangular subclasses
-if _TriangularBitMatrix:
-    TriangularMatrix.register(_TriangularBitMatrix)
-if _TriangularFloatMatrix:
-    TriangularMatrix.register(_TriangularFloatMatrix)
-if _TriangularIntegerMatrix:
-    TriangularMatrix.register(_TriangularIntegerMatrix)
-
-# Patch TriangularBitMatrix init/random
-if _TriangularBitMatrix:
-    _TriangularBitMatrix.__init__ = _patched_triangular_bit_matrix_init
-    _TriangularBitMatrix.random = staticmethod(_patched_triangular_bit_matrix_random)
-    _patch_matrix_methods(_TriangularBitMatrix)
-
-# Patch other matrix classes to ensure cleanup
-if _IntegerMatrix:
-    _patch_matrix_class(_IntegerMatrix, target_arg="backing_file")
-if _FloatMatrix:
-    _patch_matrix_class(_FloatMatrix, target_arg="backing_file")
-if _TriangularFloatMatrix:
-    _patch_matrix_class(_TriangularFloatMatrix, target_arg="backing_file")
-if _TriangularIntegerMatrix:
-    _patch_matrix_class(_TriangularIntegerMatrix, target_arg="backing_file")
-
-if _DenseBitMatrix:
-    _patch_matrix_class(_DenseBitMatrix, target_arg="backing_file")
-
-# Patch vector classes
-if _FloatVector:
-    _patch_matrix_class(_FloatVector, target_arg="backing_file")
-if _IntegerVector:
-    _patch_matrix_class(_IntegerVector, target_arg="backing_file")
-if _BitVector:
-    _patch_matrix_class(_BitVector, target_arg="backing_file")
+_patching.apply_native_storage_patches(
+    matrix_classes=[
+        (_IntegerMatrix, "backing_file"),
+        (_Int8Matrix, "backing_file"),
+        (_Int16Matrix, "backing_file"),
+        (_Int64Matrix, "backing_file"),
+        (_UInt8Matrix, "backing_file"),
+        (_UInt16Matrix, "backing_file"),
+        (_UInt32Matrix, "backing_file"),
+        (_UInt64Matrix, "backing_file"),
+        (_FloatMatrix, "backing_file"),
+        (_Float16Matrix, "backing_file"),
+        (_Float32Matrix, "backing_file"),
+        (_ComplexFloat16Matrix, "backing_file"),
+        (_ComplexFloat32Matrix, "backing_file"),
+        (_ComplexFloat64Matrix, "backing_file"),
+        (_TriangularFloatMatrix, "backing_file"),
+        (_TriangularIntegerMatrix, "backing_file"),
+        (_DenseBitMatrix, "backing_file"),
+    ],
+    vector_classes=[
+        (_FloatVector, "backing_file"),
+        (_Float32Vector, "backing_file"),
+        (_Float16Vector, "backing_file"),
+        (_ComplexFloat16Vector, "backing_file"),
+        (_ComplexFloat32Vector, "backing_file"),
+        (_ComplexFloat64Vector, "backing_file"),
+        (_Int8Vector, "backing_file"),
+        (_IntegerVector, "backing_file"),
+        (_Int16Vector, "backing_file"),
+        (_Int64Vector, "backing_file"),
+        (_UInt8Vector, "backing_file"),
+        (_UInt16Vector, "backing_file"),
+        (_UInt32Vector, "backing_file"),
+        (_UInt64Vector, "backing_file"),
+        (_BitVector, "backing_file"),
+    ],
+    track_matrix=_track_matrix,
+    mark_temporary_if_auto=_mark_temporary_if_auto,
+)
 
 # Aliases (Only CausalMatrix and Matrix are public now)
 TriangularBitMatrix = _TriangularBitMatrix
 
-def Vector(size_or_data: Any, dtype: str | None = None, **kwargs) -> Any:
+def Vector(size_or_data: Any, dtype: Any = None, **kwargs) -> Any:
     """
     Factory function for creating Vector instances.
     
     Args:
         size_or_data: Size of the vector (int) or data (list/array).
-        dtype: 'float', 'int', or 'bool'. If None, inferred from data.
+        dtype: Dtype token such as pc.int16, np.int16, "int16" (case-insensitive),
+               or builtins like int/float/bool. If None, inferred from data.
         **kwargs: Additional arguments (ignored for now).
     """
-    # 1. Handle creation by Size
-    if isinstance(size_or_data, (int, float)) and (isinstance(size_or_data, int) or size_or_data.is_integer()):
-        n = int(size_or_data)
-        if dtype == "int" and _IntegerVector:
-            return _IntegerVector(n, **kwargs)
-        elif dtype == "bool" and _BitVector:
-            return _BitVector(n, **kwargs)
-        elif _FloatVector:
-            return _FloatVector(n, **kwargs)
-        else:
-            raise ImportError("Vector classes not available in native extension.")
-
-    # 2. Handle creation by Data
-    data = size_or_data
-    
-    # Check for NumPy
-    if _np is not None and isinstance(data, _np.ndarray):
-        if dtype is None:
-            if data.dtype.kind in ('i', 'u'):
-                dtype = "int"
-            elif data.dtype.kind == 'f':
-                dtype = "float"
-            elif data.dtype.kind == 'b':
-                dtype = "bool"
-        data = data.tolist()
-
-    # Infer dtype if not provided
-    if dtype is None:
-        dtype = "float" # Default
-        if all(isinstance(x, (int, bool)) for x in data):
-            dtype = "int"
-        if all(isinstance(x, bool) for x in data):
-             dtype = "bool"
-
-    n = len(data)
-    
-    if dtype == "int" and _IntegerVector:
-        vec = _IntegerVector(n, **kwargs)
-    elif dtype == "bool" and _BitVector:
-        vec = _BitVector(n, **kwargs)
-    elif _FloatVector:
-        vec = _FloatVector(n, **kwargs)
-    else:
-        raise ImportError("Vector classes not available in native extension.")
-
-    for i, val in enumerate(data):
-        vec[i] = val
-        
-    return vec
+    return _factories.vector_factory(
+        size_or_data,
+        dtype=dtype,
+        np_module=_np,
+        Float16Vector=_Float16Vector,
+        Float32Vector=_Float32Vector,
+        FloatVector=_FloatVector,
+        ComplexFloat16Vector=_ComplexFloat16Vector,
+        ComplexFloat32Vector=_ComplexFloat32Vector,
+        ComplexFloat64Vector=_ComplexFloat64Vector,
+        Int8Vector=_Int8Vector,
+        Int64Vector=_Int64Vector,
+        UInt8Vector=_UInt8Vector,
+        UInt16Vector=_UInt16Vector,
+        UInt32Vector=_UInt32Vector,
+        UInt64Vector=_UInt64Vector,
+        IntegerVector=_IntegerVector,
+        Int16Vector=_Int16Vector,
+        BitVector=_BitVector,
+        kwargs=kwargs,
+    )
 
 def CausalMatrix(source: Any, populate: bool = True, **kwargs):
     """
@@ -1244,154 +434,46 @@ def CausalMatrix(source: Any, populate: bool = True, **kwargs):
                   Ignored if source is a list/array.
         **kwargs: Additional arguments passed to TriangularBitMatrix constructor.
     """
-    # Case 1: source is an integer size
-    if isinstance(source, (int, float)) and (isinstance(source, int) or source.is_integer()):
-        n = int(source)
-        if populate:
-            return TriangularBitMatrix.random(n, p=0.5, **kwargs)
-        return TriangularBitMatrix(n, **kwargs)
-
-    # Case 2: source is data (list of lists, numpy array, etc.)
-    # If it's a numpy array, try to let the native constructor handle it (fast path)
-    if _np is not None and isinstance(source, _np.ndarray):
-        # Check for non-binary values
-        if source.dtype != bool:
-            if not _np.all(_np.isin(source, [0, 1])):
-                warnings.warn(
-                    "Input data contains non-binary values. They will be converted to boolean (True/False).",
-                    UserWarning,
-                    stacklevel=2
-                )
-        
-        # Check for non-zero values in lower triangle or diagonal
-        if _np.any(_np.tril(source) != 0):
-             warnings.warn(
-                "Input data contains non-zero values in the lower triangle or diagonal. "
-                "CausalMatrix is strictly upper triangular; these values will be ignored.",
-                UserWarning,
-                stacklevel=2
-            )
-
-        try:
-            # Ensure bool type for the native constructor
-            if source.dtype != bool:
-                source = source.astype(bool)
-            return TriangularBitMatrix(source, **kwargs)
-        except Exception:
-            # Fallback to generic coercion if native init fails
-            pass
-
-    # Generic coercion (slow path, but works for lists/iterables)
-    size, rows = _coerce_general_matrix(source)
-    matrix = TriangularBitMatrix(size, **kwargs)
-    
-    has_non_binary = False
-    has_lower_triangular = False
-
-    # Populate strictly upper triangular part
-    for i in range(size):
-        for j in range(size):
-            val = rows[i][j]
-            
-            # Check for non-binary (only once to avoid spam)
-            if not has_non_binary:
-                if val not in (0, 1, False, True, 0.0, 1.0):
-                    has_non_binary = True
-            
-            # Check for lower triangular/diagonal
-            if j <= i:
-                if val: # Truthy check
-                    has_lower_triangular = True
-                continue
-
-            # Truthy check handles 1, 1.0, True
-            if val:
-                matrix.set(i, j, True)
-    
-    if has_non_binary:
-        warnings.warn(
-            "Input data contains non-binary values. They will be converted to boolean (True/False).",
-            UserWarning,
-            stacklevel=2
+    if _original_triangular_bit_matrix_init is None:
+        raise ImportError(
+            "TriangularBitMatrix is not available in the native extension. "
+            "Rebuild the extension with causal-matrix support enabled."
         )
-        
-    if has_lower_triangular:
-        warnings.warn(
-            "Input data contains non-zero values in the lower triangle or diagonal. "
-            "CausalMatrix is strictly upper triangular; these values will be ignored.",
-            UserWarning,
-            stacklevel=2
+    if populate and getattr(TriangularBitMatrix, "random", None) is None:
+        raise ImportError(
+            "TriangularBitMatrix.random is not available in the native extension. "
+            "Rebuild the extension with random generation support enabled."
         )
-                
-    return matrix
+    return _factories.causal_matrix_factory(
+        source,
+        populate=populate,
+        np_module=_np,
+        TriangularBitMatrix=TriangularBitMatrix,
+        coerce_general_matrix=_coerce_general_matrix,
+        kwargs=kwargs,
+    )
 
-CausalMatrix.random = TriangularBitMatrix.random
+if getattr(TriangularBitMatrix, "random", None) is not None:
+    CausalMatrix.random = TriangularBitMatrix.random
 
-_native_matmul = getattr(_native, "matmul", None)
+_OPS_DEPS = _ops.OpsDeps(
+    native=_native,
+    np_module=_np,
+    Matrix=Matrix,
+    TriangularBitMatrix=_TriangularBitMatrix,
+    track_matrix=_track_matrix,
+    mark_temporary_if_auto=_mark_temporary_if_auto,
+    warnings_module=warnings,
+)
 
-def matmul(a: Any, b: Any, saveas: str | None = None) -> Any:
+def matmul(a: Any, b: Any) -> Any:
     """
     Perform matrix multiplication.
     
     If both inputs are TriangularBitMatrices, uses the optimized C++ implementation.
     Otherwise, performs generic multiplication (slow).
     """
-    if isinstance(a, _TriangularBitMatrix) and isinstance(b, _TriangularBitMatrix):
-        if saveas is not None:
-            warnings.warn(
-                "The 'saveas' argument is deprecated and will be removed in a future version. "
-                "Please use 'pycauset.save(matrix, path)' instead.",
-                DeprecationWarning,
-                stacklevel=2
-            )
-        resolved = _resolve_backing_path(saveas, fallback="matmul")
-        # if _should_register_auto(saveas):
-        #     _STORAGE_REGISTRY.register_auto_file(resolved)
-        result = _native_matmul(a, b, resolved)
-        _track_matrix(result)
-        _mark_temporary_if_auto(result)
-        return result
-    
-    # Generic fallback
-    if not (hasattr(a, "shape") and hasattr(b, "shape")):
-        raise TypeError("Inputs must be matrix-like objects with a shape property.")
-        
-    if a.shape[1] != b.shape[0]:
-        raise ValueError(f"Shape mismatch: {a.shape} vs {b.shape}")
-        
-    N = a.shape[0]
-    M = b.shape[1]
-    
-    # If numpy is available, use it
-    if _np is not None:
-        # Try to convert to numpy arrays
-        try:
-            a_np = _np.array([[a.get(i, j) for j in range(a.shape[1])] for i in range(a.shape[0])])
-            b_np = _np.array([[b.get(i, j) for j in range(b.shape[1])] for i in range(b.shape[0])])
-            res_np = _np.matmul(a_np, b_np)
-            return Matrix(res_np)
-        except Exception:
-            pass # Fallback to slow loop
-            
-    # Slow generic loop
-    res = Matrix(N) 
-    if N != M:
-         raise NotImplementedError("Generic multiplication currently only supports square result matrices.")
-         
-    for i in range(N):
-        for j in range(M):
-            val = 0
-            for k in range(a.shape[1]):
-                val += a.get(i, k) * b.get(k, j)
-            res.set(i, j, val)
-            
-    return res
-
-def _generate_temp_path(prefix: str) -> str:
-    root = _storage_root()
-    name = f"{prefix}_{uuid.uuid4().hex}.bin"
-    path = root / name
-    return str(path)
+    return _ops.matmul(a, b, deps=_OPS_DEPS)
 
 def compute_k(matrix: TriangularBitMatrix, a: float):
     """
@@ -1404,13 +486,7 @@ def compute_k(matrix: TriangularBitMatrix, a: float):
     Returns:
         A TriangularFloatMatrix representing K.
     """
-    resolved = _resolve_backing_path(None, fallback="k_matrix")
-    # _STORAGE_REGISTRY.register_auto_file(resolved) # Deprecated
-        
-    result = _native.compute_k_matrix(matrix, a, resolved, 0)
-    _track_matrix(result)
-    _mark_temporary_if_auto(result)
-    return result
+    return _ops.compute_k(matrix, a, deps=_OPS_DEPS)
 
 
 def bitwise_not(matrix: Any) -> Any:
@@ -1423,16 +499,7 @@ def bitwise_not(matrix: Any) -> Any:
     Returns:
         A new matrix with inverted bits.
     """
-    if hasattr(matrix, "__invert__"):
-        return ~matrix
-        
-    if _np is not None:
-        try:
-            return _np.invert(matrix)
-        except Exception:
-            pass
-            
-    raise TypeError("Object does not support bitwise inversion.")
+    return _ops.bitwise_not(matrix, deps=_OPS_DEPS)
 
 
 def invert(matrix: Any) -> Any:
@@ -1448,44 +515,14 @@ def invert(matrix: Any) -> Any:
     Raises:
         RuntimeError: If the matrix is singular (e.g. strictly upper triangular).
     """
-    if hasattr(matrix, "invert"):
-        return matrix.invert()
-        
-    if _np is not None:
-        try:
-            return _np.linalg.inv(matrix)
-        except Exception:
-            pass
-            
-    raise TypeError("Object does not support matrix inversion.")
-
-
-_native_eigvals = getattr(_native, "eigvals")
-_native_eigvals_arnoldi = getattr(_native, "eigvals_arnoldi", None)
-
-def eigvals(matrix: Any, k: int | None = None, method: str = "dense", max_iter: int = 1000, tol: float = 1e-10) -> Any:
-    """
-    Compute eigenvalues of a matrix.
-    
-    Args:
-        matrix: The input matrix.
-        k: Number of eigenvalues to compute (for Arnoldi method).
-        method: 'dense' (default) or 'arnoldi'.
-        max_iter: Maximum iterations for Arnoldi.
-        tol: Tolerance for Arnoldi.
-    """
-    if method == "arnoldi":
-        if _native_eigvals_arnoldi is None:
-             raise NotImplementedError("Arnoldi method not available in native extension.")
-        if k is None:
-            raise ValueError("k must be specified for Arnoldi method.")
-        return _native_eigvals_arnoldi(matrix, k, max_iter, tol)
-    else:
-        return _native_eigvals(matrix)
+    return _ops.invert(matrix, deps=_OPS_DEPS)
 
 
 # Alias for IdentityMatrix
 I = getattr(_native, "IdentityMatrix", None)
+
+# Python-level field API
+from .field import ScalarField
 
 
 def __getattr__(name):
@@ -1493,8 +530,5 @@ def __getattr__(name):
 
 
 __all__ = [name for name in dir(_native) if not name.startswith("__")]
-__all__.extend(["save", "keep_temp_files", "seed", "Matrix", "Vector", "TriangularMatrix", "CausalMatrix", "TriangularBitMatrix", "compute_k", "bitwise_not", "invert", "I", "CausalSet", "Causet", "MemoryHint", "AccessPattern"])
-# Remove deprecated classes from __all__ if they were added by dir(_native)
-for _deprecated in ["IntegerMatrix", "FloatMatrix", "TriangularFloatMatrix", "TriangularIntegerMatrix", "FloatVector", "IntegerVector", "BitVector"]:
-    if _deprecated in __all__:
-        __all__.remove(_deprecated)
+__all__.extend(["save", "keep_temp_files", "seed", "Matrix", "Vector", "TriangularMatrix", "CausalMatrix", "TriangularBitMatrix", "matmul", "compute_k", "bitwise_not", "invert", "I", "CausalSet", "Causet", "MemoryHint", "AccessPattern", "ScalarField"])
+

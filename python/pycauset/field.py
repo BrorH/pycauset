@@ -36,14 +36,34 @@ class ScalarField(Field):
     The coefficients 'a' and 'b' are derived from the spacetime dimension,
     sprinkling density, and field mass.
     """
-    def __init__(self, causet: CausalSet, mass: float = 0.0):
+    def __init__(
+        self,
+        causet: CausalSet | None = None,
+        mass: float = 0.0,
+        *,
+        n: int | None = None,
+        density: float | None = None,
+        spacetime=None,
+        seed=None,
+        matrix=None,
+    ):
         """
         Initialize a scalar field.
         
         Args:
             causet: The causal set on which the field lives.
             mass: The mass of the field. Defaults to 0.0 (massless).
+            n: Convenience constructor: if provided (and `causet` is None), a new CausalSet
+               is sprinkled with this many elements.
+            density: Convenience constructor: if provided (and `causet` is None), a new CausalSet
+               is sprinkled with Poisson(density * volume) elements.
+            spacetime: Optional spacetime for the sprinkled CausalSet.
+            seed: Optional RNG seed for sprinkling.
+            matrix: Optional pre-existing causal matrix to attach to the CausalSet.
         """
+        if causet is None:
+            causet = CausalSet(n=n, density=density, spacetime=spacetime, seed=seed, matrix=matrix)
+
         super().__init__(causet)
         self._mass = float(mass)
         self._cached_propagator = None

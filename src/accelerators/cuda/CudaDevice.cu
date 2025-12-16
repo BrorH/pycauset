@@ -3,7 +3,6 @@
 #include "AsyncStreamer.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
-#include "pycauset/vector/ComplexVector.hpp"
 #include "pycauset/math/Eigen.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include <iostream>
@@ -410,11 +409,6 @@ void CudaDevice::inverse_incore(const MatrixBase& in, MatrixBase& out) {
     }
 
     throw std::runtime_error("CudaDevice::inverse only supports DenseMatrix<double> or DenseMatrix<float>");
-}
-
-void CudaDevice::eigvals(const MatrixBase& matrix, ComplexVector& result) {
-    CudaSolver solver(this);
-    solver.eigvals(matrix, result);
 }
 
 void CudaDevice::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {

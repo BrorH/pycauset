@@ -13,9 +13,6 @@ public:
     // Main entry point for inversion
     void invert(const MatrixBase& in, MatrixBase& out);
 
-    // Main entry point for eigenvalues
-    void eigvals(const MatrixBase& matrix, ComplexVector& result);
-
     void add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
     void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
     void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result);

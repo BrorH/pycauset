@@ -92,6 +92,9 @@ public:
     bool is_transposed() const { return is_transposed_; }
     void set_transposed(bool transposed);
 
+    bool is_conjugated() const { return is_conjugated_; }
+    void set_conjugated(bool conjugated);
+
     pycauset::DataType get_data_type() const { return data_type_; }
     pycauset::MatrixType get_matrix_type() const { return matrix_type_; }
     
@@ -141,6 +144,7 @@ protected:
     uint64_t seed_ = 0;
     std::complex<double> scalar_ = 1.0;
     bool is_transposed_ = false;
+    bool is_conjugated_ = false;
     bool is_temporary_ = false;
 
     // Tiered Storage State

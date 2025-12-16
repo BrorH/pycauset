@@ -76,16 +76,6 @@ public:
         std::complex<double> scalar = 1.0,
         bool is_transposed = false
     );
-
-    // --- Type Resolution ---
-
-    // Resolves the result data type for binary operations
-    // e.g., INT32 + INT32 -> INT32, INT32 + FLOAT64 -> FLOAT64
-    static DataType resolve_result_type(DataType a, DataType b);
-
-    // Resolves the result matrix type (structure)
-    // e.g., TRIANGULAR + TRIANGULAR -> TRIANGULAR, DENSE + TRIANGULAR -> DENSE
-    static MatrixType resolve_result_matrix_type(MatrixType a, MatrixType b);
 };
 
 }

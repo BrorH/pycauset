@@ -17,154 +17,6 @@ namespace {
     __global__ void k_add(const T* a, const T* b, T* c, size_t n) {
         size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
         if (idx < n) {
-            c[idx] = a[idx] + b[idx];
-        }
-    }
-
-    // Kernel to expand Symmetric/Antisymmetric packed matrix to Dense Complex
-    // A: Packed data (byte offsets in row_offsets)
-    // C: Dense Complex Output (N x N)
-    // row_offsets: Byte offset for each row start
-    // scalar: Complex scalar to multiply
-    // is_antisymmetric: If true, A is antisymmetric (A_ji = -A_ij)
-    __global__ void k_expand_symmetric_complex(
-        const char* A_bytes, 
-        cuDoubleComplex* C, 
-        size_t n, 
-        const uint64_t* row_offsets,
-        cuDoubleComplex scalar,
-        bool is_antisymmetric
-    ) {
-        size_t i = blockIdx.y * blockDim.y + threadIdx.y;
-        size_t j = blockIdx.x * blockDim.x + threadIdx.x;
-        
-        if (i < n && j < n) {
-            double val = 0.0;
-            
-            if (i <= j) {
-                // Upper triangle (stored)
-                // Row i, Col j. Index in row is (j - i).
-                const double* row_ptr = (const double*)(A_bytes + row_offsets[i]);
-                val = row_ptr[j - i];
-            } else {
-                // Lower triangle (implied)
-                // Element (i, j) corresponds to stored (j, i).
-                const double* row_ptr = (const double*)(A_bytes + row_offsets[j]);
-                val = row_ptr[i - j];
-                if (is_antisymmetric) val = -val;
-            }
-            
-            // C[i, j] = scalar * val
-            // scalar = (s_r, s_i)
-            // val is real.
-            // res = (s_r * val, s_i * val)
-            
-            C[i * n + j] = make_cuDoubleComplex(cuCreal(scalar) * val, cuCimag(scalar) * val);
-        }
-    }
-
-    template <typename T>
-    __global__ void k_sub(const T* a, const T* b, T* c, size_t n) {
-        size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-        if (idx < n) {
-            c[idx] = a[idx] - b[idx];
-        }
-    }
-
-    template <typename T>
-    __global__ void k_mul_scalar(const T* a, T scalar, T* c, size_t n) {
-        size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-        if (idx < n) {
-            c[idx] = a[idx] * scalar;
-        }
-    }
-
-    // BitMatrix Transpose Kernel (32x32 tiles)
-    // src: row-major packed bits
-    // dst: row-major packed bits (transposed)
-    // n: matrix dimension (bits)
-    // stride_words: number of 64-bit words per row
-    __global__ void k_transpose_bits(const uint64_t* src, uint64_t* dst, size_t n, size_t stride_words) {
-        // Tile coordinates (in bits)
-        size_t tile_x = blockIdx.x * 32;
-        size_t tile_y = blockIdx.y * 32;
-        
-        // Thread coordinates within tile
-        size_t tid = threadIdx.x; // 0..31
-        
-        // Global coordinates of the bit this thread reads
-        // We want to read a 32x32 block from src at (tile_y, tile_x)
-        // Thread 'tid' reads row 'tile_y + tid'
-        size_t src_row = tile_y + tid;
-        
-        uint32_t row_bits = 0;
-        
-        if (src_row < n) {
-            // We need bits [tile_x, tile_x + 31] from src_row
-            // These bits are in src[src_row * stride_words + word_idx]
-            // Since stride is 64-bit aligned, tile_x (multiple of 32) is either at bit 0 or bit 32 of a word.
-            
-            size_t word_idx = tile_x / 64;
-            size_t bit_offset = tile_x % 64; // 0 or 32
-            
-            if (tile_x < n) {
-                uint64_t word = src[src_row * stride_words + word_idx];
-                // Extract 32 bits
-                row_bits = (uint32_t)(word >> bit_offset);
-            }
-        }
-        
-        // Now we have 'row_bits' where bit 'k' corresponds to column 'tile_x + k'.
-        // We want to transpose this 32x32 tile.
-        // Thread 'tid' holds row 'tid'.
-        // We want thread 'tid' to hold column 'tid' (which becomes row 'tid' of dst).
-        
-        // Use __ballot_sync to transpose
-        // We want to construct 'col_bits' for column 'tid'.
-        // Column 'tid' consists of bit 'tid' from each row 0..31.
-        // Thread 'k' holds row 'k'.
-        // So we need bit 'tid' from thread 'k'.
-        
-        uint32_t col_bits = 0;
-        for (int k = 0; k < 32; ++k) {
-            // Broadcast bit 'k' from thread 'tid' to all threads? No.
-            // We want to form a 32-bit integer where bit 'r' comes from thread 'r', bit 'tid'.
-            // __ballot_sync(mask, pred) returns a bitmask where bit 'r' is set if 'pred' is true in thread 'r'.
-            // We want bit 'r' of result to be bit 'tid' of thread 'r'.
-            // So 'pred' for thread 'r' should be "bit 'tid' of my row_bits is 1".
-            
-            // But 'tid' varies per thread.
-            // We are constructing 'col_bits' for thread 'tid'.
-            // This corresponds to column 'tid' of the tile.
-            // So we need bit 'tid' from all threads.
-            // Wait, __ballot collects from all threads.
-            // If we call __ballot, all threads get the same result? Yes.
-            // So we can't do it in parallel for all columns easily with one ballot.
-            // We need 32 ballots?
-            
-            // Loop k: 0..31 (target column index in tile)
-            // We want to compute the column 'k'.
-            // Predicate: (row_bits >> k) & 1
-            // uint32_t col_k = __ballot_sync(0xFFFFFFFF, (row_bits >> k) & 1);
-            // If tid == k, we store this col_k.
-            
-            // Optimization: We can just do this loop.
-            // But we want all threads to get their column.
-            // So:
-            // uint32_t my_col_bits = 0; // This will be computed by the loop? No.
-            // In iteration k, we compute column k.
-            // Thread k needs this result.
-            
-            // uint32_t c = __ballot_sync(0xFFFFFFFF, (row_bits >> k) & 1);
-            // if (tid == k) col_bits = c;
-            // But this is O(32).
-        }
-        
-        // Better approach: Warp Shuffle
-        // x = row_bits
-        // We want to transpose 32x32 bit matrix distributed across 32 threads.
-        // Use __shfl_xor_sync to swap blocks.
-        // Standard parallel bit transpose.
         
         uint32_t x = row_bits;
         // Swap 16x16 blocks
@@ -798,46 +650,7 @@ void CudaSolver::gemm_streaming(
         }
     }
 }
-
-void CudaSolver::eigvals(const MatrixBase& matrix, ComplexVector& result) {
-    size_t n = matrix.size();
-    size_t available = device_->get_available_memory_bytes();
-    
-    // Check if we have enough memory for in-core solver
-    // Need: A (NxN), W (N), Work (Lwork)
-    // Approx 1 * N^2 * 8 bytes (since we copy A)
-    size_t required = n * n * sizeof(double);
-    
-    if (required > available * 0.9) {
-        std::cerr << "[PyCauset] Matrix too large for GPU Eigenvalues (N=" << n << "). Falling back to CPU." << std::endl;
-        pycauset::eigvals_cpu(matrix, result);
-        return;
-    }
-
-    // Double Precision
-    if (auto* mat_d = dynamic_cast<const DenseMatrix<double>*>(&matrix)) {
-        // Check Symmetry
-        const double* h_data = mat_d->data();
-        bool symmetric = true;
-        for(size_t i=0; i<n; ++i) {
-            for(size_t j=i+1; j<n; ++j) {
-                if (std::abs(h_data[i*n+j] - h_data[j*n+i]) > 1e-10) {
-                    symmetric = false;
-                    break;
-                }
-            }
-            if (!symmetric) break;
-        }
-
-        if (!symmetric) {
-             std::cerr << "[PyCauset] GPU Eigenvalues: Matrix is not symmetric. Falling back to CPU." << std::endl;
-             pycauset::eigvals_cpu(matrix, result);
-             return;
-        }
-
-        double* d_A;
-        double* d_W;
-        double* d_Work;
+#if 0 // Legacy CUDA eigvals implementation removed (depended on deleted ComplexVector)
         int* d_Info;
         
         size_t bytes_A = n * n * sizeof(double);
@@ -1042,6 +855,8 @@ void CudaSolver::eigvals(const MatrixBase& matrix, ComplexVector& result) {
     // Fallback
     pycauset::eigvals_cpu(matrix, result);
 }
+
+#endif
 
 
 void CudaSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {

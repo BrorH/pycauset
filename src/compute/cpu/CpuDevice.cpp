@@ -1,5 +1,4 @@
 #include "pycauset/compute/cpu/CpuDevice.hpp"
-#include "pycauset/vector/ComplexVector.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
@@ -16,10 +15,6 @@ void CpuDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
 
 void CpuDevice::inverse(const MatrixBase& in, MatrixBase& out) {
     solver_.inverse(in, out);
-}
-
-void CpuDevice::eigvals(const MatrixBase& matrix, ComplexVector& result) {
-    solver_.eigvals(matrix, result);
 }
 
 void CpuDevice::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {

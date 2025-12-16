@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <complex>
 #include <memory>
+#include <stdexcept>
 #include <string>
 
 #include "pycauset/core/PersistentObject.hpp"
@@ -42,9 +44,16 @@ public:
 
     virtual double get_element_as_double(uint64_t i) const = 0;
 
+    virtual std::complex<double> get_element_as_complex(uint64_t i) const {
+        return std::complex<double>(get_element_as_double(i), 0.0);
+    }
+
     virtual std::unique_ptr<VectorBase> transpose(const std::string& saveas = "") const = 0;
 
     virtual std::unique_ptr<VectorBase> multiply_scalar(double factor, const std::string& result_file = "") const = 0;
+    virtual std::unique_ptr<VectorBase> multiply_scalar(std::complex<double> factor, const std::string& result_file = "") const {
+        throw std::runtime_error("Complex scalar multiplication not implemented for this vector type");
+    }
     virtual std::unique_ptr<VectorBase> add_scalar(double scalar, const std::string& result_file = "") const = 0;
 
 protected:

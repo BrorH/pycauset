@@ -85,3 +85,14 @@ benchmarks/
 *.pycauset
 storage/
 site/
+
+# --- Local binary artifacts (accidental) ---
+/test_f32
+/test_f32_2
+/test_f32_res
+/test_arnoldi_f32
+/test_complex_scalar
+
+
+documentation/dev/Agent Bootstrap.md
+documentation\dev\Agent Bootstrap.md

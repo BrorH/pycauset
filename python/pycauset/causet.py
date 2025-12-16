@@ -8,6 +8,8 @@ import struct
 from pathlib import Path
 from typing import Optional, Sequence, List, Union
 
+from ._internal.persistence import zip_member_data_offset
+
 # Import the native extension relative to this package
 try:
     _native = import_module("._pycauset", package=__package__)
@@ -123,29 +125,6 @@ class CausalSet:
     
     def __len__(self):
         return self._n
-
-    def compute_k(self, a: float = 1.0):
-        """
-        DEPRECATED: Use pycauset.field.ScalarField(c).propagator() instead.
-        
-        Compute the K-matrix (retarded propagator) for this causal set
-        assuming a massless scalar field with manual coefficient 'a'.
-        
-        Args:
-            a (float): The non-locality scale parameter. Defaults to 1.0.
-            
-        Returns:
-            TriangularFloatMatrix: The computed K matrix.
-        """
-        import warnings
-        warnings.warn(
-            "CausalSet.compute_k is deprecated. Use pycauset.field.ScalarField(c).propagator() instead.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        # Local import to avoid circular dependency
-        from . import compute_k
-        return compute_k(self.C, a)
 
     def coordinates(self, indices: Optional[Sequence[int]] = None, force: bool = False):
         """
@@ -279,10 +258,7 @@ class CausalSet:
             # 3. Find offset of data.bin
             try:
                 info = zf.getinfo("data.bin")
-                with open(path, "rb") as f:
-                    f.seek(info.header_offset + 26)
-                    n_len, e_len = struct.unpack("<HH", f.read(4))
-                    data_offset = info.header_offset + 30 + n_len + e_len
+                data_offset = zip_member_data_offset(path, info)
             except KeyError:
                 raise ValueError("Invalid file format: missing data.bin")
 
@@ -290,13 +266,13 @@ class CausalSet:
             rows = metadata.get("rows", metadata.get("n"))
             seed = metadata.get("seed", 0)
             
-            matrix = _native.TriangularBitMatrix(
-                rows, 
-                str(path), 
-                data_offset, 
-                seed, 
-                1.0, 
-                False
+            matrix = _native.TriangularBitMatrix._from_storage(
+                rows,
+                str(path),
+                data_offset,
+                seed,
+                1.0,
+                False,
             )
 
             # 5. Create CausalSet

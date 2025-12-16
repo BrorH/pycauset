@@ -7,8 +7,6 @@
 
 namespace pycauset {
 
-class ComplexVector; // Forward declaration
-
 class ComputeDevice {
 public:
     virtual ~ComputeDevice() = default;
@@ -18,9 +16,6 @@ public:
     
     // Inversion
     virtual void inverse(const MatrixBase& in, MatrixBase& out) = 0;
-
-    // Eigenvalue Solvers
-    virtual void eigvals(const MatrixBase& matrix, ComplexVector& result) = 0;
 
     // Batch Matrix-Vector Multiplication (A * X -> Y)
     // A is N x N

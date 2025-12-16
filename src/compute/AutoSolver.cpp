@@ -1,8 +1,6 @@
 #include "pycauset/compute/AutoSolver.hpp"
 #include "pycauset/compute/cpu/CpuDevice.hpp"
-#include "pycauset/compute/cpu/CpuEigenSolver.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
-#include "pycauset/vector/ComplexVector.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include <iostream>
 #include <algorithm>
@@ -180,13 +178,15 @@ void AutoSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
         bool a_ok = (a.get_matrix_type() == MatrixType::DENSE_FLOAT);
         bool b_ok = (b.get_matrix_type() == MatrixType::DENSE_FLOAT);
         
-        // Also check data types
-        // We support FLOAT64, FLOAT32, BIT
-        auto is_supported_dtype = [](DataType dt) {
-            return dt == DataType::FLOAT64 || dt == DataType::FLOAT32 || dt == DataType::BIT;
-        };
-        
-        if (a_ok && b_ok && is_supported_dtype(a.get_data_type()) && is_supported_dtype(b.get_data_type())) {
+        // Also check data types. GPU kernels require dtype compatibility.
+        DataType dt_a = a.get_data_type();
+        DataType dt_b = b.get_data_type();
+        DataType dt_r = result.get_data_type();
+
+        bool float_ok = (dt_a == dt_b) && (dt_b == dt_r) && (dt_r == DataType::FLOAT64 || dt_r == DataType::FLOAT32);
+        bool bit_ok = (dt_a == DataType::BIT) && (dt_b == DataType::BIT) && (dt_r == DataType::INT32);
+
+        if (a_ok && b_ok && (float_ok || bit_ok)) {
             use_gpu = true;
         }
     }
@@ -219,43 +219,6 @@ void AutoSolver::inverse(const MatrixBase& in, MatrixBase& out) {
     }
 }
 
-void AutoSolver::eigvals(const MatrixBase& matrix, ComplexVector& result) {
-    uint64_t elements = matrix.size() * matrix.size();
-    
-    bool use_gpu = false;
-    if (is_gpu_active() && elements >= gpu_threshold_elements_) {
-        // GPU supports Dense Float/Double eigvals
-        // AND Symmetric/Antisymmetric (via expansion)
-        MatrixType mtype = matrix.get_matrix_type();
-        DataType dt = matrix.get_data_type();
-        
-        bool type_ok = (mtype == MatrixType::DENSE_FLOAT || 
-                        mtype == MatrixType::SYMMETRIC || 
-                        mtype == MatrixType::ANTISYMMETRIC);
-                        
-        if (type_ok && (dt == DataType::FLOAT64 || dt == DataType::FLOAT32)) {
-            use_gpu = true;
-        }
-    }
-    
-    if (use_gpu) {
-        gpu_device_->eigvals(matrix, result);
-    } else {
-        // CPU Dispatch Logic: In-Memory vs Out-of-Core
-        // Check if matrix fits in RAM
-        size_t required_bytes = matrix.size() * matrix.size() * sizeof(double); // Approx for dense
-        
-        // If we can fit 2 copies (original + working) in RAM, use fast in-memory solver
-        if (core::MemoryGovernor::instance().request_ram(required_bytes * 2)) {
-            cpu_device_->eigvals(matrix, result);
-        } else {
-            // Use Out-of-Core Parallel Solver
-            // std::cout << "[AutoSolver] Matrix too large for RAM (" << (required_bytes/1024/1024) << " MB). Using Out-of-Core CPU Solver." << std::endl;
-            CpuEigenSolver::eigvals_outofcore(matrix, result);
-        }
-    }
-}
-
 void AutoSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {
     // A is N*N.
     uint64_t elements = A.size() * A.size();
@@ -279,17 +242,59 @@ void AutoSolver::outer_product(const VectorBase& a, const VectorBase& b, MatrixB
 
 void AutoSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     uint64_t elements = a.size() * a.size();
-    select_device(elements)->add(a, b, result);
+
+    bool use_gpu = false;
+    if (is_gpu_active() && elements >= gpu_threshold_elements_) {
+        // CUDA add supports only dense float32/float64 with matching dtypes.
+        bool type_ok = (a.get_matrix_type() == MatrixType::DENSE_FLOAT) &&
+                       (b.get_matrix_type() == MatrixType::DENSE_FLOAT) &&
+                       (result.get_matrix_type() == MatrixType::DENSE_FLOAT);
+
+        DataType dt_a = a.get_data_type();
+        DataType dt_b = b.get_data_type();
+        DataType dt_r = result.get_data_type();
+        bool dtype_ok = (dt_a == dt_b) && (dt_b == dt_r) &&
+                        (dt_r == DataType::FLOAT64 || dt_r == DataType::FLOAT32);
+
+        use_gpu = type_ok && dtype_ok;
+    }
+
+    if (use_gpu) {
+        gpu_device_->add(a, b, result);
+    } else {
+        cpu_device_->add(a, b, result);
+    }
 }
 
 void AutoSolver::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     uint64_t elements = a.size() * a.size();
-    select_device(elements)->subtract(a, b, result);
+
+    bool use_gpu = false;
+    if (is_gpu_active() && elements >= gpu_threshold_elements_) {
+        // CUDA subtract supports only dense float32/float64 with matching dtypes.
+        bool type_ok = (a.get_matrix_type() == MatrixType::DENSE_FLOAT) &&
+                       (b.get_matrix_type() == MatrixType::DENSE_FLOAT) &&
+                       (result.get_matrix_type() == MatrixType::DENSE_FLOAT);
+
+        DataType dt_a = a.get_data_type();
+        DataType dt_b = b.get_data_type();
+        DataType dt_r = result.get_data_type();
+        bool dtype_ok = (dt_a == dt_b) && (dt_b == dt_r) &&
+                        (dt_r == DataType::FLOAT64 || dt_r == DataType::FLOAT32);
+
+        use_gpu = type_ok && dtype_ok;
+    }
+
+    if (use_gpu) {
+        gpu_device_->subtract(a, b, result);
+    } else {
+        cpu_device_->subtract(a, b, result);
+    }
 }
 
 void AutoSolver::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    uint64_t elements = a.size() * a.size();
-    select_device(elements)->elementwise_multiply(a, b, result);
+    // CUDA elementwise_multiply is not implemented; keep this CPU-only.
+    cpu_device_->elementwise_multiply(a, b, result);
 }
 
 void AutoSolver::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {

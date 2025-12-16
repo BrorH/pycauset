@@ -44,7 +44,9 @@ VectorBase::VectorBase(uint64_t n,
 }
 
 std::unique_ptr<PersistentObject> VectorBase::clone() const {
-    return ObjectFactory::clone_vector(mapper_, rows_, cols_, data_type_, matrix_type_, seed_, scalar_, is_transposed_);
+    auto out = ObjectFactory::clone_vector(mapper_, rows_, cols_, data_type_, matrix_type_, seed_, scalar_, is_transposed_);
+    out->set_conjugated(is_conjugated());
+    return out;
 }
 
 } // namespace pycauset

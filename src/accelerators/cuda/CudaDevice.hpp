@@ -23,8 +23,6 @@ public:
     
     // Internal helper for in-core inversion (called by CudaSolver)
     void inverse_incore(const MatrixBase& in, MatrixBase& out);
-
-    void eigvals(const MatrixBase& matrix, ComplexVector& result) override;
     void batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) override;
 
     // Matrix-Vector Operations

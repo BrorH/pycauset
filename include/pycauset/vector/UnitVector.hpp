@@ -66,6 +66,7 @@ public:
         auto result = std::make_unique<UnitVector>(n_, active_index_, saveas);
         result->set_scalar(scalar_);
         result->set_transposed(!is_transposed());
+        result->set_conjugated(is_conjugated());
         return result;
     }
 
@@ -73,6 +74,7 @@ public:
         auto result = std::make_unique<UnitVector>(n_, active_index_, result_file);
         result->set_scalar(scalar_ * factor);
         result->set_transposed(is_transposed());
+        result->set_conjugated(is_conjugated());
         return result;
     }
 

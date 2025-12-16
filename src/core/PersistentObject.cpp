@@ -18,7 +18,7 @@ PersistentObject::PersistentObject()
       matrix_type_(pycauset::MatrixType::UNKNOWN), 
       data_type_(pycauset::DataType::UNKNOWN), 
       rows_(0), cols_(0), seed_(0), scalar_(1.0), 
-      is_transposed_(false), is_temporary_(false),
+    is_transposed_(false), is_conjugated_(false), is_temporary_(false),
       storage_state_(pycauset::core::StorageState::DISK_BACKED) {}
 
 PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
@@ -38,6 +38,7 @@ PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
       seed_(seed),
       scalar_(scalar),
       is_transposed_(is_transposed),
+    is_conjugated_(false),
       is_temporary_(is_temporary)
 {
     // Determine initial state
@@ -250,8 +251,10 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     bool use_ram = false;
 
     if (backing_file.empty() || backing_file == ":memory:") {
-        // Ask MemoryGovernor
-        if (pycauset::core::MemoryGovernor::instance().request_ram(final_size)) {
+        // Honor explicit RAM threshold first, then ask MemoryGovernor.
+        // This provides deterministic behavior for tests and user control.
+        bool eligible_for_ram = (final_size <= pycauset::get_memory_threshold());
+        if (eligible_for_ram && pycauset::core::MemoryGovernor::instance().request_ram(final_size)) {
             use_ram = true;
             path = ":memory:";
         } else {
@@ -354,6 +357,10 @@ void PersistentObject::set_temporary(bool temp) {
 
 void PersistentObject::set_transposed(bool transposed) {
     is_transposed_ = transposed;
+}
+
+void PersistentObject::set_conjugated(bool conjugated) {
+    is_conjugated_ = conjugated;
 }
 
 MemoryMapper* PersistentObject::require_mapper() {

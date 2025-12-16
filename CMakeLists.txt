@@ -113,9 +113,11 @@ if(NOT OpenBLAS_FOUND)
         # Define the target manually
         if(NOT TARGET OpenBLAS::OpenBLAS)
             add_library(OpenBLAS::OpenBLAS SHARED IMPORTED)
+            set(PYCAUSET_OPENBLAS_DLL "${openblas_binaries_SOURCE_DIR}/bin/libopenblas.dll")
             set_target_properties(OpenBLAS::OpenBLAS PROPERTIES
                 INTERFACE_INCLUDE_DIRECTORIES "${openblas_binaries_SOURCE_DIR}/include"
                 IMPORTED_IMPLIB "${openblas_binaries_SOURCE_DIR}/lib/libopenblas.lib"
+                IMPORTED_LOCATION "${PYCAUSET_OPENBLAS_DLL}"
             )
             message(STATUS "OpenBLAS configured from binaries at ${openblas_binaries_SOURCE_DIR}")
             
@@ -160,11 +162,13 @@ endif()
 set(PYCAUSET_SOURCES
     src/core/MemoryMapper.cpp
     src/core/MemoryGovernor.cpp
+    src/core/DebugTrace.cpp
     src/core/IOAccelerator.cpp
     src/core/PersistentObject.cpp
     src/core/StorageUtils.cpp
     src/core/SystemUtils.cpp
     src/core/ParallelUtils.cpp
+    src/core/PromotionResolver.cpp
     src/matrix/MatrixBase.cpp
     src/matrix/DenseBitMatrix.cpp
     src/matrix/TriangularMatrix.cpp
@@ -172,11 +176,9 @@ set(PYCAUSET_SOURCES
     src/core/ObjectFactory.cpp
     src/vector/VectorBase.cpp
     src/vector/DenseVector.cpp
-    src/vector/ComplexVector.cpp
     src/compute/ComputeContext.cpp
     src/compute/AutoSolver.cpp
     src/compute/cpu/CpuDevice.cpp
-    src/compute/cpu/CpuEigenSolver.cpp
     src/compute/cpu/CpuSolver.cpp
     src/math/Eigen.cpp
     src/math/LinearAlgebra.cpp
@@ -190,6 +192,17 @@ target_link_libraries(pycauset_core PUBLIC Eigen3::Eigen OpenBLAS::OpenBLAS)
 set_property(TARGET pycauset_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(pycauset_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
+if(WIN32 AND DEFINED PYCAUSET_OPENBLAS_DLL AND EXISTS "${PYCAUSET_OPENBLAS_DLL}")
+    add_custom_command(
+        TARGET pycauset_core
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PYCAUSET_OPENBLAS_DLL}"
+                $<TARGET_FILE_DIR:pycauset_core>
+        VERBATIM
+    )
+endif()
+
 if(OpenMP_CXX_FOUND)
     target_link_libraries(pycauset_core PUBLIC OpenMP::OpenMP_CXX)
 endif()
@@ -201,7 +214,14 @@ endif()
 # --- Extension Module ---
 # Note: The module name must match what is defined in PYBIND11_MODULE in bindings.cpp (which is "_pycauset")
 # Touch 2
-python_add_library(_pycauset MODULE src/bindings.cpp)
+python_add_library(_pycauset MODULE
+    src/bindings.cpp
+    src/bindings/bind_core.cpp
+    src/bindings/binding_warnings.cpp
+    src/bindings/bind_matrix.cpp
+    src/bindings/bind_vector.cpp
+    src/bindings/bind_causet.cpp
+)
 
 # Include directories
 target_include_directories(_pycauset PRIVATE include)
@@ -278,6 +298,12 @@ endif()
 
 # --- Installation ---
 # This installs the compiled extension into the python package directory
+install(
+    TARGETS pycauset_core
+    RUNTIME DESTINATION pycauset
+    LIBRARY DESTINATION pycauset
+    ARCHIVE DESTINATION pycauset
+)
 install(TARGETS _pycauset DESTINATION pycauset)
 
 # --- Testing (Only if explicitly requested or not a pip build) ---

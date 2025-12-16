@@ -4,6 +4,7 @@
 #include "pycauset/core/MatrixTraits.hpp"
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
+#include "pycauset/core/ScalarUtils.hpp"
 #include <stdexcept>
 #include <string>
 #include <algorithm>
@@ -67,10 +68,23 @@ public:
     }
 
     double get_element_as_double(uint64_t i) const override {
-        if (scalar_ == 1.0) {
-            return static_cast<double>(get(i));
+        if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+            throw std::runtime_error("Complex vector does not support get_element_as_double; use get_element_as_complex");
         }
-        return (static_cast<double>(get(i)) * scalar_).real();
+        const std::complex<double> v = pycauset::scalar::to_complex_double(get(i));
+        if (scalar_ == 1.0) {
+            return v.real();
+        }
+        return (v * scalar_).real();
+    }
+
+    std::complex<double> get_element_as_complex(uint64_t i) const override {
+        const std::complex<double> v = pycauset::scalar::to_complex_double(get(i));
+        std::complex<double> z = (scalar_ == 1.0) ? v : (v * scalar_);
+        if (is_conjugated()) {
+            z = std::conj(z);
+        }
+        return z;
     }
 
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }
@@ -81,10 +95,26 @@ public:
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
         auto new_vector = std::make_unique<DenseVector<T>>(n_, std::move(mapper));
         new_vector->set_scalar(scalar_ * factor);
+        new_vector->set_conjugated(is_conjugated());
         if (result_file.empty()) {
             new_vector->set_temporary(true);
         }
         return new_vector;
+    }
+
+    std::unique_ptr<VectorBase> multiply_scalar(std::complex<double> factor, const std::string& result_file = "") const override {
+        if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+            std::string new_path = copy_storage(result_file);
+            auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
+            auto new_vector = std::make_unique<DenseVector<T>>(n_, std::move(mapper));
+            new_vector->set_scalar(scalar_ * factor);
+            new_vector->set_conjugated(is_conjugated());
+            if (result_file.empty()) {
+                new_vector->set_temporary(true);
+            }
+            return new_vector;
+        }
+        throw std::runtime_error("Complex scalar multiplication not supported for real vector types");
     }
 
     std::unique_ptr<VectorBase> add_scalar(double scalar, const std::string& result_file = "") const override {
@@ -93,9 +123,18 @@ public:
         const T* src_data = data();
         T* dst_data = result->data();
         
-        for (uint64_t i = 0; i < n_; ++i) {
-            double val = static_cast<double>(src_data[i]) * scalar_.real() + scalar;
-            dst_data[i] = static_cast<T>(val);
+        if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+            const std::complex<double> add = {scalar, 0.0};
+            for (uint64_t i = 0; i < n_; ++i) {
+                const std::complex<double> v = pycauset::scalar::to_complex_double(src_data[i]);
+                dst_data[i] = pycauset::scalar::from_complex_double<T>(v * scalar_ + add);
+            }
+        } else {
+            const double s_self = scalar_.real();
+            for (uint64_t i = 0; i < n_; ++i) {
+                double val = static_cast<double>(src_data[i]) * s_self + scalar;
+                dst_data[i] = pycauset::scalar::from_double<T>(val);
+            }
         }
         
         result->set_scalar(1.0);
@@ -112,6 +151,7 @@ public:
         new_vector->set_scalar(scalar_);
         new_vector->set_seed(seed_);
         new_vector->set_transposed(!is_transposed());
+        new_vector->set_conjugated(is_conjugated());
         if (result_file.empty()) {
             new_vector->set_temporary(true);
         }
