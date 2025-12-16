@@ -5,13 +5,12 @@ A memory-mapped upper triangular matrix storing 64-bit floating point numbers. I
 ## Constructor
 
 ```python
-pycauset.TriangularFloatMatrix(n: int, backing_file: str = "", has_diagonal: bool = False)
+pycauset.TriangularFloatMatrix(n: int, has_diagonal: bool = False)
 ```
 
 Creates a new triangular matrix of size `n x n`.
 
 *   `n`: The number of rows/columns.
-*   `backing_file`: Optional path to the file where data will be stored. If empty, a temporary file is created.
 *   `has_diagonal`: If `True`, the matrix stores and allows access to the diagonal elements. If `False` (default), the matrix is strictly upper triangular (diagonal is implicitly 0).
 
 ## Properties
@@ -27,7 +26,7 @@ Get the value at row `i` and column `j`.
 ### `set(i: int, j: int, value: float)`
 Set the value at row `i` and column `j`.
 
-### `multiply(other: TriangularFloatMatrix, saveas: str = "") -> TriangularFloatMatrix`
+### `multiply(other: TriangularFloatMatrix) -> TriangularFloatMatrix`
 Multiply this matrix by another `TriangularFloatMatrix`.
 
 ### `invert() -> TriangularFloatMatrix`

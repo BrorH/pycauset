@@ -36,11 +36,15 @@ This document outlines the development roadmap for `pycauset`, tracking complete
     - [x] Vectors.
     - [x] Complex number support.
     - [x] `dtype` specification on creation.
+    - [x] bit, int16, int32, float16, float32, float64, complex_float64.
 - [x] **Numpy Compatibility**: Seamless conversion to/from numpy arrays.
 - [x] **Identity Matrix**: `pycauset.I` with automatic sizing.
 - [x] **Vector Factory**: `pycauset.Vector` factory function.
 - [x] **Vector Cross Product**: Implemented `v.cross(u)`.
+- [ ] More linalg functionality: norms, normalization, projections, conjugate, cross,
+- [ ] make initialization of matrix/vector types work with array input (currently only N is a parameter which decides teh dim of an empty array of the respective type)
 - [ ] element-wise matrix/vector division 
+- [ ] **Expanded Scalar DTypes**: Support multiple integer widths (int8/int16/int32/int64 and uint8/uint16/uint32/uint64) and ensure complex permutations exist for all supported scalar dtypes; define and document promotion + overflow policies (including integer-matmul overflow risk warnings).
 - [ ] **NxM Matrices (All Types)**: Expand from square-only (NxN) assumptions to support arbitrary 2D shapes (NxM) across the matrix system (dense, triangular, symmetric, bit, etc.).
     - **Non-goal**: Do not attempt general N-dimensional arrays like NumPy; PyCauset remains focused on 2D matrices and vectors.
 

@@ -10,22 +10,20 @@ It is optimized for storage efficiency, storing only the upper triangular part (
 
 ## Constructors
 
-### `SymmetricMatrix(n, backing_file="", scalar=0.0)`
+### `SymmetricMatrix(n, scalar=0.0)`
 
 Creates a new symmetric matrix.
 
 *   **n** (int): The number of rows/columns (matrix is $N \times N$).
-*   **backing_file** (str, optional): Path to a file for persistent storage. If empty, a temporary file is created.
 *   **scalar** (float or complex, optional): A scalar multiplier associated with the matrix. Defaults to 0.0.
 
-### `from_triangular(source, backing_file="")`
+### `from_triangular(source)`
 
 Static method to create a SymmetricMatrix from a TriangularMatrix.
 It copies the upper triangular part (including diagonal) of the source matrix.
 The resulting matrix $S$ satisfies $S_{ij} = S_{ji} = \text{source}_{ij}$ for $i \le j$.
 
 *   **source** (TriangularMatrix): The source matrix.
-*   **backing_file** (str, optional): Path to a file for persistent storage.
 
 ## Properties
 
@@ -67,7 +65,7 @@ Closes the memory map and releases resources.
 import pycauset as pc
 
 # Create a Symmetric Matrix
-S = pc.SymmetricFloat64Matrix(100)
+S = pc.SymmetricMatrix(100)
 S[10, 5] = 3.14
 print(S[5, 10])  # Output: 3.14
 ```

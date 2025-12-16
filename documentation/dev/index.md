@@ -12,10 +12,12 @@ This section is the canonical onboarding path for human contributors and AI agen
 1. [[dev/Agent Bootstrap]]
 2. [[dev/Restructure Plan]]
 3. [[dev/Codebase Structure]]
-4. [[dev/Build System]]
-5. [[dev/Bindings & Dispatch]]
-6. [[dev/Testing & Benchmarks]]
-7. [[dev/Repository Hygiene]]
+4. [[dev/Python Internals]]
+5. [[dev/Build System]]
+6. [[dev/Bindings & Dispatch]]
+7. [[dev/Warnings & Exceptions]]
+8. [[dev/Testing & Benchmarks]]
+9. [[dev/Repository Hygiene]]
 
 ## Related
 

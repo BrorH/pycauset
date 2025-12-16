@@ -5,7 +5,7 @@ A memory-mapped dense matrix storing 32-bit integers. Inherits from [MatrixBase]
 ## Constructor
 
 ```python
-pycauset.IntegerMatrix(n: int, backing_file: str = "")
+pycauset.IntegerMatrix(n: int)
 ```
 
 ## Properties
@@ -21,7 +21,7 @@ Get the value at row `i` and column `j`.
 ### `set(i: int, j: int, value: int)`
 Set the value at row `i` and column `j`.
 
-### `multiply(other: IntegerMatrix, saveas: str = "") -> IntegerMatrix`
+### `multiply(other: IntegerMatrix) -> IntegerMatrix`
 Multiply this matrix by another `IntegerMatrix`.
 
 ### `invert() -> IntegerMatrix`

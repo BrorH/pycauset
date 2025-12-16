@@ -27,9 +27,14 @@ Since users install via `pip install pycauset` (wheels), binaries belong in **re
 - Add `.gitignore` rules to exclude these artifacts.
 - Purge previously committed artifacts from git history (single-maintainer repo).
 
-## History purge (planned)
+## History purge (executed in this repo)
 
-We will rewrite history to remove committed artifacts.
+This repo previously contained committed compiled artifacts. The history has been rewritten to remove them.
+
+Practical implications:
+
+- If you have an old clone, do not try to “merge forward” across the rewrite. Re-clone instead.
+- If you have local work based on the old history, copy patches across manually (or re-apply commits on top of the new history).
 
 Preferred tool: `git filter-repo`.
 

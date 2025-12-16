@@ -5,7 +5,7 @@ A memory-mapped vector storing 64-bit floating point numbers. Inherits from [Vec
 ## Constructor
 
 ```python
-pycauset.FloatVector(n: int, backing_file: str = "")
+pycauset.FloatVector(n: int)
 ```
 
 ## Properties

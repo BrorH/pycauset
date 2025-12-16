@@ -6,6 +6,26 @@ The back-bone of pycauset is the matrix system. While most users will interact w
 
 Matrices can be created using the [[pycauset.Matrix]] factory function. This function is flexible and accepts lists, NumPy arrays, or dimensions. You can also specify the `dtype` to control the underlying storage format.
 
+`dtype` accepts multiple forms:
+*   `pc` dtype tokens like `pc.int8`, `pc.int16`, `pc.int32`, `pc.int64`, `pc.uint32`, `pc.float16`, `pc.float32`, `pc.float64`, `pc.complex_float32`, `pc.bool_`
+*   NumPy dtypes like `np.int16`, `np.float32`, `np.bool_`
+*   Strings like `"int16"`, `"FLOAT32"` (case-insensitive)
+*   Builtins like `int`, `float`, `bool`
+
+Supported dtype strings (recommended):
+
+- Bit/boolean: `"bit"`, `"bool"`, `"bool_"`
+- Signed integers: `"int8"`, `"int16"`, `"int32"`, `"int64"`
+- Unsigned integers: `"uint8"`, `"uint16"`, `"uint32"`, `"uint64"`
+- Floats: `"float16"`, `"float32"`, `"float64"`
+- Complex floats: `"complex_float16"`, `"complex_float32"`, `"complex_float64"`
+
+Notes:
+
+- `"int"` normalizes to `"int32"`; `"float"` normalizes to `"float64"`; `"uint"` normalizes to `"uint32"`.
+- Complex is limited to complex floats (no `complex int*` / `complex bit`).
+- Exact op coverage is declared in the support matrix (see `documentation/internals/DType System.md`).
+
 ```python
 import pycauset as pc
 import numpy as np
@@ -20,6 +40,15 @@ M2 = pc.Matrix(arr)               # Creates FloatMatrix
 # 3. Empty matrix of specific size and type
 M3 = pc.Matrix(100, dtype=int)    # 100x100 IntegerMatrix (zeros)
 M4 = pc.Matrix(100, dtype=bool)   # 100x100 DenseBitMatrix (zeros)
+
+# 5. Explicit int16 storage
+M5 = pc.Matrix(100, dtype=pc.int16)  # returns Int16Matrix
+
+# 6. Unsigned integer storage
+Mu = pc.Matrix(100, dtype=pc.uint32)  # returns UInt32Matrix
+
+# 7. Complex float storage
+Mc = pc.Matrix([[1+2j, 0], [0, 3-4j]], dtype=pc.complex_float32)  # ComplexFloat32Matrix
 
 # 4. Causal Matrix (Specialized Triangular Bit Matrix)
 # This is optimized for causal sets (strictly upper triangular)
@@ -44,6 +73,14 @@ M = pc.Matrix(20000, force_precision="double")
 
 # Force Half precision for smaller N
 M = pc.Matrix(5000, force_precision="half")
+
+You can also set precision explicitly via `dtype`:
+
+```python
+M16 = pc.Matrix(5000, dtype="float16")
+M32 = pc.Matrix(5000, dtype="float32")
+M64 = pc.Matrix(5000, dtype="float64")
+```
 ```
 
 # Matrix Operations
@@ -115,29 +152,6 @@ Use the `@` operator for matrix-vector multiplication.
 # Linear Algebra
 
 PyCauset includes a suite of linear algebra tools.
-
-## Eigenvalues and Eigenvectors
-
-PyCauset provides two distinct solvers for spectral analysis, optimized for different scales.
-
-### 1. Dense Solver (Standard)
-For small to medium matrices ($N \le 2000$), use the standard solver. It computes **all** eigenvalues using a QR decomposition algorithm ($O(N^3)$).
-
-```python
-# Compute all eigenvalues (returns ComplexVector)
-evals = pycauset.eigvals(M)
-
-# Compute eigenvalues and eigenvectors
-vals, vecs = pycauset.eig(M)
-```
-
-### 2. Arnoldi Solver (Large Scale)
-For large matrices ($N > 2000$) or massive scale ($N \ge 10^6$), the dense solver is too slow or memory-intensive. The **Arnoldi Solver** computes only the $k$ largest magnitude eigenvalues using an iterative Krylov subspace method. This is significantly faster ($O(k \cdot N^2)$).
-
-```python
-# Compute top 10 eigenvalues of a massive matrix
-evals = pycauset.eigvals_arnoldi(M, k=10, max_iter=50)
-```
 
 ## Inversion
 
@@ -283,46 +297,4 @@ On a modern multi-core CPU (e.g., 20 threads), you can expect the following perf
 | Operation | Matrix Size ($N$) | Approx. Time |
 | :--- | :--- | :--- |
 | **Inversion** | 5,000 | ~25 seconds |
-| **Eigenvalues (General)** | 2,000 | ~5 seconds |
-| **Eigenvalues (Skew)** | 30,000 | ~10 seconds |
 | **Multiplication** | 5,000 | ~10 seconds |
-
-*Note: Eigenvalue calculation is an $O(N^3)$ process, but the Hessenberg reduction step significantly accelerates convergence compared to standard QR iterations.*
-
-# Massive Scale Eigenvalue Analysis
-
-For matrices where $N > 5000$, the standard $O(N^3)$ eigenvalue solver becomes too slow. PyCauset provides specialized solvers for these cases.
-
-## The Arnoldi Solver (General Matrices)
-
-The [[pycauset.eigvals_arnoldi]] function computes only the $k$ largest magnitude eigenvalues (which are typically the most important for spectral dimension analysis).
-
-```python
-# Compute top 10 eigenvalues of a massive matrix
-evals = pc.eigvals_arnoldi(matrix, k=10, max_iter=100)
-```
-
-## The Skew-Lanczos Solver (Skew-Symmetric Matrices)
-
-For real skew-symmetric matrices ($A^T = -A$), use [[pycauset.eigvals_skew]]. This solver exploits the skew-symmetry to use short recurrences, making it significantly faster and more memory-efficient than the general Arnoldi solver.
-
-```python
-# Compute top 20 eigenvalues of a large skew-symmetric matrix
-# This is highly parallelized and scales well to N=30,000+
-evals = pc.eigvals_skew(matrix, k=20)
-```
-
-## Performance Optimization (Block Algorithms)
-
-Both solvers use **Block** algorithms ($b=16$) to optimize for disk I/O and cache locality.
-*   **Standard Arnoldi**: Reads the matrix from disk once per iteration.
-*   **Block Arnoldi**: Reads the matrix once every $b$ iterations.
-
-This makes it possible to analyze matrices that are far larger than RAM (e.g., $N=10^6$) by streaming them from disk efficiently.
-
-| Matrix Size ($N$) | Precision | Method | Approx. Time (Top 10) |
-| :--- | :--- | :--- | :--- |
-| 2,000 | Float64 | Dense QR | ~5s |
-| 10,000 | Float32 | Arnoldi | ~10s |
-| 30,000 | Float64 | Skew-Lanczos | ~10s |
-| 100,000 | Float32 | Block Arnoldi | ~2-5 mins |

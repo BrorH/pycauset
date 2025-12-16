@@ -1,6 +1,39 @@
-# Codebase Restructure Plan (Proposal — Do Not Execute Yet)
+# Codebase Restructure Plan (Proposal + Execution Record)
 
-**Status:** Proposal (requires explicit approval)
+**Status:** Partially executed. Remaining work requires explicit approval.
+
+## Execution status (as of 2025-12-14)
+
+This document started as a proposal. Since then, several phases have been executed in this repo.
+
+For contributors: the bullets below are the “what happened” summary. The canonical details live in the linked dev handbook pages.
+
+- [x] Phase A — Documentation-first
+  - `documentation/dev/` handbook exists (bootstrap/build/bindings/testing/hygiene/structure).
+  - Philosophy positioning updated to “NumPy for causal sets”.
+  - Documented in: [[dev/index]], [[project/Philosophy]]
+- [x] Phase B — Purge committed binaries + enforce hygiene
+  - Committed build artifacts/binaries were removed and history rewritten.
+  - Documented in: [[dev/Repository Hygiene]]
+- [x] Phase C — Build workflow alignment
+  - Pip/scikit-build-core workflow is the documented “canonical” path; scripts are wrappers.
+  - Documented in: [[dev/Build System]]
+- [~] Phase D — Python internal modularization
+  - Public API remains `pycauset.*`.
+  - `python/pycauset/_internal/` created and used for implementation.
+  - Persistence + ZIP-offset parsing + linalg caching extracted.
+  - Runtime/storage/temp-file policy + patching + factories + formatting extracted.
+  - Ops glue (`matmul`, `compute_k`, `bitwise_not`, `invert`) extracted into `python/pycauset/_internal/ops.py` and `__init__.py` delegates.
+  - Remaining work: keep shrinking `python/pycauset/__init__.py` and keep dev docs in sync.
+  - Documented in: [[dev/Codebase Structure]], [[dev/Python Internals]]
+- [~] Phase E — Bindings modularization
+  - `src/bindings.cpp` is a thin `PYBIND11_MODULE` entrypoint.
+  - Binding code split into modular translation units under `src/bindings/`.
+  - Added native export drift check: `tools/check_native_exports.py`.
+  - Documented in: [[dev/Bindings & Dispatch]]
+- [ ] Phase F — NxM groundwork
+  - Square-only assumptions list started: `documentation/dev/Square-only Assumptions.md`.
+  - Documented in: [[dev/Square-only Assumptions]]
 
 ## 0) Executive summary
 
@@ -21,7 +54,8 @@ This plan focuses on:
 ## 1) Goals
 
 - **Maintainability:** a contributor can answer “where does this belong?” quickly.
-- **Stability:** the top-level Python API remains stable (NumPy-like feel).
+- **API coherence:** the top-level Python surface keeps a NumPy-like feel (entrypoints remain at `pycauset.*`).
+- **Pre-alpha flexibility:** breaking changes are acceptable when they improve the architecture, but they require explicit approval and corresponding updates to tests + docs.
 - **Reproducibility:** the code you run is the code you built.
 - **Documentation completeness:** “no amount is too much” — developers should have transparent guides.
 - **Extensibility:** adding dtype/op support can follow a clear recipe (ties into optimization checklist).
@@ -35,8 +69,9 @@ This plan focuses on:
 ## 3) Constraints / invariants
 
 ### Public API invariants
-- End-user entrypoints remain **top-level**: `pycauset.*`.
-- Internal reorg is allowed if `pycauset.__init__` re-exports the public symbols.
+- End-user entrypoints remain **top-level**: `pycauset.*` (do not push the primary surface behind submodules like `pycauset.physics.*`).
+- Internal reorg is allowed if `pycauset.__init__` re-exports the intended public symbols.
+- Pre-alpha policy: the public surface may change, but only with explicit approval and synchronized updates to tests + docs.
 
 ### Roadmap invariants
 - Future direction: support **NxM matrices for all types** (dense, triangular, symmetric, bit, etc.).
@@ -133,7 +168,7 @@ Each phase has an explicit “Done when…” acceptance criterion.
 - Identify (document-only initially) which components assume square matrices today:
   - storage metadata,
   - matrix base classes,
-  - solvers (matmul/inverse/eigvals),
+  - solvers (matmul/inverse),
   - Python factories.
 
 **Done when:**

@@ -10,15 +10,14 @@ It is optimized for storage efficiency, storing only the upper triangular part i
 
 ## Constructors
 
-### `AntiSymmetricMatrix(n, backing_file="", scalar=0.0)`
+### `AntiSymmetricMatrix(n, scalar=0.0)`
 
 Creates a new anti-symmetric matrix.
 
 *   **n** (int): The number of rows/columns (matrix is $N \times N$).
-*   **backing_file** (str, optional): Path to a file for persistent storage. If empty, a temporary file is created.
 *   **scalar** (float or complex, optional): A scalar multiplier associated with the matrix. Defaults to 0.0.
 
-### `from_triangular(source, backing_file="")`
+### `from_triangular(source)`
 
 Static method to create an AntiSymmetricMatrix from a TriangularMatrix.
 It copies the upper triangular part (excluding diagonal) of the source matrix.
@@ -27,7 +26,6 @@ The resulting matrix $A$ satisfies $A_{ij} = \text{source}_{ij}$ for $i < j$, $A
 This is particularly useful for computing the Pauli-Jordan function $\Delta = K - K^T$ where $K$ is a triangular propagator.
 
 *   **source** (TriangularMatrix): The source matrix.
-*   **backing_file** (str, optional): Path to a file for persistent storage.
 
 ## Properties
 
@@ -71,7 +69,7 @@ Closes the memory map and releases resources.
 import pycauset as pc
 
 # Create an Anti-Symmetric Matrix (e.g., Pauli-Jordan Delta)
-Delta = pc.AntiSymmetricFloat64Matrix(100)
+Delta = pc.AntiSymmetricMatrix(100)
 Delta[10, 5] = 2.0
 print(Delta[5, 10])  # Output: -2.0
 print(Delta[5, 5])   # Output: 0.0

@@ -5,7 +5,7 @@ A memory-mapped vector storing boolean values (bits). Inherits from [VectorBase]
 ## Constructor
 
 ```python
-pycauset.BitVector(n: int, backing_file: str = "")
+pycauset.BitVector(n: int)
 ```
 
 ## Properties

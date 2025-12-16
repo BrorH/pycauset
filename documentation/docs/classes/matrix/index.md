@@ -1,12 +1,17 @@
 # Matrix
 
 * **[[pycauset.CausalMatrix|CausalMatrix]]**
-* **[[pycauset.ComplexMatrix|ComplexMatrix]]**
+* **[[pycauset.ComplexFloat16Matrix|ComplexFloat16Matrix]]**
+* **[[pycauset.ComplexFloat32Matrix|ComplexFloat32Matrix]]**
+* **[[pycauset.ComplexFloat64Matrix|ComplexFloat64Matrix]]**
 * **[[pycauset.DenseBitMatrix|DenseBitMatrix]]**
-* **[[pycauset.DiagonalMatrix|DiagonalMatrix]]**
+* **[[pycauset.Float16Matrix|Float16Matrix]]**
 * **[[pycauset.FloatMatrix|FloatMatrix]]**
 * **[[pycauset.IdentityMatrix|IdentityMatrix]]**
+* **[[pycauset.Int8Matrix|Int8Matrix]]**
+* **[[pycauset.Int16Matrix|Int16Matrix]]**
 * **[[pycauset.IntegerMatrix|IntegerMatrix]]**
+* **[[pycauset.Int64Matrix|Int64Matrix]]**
 * **[[pycauset.Matrix|Matrix]]**
 * **[[pycauset.MatrixBase|MatrixBase]]**
 * **[[pycauset.SymmetricMatrix|SymmetricMatrix]]**
@@ -14,3 +19,7 @@
 * **[[pycauset.TriangularFloatMatrix|TriangularFloatMatrix]]**
 * **[[pycauset.TriangularIntegerMatrix|TriangularIntegerMatrix]]**
 * **[[pycauset.TriangularMatrix|TriangularMatrix]]**
+* **[[pycauset.UInt8Matrix|UInt8Matrix]]**
+* **[[pycauset.UInt16Matrix|UInt16Matrix]]**
+* **[[pycauset.UInt32Matrix|UInt32Matrix]]**
+* **[[pycauset.UInt64Matrix|UInt64Matrix]]**

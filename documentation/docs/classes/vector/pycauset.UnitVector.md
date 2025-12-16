@@ -7,12 +7,11 @@ This vector type uses 0 bytes of disk storage. It stores the active index $k$ in
 ## Constructor
 
 ```python
-pycauset.UnitVector(n: int, active_index: int, backing_file: str = "")
+pycauset.UnitVector(n: int, active_index: int)
 ```
 
 *   `n`: The size of the vector.
 *   `active_index`: The index where the value is 1. Must be $0 \le k < n$.
-*   `backing_file`: Optional path to save the metadata.
 
 ## Properties
 

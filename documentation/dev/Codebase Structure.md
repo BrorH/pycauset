@@ -14,7 +14,12 @@ This page explains **where things live** in the repository and **how the pieces 
 
 - `python/pycauset/`
   - Public Python API and higher-level convenience wrappers.
+  - `python/pycauset/__init__.py` is the **public facade** (stable `pycauset.*` entrypoints).
+  - `python/pycauset/_internal/` contains **non-public** implementation modules that the facade delegates to.
+    - Rule of thumb: if you’re adding a new helper that is not meant to be imported by end users, it belongs in `_internal/`.
+    - See [[dev/Python Internals]] for the current internal module layout and extension rules.
   - The native extension is imported as `pycauset._pycauset`.
+  - Note: native exports can vary by build configuration; Python code should avoid import-time crashes by guarding optional symbols.
 
 ### C++ core (engine)
 
@@ -28,7 +33,8 @@ This page explains **where things live** in the repository and **how the pieces 
     - `AutoSolver` (routes CPU vs GPU)
     - `cpu/` (CPU device + solvers)
   - `src/accelerators/cuda/` — optional CUDA plugin (loaded dynamically)
-  - `src/bindings.cpp` — Python bindings (pybind11)
+  - `src/bindings.cpp` — Python extension entrypoint (pybind11 module)
+  - `src/bindings/` — modular binding translation units (e.g. `bind_matrix.cpp`)
 
 ### Tests & benchmarks
 
@@ -40,7 +46,7 @@ This page explains **where things live** in the repository and **how the pieces 
 
 - `pyproject.toml` — canonical Python build entry (scikit-build-core)
 - `CMakeLists.txt` — C++ build configuration and compiler flags
-- `build.ps1` — (planned) thin wrapper around the canonical pip build commands
+- `build.ps1` — thin wrapper around the canonical pip build commands
 
 ## How a user call flows through the stack
 

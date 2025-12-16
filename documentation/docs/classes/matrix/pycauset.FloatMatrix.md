@@ -5,7 +5,7 @@ A memory-mapped dense matrix storing 64-bit floating point numbers. Inherits fro
 ## Constructor
 
 ```python
-pycauset.FloatMatrix(n: int, backing_file: str = "")
+pycauset.FloatMatrix(n: int)
 ```
 
 ## Properties
@@ -21,7 +21,7 @@ Get the value at row `i` and column `j`.
 ### `set(i: int, j: int, value: float)`
 Set the value at row `i` and column `j`.
 
-### `multiply(other: FloatMatrix, saveas: str = "") -> FloatMatrix`
+### `multiply(other: FloatMatrix) -> FloatMatrix`
 Multiply this matrix by another `FloatMatrix`.
 
 ### `invert() -> FloatMatrix`

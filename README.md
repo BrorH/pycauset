@@ -8,6 +8,13 @@
 
 **Core philosophy:** PyCauset is **NumPy for causal sets**. Users should interact only with Python objects and a NumPy-like API, while storage, hardware dispatch (CPU/GPU), and performance optimizations happen automatically behind the scenes.
 
+Precision and overflow are policy-driven:
+
+*   Mixed-float ops underpromote by default (warn-once) rather than silently widening.
+*   Integer overflow is a hard error; large integer matmul may emit a heuristic risk warning.
+
+The authoritative dtype rules live in `documentation/internals/DType System.md`.
+
 **[Explore the Full Documentation »](https://brorh.github.io/pycauset/)**
 
 ## Key Features
@@ -21,6 +28,11 @@
 *   **Visualization**: Interactive 3D visualization of embeddings and causal structures using Plotly.
 
 ## Installation
+
+## Roadmap (DType System)
+
+*   Expand integer dtype coverage (additional widths + unsigned) end-to-end.
+*   Keep dtype support explicit and enforced via the support-matrix tests/tools.
 
 ### From PyPI (Recommended)
 ```bash
@@ -90,7 +102,7 @@ B = pc.CausalMatrix(10000, populate=True)
 Paths = A @ B 
 
 # Invert a dense float matrix
-M = pc.Matrix(2000, dtype="float32")
+M = pc.Matrix(2000, dtype=pc.float32)  # also accepts np.float32 or "float32" (case-insensitive)
 M_inv = ~M # or M.inverse()
 ```
 
@@ -100,7 +112,7 @@ PyCauset automatically detects compatible NVIDIA GPUs.
 
 *   **Requirements**: NVIDIA GPU (Compute Capability 6.0+ recommended).
 *   **Drivers**: Recent NVIDIA Drivers.
-*   **Operations**: `matmul`, `inverse`, `eigvals`, `popcount`.
+*   **Operations**: `matmul`, `inverse`, `popcount`.
 
 If no GPU is found, PyCauset falls back to a highly optimized multi-threaded CPU backend (OpenMP + AVX-512).
 

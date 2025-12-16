@@ -23,10 +23,6 @@ To use the GPU acceleration, you need:
 ### Supported Operations
 
 The following operations are currently accelerated via the AutoSolver:
-
-*   **Eigenvalue Decomposition** (`eigvals`, `eigvals_arnoldi`, `eigvals_skew`):
-    *   Uses `cuSOLVER` for dense matrices.
-    *   Uses a custom streaming kernel for the Arnoldi/Lanczos iterations, allowing for massive scale spectral analysis.
 *   **Matrix Multiplication** (`matmul`, `*` operator):
     *   Uses `cuBLAS` for high-performance GEMM (Float32/Float64).
     *   **BitMatrices**: `DenseBitMatrix` and `TriangularBitMatrix` multiplication is **fully accelerated** using custom bit-packed kernels. This allows for extremely fast path counting and transitive closure operations (up to 64x faster than float operations).

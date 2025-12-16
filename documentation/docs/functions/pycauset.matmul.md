@@ -1,7 +1,7 @@
 # pycauset.matmul
 
 ```python
-pycauset.matmul(a: MatrixBase, b: MatrixBase, saveas: str = "") -> MatrixBase
+pycauset.matmul(a: MatrixBase, b: MatrixBase) -> MatrixBase
 ```
 
 Perform matrix multiplication.
@@ -13,7 +13,6 @@ Otherwise, a generic multiplication is performed.
 
 *   **a** (*MatrixBase*): Left operand.
 *   **b** (*MatrixBase*): Right operand.
-*   **saveas** (*str*, optional): Path to save the result matrix. If not provided, a temporary file is used.
 
 ## Returns
 

@@ -5,12 +5,12 @@ A memory-mapped dense matrix storing boolean values (bits). Inherits from [Matri
 ## Constructor
 
 ```python
-pycauset.DenseBitMatrix(n: int, backing_file: str = "")
+pycauset.DenseBitMatrix(n: int)
 ```
 
 ## Static Methods
 
-### `random(n: int, density: float = 0.5, backing_file: str = "", seed: int = None) -> DenseBitMatrix`
+### `random(n: int, density: float, seed: int = None) -> DenseBitMatrix`
 Create a random dense bit matrix.
 
 ## Properties
@@ -26,7 +26,7 @@ Get the value at row `i` and column `j`.
 ### `set(i: int, j: int, value: bool)`
 Set the value at row `i` and column `j`.
 
-### `multiply(other: DenseBitMatrix, saveas: str = "") -> IntegerMatrix`
+### `multiply(other: DenseBitMatrix) -> IntegerMatrix`
 Multiply this matrix by another `DenseBitMatrix`.
 
 **Returns:**

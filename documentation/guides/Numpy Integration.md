@@ -6,6 +6,13 @@
 
 You can convert NumPy arrays into `pycauset` objects using the [[pycauset.Matrix]] and [[pycauset.Vector]] factory functions. These functions automatically detect the data type of the NumPy array and create the corresponding optimized object.
 
+Supported dtypes include:
+
+- Integers: `int8/int16/int32/int64` and `uint8/uint16/uint32/uint64`
+- Floats: `float16/float32/float64`
+- Complex floats: `complex64/complex128` (mapped to `complex_float32/complex_float64`)
+- Booleans: `bool_` (mapped to bit-packed storage)
+
 ```python
 import numpy as np
 import pycauset as pc
@@ -17,6 +24,14 @@ vec = pc.Vector(arr_1d)  # Returns [[pycauset.FloatVector]]
 # Convert 2D NumPy array to Matrix
 arr_2d = np.array([[1, 2], [3, 4]], dtype=np.int32)
 mat = pc.Matrix(arr_2d)  # Returns [[pycauset.IntegerMatrix]]
+
+# Unsigned integers
+arr_u = np.array([[1, 2], [3, 4]], dtype=np.uint32)
+mat_u = pc.Matrix(arr_u)  # Returns [[pycauset.UInt32Matrix]]
+
+# Complex
+arr_c = np.array([[1+2j, 0], [0, 3-4j]], dtype=np.complex64)
+mat_c = pc.Matrix(arr_c)  # Returns [[pycauset.ComplexFloat32Matrix]]
 
 # Convert Boolean array
 arr_bool = np.array([True, False], dtype=bool)
@@ -45,6 +60,8 @@ std_val = np.std(v)
 ## Mixed Arithmetic
 
 You can perform arithmetic operations directly between `pycauset` objects and NumPy arrays. `pycauset` handles the interoperability automatically.
+
+Important note: when you mix a `pycauset` object with a NumPy array, the NumPy side is typically converted to a temporary `pycauset` object and the operation is executed through PyCauset's dtype rules (promotion, underpromotion, overflow). See `documentation/internals/DType System.md`.
 
 ### Vector + NumPy Array
 

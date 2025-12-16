@@ -5,7 +5,7 @@ A memory-mapped vector storing 32-bit integers. Inherits from [VectorBase](pycau
 ## Constructor
 
 ```python
-pycauset.IntegerVector(n: int, backing_file: str = "")
+pycauset.IntegerVector(n: int)
 ```
 
 ## Properties

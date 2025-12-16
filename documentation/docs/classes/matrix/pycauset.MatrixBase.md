@@ -37,14 +37,13 @@ Returns the determinant of the matrix.
 
 ### `eigenvalues()`
 Returns the eigenvalues of the matrix as a list of complex numbers.
-*   **Returns**: A list of `complex` (Python) or a `ComplexVector` (internal).
 *   **Caching**: The result is cached in memory.
 *   **Persistence**: Automatically saved to `metadata.json` and restored upon loading.
 
 ### `eigenvectors(save=False)`
 Computes the eigenvectors of the matrix.
 *   **save** (*bool*): If `True`, the computed eigenvectors are **appended** to the matrix's backing `.pycauset` ZIP file as binary files (`eigenvectors.real.bin`, `eigenvectors.imag.bin`). This allows them to be loaded instantly in future sessions without recomputation. Defaults to `False`.
-*   **Returns**: A `ComplexMatrix` where columns are the eigenvectors.
+*   **Returns**: A complex-valued matrix (columns are the eigenvectors).
 *   **Caching**: The result is cached in memory for the lifetime of the object.
 
 ### `inverse(save=False)`

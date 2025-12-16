@@ -6,10 +6,6 @@
 * **[[pycauset.compute_k|compute_k]]**
 * **[[pycauset.compute_k_matrix|compute_k_matrix]]**
 * **[[pycauset.dot|dot]]**
-* **[[pycauset.eig|eig]]**
-* **[[pycauset.eigvals|eigvals]]**
-* **[[pycauset.eigvals_arnoldi|eigvals_arnoldi]]**
-* **[[pycauset.eigvals_skew|eigvals_skew]]**
 * **[[pycauset.get_memory_threshold|get_memory_threshold]]**
 * **[[pycauset.get_num_threads|get_num_threads]]**
 * **[[pycauset.invert|invert]]**

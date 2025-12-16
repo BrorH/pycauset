@@ -5,13 +5,12 @@ A memory-mapped upper triangular matrix storing 32-bit integers. Inherits from [
 ## Constructor
 
 ```python
-pycauset.TriangularIntegerMatrix(n: int, backing_file: str = "", has_diagonal: bool = False)
+pycauset.TriangularIntegerMatrix(n: int, has_diagonal: bool = False)
 ```
 
 Creates a new triangular matrix of size `n x n`.
 
 *   `n`: The number of rows/columns.
-*   `backing_file`: Optional path to the file where data will be stored. If empty, a temporary file is created.
 *   `has_diagonal`: If `True`, the matrix stores and allows access to the diagonal elements. If `False` (default), the matrix is strictly upper triangular (diagonal is implicitly 0).
 
 ## Properties

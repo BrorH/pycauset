@@ -25,7 +25,7 @@ Practical tutorials and conceptual explanations.
 ### ⚙️ [[docs/index|API Reference]]
 Detailed documentation of classes and functions.
 *   **[[docs/classes/index|Classes]]**: `CausalSet`, `Matrix`, `Vector`, `Spacetime`.
-*   **[[docs/functions/index|Functions]]**: `matmul`, `inverse`, `eigvals`.
+*   **[[docs/functions/index|Functions]]**: `matmul`, `inverse`.
 
 ### 🧠 [[internals/index|Internals]]
 Deep dive into the C++ core for contributors.

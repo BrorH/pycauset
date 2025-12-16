@@ -1,8 +1,20 @@
 # Vector
 
 * **[[pycauset.BitVector|BitVector]]**
+* **[[pycauset.ComplexFloat16Vector|ComplexFloat16Vector]]**
+* **[[pycauset.ComplexFloat32Vector|ComplexFloat32Vector]]**
+* **[[pycauset.ComplexFloat64Vector|ComplexFloat64Vector]]**
+* **[[pycauset.Float16Vector|Float16Vector]]**
+* **[[pycauset.Float32Vector|Float32Vector]]**
 * **[[pycauset.FloatVector|FloatVector]]**
+* **[[pycauset.Int8Vector|Int8Vector]]**
+* **[[pycauset.Int16Vector|Int16Vector]]**
 * **[[pycauset.IntegerVector|IntegerVector]]**
+* **[[pycauset.Int64Vector|Int64Vector]]**
 * **[[pycauset.UnitVector|UnitVector]]**
+* **[[pycauset.UInt8Vector|UInt8Vector]]**
+* **[[pycauset.UInt16Vector|UInt16Vector]]**
+* **[[pycauset.UInt32Vector|UInt32Vector]]**
+* **[[pycauset.UInt64Vector|UInt64Vector]]**
 * **[[pycauset.Vector|Vector]]**
 * **[[pycauset.VectorBase|VectorBase]]**

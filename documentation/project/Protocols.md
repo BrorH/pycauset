@@ -2,6 +2,15 @@
 
 This document serves as the authoritative guide for contributing to PyCauset. It covers the core philosophy, development workflows, and release procedures.
 
+## 0. Pre-alpha Policy (Scope + Approval Gates)
+
+PyCauset is currently **pre-alpha** and effectively single-maintainer. There is no external userbase to preserve yet.
+
+- Backward compatibility is **not** a hard constraint right now.
+- Breaking changes to the Python surface and/or architecture are allowed **when they improve the overall approach**.
+- Approval gate: before changing the public Python surface (names/semantics) or making a large architectural shift, propose the change + tradeoffs and wait for explicit approval.
+- If a breaking change is approved, update tests and documentation in the same change set (don’t leave the repo in a “half-migrated” state).
+
 ## 1. Documentation Protocol
 
 **Objective:** Create a comprehensive, book-like resource for users. Documentation is not just a reference; it is a teaching tool.
@@ -53,121 +62,193 @@ Before marking a task as complete, verify:
 
 ## 2. Protocol: Adding New Matrix/Vector Operations
 
-**Objective**: Ensure all new mathematical operations follow the unified `ComputeContext` architecture, maintaining hardware abstraction and automatic dispatch.
+**Objective**: Make new ops easy to add without “hunt across the codebase”, and ensure both **matrix and vector** variants are covered.
 
-### The Hierarchy
+### The current architecture (where things go)
 
-1.  **Frontend (`MatrixOperations.cpp`)**: Type resolution, result allocation, and entry point.
-2.  **Context (`ComputeContext`)**: Singleton managing the active device.
-3.  **Dispatcher (`AutoSolver`)**: Decides CPU vs. GPU based on size/availability.
-4.  **Interface (`ComputeDevice`)**: Abstract base class defining the operation contract.
-5.  **Implementations (`CpuDevice`/`CudaDevice`)**: Hardware-specific logic.
+1. **Frontend (type resolution + allocation + entry point)**
+    - Declarations: `include/pycauset/math/LinearAlgebra.hpp`
+    - Definitions: `src/math/LinearAlgebra.cpp`
+2. **Context (`ComputeContext`)**
+    - `include/pycauset/compute/ComputeContext.hpp`, `src/compute/ComputeContext.cpp`
+3. **Dispatcher (`AutoSolver`)**
+    - `include/pycauset/compute/AutoSolver.hpp`, `src/compute/AutoSolver.cpp`
+4. **Interface (`ComputeDevice`)**
+    - `include/pycauset/compute/ComputeDevice.hpp`
+5. **Implementations (CPU / CUDA)**
+    - CPU device: `include/pycauset/compute/cpu/CpuDevice.hpp`, `src/compute/cpu/CpuDevice.cpp`
+    - CPU algorithms: `include/pycauset/compute/cpu/CpuSolver.hpp`, `src/compute/cpu/CpuSolver.cpp`
+    - CUDA device: `src/accelerators/cuda/CudaDevice.hpp`, `src/accelerators/cuda/CudaDevice.cu`
 
-### Step-by-Step Implementation Guide
+### The “Support Checklist” (this is the authoritative list)
 
-#### 1. Define the Interface (`include/ComputeDevice.hpp`)
-Add a pure virtual method for your operation.
+When adding a new operation, you must decide and/or implement support in each of these axes:
+
+1. **Operand rank**
+    - Matrix–Matrix
+    - Vector–Vector
+    - Matrix–Vector and Vector–Matrix (if applicable)
+
+2. **Scalar kind + flags**
+    - Fundamental kinds: `bit`, `int`, `float`
+    - Flags/permutations: `complex`, `unsigned`
+    - Special rule: **bit is allowed to have op-specific exceptions** (bitwise vs numeric vs error-by-design). See `documentation/internals/DType System.md`.
+
+3. **Structure/storage**
+    - Dense vs triangular vs symmetric/antisymmetric vs identity/diagonal (and vector special cases like `UnitVector`).
+
+4. **Device coverage**
+    - CPU must be correct.
+    - GPU is optional; if unsupported, routing must be prevented or it must throw clearly.
+
+5. **Python surface**
+    - Bindings: `src/bindings/` (`bind_matrix.cpp`, `bind_vector.cpp`, `bind_complex.cpp`) and the aggregator `src/bindings.cpp`.
+    - Python API helpers/wrappers may also need updates in `python/pycauset/`.
+
+6. **Documentation + tests**
+    - Add/modify API docs in `documentation/docs/` and guides in `documentation/guides/`.
+    - Add tests (Python and/or C++) covering dtype permutations and “error-by-design” cases.
+
+### Step-by-step (what to edit, in order)
+
+#### 1) Add the device-interface method
+
+Add a pure virtual method to `include/pycauset/compute/ComputeDevice.hpp`.
+
+Matrix example:
 ```cpp
 virtual void my_new_op(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
 ```
 
-#### 2. Implement CPU Logic (`src/CpuSolver.cpp` & `include/CpuSolver.hpp`)
-This is the "reference" implementation and fallback.
-*   **Header**: Add the method declaration.
-*   **Source**: Implement the algorithm.
-    *   Use `ParallelFor` from `ParallelUtils.hpp` for threading.
-    *   Handle different matrix types (Dense, Triangular, etc.) using `dynamic_cast` or templates.
-    *   **Crucial**: Ensure it handles `float`, `double`, and `int` (or throws if unsupported).
-
-#### 3. Wire up the CPU Device (`src/CpuDevice.cpp` & `include/CpuDevice.hpp`)
-`CpuDevice` is just a wrapper. Pass the call through to `CpuSolver`.
+Vector example:
 ```cpp
-void CpuDevice::my_new_op(...) {
-    solver_.my_new_op(a, b, result);
-}
+virtual void my_new_op_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
 ```
 
-#### 4. Update the Dispatcher (`src/AutoSolver.cpp` & `include/AutoSolver.hpp`)
-Implement the routing logic.
-*   **Default**: Delegate to `select_device(elements)->my_new_op(...)`.
-*   **Custom**: If the operation is *never* supported on GPU, just call `cpu_device_->my_new_op(...)`.
+#### 2) Implement CPU algorithm + wire CpuDevice
 
-#### 5. (Optional) Implement GPU Logic (`src/accelerators/cuda/CudaDevice.cpp`)
-If the operation can be accelerated:
-*   Add the method to `CudaDevice`.
-*   Implement using `cuBLAS`, `cuSOLVER`, or custom kernels.
-*   **Important**: If you don't implement it in `CudaDevice`, you *must* ensure `AutoSolver` never routes this operation to the GPU, OR implement a fallback in `CudaDevice` that throws or copies back to CPU (not recommended for performance).
+- Add implementation to `include/pycauset/compute/cpu/CpuSolver.hpp` and `src/compute/cpu/CpuSolver.cpp`.
+- Wire through `include/pycauset/compute/cpu/CpuDevice.hpp` and `src/compute/cpu/CpuDevice.cpp` as a thin passthrough.
 
-#### 6. Create the Frontend (`src/MatrixOperations.cpp`)
-This is what the Python bindings call.
-1.  **Resolve Types**: Use `MatrixFactory::resolve_result_type`.
-2.  **Create Result**: `MatrixFactory::create(...)`.
-3.  **Dispatch**:
-    ```cpp
-    ComputeContext::instance().get_device()->my_new_op(a, b, *result);
-    ```
+#### 3) Add AutoSolver routing
 
-#### 7. Bind to Python (`src/bindings.cpp`)
-Expose the frontend function to Python via `pybind11`.
+Update `include/pycauset/compute/AutoSolver.hpp` and `src/compute/AutoSolver.cpp`.
 
-### Checklist
+- Default: route by size with `select_device(elements)->my_new_op(...)`.
+- If GPU does not support the op/dtypes/structures, either:
+  - enforce “CPU only” in AutoSolver for that op, or
+  - keep GPU routing but ensure GPU throws a clear error.
 
-- [ ] Added to `ComputeDevice` interface?
-- [ ] Implemented in `CpuSolver` with parallelization?
-- [ ] Wired through `CpuDevice`?
-- [ ] Added dispatch logic to `AutoSolver`?
-- [ ] Created frontend wrapper in `MatrixOperations`?
-- [ ] Added unit tests in `tests/`?
+#### 4) (Optional) Implement CUDA
+
+If supported, implement in `src/accelerators/cuda/CudaDevice.cu`.
+
+#### 5) Add the frontend wrapper(s)
+
+Add a top-level frontend function in `include/pycauset/math/LinearAlgebra.hpp` + `src/math/LinearAlgebra.cpp`.
+
+Responsibilities of the frontend:
+- validate shapes,
+- determine the result dtype/structure,
+- allocate the result using `ObjectFactory::create_matrix/create_vector`,
+- dispatch via `ComputeContext::instance().get_device()->...`.
+
+#### 6) Bind to Python
+
+Add the binding to the appropriate `src/bindings/bind_*.cpp` and ensure it is reachable from `src/bindings.cpp`.
+
+#### 7) Declare dtype/coverage expectations (policy + tests)
+
+Every new op must explicitly state its dtype behavior. In particular:
+
+- **Fundamental-kind rule (bit/int/float):** do not “promote down” across kinds. For example, `matmul(bit, float64) -> float64`.
+- **Underpromotion within floats:** `matmul(float32, float64) -> float32` by default.
+- **Overflow:** integer overflow throws; large integer matmul may emit a risk warning (advisory).
+
+These rules are defined in `documentation/internals/DType System.md` and summarized in `documentation/project/Philosophy.md`.
+
+### Minimal “Definition of Done” for a new op
+
+- [ ] `ComputeDevice` interface updated.
+- [ ] CPU implementation exists and is correct.
+- [ ] `AutoSolver` dispatch correct (CPU-only or GPU-enabled).
+- [ ] Frontend wrapper(s) in `src/math/LinearAlgebra.cpp` (matrix and/or vector).
+- [ ] Python bindings updated.
+- [ ] Dtype behavior documented (including bit exceptions and cross-kind rules).
+- [ ] Tests cover supported dtypes + at least one “error-by-design” dtype.
+
+For `bit` specifically, always state whether the new op is:
+
+- **bitwise** (stays `bit`, stays packed), or
+- **numeric** (may widen to `int`/`float`, potentially huge), or
+- **error-by-design** for `bit` unless the user explicitly requests widening.
 
 ---
 
-## 3. Protocol: Adding New Matrix Types
+## 3. Protocol: Adding New Matrix and Vector Types
 
-**Objective**: Ensure new matrix structures (e.g., Symmetric, Sparse) are fully integrated into the factory, storage, compute, and Python ecosystems.
+**Objective**: Ensure new matrix/vector structures are fully integrated into the factory, storage, compute, and Python ecosystems.
 
 ### Step-by-Step Implementation Guide
 
-#### 1. Core Definitions (`include/pycauset/core/Types.hpp`)
-*   Add a new enum value to `MatrixType`.
+#### 1) Core definitions (`include/pycauset/core/Types.hpp`)
 
-#### 2. Define the Class (`include/pycauset/matrix/`)
-*   Create a new header file (e.g., `MyMatrix.hpp`).
-*   Inherit from `MatrixBase` (or a specialized base like `TriangularMatrixBase`).
-*   Implement required virtual methods:
-    *   `get_element_as_double(i, j)`
-    *   `multiply_scalar`, `add_scalar`, `transpose`
-    *   `clone` (usually delegates to `ObjectFactory`)
-*   **Expose Raw Memory**: If the matrix is intended for GPU acceleration or BLAS operations, it MUST expose a `data()` method returning a raw pointer (`T*`) to the underlying memory. This is critical for `cudaMemcpy` and interoperability.
-*   Implement storage access logic (`get`, `set`) using `MemoryMapper`.
-    *   **Crucial**: Ensure pointer arithmetic correctly handles byte vs. bit offsets.
+- Add a new enum value to `MatrixType`.
+- Decide whether the new type is a matrix-like (`rows x cols`) or a vector-like (`n x 1`) object.
 
-#### 3. Update the Factory (`src/core/ObjectFactory.cpp`)
-The factory is the central registry for creating and loading matrices.
-*   **`create_matrix`**: Add a case for your `MatrixType` enum. Initialize the object with `create_new=true`.
-*   **`load_matrix`**: Add a case to reconstruct the object from an existing file (`create_new=false`).
-*   **`clone_matrix`**: Ensure the new type can be deep-copied.
+#### 2) Define the class
 
-#### 4. Update the Solver (`src/compute/cpu/CpuSolver.cpp`)
-The CPU solver handles mathematical operations.
-*   **`binary_op_impl`**: Add a `dynamic_cast` block to handle your new type as a *result* of operations (e.g., `A + B -> NewType`).
-*   **Specific Operations**: If your matrix requires specialized algorithms (e.g., Cholesky for Symmetric), implement them in `CpuSolver`.
+- Matrix types live in `include/pycauset/matrix/`.
+- Vector types live in `include/pycauset/vector/`.
 
-#### 5. Python Bindings (`src/bindings.cpp`)
-*   Bind the class using `pybind11`.
-*   Expose constructors, accessors, and properties.
-*   Update `cast_matrix_result` to allow returning this type to Python.
-*   Bind arithmetic operations (if applicable).
+Implement the required virtual interface:
 
-#### 6. Testing (`tests/`)
-*   Create a dedicated test file (e.g., `test_my_matrix.cpp`).
-*   Verify:
-    *   Creation and Access (`get`/`set`).
-    *   Persistence (Save/Load).
-    *   Arithmetic (Add/Multiply) - check for `inf`/`nan` which often indicate offset errors.
+- Matrices (`MatrixBase`): `get_element_as_double(i, j)`, `multiply_scalar`, `add_scalar`, `transpose`, and correct `clone()` behavior.
+- Vectors (`VectorBase`): `get_element_as_double(i)`, `multiply_scalar`, `add_scalar`, `transpose` (if supported), and correct `clone()` behavior.
 
-#### 7. Documentation
-*   Add API reference in `documentation/docs/classes/`.
-*   Update `documentation/docs/classes/index.md`.
+If the type is intended for GPU/BLAS interoperability, it must expose contiguous raw memory access where appropriate.
+
+#### 3) Update the factory (`include/pycauset/core/ObjectFactory.hpp`, `src/core/ObjectFactory.cpp`)
+
+The factory is the central registry for creating, loading, and cloning persistent objects.
+
+- Matrices:
+    - `create_matrix`
+    - `load_matrix`
+    - `clone_matrix`
+- Vectors:
+    - `create_vector`
+    - `load_vector`
+    - `clone_vector`
+
+#### 4) Update compute support
+
+- Add CPU support in `src/compute/cpu/CpuSolver.cpp` if the new type participates in operations.
+- Wire through `CpuDevice` and `AutoSolver` if device dispatch is required.
+
+If the new type is intentionally excluded from some operations (common for bit-special cases), those exclusions must be explicit and tested.
+
+#### 5) Python bindings (`src/bindings/` + `src/bindings.cpp`)
+
+- Bind the new class in the correct translation unit (`bind_matrix.cpp` or `bind_vector.cpp`, or `bind_complex.cpp` for complex helpers).
+- Ensure the aggregator `src/bindings.cpp` calls the binder.
+- Expose constructors, accessors, and key properties (`dtype`, `shape`, etc.).
+
+#### 6) Testing (`tests/`)
+
+Verify:
+
+- creation + access,
+- persistence (save/load/clone),
+- dtype behavior (including bit/int/float boundaries),
+- at least one large-ish case that exercises the memory-mapped path.
+
+#### 7) Documentation
+
+- Add API reference in `documentation/docs/classes/`.
+- Update the relevant guide(s) in `documentation/guides/`.
+
+If the new type changes dtype semantics or bit behavior, add/update internals docs in `documentation/internals/`.
 
 ---
 

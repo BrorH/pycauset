@@ -6,6 +6,22 @@
 
 You can create vectors using the [[pycauset.Vector]] factory function. It automatically selects the most efficient storage backend based on your data.
 
+You can also explicitly control storage using `dtype`.
+
+Supported dtype strings (recommended):
+
+- Bit/boolean: `"bit"`, `"bool"`, `"bool_"`
+- Signed integers: `"int8"`, `"int16"`, `"int32"`, `"int64"`
+- Unsigned integers: `"uint8"`, `"uint16"`, `"uint32"`, `"uint64"`
+- Floats: `"float16"`, `"float32"`, `"float64"`
+- Complex floats: `"complex_float16"`, `"complex_float32"`, `"complex_float64"`
+
+Notes:
+
+- `"int"` normalizes to `"int32"`; `"float"` normalizes to `"float64"`; `"uint"` normalizes to `"uint32"`.
+- Complex is limited to complex floats.
+- Exact op coverage is declared in the support matrix (see `documentation/internals/DType System.md`).
+
 ```python
 import pycauset as pc
 
@@ -14,6 +30,13 @@ v1 = pc.Vector(1000)
 
 # Create an integer vector from a list
 v2 = pc.Vector([1, 2, 3, 4, 5])
+
+# Explicit widths / unsigned
+v_i8 = pc.Vector([1, 2, 3], dtype="int8")
+v_u64 = pc.Vector([1, 2, 3], dtype="uint64")
+
+# Complex float vectors
+v_c = pc.Vector([1+2j, 3-4j], dtype="complex_float32")
 
 # Create a bit-packed boolean vector (1 bit per element)
 v3 = pc.Vector([True, False, True, True])
@@ -189,7 +212,7 @@ M = v1 @ v2.T
 You can multiply matrices and vectors.
 
 ```python
-M = pc.FloatMatrix(3)
+M = pc.Matrix(3, dtype=pc.float64)
 v = pc.Vector([1, 1, 1])
 
 # Matrix @ Column Vector -> Column Vector
@@ -241,11 +264,11 @@ v_loaded = pc.load("my_vector.pycauset")
 
 ## Mixed Types
 
-Operations between different vector types (e.g., [[pycauset.IntegerVector]] + [[pycauset.FloatVector]]) are supported. The result is typically promoted to a [[pycauset.FloatVector]] (DenseVector<double>) to ensure precision.
+Operations between different vector dtypes (e.g., integer + float) are supported. The result kind follows the fundamental-kind rule from `documentation/internals/DType System.md` (if a float participates, the result kind is float).
 
 ```python
-v_int = pc.Vector([1, 2], dtype="int")
-v_float = pc.Vector([0.5, 0.5], dtype="float")
+v_int = pc.Vector([1, 2], dtype=pc.int32)
+v_float = pc.Vector([0.5, 0.5], dtype=pc.float64)
 
 v_sum = v_int + v_float  # [1.5, 2.5] (FloatVector)
 ```

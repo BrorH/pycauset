@@ -7,8 +7,6 @@ Pycauset is designed to handle causal sets where $N$ is large enough that $O(N^2
 **PyCauset is _NumPy for causal sets_.**
 
 - Users should interact with **top-level Python objects and functions** (e.g., `pycauset.Matrix`, `pycauset.CausalMatrix`, `pycauset.matmul`).
-- Storage, backend dispatch (CPU/GPU), dtype decisions, and performance optimizations happen **automatically behind the scenes**.
-- We may reorganize internal folders and modules freely, but the **public Python surface remains stable**.
 
 ## Developer Ethos
 
@@ -34,8 +32,53 @@ Originally, PyCauset was built solely for scale ("If it fits in RAM, use numpy")
 *   **Principle**: Data types must remain as small as possible, constantly.
 *   **Implementation**: We aggressively resist type promotion.
     *   `BitMatrix` (1 bit/element) should not become `IntegerMatrix` (32 bits/element) unless absolutely necessary.
-    *   `IntegerMatrix` should *never* silently become `FloatMatrix` (64 bits/element).
+    *   `IntegerMatrix` should not silently become `FloatMatrix` **unless a float participates in the operation** (mixed-kind operations necessarily produce float results).
 *   **Example**: Multiplying an `IntegerMatrix` by a float scalar (`3.5`) does **not** produce a `FloatMatrix`. It produces an `IntegerMatrix` with a metadata scalar factor of `3.5`. The data on disk remains integers.
+
+#### Underpromotion definition
+
+When PyCauset **underpromotes**, it means:
+
+*   The operation is executed in the **smallest selected dtype**, and
+*   The result is stored in that **same dtype**.
+
+PyCauset does **not** silently widen intermediates “for accuracy” in the default path. If higher precision is required, users must explicitly request a larger dtype.
+
+#### Promotion policy (mixed dtypes)
+
+Mixed-dtype operations follow an explicit, centralized promotion policy.
+
+*   Default: prefer the smallest dtype that can represent the operation’s semantics.
+*   Mixed float precision: **underpromote by default** and emit a warning (configurable).
+*   Bool matrices behave as numeric 0/1 matrices; operations may promote results when required (e.g. addition producing integer counts).
+
+#### Fundamental kinds (bit / int / float)
+
+PyCauset distinguishes three **fundamental kinds**:
+
+*   `bit` (bit-packed boolean storage; special-case rules allowed)
+*   `int` (signed/unsigned integers)
+*   `float` (float32/float64)
+
+Rules:
+
+*   PyCauset never **promotes down** across fundamental kinds.
+*   If a float participates, the result kind is float.
+*   Underpromotion applies **within** a kind (e.g., `float32` vs `float64`), not across kinds.
+
+Examples:
+
+*   `matmul(bit, float64) -> float64`
+*   `matmul(float32, float64) -> float32` (default underpromotion within float)
+
+#### Overflow policy
+
+Integer overflow is a hard error.
+
+*   PyCauset does **not** automatically promote storage dtypes to avoid overflow.
+*   For large integer matrix multiplication, PyCauset may emit a **risk warning** based on a conservative bound estimate; this warning is advisory and does not change the chosen dtype.
+
+Float overflow is handled by IEEE-754 semantics (typically `inf`/`nan`). It is not “impossible”; it is simply a different failure mode than integer overflow and is usually addressed with optional validation (e.g., `isfinite` checks) rather than mandatory runtime trapping.
 
 ### 4. Lazy Evaluation & Metadata Scaling
 *   **Principle**: Don't compute what you can describe.
