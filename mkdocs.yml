@@ -57,3 +57,60 @@ extra_javascript:
 
 extra_css:
   - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Guides:
+    - guides/index.md
+    - Installation: guides/Installation.md
+    - User Guide: guides/User Guide.md
+    - Causal Sets: guides/Causal Sets.md
+    - Spacetime: guides/Spacetime.md
+    - Field Theory: guides/Field Theory.md
+    - Visualization: guides/Visualization.md
+    - Matrix Guide: guides/Matrix Guide.md
+    - Vector Guide: guides/Vector Guide.md
+    - Storage and Memory: guides/Storage and Memory.md
+    - Performance Guide: guides/Performance Guide.md
+    - NumPy Integration: guides/Numpy Integration.md
+  - API Reference:
+    - docs/index.md
+    - Classes: docs/classes/index.md
+    - Functions: docs/functions/index.md
+    - Parameters: docs/parameters/index.md
+    - Visualization (pycauset.vis): docs/pycauset.vis/index.md
+  - Internals:
+    - internals/index.md
+    - DType System: internals/DType System.md
+    - Compute Architecture: internals/Compute Architecture.md
+    - Memory Architecture: internals/MemoryArchitecture.md
+    - Memory and Data: internals/Memory and Data.md
+    - Algorithms: internals/Algorithms.md
+    - Plans:
+      - internals/plans/SUPPORT_READINESS_FRAMEWORK.md
+      - internals/plans/BLAS_INTEGRATION_PLAN.md
+  - Dev Handbook:
+    - dev/index.md
+    - Agent Bootstrap: dev/Agent Bootstrap.md
+    - Restructure Plan: dev/Restructure Plan.md
+    - Codebase Structure: dev/Codebase Structure.md
+    - Python Internals: dev/Python Internals.md
+    - Build System: dev/Build System.md
+    - Bindings & Dispatch: dev/Bindings & Dispatch.md
+    - Testing & Benchmarks: dev/Testing & Benchmarks.md
+    - Warnings & Exceptions: dev/Warnings & Exceptions.md
+    - Repository Hygiene: dev/Repository Hygiene.md
+    - Square-only Assumptions: dev/Square-only Assumptions.md
+  - Project:
+    - project/index.md
+    - Philosophy: project/Philosophy.md
+    - Protocols:
+      - project/protocols/index.md
+      - Pre-alpha Policy: project/protocols/Pre-alpha Policy.md
+      - Documentation Protocol: project/protocols/Documentation Protocol.md
+      - Adding Operations: project/protocols/Adding Operations.md
+      - Adding Types: project/protocols/Adding Types.md
+      - Release Process: project/protocols/Release Process.md
+      - Testing and Bug Tracking: project/protocols/Testing and Bug Tracking.md
+    - Contributing: project/Contributing.md
+    - Roadmap: project/TODO.md

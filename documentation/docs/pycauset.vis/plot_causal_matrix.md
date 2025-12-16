@@ -30,5 +30,5 @@ This function visualizes the Causal Matrix (Adjacency Matrix) $C$ as a heatmap. 
 
 ## See Also
 
-*   [[Visualization Guide]]: For a comprehensive guide on visualizing causal sets.
-*   [[pycauset.vis.plot_hasse]]: For visualizing the causal structure as a graph.
+*   [[guides/Visualization|Visualization Guide]]: For a comprehensive guide on visualizing causal sets.
+*   [[docs/pycauset.vis/plot_hasse.md|pycauset.vis.plot_hasse]]: For visualizing the causal structure as a graph.

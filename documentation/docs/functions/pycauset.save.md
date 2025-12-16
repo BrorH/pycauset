@@ -26,5 +26,5 @@ pc.save(causet, "universe.causet")
 
 ## See Also
 
-*   [[pycauset.CausalSet.save]]
+*   `pycauset.CausalSet.save`: Method on [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]].
 

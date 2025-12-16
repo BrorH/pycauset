@@ -78,7 +78,7 @@ The "End Product" of the initialization is the **Causal Matrix** stored on disk.
 
 ## Large Scale Simulations
 
-`pycauset` is designed for large-scale simulations. The [[pycauset.CausalSet]] class uses a **stateless sprinkling** technique (see [Stateless Sprinkling](../internals/Algorithms.md#stateless-sprinkling-spacetime-generation)) that avoids storing the coordinates of the points. This means you can generate causal sets with billions of elements without running out of RAM, provided you have enough disk space to store the resulting bit matrix.
+`pycauset` is designed for large-scale simulations. The [[pycauset.CausalSet]] class uses a **stateless sprinkling** technique (see [Stateless Sprinkling](../internals/Algorithms.md#2-stateless-sprinkling-spacetime-generation)) that avoids storing the coordinates of the points. This means you can generate causal sets with billions of elements without running out of RAM, provided you have enough disk space to store the resulting bit matrix.
 
 ```python
 # Generating a very large causal set (e.g., 1 million elements)

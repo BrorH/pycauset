@@ -62,16 +62,16 @@ box = spacetime.MinkowskiBox(dimension=2, time_extent=2.0, space_extent=1.0)
 
 ## Visualization Support
 
-All standard spacetimes support the visualization interface used by [[pycauset.vis]]. They implement:
+All standard spacetimes support the visualization interface used by [[docs/pycauset.vis/index.md|pycauset.vis]]. They implement:
 
 *   `transform_coordinates(coords)`: Converts internal coordinates (like lightcone $u,v$) to visualization-friendly coordinates (like Cartesian $t,x$ or 3D Cylindrical).
 *   `get_boundary()`: Returns the geometry of the spacetime boundary for plotting.
 
-See the [[Visualization Guide]] for more details.
+See the [[guides/Visualization|Visualization Guide]] for more details.
 
 ## Using Spacetimes with CausalSet
 
-You can pass these spacetime objects to the [[pycauset.CausalSet]] constructor.
+You can pass these spacetime objects to the [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]] constructor.
 
 ### Fixed Number Sprinkling
 

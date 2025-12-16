@@ -49,8 +49,9 @@ Recommended baseline:
 
 ## Link to optimization tracking
 
-The authoritative checklist for dtype/op coverage is:
-- `documentation/internals/OPTIMIZATION_CHECKLIST.md`
+The authoritative checklist for dtype/op coverage and readiness gates is:
+
+- `documentation/internals/plans/SUPPORT_READINESS_FRAMEWORK.md`
 
 When a checklist item changes status:
 - ensure a corresponding test exists (or is added),

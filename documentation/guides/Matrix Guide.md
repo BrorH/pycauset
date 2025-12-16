@@ -31,7 +31,7 @@ import pycauset as pc
 import numpy as np
 
 # 1. From a list of lists (infers type)
-M1 = pc.Matrix([[1, 2], [3, 4]])  # Creates IntegerMatrix
+M1 = pc.Matrix(((1, 2), (3, 4)))  # Creates IntegerMatrix
 
 # 2. From a NumPy array
 arr = np.random.rand(5, 5)
@@ -48,7 +48,7 @@ M5 = pc.Matrix(100, dtype=pc.int16)  # returns Int16Matrix
 Mu = pc.Matrix(100, dtype=pc.uint32)  # returns UInt32Matrix
 
 # 7. Complex float storage
-Mc = pc.Matrix([[1+2j, 0], [0, 3-4j]], dtype=pc.complex_float32)  # ComplexFloat32Matrix
+Mc = pc.Matrix(((1 + 2j, 0), (0, 3 - 4j)), dtype=pc.complex_float32)  # ComplexFloat32Matrix
 
 # 4. Causal Matrix (Specialized Triangular Bit Matrix)
 # This is optimized for causal sets (strictly upper triangular)

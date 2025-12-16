@@ -6,7 +6,7 @@
 ## Getting Started
 
 ### 1. Installation
-Ensure you have PyCauset installed. See the [[Installation]] guide for details.
+Ensure you have PyCauset installed. See [[guides/Installation|guides/Installation]] for details.
 
 ```python
 import pycauset as pc
@@ -74,8 +74,8 @@ See the [[Field Theory]] guide for details.
 ### The Matrix Engine
 Under the hood, PyCauset uses a powerful matrix engine that handles data larger than RAM. While `CausalSet` abstracts this away, you can use the matrix classes directly for linear algebra.
 
-*   **[[pycauset.Matrix]]**: Factory for creating dense or sparse matrices.
-*   **[[pycauset.matmul]]**: Optimized matrix multiplication.
+*   **[[docs/classes/matrix/pycauset.Matrix.md|pycauset.Matrix]]**: Factory for creating dense and structured matrices (including bit-packed and triangular backends).
+*   **[[docs/functions/pycauset.matmul.md|pycauset.matmul]]**: Matrix multiplication.
 
 For a deep dive into matrix operations, see the **[[Matrix Guide]]**.
 
@@ -101,6 +101,32 @@ pc.set_memory_threshold(100 * 1024 * 1024)
 ```
 
 ### Storage Location
-By default, temporary files are stored in a `.pycauset` folder in your working directory. You can change this by setting the `PYCAUSET_STORAGE_DIR` environment variable.
+PyCauset may create temporary and/or backing files for disk-backed objects.
+
+By default, these files are stored in a `.pycauset` directory under your current working directory. To override this, set the `PYCAUSET_STORAGE_DIR` environment variable **before importing** `pycauset`.
+
+Example (cross-platform):
+
+```python
+import os
+
+os.environ["PYCAUSET_STORAGE_DIR"] = r"D:\pycauset_storage"  # set before importing
+
+import pycauset as pc
+```
+
+For details on what gets stored, when cleanup happens, and how persistence works, see [[Storage and Memory]].
+
+Related knobs:
+
+- [[docs/functions/pycauset.set_memory_threshold.md|pycauset.set_memory_threshold]]
+- [[docs/parameters/pycauset.keep_temp_files.md|pycauset.keep_temp_files]]
+
+---
+
+## See also
+
+- [[docs/index|API Reference]]
+- [[internals/index|Internals]] (especially [[internals/DType System|DType System]])
 
 

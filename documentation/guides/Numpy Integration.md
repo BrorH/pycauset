@@ -22,15 +22,15 @@ arr_1d = np.array([1.0, 2.0, 3.0])
 vec = pc.Vector(arr_1d)  # Returns [[pycauset.FloatVector]]
 
 # Convert 2D NumPy array to Matrix
-arr_2d = np.array([[1, 2], [3, 4]], dtype=np.int32)
+arr_2d = np.array(((1, 2), (3, 4)), dtype=np.int32)
 mat = pc.Matrix(arr_2d)  # Returns [[pycauset.IntegerMatrix]]
 
 # Unsigned integers
-arr_u = np.array([[1, 2], [3, 4]], dtype=np.uint32)
+arr_u = np.array(((1, 2), (3, 4)), dtype=np.uint32)
 mat_u = pc.Matrix(arr_u)  # Returns [[pycauset.UInt32Matrix]]
 
 # Complex
-arr_c = np.array([[1+2j, 0], [0, 3-4j]], dtype=np.complex64)
+arr_c = np.array(((1 + 2j, 0), (0, 3 - 4j)), dtype=np.complex64)
 mat_c = pc.Matrix(arr_c)  # Returns [[pycauset.ComplexFloat32Matrix]]
 
 # Convert Boolean array
@@ -38,7 +38,7 @@ arr_bool = np.array([True, False], dtype=bool)
 vec_bool = pc.Vector(arr_bool)  # Returns [[pycauset.BitVector]]
 ```
 
-**Note**: This operation creates a **copy** of the data. Depending on the size and the configured memory threshold, the new object will be stored in RAM or on disk, see [[User Guide#Storage Management]]
+**Note**: This operation creates a **copy** of the data. Depending on the size and the configured memory threshold, the new object will be stored in RAM or on disk. See [[guides/Storage and Memory|guides/Storage and Memory]].
 
 ## Converting PyCauset Objects to NumPy
 
@@ -78,7 +78,7 @@ result = v + arr  # [11, 22, 33]
 You can use NumPy arrays as operands in matrix multiplication.
 
 ```python
-M = pc.Matrix([[1, 0], [0, 1]]) # Identity
+M = pc.Matrix(((1, 0), (0, 1))) # Identity
 v_np = np.array([5.0, 6.0])
 
 # Result is a pycauset Vector

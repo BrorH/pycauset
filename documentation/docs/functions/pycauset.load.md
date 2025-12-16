@@ -18,5 +18,5 @@ Loads a matrix or vector from a binary file created by PyCauset.
 
 ## See Also
 
-*   [[pycauset.CausalSet.load]]: For loading `CausalSet` objects from `.causet` archives.
+*   `pycauset.CausalSet.load`: For loading `CausalSet` objects from `.causet` archives (see [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]]).
 

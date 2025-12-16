@@ -122,16 +122,16 @@ M_u64 = pycauset.Matrix(5, dtype="uint64")
 # Create a dense boolean matrix (DenseBitMatrix)
 M_bool = pycauset.Matrix(5, dtype=bool)
 
-# Create an integer matrix from a list
-data = [[1, 2], [3, 4]]
-M_int = pycauset.Matrix(data) 
+# Create an integer matrix from data
+data = ((1, 2), (3, 4))
+M_int = pycauset.Matrix(data)
 # Returns an optimized IntegerMatrix
 
 # Create a complex matrix
-M_c = pycauset.Matrix([[1+2j, 0], [0, 3-4j]], dtype="complex_float32")
+M_c = pycauset.Matrix(((1+2j, 0), (0, 3-4j)), dtype="complex_float32")
 
 # Create a triangular matrix
-tri_data = [[0, 1], [0, 0]]
+tri_data = ((0, 1), (0, 0))
 M_tri = pycauset.Matrix(tri_data)
 # Returns an optimized TriangularIntegerMatrix
 ```

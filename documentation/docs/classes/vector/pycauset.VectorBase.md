@@ -1,6 +1,6 @@
 # pycauset.VectorBase
 
-Base class for all vector types. Inherits from [PersistentObject](pycauset.PersistentObject.md).
+Base class for all vector types. Inherits from [PersistentObject](../core/pycauset.PersistentObject.md).
 
 ## Properties
 

@@ -4,10 +4,10 @@ Information about the PyCauset project itself.
 
 ## General
 
-*   **[[Philosophy]]**: The design philosophy behind PyCauset.
-*   **[[Protocols]]**: Development protocols and standards.
-*   **[[Contributing]]**: How to set up the dev environment and contribute.
-*   **[[TODO]]**: Planned features and known issues.
+*   **[[project/Philosophy|Philosophy]]**: The design philosophy behind PyCauset.
+*   **[[project/protocols/index|Protocols]]**: Development protocols and standards.
+*   **[[project/Contributing|Contributing]]**: How to set up the dev environment and contribute.
+*   **[[project/TODO|Roadmap]]**: Planned features and known issues.
 
 ## Contributing
 

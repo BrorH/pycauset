@@ -1,6 +1,6 @@
 # Visualization Guide
 
-PyCauset provides built-in tools to visualize Causal Sets embedded in spacetime. This guide explains how to use the [[pycauset.vis]] module to create interactive 3D plots.
+PyCauset provides built-in tools to visualize Causal Sets embedded in spacetime. This guide explains how to use the [[docs/pycauset.vis/index.md|pycauset.vis]] module to create interactive 3D plots.
 
 ## Overview
 
@@ -8,7 +8,7 @@ Visualizing high-dimensional causal structures is crucial for understanding thei
 
 ## Basic Usage
 
-The primary function for visualization is [[pycauset.vis.plot_embedding]].
+The primary function for visualization is [[docs/pycauset.vis/plot_embedding.md|pycauset.vis.plot_embedding]].
 
 ```python
 from pycauset import CausalSet
@@ -27,7 +27,7 @@ fig.show()
 
 ## Reproducibility
 
-To ensure your visualization is identical every time, you must ensure the [[pycauset.CausalSet]] itself is reproducible (using `seed` in `CausalSet()`). The visualization function uses a fixed internal seed for subsampling, so plotting the same `CausalSet` object will always yield the same plot.
+To ensure your visualization is identical every time, you must ensure the [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]] itself is reproducible (using `seed` in `CausalSet()`). The visualization function uses a fixed internal seed for subsampling, so plotting the same `CausalSet` object will always yield the same plot.
 
 ```python
 # 1. Reproducible Causal Set
@@ -42,7 +42,7 @@ fig = plot_embedding(c)
 
 Visualizing millions of points in a web browser is not feasible. PyCauset solves this by **Smart Sampling**.
 
-When you pass a large [[pycauset.CausalSet]] to `plot_embedding`, it automatically samples a subset of points (default 50,000) to display. This preserves the global structure while keeping the visualization responsive.
+When you pass a large [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]] to `plot_embedding`, it automatically samples a subset of points (default 50,000) to display. This preserves the global structure while keeping the visualization responsive.
 
 ```python
 # A very large set (1 million elements)
@@ -65,7 +65,7 @@ Under the hood, PyCauset does not store the coordinates of every element in memo
 
 This means you can visualize a subset of a massive causal set without ever generating the full coordinate table, saving gigabytes of RAM.
 
-See [[pycauset.CausalSet.coordinates]] for more details on the coordinate system.
+See `pycauset.CausalSet.coordinates` on [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]] for more details on the coordinate system.
 
 ## Customizing the Plot
 
@@ -79,7 +79,7 @@ fig = plot_embedding(
 )
 ```
 
-Since [[pycauset.vis.plot_embedding]] returns a Plotly figure, you can modify it how you would any Plotly figure.
+Since [[docs/pycauset.vis/plot_embedding.md|pycauset.vis.plot_embedding]] returns a Plotly figure, you can modify it how you would any Plotly figure.
 
 ## Coordinate Transformations & Boundaries
 
@@ -91,7 +91,7 @@ The visualization module automatically handles coordinate transformations for sp
 
 ## Hasse Diagrams
 
-[[pycauset.vis.plot_hasse]] generates a Hasse diagram, which visualizes the causal structure (partial order) directly.
+[[docs/pycauset.vis/plot_hasse.md|pycauset.vis.plot_hasse]] generates a Hasse diagram, which visualizes the causal structure (partial order) directly.
 
 ```python
 from pycauset.vis import plot_hasse

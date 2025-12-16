@@ -32,6 +32,6 @@ arr = np.array([1, 2, 3])
 v = pycauset.asarray(arr)  # IntegerVector
 
 # Convert list of lists to Matrix
-data = [[1.0, 0.0], [0.0, 1.0]]
+data = ((1.0, 0.0), (0.0, 1.0))
 m = pycauset.asarray(data) # FloatMatrix
 ```

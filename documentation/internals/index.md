@@ -4,12 +4,12 @@ This section documents the internal architecture and design decisions of PyCause
 
 ## Architecture
 
-*   **[[Compute Architecture]]**: The unified CPU/GPU compute architecture, including `ComputeContext`, `AutoSolver`, and parallelization strategies.
-*   **[[MemoryArchitecture]]**: The Tiered Storage system, Memory Governor, IO Accelerator, and Copy-on-Write mechanism.
-*   **[[Memory and Data]]**: The `.pycauset` file format and the Object Hierarchy.
-*   **[[Algorithms]]**: Details of the solvers (Eigenvalue, Matrix Multiplication) and their implementations.
-*   **[[DType System]]**: Scalar kinds (`bit`/`int`/`float`), promotion rules, complex representation, and overflow behavior.
+*   **[[internals/Compute Architecture|Compute Architecture]]**: The unified CPU/GPU compute architecture, including `ComputeContext`, `AutoSolver`, and parallelization strategies.
+*   **[[internals/MemoryArchitecture|Memory Architecture]]**: The Tiered Storage system, Memory Governor, IO Accelerator, and Copy-on-Write mechanism.
+*   **[[internals/Memory and Data|Memory and Data]]**: The `.pycauset` file format and the Object Hierarchy.
+*   **[[internals/Algorithms|Algorithms]]**: Details of the solvers (Eigenvalue, Matrix Multiplication) and their implementations.
+*   **[[internals/DType System|DType System]]**: Scalar kinds (`bit`/`int`/`float`), promotion rules, complex representation, and overflow behavior.
 
 ## Process
 
-*   **[[Release Process]]**: Steps for releasing a new version of PyCauset.
+*   **[[project/protocols/Release Process|Release Process]]**: Steps for releasing a new version of PyCauset.

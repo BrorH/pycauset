@@ -2,6 +2,11 @@
 
 Thank you for your interest in contributing to PyCauset! We welcome contributions from the community, whether it's fixing bugs, adding new features, or improving documentation.
 
+Before you start, read the project protocols:
+
+- [[project/protocols/index|project/protocols/]]
+- [[project/protocols/Documentation Protocol|Documentation Protocol]]
+
 ## Getting Started
 
 ### Prerequisites
@@ -33,14 +38,14 @@ To build PyCauset from source, you will need:
     source .venv/bin/activate
     ```
 
-3.  **Install Dependencies**:
+3.  **Install from source** (this builds the native extension via `scikit-build-core`):
     ```bash
-    pip install -r requirements.txt
+    pip install -e .
     ```
 
 ## Building the Project
 
-We provide a `build.ps1` script (Windows) and `build.sh` (Linux/macOS) to simplify the build process.
+We provide helper scripts to simplify the build process.
 
 ### Windows
 
@@ -54,9 +59,10 @@ We provide a `build.ps1` script (Windows) and `build.sh` (Linux/macOS) to simpli
 
 ### Linux/macOS
 
+Recommended workflow:
+
 ```bash
-# Build Python extension
-./build.sh
+pip install -e .
 ```
 
 ## Running Tests
@@ -69,11 +75,7 @@ pytest tests/python
 ```
 
 ### C++ Unit Tests
-The C++ tests are compiled into an executable.
-```powershell
-# Windows
-./build/tests/Release/causal_tests.exe
-```
+If you built with CMake, you can run C++ tests via CTest from your build directory.
 
 ## Coding Standards
 
@@ -91,6 +93,14 @@ The C++ tests are compiled into an executable.
 ## Documentation
 
 Documentation is written in Markdown and built with MkDocs.
+
+Install documentation dependencies:
+
+```bash
+pip install -r requirements-docs.txt
+```
+
+If you are changing behavior, remember the docs checklist in [[project/protocols/Documentation Protocol|Documentation Protocol]].
 
 ```bash
 # Serve documentation locally

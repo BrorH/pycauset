@@ -1,68 +1,204 @@
-# Project Roadmap & TODO
+# PyCauset Roadmap (Canonical, Sequence-Based)
 
-This document outlines the development roadmap for `pycauset`, tracking completed features, active tasks, and future goals.
+## Roadmap principles
 
-## 🚀 High Priority
+### Release definition
 
-- [ ] **Large Scale Simulation**: Calculate a 100GB propagator matrix $K$.
-- [ ] **Further I/O Optimization**: The read/write speed to disk is currently the main bottleneck
-- [ ] **Pauli-Jordan Function**: Implement the $i\Delta$ function derived from the propagator.
-- [x] **GPU Acceleration**: Investigate CUDA/OpenCL support for matrix operations.
-- [ ] converting from numpy to pycasuet matrix is very slow - must be optimized
-- [ ] **User-Defined Spacetimes**: Allow users to define custom spacetime geometries and boundaries in Python.
+**Release 1 (“Foundation Release”) ships when** the linear algebra base is *solid*:
 
+- Operations are **correct** across all declared dtypes and structures.
+- Operations are **optimized** on CPU and GPU (or explicitly blocked/routed).
+- Out-of-core / persistence paths are correct and efficient.
 
-## 🌌 Physics & Spacetime
+“Physics features” are intentionally downstream of Release 1.
 
-- [x] **Propagator Calculation**: Implemented $K = \Phi (I - b\Phi)^{-1}$ (Eq. 3.5 in Johnston).
-- [x] **Spacetime Shapes**:
-    - [x] Minkowski Diamond (Null boundaries)
-    - [x] Minkowski Cylinder (Periodic boundaries)
-    - [x] Minkowski Box (Hard wall boundaries)
-- [x] **Field Theory**: Corrected coefficient calculation ($a, b$) based on dimension and mass in `ScalarField`.
-- [ ] **Curved Spacetimes**: Implement Schwarzschild or de Sitter spacetimes.
-- [ ] **Eigenvector Analysis**: Study base changes and eigenvector properties of the causal matrix.
+### What “optimized” means
 
-## 🛠 Core Functionality
+Ideal target (C): “as close to theoretical optimal as possible”, including (examples):
 
-- [x] **Matrix Operations**: Addition, subtraction, multiplication, inversion.
-- [x] **Storage Management**:
-    - [x] Binary file format (`.pycauset`).
-    - [x] Automatic temporary file cleanup.
-    - [x] Configurable storage paths (including external drives).
-    - [x] RAM-backed mapping for small objects.
-- [x] **Data Types**:
-    - [x] Dense and Triangular matrices.
-    - [x] Vectors.
-    - [x] Complex number support.
-    - [x] `dtype` specification on creation.
-    - [x] bit, int16, int32, float16, float32, float64, complex_float64.
-- [x] **Numpy Compatibility**: Seamless conversion to/from numpy arrays.
-- [x] **Identity Matrix**: `pycauset.I` with automatic sizing.
-- [x] **Vector Factory**: `pycauset.Vector` factory function.
-- [x] **Vector Cross Product**: Implemented `v.cross(u)`.
-- [ ] More linalg functionality: norms, normalization, projections, conjugate, cross,
-- [ ] make initialization of matrix/vector types work with array input (currently only N is a parameter which decides teh dim of an empty array of the respective type)
-- [ ] element-wise matrix/vector division 
-- [ ] **Expanded Scalar DTypes**: Support multiple integer widths (int8/int16/int32/int64 and uint8/uint16/uint32/uint64) and ensure complex permutations exist for all supported scalar dtypes; define and document promotion + overflow policies (including integer-matmul overflow risk warnings).
-- [ ] **NxM Matrices (All Types)**: Expand from square-only (NxN) assumptions to support arbitrary 2D shapes (NxM) across the matrix system (dense, triangular, symmetric, bit, etc.).
-    - **Non-goal**: Do not attempt general N-dimensional arrays like NumPy; PyCauset remains focused on 2D matrices and vectors.
+- CPU parallelism (SIMD + threads) where appropriate.
+- GPU kernels where appropriate.
+- **Hybrid execution** (CPU + GPU cooperating for a single op) if it produces real speedups.
+- Disk → RAM streaming that matches access patterns, using lookahead hints.
 
-## 📊 Visualization & Analysis
+Practical acceptance target (B): **never slower than NumPy** in the regimes we claim to compete in.
 
-- [x] **Causet Visualization**: 2D and 3D plotting using Plotly.
-- [x] **Coordinate Transforms**: Spacetime-aware coordinate transformations for visualization.
-- [x] **Matrix Inspection**: Printable info and matrix content.
+- “Equivalent to NumPy” means: throughput ≥ **0.90× NumPy** for the benchmark regime.
+- If PyCauset is slower than NumPy for a regime, it must be either:
+    - explicitly out-of-scope for now, or
+    - treated as a performance bug.
 
-## 📚 Documentation
+### Why NxM should happen early (discussion)
 
-- [x] **Structure**: Reorganized into Guides, API, Internals, and Project sections.
-- [x] **Hosting**: Setup for GitHub Pages / MkDocs.
-- [ ] **Environment Variables**: Document `$PYCAUSET_STORAGE_DIR`.
-- [ ] **Tutorials**: Add more physics-focused tutorials (e.g., scalar field propagation).
+Yes: it is generally in your interest to move **NxM generalization earlier**, because:
 
-## 🐛 Known Issues / Maintenance
+- Shape rules infect everything: allocation, stride assumptions, kernels, persistence metadata, Python interop, and docs.
+- If we fully “optimize everything” under NxN assumptions, we will later be forced to rewrite many kernels and tests.
 
-- [ ] **Lifecycle Management**: Clarify `CausalSet` vs `CausalMatrix` persistence guarantees.
-- [ ] **Legacy Cleanup**: Remove or update deprecated parameters (e.g., `populate=True` in `CausalMatrix`).
+However, NxM is not a single switch. The roadmap below breaks NxM into phases:
+
+- First: make **DenseMatrix + VectorBase** truly rectangular-safe end-to-end.
+- Then: expand structures that inherently assume square-ness (triangular/symmetric) with explicit policies.
+
+We will keep “2D only” as a non-goal: no N-D arrays.
+
+---
+
+## Canonical Roadmap Graph (Mermaid)
+
+```mermaid
+flowchart TD
+    %% Canonical roadmap: node IDs are stable.
+    %% Release 1 is the main path; Release 2 (physics) is intentionally parked.
+
+    subgraph R1["Release 1 - Linear Algebra Foundation (Ship Gate)"]
+        R1_DOCS["R1_DOCS<br/>Docs System That Scales<br/>(Diataxis + MkDocs IA)"]
+        R1_API["R1_API<br/>Public API + Naming + Contracts<br/>(stability, deprecations)"]
+        R1_SHAPES["R1_SHAPES<br/>NxM Matrices Across The System<br/>(end-to-end)"]
+        R1_SRP["R1_SRP<br/>Support Readiness Program<br/>(dtypes x ops x devices x storage)<br/>+ optimize to >= 0.90x NumPy"]
+        R1_IO["R1_IO<br/>Out-of-core I/O + Persistence Performance<br/>(streaming + mmap correctness)"]
+        R1_NUMPY["R1_NUMPY<br/>Fast NumPy Interop<br/>(import/export must be competitive)"]
+        R1_LINALG["R1_LINALG<br/>Core Linalg Surface Completeness<br/>(norms/division/init-from-array/etc)"]
+        R1_GPU["R1_GPU<br/>GPU Parity + Routing Policy<br/>(CPU-only vs GPU-enabled is explicit)"]
+        R1_QA["R1_QA<br/>Bench + Correctness Gates Enforced<br/>(CI + thresholds)"]
+        R1_REL["R1_REL<br/>Release Mechanics<br/>(packaging + release checklist)"]
+    end
+
+    %% Main dependency chain (the path)
+    R1_DOCS --> R1_API --> R1_SHAPES --> R1_SRP --> R1_QA --> R1_REL
+
+    %% Parallel prerequisites feeding SRP/QA
+    R1_IO --> R1_SRP
+    R1_NUMPY --> R1_SRP
+    R1_LINALG --> R1_SRP
+    R1_GPU --> R1_SRP
+
+    %% Post-R1: physics release parked (not detailed here)
+    R2_PHYS["Release 2 - Physics + Large-Scale Experiments (Parked)<br/>(Pauli-Jordan, curved spacetimes, 100GB K)"]:::parked
+    R1_REL --> R2_PHYS
+
+    classDef parked fill:#eee,stroke:#bbb,color:#555
+```
+
+---
+
+## Node details (keyed by ID)
+
+### R1_DOCS — Docs System That Scales (Diátaxis + MkDocs IA)
+
+Goal: documentation stays maintainable as features grow.
+
+Deliverables:
+- Adopt Diátaxis as the organizing principle for *meaning* (even if folders are renamed later).
+- MkDocs information architecture (IA) makes it obvious where to look:
+    - Reference (API)
+    - Guides (How-to)
+    - Explanation (internals that are readable)
+    - Dev Handbook
+    - Project meta
+- Update the documentation protocol so “redundancy” is implemented as:
+    - **one canonical source of truth** per concept, and
+    - required cross-links from guides/reference/dev.
+
+### R1_API — Public API + Naming + Contracts
+
+Goal: reduce churn and ambiguity in the Python surface while the project grows.
+
+Deliverables:
+- Naming conventions documented (types, functions, dtype tokens, warnings/errors).
+- Public vs internal boundaries explicit.
+- Deprecation policy (even if pre-alpha allows breaking changes).
+
+### R1_SHAPES — NxM Matrices Across The System
+
+Goal: remove square-only assumptions so later work doesn’t require rewrites.
+
+Phased approach:
+- Phase 1: Dense matrices + vectors are rectangular-safe (allocation, indexing, NumPy, persistence).
+- Phase 2: Matmul/matvec/vecmat and elementwise ops support NxM × MxK rules.
+- Phase 3: Structures with inherent square semantics (triangular/symmetric/antisymmetric/identity/diagonal) get explicit policies:
+    - what shapes they allow,
+    - how they interact with NxM operands,
+    - and what gets blocked vs implemented.
+
+### R1_SRP — Support Readiness Program (SRP)
+
+This is the long “painstaking” program.
+
+Authoritative checklist: `documentation/internals/plans/SUPPORT_READINESS_FRAMEWORK.md`.
+
+SRP phases:
+- SRP-0: Canonical inventories locked (dtypes + ops + structures + devices).
+- SRP-1: CPU correctness across the inventory (Gate A + Gate B).
+- SRP-2: CPU optimization to ≥0.90× NumPy for declared benchmark regimes (Gate E).
+- SRP-3: GPU coverage implemented OR explicitly routed/blocked (Gate C).
+- SRP-4: CCA lookahead hints + out-of-core performance validation (Gate D + Gate E).
+
+Definition of Done (Release 1 gate):
+- Every op in the canonical inventory has an explicit support status for every public dtype/structure/device case.
+- No “silent wrong answers” and no “mysterious slow paths”.
+- Benchmarks exist and failures are actionable.
+
+### R1_IO — Out-of-core I/O + Persistence Performance
+
+Goal: disk-backed operation performance is a first-class feature, not an accident.
+
+Deliverables:
+- Streaming strategy for large operations (read patterns + hints).
+- Persistence round-trips for every public dtype/structure.
+- Large-scale read/write is demonstrably efficient.
+
+### R1_NUMPY — Fast NumPy Interop
+
+Goal: converting to/from NumPy is not a bottleneck.
+
+Deliverables:
+- `np.array(obj)` and `Matrix(np_array)`/`Vector(np_array)` paths are optimized.
+- Performance target: ≥0.90× NumPy baseline for conversion-heavy workflows (define regimes).
+
+### R1_LINALG — Core Linalg Surface Completeness
+
+Goal: the base toolbox feels complete for users.
+
+Seed items (from prior TODO):
+- Norms, normalization, projections
+- Elementwise division for matrices/vectors
+- Initialization from array input for typed classes (not only factories)
+
+### R1_GPU — GPU Parity + Routing Policy
+
+Goal: GPU behavior is predictable and correct.
+
+Deliverables:
+- AutoSolver routing is explicit and testable.
+- For unsupported GPU cases: either CPU route or clear error.
+- Benchmark-based thresholds are documented.
+
+### R1_QA — Bench + Correctness Gates Enforced
+
+Goal: prevent regressions (correctness and performance).
+
+Deliverables:
+- Gate-style CI checks: correctness + persistence + a small benchmark suite.
+- Performance regressions are visible (even if not hard-failed at first).
+
+### R1_REL — Release Mechanics
+
+Goal: releasing is routine and reproducible.
+
+Deliverables:
+- Release checklist referencing SRP gates.
+- Packaging sanity checks.
+
+---
+
+## Parked (post-Release-1) ideas from the old TODO
+
+These are intentionally downstream of the foundation release:
+
+- 100GB propagator matrix $K$ (capstone large-scale experiment)
+- Pauli–Jordan function $i\Delta$
+- Curved spacetimes (Schwarzschild / de Sitter)
+- User-defined spacetimes
+
 

@@ -1,4 +1,4 @@
 # Parameters
 
-* **[[pycauset.keep_temp_files|keep_temp_files]]**
-* **[[pycauset.seed|seed]]**
+* **[[docs/parameters/pycauset.keep_temp_files.md|keep_temp_files]]**
+* **[[docs/parameters/pycauset.seed.md|seed]]**

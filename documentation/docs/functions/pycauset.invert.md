@@ -49,8 +49,8 @@ The [[pycauset.FloatMatrix]] class supports general matrix inversion.
 import pycauset as pc
 
 # Create a dense FloatMatrix
-# [[4, 7],
-#  [2, 6]]
+# [ [4, 7],
+#   [2, 6] ]
 m = pc.FloatMatrix(2)
 m[0, 0] = 4.0
 m[0, 1] = 7.0
@@ -58,8 +58,8 @@ m[1, 0] = 2.0
 m[1, 1] = 6.0
 
 # Compute Inverse
-# [[ 0.6, -0.7],
-#  [-0.2,  0.4]]
+# [ [ 0.6, -0.7],
+#   [-0.2,  0.4] ]
 inv = m.invert()
 
 print(inv[0, 0]) # 0.6

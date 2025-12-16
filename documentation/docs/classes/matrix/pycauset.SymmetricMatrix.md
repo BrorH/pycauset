@@ -12,7 +12,7 @@ This class stores only the upper triangular part of the matrix (including the di
 
 *   **n** (int): The number of rows/columns (matrix is square).
 
-Note: For anti-symmetric matrices, use [[pycauset.AntiSymmetricMatrix]] instead.
+Note: For anti-symmetric matrices, use [[docs/classes/AntiSymmetricMatrix.md|pycauset.AntiSymmetricMatrix]] instead.
 
 ## Methods
 
@@ -29,7 +29,7 @@ Sets the element at row `i` and column `j`.
 Returns a new matrix representing the transpose.
 *   For symmetric matrices, this returns a copy of itself.
 
-For anti-symmetric matrices, see [[pycauset.AntiSymmetricMatrix]].
+For anti-symmetric matrices, see [[docs/classes/AntiSymmetricMatrix.md|pycauset.AntiSymmetricMatrix]].
 
 ## Storage
 Uses a packed upper-triangular format. The storage size is approximately $N(N+1)/2$ elements.

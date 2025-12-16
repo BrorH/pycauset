@@ -14,7 +14,7 @@
               "type": "markdown",
               "state": {
                 "file": "project/TODO.md",
-                "mode": "source",
+                "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
@@ -221,8 +221,17 @@
       "bases:Create new base": false
     }
   },
-  "active": "4afc83a8e9d97142",
+  "active": "1563eaae446d05e3",
   "lastOpenFiles": [
+    "project/protocols/Documentation Protocol.md",
+    "project/protocols/Testing and Bug Tracking.md",
+    "project/protocols/Release Process.md",
+    "project/protocols/Adding Types.md",
+    "project/protocols/Adding Operations.md",
+    "project/protocols/Pre-alpha Policy.md",
+    "project/protocols/index.md",
+    "project/protocols",
+    "internals/DTYPE_COMPLEX_OVERFLOW_PLAN.md",
     "internals/plans/SUPPORT_READINESS_FRAMEWORK.md",
     "internals/plans/completed/DTYPE_COMPLEX_OVERFLOW_PLAN.md",
     "internals/plans/completed",
@@ -242,14 +251,6 @@
     "docs/classes/matrix/pycauset.ComplexFloat64Matrix.md",
     "docs/classes/matrix/pycauset.ComplexFloat32Matrix.md",
     "docs/classes/matrix/pycauset.ComplexFloat16Matrix.md",
-    "docs/classes/matrix/pycauset.Float16Matrix.md",
-    "docs/classes/matrix/pycauset.UInt64Matrix.md",
-    "docs/classes/matrix/pycauset.UInt32Matrix.md",
-    "docs/classes/matrix/pycauset.UInt16Matrix.md",
-    "docs/classes/matrix/pycauset.UInt8Matrix.md",
-    "docs/classes/matrix/pycauset.Int64Matrix.md",
-    "docs/classes/matrix/pycauset.Int16Matrix.md",
-    "docs/classes/matrix/pycauset.Int8Matrix.md",
     "internals/plans",
     "docs/classes/vector",
     "docs/classes/spacetime",
@@ -257,7 +258,6 @@
     "docs/classes/field",
     "docs/classes/core",
     "docs/pycauset.vis",
-    "docs/parameters",
-    "docs/functions"
+    "docs/parameters"
   ]
 }

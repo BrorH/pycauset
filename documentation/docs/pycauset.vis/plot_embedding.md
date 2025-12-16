@@ -30,5 +30,5 @@ For large causal sets, the function automatically downsamples the points to `sam
 
 ## See Also
 
-*   [[Visualization Guide]]: For a comprehensive guide on visualizing causal sets.
-*   [[pycauset.CausalSet.coordinates]]: The underlying method used to retrieve coordinates.
+*   [[guides/Visualization|Visualization Guide]]: For a comprehensive guide on visualizing causal sets.
+*   `pycauset.CausalSet.coordinates`: Method on [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]] used to retrieve coordinates.

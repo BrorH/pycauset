@@ -4,17 +4,19 @@ This section contains the detailed API documentation for the PyCauset library.
 
 ## Core Modules
 
-*   **[[classes/core/pycauset.CausalSet|pycauset.CausalSet]]**: The main class representing a Causal Set.
-*   **[[classes/spacetime/pycauset.spacetime|pycauset.spacetime]]**: Spacetime manifolds and geometry.
-*   **[[pycauset.vis/index|pycauset.vis]]**: Visualization tools.
-*   **[[classes/field/pycauset.field|pycauset.field]]**: Quantum field theory on causal sets.
+*   **[[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]]**: The main class representing a causal set.
+*   **[[docs/classes/spacetime/pycauset.spacetime.md|pycauset.spacetime]]**: Spacetime manifolds and geometry.
+*   **[[docs/pycauset.vis/index.md|pycauset.vis]]**: Visualization tools.
+*   **[[docs/classes/field/index.md|pycauset.field]]**: Quantum field helpers.
 
 ## Data Structures
 
-*   **[[classes/matrix/pycauset.matrix|pycauset.matrix]]**: Low-level matrix classes (Dense, Triangular, BitMatrix).
-*   **[[classes/vector/pycauset.vector|pycauset.vector]]**: Low-level vector classes.
+*   **[[docs/classes/matrix/index.md|pycauset.matrix]]**: Matrix classes (dense, triangular, bit-packed, etc.).
+*   **[[docs/classes/vector/index.md|pycauset.vector]]**: Vector classes.
 
 ## Functions
 
-*   **[[functions/pycauset.sprinkle|pycauset.sprinkle]]**: Generate causal sets via Poisson sprinkling.
-*   **[[functions/pycauset.make_coordinates|pycauset.make_coordinates]]**: Regenerate spacetime coordinates.
+*   **[[docs/functions/pycauset.matmul.md|pycauset.matmul]]**: Matrix multiplication.
+*   **[[docs/functions/pycauset.invert.md|pycauset.invert]]**: Matrix inversion.
+*   **[[docs/functions/pycauset.load.md|pycauset.load]]** / **[[docs/functions/pycauset.save.md|pycauset.save]]**: Persistence.
+*   **[[docs/functions/pycauset.compute_k.md|pycauset.compute_k]]**: Propagator-related helper.

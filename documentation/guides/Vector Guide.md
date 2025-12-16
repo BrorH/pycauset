@@ -129,7 +129,7 @@ v2 = pc.Vector([0, 1, 0])
 v3 = v1.cross(v2)  # [0, 0, 1]
 ```
 
-You can compute the cross product of two 3D vectors using [[pycauset.cross]].
+You can compute the cross product of two 3D vectors using `Vector.cross` (preferred). A top-level `pycauset.cross` function is not documented yet.
 
 ```python
 import pycauset as pc

@@ -21,6 +21,6 @@ This section is the canonical onboarding path for human contributors and AI agen
 
 ## Related
 
-- [[project/Philosophy]] (core mantras)
-- [[project/Protocols]] (definition-of-done for docs/changes)
+- [[project/Philosophy|project/Philosophy]] (core mantras)
+- [[project/protocols/index|project/protocols/]] (definition-of-done for docs/changes)
 - [[internals/index]] (architecture deep dives)

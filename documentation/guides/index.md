@@ -1,23 +1,33 @@
 # Guides
 
-These guides provide in-depth explanations of PyCauset's features and concepts.
+These guides show how to use PyCauset in practice, from first setup to large-scale runs.
 
-## Getting Started
+## Start here
 
-*   **[[Installation]]**: How to install PyCauset.
-*   **[[User Guide]]**: A general introduction to using the library.
-*   **[[Causal Sets]]**: Understanding the `CausalSet` object.
+*   **[[guides/Installation|Installation]]**: Install PyCauset (pip or from source).
+*   **[[guides/User Guide|User Guide]]**: First workflow: create, visualize, save/load.
+*   **[[guides/Causal Sets|Causal Sets]]**: Core object model and common operations.
 
-## Core Concepts
+## Common workflows
 
-*   **[[Spacetime]]**: Working with different spacetime manifolds (Diamond, Cylinder, Box).
-*   **[[Visualization]]**: Creating interactive plots of causal sets.
-*   **[[Field Theory]]**: Simulating quantum fields on causal sets.
+*   **[[guides/Visualization|Visualization]]**: Creating interactive plots of causal sets.
+*   **[[guides/Spacetime|Spacetime]]**: Choosing a spacetime region and sprinkling points.
+*   **[[guides/Field Theory|Field Theory]]**: Simulating quantum fields on causal sets.
+*   **[[guides/Numpy Integration|NumPy Integration]]**: Interfacing with NumPy arrays.
 
-## Advanced Topics
+## Performance and scaling
 
-*   **[[Matrix Guide]]**: Understanding the underlying matrix storage and operations.
-*   **[[Vector Guide]]**: Working with dense vectors.
-*   **[[Storage and Memory]]**: How PyCauset handles large datasets on disk.
-*   **[[Performance Guide]]**: Tips for optimizing your simulations.
-*   **[[Numpy Integration]]**: Interfacing with Numpy.
+*   **[[guides/Storage and Memory|Storage and Memory]]**: How PyCauset handles large datasets on disk.
+*   **[[guides/Performance Guide|Performance Guide]]**: Tips for optimizing your simulations.
+
+## Linear algebra
+
+*   **[[guides/Matrix Guide|Matrix Guide]]**: Matrix storage, dtypes, and operations.
+*   **[[guides/Vector Guide|Vector Guide]]**: Vector storage and operations.
+
+---
+
+## When you need exact details
+
+- [[docs/index|API Reference]] (function/class signatures and behaviors)
+- [[internals/index|Internals]] (how things work under the hood)

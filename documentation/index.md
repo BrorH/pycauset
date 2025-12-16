@@ -15,7 +15,8 @@ PyCauset solves this with a **Hybrid Architecture**:
 
 ### 📘 [[guides/index|User Guides]]
 Practical tutorials and conceptual explanations.
-*   **[[guides/Getting Started|Getting Started]]**: Installation and first steps.
+*   **[[guides/Installation|Installation]]**: Install PyCauset.
+*   **[[guides/User Guide|User Guide]]**: First steps and core workflow.
 *   **[[guides/Causal Sets|Causal Sets]]**: Working with the core `CausalSet` object.
 *   **[[guides/Field Theory|Field Theory]]**: Simulating quantum fields and propagators.
 *   **[[guides/Visualization|Visualization]]**: Interactive 3D plotting.
