@@ -221,8 +221,14 @@
       "bases:Create new base": false
     }
   },
-  "active": "1563eaae446d05e3",
+  "active": "4afc83a8e9d97142",
   "lastOpenFiles": [
+    "javascripts/mermaid.js",
+    "javascripts/mathjax.js",
+    "stylesheets/extra.css",
+    "javascripts",
+    "stylesheets",
+    "project/Protocols.md",
     "project/protocols/Documentation Protocol.md",
     "project/protocols/Testing and Bug Tracking.md",
     "project/protocols/Release Process.md",
@@ -249,15 +255,9 @@
     "docs/classes/vector/pycauset.Int16Vector.md",
     "docs/classes/vector/pycauset.Int8Vector.md",
     "docs/classes/matrix/pycauset.ComplexFloat64Matrix.md",
-    "docs/classes/matrix/pycauset.ComplexFloat32Matrix.md",
-    "docs/classes/matrix/pycauset.ComplexFloat16Matrix.md",
     "internals/plans",
     "docs/classes/vector",
     "docs/classes/spacetime",
-    "docs/classes/matrix",
-    "docs/classes/field",
-    "docs/classes/core",
-    "docs/pycauset.vis",
-    "docs/parameters"
+    "docs/classes/matrix"
   ]
 }
