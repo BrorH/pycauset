@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+
+  <style>
+    /*
+      PyCauset docs skin
+      - stays within Material theme variables
+      - “physics notebook / cosmic grid” vibe without sacrificing readability
+    */
+
+    /* Slightly narrower, more readable measure on wide screens */
+    .md-grid {
+      max-width: 72rem;
+    }
+
+    /* Subtle grid background using theme colors */
+    .md-main {
+      /* Fallback if color-mix isn't supported */
+      background-image: radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+      background-image:
+        radial-gradient(
+          color-mix(in srgb, var(--md-default-fg-color) 10%, transparent) 1px,
+          transparent 1px
+        );
+      background-size: 18px 18px;
+      background-position: 0 0;
+    }
+
+    /* Branded header gradient */
+    .md-header {
+      /* Fallback gradient */
+      background: linear-gradient(90deg, var(--md-primary-fg-color), var(--md-accent-fg-color));
+      background:
+        linear-gradient(
+          90deg,
+          color-mix(in srgb, var(--md-primary-fg-color) 92%, black),
+          color-mix(in srgb, var(--md-accent-fg-color) 60%, var(--md-primary-fg-color))
+        );
+    }
+
+    .md-header__title {
+      letter-spacing: 0.02em;
+    }
+
+    /* Distinctive h1/h2 underline, still theme-driven */
+    .md-typeset h1,
+    .md-typeset h2 {
+      position: relative;
+    }
+
+    .md-typeset h1::after,
+    .md-typeset h2::after {
+      content: "";
+      display: block;
+      height: 2px;
+      width: min(18rem, 60%);
+      margin-top: 0.35rem;
+      background: linear-gradient(90deg, var(--md-accent-fg-color), transparent);
+      opacity: 0.9;
+    }
+
+    /* Links: gentle underline-on-hover */
+    .md-typeset a {
+      text-underline-offset: 0.18em;
+      text-decoration-thickness: 0.08em;
+    }
+
+    .md-typeset a:hover {
+      text-decoration-thickness: 0.14em;
+    }
+
+    /* Code blocks: subtle border for separation */
+    .md-typeset pre {
+      border: 1px solid rgba(127, 127, 127, 0.22);
+      border: 1px solid color-mix(in srgb, var(--md-default-fg-color) 14%, transparent);
+      border-radius: 0.35rem;
+    }
+
+    /* Mermaid: keep diagrams crisp */
+    .mermaid {
+      overflow-x: auto;
+    }
+  </style>
+
+  <script>
+    // MathJax configuration must run before the MathJax script loads.
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        processEnvironments: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script defer src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+
+  <script defer src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    // Initialize Mermaid in a way that plays nicely with MkDocs Material.
+    // If the user toggles light/dark mode, we re-render Mermaid with the new theme.
+    (function () {
+      function currentMermaidTheme() {
+        const scheme = document.body.getAttribute('data-md-color-scheme');
+        return scheme === 'slate' ? 'dark' : 'default';
+      }
+
+      function renderMermaid() {
+        if (!window.mermaid) return;
+
+        const theme = currentMermaidTheme();
+
+        window.mermaid.initialize({
+          startOnLoad: false,
+          theme: theme,
+          securityLevel: 'strict'
+        });
+
+        document.querySelectorAll('.mermaid').forEach((el) => {
+          const source = el.textContent;
+          el.removeAttribute('data-processed');
+          el.innerHTML = source;
+        });
+
+        window.mermaid.run({ querySelector: '.mermaid' });
+      }
+
+      document.addEventListener('DOMContentLoaded', renderMermaid);
+
+      const obs = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.type === 'attributes' && m.attributeName === 'data-md-color-scheme') {
+            renderMermaid();
+            break;
+          }
+        }
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        obs.observe(document.body, { attributes: true });
+      });
+    })();
+  </script>
+{% endblock %}

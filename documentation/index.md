@@ -41,8 +41,7 @@ Deep dive into the C++ core for contributors.
 *   **[[project/TODO|Roadmap]]**: Future plans.
 
 ### 🧰 [[dev/index|Dev Handbook]]
-High-signal onboarding for contributors and AI agents.
-*   **[[dev/Agent Bootstrap|Agent Bootstrap]]**: Safe AI onboarding prompt and rules.
+High-signal onboarding for contributors.
 *   **[[dev/Restructure Plan|Restructure Plan]]**: The approved reorganization plan and gates.
 
 ## Citation

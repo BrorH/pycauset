@@ -9,6 +9,7 @@ site_description: High-performance causal set simulation library (CPU/GPU, disk-
 theme:
   name: material
   language: en
+  custom_dir: overrides
   icon:
     repo: fontawesome/brands/github
   logo: material/atom
@@ -78,14 +79,6 @@ markdown_extensions:
   - pymdownx.arithmatex:
       generic: true
 
-extra_javascript:
-  - javascripts/mathjax.js
-  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
-  - https://unpkg.com/mermaid/dist/mermaid.min.js
-  - javascripts/mermaid.js
-
-extra_css:
-  - stylesheets/extra.css
 
 nav:
   - Home: index.md
@@ -120,7 +113,6 @@ nav:
       - internals/plans/BLAS_INTEGRATION_PLAN.md
   - Dev Handbook:
     - dev/index.md
-    - Agent Bootstrap: dev/Agent Bootstrap.md
     - Restructure Plan: dev/Restructure Plan.md
     - Codebase Structure: dev/Codebase Structure.md
     - Python Internals: dev/Python Internals.md

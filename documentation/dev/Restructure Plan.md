@@ -46,7 +46,7 @@ PyCauset is a large hybrid project (Python API + C++ core + optional CUDA). The 
 This plan focuses on:
 1) making builds reproducible and eliminating “stale binary” confusion,
 2) clarifying ownership boundaries between subsystems,
-3) writing enough documentation that new contributors (and AI agents) can make changes safely,
+3) writing enough documentation that new contributors can make changes safely,
 4) keeping future requirements in mind (notably: **NxM matrices** for all types; **no N-D arrays**).
 
 ---

@@ -63,7 +63,7 @@ Minimum expectation for guides:
 
 ### C) Internals (`documentation/internals/`) — mandatory for architecture/backend changes
 
-Internals are for contributors and future AI agents.
+Internals are for contributors and future maintainers.
 
 Minimum expectation for internals:
 
