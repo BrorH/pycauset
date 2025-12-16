@@ -1,6 +1,7 @@
 import pycauset
 import unittest
 import os
+import warnings
 
 class TestInnerProductTypes(unittest.TestCase):
     def test_integer_inner_product(self):
@@ -11,11 +12,34 @@ class TestInnerProductTypes(unittest.TestCase):
         v2[0] = 4; v2[1] = 5; v2[2] = 6
         
         # v1 @ v2 -> Scalar
-        s = v1 @ v2
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=getattr(pycauset, "PyCausetWarning", Warning))
+            s = v1 @ v2
         
         # Check type
         self.assertIsInstance(s, int)
         self.assertEqual(s, 32) # 4+10+18
+
+    def test_int16_inner_product(self):
+        if getattr(pycauset, "Int16Vector", None) is None:
+            self.skipTest("Int16Vector is not available")
+
+        v1 = pycauset.Int16Vector(3)
+        v1[0] = 1
+        v1[1] = 2
+        v1[2] = 3
+
+        v2 = pycauset.Int16Vector(3)
+        v2[0] = 4
+        v2[1] = 5
+        v2[2] = 6
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=getattr(pycauset, "PyCausetWarning", Warning))
+            s = v1 @ v2
+
+        self.assertIsInstance(s, int)
+        self.assertEqual(s, 32)
 
     def test_bit_inner_product(self):
         v1 = pycauset.BitVector(3)
@@ -25,7 +49,9 @@ class TestInnerProductTypes(unittest.TestCase):
         v2[0] = 1; v2[1] = 0; v2[2] = 1
         
         # v1 @ v2 -> Scalar (1*1 + 1*0 + 0*1 = 1)
-        s = v1 @ v2
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=getattr(pycauset, "PyCausetWarning", Warning))
+            s = v1 @ v2
         
         # Check type
         self.assertIsInstance(s, int)
@@ -39,7 +65,9 @@ class TestInnerProductTypes(unittest.TestCase):
         v2[0] = 1.5; v2[1] = 2.5; v2[2] = 3.5
         
         # v1 @ v2 -> Scalar
-        s = v1 @ v2
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=getattr(pycauset, "PyCausetWarning", Warning))
+            s = v1 @ v2
         
         # Check type
         self.assertIsInstance(s, float)

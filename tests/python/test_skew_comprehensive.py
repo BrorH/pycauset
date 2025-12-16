@@ -1,4 +1,9 @@
 import unittest
+
+raise unittest.SkipTest(
+    "Skew eigenvalue solver was removed along with the legacy complex/eigen subsystem."
+)
+
 import sys
 import os
 import numpy as np

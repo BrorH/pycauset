@@ -9,13 +9,11 @@ import pycauset
 
 def test_python_interface():
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir_path = Path(tmpdir)
-        def backing(name: str) -> Path:
-            return tmpdir_path / name
+        _ = Path(tmpdir)
 
         print("--- Basic Interface Test ---")
         print("Creating causalmatrix(N=10)...")
-        mat = pycauset.CausalMatrix(10, backing("py_test"))
+        mat = pycauset.CausalMatrix(10)
 
         print("Setting bits using [i, j] syntax...")
         mat[0, 1] = True
@@ -29,12 +27,12 @@ def test_python_interface():
         arr[1, 2] = True
 
         print("Creating causalmatrix from NumPy array...")
-        mat_np = pycauset.CausalMatrix(arr, backing("py_np_test"))
+        mat_np = pycauset.CausalMatrix(arr)
         print(f"Value at (0, 1): {mat_np[0, 1]}")
 
         print("\n--- Random Matrix Test ---")
         print("Generating random matrix (N=100, density=0.5)...")
-        mat_rnd = pycauset.CausalMatrix.random(100, 0.5, backing("py_rnd"))
+        mat_rnd = pycauset.CausalMatrix.random(100, 0.5)
         print(f"Shape: {mat_rnd.shape}")
 
         print("\n--- Guardrails Test ---")

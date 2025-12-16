@@ -78,23 +78,5 @@ class TestMatrixTranspose(unittest.TestCase):
         m.close()
         mt.close()
 
-    def test_complex_matrix_transpose(self):
-        n = 5
-        cm = pycauset.ComplexMatrix(n)
-        # Set (1, 2) = 3 + 4i
-        cm.set(1, 2, complex(3, 4))
-        
-        ct = cm.T
-        val = ct.get(2, 1)
-        self.assertEqual(val, complex(3, 4))
-        
-        ch = cm.H
-        val_h = ch.get(2, 1)
-        self.assertEqual(val_h, complex(3, -4))
-        
-        cm.close()
-        ct.close()
-        ch.close()
-
 if __name__ == '__main__':
     unittest.main()

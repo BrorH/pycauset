@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 import os
 import sys
+import tempfile
 import pycauset
 from pycauset import FloatMatrix
 
@@ -17,6 +18,10 @@ def skip_if_no_cuda(f):
 class TestGPUAcceleration(unittest.TestCase):
     
     def setUp(self):
+        self._storage_dir_ctx = tempfile.TemporaryDirectory(prefix="pycauset_gpu_")
+        self._old_storage_dir = os.environ.get("PYCAUSET_STORAGE_DIR")
+        os.environ["PYCAUSET_STORAGE_DIR"] = self._storage_dir_ctx.name
+
         self.has_cuda = pycauset.cuda.is_available()
         print(f"\nCUDA Available: {self.has_cuda}")
         if self.has_cuda:
@@ -38,8 +43,8 @@ class TestGPUAcceleration(unittest.TestCase):
         A_np = np.random.rand(N, N)
         B_np = np.random.rand(N, N)
         
-        A = FloatMatrix(N, "gpu_test_A.bin")
-        B = FloatMatrix(N, "gpu_test_B.bin")
+        A = FloatMatrix(N)
+        B = FloatMatrix(N)
         
         # Load data
         for i in range(N):
@@ -48,7 +53,7 @@ class TestGPUAcceleration(unittest.TestCase):
                 B.set(i, j, B_np[i, j])
                 
         # Compute
-        C = A.multiply(B, "gpu_test_C.bin")
+        C = A.multiply(B)
         
         # Verify
         C_np = np.dot(A_np, B_np)
@@ -73,8 +78,8 @@ class TestGPUAcceleration(unittest.TestCase):
         # A[i,j] = 1.0 if i==j else 0.0 (Identity)
         # B[i,j] = i + j
         
-        A = FloatMatrix(N, "gpu_stream_A.bin")
-        B = FloatMatrix(N, "gpu_stream_B.bin")
+        A = FloatMatrix(N)
+        B = FloatMatrix(N)
         
         # Create Identity manually to ensure it's Dense
         for i in range(N):
@@ -82,7 +87,7 @@ class TestGPUAcceleration(unittest.TestCase):
                 A.set(i, j, 1.0 if i == j else 0.0)
                 B.set(i, j, float(i + j))
                 
-        C = A.multiply(B, "gpu_stream_C.bin")
+        C = A.multiply(B)
         
         # C should equal B
         for i in range(0, N, 100): # Sample check
@@ -99,7 +104,7 @@ class TestGPUAcceleration(unittest.TestCase):
         N = 50
         A_np = np.random.rand(N, N) + np.eye(N) * N # Diagonally dominant -> Invertible
         
-        A = FloatMatrix(N, "gpu_inv_A.bin")
+        A = FloatMatrix(N)
         for i in range(N):
             for j in range(N):
                 A.set(i, j, A_np[i, j])
@@ -107,7 +112,7 @@ class TestGPUAcceleration(unittest.TestCase):
         A_inv = A.invert()
         
         # Check A * A_inv = I
-        Prod = A.multiply(A_inv, "gpu_inv_check.bin")
+        Prod = A.multiply(A_inv)
         
         for i in range(N):
             for j in range(N):
@@ -122,7 +127,7 @@ class TestGPUAcceleration(unittest.TestCase):
     def test_inverse_singular(self):
         """Test that inverting a singular matrix raises an error."""
         N = 10
-        A = FloatMatrix(N, "gpu_sing_A.bin")
+        A = FloatMatrix(N)
         # Zero matrix is singular
         for i in range(N):
             for j in range(N):
@@ -141,7 +146,7 @@ class TestGPUAcceleration(unittest.TestCase):
         A_np = np.random.rand(N, N)
         A_np = A_np + A_np.T
         
-        A = FloatMatrix(N, "gpu_eig_A.bin")
+        A = FloatMatrix(N)
         for i in range(N):
             for j in range(N):
                 A.set(i, j, A_np[i, j])
@@ -169,7 +174,7 @@ class TestGPUAcceleration(unittest.TestCase):
         N = 200
         k = 10
         
-        A = FloatMatrix(N, "gpu_arnoldi_A.bin")
+        A = FloatMatrix(N)
         # Random sparse-ish
         for i in range(N):
             A.set(i, i, float(i)) # Diagonal 0..N-1
@@ -196,13 +201,13 @@ class TestGPUAcceleration(unittest.TestCase):
     def test_tiny_matrix(self):
         """Test 1x1 matrix operations."""
         N = 1
-        A = FloatMatrix(N, "gpu_tiny_A.bin")
+        A = FloatMatrix(N)
         A.set(0, 0, 2.0)
         
-        B = FloatMatrix(N, "gpu_tiny_B.bin")
+        B = FloatMatrix(N)
         B.set(0, 0, 3.0)
         
-        C = A.multiply(B, "gpu_tiny_C.bin")
+        C = A.multiply(B)
         self.assertEqual(C.get(0, 0), 6.0)
         
         # Inverse
@@ -221,8 +226,8 @@ class TestGPUAcceleration(unittest.TestCase):
         A_np = np.random.rand(N, N)
         B_np = np.random.rand(N, N)
         
-        A = FloatMatrix(N, "gpu_trans_A.bin")
-        B = FloatMatrix(N, "gpu_trans_B.bin")
+        A = FloatMatrix(N)
+        B = FloatMatrix(N)
         
         for i in range(N):
             for j in range(N):
@@ -230,8 +235,8 @@ class TestGPUAcceleration(unittest.TestCase):
                 B.set(i, j, B_np[i, j])
                 
         # C = A.T * B
-        A_T = A.transpose("gpu_trans_AT.bin")
-        C = A_T.multiply(B, "gpu_trans_C.bin")
+        A_T = A.transpose()
+        C = A_T.multiply(B)
         
         C_np = np.dot(A_np.T, B_np)
         
@@ -255,15 +260,15 @@ class TestGPUAcceleration(unittest.TestCase):
         A_np = np.random.rand(N, N).astype(np.float32)
         B_np = np.random.rand(N, N).astype(np.float32)
         
-        A = pycauset.Float32Matrix(N, "gpu_f32_A.bin")
-        B = pycauset.Float32Matrix(N, "gpu_f32_B.bin")
+        A = pycauset.Float32Matrix(N)
+        B = pycauset.Float32Matrix(N)
         
         for i in range(N):
             for j in range(N):
                 A.set(i, j, float(A_np[i, j]))
                 B.set(i, j, float(B_np[i, j]))
                 
-        C = A.multiply(B, "gpu_f32_C.bin")
+        C = A.multiply(B)
         
         C_np = np.dot(A_np, B_np)
         
@@ -283,6 +288,13 @@ class TestGPUAcceleration(unittest.TestCase):
                     os.remove(f)
                 except:
                     pass
+
+        if self._old_storage_dir is None:
+            os.environ.pop("PYCAUSET_STORAGE_DIR", None)
+        else:
+            os.environ["PYCAUSET_STORAGE_DIR"] = self._old_storage_dir
+
+        self._storage_dir_ctx.cleanup()
 
 if __name__ == '__main__':
     unittest.main()

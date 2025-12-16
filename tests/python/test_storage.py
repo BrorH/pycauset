@@ -99,5 +99,53 @@ class TestStorage(unittest.TestCase):
         finally:
             matrix.close()
 
+    def test_int16_matrix_save_load(self):
+        if getattr(pycauset, "Int16Matrix", None) is None:
+            self.skipTest("Int16Matrix is not available")
+
+        n = 10
+        matrix = pycauset.Int16Matrix(n)
+        matrix[0, 0] = 7
+        matrix[1, 0] = -3
+        path = self.test_dir / "int16_matrix.pycauset"
+
+        try:
+            pycauset.save(matrix, path)
+
+            loaded = pycauset.load(path)
+            try:
+                self.assertIsInstance(loaded, pycauset.Int16Matrix)
+                self.assertEqual(loaded.size(), n)
+                self.assertEqual(loaded[0, 0], 7)
+                self.assertEqual(loaded[1, 0], -3)
+            finally:
+                loaded.close()
+        finally:
+            matrix.close()
+
+    def test_int16_vector_save_load(self):
+        if getattr(pycauset, "Int16Vector", None) is None:
+            self.skipTest("Int16Vector is not available")
+
+        n = 10
+        vec = pycauset.Int16Vector(n)
+        vec[0] = 4
+        vec[1] = -5
+        path = self.test_dir / "int16_vector.pycauset"
+
+        try:
+            pycauset.save(vec, path)
+
+            loaded = pycauset.load(path)
+            try:
+                self.assertIsInstance(loaded, pycauset.Int16Vector)
+                self.assertEqual(len(loaded), n)
+                self.assertEqual(loaded[0], 4)
+                self.assertEqual(loaded[1], -5)
+            finally:
+                loaded.close()
+        finally:
+            vec.close()
+
 if __name__ == "__main__":
     unittest.main()

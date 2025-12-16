@@ -9,7 +9,7 @@ class TestKMatrix(unittest.TestCase):
         a = 2.0
         
         # Create random causal matrix
-        C = CausalMatrix.random(N, 0.5, backing_file="random_C.pycauset")
+        C = CausalMatrix.random(N, 0.5)
         
         # Convert to numpy for verification
         C_np = np.zeros((N, N))

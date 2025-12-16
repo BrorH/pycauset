@@ -62,17 +62,12 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
         mat = None
 
     def test_simple_name_resolves_inside_storage_dir(self):
-        # backing_file is ignored now, but we can check if it creates a temp file
-        # The test expects "custom_file.pycauset"
-        # But with my change, it will be "custom_file_UUID.pycauset"
-        # I should update the test expectation or remove the test.
-        # Since backing_file is deprecated/ignored, this test is testing deprecated behavior.
-        # I'll comment it out or update it to expect UUID.
-        pass 
+        with self.assertRaises(TypeError):
+            pycauset.CausalMatrix(3, backing_file="custom_file")
 
     def test_absolute_path_is_respected(self):
-        # Also deprecated.
-        pass
+        with self.assertRaises(TypeError):
+            pycauset.CausalMatrix(3, backing_file=str(self.storage_dir / "custom_file"))
 
     def test_matmul_creates_new_integer_matrix(self):
         mat = pycauset.CausalMatrix(3)
@@ -187,11 +182,11 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
                     bits.append(matrix[i, j])
             return tuple(bits)
 
-        first = pycauset.CausalMatrix.random(6, seed=123)
-        second = pycauset.CausalMatrix.random(6, seed=123)
+        first = pycauset.CausalMatrix.random(6, p=0.5, seed=123)
+        second = pycauset.CausalMatrix.random(6, p=0.5, seed=123)
         self.assertEqual(snapshot(first), snapshot(second))
 
-        third = pycauset.CausalMatrix.random(6, seed=321)
+        third = pycauset.CausalMatrix.random(6, p=0.5, seed=321)
         self.assertNotEqual(snapshot(first), snapshot(third))
 
 

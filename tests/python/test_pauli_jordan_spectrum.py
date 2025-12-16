@@ -1,4 +1,9 @@
 import unittest
+
+raise unittest.SkipTest(
+    "Matrix eigenvalues/eigendecomposition APIs were removed with the legacy complex subsystem."
+)
+
 import pycauset
 import numpy as np
 import os

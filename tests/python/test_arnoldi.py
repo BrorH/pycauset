@@ -12,7 +12,7 @@ def test_arnoldi_small():
     print("Testing Arnoldi on small matrix (N=100)...")
     N = 100
     
-    m = pycauset.FloatMatrix(N, "")
+    m = pycauset.FloatMatrix(N)
     
     # Fill with random data
     # This is slow from python loop.
@@ -72,7 +72,7 @@ def test_arnoldi_small():
 def test_arnoldi_large():
     print("\nTesting Arnoldi on larger matrix (N=1000)...")
     N = 1000
-    m = pycauset.FloatMatrix(N, "")
+    m = pycauset.FloatMatrix(N)
     
     # Fill with random data (slow in python, but bearable for 1000x1000 = 1M elements)
     # Actually, let's use a simpler fill to be faster

@@ -51,6 +51,21 @@ class TestTransposedVectors(unittest.TestCase):
         self.assertEqual(m[1, 0], 8.0) # 2*4
         self.assertEqual(m[2, 2], 18.0) # 3*6
 
+    def test_outer_product_bits(self):
+        v1 = pycauset.BitVector(3)
+        v1[0] = 1; v1[1] = 0; v1[2] = 1
+
+        v2 = pycauset.BitVector(3)
+        v2[0] = 0; v2[1] = 1; v2[2] = 1
+
+        m = v1 @ v2.T
+
+        self.assertEqual(m.shape, (3, 3))
+        self.assertEqual(m[0, 0], False)  # 1 & 0
+        self.assertEqual(m[0, 1], True)   # 1 & 1
+        self.assertEqual(m[1, 2], False)  # 0 & 1
+        self.assertEqual(m[2, 2], True)   # 1 & 1
+
     def test_inner_product(self):
         v1 = pycauset.FloatVector(3)
         v1[0] = 1; v1[1] = 2; v1[2] = 3

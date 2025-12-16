@@ -92,9 +92,7 @@ class TestVector(unittest.TestCase):
         d = v1.dot(v2)
         self.assertEqual(d, 32.0)
         
-        import pycauset
-        d2 = pycauset.dot(v1, v2)
-        self.assertEqual(d2, 32.0)
+        self.assertEqual(v1.dot(v2), 32.0)
 
     def test_mixed_arithmetic(self):
         v1 = Vector([1, 2], dtype="int")

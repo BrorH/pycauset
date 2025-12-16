@@ -68,20 +68,6 @@ class TestInteropExtensive(unittest.TestCase):
         # Could be DenseBitMatrix or TriangularBitMatrix depending on implementation preference
         self.assertTrue("BitMatrix" in str(type(m_bool)))
 
-    def test_complex_conversion(self):
-        """Test conversion of complex number arrays."""
-        arr_c = np.array([[1+1j, 0], [0, 1-1j]], dtype=np.complex128)
-        try:
-            m_c = pycauset.asarray(arr_c)
-            self.assertTrue("Complex" in str(type(m_c)))
-            
-            # Check values
-            # Assuming access to real/imag parts or complex get
-            # This depends on ComplexMatrix API
-            pass
-        except (ValueError, TypeError):
-            print("Complex array conversion not supported")
-
     def test_round_trip(self):
         """Test NumPy -> PyCauset -> NumPy round trip."""
         n = 10

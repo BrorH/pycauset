@@ -70,7 +70,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_float_matrix(self):
         """Test FloatMatrix storage."""
         n = 50
-        matrix = FloatMatrix(n, n)
+        matrix = FloatMatrix(n)
         # Fill diagonal
         for i in range(n):
             matrix.set(i, i, 3.14)
@@ -97,7 +97,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_integer_matrix(self):
         """Test IntegerMatrix storage."""
         n = 50
-        matrix = IntegerMatrix(n, n)
+        matrix = IntegerMatrix(n)
         matrix.set(0, 0, 42)
         matrix.set(1, 2, -7)
         
@@ -152,7 +152,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_overwrite(self):
         """Test overwriting an existing file."""
         n = 10
-        matrix = IntegerMatrix(n, n)
+        matrix = IntegerMatrix(n)
         path = self.test_dir / "overwrite.pycauset"
         
         try:
@@ -173,7 +173,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_nested_directory(self):
         """Test saving to a non-existent nested directory."""
         n = 10
-        matrix = IntegerMatrix(n, n)
+        matrix = IntegerMatrix(n)
         path = self.test_dir / "subdir" / "nested" / "matrix.pycauset"
         
         try:
@@ -185,7 +185,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_unicode_path(self):
         """Test saving to a path with unicode characters."""
         n = 10
-        matrix = IntegerMatrix(n, n)
+        matrix = IntegerMatrix(n)
         # "Fire" emoji and some non-ascii chars
         path = self.test_dir / "🔥_folder" / "mätrix.pycauset"
         
