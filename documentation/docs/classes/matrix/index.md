@@ -1,8 +1,8 @@
 # Matrix
 
-* **[[docs/classes/matrix/pycauset.Matrix.md|pycauset.Matrix]]**
+* **[[docs/functions/pycauset.matrix.md|pycauset.matrix]]**
 * **[[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]**
-* **[[docs/classes/matrix/pycauset.CausalMatrix.md|pycauset.CausalMatrix]]**
+* **[[docs/functions/pycauset.causal_matrix.md|pycauset.causal_matrix]]**
 * **[[docs/classes/matrix/pycauset.IdentityMatrix.md|pycauset.IdentityMatrix]]**
 * **[[docs/classes/matrix/pycauset.DenseBitMatrix.md|pycauset.DenseBitMatrix]]**
 * **[[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]]**
@@ -21,7 +21,6 @@
 * **[[docs/classes/matrix/pycauset.FloatMatrix.md|pycauset.FloatMatrix]]**
 * **[[docs/classes/matrix/pycauset.Float32Matrix.md|pycauset.Float32Matrix]]**
 * **[[docs/classes/matrix/pycauset.Float16Matrix.md|pycauset.Float16Matrix]]**
-* **[[docs/classes/matrix/pycauset.ComplexMatrix.md|pycauset.ComplexMatrix]]**
 * **[[docs/classes/matrix/pycauset.ComplexFloat64Matrix.md|pycauset.ComplexFloat64Matrix]]**
 * **[[docs/classes/matrix/pycauset.ComplexFloat32Matrix.md|pycauset.ComplexFloat32Matrix]]**
 * **[[docs/classes/matrix/pycauset.ComplexFloat16Matrix.md|pycauset.ComplexFloat16Matrix]]**

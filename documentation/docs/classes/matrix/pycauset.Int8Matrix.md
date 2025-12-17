@@ -1,4 +1,3 @@
-````markdown
 # pycauset.Int8Matrix
 
 A memory-mapped dense matrix storing 8-bit signed integers. Inherits from [MatrixBase](pycauset.MatrixBase.md).
@@ -7,6 +6,7 @@ A memory-mapped dense matrix storing 8-bit signed integers. Inherits from [Matri
 
 ```python
 pycauset.Int8Matrix(n: int)
+pycauset.Int8Matrix(rows: int, cols: int)
 ```
 
 ## Properties
@@ -17,5 +17,3 @@ Returns a tuple `(rows, cols)` representing the dimensions of the matrix.
 ## Methods
 
 Inherits the common matrix interface from [[pycauset.MatrixBase]].
-
-````

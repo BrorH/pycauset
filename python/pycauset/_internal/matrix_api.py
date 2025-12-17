@@ -96,9 +96,8 @@ MatrixMixin = _formatting.MatrixMixin
 
 
 class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
-    """Public Matrix factory.
+    """Matrix factory shim.
 
-    Kept as a class for backwards compatibility (`pycauset.Matrix(...)`).
     Actual implementation is configured at import-time by the package facade.
     """
 

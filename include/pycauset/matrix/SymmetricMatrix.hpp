@@ -69,7 +69,7 @@ public:
     void set(uint64_t i, uint64_t j, T value) {
         ensure_unique();
         
-        if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
+        if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
 
         bool swapped = false;
         if (i > j) {
@@ -106,7 +106,7 @@ public:
     }
 
     T get(uint64_t i, uint64_t j) const {
-        if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
+        if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
 
         bool swapped = false;
         if (i > j) {
@@ -186,11 +186,11 @@ public:
 
     std::unique_ptr<PersistentObject> clone() const override {
         // Create a new object sharing the same mapper (CoW handled by PersistentObject/MemoryMapper)
-        return std::make_unique<SymmetricMatrix<T>>(n_, mapper_, is_antisymmetric_);
+        return std::make_unique<SymmetricMatrix<T>>(base_rows(), mapper_, is_antisymmetric_);
     }
 
     static std::unique_ptr<SymmetricMatrix<T>> from_triangular(const TriangularMatrix<T>& source, const std::string& backing_file = "") {
-        auto n = source.size();
+        auto n = source.rows();
         auto mat = std::make_unique<SymmetricMatrix<T>>(n, backing_file, false);
         
         // Copy upper triangle including diagonal
@@ -224,11 +224,11 @@ public:
         : SymmetricMatrix<T>(n, std::move(mapper), true) {}
 
     std::unique_ptr<PersistentObject> clone() const override {
-        return std::make_unique<AntiSymmetricMatrix<T>>(this->n_, this->mapper_);
+        return std::make_unique<AntiSymmetricMatrix<T>>(this->base_rows(), this->mapper_);
     }
 
     static std::unique_ptr<AntiSymmetricMatrix<T>> from_triangular(const TriangularMatrix<T>& source, const std::string& backing_file = "") {
-        auto n = source.size();
+        auto n = source.rows();
         auto mat = std::make_unique<AntiSymmetricMatrix<T>>(n, backing_file);
         
         // Copy upper triangle excluding diagonal (diagonal is 0)

@@ -34,13 +34,17 @@ public:
     void add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
+    void elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) override;
 
     double dot(const VectorBase& a, const VectorBase& b) override;
+    double l2_norm(const VectorBase& v) override;
     void add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) override;
     void subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) override;
     void scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) override;
     void scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) override;
+
+    double frobenius_norm(const MatrixBase& m) override;
 
     std::string name() const override { return "CUDA (NVIDIA GPU)"; }
     bool is_gpu() const override { return true; }

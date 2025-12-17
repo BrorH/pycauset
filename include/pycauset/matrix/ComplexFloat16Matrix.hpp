@@ -17,8 +17,11 @@ namespace pycauset {
 class ComplexFloat16Matrix : public MatrixBase {
 public:
     ComplexFloat16Matrix(uint64_t n, const std::string& backing_file = "")
-        : MatrixBase(n, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::COMPLEX_FLOAT16) {
-        const uint64_t plane_elems = n * n;
+        : ComplexFloat16Matrix(n, n, backing_file) {}
+
+    ComplexFloat16Matrix(uint64_t rows, uint64_t cols, const std::string& backing_file = "")
+        : MatrixBase(rows, cols, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::COMPLEX_FLOAT16) {
+        const uint64_t plane_elems = rows * cols;
         const uint64_t size_in_bytes = 2ULL * plane_elems * sizeof(pycauset::float16_t);
         initialize_storage(
             size_in_bytes,
@@ -27,8 +30,8 @@ public:
             sizeof(pycauset::float16_t),
             pycauset::MatrixType::DENSE_FLOAT,
             pycauset::DataType::COMPLEX_FLOAT16,
-            n,
-            n);
+            rows,
+            cols);
     }
 
     ComplexFloat16Matrix(uint64_t n,
@@ -37,8 +40,17 @@ public:
                          uint64_t seed,
                          std::complex<double> scalar,
                          bool is_transposed)
-        : MatrixBase(n, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::COMPLEX_FLOAT16) {
-        const uint64_t plane_elems = n * n;
+        : ComplexFloat16Matrix(n, n, backing_file, offset, seed, scalar, is_transposed) {}
+
+    ComplexFloat16Matrix(uint64_t rows,
+                         uint64_t cols,
+                         const std::string& backing_file,
+                         size_t offset,
+                         uint64_t seed,
+                         std::complex<double> scalar,
+                         bool is_transposed)
+        : MatrixBase(rows, cols, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::COMPLEX_FLOAT16) {
+        const uint64_t plane_elems = rows * cols;
         const uint64_t size_in_bytes = 2ULL * plane_elems * sizeof(pycauset::float16_t);
         initialize_storage(
             size_in_bytes,
@@ -47,8 +59,8 @@ public:
             sizeof(pycauset::float16_t),
             pycauset::MatrixType::DENSE_FLOAT,
             pycauset::DataType::COMPLEX_FLOAT16,
-            n,
-            n,
+            rows,
+            cols,
             offset,
             false);
 
@@ -58,7 +70,10 @@ public:
     }
 
     ComplexFloat16Matrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-        : MatrixBase(n, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::COMPLEX_FLOAT16) {}
+        : ComplexFloat16Matrix(n, n, std::move(mapper)) {}
+
+    ComplexFloat16Matrix(uint64_t rows, uint64_t cols, std::shared_ptr<MemoryMapper> mapper)
+        : MatrixBase(rows, cols, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::COMPLEX_FLOAT16) {}
 
     ~ComplexFloat16Matrix() override = default;
 
@@ -67,20 +82,39 @@ public:
         return static_cast<const pycauset::float16_t*>(require_mapper()->get_data());
     }
 
-    pycauset::float16_t* imag_data() { return real_data() + (n_ * n_); }
-    const pycauset::float16_t* imag_data() const { return real_data() + (n_ * n_); }
+    pycauset::float16_t* imag_data() { return real_data() + (base_rows() * base_cols()); }
+    const pycauset::float16_t* imag_data() const { return real_data() + (base_rows() * base_cols()); }
+
+    void fill(std::complex<double> value) {
+        ensure_unique();
+        const uint64_t total = base_rows() * base_cols();
+        auto* rdst = real_data();
+        auto* idst = imag_data();
+        const pycauset::float16_t rv(value.real());
+        const pycauset::float16_t iv(value.imag());
+        for (uint64_t idx = 0; idx < total; ++idx) {
+            rdst[idx] = rv;
+            idst[idx] = iv;
+        }
+    }
+
+    void fill(double value) {
+        fill(std::complex<double>(value, 0.0));
+    }
 
     void set(uint64_t i, uint64_t j, std::complex<double> value) {
         ensure_unique();
-        if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
-        const uint64_t idx = is_transposed() ? (j * n_ + i) : (i * n_ + j);
+        if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
+        const uint64_t storage_cols = base_cols();
+        const uint64_t idx = is_transposed() ? (j * storage_cols + i) : (i * storage_cols + j);
         real_data()[idx] = pycauset::float16_t(value.real());
         imag_data()[idx] = pycauset::float16_t(value.imag());
     }
 
     std::complex<double> get(uint64_t i, uint64_t j) const {
-        if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
-        const uint64_t idx = is_transposed() ? (j * n_ + i) : (i * n_ + j);
+        if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
+        const uint64_t storage_cols = base_cols();
+        const uint64_t idx = is_transposed() ? (j * storage_cols + i) : (i * storage_cols + j);
         return {
             static_cast<double>(real_data()[idx]),
             static_cast<double>(imag_data()[idx]),
@@ -105,7 +139,7 @@ public:
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
         std::string new_path = copy_storage(result_file);
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto out = std::make_unique<ComplexFloat16Matrix>(n_, std::move(mapper));
+        auto out = std::make_unique<ComplexFloat16Matrix>(base_rows(), base_cols(), std::move(mapper));
         out->set_scalar(scalar_ * factor);
         out->set_seed(seed_);
         out->set_transposed(is_transposed());
@@ -123,7 +157,7 @@ public:
     std::unique_ptr<MatrixBase> multiply_scalar(std::complex<double> factor, const std::string& result_file = "") const override {
         std::string new_path = copy_storage(result_file);
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto out = std::make_unique<ComplexFloat16Matrix>(n_, std::move(mapper));
+        auto out = std::make_unique<ComplexFloat16Matrix>(base_rows(), base_cols(), std::move(mapper));
         out->set_scalar(scalar_ * factor);
         out->set_seed(seed_);
         out->set_transposed(is_transposed());
@@ -135,9 +169,9 @@ public:
     }
 
     std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        auto result = std::make_unique<ComplexFloat16Matrix>(n_, result_file);
+        auto result = std::make_unique<ComplexFloat16Matrix>(base_rows(), base_cols(), result_file);
 
-        const uint64_t total = n_ * n_;
+        const uint64_t total = base_rows() * base_cols();
         const auto* rsrc = real_data();
         const auto* isrc = imag_data();
         auto* rdst = result->real_data();
@@ -171,7 +205,7 @@ public:
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
         std::string new_path = copy_storage(result_file);
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto out = std::make_unique<ComplexFloat16Matrix>(n_, std::move(mapper));
+        auto out = std::make_unique<ComplexFloat16Matrix>(base_rows(), base_cols(), std::move(mapper));
         out->set_transposed(!is_transposed());
         out->set_scalar(scalar_);
         out->set_seed(seed_);

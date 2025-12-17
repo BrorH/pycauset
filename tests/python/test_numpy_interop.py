@@ -40,9 +40,18 @@ class TestNumpyInterop(unittest.TestCase):
         arr = np.array([[1.0, 2.0], [3.0, 4.0]])
         mat = pycauset.asarray(arr)
         self.assertIsInstance(mat, pycauset.FloatMatrix)
-        self.assertEqual(mat.size(), 2)
+        self.assertEqual(mat.rows(), 2)
+        self.assertEqual(mat.cols(), 2)
+        self.assertEqual(mat.size(), 4)
         self.assertEqual(mat[0, 0], 1.0)
         self.assertEqual(mat[1, 1], 4.0)
+
+        arr_rect = np.arange(6, dtype=np.float64).reshape(2, 3)
+        mat_rect = pycauset.asarray(arr_rect)
+        self.assertIsInstance(mat_rect, pycauset.FloatMatrix)
+        self.assertEqual(mat_rect.rows(), 2)
+        self.assertEqual(mat_rect.cols(), 3)
+        self.assertTrue(np.array_equal(np.asarray(mat_rect), arr_rect))
 
         arr_int = np.array([[1, 2], [3, 4]], dtype=np.int32)
         mat_int = pycauset.asarray(arr_int)
@@ -58,6 +67,13 @@ class TestNumpyInterop(unittest.TestCase):
         arr_bool = np.array([[True, False], [False, True]], dtype=bool)
         mat_bool = pycauset.asarray(arr_bool)
         self.assertIsInstance(mat_bool, pycauset.DenseBitMatrix)
+
+        arr_bool_rect = np.array([[True, False, True], [False, True, False]], dtype=bool)
+        mat_bool_rect = pycauset.asarray(arr_bool_rect)
+        self.assertIsInstance(mat_bool_rect, pycauset.DenseBitMatrix)
+        self.assertEqual(mat_bool_rect.rows(), 2)
+        self.assertEqual(mat_bool_rect.cols(), 3)
+        self.assertTrue(np.array_equal(np.asarray(mat_bool_rect), arr_bool_rect))
 
     def test_array_protocol(self):
         vec = pycauset.FloatVector(3)
@@ -131,8 +147,8 @@ class TestNumpyInterop(unittest.TestCase):
         if getattr(pycauset, "Int16Matrix", None) is None:
             self.skipTest("Int16 types are not available")
 
-        a = pycauset.Matrix(2, dtype=pycauset.int16)
-        b = pycauset.Matrix(2, dtype=pycauset.int32)
+        a = pycauset.empty((2, 2), dtype=pycauset.int16)
+        b = pycauset.empty((2, 2), dtype=pycauset.int32)
 
         # a = identity (int16)
         a[0, 0] = 1
@@ -163,28 +179,28 @@ class TestNumpyInterop(unittest.TestCase):
             self.skipTest("Int16 types are not available")
 
         # pycauset.* dtype tokens
-        m = pycauset.Matrix(3, dtype=pycauset.int16)
+        m = pycauset.empty((3, 3), dtype=pycauset.int16)
         self.assertIsInstance(m, pycauset.Int16Matrix)
-        v = pycauset.Vector(3, dtype=pycauset.int16)
+        v = pycauset.empty(3, dtype=pycauset.int16)
         self.assertIsInstance(v, pycauset.Int16Vector)
 
         # NumPy dtypes
-        m2 = pycauset.Matrix(3, dtype=np.int16)
+        m2 = pycauset.empty((3, 3), dtype=np.int16)
         self.assertIsInstance(m2, pycauset.Int16Matrix)
-        v2 = pycauset.Vector(3, dtype=np.int16)
+        v2 = pycauset.empty(3, dtype=np.int16)
         self.assertIsInstance(v2, pycauset.Int16Vector)
 
         # Case-insensitive strings
-        m3 = pycauset.Matrix(3, dtype="INT16")
+        m3 = pycauset.empty((3, 3), dtype="INT16")
         self.assertIsInstance(m3, pycauset.Int16Matrix)
-        v3 = pycauset.Vector(3, dtype="iNt16")
+        v3 = pycauset.empty(3, dtype="iNt16")
         self.assertIsInstance(v3, pycauset.Int16Vector)
 
         # Other dtypes: float32 and bool
         if getattr(pycauset, "Float32Matrix", None) is not None:
-            mf32 = pycauset.Matrix(3, dtype=pycauset.float32)
+            mf32 = pycauset.empty((3, 3), dtype=pycauset.float32)
             self.assertIsInstance(mf32, pycauset.Float32Matrix)
-        mb = pycauset.Matrix(3, dtype="BOOL")
+        mb = pycauset.empty((3, 3), dtype="BOOL")
         self.assertIsInstance(mb, pycauset.DenseBitMatrix)
 
 if __name__ == '__main__':

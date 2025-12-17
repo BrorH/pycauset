@@ -56,7 +56,7 @@ public:
 
     virtual void set(uint64_t i, uint64_t j, T value) {
         ensure_unique();
-        if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
+        if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
         if (i != j) {
             if (value != T(0)) throw std::invalid_argument("Cannot set off-diagonal element to non-zero");
             return;
@@ -66,17 +66,17 @@ public:
 
     virtual void set_diagonal(uint64_t i, T value) {
         ensure_unique();
-        if (i >= n_) throw std::out_of_range("Index out of bounds");
+        if (i >= rows()) throw std::out_of_range("Index out of bounds");
         data()[i] = value;
     }
 
     virtual T get_diagonal(uint64_t i) const {
-        if (i >= n_) throw std::out_of_range("Index out of bounds");
+        if (i >= rows()) throw std::out_of_range("Index out of bounds");
         return data()[i];
     }
 
     virtual T get(uint64_t i, uint64_t j) const {
-        if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
+        if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
         if (i != j) return T(0);
         return data()[i];
     }
@@ -94,7 +94,7 @@ public:
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
         std::string new_path = copy_storage(result_file);
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto new_matrix = std::make_unique<DiagonalMatrix<T>>(n_, std::move(mapper));
+        auto new_matrix = std::make_unique<DiagonalMatrix<T>>(base_rows(), std::move(mapper));
         new_matrix->set_scalar(scalar_ * factor);
         if (result_file.empty()) {
             new_matrix->set_temporary(true);
@@ -112,12 +112,13 @@ public:
              return multiply_scalar(1.0, result_file); // Copy
         }
 
-        auto result = std::make_unique<DenseMatrix<T>>(n_, result_file);
+        const uint64_t n = rows();
+        auto result = std::make_unique<DenseMatrix<T>>(n, result_file);
         
         if constexpr (std::is_same_v<T, bool>) {
             const T* src_data = data();
-            for (uint64_t i = 0; i < n_; ++i) {
-                for (uint64_t j = 0; j < n_; ++j) {
+            for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t j = 0; j < n; ++j) {
                     T val;
                     if (i == j) {
                         val = static_cast<T>((static_cast<double>(src_data[i]) * scalar_ + scalar).real());
@@ -136,12 +137,12 @@ public:
             // Off-diagonal: scalar
             
             // This is O(N^2), unavoidable for Dense result
-            for (uint64_t i = 0; i < n_; ++i) {
-                for (uint64_t j = 0; j < n_; ++j) {
+            for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t j = 0; j < n; ++j) {
                     if (i == j) {
-                        dst_data[i * n_ + j] = static_cast<T>((static_cast<double>(src_data[i]) * scalar_ + scalar).real());
+                        dst_data[i * n + j] = static_cast<T>((static_cast<double>(src_data[i]) * scalar_ + scalar).real());
                     } else {
-                        dst_data[i * n_ + j] = static_cast<T>(scalar);
+                        dst_data[i * n + j] = static_cast<T>(scalar);
                     }
                 }
             }

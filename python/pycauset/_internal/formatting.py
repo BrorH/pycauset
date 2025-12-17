@@ -61,9 +61,15 @@ def _format_matrix_row(
 
 
 def matrix_str(self: Any) -> str:
-    size = self.size()
+    if hasattr(self, "rows") and hasattr(self, "cols"):
+        rows = self.rows()
+        cols = self.cols()
+    else:
+        # Backwards-compat: older builds exposed only size() as the square dimension.
+        rows = self.size()
+        cols = self.size()
 
-    info = [f"shape=({size}, {size})"]
+    info = [f"shape=({rows}, {cols})"]
 
     if hasattr(self, "scalar") and self.scalar != 1.0:
         info.append(f"scalar={self.scalar}")
@@ -73,11 +79,11 @@ def matrix_str(self: Any) -> str:
 
     header = f"{self.__class__.__name__}({', '.join(info)})"
 
-    if size == 0:
+    if rows == 0 or cols == 0:
         return header + "\n[]"
 
-    row_head, row_tail, rows_truncated = _edge_indices(size)
-    col_head, col_tail, cols_truncated = _edge_indices(size)
+    row_head, row_tail, rows_truncated = _edge_indices(rows)
+    col_head, col_tail, cols_truncated = _edge_indices(cols)
 
     lines = [header, "["]
     for row_index in row_head:

@@ -94,7 +94,7 @@ class TestSupportMatrix(unittest.TestCase):
             return [1 + 2j, -3 + 0.5j]
 
         def make_matrix(dtype: str):
-            m = pycauset.Matrix(2, dtype=dtype)
+            m = pycauset.empty((2, 2), dtype=dtype)
             vals = values_matrix(dtype)
             m[0, 0] = vals[0][0]
             m[0, 1] = vals[0][1]
@@ -103,7 +103,7 @@ class TestSupportMatrix(unittest.TestCase):
             return m
 
         def make_vector(dtype: str):
-            v = pycauset.Vector(2, dtype=dtype)
+            v = pycauset.empty(2, dtype=dtype)
             vals = values_vector(dtype)
             v[0] = vals[0]
             v[1] = vals[1]

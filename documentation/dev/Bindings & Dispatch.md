@@ -70,8 +70,8 @@ Options:
 ## Naming rule (public API stability)
 
 Internal modules/folders may be reorganized. Prefer keeping the user entrypoints stable and top-level:
-- `pycauset.Matrix`
-- `pycauset.CausalMatrix`
+- `pycauset.matrix`
+- `pycauset.causal_matrix`
 - `pycauset.matmul`
 - `pycauset.inverse` / `~M`
 - `MatrixBase.trace` / `MatrixBase.determinant`

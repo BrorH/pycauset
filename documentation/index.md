@@ -38,7 +38,7 @@ Deep dive into the C++ core for contributors.
 ### 🚀 [[project/index|Project]]
 *   **[[project/Philosophy|Philosophy]]**: Design mantras.
 *   **[[project/Contributing|Contributing]]**: How to build and test.
-*   **[[project/TODO|Roadmap]]**: Future plans.
+*   **[[TODO|Roadmap]]**: Future plans.
 
 ### 🧰 [[dev/index|Dev Handbook]]
 High-signal onboarding for contributors.

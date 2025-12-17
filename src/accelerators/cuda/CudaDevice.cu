@@ -515,6 +515,10 @@ void CudaDevice::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, 
     throw std::runtime_error("CudaDevice::elementwise_multiply not implemented");
 }
 
+void CudaDevice::elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
+    throw std::runtime_error("CudaDevice::elementwise_divide not implemented");
+}
+
 void CudaDevice::batch_gemv_streaming(const MatrixBase& A, const double* x_data, double* y_data, size_t b, size_t available_mem) {
     auto* a_double = dynamic_cast<const DenseMatrix<double>*>(&A);
     auto* a_float = dynamic_cast<const DenseMatrix<float>*>(&A);
@@ -901,6 +905,10 @@ double CudaDevice::dot(const VectorBase& a, const VectorBase& b) {
     throw std::runtime_error("CudaDevice::dot not implemented");
 }
 
+double CudaDevice::l2_norm(const VectorBase& v) {
+    throw std::runtime_error("CudaDevice::l2_norm not implemented");
+}
+
 void CudaDevice::add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
     throw std::runtime_error("CudaDevice::add_vector not implemented");
 }
@@ -915,6 +923,10 @@ void CudaDevice::scalar_multiply_vector(const VectorBase& a, double scalar, Vect
 
 void CudaDevice::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
     throw std::runtime_error("CudaDevice::scalar_add_vector not implemented");
+}
+
+double CudaDevice::frobenius_norm(const MatrixBase& m) {
+    throw std::runtime_error("CudaDevice::frobenius_norm not implemented");
 }
 
 } // namespace pycauset

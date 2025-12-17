@@ -2,6 +2,8 @@ import unittest
 import pycauset
 import os
 import numpy as np
+import tempfile
+from pathlib import Path
 
 class TestComplexScalar(unittest.TestCase):
     def test_complex_scalar_storage(self):
@@ -17,19 +19,18 @@ class TestComplexScalar(unittest.TestCase):
         self.assertEqual(m.scalar, z)
         
         # Verify it persists
-        m.save("test_complex_scalar")
-        
-        # Load it back
-        m2 = pycauset.load("test_complex_scalar")
-        self.assertEqual(m2.scalar, z)
-        
-        # Clean up
+        with tempfile.TemporaryDirectory(prefix="pycauset_test_complex_scalar_") as tmp:
+            path = Path(tmp) / "test_complex_scalar.pycauset"
+            m.save(str(path))
+
+            # Load it back
+            m2 = pycauset.load(str(path))
+            try:
+                self.assertEqual(m2.scalar, z)
+            finally:
+                m2.close()
+
         m.close()
-        m2.close()
-        if os.path.exists("test_complex_scalar.json"):
-            os.remove("test_complex_scalar.json")
-        if os.path.exists("test_complex_scalar.dat"):
-            os.remove("test_complex_scalar.dat")
 
     def test_pauli_jordan(self):
         # Create a small field

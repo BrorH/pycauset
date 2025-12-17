@@ -12,11 +12,20 @@ class ObjectFactory {
 public:
     // --- Matrix Creation ---
     
-    // Creates a new matrix with the specified dimensions and types
+    // Creates a new matrix with the specified dimensions and types (square)
     static std::unique_ptr<MatrixBase> create_matrix(
         uint64_t n, 
         DataType dtype, 
         MatrixType mtype, 
+        const std::string& backing_file = ""
+    );
+
+    // Creates a new matrix with the specified dimensions and types (rectangular)
+    static std::unique_ptr<MatrixBase> create_matrix(
+        uint64_t rows,
+        uint64_t cols,
+        DataType dtype,
+        MatrixType mtype,
         const std::string& backing_file = ""
     );
 

@@ -87,7 +87,7 @@ Since all PyCauset objects are backed by temporary files on creation, "saving" e
 import pycauset
 
 # Create a matrix (backed by a temp file)
-M = pycauset.Matrix(5000, dtype=pycauset.int32)
+M = pycauset.zeros((5000, 5000), dtype=pycauset.int32)
 M.set(0, 0, 42)
 
 # Save to a permanent location

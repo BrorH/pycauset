@@ -30,7 +30,7 @@ class TestSkewSolverComprehensive(unittest.TestCase):
         N = 10
         k = 2
         A_np = self._generate_skew(N)
-        A_pc = pycauset.Matrix(A_np)
+        A_pc = pycauset.matrix(A_np)
         
         evals = pycauset.eigvals_skew(A_pc, k)
         self.assertEqual(evals.size(), k)
@@ -47,7 +47,7 @@ class TestSkewSolverComprehensive(unittest.TestCase):
         N = 4
         k = 2
         A_np = self._generate_skew(N)
-        A_pc = pycauset.Matrix(A_np)
+        A_pc = pycauset.matrix(A_np)
         
         evals = pycauset.eigvals_skew(A_pc, k)
         self.assertEqual(evals.size(), k)
@@ -65,7 +65,7 @@ class TestSkewSolverComprehensive(unittest.TestCase):
         N = 11
         k = N # Get all
         A_np = self._generate_skew(N)
-        A_pc = pycauset.Matrix(A_np)
+        A_pc = pycauset.matrix(A_np)
         
         evals = pycauset.eigvals_skew(A_pc, k)
         
@@ -78,7 +78,7 @@ class TestSkewSolverComprehensive(unittest.TestCase):
         N = 10
         k = 20 # Request more than exists
         A_np = self._generate_skew(N)
-        A_pc = pycauset.Matrix(A_np)
+        A_pc = pycauset.matrix(A_np)
         
         evals = pycauset.eigvals_skew(A_pc, k)
         self.assertLessEqual(evals.size(), N, "Should not return more eigenvalues than N")
@@ -92,7 +92,7 @@ class TestSkewSolverComprehensive(unittest.TestCase):
         A_np = np.zeros((N, N))
         A_np[:10, :10] = A_small
         
-        A_pc = pycauset.Matrix(A_np)
+        A_pc = pycauset.matrix(A_np)
         
         # Requesting top 15 eigenvalues. 
         # 10 should be non-zero (from the block), rest zero.
@@ -108,7 +108,7 @@ class TestSkewSolverComprehensive(unittest.TestCase):
         N = 100
         k = 10
         A_np = self._generate_skew(N)
-        A_pc = pycauset.Matrix(A_np)
+        A_pc = pycauset.matrix(A_np)
         
         # Run Sequential
         pycauset.set_num_threads(1)
@@ -136,7 +136,7 @@ class TestSkewSolverComprehensive(unittest.TestCase):
         # Create Symmetric matrix
         M = np.random.rand(N, N)
         A_sym = M + M.T 
-        A_pc = pycauset.Matrix(A_sym)
+        A_pc = pycauset.matrix(A_sym)
         
         try:
             evals = pycauset.eigvals_skew(A_pc, k=5)

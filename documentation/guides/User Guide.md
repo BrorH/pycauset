@@ -74,7 +74,8 @@ See the [[Field Theory]] guide for details.
 ### The Matrix Engine
 Under the hood, PyCauset uses a powerful matrix engine that handles data larger than RAM. While `CausalSet` abstracts this away, you can use the matrix classes directly for linear algebra.
 
-*   **[[docs/classes/matrix/pycauset.Matrix.md|pycauset.Matrix]]**: Factory for creating dense and structured matrices (including bit-packed and triangular backends).
+*   **[[docs/functions/pycauset.matrix.md|pycauset.matrix]]**: Construct a matrix from data.
+*   **[[docs/functions/pycauset.zeros.md|pycauset.zeros]]** / **[[docs/functions/pycauset.empty.md|pycauset.empty]]**: Allocate with an explicit `dtype`.
 *   **[[docs/functions/pycauset.matmul.md|pycauset.matmul]]**: Matrix multiplication.
 
 For a deep dive into matrix operations, see the **[[Matrix Guide]]**.
@@ -86,7 +87,7 @@ See the **[[Vector Guide]]**.
 ### NumPy Integration
 PyCauset is designed to work seamlessly with the scientific Python ecosystem.
 *   Convert PyCauset objects to NumPy arrays: `np.array(matrix)`
-*   Create PyCauset objects from NumPy arrays: `pc.Matrix(array)` or `pc.Vector(array)`
+*   Create PyCauset objects from NumPy arrays: `pc.matrix(array)` or `pc.vector(array)`
 
 See the **[[Numpy Integration]]** guide.
 

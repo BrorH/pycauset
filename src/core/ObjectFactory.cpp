@@ -25,34 +25,53 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
     MatrixType mtype, 
     const std::string& backing_file
 ) {
+    return create_matrix(n, n, dtype, mtype, backing_file);
+}
+
+std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
+    uint64_t rows,
+    uint64_t cols,
+    DataType dtype,
+    MatrixType mtype,
+    const std::string& backing_file
+) {
+    const bool must_be_square =
+        (mtype == MatrixType::DIAGONAL || mtype == MatrixType::SYMMETRIC ||
+         mtype == MatrixType::ANTISYMMETRIC || mtype == MatrixType::TRIANGULAR_FLOAT ||
+         mtype == MatrixType::CAUSAL);
+    if (must_be_square && rows != cols) {
+        throw std::invalid_argument("MatrixType requires square dimensions");
+    }
+
     if (mtype == MatrixType::IDENTITY) {
         switch (dtype) {
             case DataType::BIT:
-                return std::make_unique<IdentityMatrix<bool>>(n);
+                return std::make_unique<IdentityMatrix<bool>>(rows, cols, backing_file);
             case DataType::INT8:
-                return std::make_unique<IdentityMatrix<int8_t>>(n);
+                return std::make_unique<IdentityMatrix<int8_t>>(rows, cols, backing_file);
             case DataType::INT16:
-                return std::make_unique<IdentityMatrix<int16_t>>(n);
+                return std::make_unique<IdentityMatrix<int16_t>>(rows, cols, backing_file);
             case DataType::INT32:
-                return std::make_unique<IdentityMatrix<int32_t>>(n);
+                return std::make_unique<IdentityMatrix<int32_t>>(rows, cols, backing_file);
             case DataType::INT64:
-                return std::make_unique<IdentityMatrix<int64_t>>(n);
+                return std::make_unique<IdentityMatrix<int64_t>>(rows, cols, backing_file);
             case DataType::UINT8:
-                return std::make_unique<IdentityMatrix<uint8_t>>(n);
+                return std::make_unique<IdentityMatrix<uint8_t>>(rows, cols, backing_file);
             case DataType::UINT16:
-                return std::make_unique<IdentityMatrix<uint16_t>>(n);
+                return std::make_unique<IdentityMatrix<uint16_t>>(rows, cols, backing_file);
             case DataType::UINT32:
-                return std::make_unique<IdentityMatrix<uint32_t>>(n);
+                return std::make_unique<IdentityMatrix<uint32_t>>(rows, cols, backing_file);
             case DataType::UINT64:
-                return std::make_unique<IdentityMatrix<uint64_t>>(n);
+                return std::make_unique<IdentityMatrix<uint64_t>>(rows, cols, backing_file);
             case DataType::FLOAT64:
-                return std::make_unique<IdentityMatrix<double>>(n);
+                return std::make_unique<IdentityMatrix<double>>(rows, cols, backing_file);
             default:
                 throw std::runtime_error("Unsupported DataType for IdentityMatrix");
         }
     }
 
     if (mtype == MatrixType::DIAGONAL) {
+        const uint64_t n = rows;
         switch (dtype) {
             case DataType::BIT:
                 return std::make_unique<DiagonalMatrix<bool>>(n, backing_file);
@@ -80,7 +99,8 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
     }
 
     if (mtype == MatrixType::SYMMETRIC || mtype == MatrixType::ANTISYMMETRIC) {
-        bool is_anti = (mtype == MatrixType::ANTISYMMETRIC);
+        const uint64_t n = rows;
+        const bool is_anti = (mtype == MatrixType::ANTISYMMETRIC);
         switch (dtype) {
             case DataType::BIT:
                 return std::make_unique<SymmetricMatrix<bool>>(n, backing_file, is_anti);
@@ -111,9 +131,9 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
         }
     }
 
-    bool is_triangular = (mtype == MatrixType::TRIANGULAR_FLOAT || mtype == MatrixType::CAUSAL);
-    
+    const bool is_triangular = (mtype == MatrixType::TRIANGULAR_FLOAT || mtype == MatrixType::CAUSAL);
     if (is_triangular) {
+        const uint64_t n = rows;
         switch (dtype) {
             case DataType::BIT:
                 return std::make_unique<TriangularMatrix<bool>>(n, backing_file);
@@ -142,42 +162,42 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
             default:
                 throw std::runtime_error("Unsupported DataType for TriangularMatrix");
         }
-    } else {
-        // Dense (DENSE_FLOAT, INTEGER, etc.)
-        switch (dtype) {
-            case DataType::BIT:
-                return std::make_unique<DenseMatrix<bool>>(n, backing_file);
-            case DataType::INT8:
-                return std::make_unique<DenseMatrix<int8_t>>(n, backing_file);
-            case DataType::INT16:
-                return std::make_unique<DenseMatrix<int16_t>>(n, backing_file);
-            case DataType::INT32:
-                return std::make_unique<DenseMatrix<int32_t>>(n, backing_file);
-            case DataType::INT64:
-                return std::make_unique<DenseMatrix<int64_t>>(n, backing_file);
-            case DataType::UINT8:
-                return std::make_unique<DenseMatrix<uint8_t>>(n, backing_file);
-            case DataType::UINT16:
-                return std::make_unique<DenseMatrix<uint16_t>>(n, backing_file);
-            case DataType::UINT32:
-                return std::make_unique<DenseMatrix<uint32_t>>(n, backing_file);
-            case DataType::UINT64:
-                return std::make_unique<DenseMatrix<uint64_t>>(n, backing_file);
-            case DataType::FLOAT64:
-                return std::make_unique<DenseMatrix<double>>(n, backing_file);
-            case DataType::FLOAT16:
-                return std::make_unique<DenseMatrix<float16_t>>(n, backing_file);
-            case DataType::FLOAT32:
-                return std::make_unique<DenseMatrix<float>>(n, backing_file);
-            case DataType::COMPLEX_FLOAT16:
-                return std::make_unique<ComplexFloat16Matrix>(n, backing_file);
-            case DataType::COMPLEX_FLOAT32:
-                return std::make_unique<DenseMatrix<std::complex<float>>>(n, backing_file);
-            case DataType::COMPLEX_FLOAT64:
-                return std::make_unique<DenseMatrix<std::complex<double>>>(n, backing_file);
-            default:
-                throw std::runtime_error("Unsupported DataType for DenseMatrix");
-        }
+    }
+
+    // Dense (DENSE_FLOAT, INTEGER, etc.)
+    switch (dtype) {
+        case DataType::BIT:
+            return std::make_unique<DenseMatrix<bool>>(rows, cols, backing_file);
+        case DataType::INT8:
+            return std::make_unique<DenseMatrix<int8_t>>(rows, cols, backing_file);
+        case DataType::INT16:
+            return std::make_unique<DenseMatrix<int16_t>>(rows, cols, backing_file);
+        case DataType::INT32:
+            return std::make_unique<DenseMatrix<int32_t>>(rows, cols, backing_file);
+        case DataType::INT64:
+            return std::make_unique<DenseMatrix<int64_t>>(rows, cols, backing_file);
+        case DataType::UINT8:
+            return std::make_unique<DenseMatrix<uint8_t>>(rows, cols, backing_file);
+        case DataType::UINT16:
+            return std::make_unique<DenseMatrix<uint16_t>>(rows, cols, backing_file);
+        case DataType::UINT32:
+            return std::make_unique<DenseMatrix<uint32_t>>(rows, cols, backing_file);
+        case DataType::UINT64:
+            return std::make_unique<DenseMatrix<uint64_t>>(rows, cols, backing_file);
+        case DataType::FLOAT64:
+            return std::make_unique<DenseMatrix<double>>(rows, cols, backing_file);
+        case DataType::FLOAT16:
+            return std::make_unique<DenseMatrix<float16_t>>(rows, cols, backing_file);
+        case DataType::FLOAT32:
+            return std::make_unique<DenseMatrix<float>>(rows, cols, backing_file);
+        case DataType::COMPLEX_FLOAT16:
+            return std::make_unique<ComplexFloat16Matrix>(rows, cols, backing_file);
+        case DataType::COMPLEX_FLOAT32:
+            return std::make_unique<DenseMatrix<std::complex<float>>>(rows, cols, backing_file);
+        case DataType::COMPLEX_FLOAT64:
+            return std::make_unique<DenseMatrix<std::complex<double>>>(rows, cols, backing_file);
+        default:
+            throw std::runtime_error("Unsupported DataType for DenseMatrix");
     }
 }
 
@@ -192,18 +212,26 @@ std::unique_ptr<MatrixBase> ObjectFactory::load_matrix(
     std::complex<double> scalar,
     bool is_transposed
 ) {
-    uint64_t n = rows; // Assuming square for now, or handled by specific classes
+    const bool must_be_square =
+        (mtype == MatrixType::DIAGONAL || mtype == MatrixType::SYMMETRIC ||
+         mtype == MatrixType::ANTISYMMETRIC || mtype == MatrixType::TRIANGULAR_FLOAT ||
+         mtype == MatrixType::CAUSAL);
+    if (must_be_square && rows != cols) {
+        throw std::invalid_argument("MatrixType requires square dimensions");
+    }
+
+    const uint64_t n = rows; // for square-only structures
 
     if (mtype == MatrixType::IDENTITY) {
         switch (dtype) {
             case DataType::BIT:
-                return std::make_unique<IdentityMatrix<bool>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<IdentityMatrix<bool>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::INT16:
-                return std::make_unique<IdentityMatrix<int16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<IdentityMatrix<int16_t>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::INT32:
-                return std::make_unique<IdentityMatrix<int32_t>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<IdentityMatrix<int32_t>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT64:
-                return std::make_unique<IdentityMatrix<double>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<IdentityMatrix<double>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             default:
                 throw std::runtime_error("Unsupported DataType for IdentityMatrix load");
         }
@@ -266,24 +294,24 @@ std::unique_ptr<MatrixBase> ObjectFactory::load_matrix(
     } else {
         switch (dtype) {
             case DataType::BIT:
-                return std::make_unique<DenseMatrix<bool>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<DenseMatrix<bool>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::INT16:
-                return std::make_unique<DenseMatrix<int16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<DenseMatrix<int16_t>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::INT32:
-                return std::make_unique<DenseMatrix<int32_t>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<DenseMatrix<int32_t>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT64:
-                return std::make_unique<DenseMatrix<double>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<DenseMatrix<double>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT16:
-                return std::make_unique<DenseMatrix<float16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<DenseMatrix<float16_t>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT32:
-                return std::make_unique<DenseMatrix<float>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<DenseMatrix<float>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
 
             case DataType::COMPLEX_FLOAT16:
-                return std::make_unique<ComplexFloat16Matrix>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<ComplexFloat16Matrix>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::COMPLEX_FLOAT32:
-                return std::make_unique<DenseMatrix<std::complex<float>>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<DenseMatrix<std::complex<float>>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::COMPLEX_FLOAT64:
-                return std::make_unique<DenseMatrix<std::complex<double>>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<DenseMatrix<std::complex<double>>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
 
             default:
                 throw std::runtime_error("Unsupported DataType for DenseMatrix load");
@@ -410,21 +438,29 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
     std::complex<double> scalar,
     bool is_transposed
 ) {
-    uint64_t n = rows;
+    const bool must_be_square =
+        (mtype == MatrixType::DIAGONAL || mtype == MatrixType::SYMMETRIC ||
+         mtype == MatrixType::ANTISYMMETRIC || mtype == MatrixType::TRIANGULAR_FLOAT ||
+         mtype == MatrixType::CAUSAL);
+    if (must_be_square && rows != cols) {
+        throw std::invalid_argument("MatrixType requires square dimensions");
+    }
+
+    const uint64_t n = rows;
     std::unique_ptr<MatrixBase> mat;
 
     if (mtype == MatrixType::IDENTITY) {
         switch (dtype) {
-            case DataType::BIT: mat = std::make_unique<IdentityMatrix<bool>>(n, mapper); break;
-            case DataType::INT8: mat = std::make_unique<IdentityMatrix<int8_t>>(n, mapper); break;
-            case DataType::INT16: mat = std::make_unique<IdentityMatrix<int16_t>>(n, mapper); break;
-            case DataType::INT32: mat = std::make_unique<IdentityMatrix<int32_t>>(n, mapper); break;
-            case DataType::INT64: mat = std::make_unique<IdentityMatrix<int64_t>>(n, mapper); break;
-            case DataType::UINT8: mat = std::make_unique<IdentityMatrix<uint8_t>>(n, mapper); break;
-            case DataType::UINT16: mat = std::make_unique<IdentityMatrix<uint16_t>>(n, mapper); break;
-            case DataType::UINT32: mat = std::make_unique<IdentityMatrix<uint32_t>>(n, mapper); break;
-            case DataType::UINT64: mat = std::make_unique<IdentityMatrix<uint64_t>>(n, mapper); break;
-            case DataType::FLOAT64: mat = std::make_unique<IdentityMatrix<double>>(n, mapper); break;
+            case DataType::BIT: mat = std::make_unique<IdentityMatrix<bool>>(rows, cols, mapper); break;
+            case DataType::INT8: mat = std::make_unique<IdentityMatrix<int8_t>>(rows, cols, mapper); break;
+            case DataType::INT16: mat = std::make_unique<IdentityMatrix<int16_t>>(rows, cols, mapper); break;
+            case DataType::INT32: mat = std::make_unique<IdentityMatrix<int32_t>>(rows, cols, mapper); break;
+            case DataType::INT64: mat = std::make_unique<IdentityMatrix<int64_t>>(rows, cols, mapper); break;
+            case DataType::UINT8: mat = std::make_unique<IdentityMatrix<uint8_t>>(rows, cols, mapper); break;
+            case DataType::UINT16: mat = std::make_unique<IdentityMatrix<uint16_t>>(rows, cols, mapper); break;
+            case DataType::UINT32: mat = std::make_unique<IdentityMatrix<uint32_t>>(rows, cols, mapper); break;
+            case DataType::UINT64: mat = std::make_unique<IdentityMatrix<uint64_t>>(rows, cols, mapper); break;
+            case DataType::FLOAT64: mat = std::make_unique<IdentityMatrix<double>>(rows, cols, mapper); break;
             default: throw std::runtime_error("Unsupported DataType for IdentityMatrix clone");
         }
     } else if (mtype == MatrixType::DIAGONAL) {
@@ -476,21 +512,21 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
         }
     } else {
         switch (dtype) {
-            case DataType::BIT: mat = std::make_unique<DenseMatrix<bool>>(n, mapper); break;
-            case DataType::INT8: mat = std::make_unique<DenseMatrix<int8_t>>(n, mapper); break;
-            case DataType::INT16: mat = std::make_unique<DenseMatrix<int16_t>>(n, mapper); break;
-            case DataType::INT32: mat = std::make_unique<DenseMatrix<int32_t>>(n, mapper); break;
-            case DataType::INT64: mat = std::make_unique<DenseMatrix<int64_t>>(n, mapper); break;
-            case DataType::UINT8: mat = std::make_unique<DenseMatrix<uint8_t>>(n, mapper); break;
-            case DataType::UINT16: mat = std::make_unique<DenseMatrix<uint16_t>>(n, mapper); break;
-            case DataType::UINT32: mat = std::make_unique<DenseMatrix<uint32_t>>(n, mapper); break;
-            case DataType::UINT64: mat = std::make_unique<DenseMatrix<uint64_t>>(n, mapper); break;
-            case DataType::FLOAT64: mat = std::make_unique<DenseMatrix<double>>(n, mapper); break;
-            case DataType::FLOAT16: mat = std::make_unique<DenseMatrix<float16_t>>(n, mapper); break;
-            case DataType::FLOAT32: mat = std::make_unique<DenseMatrix<float>>(n, mapper); break;
-            case DataType::COMPLEX_FLOAT16: mat = std::make_unique<ComplexFloat16Matrix>(n, mapper); break;
-            case DataType::COMPLEX_FLOAT32: mat = std::make_unique<DenseMatrix<std::complex<float>>>(n, mapper); break;
-            case DataType::COMPLEX_FLOAT64: mat = std::make_unique<DenseMatrix<std::complex<double>>>(n, mapper); break;
+            case DataType::BIT: mat = std::make_unique<DenseMatrix<bool>>(rows, cols, mapper); break;
+            case DataType::INT8: mat = std::make_unique<DenseMatrix<int8_t>>(rows, cols, mapper); break;
+            case DataType::INT16: mat = std::make_unique<DenseMatrix<int16_t>>(rows, cols, mapper); break;
+            case DataType::INT32: mat = std::make_unique<DenseMatrix<int32_t>>(rows, cols, mapper); break;
+            case DataType::INT64: mat = std::make_unique<DenseMatrix<int64_t>>(rows, cols, mapper); break;
+            case DataType::UINT8: mat = std::make_unique<DenseMatrix<uint8_t>>(rows, cols, mapper); break;
+            case DataType::UINT16: mat = std::make_unique<DenseMatrix<uint16_t>>(rows, cols, mapper); break;
+            case DataType::UINT32: mat = std::make_unique<DenseMatrix<uint32_t>>(rows, cols, mapper); break;
+            case DataType::UINT64: mat = std::make_unique<DenseMatrix<uint64_t>>(rows, cols, mapper); break;
+            case DataType::FLOAT64: mat = std::make_unique<DenseMatrix<double>>(rows, cols, mapper); break;
+            case DataType::FLOAT16: mat = std::make_unique<DenseMatrix<float16_t>>(rows, cols, mapper); break;
+            case DataType::FLOAT32: mat = std::make_unique<DenseMatrix<float>>(rows, cols, mapper); break;
+            case DataType::COMPLEX_FLOAT16: mat = std::make_unique<ComplexFloat16Matrix>(rows, cols, mapper); break;
+            case DataType::COMPLEX_FLOAT32: mat = std::make_unique<DenseMatrix<std::complex<float>>>(rows, cols, mapper); break;
+            case DataType::COMPLEX_FLOAT64: mat = std::make_unique<DenseMatrix<std::complex<double>>>(rows, cols, mapper); break;
             default: throw std::runtime_error("Unsupported DataType for DenseMatrix clone");
         }
     }

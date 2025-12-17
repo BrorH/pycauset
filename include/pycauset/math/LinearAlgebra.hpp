@@ -14,6 +14,7 @@ template <typename T> class TriangularMatrix;
 std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
 std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
 std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
+std::unique_ptr<MatrixBase> elementwise_divide(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
 std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBase& b, std::string saveas = "");
 
 // --- Vector Operations ---
@@ -22,6 +23,8 @@ std::unique_ptr<VectorBase> add_vectors(const VectorBase& a, const VectorBase& b
 std::unique_ptr<VectorBase> subtract_vectors(const VectorBase& a, const VectorBase& b, const std::string& result_file = "");
 double dot_product(const VectorBase& a, const VectorBase& b);
 std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& b);
+double norm(const VectorBase& v);
+double norm(const MatrixBase& m);
 std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b, const std::string& result_file = "");
 
 // Scalar operations on vectors

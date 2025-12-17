@@ -2,7 +2,7 @@ import unittest
 import os
 import shutil
 import pycauset
-from pycauset import Vector, save
+from pycauset import save
 
 class TestVector(unittest.TestCase):
     def setUp(self):
@@ -16,7 +16,7 @@ class TestVector(unittest.TestCase):
             shutil.rmtree(self.test_dir)
 
     def test_float_vector(self):
-        v = Vector(5, dtype="float")
+        v = pycauset.zeros(5, dtype="float")
         self.assertEqual(len(v), 5)
         self.assertEqual(v.shape, (5,))
         v[0] = 3.14
@@ -24,14 +24,14 @@ class TestVector(unittest.TestCase):
         self.assertEqual(v[1], 0.0)
 
     def test_int_vector(self):
-        v = Vector([1, 2, 3, 4, 5], dtype="int")
+        v = pycauset.vector([1, 2, 3, 4, 5], dtype="int")
         self.assertEqual(len(v), 5)
         self.assertEqual(v[2], 3)
         v[0] = 10
         self.assertEqual(v[0], 10)
 
     def test_bool_vector(self):
-        v = Vector([True, False, True], dtype="bool")
+        v = pycauset.vector([True, False, True], dtype="bool")
         self.assertEqual(len(v), 3)
         self.assertTrue(v[0])
         self.assertFalse(v[1])
@@ -39,19 +39,19 @@ class TestVector(unittest.TestCase):
         self.assertTrue(v[1])
 
     def test_auto_dtype(self):
-        v1 = Vector([1.1, 2.2])
+        v1 = pycauset.vector([1.1, 2.2])
         # Check if it's a FloatVector (by checking repr or behavior)
         self.assertTrue("FloatVector" in str(v1))
         
-        v2 = Vector([1, 2, 3])
+        v2 = pycauset.vector([1, 2, 3])
         self.assertTrue("IntegerVector" in str(v2))
         
-        v3 = Vector([True, False])
+        v3 = pycauset.vector([True, False])
         self.assertTrue("BitVector" in str(v3))
 
     def test_arithmetic(self):
-        v1 = Vector([1, 2, 3], dtype="float")
-        v2 = Vector([4, 5, 6], dtype="float")
+        v1 = pycauset.vector([1, 2, 3], dtype="float")
+        v2 = pycauset.vector([4, 5, 6], dtype="float")
         
         v3 = v1 + v2
         self.assertEqual(v3[0], 5.0)
@@ -79,7 +79,7 @@ class TestVector(unittest.TestCase):
         self.assertEqual(v8[2], 8.0)
         
         # Integer arithmetic
-        v_int = Vector([1, 2, 3], dtype="int")
+        v_int = pycauset.vector([1, 2, 3], dtype="int")
         v_int_add = v_int + 5
         self.assertEqual(v_int_add[0], 6)
         # Currently returns FloatVector
@@ -95,8 +95,8 @@ class TestVector(unittest.TestCase):
         self.assertEqual(v1.dot(v2), 32.0)
 
     def test_mixed_arithmetic(self):
-        v1 = Vector([1, 2], dtype="int")
-        v2 = Vector([0.5, 0.5], dtype="float")
+        v1 = pycauset.vector([1, 2], dtype="int")
+        v2 = pycauset.vector([0.5, 0.5], dtype="float")
         
         v3 = v1 + v2
         self.assertEqual(v3[0], 1.5)
@@ -104,7 +104,7 @@ class TestVector(unittest.TestCase):
         self.assertTrue("FloatVector" in str(v3))
 
     def test_persistence(self):
-        v = Vector([1, 2, 3], dtype="int")
+        v = pycauset.vector([1, 2, 3], dtype="int")
         path = os.path.join(self.test_dir, "vec.pycauset")
         save(v, path)
         

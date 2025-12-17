@@ -8,12 +8,17 @@ namespace pycauset {
 MatrixBase::MatrixBase(uint64_t n, 
                        pycauset::MatrixType matrix_type,
                        pycauset::DataType data_type)
-    : PersistentObject(), n_(n) {
-    // Initialize metadata members in PersistentObject
+    : MatrixBase(n, n, matrix_type, data_type) {}
+
+MatrixBase::MatrixBase(uint64_t rows,
+                       uint64_t cols,
+                       pycauset::MatrixType matrix_type,
+                       pycauset::DataType data_type)
+    : PersistentObject() {
     matrix_type_ = matrix_type;
     data_type_ = data_type;
-    rows_ = n;
-    cols_ = n;
+    rows_ = rows;
+    cols_ = cols;
 }
 
 MatrixBase::MatrixBase(uint64_t n, 
@@ -24,11 +29,21 @@ MatrixBase::MatrixBase(uint64_t n,
                        std::complex<double> scalar,
                        bool is_transposed,
                        bool is_temporary)
-    : PersistentObject(std::move(mapper), matrix_type, data_type, n, n, seed, scalar, is_transposed, is_temporary), 
-      n_(n) {}
+    : MatrixBase(n, n, std::move(mapper), matrix_type, data_type, seed, scalar, is_transposed, is_temporary) {}
+
+MatrixBase::MatrixBase(uint64_t rows,
+                       uint64_t cols,
+                       std::shared_ptr<MemoryMapper> mapper,
+                       pycauset::MatrixType matrix_type,
+                       pycauset::DataType data_type,
+                       uint64_t seed,
+                       std::complex<double> scalar,
+                       bool is_transposed,
+                       bool is_temporary)
+    : PersistentObject(std::move(mapper), matrix_type, data_type, rows, cols, seed, scalar, is_transposed, is_temporary) {}
 
 std::unique_ptr<PersistentObject> MatrixBase::clone() const {
-    auto out = ObjectFactory::clone_matrix(mapper_, rows(), cols(), data_type_, matrix_type_, seed_, scalar_, is_transposed_);
+    auto out = ObjectFactory::clone_matrix(mapper_, base_rows(), base_cols(), data_type_, matrix_type_, seed_, scalar_, is_transposed_);
     out->set_conjugated(is_conjugated());
     return out;
 }

@@ -159,7 +159,7 @@ def causal_matrix_factory(
         if np_module.any(np_module.tril(source_obj) != 0):
             warnings.warn(
                 "Input data contains non-zero values in the lower triangle or diagonal. "
-                "CausalMatrix is strictly upper triangular; these values will be ignored.",
+                "TriangularBitMatrix is strictly upper triangular; these values will be ignored.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -204,7 +204,7 @@ def causal_matrix_factory(
     if has_lower_triangular:
         warnings.warn(
             "Input data contains non-zero values in the lower triangle or diagonal. "
-            "CausalMatrix is strictly upper triangular; these values will be ignored.",
+            "TriangularBitMatrix is strictly upper triangular; these values will be ignored.",
             UserWarning,
             stacklevel=2,
         )

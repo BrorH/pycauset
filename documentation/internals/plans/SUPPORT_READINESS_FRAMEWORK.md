@@ -19,7 +19,7 @@ Use this as the “definition of done” for dtype expansion and operation cover
 
 ### 1.1 Frontend dtype tokens (factory layer)
 
-These are the dtype tokens treated as the **frontend contract** for the public factories (e.g. `pycauset.Matrix(..., dtype=...)`, `pycauset.Vector(..., dtype=...)`).
+These are the dtype tokens treated as the **frontend contract** for the public constructors/allocators (e.g. `pycauset.matrix(..., dtype=...)`, `pycauset.vector(..., dtype=...)`, `pycauset.zeros(..., dtype=...)`).
 
 Small implementation note: some tokens may be temporarily “declared but not yet wired end-to-end”; when that happens, the system should fail clearly (or route through a compat layer) rather than silently producing a different dtype.
 

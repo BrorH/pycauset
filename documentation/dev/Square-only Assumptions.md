@@ -1,38 +1,37 @@
-# Square-only assumptions (NxN) — Phase F groundwork
+# Square-only assumptions (NxN)
 
-PyCauset currently assumes matrices are square (NxN) in many places. This document is a **map of square-only assumptions** so NxM work can be done systematically.
+PyCauset supports rectangular dense matrices (rows×cols) in the core engine, including bit-packed boolean matrices. This document tracks what is *still* square-only, either by mathematical definition or by implementation constraints.
 
-## C++ engine: where “square” is baked in
+## C++ engine: remaining square-only areas
 
-### MatrixBase is fundamentally square
+### Square-only types (by definition)
 
-- `MatrixBase` stores a single `n_` and reports:
-  - `rows() == n_`
-  - `cols() == n_`
-- Many algorithms use `size()` as “dimension”, not “row count”.
+Some matrix families are inherently square:
 
-Implication: supporting NxM will likely require `rows_` + `cols_` in the base type (and careful handling for transposed views and metadata).
+- Triangular matrices (including causal matrices)
+- Symmetric / antisymmetric matrices
+- Diagonal matrices
 
-### ObjectFactory uses `n` not `(rows, cols)`
+Identity matrices are **shape-flexible** in PyCauset: `IdentityMatrix(rows, cols)` (and `pycauset.identity([rows, cols])`) creates an identity-like matrix with ones on the diagonal up to `min(rows, cols)`.
 
-- `ObjectFactory::create_matrix(...)` takes a single `uint64_t n`.
-- Many matrix constructors are `DenseMatrix<T>(uint64_t n, ...)`.
+The factory enforces this at creation time: these `MatrixType`s reject `rows != cols` (triangular/causal, diagonal, symmetric/antisymmetric).
 
-Implication: NxM needs new creation APIs (or overloads) that accept `(rows, cols)` and are used consistently across the engine.
+### DenseBitMatrix is bit-packed (implementation detail)
 
-### Storage initialization is called with `(n, n)`
+`DenseBitMatrix` (`DenseMatrix<bool>`) is stored in bit-packed row layout with a per-row stride determined by `cols` (not by `n`). Rectangular `(rows, cols)` shapes are supported.
 
-- `PersistentObject::initialize_storage(...)` already accepts `rows` and `cols`.
-- Most callers pass `n, n`.
+### Square-only operations
 
-Implication: storage metadata can represent NxM, but the type system and constructors currently can’t.
+Some operations require square matrices even for dense numeric types:
 
-### DenseMatrix assumes `n*n` storage
+- Determinant
+- Inverse
 
-- `DenseMatrix<T>` allocates `n * n * sizeof(T)` bytes.
-- Accessors use `i*n + j` indexing.
+These should fail fast with a clear error when `rows != cols`.
 
-Implication: NxM requires storing `rows` and `cols` and indexing with `i*cols + j`.
+### Optional algorithms / build-dependent APIs
+
+Some higher-level solvers (for example, eigensolvers) are build-dependent. Tests and docs should treat these as optional and skip/disable features when the bindings are not present.
 
 ### Triangular types are inherently square
 
@@ -40,38 +39,25 @@ Implication: NxM requires storing `rows` and `cols` and indexing with `i*cols + 
 
 Implication: NxM support does **not** apply to triangular/causal matrices as a general concept; NxM primarily targets dense/symmetric/rectangular operations.
 
-## C++ solvers & math: square-oriented algorithms
+## What is no longer square-only (Phase 1)
 
-- `Eigen` routines typically assume square matrices for eigenvalues/eigenvectors.
-- `LinearAlgebra` helpers and many operations are expressed in terms of `size()`.
+- `MatrixBase` / `PersistentObject` track `rows` and `cols`; `size()` is total elements (`rows * cols`).
+- Dense numeric matrices support rectangular storage and indexing.
+- `ObjectFactory::create_matrix(rows, cols, ...)` exists and is used in core math paths.
+- Persistence stores `rows`/`cols` in `metadata.json` and loaders prefer rectangular constructors.
+- Python allocation (`zeros` / `ones` / `empty`) supports rectangular shapes for dense numeric dtypes.
 
-Implication: NxM work should separate:
-- truly square-only operations (det, inverse)
-- general NxM operations (matmul, add/sub, elementwise)
+## Python layer: remaining square-only surfaces
 
-## Python layer: current expectations
+- Triangular/causal matrix constructors are square-only by definition.
 
-### `pycauset.Matrix(...)` expects square
+## See also
 
-- Nested lists/NumPy arrays are treated as square matrices.
-- `Matrix(n)` creates an NxN matrix.
+- [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]
+- [[internals/Memory and Data|internals/Memory and Data]]
+- [[docs/functions/pycauset.zeros.md|pycauset.zeros]]
+- [[docs/functions/pycauset.matmul.md|pycauset.matmul]]
 
-### Fallback `pycauset.matmul` is square-limited
+## Bindings
 
-- The generic Python fallback currently refuses non-square result matrices.
-
-Implication: once native NxM exists, the Python fallback should either support NxM too or very explicitly raise a helpful error.
-
-## Bindings: current public shape
-
-- The pybind `shape` property is derived from `rows()` and `cols()`.
-- Since both equal `n_`, Python sees NxN for all current matrix classes.
-
-## Suggested NxM migration order (docs-only guidance)
-
-1. Introduce a rectangular base matrix type (or evolve `MatrixBase`) to track `(rows, cols)`.
-2. Implement `DenseMatrix<T>(rows, cols, ...)` with correct indexing.
-3. Extend `ObjectFactory` to create/load/clone `(rows, cols)`.
-4. Update storage metadata paths to persist `(rows, cols)`.
-5. Update bindings and Python factories to surface NxM for dense matrices.
-6. Audit solvers to ensure square-only ops fail fast with clear errors.
+- The pybind `shape` property is derived from `rows()` and `cols()`, so rectangular dense numeric matrices surface correct `(rows, cols)` shapes in Python.

@@ -27,13 +27,29 @@ class OpsDeps:
 def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     native_matmul = getattr(deps.native, "matmul", None)
 
-    if isinstance(a, deps.TriangularBitMatrix) and isinstance(b, deps.TriangularBitMatrix):
-        if native_matmul is None:
-            raise NotImplementedError("Native matmul is not available in this build.")
-        result = native_matmul(a, b)
-        deps.track_matrix(result)
-        deps.mark_temporary_if_auto(result)
+    native_matrix_base = getattr(deps.native, "MatrixBase", None)
+    native_vector_base = getattr(deps.native, "VectorBase", None)
+
+    # NumPy-like behavior: allow vectors in matmul by deferring to the native
+    # operator implementation (which encodes the 1D rules).
+    if native_vector_base is not None and (
+        isinstance(a, native_vector_base) or isinstance(b, native_vector_base)
+    ):
+        result = a @ b
+        if native_matrix_base is not None and isinstance(result, native_matrix_base):
+            deps.track_matrix(result)
+            deps.mark_temporary_if_auto(result)
+        elif native_vector_base is not None and isinstance(result, native_vector_base):
+            deps.track_matrix(result)
+            deps.mark_temporary_if_auto(result)
         return result
+
+    if native_matmul is not None and native_matrix_base is not None:
+        if isinstance(a, native_matrix_base) and isinstance(b, native_matrix_base):
+            result = native_matmul(a, b)
+            deps.track_matrix(result)
+            deps.mark_temporary_if_auto(result)
+            return result
 
     # Generic fallback
     if not (hasattr(a, "shape") and hasattr(b, "shape")):
@@ -42,8 +58,9 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     if a.shape[1] != b.shape[0]:
         raise ValueError(f"Shape mismatch: {a.shape} vs {b.shape}")
 
-    N = a.shape[0]
-    M = b.shape[1]
+    rows = a.shape[0]
+    cols = b.shape[1]
+    inner = a.shape[1]
 
     np_module = deps.np_module
     if np_module is not None:
@@ -59,21 +76,15 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
         except Exception:
             pass
 
-    # Slow generic loop
-    res = deps.Matrix(N)
-    if N != M:
-        raise NotImplementedError(
-            "Generic multiplication currently only supports square result matrices."
-        )
-
-    for i in range(N):
-        for j in range(M):
-            val = 0
-            for k in range(a.shape[1]):
+    # Slow generic loop (materializes the result in memory).
+    res_data: list[list[Any]] = [[0 for _ in range(cols)] for _ in range(rows)]
+    for i in range(rows):
+        for j in range(cols):
+            val: Any = 0
+            for k in range(inner):
                 val += a.get(i, k) * b.get(k, j)
-            res.set(i, j, val)
-
-    return res
+            res_data[i][j] = val
+    return deps.Matrix(res_data)
 
 
 def compute_k(matrix: Any, a: float, *, deps: OpsDeps) -> Any:

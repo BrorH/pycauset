@@ -45,9 +45,10 @@ class TestInteropExtensive(unittest.TestCase):
 
         # 3. Non-square 2D array
         arr_rect = np.zeros((3, 4))
-        with self.assertRaises(ValueError):
-            # Assuming pycauset only supports square matrices for now
-            pycauset.asarray(arr_rect)
+        m_rect = pycauset.asarray(arr_rect)
+        self.assertEqual(m_rect.rows(), 3)
+        self.assertEqual(m_rect.cols(), 4)
+        self.assertEqual(np.array(m_rect).shape, (3, 4))
 
     def test_type_preservation(self):
         """Ensure types are preserved or correctly cast during conversion."""

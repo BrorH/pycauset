@@ -2,6 +2,13 @@
 
 This protocol exists so documentation stays **hard to miss**, **hard to rot**, and **easy to expand**.
 
+The docs structure follows a Diátaxis-style intent split:
+
+- **Guides**: workflows (how to accomplish a task).
+- **API reference**: what the surface is and how to call it.
+- **Internals**: how it works and where it lives.
+- **Dev handbook**: contributor workflows and process.
+
 It is written for humans first. Avoid "writer meta" (how the doc was produced, constraints that only mattered during drafting, etc.). Put the reader’s needs first.
 
 ---
@@ -91,10 +98,10 @@ MkDocs supports wiki links. We use them aggressively, but in a **controlled** wa
 Prefer explicit, stable links that include the path, so the target is unambiguous:
 
 - `[[docs/functions/pycauset.matmul.md|pycauset.matmul]]`
-- `[[docs/classes/matrix/pycauset.Matrix.md|pycauset.Matrix]]`
+- `[[docs/functions/pycauset.matrix.md|pycauset.matrix]]`
 - `[[internals/DType System|internals/DType System]]`
 
-Note: `mkdocs-roamlinks-plugin` treats any `.` in the filename as “has an extension”, so for targets like `pycauset.matmul` / `pycauset.Matrix` you should include the `.md` suffix.
+Note: `mkdocs-roamlinks-plugin` treats any `.` in the filename as “has an extension”, so for targets like `pycauset.matmul` / `pycauset.matrix` you should include the `.md` suffix.
 
 ### Avoid ambiguous links
 
@@ -172,3 +179,9 @@ Before marking a task complete:
 - Practical example
 - Pitfalls
 - See also
+
+---
+
+## See also
+
+- `documentation/project/protocols/NumPy Alignment Protocol.md`

@@ -17,31 +17,25 @@ import pycauset
 c = pycauset.CausalSet(10000)
 ```
 
-You can also use the alias `Causet`:
-
-```python
-c = pycauset.Causet(10000)
-```
-
 ### Reproducibility
 
 To ensure your causal set is identical every time you run your code, provide a `seed`. This can be an integer or a string.
 
 ```python
 # Using an integer seed
-c1 = pycauset.Causet(10000, seed=12345)
+c1 = pycauset.CausalSet(10000, seed=12345)
 
 # Using a string seed (useful for naming simulations)
-c2 = pycauset.Causet(10000, seed="simulation_A_run_1")
+c2 = pycauset.CausalSet(10000, seed="simulation_A_run_1")
 ```
 
 ## Accessing the Causal Matrix
 
-The core data of a causal set is its _causal matrix_. In `pycauset`, this is represented as a [[pycauset.TriangularBitMatrix]] for efficiency. You can access it via the `.CausalMatrix` property or its alias `.C`.
+The core data of a causal set is its _causal matrix_. In `pycauset`, this is represented as a [[pycauset.TriangularBitMatrix]] for efficiency. You can access it via the `.causal_matrix` property or its alias `.C`.
 
 ```python
 # Get the causal matrix
-C = c.CausalMatrix
+C = c.causal_matrix
 
 # Or using the alias
 C = c.C
@@ -61,18 +55,18 @@ The matrix $C$ is defined such that $C_{ij} = 1$ if element $i$ is in the causal
 When you create an instance of [[pycauset.CausalSet]], you might wonder what exactly is being stored in memory.
 
 ```python
-c = pycauset.Causet(1000)
+c = pycauset.CausalSet(1000)
 ```
 
 The `c` object itself is extremely lightweight. It is essentially a metadata wrapper that holds:
 1.  **N**: The number of elements (e.g., 1000).
 2.  **Seed**: The random seed used for generation.
 3.  **Spacetime**: The definition of the manifold (e.g., "2D Minkowski Diamond").
-4.  **Handle to CausalMatrix**: A reference to the [[pycauset.TriangularBitMatrix]] object.
+4.  **Handle to causal_matrix**: A reference to the [[pycauset.TriangularBitMatrix]] object.
 
 **What is NOT stored:**
 *   **Coordinates**: The coordinates of the 1000 points are **not** stored in the `c` object. They were generated temporarily to compute the matrix and then discarded.
-*   **Full Matrix in RAM**: The `CausalMatrix` is backed by a file on disk. It is not fully loaded into RAM unless you explicitly read all of it.
+*   **Full Matrix in RAM**: The causal matrix is backed by a file on disk. It is not fully loaded into RAM unless you explicitly read all of it.
 
 The "End Product" of the initialization is the **Causal Matrix** stored on disk. The [[pycauset.CausalSet]] instance is just your handle to access that matrix and remember how it was created.
 
@@ -83,7 +77,7 @@ The "End Product" of the initialization is the **Causal Matrix** stored on disk.
 ```python
 # Generating a very large causal set (e.g., 1 million elements)
 # This is memory-safe!
-c_large = pycauset.Causet(1_000_000)
+c_large = pycauset.CausalSet(1_000_000)
 
 # The matrix is stored on disk, mapped into memory only as needed
 C_large = c_large.C
@@ -97,11 +91,12 @@ You can sprinkle into different spacetime manifolds using the `spacetime` parame
 The default spacetime is a 2D Minkowski Diamond (Alexandrov interval).
 
 ```python
-from pycauset import Causet, spacetime
+import pycauset
+from pycauset import spacetime
 
 # Explicitly specifying the diamond
 diamond = spacetime.MinkowskiDiamond(dimension=2)
-c = Causet(n=1000, spacetime=diamond)
+c = pycauset.CausalSet(n=1000, spacetime=diamond)
 ```
 
 ### Minkowski Cylinder
@@ -110,7 +105,7 @@ A flat spacetime with periodic spatial boundary conditions ($S^1 \times \mathbb{
 ```python
 # A cylinder with height 2.0 and circumference 5.0
 cyl = spacetime.MinkowskiCylinder(dimension=2, height=2.0, circumference=5.0)
-c = Causet(n=1000, spacetime=cyl)
+c = pycauset.CausalSet(n=1000, spacetime=cyl)
 ```
 
 ## Sprinkling Modes
@@ -119,7 +114,7 @@ c = Causet(n=1000, spacetime=cyl)
 Specify `n` to generate exactly that many elements.
 
 ```python
-c = Causet(n=1000)
+c = pycauset.CausalSet(n=1000)
 ```
 
 ### Fixed Density
@@ -128,7 +123,7 @@ Specify `density` ($\rho$) to generate elements based on a Poisson process. The 
 ```python
 # Sprinkle with density 100.0
 # If volume is 1.0, expected N is 100
-c = Causet(density=100.0)
+c = pycauset.CausalSet(density=100.0)
 print(f"Realized N: {c.N}")
 print(f"Realized Density: {c.rho}")
 ```
@@ -143,7 +138,7 @@ c.save("my_simulation.pycauset")
 
 # Load
 # This reconstructs the object exactly without re-sprinkling
-c_loaded = Causet.load("my_simulation.pycauset")
+c_loaded = pycauset.CausalSet.load("my_simulation.pycauset")
 ```
 
 ## Adding Matter (Fields)

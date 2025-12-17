@@ -47,10 +47,10 @@ class TestMatrixTypes(unittest.TestCase):
         self.assertEqual(m3.get_element_as_double(0, 0), 7.0)
 
     def test_bit_matrix_addition(self):
-        m1 = pycauset.CausalMatrix(2) # TriangularBitMatrix
+        m1 = pycauset.causal_matrix(2) # TriangularBitMatrix
         m1.set(0, 1, 1)
         
-        m2 = pycauset.CausalMatrix(2)
+        m2 = pycauset.causal_matrix(2)
         m2.set(0, 1, 1)
         
         # Add them (1 + 1 = 2)
@@ -62,7 +62,7 @@ class TestMatrixTypes(unittest.TestCase):
         self.assertEqual(m3.get_element_as_double(0, 1), 2.0)
 
     def test_bit_matrix_scalar_multiplication(self):
-        m1 = pycauset.CausalMatrix(2)
+        m1 = pycauset.causal_matrix(2)
         m1.set(0, 1, 1)
         
         # Multiply by int

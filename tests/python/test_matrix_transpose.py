@@ -60,6 +60,22 @@ class TestMatrixTranspose(unittest.TestCase):
         m.close()
         mt.close()
 
+    def test_dense_bit_matrix_transpose_rectangular(self):
+        rows, cols = 3, 5
+        m = pycauset.DenseBitMatrix(rows, cols)
+        m.set(1, 4, True)
+        m.set(2, 0, True)
+
+        self.assertEqual(m.shape, (rows, cols))
+        mt = m.T
+        self.assertEqual(mt.shape, (cols, rows))
+        self.assertTrue(mt.get(4, 1))
+        self.assertTrue(mt.get(0, 2))
+        self.assertFalse(mt.get(0, 0))
+
+        m.close()
+        mt.close()
+
     def test_triangular_bit_matrix_transpose(self):
         n = 10
         m = pycauset.TriangularBitMatrix(n)

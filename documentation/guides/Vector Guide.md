@@ -1,10 +1,10 @@
-# Vector Guide
+﻿# Vector Guide
 
 `pycauset` introduces efficient vectors that integrate seamlessly with the matrix operations. Vectors are stored in RAM for small sizes (behaving like NumPy arrays) and automatically spill to disk for massive datasets.
 
 ## Creating Vectors
 
-You can create vectors using the [[pycauset.Vector]] factory function. It automatically selects the most efficient storage backend based on your data.
+You can create vectors from data using **[[docs/functions/pycauset.vector.md|pycauset.vector]]**. For allocation by size, use **[[docs/functions/pycauset.zeros.md|pycauset.zeros]]** or **[[docs/functions/pycauset.empty.md|pycauset.empty]]** with an explicit `dtype`.
 
 You can also explicitly control storage using `dtype`.
 
@@ -25,21 +25,21 @@ Notes:
 ```python
 import pycauset as pc
 
-# Create a float vector of size 1000 (initialized to 0.0)
-v1 = pc.Vector(1000)
+# Allocate a float vector of size 1000 (initialized to 0.0)
+v1 = pc.zeros(1000, dtype="float64")
 
 # Create an integer vector from a list
-v2 = pc.Vector([1, 2, 3, 4, 5])
+v2 = pc.vector([1, 2, 3, 4, 5])
 
 # Explicit widths / unsigned
-v_i8 = pc.Vector([1, 2, 3], dtype="int8")
-v_u64 = pc.Vector([1, 2, 3], dtype="uint64")
+v_i8 = pc.vector([1, 2, 3], dtype="int8")
+v_u64 = pc.vector([1, 2, 3], dtype="uint64")
 
 # Complex float vectors
-v_c = pc.Vector([1+2j, 3-4j], dtype="complex_float32")
+v_c = pc.vector([1+2j, 3-4j], dtype="complex_float32")
 
 # Create a bit-packed boolean vector (1 bit per element)
-v3 = pc.Vector([True, False, True, True])
+v3 = pc.vector([True, False, True, True])
 ```
 
 ## Unit Vectors
@@ -74,16 +74,16 @@ Arithmetic involving `UnitVector` is special-cased for performance.
 ### Addition
 
 ```python
-v1 = pc.Vector([1, 2, 3])
-v2 = pc.Vector([4, 5, 6])
+v1 = pc.vector([1, 2, 3])
+v2 = pc.vector([4, 5, 6])
 v3 = v1 + v2  # [5, 7, 9]
 ```
 
 ### Subtraction
 
 ```python
-v1 = pc.Vector([1, 2, 3])
-v2 = pc.Vector([4, 5, 6])
+v1 = pc.vector([1, 2, 3])
+v2 = pc.vector([4, 5, 6])
 v3 = v2 - v1  # [3, 3, 3]
 ```
 
@@ -92,7 +92,7 @@ v3 = v2 - v1  # [3, 3, 3]
 You can add a scalar to every element of a vector.
 
 ```python
-v = pc.Vector([1, 2, 3])
+v = pc.vector([1, 2, 3])
 v_plus_5 = v + 5  # [6, 7, 8]
 v_plus_5_reverse = 5 + v  # [6, 7, 8]
 ```
@@ -100,7 +100,7 @@ v_plus_5_reverse = 5 + v  # [6, 7, 8]
 ### Scalar Multiplication
 
 ```python
-v = pc.Vector([1, 2, 3])
+v = pc.vector([1, 2, 3])
 v_scaled = v * 2.0  # [2.0, 4.0, 6.0]
 ```
 
@@ -111,8 +111,8 @@ You can compute the dot product of two vectors using [[pycauset.dot]] or the `do
 ```python
 import pycauset as pc
 
-v1 = pc.Vector([1, 2, 3])
-v2 = pc.Vector([4, 5, 6])
+v1 = pc.vector([1, 2, 3])
+v2 = pc.vector([4, 5, 6])
 
 result = pc.dot(v1, v2)  # 1*4 + 2*5 + 3*6 = 32.0
 # OR
@@ -124,8 +124,8 @@ result = v1.dot(v2)
 The cross product is defined for 3D vectors.
 
 ```python
-v1 = pc.Vector([1, 0, 0])
-v2 = pc.Vector([0, 1, 0])
+v1 = pc.vector([1, 0, 0])
+v2 = pc.vector([0, 1, 0])
 v3 = v1.cross(v2)  # [0, 0, 1]
 ```
 
@@ -134,8 +134,8 @@ You can compute the cross product of two 3D vectors using `Vector.cross` (prefer
 ```python
 import pycauset as pc
 
-v1 = pc.Vector([1, 0, 0])
-v2 = pc.Vector([0, 1, 0])
+v1 = pc.vector([1, 0, 0])
+v2 = pc.vector([0, 1, 0])
 
 # v1 x v2 = [0, 0, 1]
 v3 = pc.cross(v1, v2)
@@ -154,7 +154,7 @@ You can transpose a vector using the `.T` property.
 *   **Row Vector** (`v.T`): Shape `(1, N)`.
 
 ```python
-v = pc.Vector([1, 2, 3])
+v = pc.vector([1, 2, 3])
 print(v.shape)    # (3,)
 
 vt = v.T
@@ -171,8 +171,8 @@ print(v_orig.shape) # (3,)
 The inner product produces a scalar.
 
 ```python
-v1 = pc.Vector([1, 2, 3])
-v2 = pc.Vector([4, 5, 6])
+v1 = pc.vector([1, 2, 3])
+v2 = pc.vector([4, 5, 6])
 
 # Row @ Column -> Scalar
 scalar = v1.T @ v2  # 32.0
@@ -191,8 +191,8 @@ scalar = v1 @ v2    # 32.0
 The outer product produces a matrix.
 
 ```python
-v1 = pc.Vector([1, 2, 3]) # Column
-v2 = pc.Vector([4, 5, 6]) # Column
+v1 = pc.vector([1, 2, 3]) # Column
+v2 = pc.vector([4, 5, 6]) # Column
 
 # Column @ Row -> Matrix (N x N)
 M = v1 @ v2.T 
@@ -212,8 +212,8 @@ M = v1 @ v2.T
 You can multiply matrices and vectors.
 
 ```python
-M = pc.Matrix(3, dtype=pc.float64)
-v = pc.Vector([1, 1, 1])
+M = pc.zeros((3, 3), dtype=pc.float64)
+v = pc.vector([1, 1, 1])
 
 # Matrix @ Column Vector -> Column Vector
 v_new = M @ v 
@@ -244,7 +244,7 @@ v = pc.asarray(arr)
 You can add, subtract, or multiply vectors with NumPy arrays directly. The result remains a persistent `pycauset` vector.
 
 ```python
-v = pc.Vector([1, 2, 3])
+v = pc.vector([1, 2, 3])
 arr = np.array([10, 10, 10])
 v_new = v + arr # [11, 12, 13]
 ```
@@ -256,7 +256,7 @@ Like matrices, vectors are backed by storage (RAM or disk). You can save them pe
 ```python
 import pycauset as pc
 
-v = pc.Vector([1, 2, 3])
+v = pc.vector([1, 2, 3])
 pc.save(v, "my_vector.pycauset")
 
 v_loaded = pc.load("my_vector.pycauset")
@@ -267,8 +267,9 @@ v_loaded = pc.load("my_vector.pycauset")
 Operations between different vector dtypes (e.g., integer + float) are supported. The result kind follows the fundamental-kind rule from `documentation/internals/DType System.md` (if a float participates, the result kind is float).
 
 ```python
-v_int = pc.Vector([1, 2], dtype=pc.int32)
-v_float = pc.Vector([0.5, 0.5], dtype=pc.float64)
+v_int = pc.vector([1, 2], dtype=pc.int32)
+v_float = pc.vector([0.5, 0.5], dtype=pc.float64)
 
 v_sum = v_int + v_float  # [1.5, 2.5] (FloatVector)
 ```
+

@@ -44,6 +44,30 @@ We will keep “2D only” as a non-goal: no N-D arrays.
 
 ---
 
+## Progress tracking (manual checkmarks)
+
+Use GitHub-style task boxes:
+- `[ ]` = not done
+- `[x]` = done
+
+Release 1 nodes:
+- [x] R1_DOCS
+- [x] R1_API
+- [x] R1_SHAPES
+- [ ] R1_SRP
+- [ ] R1_IO
+- [ ] R1_NUMPY
+- [ ] R1_LINALG
+- [ ] R1_BLOCKMATRIX
+- [ ] R1_GPU
+- [ ] R1_QA
+- [ ] R1_REL
+
+Parked:
+- [ ] R2_PHYS
+
+---
+
 ## Canonical Roadmap Graph (Mermaid)
 
 ```mermaid
@@ -59,6 +83,7 @@ flowchart TD
         R1_IO["R1_IO<br/>Out-of-core I/O + Persistence Performance<br/>(streaming + mmap correctness)"]
         R1_NUMPY["R1_NUMPY<br/>Fast NumPy Interop<br/>(import/export must be competitive)"]
         R1_LINALG["R1_LINALG<br/>Core Linalg Surface Completeness<br/>(norms/division/init-from-array/etc)"]
+        R1_BLOCKMATRIX["R1_BLOCKMATRIX<br/>Block Matrices + Heterogeneous Dtypes<br/>(nesting + manifests + semi-lazy ops)"]
         R1_GPU["R1_GPU<br/>GPU Parity + Routing Policy<br/>(CPU-only vs GPU-enabled is explicit)"]
         R1_QA["R1_QA<br/>Bench + Correctness Gates Enforced<br/>(CI + thresholds)"]
         R1_REL["R1_REL<br/>Release Mechanics<br/>(packaging + release checklist)"]
@@ -71,6 +96,7 @@ flowchart TD
     R1_IO --> R1_SRP
     R1_NUMPY --> R1_SRP
     R1_LINALG --> R1_SRP
+    R1_BLOCKMATRIX --> R1_SRP
     R1_GPU --> R1_SRP
 
     %% Post-R1: physics release parked (not detailed here)
@@ -85,6 +111,8 @@ flowchart TD
 ## Node details (keyed by ID)
 
 ### R1_DOCS — Docs System That Scales (Diátaxis + MkDocs IA)
+
+Status: - [x]
 
 Goal: documentation stays maintainable as features grow.
 
@@ -102,14 +130,21 @@ Deliverables:
 
 ### R1_API — Public API + Naming + Contracts
 
+Status: - [x]
+
 Goal: reduce churn and ambiguity in the Python surface while the project grows.
+
+Starting point:
+- [[project/Public API Contract|Public API Contract]]
 
 Deliverables:
 - Naming conventions documented (types, functions, dtype tokens, warnings/errors).
 - Public vs internal boundaries explicit.
-- Deprecation policy (even if pre-alpha allows breaking changes).
+- Deprecation policy: Any feature asked to be deprecated should be completely removed. There is no existing user base to respect. It is confusing for future work when deprecated features aren't completely removed, because their lingering functions, namespaces, parameters etc still linger in the codebase, causing confusion. Regarding documentation, never write "this has been deprecated" - just REMOVE IT. "Deprecation" = "Purge" in this workflow.
 
 ### R1_SHAPES — NxM Matrices Across The System
+
+Status: - [ ]
 
 Goal: remove square-only assumptions so later work doesn’t require rewrites.
 
@@ -122,6 +157,8 @@ Phased approach:
     - and what gets blocked vs implemented.
 
 ### R1_SRP — Support Readiness Program (SRP)
+
+Status: - [ ]
 
 This is the long “painstaking” program.
 
@@ -141,6 +178,8 @@ Definition of Done (Release 1 gate):
 
 ### R1_IO — Out-of-core I/O + Persistence Performance
 
+Status: - [ ]
+
 Goal: disk-backed operation performance is a first-class feature, not an accident.
 
 Deliverables:
@@ -150,6 +189,8 @@ Deliverables:
 
 ### R1_NUMPY — Fast NumPy Interop
 
+Status: - [ ]
+
 Goal: converting to/from NumPy is not a bottleneck.
 
 Deliverables:
@@ -158,14 +199,40 @@ Deliverables:
 
 ### R1_LINALG — Core Linalg Surface Completeness
 
+Status: - [ ]
+
 Goal: the base toolbox feels complete for users.
 
 Seed items (from prior TODO):
 - Norms, normalization, projections
 - Elementwise division for matrices/vectors
 - Initialization from array input for typed classes (not only factories)
+- Block matrices/vectors (moved to **R1_BLOCKMATRIX**; see `documentation/internals/plans/R1_BLOCKMATRIX_PLAN.md`)
+- Advanced indexing (slicing, fancy indexing)
+- Random matrix/vector generation
+- Matrix properties (is_symmetric, is_positive_definite, etc)
+
+### R1_BLOCKMATRIX — Block Matrices + Heterogeneous Dtypes
+
+Status: - [ ]
+
+Goal: make block matrices a first-class internal representation built from existing matrices,
+with **heterogeneous dtypes**, **manifest-based reference persistence**, and **semi-lazy block ops**
+that preserve storage efficiency.
+
+Authoritative plan: `documentation/internals/plans/R1_BLOCKMATRIX_PLAN.md`.
+
+Deliverables:
+- `pycauset.matrix([[A, B], [C, D]])` constructs a block matrix without densifying.
+- Block matrices are infinitely nestable.
+- Element indexing behaves like normal matrices (elements, not blocks).
+- Block replacement via explicit API (e.g., `set_block`).
+- Elementwise ops + matmul decompose into leaf ops that route via AutoSolver/ComputeDevice.
+- Save/load uses a reference-manifest (no expanded dense write) and is nestable.
 
 ### R1_GPU — GPU Parity + Routing Policy
+
+Status: - [ ]
 
 Goal: GPU behavior is predictable and correct.
 
@@ -176,6 +243,8 @@ Deliverables:
 
 ### R1_QA — Bench + Correctness Gates Enforced
 
+Status: - [ ]
+
 Goal: prevent regressions (correctness and performance).
 
 Deliverables:
@@ -183,6 +252,8 @@ Deliverables:
 - Performance regressions are visible (even if not hard-failed at first).
 
 ### R1_REL — Release Mechanics
+
+Status: - [ ]
 
 Goal: releasing is routine and reproducible.
 

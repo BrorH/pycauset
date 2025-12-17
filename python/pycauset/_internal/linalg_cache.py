@@ -29,7 +29,12 @@ def make_inverse(FloatMatrix: Any) -> Any:
                         info = zf.getinfo("inverse.bin")
                         offset = zip_member_data_offset(backing, info)
 
-                        inv = FloatMatrix._from_storage(self.size(), backing, offset, 0, 1.0, False)
+                        try:
+                            inv = FloatMatrix._from_storage(
+                                self.rows(), self.cols(), backing, offset, 0, 1.0, False
+                            )
+                        except TypeError:
+                            inv = FloatMatrix._from_storage(self.rows(), backing, offset, 0, 1.0, False)
                         self._cached_inverse = inv
                         return inv
             except Exception:

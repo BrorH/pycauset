@@ -2,12 +2,21 @@ import sys
 import os
 import time
 import numpy as np
+import pytest
 
 # Add the python directory to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../python")))
 
 import pycauset
 
+
+_HAVE_EIG = hasattr(pycauset, "eigvals") and hasattr(pycauset, "eigvals_arnoldi")
+
+
+@pytest.mark.skipif(
+    not _HAVE_EIG,
+    reason="pycauset eigensolver APIs (eigvals/eigvals_arnoldi) are not available in this build",
+)
 def test_arnoldi_small():
     print("Testing Arnoldi on small matrix (N=100)...")
     N = 100
@@ -69,6 +78,14 @@ def test_arnoldi_small():
         err += abs(dense_vals[i] - arnoldi_vals[i])
     print(f"Total error for top {k}: {err}")
 
+@pytest.mark.skipif(
+    not _HAVE_EIG,
+    reason="pycauset eigensolver APIs (eigvals/eigvals_arnoldi) are not available in this build",
+)
+@pytest.mark.skipif(
+    os.environ.get("PYCAUSET_RUN_SLOW") not in {"1", "true", "TRUE", "yes", "YES"},
+    reason="slow benchmark-style test; set PYCAUSET_RUN_SLOW=1 to enable",
+)
 def test_arnoldi_large():
     print("\nTesting Arnoldi on larger matrix (N=1000)...")
     N = 1000

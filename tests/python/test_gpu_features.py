@@ -20,19 +20,15 @@ class TestGPUFeatures(unittest.TestCase):
 
     def test_float32_creation(self):
         """Test creation of Float32Matrix."""
-        # By size
-        m = pycauset.Matrix(100, dtype="float32")
+        # By size (allocation)
+        m = pycauset.zeros((100, 100), dtype="float32")
         self.assertIn("Float32Matrix", str(type(m)))
         self.assertEqual(m.shape, (100, 100))
         
         # By numpy array
         arr = np.zeros((50, 50), dtype=np.float32)
-        m2 = pycauset.Matrix(arr)
+        m2 = pycauset.matrix(arr)
         self.assertIn("Float32Matrix", str(type(m2)))
-        
-        # By force_precision
-        m3 = pycauset.Matrix(100, force_precision="single")
-        self.assertIn("Float32Matrix", str(type(m3)))
 
     def test_float32_multiplication(self):
         """Test GPU multiplication of Float32Matrix."""
@@ -103,8 +99,8 @@ class TestGPUFeatures(unittest.TestCase):
 
     def test_mixed_precision_error(self):
         """Test that mixing incompatible types throws or handles correctly."""
-        A = pycauset.Float32Matrix(100)
-        B = pycauset.FloatMatrix(100)
+        A = pycauset.zeros((100, 100), dtype="float32")
+        B = pycauset.zeros((100, 100), dtype="float64")
         
         # Should probably work by promoting A to Float64?
         # Or fail if not implemented.

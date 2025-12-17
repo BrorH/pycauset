@@ -20,18 +20,26 @@ static inline int popcount64(uint64_t x) {
 
 void DenseMatrix<bool>::calculate_stride() {
     // Align rows to 64-bit (8-byte) boundaries
-    uint64_t words_per_row = (n_ + 63) / 64;
+    uint64_t words_per_row = (base_cols() + 63) / 64;
     stride_bytes_ = words_per_row * 8;
 }
 
 DenseMatrix<bool>::DenseMatrix(uint64_t n, const std::string& backing_file)
-    : MatrixBase(n, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT) {
+    : DenseMatrix(n, n, backing_file) {}
+
+DenseMatrix<bool>::DenseMatrix(uint64_t rows, uint64_t cols, const std::string& backing_file)
+    : MatrixBase(rows, cols, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT) {
     calculate_stride();
-    uint64_t size_in_bytes = n_ * stride_bytes_;
-    
-    initialize_storage(size_in_bytes, backing_file, "dense_bit_matrix", 8, 
-                      pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT,
-                      n, n);
+    const uint64_t size_in_bytes = base_rows() * stride_bytes_;
+
+    initialize_storage(size_in_bytes,
+                       backing_file,
+                       "dense_bit_matrix",
+                       8,
+                       pycauset::MatrixType::DENSE_FLOAT,
+                       pycauset::DataType::BIT,
+                       rows,
+                       cols);
 }
 
 DenseMatrix<bool>::DenseMatrix(uint64_t n, 
@@ -40,27 +48,67 @@ DenseMatrix<bool>::DenseMatrix(uint64_t n,
                                uint64_t seed,
                                std::complex<double> scalar,
                                bool is_transposed)
-    : MatrixBase(n, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT) {
+    : DenseMatrix(n, n, backing_file, offset, seed, scalar, is_transposed) {}
+
+DenseMatrix<bool>::DenseMatrix(uint64_t rows,
+                               uint64_t cols,
+                               const std::string& backing_file,
+                               size_t offset,
+                               uint64_t seed,
+                               std::complex<double> scalar,
+                               bool is_transposed)
+    : MatrixBase(rows, cols, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT) {
     calculate_stride();
-    uint64_t size_in_bytes = n_ * stride_bytes_;
-    
-    initialize_storage(size_in_bytes, backing_file, "", 8, 
-                      pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT,
-                      n, n, offset, false);
-    
+    const uint64_t size_in_bytes = base_rows() * stride_bytes_;
+
+    initialize_storage(size_in_bytes,
+                       backing_file,
+                       "",
+                       8,
+                       pycauset::MatrixType::DENSE_FLOAT,
+                       pycauset::DataType::BIT,
+                       rows,
+                       cols,
+                       offset,
+                       false);
+
     set_seed(seed);
     set_scalar(scalar);
     set_transposed(is_transposed);
 }
 
 DenseMatrix<bool>::DenseMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-    : MatrixBase(n, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT) {
+    : DenseMatrix(n, n, std::move(mapper)) {}
+
+DenseMatrix<bool>::DenseMatrix(uint64_t rows, uint64_t cols, std::shared_ptr<MemoryMapper> mapper)
+    : MatrixBase(rows, cols, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::BIT) {
     calculate_stride();
+}
+
+void DenseMatrix<bool>::fill(bool value) {
+    ensure_unique();
+
+    const uint64_t words_per_row = stride_bytes_ / 8;
+    const uint64_t total_words = base_rows() * words_per_row;
+    uint64_t* dst = data();
+
+    const uint64_t fill_word = value ? ~0ULL : 0ULL;
+    for (uint64_t idx = 0; idx < total_words; ++idx) {
+        dst[idx] = fill_word;
+    }
+
+    const uint64_t tail_bits = base_cols() % 64;
+    if (value && tail_bits != 0) {
+        const uint64_t mask = (1ULL << tail_bits) - 1ULL;
+        for (uint64_t i = 0; i < base_rows(); ++i) {
+            dst[i * words_per_row + (words_per_row - 1)] &= mask;
+        }
+    }
 }
 
 void DenseMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
     ensure_unique();
-    if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
+    if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
 
     if (is_transposed()) {
         std::swap(i, j);
@@ -81,7 +129,7 @@ void DenseMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
 }
 
 bool DenseMatrix<bool>::get(uint64_t i, uint64_t j) const {
-    if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
+    if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
 
     if (is_transposed()) {
         std::swap(i, j);
@@ -102,11 +150,11 @@ double DenseMatrix<bool>::get_element_as_double(uint64_t i, uint64_t j) const {
 }
 
 std::unique_ptr<DenseMatrix<int32_t>> DenseMatrix<bool>::multiply(const DenseMatrix<bool>& other, const std::string& result_file) const {
-    if (n_ != other.size()) {
-        throw std::invalid_argument("Matrix dimensions must match");
+    if (cols() != other.rows()) {
+        throw std::invalid_argument("Dimension mismatch");
     }
 
-    auto result = std::make_unique<DenseMatrix<int32_t>>(n_, result_file);
+    auto result = std::make_unique<DenseMatrix<int32_t>>(rows(), other.cols(), result_file);
 
     // Delegate to ComputeContext (AutoSolver)
     // AutoSolver will choose between GPU and CPU (CpuSolver)
@@ -119,7 +167,7 @@ std::unique_ptr<DenseMatrix<int32_t>> DenseMatrix<bool>::multiply(const DenseMat
 std::unique_ptr<MatrixBase> DenseMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {
     std::string new_path = copy_storage(result_file);
     auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-    auto new_matrix = std::make_unique<DenseMatrix<bool>>(n_, std::move(mapper));
+    auto new_matrix = std::make_unique<DenseMatrix<bool>>(base_rows(), base_cols(), std::move(mapper));
     new_matrix->set_scalar(scalar_ * factor);
     if (result_file.empty()) {
         new_matrix->set_temporary(true);
@@ -130,7 +178,7 @@ std::unique_ptr<MatrixBase> DenseMatrix<bool>::multiply_scalar(double factor, co
 std::unique_ptr<MatrixBase> DenseMatrix<bool>::transpose(const std::string& result_file) const {
     std::string new_path = copy_storage(result_file);
     auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-    auto new_matrix = std::make_unique<DenseMatrix<bool>>(n_, std::move(mapper));
+    auto new_matrix = std::make_unique<DenseMatrix<bool>>(base_rows(), base_cols(), std::move(mapper));
     
     // Flip the transposed bit
     new_matrix->set_transposed(!this->is_transposed());
@@ -142,19 +190,25 @@ std::unique_ptr<MatrixBase> DenseMatrix<bool>::transpose(const std::string& resu
 }
 
 std::unique_ptr<DenseMatrix<bool>> DenseMatrix<bool>::bitwise_not(const std::string& result_file) const {
-    auto result = std::make_unique<DenseMatrix<bool>>(n_, result_file);
+    auto result = std::make_unique<DenseMatrix<bool>>(base_rows(), base_cols(), result_file);
     
     const uint64_t* src = data();
     uint64_t* dst = result->data();
-    uint64_t total_words = (n_ * stride_bytes_) / 8;
+    uint64_t total_words = (base_rows() * stride_bytes_) / 8;
     
     for (uint64_t i = 0; i < total_words; ++i) {
         dst[i] = ~src[i];
     }
-    
-    // Mask out padding bits in the last word of each row?
-    // Not strictly necessary if we never read them, but good for cleanliness.
-    // Our get() checks bounds, so we are safe.
+
+    // Mask out padding bits in the last word of each row.
+    const uint64_t tail_bits = base_cols() % 64;
+    if (tail_bits != 0) {
+        const uint64_t mask = (1ULL << tail_bits) - 1ULL;
+        const uint64_t words_per_row = stride_bytes_ / 8;
+        for (uint64_t i = 0; i < base_rows(); ++i) {
+            dst[i * words_per_row + (words_per_row - 1)] &= mask;
+        }
+    }
     
     result->set_scalar(scalar_);
     return result;
@@ -163,7 +217,13 @@ std::unique_ptr<DenseMatrix<bool>> DenseMatrix<bool>::bitwise_not(const std::str
 std::unique_ptr<DenseMatrix<bool>> DenseMatrix<bool>::random(uint64_t n, double density,
                                             const std::string& backing_file,
                                             std::optional<uint64_t> seed) {
-    auto mat = std::make_unique<DenseMatrix<bool>>(n, backing_file);
+    return random(n, n, density, backing_file, seed);
+}
+
+std::unique_ptr<DenseMatrix<bool>> DenseMatrix<bool>::random(uint64_t rows, uint64_t cols, double density,
+                                            const std::string& backing_file,
+                                            std::optional<uint64_t> seed) {
+    auto mat = std::make_unique<DenseMatrix<bool>>(rows, cols, backing_file);
     mat->fill_random(density, seed);
     return mat;
 }
@@ -185,8 +245,10 @@ void DenseMatrix<bool>::fill_random(double density, std::optional<uint64_t> seed
     // We can optimize this by generating 64 bits at a time if density is 0.5.
     // For arbitrary density, we iterate.
     
-    for (uint64_t i = 0; i < n_; ++i) {
-        for (uint64_t j = 0; j < n_; ++j) {
+    const uint64_t r = rows();
+    const uint64_t c = cols();
+    for (uint64_t i = 0; i < r; ++i) {
+        for (uint64_t j = 0; j < c; ++j) {
             if (d(gen)) {
                 set(i, j, true);
             }
@@ -195,16 +257,18 @@ void DenseMatrix<bool>::fill_random(double density, std::optional<uint64_t> seed
 }
 
 std::unique_ptr<MatrixBase> DenseMatrix<bool>::add_scalar(double scalar, const std::string& result_file) const {
-    auto result = std::make_unique<DenseMatrix<double>>(n_, result_file);
-    double* dst_data = result->data();
-    
-    for (uint64_t i = 0; i < n_; ++i) {
-        for (uint64_t j = 0; j < n_; ++j) {
-            double val = (get(i, j) ? scalar_.real() : 0.0) + scalar;
-            dst_data[i * n_ + j] = val;
+    const uint64_t m = rows();
+    const uint64_t n = cols();
+    auto result = std::make_unique<DenseMatrix<double>>(m, n, result_file);
+
+    for (uint64_t i = 0; i < m; ++i) {
+        for (uint64_t j = 0; j < n; ++j) {
+            const double val = (get(i, j) ? scalar_.real() : 0.0) + scalar;
+            result->set(i, j, val);
         }
     }
-    
+
+    result->set_scalar(1.0);
     if (result_file.empty()) {
         result->set_temporary(true);
     }

@@ -92,6 +92,7 @@ nav:
     - Visualization: guides/Visualization.md
     - Matrix Guide: guides/Matrix Guide.md
     - Vector Guide: guides/Vector Guide.md
+    - NxM Support: guides/NxM Support.md
     - Storage and Memory: guides/Storage and Memory.md
     - Performance Guide: guides/Performance Guide.md
     - NumPy Integration: guides/Numpy Integration.md
@@ -125,6 +126,7 @@ nav:
   - Project:
     - project/index.md
     - Philosophy: project/Philosophy.md
+    - Public API Contract: project/Public API Contract.md
     - Protocols:
       - project/protocols/index.md
       - Pre-alpha Policy: project/protocols/Pre-alpha Policy.md

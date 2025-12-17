@@ -17,20 +17,14 @@ namespace pycauset {
 
 namespace {
 std::vector<double> to_memory_flat_real(const MatrixBase& m) {
-    uint64_t n = m.size();
+    const uint64_t rows = m.rows();
+    const uint64_t cols = m.cols();
+    if (rows != cols) {
+        throw std::runtime_error("Operation requires square matrix");
+    }
+
+    const uint64_t n = rows;
     std::vector<double> mat(n * n);
-
-    if (auto* dm = dynamic_cast<const DenseMatrix<double>*>(&m)) {
-        const double* src = dm->data();
-        std::copy(src, src + n * n, mat.begin());
-        return mat;
-    }
-
-    if (auto* fm = dynamic_cast<const DenseMatrix<float>*>(&m)) {
-        const float* src = fm->data();
-        std::transform(src, src + n * n, mat.begin(), [](float v) { return static_cast<double>(v); });
-        return mat;
-    }
 
     ParallelFor(0, n, [&](size_t i) {
         for (size_t j = 0; j < n; ++j) {
@@ -42,7 +36,13 @@ std::vector<double> to_memory_flat_real(const MatrixBase& m) {
 }
 
 std::vector<std::complex<double>> to_memory_flat_complex(const MatrixBase& m) {
-    uint64_t n = m.size();
+    const uint64_t rows = m.rows();
+    const uint64_t cols = m.cols();
+    if (rows != cols) {
+        throw std::runtime_error("Operation requires square matrix");
+    }
+
+    const uint64_t n = rows;
     std::vector<std::complex<double>> mat(n * n);
 
     ParallelFor(0, n, [&](size_t i) {
@@ -60,7 +60,9 @@ double trace(const MatrixBase& matrix) {
         return *cached;
     }
 
-    const uint64_t n = matrix.size();
+    const uint64_t rows = matrix.rows();
+    const uint64_t cols = matrix.cols();
+    const uint64_t n = std::min(rows, cols);
     const auto type = matrix.get_matrix_type();
 
     double tr = 0.0;
@@ -81,7 +83,13 @@ double determinant(const MatrixBase& matrix) {
         return *cached;
     }
 
-    const uint64_t n = matrix.size();
+    const uint64_t rows = matrix.rows();
+    const uint64_t cols = matrix.cols();
+    if (rows != cols) {
+        throw std::runtime_error("Determinant requires square matrix");
+    }
+
+    const uint64_t n = rows;
     const auto type = matrix.get_matrix_type();
 
     double det = 0.0;

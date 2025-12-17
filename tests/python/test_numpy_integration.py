@@ -92,6 +92,53 @@ class TestNumpyIntegration(unittest.TestCase):
         self.assertEqual(res4[0, 0], 1.0)
         self.assertEqual(res4[1, 1], 1.0)
 
+    def test_numpy_elementwise_broadcasting_1d(self):
+        """Test NumPy-style broadcasting with 1D arrays (row-vectors)."""
+        rows, cols = 3, 4
+        pc_mat = pycauset.FloatMatrix(rows, cols)
+        for i in range(rows):
+            for j in range(cols):
+                pc_mat[i, j] = float(i * 10 + j)
+
+        np_row = np.arange(cols, dtype=np.float64)
+        np_row_nonzero = np.arange(cols, dtype=np.float64) + 1.0
+
+        res1 = pc_mat + np_row
+        self.assertTrue(hasattr(res1, "get_backing_file"))
+        self.assertEqual(res1.shape, (rows, cols))
+        self.assertEqual(res1[2, 3], pc_mat[2, 3] + 3.0)
+
+        res2 = np_row + pc_mat
+        self.assertTrue(hasattr(res2, "get_backing_file"))
+        self.assertEqual(res2[1, 2], pc_mat[1, 2] + 2.0)
+
+        res3 = pc_mat - np_row
+        self.assertTrue(hasattr(res3, "get_backing_file"))
+        self.assertEqual(res3[0, 1], pc_mat[0, 1] - 1.0)
+
+        res4 = np_row - pc_mat
+        self.assertTrue(hasattr(res4, "get_backing_file"))
+        self.assertEqual(res4[0, 0], 0.0 - pc_mat[0, 0])
+
+        res5 = pc_mat * np_row
+        self.assertTrue(hasattr(res5, "get_backing_file"))
+        self.assertEqual(res5[2, 1], pc_mat[2, 1] * 1.0)
+
+        res6 = np_row * pc_mat
+        self.assertTrue(hasattr(res6, "get_backing_file"))
+        self.assertEqual(res6[1, 3], 3.0 * pc_mat[1, 3])
+
+        res7 = pc_mat / np_row_nonzero
+        self.assertTrue(hasattr(res7, "get_backing_file"))
+        self.assertAlmostEqual(res7[2, 3], pc_mat[2, 3] / 4.0)
+
+        res8 = np_row_nonzero / pc_mat
+        self.assertTrue(hasattr(res8, "get_backing_file"))
+        self.assertAlmostEqual(res8[0, 1], 2.0 / pc_mat[0, 1])
+
+        with self.assertRaises(Exception):
+            pc_mat + np.arange(rows, dtype=np.float64)
+
     def test_numpy_ufuncs(self):
         """Test NumPy ufuncs on PyCauset objects."""
         n = 3

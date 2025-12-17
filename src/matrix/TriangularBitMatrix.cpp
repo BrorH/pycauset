@@ -54,7 +54,7 @@ void TriangularMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
         std::swap(i, j);
     }
     if (i >= j) throw std::invalid_argument("Strictly upper triangular");
-    if (j >= n_) throw std::out_of_range("Index out of bounds");
+    if (j >= cols()) throw std::out_of_range("Index out of bounds");
 
     uint64_t bit_offset = j - (i + 1);
     uint64_t word_index = bit_offset / 64;
@@ -75,7 +75,7 @@ bool TriangularMatrix<bool>::get(uint64_t i, uint64_t j) const {
     if (is_transposed()) {
         std::swap(i, j);
     }
-    if (i >= j || j >= n_) return false;
+    if (i >= j || j >= cols()) return false;
 
     uint64_t bit_offset = j - (i + 1);
     uint64_t word_index = bit_offset / 64;
@@ -107,7 +107,7 @@ std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::random(uint64_t 
 std::unique_ptr<MatrixBase> TriangularMatrix<bool>::transpose(const std::string& result_file) const {
     std::string new_path = copy_storage(result_file);
     auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-    auto new_matrix = std::make_unique<TriangularMatrix<bool>>(n_, std::move(mapper));
+    auto new_matrix = std::make_unique<TriangularMatrix<bool>>(base_rows(), std::move(mapper));
     
     // Flip the transposed bit
     new_matrix->set_transposed(!this->is_transposed());
@@ -119,13 +119,14 @@ std::unique_ptr<MatrixBase> TriangularMatrix<bool>::transpose(const std::string&
 }
 
 std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::bitwise_not(const std::string& result_file) const {
-    auto result = std::make_unique<TriangularMatrix<bool>>(n_, result_file);
+    const uint64_t n = rows();
+    auto result = std::make_unique<TriangularMatrix<bool>>(n, result_file);
     
     const uint64_t* src_data = data();
     uint64_t* dst_data = result->data();
 
-    for (uint64_t i = 0; i < n_; ++i) {
-        uint64_t row_len = (n_ - 1) - i; // Number of bits in this row
+    for (uint64_t i = 0; i < n; ++i) {
+        uint64_t row_len = (n - 1) - i; // Number of bits in this row
         if (row_len == 0) continue;
 
         uint64_t words = (row_len + 63) / 64;
@@ -153,11 +154,12 @@ std::unique_ptr<TriangularMatrix<double>> TriangularMatrix<bool>::inverse(const 
 }
 
 std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(const TriangularMatrix<bool>& other, const std::string& result_file) const {
-    if (n_ != other.size()) {
+    const uint64_t n = rows();
+    if (rows() != other.rows() || cols() != other.cols()) {
         throw std::invalid_argument("Matrix dimensions must match");
     }
     
-    auto result = std::make_unique<TriangularMatrix<int32_t>>(n_, result_file);
+    auto result = std::make_unique<TriangularMatrix<int32_t>>(n, result_file);
     
     const char* a_base = static_cast<const char*>(require_mapper()->get_data());
     const char* b_base = static_cast<const char*>(other.require_mapper()->get_data());
@@ -167,23 +169,23 @@ std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(cons
     TriangularMatrix<int32_t>* result_ptr = result.get();
 
     size_t num_threads = pycauset::ThreadPool::get_num_threads();
-    uint64_t chunk_size = (n_ + num_threads - 1) / num_threads;
+    uint64_t chunk_size = (n + num_threads - 1) / num_threads;
 
     for (size_t t = 0; t < num_threads; ++t) {
         uint64_t start = t * chunk_size;
-        uint64_t end = std::min(start + chunk_size, n_);
+        uint64_t end = std::min(start + chunk_size, n);
         if (start >= end) break;
 
-        futures.emplace_back(pool.enqueue([this, start, end, &other, result_ptr, a_base, b_base]() {
+        futures.emplace_back(pool.enqueue([this, start, end, &other, result_ptr, a_base, b_base, n]() {
             // Buffer to accumulate one row of results
-            std::vector<uint32_t> accumulator(n_);
+            std::vector<uint32_t> accumulator(n);
 
             for (uint64_t i = start; i < end; ++i) {
                 std::fill(accumulator.begin(), accumulator.end(), 0);
                 
                 // Iterate over Row i of A
                 // Row i has length N - 1 - i
-                uint64_t row_len_a = (n_ - 1) - i;
+                uint64_t row_len_a = (n - 1) - i;
                 if (row_len_a == 0) continue;
 
                 uint64_t words_a = (row_len_a + 63) / 64;
@@ -200,10 +202,10 @@ std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(cons
                         // bit 0 corresponds to col i+1 + w*64
                         uint64_t k = (i + 1) + w * 64 + bit;
                         
-                        if (k < n_) {
+                        if (k < n) {
                             // Add Row k of B to accumulator
                             // Row k of B starts at col k+1
-                            uint64_t row_len_b = (n_ - 1) - k;
+                            uint64_t row_len_b = (n - 1) - k;
                             if (row_len_b > 0) {
                                 uint64_t words_b = (row_len_b + 63) / 64;
                                 const uint64_t* b_row_ptr = (const uint64_t*)(b_base + other.get_row_offset(k));
@@ -220,7 +222,7 @@ std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(cons
                                     while (word_b) {
                                         int bit_b = std::countr_zero(word_b);
                                         uint64_t col = base_col + bit_b;
-                                        if (col < n_) {
+                                        if (col < n) {
                                             accumulator[col]++;
                                         }
                                         word_b &= ~(1ULL << bit_b);
@@ -236,7 +238,7 @@ std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(cons
 
                 // Write accumulator to result matrix
                 // Result is strictly upper triangular, so we only care about cols > i
-                for (uint64_t j = i + 1; j < n_; ++j) {
+                for (uint64_t j = i + 1; j < n; ++j) {
                     if (accumulator[j] > 0) {
                         result_ptr->set(i, j, accumulator[j]);
                     }
@@ -256,17 +258,18 @@ std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(cons
 
 std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::elementwise_multiply(const TriangularMatrix<bool>& other,
                                                                 const std::string& result_file) const {
-    if (n_ != other.size()) {
+    const uint64_t n = rows();
+    if (rows() != other.rows() || cols() != other.cols()) {
         throw std::invalid_argument("Matrix dimensions must match");
     }
 
-    auto result = std::make_unique<TriangularMatrix<bool>>(n_, result_file);
+    auto result = std::make_unique<TriangularMatrix<bool>>(n, result_file);
     const char* lhs_base = static_cast<const char*>(require_mapper()->get_data());
     const char* rhs_base = static_cast<const char*>(other.require_mapper()->get_data());
     char* dst_base = static_cast<char*>(result->require_mapper()->get_data());
 
-    for (uint64_t i = 0; i < n_; ++i) {
-        uint64_t row_len = (n_ - 1) - i;
+    for (uint64_t i = 0; i < n; ++i) {
+        uint64_t row_len = (n - 1) - i;
         if (row_len == 0) {
             continue;
         }
@@ -332,8 +335,9 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
         size_t view_start = 0;
         size_t view_size = 0;
 
-        for (uint64_t i = 0; i < n_; ++i) {
-            uint64_t row_len = (n_ - 1) - i;
+        const uint64_t n = rows();
+        for (uint64_t i = 0; i < n; ++i) {
+            uint64_t row_len = (n - 1) - i;
             if (row_len == 0) continue;
 
             uint64_t words = (row_len + 63) / 64;
@@ -379,8 +383,9 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
         size_t view_start = 0;
         size_t view_size = 0;
 
-        for (uint64_t i = 0; i < n_; ++i) {
-            uint64_t row_len = (n_ - 1) - i;
+        const uint64_t n = rows();
+        for (uint64_t i = 0; i < n; ++i) {
+            uint64_t row_len = (n - 1) - i;
             if (row_len == 0) continue;
 
             uint64_t words = (row_len + 63) / 64;
@@ -416,7 +421,7 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
             // Windows zeroes new files.
             
             // Iterate columns
-            for (uint64_t j = i + 1; j < n_; ++j) {
+            for (uint64_t j = i + 1; j < n; ++j) {
                 if (dist(gen)) {
                     // Set bit (i, j)
                     uint64_t bit_offset = j - (i + 1);
@@ -443,7 +448,7 @@ std::unique_ptr<MatrixBase> TriangularMatrix<bool>::multiply_scalar(double facto
     uint64_t data_size = file_size;
     auto mapper = std::make_unique<MemoryMapper>(new_path, data_size, false);
     
-    auto result = std::make_unique<TriangularMatrix<bool>>(n_, std::move(mapper));
+    auto result = std::make_unique<TriangularMatrix<bool>>(base_rows(), std::move(mapper));
     result->set_scalar(scalar_ * factor);
     if (result_file.empty()) {
         result->set_temporary(true);
@@ -456,13 +461,14 @@ std::unique_ptr<MatrixBase> TriangularMatrix<bool>::multiply_scalar(double facto
 
 
 std::unique_ptr<MatrixBase> TriangularMatrix<bool>::add_scalar(double scalar, const std::string& result_file) const {
-    auto result = std::make_unique<DenseMatrix<double>>(n_, result_file);
+    const uint64_t n = rows();
+    auto result = std::make_unique<DenseMatrix<double>>(n, result_file);
     double* dst_data = result->data();
     
-    for (uint64_t i = 0; i < n_; ++i) {
-        for (uint64_t j = 0; j < n_; ++j) {
+    for (uint64_t i = 0; i < n; ++i) {
+        for (uint64_t j = 0; j < n; ++j) {
             double val = get_element_as_double(i, j) + scalar;
-            dst_data[i * n_ + j] = val;
+            dst_data[i * n + j] = val;
         }
     }
     

@@ -86,6 +86,9 @@ benchmarks/
 storage/
 site/
 
+# --- CTest output ---
+Testing/
+
 # --- Local binary artifacts (accidental) ---
 /test_f32
 /test_f32_2

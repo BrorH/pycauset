@@ -10,6 +10,7 @@ enum class BinaryOp : uint8_t {
     Add,
     Subtract,
     ElementwiseMultiply,
+    Divide,
     Matmul,
     MatrixVectorMultiply,
     VectorMatrixMultiply,

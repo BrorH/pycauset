@@ -98,6 +98,12 @@ class TestTransposedVectors(unittest.TestCase):
         self.assertEqual(res2[0], 7.0) # 1*1 + 2*3
         self.assertEqual(res2[1], 10.0) # 1*2 + 2*4
 
+        # v @ M behaves like v.T @ M (row-vector semantics)
+        res3 = v @ m
+        self.assertEqual(res3.shape, (1, 2))
+        self.assertEqual(res3[0], 7.0)
+        self.assertEqual(res3[1], 10.0)
+
     def test_persistence(self):
         v = pycauset.FloatVector(3)
         v[0] = 10

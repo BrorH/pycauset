@@ -30,6 +30,25 @@ class TestScaleFirstBitGuard(unittest.TestCase):
         trace = pycauset._debug_last_kernel_trace()
         self.assertIn("cpu.matmul.bitbit_popcount", trace)
 
+    def test_bitbit_matmul_rectangular_uses_popcount_kernel(self):
+        a = pycauset.DenseBitMatrix(2, 3)
+        b = pycauset.DenseBitMatrix(3, 4)
+
+        # Make C[0,0] = 1 via k=1
+        a.set(0, 1, 1)
+        b.set(1, 0, 1)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", pycauset.PyCausetDTypeWarning)
+            c = a @ b
+
+        self.assertEqual(c.shape, (2, 4))
+        self.assertEqual(c[0, 0], 1)
+        self.assertEqual(c[1, 0], 0)
+
+        trace = pycauset._debug_last_kernel_trace()
+        self.assertIn("cpu.matmul.bitbit_popcount", trace)
+
     def test_bitbit_dot_uses_popcount_kernel(self):
         n = 256
         a = pycauset.BitVector(n)

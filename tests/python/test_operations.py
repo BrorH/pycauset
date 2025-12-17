@@ -145,5 +145,39 @@ class TestMatrixOperations(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             pycauset.invert(m)
 
+    def test_toplevel_matmul_dense_rectangular(self):
+        a_np = np.arange(6, dtype=np.float64).reshape(2, 3)
+        b_np = np.arange(12, dtype=np.float64).reshape(3, 4)
+
+        a = pycauset.asarray(a_np)
+        b = pycauset.asarray(b_np)
+
+        out = pycauset.matmul(a, b)
+        self.assertEqual(out.shape, (2, 4))
+        self.assertTrue(np.allclose(np.array(out), a_np @ b_np))
+
+    def test_toplevel_matmul_vector_rules(self):
+        # matrix @ vector -> vector
+        a_np = np.arange(6, dtype=np.float64).reshape(2, 3)
+        v_np = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        a = pycauset.asarray(a_np)
+        v = pycauset.asarray(v_np)
+
+        out = pycauset.matmul(a, v)
+        self.assertEqual(out.shape, (2,))
+        self.assertTrue(np.allclose(np.array(out), a_np @ v_np))
+
+        # vector @ matrix -> row-vector semantics (matches v.T @ A)
+        w_np = np.array([10.0, 20.0], dtype=np.float64)
+        w = pycauset.asarray(w_np)
+        out2 = pycauset.matmul(w, a)
+        self.assertEqual(out2.shape, (1, 3))
+        self.assertTrue(np.allclose(np.array(out2), (w_np @ a_np).reshape(1, 3)))
+
+        # vector @ vector -> scalar dot
+        s = pycauset.matmul(v, v)
+        self.assertIsInstance(s, float)
+        self.assertAlmostEqual(s, float(v_np @ v_np))
+
 if __name__ == '__main__':
     unittest.main()

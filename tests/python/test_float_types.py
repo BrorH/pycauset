@@ -1,7 +1,8 @@
 import unittest
 import os
 import numpy as np
-from pycauset import Matrix, Float16Matrix, Float32Matrix, save, load
+import pycauset
+from pycauset import Float16Matrix, Float32Matrix, save, load
 
 class TestFloatTypes(unittest.TestCase):
     def test_00_float16_matrix(self):
@@ -65,18 +66,12 @@ class TestFloatTypes(unittest.TestCase):
         res.close()
 
     def test_03_smart_defaults(self):
-        print("\nTesting Smart Defaults...")
-        # Small matrix -> Float64 (standard FloatMatrix)
-        m_small = Matrix(100)
-        self.assertEqual(m_small.__class__.__name__, "FloatMatrix")
-        m_small.close()
-        
-        # Medium matrix -> Float32Matrix
-        # We mock the size check by forcing it or just trusting the logic.
-        # Since we can't easily allocate 10k matrix in a quick test without disk usage,
-        # we can check if force_precision works.
-        
-        m_f32 = Matrix(100, force_precision="float32")
+        print("\nTesting Explicit Allocation DTypes...")
+        m_f64 = pycauset.empty((100, 100), dtype="float64")
+        self.assertEqual(m_f64.__class__.__name__, "FloatMatrix")
+        m_f64.close()
+
+        m_f32 = pycauset.empty((100, 100), dtype="float32")
         self.assertEqual(m_f32.__class__.__name__, "Float32Matrix")
         m_f32.close()
 
@@ -84,7 +79,7 @@ class TestFloatTypes(unittest.TestCase):
         print("\nTesting Matrix(np.float16 ndarray)...")
         a = np.zeros((4, 4), dtype=np.float16)
         a[0, 0] = np.float16(1.25)
-        m = Matrix(a)
+        m = pycauset.matrix(a)
         self.assertEqual(m.__class__.__name__, "Float16Matrix")
         self.assertAlmostEqual(float(m.get(0, 0)), 1.25, places=3)
         m.close()

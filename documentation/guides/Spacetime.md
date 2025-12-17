@@ -82,7 +82,7 @@ import pycauset
 from pycauset import spacetime
 
 st = spacetime.MinkowskiCylinder(2, height=10, circumference=5)
-c = pycauset.Causet(n=1000, spacetime=st)
+c = pycauset.causet(n=1000, spacetime=st)
 ```
 
 ### Poisson Sprinkling (Density)
@@ -94,5 +94,5 @@ where $V$ is the volume of the spacetime region.
 ```python
 # Sprinkle with density 100 points per unit volume
 # Total volume = 50, so expected N = 5000
-c = pycauset.Causet(density=100, spacetime=st)
+c = pycauset.causet(density=100, spacetime=st)
 ```

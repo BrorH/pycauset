@@ -2,7 +2,7 @@ import unittest
 import os
 import shutil
 import pycauset
-from pycauset import UnitVector, Vector, load
+from pycauset import UnitVector, load
 
 class TestUnitVector(unittest.TestCase):
     def setUp(self):
@@ -54,7 +54,7 @@ class TestUnitVector(unittest.TestCase):
 
     def test_addition_with_dense(self):
         v1 = UnitVector(5, 2)
-        v2 = Vector(5, dtype="float")
+        v2 = pycauset.zeros(5, dtype="float")
         v2[0] = 5.0
         
         v3 = v1 + v2

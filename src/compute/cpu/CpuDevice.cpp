@@ -45,12 +45,20 @@ void CpuDevice::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, M
     solver_.elementwise_multiply(a, b, result);
 }
 
+void CpuDevice::elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
+    solver_.elementwise_divide(a, b, result);
+}
+
 void CpuDevice::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {
     solver_.multiply_scalar(a, scalar, result);
 }
 
 double CpuDevice::dot(const VectorBase& a, const VectorBase& b) {
     return solver_.dot(a, b);
+}
+
+double CpuDevice::l2_norm(const VectorBase& v) {
+    return solver_.l2_norm(v);
 }
 
 void CpuDevice::add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
@@ -67,6 +75,10 @@ void CpuDevice::scalar_multiply_vector(const VectorBase& a, double scalar, Vecto
 
 void CpuDevice::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
     solver_.scalar_add_vector(a, scalar, result);
+}
+
+double CpuDevice::frobenius_norm(const MatrixBase& m) {
+    return solver_.frobenius_norm(m);
 }
 
 } // namespace pycauset

@@ -4,7 +4,7 @@
 pycauset.seed
 ```
 
-Sets the seed used by random population routines (`pycauset.CausalMatrix.random`). Assign an integer for deterministic fills or `None` to return to non-deterministic behavior.
+Sets the seed used by random population routines (`pycauset.causal_matrix.random`). Assign an integer for deterministic fills or `None` to return to non-deterministic behavior.
 
 ## Properties
 

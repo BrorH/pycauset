@@ -46,7 +46,8 @@ class TestStorage(unittest.TestCase):
             loaded_matrix = pycauset.load(path)
             try:
                 self.assertIsInstance(loaded_matrix, TriangularBitMatrix)
-                self.assertEqual(loaded_matrix.size(), n)
+                self.assertEqual(loaded_matrix.rows(), n)
+                self.assertEqual(loaded_matrix.cols(), n)
             finally:
                 loaded_matrix.close()
         finally:
@@ -76,7 +77,8 @@ class TestStorage(unittest.TestCase):
             try:
                 self.assertIsInstance(loaded_c, CausalSet)
                 self.assertEqual(loaded_c.n, 50)
-                self.assertEqual(loaded_c.C.size(), 50)
+                self.assertEqual(loaded_c.C.rows(), 50)
+                self.assertEqual(loaded_c.C.cols(), 50)
             finally:
                 loaded_c.C.close()
         finally:
@@ -93,9 +95,67 @@ class TestStorage(unittest.TestCase):
             loaded = pycauset.load(path)
             try:
                 self.assertIsInstance(loaded, IntegerMatrix)
-                self.assertEqual(loaded.size(), n)
+                self.assertEqual(loaded.rows(), n)
+                self.assertEqual(loaded.cols(), n)
             finally:
                 loaded.close()
+        finally:
+            matrix.close()
+
+    def test_dense_bit_matrix_rectangular_save_load(self):
+        if getattr(pycauset, "DenseBitMatrix", None) is None:
+            self.skipTest("DenseBitMatrix is not available")
+
+        m = pycauset.DenseBitMatrix(3, 5)
+        m.set(1, 4, True)
+        m.set(2, 0, True)
+        path = self.test_dir / "bit_matrix_rect.pycauset"
+
+        try:
+            pycauset.save(m, path)
+
+            with zipfile.ZipFile(path, "r") as zf:
+                with zf.open("metadata.json") as f:
+                    meta = json.load(f)
+                    self.assertEqual(meta["rows"], 3)
+                    self.assertEqual(meta["cols"], 5)
+                    self.assertEqual(meta.get("data_type"), "BIT")
+
+            loaded = pycauset.load(path)
+            try:
+                self.assertIsInstance(loaded, pycauset.DenseBitMatrix)
+                self.assertEqual(loaded.rows(), 3)
+                self.assertEqual(loaded.cols(), 5)
+                self.assertTrue(loaded.get(1, 4))
+                self.assertTrue(loaded.get(2, 0))
+                self.assertFalse(loaded.get(0, 0))
+            finally:
+                loaded.close()
+        finally:
+            m.close()
+
+    def test_square_only_metadata_mismatch_rejected(self):
+        n = 16
+        matrix = TriangularBitMatrix.random(n, 0.25, seed=7)
+        path = self.test_dir / "triangular_ok.pycauset"
+        bad_path = self.test_dir / "triangular_bad_cols.pycauset"
+
+        try:
+            pycauset.save(matrix, path)
+
+            with zipfile.ZipFile(path, "r") as zf:
+                meta = json.loads(zf.read("metadata.json").decode("utf-8"))
+                data = zf.read("data.bin")
+
+            # Corrupt the shape: triangular/causal matrices are square-only.
+            meta["cols"] = int(n + 1)
+
+            with zipfile.ZipFile(bad_path, "w", zipfile.ZIP_STORED) as zf:
+                zf.writestr("metadata.json", json.dumps(meta, indent=2))
+                zf.writestr("data.bin", data)
+
+            with self.assertRaises(ValueError):
+                pycauset.load(bad_path)
         finally:
             matrix.close()
 
@@ -115,7 +175,8 @@ class TestStorage(unittest.TestCase):
             loaded = pycauset.load(path)
             try:
                 self.assertIsInstance(loaded, pycauset.Int16Matrix)
-                self.assertEqual(loaded.size(), n)
+                self.assertEqual(loaded.rows(), n)
+                self.assertEqual(loaded.cols(), n)
                 self.assertEqual(loaded[0, 0], 7)
                 self.assertEqual(loaded[1, 0], -3)
             finally:

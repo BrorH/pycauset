@@ -38,7 +38,8 @@ class TestStorageExtensive(unittest.TestCase):
             
             loaded = pycauset.load(path)
             try:
-                self.assertEqual(loaded.size(), n)
+                self.assertEqual(loaded.rows(), n)
+                self.assertEqual(loaded.cols(), n)
                 self.assertIsInstance(loaded, TriangularBitMatrix)
                 # Check a few values if possible, or just rely on no crash
             finally:
@@ -60,7 +61,8 @@ class TestStorageExtensive(unittest.TestCase):
             loaded = pycauset.load(path)
             try:
                 self.assertTrue(loaded.is_transposed())
-                self.assertEqual(loaded.size(), n)
+                self.assertEqual(loaded.rows(), n)
+                self.assertEqual(loaded.cols(), n)
             finally:
                 loaded.close()
         finally:

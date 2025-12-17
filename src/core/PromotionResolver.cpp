@@ -147,6 +147,7 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
             case BinaryOp::Add:
             case BinaryOp::Subtract:
             case BinaryOp::ElementwiseMultiply:
+            case BinaryOp::Divide:
             case BinaryOp::Matmul: {
                 const uint8_t ra = float_rank(a);
                 const uint8_t rb = float_rank(b);
@@ -193,6 +194,12 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
             d.chosen_float_dtype = d.result_dtype;
         }
         return d;
+    }
+
+    // Division on non-float numeric types is not generally closed in the integer ring.
+    // NumPy-style behavior: promote to float64 when neither operand is float/complex.
+    if (op == BinaryOp::Divide) {
+        return Decision{DataType::FLOAT64, false, DataType::UNKNOWN};
     }
 
     // Fundamental kind rule: integer dominates bit for numeric ops.
@@ -251,6 +258,9 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
                 return Decision{DataType::BIT, false, DataType::UNKNOWN};
             case BinaryOp::ElementwiseMultiply:
                 return Decision{DataType::BIT, false, DataType::UNKNOWN};
+            case BinaryOp::Divide:
+                // Handled above (defaults to float64 when neither operand is float/complex).
+                return Decision{DataType::FLOAT64, false, DataType::UNKNOWN};
         }
     }
 

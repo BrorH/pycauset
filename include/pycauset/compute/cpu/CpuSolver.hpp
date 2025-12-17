@@ -23,13 +23,17 @@ public:
     void add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
     void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
     void elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
+    void elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
     void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result);
 
     double dot(const VectorBase& a, const VectorBase& b);
+    double l2_norm(const VectorBase& v);
     void add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result);
     void subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result);
     void scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result);
     void scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result);
+
+    double frobenius_norm(const MatrixBase& m);
 
 private:
     void matmul_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);

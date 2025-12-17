@@ -1,10 +1,18 @@
-The back-bone of pycauset is the matrix system. While most users will interact with the high-level [[pycauset.CausalSet]] class, the matrix engine powers everything underneath. It is built from the ground-up to allow a seamless workflow as similar to possible to numpy.
+The back-bone of pycauset is the matrix system. While most users will interact with the high-level [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]] class, the matrix engine powers everything underneath. It is built from the ground-up to allow a seamless workflow as similar to possible to numpy.
 
 `pycauset` behaves like NumPy at small scales (storing data in RAM), but converts to a memory-efficient beast at high scales (automatically spilling to disk).
 
 # Creating a Matrix
 
-Matrices can be created using the [[pycauset.Matrix]] factory function. This function is flexible and accepts lists, NumPy arrays, or dimensions. You can also specify the `dtype` to control the underlying storage format.
+Matrices can be created from data using **[[docs/functions/pycauset.matrix.md|pycauset.matrix]]**. Allocation is done via **[[docs/functions/pycauset.zeros.md|pycauset.zeros]]**, **[[docs/functions/pycauset.ones.md|pycauset.ones]]**, or **[[docs/functions/pycauset.empty.md|pycauset.empty]]**.
+
+## Rectangular support (what is and isn’t NxM)
+
+- **Dense numeric matrices are rectangular-aware**: for integer/float/complex dtypes you can allocate and operate on `(rows, cols)` shapes.
+- **Dense boolean/bit matrices are rectangular-aware**: `dtype="bool"` / `dtype="bit"` maps to `DenseBitMatrix` and supports `(rows, cols)` shapes.
+- **Some matrix *types* are square-only by definition** (e.g. triangular/causal, identity, diagonal, symmetric/antisymmetric).
+
+`pycauset.matrix(...)` is a data constructor (aligned with `np.array(...)` semantics). It does not interpret integers/tuples as shapes. When you want to allocate by shape, use `zeros/ones/empty` with an explicit `dtype`.
 
 `dtype` accepts multiple forms:
 *   `pc` dtype tokens like `pc.int8`, `pc.int16`, `pc.int32`, `pc.int64`, `pc.uint32`, `pc.float16`, `pc.float32`, `pc.float64`, `pc.complex_float32`, `pc.bool_`
@@ -31,56 +39,38 @@ import pycauset as pc
 import numpy as np
 
 # 1. From a list of lists (infers type)
-M1 = pc.Matrix(((1, 2), (3, 4)))  # Creates IntegerMatrix
+M1 = pc.matrix(((1, 2), (3, 4)))  # Creates IntegerMatrix
 
 # 2. From a NumPy array
 arr = np.random.rand(5, 5)
-M2 = pc.Matrix(arr)               # Creates FloatMatrix
+M2 = pc.matrix(arr)               # Creates FloatMatrix
 
-# 3. Empty matrix of specific size and type
-M3 = pc.Matrix(100, dtype=int)    # 100x100 IntegerMatrix (zeros)
-M4 = pc.Matrix(100, dtype=bool)   # 100x100 DenseBitMatrix (zeros)
+# 3. Allocate by shape (dtype required)
+M3 = pc.zeros((100, 200), dtype=int)   # 100x200 IntegerMatrix (zeros)
+M4 = pc.zeros((100, 100), dtype=bool)  # 100x100 DenseBitMatrix (zeros)
 
-# 5. Explicit int16 storage
-M5 = pc.Matrix(100, dtype=pc.int16)  # returns Int16Matrix
+# 4. Explicit int16 storage
+M5 = pc.empty((100, 100), dtype=pc.int16)  # returns Int16Matrix
 
-# 6. Unsigned integer storage
-Mu = pc.Matrix(100, dtype=pc.uint32)  # returns UInt32Matrix
+# 5. Unsigned integer storage
+Mu = pc.empty((100, 100), dtype=pc.uint32)  # returns UInt32Matrix
 
-# 7. Complex float storage
-Mc = pc.Matrix(((1 + 2j, 0), (0, 3 - 4j)), dtype=pc.complex_float32)  # ComplexFloat32Matrix
+# 6. Complex float storage (construct from data)
+Mc = pc.matrix(((1 + 2j, 0), (0, 3 - 4j)), dtype=pc.complex_float32)  # ComplexFloat32Matrix
 
-# 4. Causal Matrix (Specialized Triangular Bit Matrix)
+# 7. Causal Matrix (Specialized Triangular Bit Matrix)
 # This is optimized for causal sets (strictly upper triangular)
-C = pc.CausalMatrix(100)
+C = pc.causal_matrix(100)
 ```
 
-## Precision Tiers (Massive Scale)
+## Precision and Storage
 
-For extremely large matrices ($N > 10,000$), PyCauset automatically adjusts the floating-point precision to save storage and bandwidth. This is critical for performance on consumer hardware.
-
-| Matrix Size ($N$) | Default Precision | Storage per Element | Class |
-| :--- | :--- | :--- | :--- |
-| $N < 10,000$ | Double (64-bit) | 8 bytes | [[pycauset.FloatMatrix]] |
-| $N \ge 10,000$ | Single (32-bit) | 4 bytes | [[pycauset.Float32Matrix]] |
-
-**Overriding Defaults:**
-You can force a specific precision using the `force_precision` argument:
+Choose precision explicitly via `dtype` at allocation time:
 
 ```python
-# Force Double precision even for large N
-M = pc.Matrix(20000, force_precision="double")
-
-# Force Half precision for smaller N
-M = pc.Matrix(5000, force_precision="half")
-
-You can also set precision explicitly via `dtype`:
-
-```python
-M16 = pc.Matrix(5000, dtype="float16")
-M32 = pc.Matrix(5000, dtype="float32")
-M64 = pc.Matrix(5000, dtype="float64")
-```
+M16 = pc.empty((5000, 5000), dtype="float16")
+M32 = pc.empty((5000, 5000), dtype="float32")
+M64 = pc.empty((5000, 5000), dtype="float64")
 ```
 
 # Matrix Operations
@@ -97,8 +87,8 @@ If a compatible NVIDIA GPU is detected, PyCauset will automatically accelerate:
 Multiplying `DenseBitMatrix` (boolean) on the GPU is highly optimized. It uses bit-packing to perform 64 operations per cycle, making it ideal for path counting in large causal sets.
 
 ```python
-A = pc.Matrix(4096, dtype=bool)
-B = pc.Matrix(4096, dtype=bool)
+A = pc.zeros((4096, 4096), dtype=bool)
+B = pc.zeros((4096, 4096), dtype=bool)
 # ... fill matrices ...
 
 # Extremely fast GPU multiplication
@@ -107,18 +97,20 @@ C = A @ B
 
 ## Matrix Multiplication (`matmul`)
 
-Matrix multiplication is performed using [[pycauset.matmul]](A, B). It supports all combinations of matrix types, automatically promoting the result to the most general required structure (Dense > TriangularFloat > Integer > Bit).
+Matrix multiplication is performed using [[docs/functions/pycauset.matmul.md|pycauset.matmul]](A, B). It follows the standard shape rule: `A.cols() == B.rows()` and returns a matrix of shape `(A.rows(), B.cols())`.
+
+It supports many combinations of matrix types, automatically promoting the result to the most general required structure (Dense > TriangularFloat > Integer > Bit).
 
 | Operand A | Operand B | Result Type |
 | :--- | :--- | :--- |
-| [[pycauset.FloatMatrix]] (Dense) | Any | [[pycauset.FloatMatrix]] |
-| Any | [[pycauset.FloatMatrix]] (Dense) | [[pycauset.FloatMatrix]] |
-| [[pycauset.TriangularFloatMatrix]] | Triangular (Any) | [[pycauset.TriangularFloatMatrix]] |
-| Triangular (Any) | [[pycauset.TriangularFloatMatrix]] | [[pycauset.TriangularFloatMatrix]] |
-| [[pycauset.IntegerMatrix]] | [[pycauset.IntegerMatrix]] or [[pycauset.TriangularBitMatrix]] | [[pycauset.IntegerMatrix]] |
-| [[pycauset.TriangularBitMatrix]] | [[pycauset.IntegerMatrix]] | [[pycauset.IntegerMatrix]] |
-| [[pycauset.TriangularBitMatrix]] | [[pycauset.TriangularBitMatrix]] | [[pycauset.IntegerMatrix]] |
-| [[pycauset.DenseBitMatrix]] | [[pycauset.DenseBitMatrix]] | [[pycauset.IntegerMatrix]] |
+| [[docs/classes/matrix/pycauset.FloatMatrix.md|pycauset.FloatMatrix]] (Dense) | Any | [[docs/classes/matrix/pycauset.FloatMatrix.md|pycauset.FloatMatrix]] |
+| Any | [[docs/classes/matrix/pycauset.FloatMatrix.md|pycauset.FloatMatrix]] (Dense) | [[docs/classes/matrix/pycauset.FloatMatrix.md|pycauset.FloatMatrix]] |
+| [[docs/classes/matrix/pycauset.TriangularFloatMatrix.md|pycauset.TriangularFloatMatrix]] | Triangular (Any) | [[docs/classes/matrix/pycauset.TriangularFloatMatrix.md|pycauset.TriangularFloatMatrix]] |
+| Triangular (Any) | [[docs/classes/matrix/pycauset.TriangularFloatMatrix.md|pycauset.TriangularFloatMatrix]] | [[docs/classes/matrix/pycauset.TriangularFloatMatrix.md|pycauset.TriangularFloatMatrix]] |
+| [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] or [[docs/classes/matrix/pycauset.TriangularBitMatrix.md|pycauset.TriangularBitMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] |
+| [[docs/classes/matrix/pycauset.TriangularBitMatrix.md|pycauset.TriangularBitMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] |
+| [[docs/classes/matrix/pycauset.TriangularBitMatrix.md|pycauset.TriangularBitMatrix]] | [[docs/classes/matrix/pycauset.TriangularBitMatrix.md|pycauset.TriangularBitMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] |
+| [[docs/classes/matrix/pycauset.DenseBitMatrix.md|pycauset.DenseBitMatrix]] | [[docs/classes/matrix/pycauset.DenseBitMatrix.md|pycauset.DenseBitMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] |
 
 **Note**: [[pycauset.IntegerMatrix]] is a **dense** matrix storing 32-bit integers, commonly returned for discrete path counting operations.
 
@@ -155,7 +147,7 @@ PyCauset includes a suite of linear algebra tools.
 
 ## Inversion
 
-Matrix inversion is supported for all square matrices.
+Matrix inversion is supported for selected floating-point dense matrices and requires a square matrix (`rows == cols`).
 
 ```python
 # Compute inverse
@@ -193,7 +185,7 @@ matrix = pc.load("my_saved_matrix.pycauset")
 
 # Check the type
 print(type(matrix)) 
-# <class 'pycauset.pycauset.CausalMatrix'> (or IntegerMatrix, etc.)
+# <class 'pycauset.pycauset.TriangularBitMatrix'> (or IntegerMatrix, etc.)
 ```
 
 ### Temporary Files
@@ -204,25 +196,7 @@ By default, `pycauset` manages backing files automatically. Files are stored in 
 
 # Caching and Persistence
 
-Expensive operations can be cached to disk to avoid recomputation.
-
-## Compute-Once Caching
-
-*   **Eigenvalues**: Automatically saved to `metadata.json` when you save the matrix.
-*   **Eigenvectors**: Use `save=True` to append the eigenvector matrix to the `.pycauset` archive.
-*   **Inverse**: Use `save=True` to append the inverse matrix to the archive.
-
-```python
-# Compute and store eigenvectors in the ZIP file
-vecs = M.eigenvectors(save=True)
-
-# Compute and store inverse in the ZIP file
-Inv = M.inverse(save=True)
-
-# ... later ...
-M_loaded = pc.load("matrix.pycauset")
-vecs_loaded = M_loaded.eigenvectors() # Instant load from disk!
-```
+Some operations cache small derived values (for example `trace` / `determinant`) into `metadata.json` when saving matrices. Other caches are build-dependent and may not be available in all builds.
 
 
 # Matrix Hierarchy
@@ -232,8 +206,10 @@ All matrix types derive from a shared C++ `MatrixBase` that owns the memory-mapp
 ```mermaid
 classDiagram
     class MatrixBase {
-        +uint64_t n_
-        +double scalar_
+        +uint64_t rows()
+        +uint64_t cols()
+        +uint64_t size()
+        +complex scalar_
         +get_element_as_double()
     }
     class DenseMatrix~T~ {
@@ -257,7 +233,7 @@ classDiagram
 | `TriangularBitMatrix` | `TriangularMatrix<bool>` | Strictly upper triangular boolean matrix (Causal Matrix). |
 | `TriangularFloatMatrix` | `TriangularMatrix<double>` | Strictly upper triangular float matrix. |
 
-For working with causal matrices (a backbone of the causal set theory), `TriangularBitMatrix` is the primary boolean specialization.  It is exposed as `pycauset.CausalMatrix`. `IntegerMatrix` stores 32-bit counts (e.g., from matrix multiplication). `TriangularFloatMatrix` and `FloatMatrix` (dense) provide floating-point storage for analytical results.
+For working with causal matrices (a backbone of the causal set theory), `TriangularBitMatrix` is the primary boolean specialization. Use `pycauset.causal_matrix(...)` to create one. `IntegerMatrix` stores 32-bit counts (e.g., from matrix multiplication). `TriangularFloatMatrix` and `FloatMatrix` (dense) provide floating-point storage for analytical results.
 
 # Performance & Parallelism
 
@@ -292,9 +268,14 @@ print(pycauset.get_num_threads())
 
 ## Performance Expectations
 
-On a modern multi-core CPU (e.g., 20 threads), you can expect the following performance for dense floating-point matrices:
+Performance depends heavily on CPU, memory bandwidth, storage speed, and dtype. Use the scripts under `benchmarks/` to measure performance on your target machine.
 
-| Operation | Matrix Size ($N$) | Approx. Time |
-| :--- | :--- | :--- |
-| **Inversion** | 5,000 | ~25 seconds |
-| **Multiplication** | 5,000 | ~10 seconds |
+## See also
+
+- [[docs/functions/pycauset.matrix.md|pycauset.matrix]]
+- [[docs/functions/pycauset.zeros.md|pycauset.zeros]]
+- [[docs/functions/pycauset.empty.md|pycauset.empty]]
+- [[docs/functions/pycauset.matmul.md|pycauset.matmul]]
+- [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]
+- [[internals/Memory and Data|internals/Memory and Data]]
+- [[internals/DType System|internals/DType System]]

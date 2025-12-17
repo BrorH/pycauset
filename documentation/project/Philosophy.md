@@ -6,7 +6,7 @@ Pycauset is designed to handle causal sets where $N$ is large enough that $O(N^2
 
 **PyCauset is _NumPy for causal sets_.**
 
-- Users should interact with **top-level Python objects and functions** (e.g., `pycauset.Matrix`, `pycauset.CausalMatrix`, `pycauset.matmul`).
+- Users should interact with **top-level Python objects and functions** (e.g., `pycauset.matrix`, `pycauset.causal_matrix`, `pycauset.matmul`).
 
 ## Developer Ethos
 

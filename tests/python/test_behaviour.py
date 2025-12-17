@@ -40,7 +40,7 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
                 shutil.rmtree(child)
 
     def test_getitem_returns_integer_bits(self):
-        alpha = pycauset.CausalMatrix(3)
+        alpha = pycauset.causal_matrix(3)
         alpha[0, 1] = True
         value = alpha[0, 1]
         self.assertEqual(value, 1.0)
@@ -50,7 +50,7 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
         alpha = None
 
     def test_pseudobool_assignments(self):
-        mat = pycauset.CausalMatrix(3)
+        mat = pycauset.causal_matrix(3)
         mat[0, 1] = 1
         mat[0, 2] = 1.0
         self.assertEqual(mat[0, 1], 1.0)
@@ -63,14 +63,14 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
 
     def test_simple_name_resolves_inside_storage_dir(self):
         with self.assertRaises(TypeError):
-            pycauset.CausalMatrix(3, backing_file="custom_file")
+            pycauset.causal_matrix(3, backing_file="custom_file")
 
     def test_absolute_path_is_respected(self):
         with self.assertRaises(TypeError):
-            pycauset.CausalMatrix(3, backing_file=str(self.storage_dir / "custom_file"))
+            pycauset.causal_matrix(3, backing_file=str(self.storage_dir / "custom_file"))
 
     def test_matmul_creates_new_integer_matrix(self):
-        mat = pycauset.CausalMatrix(3)
+        mat = pycauset.causal_matrix(3)
         mat[0, 1] = 1
         mat[1, 2] = 1
         product = pycauset.matmul(mat, mat)
@@ -80,8 +80,8 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
         product = None
 
     def test_elementwise_mul_is_componentwise(self):
-        lhs = pycauset.CausalMatrix(3, populate=False)
-        rhs = pycauset.CausalMatrix(3, populate=False)
+        lhs = pycauset.causal_matrix(3, populate=False)
+        rhs = pycauset.causal_matrix(3, populate=False)
         lhs[0, 1] = 1
         lhs[0, 2] = 1
         rhs[0, 1] = 1
@@ -107,14 +107,14 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
         pass
 
     def test_str_renders_small_matrix(self):
-        mat = pycauset.CausalMatrix(4)
+        mat = pycauset.causal_matrix(4)
         mat[0, 1] = 1
         mat[1, 2] = 1
         mat[2, 3] = 1
         self.assertIn("shape=(4, 4)", str(mat))
 
     def test_str_truncates_large_matrix(self):
-        mat = pycauset.CausalMatrix(12)
+        mat = pycauset.causal_matrix(12)
         mat[0, 11] = 1
         view = str(mat)
         self.assertIn("shape=(12, 12)", view)
@@ -125,7 +125,7 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
     def test_random_sets_random_entries(self):
         attempts = 10
         for _ in range(attempts):
-            mat = pycauset.CausalMatrix.random(6, p=0.5)
+            mat = pycauset.causal_matrix.random(6, p=0.5)
             found = False
             for i in range(6):
                 for j in range(i + 1, 6):
@@ -147,7 +147,7 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
         ]
         import numpy as np
         arr = np.array(data, dtype=bool)
-        mat = pycauset.CausalMatrix(arr)
+        mat = pycauset.causal_matrix(arr)
         self.assertEqual(mat[0, 1], 1)
         self.assertEqual(mat[1, 2], 1)
         self.assertEqual(mat[2, 3], 1)
@@ -162,7 +162,7 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
         arr = np.zeros((4, 4), dtype=bool)
         arr[0, 2] = True
         arr[1, 3] = True
-        mat = pycauset.CausalMatrix(arr)
+        mat = pycauset.causal_matrix(arr)
         self.assertEqual(mat[0, 2], 1)
         self.assertEqual(mat[1, 3], 1)
         self.assertEqual(mat[2, 3], 0)
@@ -175,18 +175,18 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
 
     def test_seed_controls_population(self):
         def snapshot(matrix):
-            size = matrix.size()
+            size = matrix.rows() if hasattr(matrix, "rows") else matrix.size()
             bits = []
             for i in range(size):
                 for j in range(i + 1, size):
                     bits.append(matrix[i, j])
             return tuple(bits)
 
-        first = pycauset.CausalMatrix.random(6, p=0.5, seed=123)
-        second = pycauset.CausalMatrix.random(6, p=0.5, seed=123)
+        first = pycauset.causal_matrix.random(6, p=0.5, seed=123)
+        second = pycauset.causal_matrix.random(6, p=0.5, seed=123)
         self.assertEqual(snapshot(first), snapshot(second))
 
-        third = pycauset.CausalMatrix.random(6, p=0.5, seed=321)
+        third = pycauset.causal_matrix.random(6, p=0.5, seed=321)
         self.assertNotEqual(snapshot(first), snapshot(third))
 
 

@@ -1,4 +1,3 @@
-````markdown
 # pycauset.UInt16Vector
 
 A memory-mapped vector storing 16-bit unsigned integers. Inherits from [VectorBase](pycauset.VectorBase.md).
@@ -12,5 +11,3 @@ pycauset.UInt16Vector(n: int)
 ## Methods
 
 Inherits the common vector interface from [[pycauset.VectorBase]].
-
-````

@@ -1,11 +1,11 @@
 import unittest
 import pycauset
-from pycauset import CausalMatrix, compute_k, matmul
+from pycauset import causal_matrix, compute_k, matmul
 
 class TestMatrixHierarchy(unittest.TestCase):
     def test_inheritance(self):
-        # Test CausalMatrix inheritance
-        C = CausalMatrix(10)
+        # Test causal_matrix / TriangularBitMatrix inheritance
+        C = causal_matrix(10)
         self.assertIsInstance(C, pycauset.MatrixBase)
         self.assertTrue(hasattr(C, "shape"))
         self.assertTrue(hasattr(C, "size"))
@@ -17,7 +17,7 @@ class TestMatrixHierarchy(unittest.TestCase):
         
         # Test IntegerMatrix inheritance
         # We need two causal matrices to multiply
-        C2 = CausalMatrix(10)
+        C2 = causal_matrix(10)
         I_mat = matmul(C, C2)
         self.assertIsInstance(I_mat, pycauset.MatrixBase)
         self.assertIsInstance(I_mat, pycauset.TriangularIntegerMatrix)
@@ -30,8 +30,8 @@ class TestMatrixHierarchy(unittest.TestCase):
         # Test that the base matrix __str__ is used
         pass
         
-        # Test CausalMatrix printing
-        C = CausalMatrix(3)
+        # Test causal_matrix printing
+        C = causal_matrix(3)
         C.set(0, 1, True)
         s_c = str(C)
         # Should use matrix's __str__ but class name might be CausalMatrix

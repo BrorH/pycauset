@@ -34,6 +34,14 @@
 #include <iostream>
 #include <limits>
 
+#ifdef in
+#undef in
+#endif
+
+#ifdef out
+#undef out
+#endif
+
 namespace pycauset {
 
 namespace {
@@ -54,23 +62,41 @@ namespace {
     template <>
     constexpr bool is_std_complex_v<std::complex<double>> = true;
 
+    inline bool is_broadcast_compatible_dim(uint64_t in_dim, uint64_t out_dim) {
+        return (in_dim == out_dim) || (in_dim == 1);
+    }
+
+    inline uint64_t broadcast_index(uint64_t out_index, uint64_t in_dim) {
+        return (in_dim == 1) ? 0 : out_index;
+    }
+
     template <typename Op>
     void binary_op_complex16_impl(const MatrixBase& a, const MatrixBase& b, ComplexFloat16Matrix& out, Op op) {
-        const uint64_t n = out.size();
-        if (a.size() != n || b.size() != n) {
-            throw std::invalid_argument("Dimension mismatch");
+        const uint64_t rows = out.rows();
+        const uint64_t cols = out.cols();
+        if (!is_broadcast_compatible_dim(a.rows(), rows) ||
+            !is_broadcast_compatible_dim(a.cols(), cols) ||
+            !is_broadcast_compatible_dim(b.rows(), rows) ||
+            !is_broadcast_compatible_dim(b.cols(), cols)) {
+            throw std::invalid_argument("operands could not be broadcast together");
         }
 
         const bool t_c = out.is_transposed();
+        const uint64_t storage_cols = out.base_cols();
         float16_t* rdst = out.real_data();
         float16_t* idst = out.imag_data();
 
-        ParallelFor(0, n, [&](size_t i) {
-            for (size_t j = 0; j < n; ++j) {
-                const std::complex<double> va = a.get_element_as_complex(i, j);
-                const std::complex<double> vb = b.get_element_as_complex(i, j);
+        ParallelFor(0, rows, [&](size_t i) {
+            for (size_t j = 0; j < cols; ++j) {
+                const uint64_t ia = broadcast_index(static_cast<uint64_t>(i), a.rows());
+                const uint64_t ja = broadcast_index(static_cast<uint64_t>(j), a.cols());
+                const uint64_t ib = broadcast_index(static_cast<uint64_t>(i), b.rows());
+                const uint64_t jb = broadcast_index(static_cast<uint64_t>(j), b.cols());
+                const std::complex<double> va = a.get_element_as_complex(ia, ja);
+                const std::complex<double> vb = b.get_element_as_complex(ib, jb);
                 const std::complex<double> vc = op(va, vb);
-                const uint64_t idx = t_c ? (j * n + i) : (i * n + j);
+                const uint64_t idx = t_c ? (static_cast<uint64_t>(j) * storage_cols + static_cast<uint64_t>(i))
+                                        : (static_cast<uint64_t>(i) * storage_cols + static_cast<uint64_t>(j));
                 rdst[idx] = float16_t(vc.real());
                 idst[idx] = float16_t(vc.imag());
             }
@@ -90,9 +116,10 @@ namespace {
     bool attempt_direct_path(const DenseMatrix<T>* a_dense, const DenseMatrix<T>* b_dense, DenseMatrix<T>* c_dense) {
         // Only supported for Float/Double where we have BLAS
         if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
-            uint64_t n = a_dense->size();
-            size_t matrix_bytes = n * n * sizeof(T);
-            size_t total_bytes = matrix_bytes * 3; // A + B + C
+            const uint64_t a_elems = a_dense->base_rows() * a_dense->base_cols();
+            const uint64_t b_elems = b_dense->base_rows() * b_dense->base_cols();
+            const uint64_t c_elems = c_dense->base_rows() * c_dense->base_cols();
+            const size_t total_bytes = static_cast<size_t>(a_elems + b_elems + c_elems) * sizeof(T);
             
             auto& governor = pycauset::core::MemoryGovernor::instance();
             
@@ -103,9 +130,9 @@ namespace {
                 bool pinned = true;
                 // We use const_cast because pinning is a logical const operation (doesn't change data)
                 // but might change internal OS handles.
-                pinned &= const_cast<DenseMatrix<T>*>(a_dense)->pin_range(0, n * n);
-                pinned &= const_cast<DenseMatrix<T>*>(b_dense)->pin_range(0, n * n);
-                pinned &= c_dense->pin_range(0, n * n);
+                pinned &= const_cast<DenseMatrix<T>*>(a_dense)->pin_range(0, a_elems);
+                pinned &= const_cast<DenseMatrix<T>*>(b_dense)->pin_range(0, b_elems);
+                pinned &= c_dense->pin_range(0, c_elems);
                 
                 if (pinned) {
                     const T* a_data = a_dense->data();
@@ -114,34 +141,41 @@ namespace {
                     
                     bool t_a = a_dense->is_transposed();
                     bool t_b = b_dense->is_transposed();
+
+                    const int M = static_cast<int>(a_dense->rows());
+                    const int N = static_cast<int>(b_dense->cols());
+                    const int K = static_cast<int>(a_dense->cols());
+                    const int lda = static_cast<int>(a_dense->base_cols());
+                    const int ldb = static_cast<int>(b_dense->base_cols());
+                    const int ldc = static_cast<int>(c_dense->base_cols());
                     
                     if constexpr (std::is_same_v<T, double>) {
                         cblas_dgemm(
                             CblasRowMajor,
                             t_a ? CblasTrans : CblasNoTrans,
                             t_b ? CblasTrans : CblasNoTrans,
-                            n, n, n,
-                            1.0, a_data, n,
-                            b_data, n,
-                            0.0, c_data, n
+                            M, N, K,
+                            1.0, a_data, lda,
+                            b_data, ldb,
+                            0.0, c_data, ldc
                         );
                     } else {
                         cblas_sgemm(
                             CblasRowMajor,
                             t_a ? CblasTrans : CblasNoTrans,
                             t_b ? CblasTrans : CblasNoTrans,
-                            n, n, n,
-                            1.0f, a_data, n,
-                            b_data, n,
-                            0.0f, c_data, n
+                            M, N, K,
+                            1.0f, a_data, lda,
+                            b_data, ldb,
+                            0.0f, c_data, ldc
                         );
                     }
                     
                     // Cleanup
                     // Unpinning is important to release the "locked" status
-                    const_cast<DenseMatrix<T>*>(a_dense)->unpin_range(0, n * n);
-                    const_cast<DenseMatrix<T>*>(b_dense)->unpin_range(0, n * n);
-                    c_dense->unpin_range(0, n * n);
+                    const_cast<DenseMatrix<T>*>(a_dense)->unpin_range(0, a_elems);
+                    const_cast<DenseMatrix<T>*>(b_dense)->unpin_range(0, b_elems);
+                    c_dense->unpin_range(0, c_elems);
                     
                     governor.unpin_memory(total_bytes);
                     
@@ -158,8 +192,13 @@ namespace {
 
     template <typename T>
     void matmul_impl(const DenseMatrix<T>* a_dense, const DenseMatrix<T>* b_dense, DenseMatrix<T>* c_dense) {
-        uint64_t n = a_dense->size();
-        if (b_dense->size() != n || c_dense->size() != n) {
+        const uint64_t m = a_dense->rows();
+        const uint64_t k = a_dense->cols();
+        if (b_dense->rows() != k) {
+            throw std::invalid_argument("Matrix dimensions must match");
+        }
+        const uint64_t n = b_dense->cols();
+        if (c_dense->rows() != m || c_dense->cols() != n) {
             throw std::invalid_argument("Matrix dimensions must match");
         }
 
@@ -172,8 +211,23 @@ namespace {
         const T* b_data = b_dense->data();
         T* c_data = c_dense->data();
 
-        bool t_a = a_dense->is_transposed();
-        bool t_b = b_dense->is_transposed();
+        const bool t_a = a_dense->is_transposed();
+        const bool t_b = b_dense->is_transposed();
+        const bool t_c = c_dense->is_transposed();
+
+        const uint64_t lda = a_dense->base_cols();
+        const uint64_t ldb = b_dense->base_cols();
+        const uint64_t ldc = c_dense->base_cols();
+
+        auto idx_a = [&](uint64_t i, uint64_t kk) -> uint64_t {
+            return t_a ? (kk * lda + i) : (i * lda + kk);
+        };
+        auto idx_b = [&](uint64_t kk, uint64_t j) -> uint64_t {
+            return t_b ? (j * ldb + kk) : (kk * ldb + j);
+        };
+        auto idx_c = [&](uint64_t i, uint64_t j) -> uint64_t {
+            return t_c ? (j * ldc + i) : (i * ldc + j);
+        };
 
         // --- Integer path: int64 accumulator + overflow checks ---
         // Policy: never silently wrap, never silently widen output storage.
@@ -181,68 +235,27 @@ namespace {
         if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
             size_t block_size = 64;
 
-            ParallelBlockMap(n, n, block_size, [&](size_t i_start, size_t i_end, size_t j_start, size_t j_end) {
+            ParallelBlockMap(m, n, block_size, [&](size_t i_start, size_t i_end, size_t j_start, size_t j_end) {
                 std::vector<int64_t> sums(j_end - j_start);
 
                 for (size_t i = i_start; i < i_end; ++i) {
-                    if (!t_a && !t_b) {
-                        std::fill(sums.begin(), sums.end(), 0);
-                        for (size_t k_start = 0; k_start < n; k_start += block_size) {
-                            size_t k_end = std::min(k_start + block_size, (size_t)n);
-                            for (size_t k = k_start; k < k_end; ++k) {
-                                int64_t val_a = static_cast<int64_t>(a_data[i * n + k]);
-                                if (val_a == 0) continue;
-                                const T* b_ptr = b_data + k * n + j_start;
-                                for (size_t jj = 0; jj < sums.size(); ++jj) {
-                                    int64_t term = val_a * static_cast<int64_t>(b_ptr[jj]);
-                                    sums[jj] = checked_add_int64(sums[jj], term);
-                                }
+                    for (size_t jj = 0; jj < sums.size(); ++jj) {
+                        sums[jj] = 0;
+                    }
+                    for (size_t k_start = 0; k_start < k; k_start += block_size) {
+                        const size_t k_end = std::min(k_start + block_size, static_cast<size_t>(k));
+                        for (size_t kk = k_start; kk < k_end; ++kk) {
+                            const int64_t val_a = static_cast<int64_t>(a_data[idx_a(static_cast<uint64_t>(i), static_cast<uint64_t>(kk))]);
+                            if (val_a == 0) continue;
+                            for (size_t jj = 0; jj < sums.size(); ++jj) {
+                                const uint64_t j = static_cast<uint64_t>(j_start + jj);
+                                const int64_t val_b = static_cast<int64_t>(b_data[idx_b(static_cast<uint64_t>(kk), j)]);
+                                const int64_t term = val_a * val_b;
+                                sums[jj] = checked_add_int64(sums[jj], term);
                             }
-                        }
-                    } else if (!t_a && t_b) {
-                        const T* a_ptr = a_data + i * n;
-                        for (size_t jj = 0; jj < sums.size(); ++jj) {
-                            int64_t sum = 0;
-                            const T* b_row = b_data + (j_start + jj) * n;
-                            for (size_t k_start = 0; k_start < n; k_start += block_size) {
-                                size_t k_end = std::min(k_start + block_size, (size_t)n);
-                                for (size_t k = k_start; k < k_end; ++k) {
-                                    int64_t term = static_cast<int64_t>(a_ptr[k]) * static_cast<int64_t>(b_row[k]);
-                                    sum = checked_add_int64(sum, term);
-                                }
-                            }
-                            sums[jj] = sum;
-                        }
-                    } else if (t_a && !t_b) {
-                        std::fill(sums.begin(), sums.end(), 0);
-                        for (size_t k_start = 0; k_start < n; k_start += block_size) {
-                            size_t k_end = std::min(k_start + block_size, (size_t)n);
-                            for (size_t k = k_start; k < k_end; ++k) {
-                                int64_t val_a = static_cast<int64_t>(a_data[k * n + i]);
-                                if (val_a == 0) continue;
-                                const T* b_ptr = b_data + k * n + j_start;
-                                for (size_t jj = 0; jj < sums.size(); ++jj) {
-                                    int64_t term = val_a * static_cast<int64_t>(b_ptr[jj]);
-                                    sums[jj] = checked_add_int64(sums[jj], term);
-                                }
-                            }
-                        }
-                    } else {
-                        for (size_t jj = 0; jj < sums.size(); ++jj) {
-                            int64_t sum = 0;
-                            const T* b_row = b_data + (j_start + jj) * n;
-                            for (size_t k_start = 0; k_start < n; k_start += block_size) {
-                                size_t k_end = std::min(k_start + block_size, (size_t)n);
-                                for (size_t k = k_start; k < k_end; ++k) {
-                                    int64_t term = static_cast<int64_t>(a_data[k * n + i]) * static_cast<int64_t>(b_row[k]);
-                                    sum = checked_add_int64(sum, term);
-                                }
-                            }
-                            sums[jj] = sum;
                         }
                     }
 
-                    T* c_ptr = c_data + i * n;
                     for (size_t jj = 0; jj < sums.size(); ++jj) {
                         int64_t s = sums[jj];
                         if constexpr (std::is_signed_v<T>) {
@@ -257,7 +270,7 @@ namespace {
                                 throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
                             }
                         }
-                        c_ptr[j_start + jj] = static_cast<T>(s);
+                        c_data[idx_c(static_cast<uint64_t>(i), static_cast<uint64_t>(j_start + jj))] = static_cast<T>(s);
                     }
                 }
             });
@@ -268,133 +281,67 @@ namespace {
 
         // --- Optimization: Use OpenBLAS for double/float (Fallback if Direct Path failed) ---
         if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
-            size_t total_bytes = 3 * n * n * sizeof(T);
-            
-            // Check if we should use Direct Path (OS Paging) or Streaming
-            if (false && pycauset::core::MemoryGovernor::instance().should_use_direct_path(total_bytes)) {
-                std::cout << "DEBUG: Using Direct Path (BLAS)" << std::endl;
+            // If C is a transposed view, fall back to scalar loops.
+            if (!t_c) {
+                const int M = static_cast<int>(m);
+                const int N = static_cast<int>(n);
+                const int K = static_cast<int>(k);
+                const int lda_i = static_cast<int>(lda);
+                const int ldb_i = static_cast<int>(ldb);
+                const int ldc_i = static_cast<int>(ldc);
                 if constexpr (std::is_same_v<T, double>) {
                     cblas_dgemm(
                         CblasRowMajor,
                         t_a ? CblasTrans : CblasNoTrans,
                         t_b ? CblasTrans : CblasNoTrans,
-                        n, n, n,
-                        1.0, a_data, n,
-                        b_data, n,
-                        0.0, c_data, n
-                    );
+                        M, N, K,
+                        1.0,
+                        a_data, lda_i,
+                        b_data, ldb_i,
+                        0.0,
+                        c_data, ldc_i);
                 } else {
                     cblas_sgemm(
                         CblasRowMajor,
                         t_a ? CblasTrans : CblasNoTrans,
                         t_b ? CblasTrans : CblasNoTrans,
-                        n, n, n,
-                        1.0f, a_data, n,
-                        b_data, n,
-                        0.0f, c_data, n
-                    );
+                        M, N, K,
+                        1.0f,
+                        a_data, lda_i,
+                        b_data, ldb_i,
+                        0.0f,
+                        c_data, ldc_i);
                 }
                 c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
-                return;
-            } else {
-                // Fallback to Streaming (Out-of-Core)
-                matmul_streaming(a_dense, b_dense, c_dense);
                 return;
             }
         }
         
         // Initialize result to 0
-        std::fill(c_data, c_data + n * n, static_cast<T>(0));
+        for (uint64_t i = 0; i < m; ++i) {
+            for (uint64_t j = 0; j < n; ++j) {
+                c_data[idx_c(i, j)] = static_cast<T>(0);
+            }
+        }
         
         // --- Lookahead Protocol: Send Memory Hints ---
         using namespace pycauset::core;
-        size_t total_bytes = n * n * sizeof(T);
+        size_t total_bytes = m * n * sizeof(T);
         size_t stride_bytes = n * sizeof(T);
         size_t block_bytes = sizeof(T);
-
-        // Hint A
-        if (t_a) {
-            // A is transposed, so we access it column-wise (Strided)
-            a_dense->hint(MemoryHint::strided(0, total_bytes, stride_bytes, block_bytes));
-        } else {
-            // A is normal, accessed row-wise (Sequential)
-            a_dense->hint(MemoryHint::sequential(0, total_bytes));
-        }
-
-        // Hint B
-        // B is always accessed sequentially in the inner loops of our optimized kernels
-        // (See logic below: we switch loop order to favor B's row-major layout)
-        b_dense->hint(MemoryHint::sequential(0, total_bytes));
-
-        // Hint C (Write)
-        c_dense->hint(MemoryHint::sequential(0, total_bytes));
-        // ---------------------------------------------
-
         size_t block_size = 64;
 
-        ParallelBlockMap(n, n, block_size, [&](size_t i_start, size_t i_end, size_t j_start, size_t j_end) {
-            for (size_t k_start = 0; k_start < n; k_start += block_size) {
-                size_t k_end = std::min(k_start + block_size, (size_t)n);
-                
-                if (!t_a && !t_b) {
-                    // A * B (Standard)
-                    // IKJ algorithm
-                    for (size_t i = i_start; i < i_end; ++i) {
-                        for (size_t k = k_start; k < k_end; ++k) {
-                            T val_a = a_data[i * n + k];
-                            if (val_a == static_cast<T>(0)) continue;
-                            
-                            const T* b_ptr = b_data + k * n;
-                            T* c_ptr = c_data + i * n;
-                            
-                            for (size_t j = j_start; j < j_end; ++j) {
-                                c_ptr[j] += val_a * b_ptr[j];
-                            }
-                        }
-                    }
-                } else if (!t_a && t_b) {
-                    // A * B^T
-                    // IJK algorithm (Dot Product)
-                    for (size_t i = i_start; i < i_end; ++i) {
-                        const T* a_ptr = a_data + i * n;
-                        T* c_ptr = c_data + i * n;
-                        
+        ParallelBlockMap(m, n, block_size, [&](size_t i_start, size_t i_end, size_t j_start, size_t j_end) {
+            for (size_t k_start = 0; k_start < k; k_start += block_size) {
+                const size_t k_end = std::min(k_start + block_size, static_cast<size_t>(k));
+                for (size_t i = i_start; i < i_end; ++i) {
+                    for (size_t kk = k_start; kk < k_end; ++kk) {
+                        const T val_a = a_data[idx_a(static_cast<uint64_t>(i), static_cast<uint64_t>(kk))];
+                        if (val_a == static_cast<T>(0)) continue;
                         for (size_t j = j_start; j < j_end; ++j) {
-                            T sum = static_cast<T>(0);
-                            const T* b_ptr = b_data + j * n;
-                            
-                            for (size_t k = k_start; k < k_end; ++k) {
-                                sum += a_ptr[k] * b_ptr[k];
-                            }
-                            c_ptr[j] += sum;
-                        }
-                    }
-                } else if (t_a && !t_b) {
-                    // A^T * B
-                    // IKJ algorithm
-                    for (size_t i = i_start; i < i_end; ++i) {
-                        T* c_ptr = c_data + i * n;
-                        for (size_t k = k_start; k < k_end; ++k) {
-                            T val_a = a_data[k * n + i];
-                            if (val_a == static_cast<T>(0)) continue;
-                            
-                            const T* b_ptr = b_data + k * n;
-                            for (size_t j = j_start; j < j_end; ++j) {
-                                c_ptr[j] += val_a * b_ptr[j];
-                            }
-                        }
-                    }
-                } else {
-                    // A^T * B^T
-                    // IJK algorithm
-                    for (size_t i = i_start; i < i_end; ++i) {
-                        T* c_ptr = c_data + i * n;
-                        for (size_t j = j_start; j < j_end; ++j) {
-                            T sum = static_cast<T>(0);
-                            for (size_t k = k_start; k < k_end; ++k) {
-                                sum += a_data[k * n + i] * b_data[j * n + k];
-                            }
-                            c_ptr[j] += sum;
+                            const uint64_t jj = static_cast<uint64_t>(j);
+                            c_data[idx_c(static_cast<uint64_t>(i), jj)] +=
+                                val_a * b_data[idx_b(static_cast<uint64_t>(kk), jj)];
                         }
                     }
                 }
@@ -825,25 +772,28 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
         (b.get_data_type() == DataType::FLOAT16 || b.get_data_type() == DataType::FLOAT32 ||
          b.get_data_type() == DataType::FLOAT64)) {
         debug_trace::set_last("cpu.matmul.float16_fallback");
-        const uint64_t n = a.size();
-        if (b.size() != n || result.size() != n) {
+        const uint64_t m = a.rows();
+        const uint64_t k = a.cols();
+        const uint64_t n = b.cols();
+        if (b.rows() != k || result.rows() != m || result.cols() != n) {
             throw std::invalid_argument("Dimension mismatch");
         }
 
         const bool t_c = c_f16->is_transposed();
+        const uint64_t storage_cols = c_f16->base_cols();
         float16_t* c_data = c_f16->data();
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, m, [&](size_t i) {
             for (size_t j = 0; j < n; ++j) {
                 float sum = 0.0f;
-                for (size_t k = 0; k < n; ++k) {
-                    sum += static_cast<float>(a.get_element_as_double(i, k)) *
-                           static_cast<float>(b.get_element_as_double(k, j));
+                for (size_t kk = 0; kk < k; ++kk) {
+                    sum += static_cast<float>(a.get_element_as_double(static_cast<uint64_t>(i), static_cast<uint64_t>(kk))) *
+                           static_cast<float>(b.get_element_as_double(static_cast<uint64_t>(kk), static_cast<uint64_t>(j)));
                 }
                 const float16_t out(sum);
                 if (t_c) {
-                    c_data[j * n + i] = out;
+                    c_data[static_cast<uint64_t>(j) * storage_cols + static_cast<uint64_t>(i)] = out;
                 } else {
-                    c_data[i * n + j] = out;
+                    c_data[static_cast<uint64_t>(i) * storage_cols + static_cast<uint64_t>(j)] = out;
                 }
             }
         });
@@ -856,20 +806,26 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
         (a.get_data_type() == DataType::FLOAT32 || a.get_data_type() == DataType::FLOAT64) &&
         (b.get_data_type() == DataType::FLOAT32 || b.get_data_type() == DataType::FLOAT64)) {
         debug_trace::set_last("cpu.matmul.mixed_float_fallback_f32");
-        uint64_t n = a.size();
-        if (b.size() != n || result.size() != n) {
+        const uint64_t m = a.rows();
+        const uint64_t k = a.cols();
+        const uint64_t n = b.cols();
+        if (b.rows() != k || result.rows() != m || result.cols() != n) {
             throw std::invalid_argument("Dimension mismatch");
         }
 
         float* c_data = c_f32->data();
-        ParallelFor(0, n, [&](size_t i) {
+        const uint64_t ldc = c_f32->base_cols();
+        const bool t_c = c_f32->is_transposed();
+        ParallelFor(0, m, [&](size_t i) {
             for (size_t j = 0; j < n; ++j) {
                 float sum = 0.0f;
-                for (size_t k = 0; k < n; ++k) {
-                    sum += static_cast<float>(a.get_element_as_double(i, k)) *
-                           static_cast<float>(b.get_element_as_double(k, j));
+                for (size_t kk = 0; kk < k; ++kk) {
+                    sum += static_cast<float>(a.get_element_as_double(static_cast<uint64_t>(i), static_cast<uint64_t>(kk))) *
+                           static_cast<float>(b.get_element_as_double(static_cast<uint64_t>(kk), static_cast<uint64_t>(j)));
                 }
-                c_data[i * n + j] = sum;
+                const uint64_t idx = t_c ? (static_cast<uint64_t>(j) * ldc + static_cast<uint64_t>(i))
+                                        : (static_cast<uint64_t>(i) * ldc + static_cast<uint64_t>(j));
+                c_data[idx] = sum;
             }
         });
         return;
@@ -878,22 +834,27 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     // 2e. ComplexFloat16 result (compute in complex<double>, store float16 planes)
     if (auto* c_cf16 = dynamic_cast<ComplexFloat16Matrix*>(&result)) {
         debug_trace::set_last("cpu.matmul.cf16_fallback");
-        const uint64_t n = a.size();
-        if (b.size() != n || result.size() != n) {
+        const uint64_t m = a.rows();
+        const uint64_t k = a.cols();
+        const uint64_t n = b.cols();
+        if (b.rows() != k || result.rows() != m || result.cols() != n) {
             throw std::invalid_argument("Dimension mismatch");
         }
 
         const bool t_c = c_cf16->is_transposed();
+        const uint64_t storage_cols = c_cf16->base_cols();
         float16_t* rdst = c_cf16->real_data();
         float16_t* idst = c_cf16->imag_data();
 
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, m, [&](size_t i) {
             for (size_t j = 0; j < n; ++j) {
                 std::complex<double> sum = 0.0;
-                for (size_t k = 0; k < n; ++k) {
-                    sum += a.get_element_as_complex(i, k) * b.get_element_as_complex(k, j);
+                for (size_t kk = 0; kk < k; ++kk) {
+                    sum += a.get_element_as_complex(static_cast<uint64_t>(i), static_cast<uint64_t>(kk)) *
+                           b.get_element_as_complex(static_cast<uint64_t>(kk), static_cast<uint64_t>(j));
                 }
-                const uint64_t idx = t_c ? (j * n + i) : (i * n + j);
+                const uint64_t idx = t_c ? (static_cast<uint64_t>(j) * storage_cols + static_cast<uint64_t>(i))
+                                        : (static_cast<uint64_t>(i) * storage_cols + static_cast<uint64_t>(j));
                 rdst[idx] = float16_t(sum.real());
                 idst[idx] = float16_t(sum.imag());
             }
@@ -998,8 +959,10 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
          (b.get_data_type() == DataType::INT16 || b.get_data_type() == DataType::INT32)) &&
         !(a_i32 && b_i32)) {
         debug_trace::set_last("cpu.matmul.mixed_int_fallback_i32");
-        const uint64_t n = a.size();
-        if (b.size() != n || result.size() != n) {
+        const uint64_t m = a.rows();
+        const uint64_t k = a.cols();
+        const uint64_t n = b.cols();
+        if (b.rows() != k || result.rows() != m || result.cols() != n) {
             throw std::invalid_argument("Dimension mismatch");
         }
 
@@ -1007,29 +970,41 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
         const bool t_b = b.is_transposed();
         const bool t_c = c_i32->is_transposed();
 
+        const uint64_t lda = a_i32 ? a_i32->base_cols() : (a_i16 ? a_i16->base_cols() : a.cols());
+        const uint64_t ldb = b_i32 ? b_i32->base_cols() : (b_i16 ? b_i16->base_cols() : b.cols());
+        const uint64_t ldc = c_i32->base_cols();
+
         int32_t* c_data = c_i32->data();
 
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, m, [&](size_t i) {
             for (size_t j = 0; j < n; ++j) {
                 int64_t sum = 0;
-                for (size_t k = 0; k < n; ++k) {
+                for (size_t kk = 0; kk < k; ++kk) {
                     int64_t va = 0;
                     int64_t vb = 0;
 
                     if (a_i32) {
                         const int32_t* a_data = a_i32->data();
-                        va = static_cast<int64_t>(t_a ? a_data[k * n + i] : a_data[i * n + k]);
+                        const uint64_t idx = t_a ? (static_cast<uint64_t>(kk) * lda + static_cast<uint64_t>(i))
+                                                 : (static_cast<uint64_t>(i) * lda + static_cast<uint64_t>(kk));
+                        va = static_cast<int64_t>(a_data[idx]);
                     } else if (a_i16) {
                         const int16_t* a_data = a_i16->data();
-                        va = static_cast<int64_t>(t_a ? a_data[k * n + i] : a_data[i * n + k]);
+                        const uint64_t idx = t_a ? (static_cast<uint64_t>(kk) * lda + static_cast<uint64_t>(i))
+                                                 : (static_cast<uint64_t>(i) * lda + static_cast<uint64_t>(kk));
+                        va = static_cast<int64_t>(a_data[idx]);
                     }
 
                     if (b_i32) {
                         const int32_t* b_data = b_i32->data();
-                        vb = static_cast<int64_t>(t_b ? b_data[j * n + k] : b_data[k * n + j]);
+                        const uint64_t idx = t_b ? (static_cast<uint64_t>(j) * ldb + static_cast<uint64_t>(kk))
+                                                 : (static_cast<uint64_t>(kk) * ldb + static_cast<uint64_t>(j));
+                        vb = static_cast<int64_t>(b_data[idx]);
                     } else if (b_i16) {
                         const int16_t* b_data = b_i16->data();
-                        vb = static_cast<int64_t>(t_b ? b_data[j * n + k] : b_data[k * n + j]);
+                        const uint64_t idx = t_b ? (static_cast<uint64_t>(j) * ldb + static_cast<uint64_t>(kk))
+                                                 : (static_cast<uint64_t>(kk) * ldb + static_cast<uint64_t>(j));
+                        vb = static_cast<int64_t>(b_data[idx]);
                     }
 
                     const int64_t term = va * vb;
@@ -1043,11 +1018,9 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
                 }
 
                 const int32_t out = static_cast<int32_t>(sum);
-                if (t_c) {
-                    c_data[j * n + i] = out;
-                } else {
-                    c_data[i * n + j] = out;
-                }
+                const uint64_t idx = t_c ? (static_cast<uint64_t>(j) * ldc + static_cast<uint64_t>(i))
+                                        : (static_cast<uint64_t>(i) * ldc + static_cast<uint64_t>(j));
+                c_data[idx] = out;
             }
         });
 
@@ -1060,28 +1033,31 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     auto* b_bit = dynamic_cast<const DenseMatrix<bool>*>(&b);
 
     if (a_bit && c_f64 && b_f64) {
-        if (a.size() != b.size() || result.size() != a.size()) {
+        const uint64_t m = a.rows();
+        const uint64_t k = a.cols();
+        const uint64_t n = b.cols();
+        if (b.rows() != k || result.rows() != m || result.cols() != n) {
             throw std::invalid_argument("Dimension mismatch");
         }
-        // For correctness, only use raw-data fast path when both are non-transposed.
-        if (!a_bit->is_transposed() && !b_f64->is_transposed()) {
+
+        // Raw-data fast path: only when both are non-transposed.
+        if (!a_bit->is_transposed() && !b_f64->is_transposed() && !c_f64->is_transposed()) {
             debug_trace::set_last("cpu.matmul.bit_x_f64");
-            const uint64_t n = a.size();
             const uint64_t* a_data = a_bit->data();
             const uint64_t words_per_row = a_bit->stride_bytes() / 8;
             const double* b_data = b_f64->data();
             double* c_data = c_f64->data();
 
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, m, [&](size_t i) {
                 std::vector<double> acc(n, 0.0);
                 const uint64_t* a_row = a_data + i * words_per_row;
                 for (uint64_t w = 0; w < words_per_row; ++w) {
                     uint64_t word = a_row[w];
                     while (word) {
                         const uint64_t bit = static_cast<uint64_t>(std::countr_zero(word));
-                        const uint64_t k = w * 64 + bit;
-                        if (k < n) {
-                            const double* b_row = b_data + k * n;
+                        const uint64_t kk = w * 64 + bit;
+                        if (kk < k) {
+                            const double* b_row = b_data + kk * n;
                             for (uint64_t j = 0; j < n; ++j) {
                                 acc[j] += b_row[j];
                             }
@@ -1098,30 +1074,53 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
             c_f64->set_scalar(a_bit->get_scalar() * b_f64->get_scalar());
             return;
         }
+
+        // Correct generic path (supports transpose flags).
+        debug_trace::set_last("cpu.matmul.bit_x_f64");
+        const bool t_c = c_f64->is_transposed();
+        const uint64_t ldc = c_f64->base_cols();
+        double* c_data = c_f64->data();
+        ParallelFor(0, m, [&](size_t i) {
+            for (uint64_t j = 0; j < n; ++j) {
+                double sum = 0.0;
+                for (uint64_t kk = 0; kk < k; ++kk) {
+                    if (a_bit->get(static_cast<uint64_t>(i), kk)) {
+                        sum += b_f64->get(kk, j);
+                    }
+                }
+                const uint64_t idx = t_c ? (j * ldc + static_cast<uint64_t>(i))
+                                        : (static_cast<uint64_t>(i) * ldc + j);
+                c_data[idx] = sum;
+            }
+        });
+        c_f64->set_scalar(a_bit->get_scalar() * b_f64->get_scalar());
+        return;
     }
 
     if (a_bit && c_f32 && b_f32) {
-        if (a.size() != b.size() || result.size() != a.size()) {
+        const uint64_t m = a.rows();
+        const uint64_t k = a.cols();
+        const uint64_t n = b.cols();
+        if (b.rows() != k || result.rows() != m || result.cols() != n) {
             throw std::invalid_argument("Dimension mismatch");
         }
-        if (!a_bit->is_transposed() && !b_f32->is_transposed()) {
+        if (!a_bit->is_transposed() && !b_f32->is_transposed() && !c_f32->is_transposed()) {
             debug_trace::set_last("cpu.matmul.bit_x_f32");
-            const uint64_t n = a.size();
             const uint64_t* a_data = a_bit->data();
             const uint64_t words_per_row = a_bit->stride_bytes() / 8;
             const float* b_data = b_f32->data();
             float* c_data = c_f32->data();
 
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, m, [&](size_t i) {
                 std::vector<float> acc(n, 0.0f);
                 const uint64_t* a_row = a_data + i * words_per_row;
                 for (uint64_t w = 0; w < words_per_row; ++w) {
                     uint64_t word = a_row[w];
                     while (word) {
                         const uint64_t bit = static_cast<uint64_t>(std::countr_zero(word));
-                        const uint64_t k = w * 64 + bit;
-                        if (k < n) {
-                            const float* b_row = b_data + k * n;
+                        const uint64_t kk = w * 64 + bit;
+                        if (kk < k) {
+                            const float* b_row = b_data + kk * n;
                             for (uint64_t j = 0; j < n; ++j) {
                                 acc[j] += b_row[j];
                             }
@@ -1138,30 +1137,52 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
             c_f32->set_scalar(a_bit->get_scalar() * b_f32->get_scalar());
             return;
         }
+
+        debug_trace::set_last("cpu.matmul.bit_x_f32");
+        const bool t_c = c_f32->is_transposed();
+        const uint64_t ldc = c_f32->base_cols();
+        float* c_data = c_f32->data();
+        ParallelFor(0, m, [&](size_t i) {
+            for (uint64_t j = 0; j < n; ++j) {
+                float sum = 0.0f;
+                for (uint64_t kk = 0; kk < k; ++kk) {
+                    if (a_bit->get(static_cast<uint64_t>(i), kk)) {
+                        sum += b_f32->get(kk, j);
+                    }
+                }
+                const uint64_t idx = t_c ? (j * ldc + static_cast<uint64_t>(i))
+                                        : (static_cast<uint64_t>(i) * ldc + j);
+                c_data[idx] = sum;
+            }
+        });
+        c_f32->set_scalar(a_bit->get_scalar() * b_f32->get_scalar());
+        return;
     }
 
     if (a_bit && c_i32 && b_i32) {
-        if (a.size() != b.size() || result.size() != a.size()) {
+        const uint64_t m = a.rows();
+        const uint64_t k = a.cols();
+        const uint64_t n = b.cols();
+        if (b.rows() != k || result.rows() != m || result.cols() != n) {
             throw std::invalid_argument("Dimension mismatch");
         }
-        if (!a_bit->is_transposed() && !b_i32->is_transposed()) {
+        if (!a_bit->is_transposed() && !b_i32->is_transposed() && !c_i32->is_transposed()) {
             debug_trace::set_last("cpu.matmul.bit_x_i32");
-            const uint64_t n = a.size();
             const uint64_t* a_data = a_bit->data();
             const uint64_t words_per_row = a_bit->stride_bytes() / 8;
             const int32_t* b_data = b_i32->data();
             int32_t* c_data = c_i32->data();
 
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, m, [&](size_t i) {
                 std::vector<int64_t> acc(n, 0);
                 const uint64_t* a_row = a_data + i * words_per_row;
                 for (uint64_t w = 0; w < words_per_row; ++w) {
                     uint64_t word = a_row[w];
                     while (word) {
                         const uint64_t bit = static_cast<uint64_t>(std::countr_zero(word));
-                        const uint64_t k = w * 64 + bit;
-                        if (k < n) {
-                            const int32_t* b_row = b_data + k * n;
+                        const uint64_t kk = w * 64 + bit;
+                        if (kk < k) {
+                            const int32_t* b_row = b_data + kk * n;
                             for (uint64_t j = 0; j < n; ++j) {
                                 acc[j] = checked_add_int64(acc[j], static_cast<int64_t>(b_row[j]));
                             }
@@ -1184,30 +1205,56 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
             c_i32->set_scalar(a_bit->get_scalar() * b_i32->get_scalar());
             return;
         }
+
+        debug_trace::set_last("cpu.matmul.bit_x_i32");
+        const bool t_c = c_i32->is_transposed();
+        const uint64_t ldc = c_i32->base_cols();
+        int32_t* c_data = c_i32->data();
+        ParallelFor(0, m, [&](size_t i) {
+            for (uint64_t j = 0; j < n; ++j) {
+                int64_t sum = 0;
+                for (uint64_t kk = 0; kk < k; ++kk) {
+                    if (a_bit->get(static_cast<uint64_t>(i), kk)) {
+                        sum = checked_add_int64(sum, static_cast<int64_t>(b_i32->get(kk, j)));
+                    }
+                }
+                if (sum > static_cast<int64_t>((std::numeric_limits<int32_t>::max)()) ||
+                    sum < static_cast<int64_t>((std::numeric_limits<int32_t>::min)())) {
+                    throw std::overflow_error("Integer matmul overflow: bit×int32 result does not fit in int32 output");
+                }
+                const uint64_t idx = t_c ? (j * ldc + static_cast<uint64_t>(i))
+                                        : (static_cast<uint64_t>(i) * ldc + j);
+                c_data[idx] = static_cast<int32_t>(sum);
+            }
+        });
+        c_i32->set_scalar(a_bit->get_scalar() * b_i32->get_scalar());
+        return;
     }
 
     if (a_bit && c_i16 && b_i16) {
-        if (a.size() != b.size() || result.size() != a.size()) {
+        const uint64_t m = a.rows();
+        const uint64_t k = a.cols();
+        const uint64_t n = b.cols();
+        if (b.rows() != k || result.rows() != m || result.cols() != n) {
             throw std::invalid_argument("Dimension mismatch");
         }
-        if (!a_bit->is_transposed() && !b_i16->is_transposed()) {
+        if (!a_bit->is_transposed() && !b_i16->is_transposed() && !c_i16->is_transposed()) {
             debug_trace::set_last("cpu.matmul.bit_x_i16");
-            const uint64_t n = a.size();
             const uint64_t* a_data = a_bit->data();
             const uint64_t words_per_row = a_bit->stride_bytes() / 8;
             const int16_t* b_data = b_i16->data();
             int16_t* c_data = c_i16->data();
 
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, m, [&](size_t i) {
                 std::vector<int64_t> acc(n, 0);
                 const uint64_t* a_row = a_data + i * words_per_row;
                 for (uint64_t w = 0; w < words_per_row; ++w) {
                     uint64_t word = a_row[w];
                     while (word) {
                         const uint64_t bit = static_cast<uint64_t>(std::countr_zero(word));
-                        const uint64_t k = w * 64 + bit;
-                        if (k < n) {
-                            const int16_t* b_row = b_data + k * n;
+                        const uint64_t kk = w * 64 + bit;
+                        if (kk < k) {
+                            const int16_t* b_row = b_data + kk * n;
                             for (uint64_t j = 0; j < n; ++j) {
                                 acc[j] = checked_add_int64(acc[j], static_cast<int64_t>(b_row[j]));
                             }
@@ -1230,50 +1277,106 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
             c_i16->set_scalar(a_bit->get_scalar() * b_i16->get_scalar());
             return;
         }
+
+        debug_trace::set_last("cpu.matmul.bit_x_i16");
+        const bool t_c = c_i16->is_transposed();
+        const uint64_t ldc = c_i16->base_cols();
+        int16_t* c_data = c_i16->data();
+        ParallelFor(0, m, [&](size_t i) {
+            for (uint64_t j = 0; j < n; ++j) {
+                int64_t sum = 0;
+                for (uint64_t kk = 0; kk < k; ++kk) {
+                    if (a_bit->get(static_cast<uint64_t>(i), kk)) {
+                        sum = checked_add_int64(sum, static_cast<int64_t>(b_i16->get(kk, j)));
+                    }
+                }
+                if (sum > static_cast<int64_t>((std::numeric_limits<int16_t>::max)()) ||
+                    sum < static_cast<int64_t>((std::numeric_limits<int16_t>::min)())) {
+                    throw std::overflow_error("Integer matmul overflow: bit×int16 result does not fit in int16 output");
+                }
+                const uint64_t idx = t_c ? (j * ldc + static_cast<uint64_t>(i))
+                                        : (static_cast<uint64_t>(i) * ldc + j);
+                c_data[idx] = static_cast<int16_t>(sum);
+            }
+        });
+        c_i16->set_scalar(a_bit->get_scalar() * b_i16->get_scalar());
+        return;
     }
 
     // 5. BitMatrix Support (bit×bit -> int32)
     auto* c_int = dynamic_cast<DenseMatrix<int32_t>*>(&result);
     if (a_bit && b_bit && c_int) {
         debug_trace::set_last("cpu.matmul.bitbit_popcount");
-        uint64_t n = a.size();
-
-        const uint64_t* a_data = a_bit->data();
-        uint64_t stride_bytes = a_bit->stride_bytes();
-        uint64_t words_per_row = stride_bytes / 8;
-
-        auto b_transposed_mat = std::make_unique<DenseBitMatrix>(n, "");
-        b_transposed_mat->set_temporary(true);
-        uint64_t* b_transposed_data = b_transposed_mat->data();
-
-        for (uint64_t i = 0; i < n; ++i) {
-            for (uint64_t j = 0; j < n; ++j) {
-                if (b_bit->get(i, j)) {
-                    uint64_t word_idx = i / 64;
-                    uint64_t bit_idx = i % 64;
-                    b_transposed_data[j * words_per_row + word_idx] |= (1ULL << bit_idx);
-                }
-            }
+        const uint64_t m = a.rows();
+        const uint64_t k = a.cols();
+        const uint64_t n = b.cols();
+        if (b.rows() != k || result.rows() != m || result.cols() != n) {
+            throw std::invalid_argument("Dimension mismatch");
         }
 
-        ParallelFor(0, n, [&](size_t i) {
-            const uint64_t* a_row = a_data + i * words_per_row;
-            for (size_t j = 0; j < n; ++j) {
-                const uint64_t* b_col = b_transposed_data + j * words_per_row;
+        // Optimized popcount kernel: requires non-transposed inputs to safely use raw packed rows.
+        if (!a_bit->is_transposed() && !b_bit->is_transposed()) {
+            const uint64_t* a_data = a_bit->data();
+            const uint64_t words_per_row = a_bit->stride_bytes() / 8;
+            const uint64_t rem_bits = k % 64u;
+            const uint64_t last_mask = (rem_bits == 0u) ? ~0ull : ((1ull << rem_bits) - 1ull);
 
+            auto b_transposed_mat = std::make_unique<DenseBitMatrix>(n, k, "");
+            b_transposed_mat->set_temporary(true);
+            uint64_t* b_transposed_data = b_transposed_mat->data();
+
+            // Build bit-packed columns of B as rows of B^T.
+            for (uint64_t i = 0; i < k; ++i) {
+                for (uint64_t j = 0; j < n; ++j) {
+                    if (b_bit->get(i, j)) {
+                        const uint64_t word_idx = i / 64;
+                        const uint64_t bit_idx = i % 64;
+                        b_transposed_data[j * words_per_row + word_idx] |= (1ULL << bit_idx);
+                    }
+                }
+            }
+
+            ParallelFor(0, m, [&](size_t i) {
+                const uint64_t* a_row = a_data + i * words_per_row;
+                for (uint64_t j = 0; j < n; ++j) {
+                    const uint64_t* b_col = b_transposed_data + j * words_per_row;
+
+                    int64_t dot_product = 0;
+                    for (uint64_t w = 0; w < words_per_row; ++w) {
+                        uint64_t aw = a_row[w];
+                        uint64_t bw = b_col[w];
+                        if (w == words_per_row - 1 && rem_bits != 0u) {
+                            aw &= last_mask;
+                            bw &= last_mask;
+                        }
+                        dot_product = checked_add_int64(dot_product, static_cast<int64_t>(std::popcount(aw & bw)));
+                    }
+                    if (dot_product > static_cast<int64_t>((std::numeric_limits<int32_t>::max)())) {
+                        throw std::overflow_error("Integer matmul overflow: bit×bit result does not fit in int32 output");
+                    }
+                    c_int->set(static_cast<uint64_t>(i), j, static_cast<int32_t>(dot_product));
+                }
+            });
+
+            c_int->set_scalar(a_bit->get_scalar() * b_bit->get_scalar());
+            return;
+        }
+
+        // Correct generic fallback (supports transpose flags).
+        ParallelFor(0, m, [&](size_t i) {
+            for (uint64_t j = 0; j < n; ++j) {
                 int64_t dot_product = 0;
-                for (size_t k = 0; k < words_per_row; ++k) {
-                    dot_product = checked_add_int64(
-                        dot_product,
-                        static_cast<int64_t>(std::popcount(a_row[k] & b_col[k])));
+                for (uint64_t kk = 0; kk < k; ++kk) {
+                    if (a_bit->get(static_cast<uint64_t>(i), kk) && b_bit->get(kk, j)) {
+                        dot_product = checked_add_int64(dot_product, 1);
+                    }
                 }
                 if (dot_product > static_cast<int64_t>((std::numeric_limits<int32_t>::max)())) {
                     throw std::overflow_error("Integer matmul overflow: bit×bit result does not fit in int32 output");
                 }
-                c_int->set(i, j, static_cast<int32_t>(dot_product));
+                c_int->set(static_cast<uint64_t>(i), j, static_cast<int32_t>(dot_product));
             }
         });
-
         c_int->set_scalar(a_bit->get_scalar() * b_bit->get_scalar());
         return;
     }
@@ -1285,7 +1388,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
 
     if (a_tri && b_tri && c_tri) {
         debug_trace::set_last("cpu.matmul.tri_f64");
-        uint64_t n = a.size();
+        uint64_t n = a.rows();
         
         const char* a_base = reinterpret_cast<const char*>(a_tri->data());
         const char* b_base = reinterpret_cast<const char*>(b_tri->data());
@@ -1352,7 +1455,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
 
     if (a_diag && b_diag && c_diag) {
         debug_trace::set_last("cpu.matmul.diag_f64");
-        uint64_t n = a.size();
+        uint64_t n = a.rows();
         const double* a_data = a_diag->data();
         const double* b_data = b_diag->data();
         double* c_data = c_diag->data();
@@ -1373,7 +1476,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     
     if (a_diag && b_f64 && c_dense_dbl) {
         debug_trace::set_last("cpu.matmul.diag_x_dense_f64");
-        uint64_t n = a.size();
+        uint64_t n = a.rows();
         const double* a_data = a_diag->data();
         const double* b_data = b_f64->data();
         double* c_data = c_dense_dbl->data();
@@ -1394,7 +1497,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     // Case 6c: Dense * Diagonal -> Dense
     if (a_f64 && b_diag && c_dense_dbl) {
         debug_trace::set_last("cpu.matmul.dense_x_diag_f64");
-        uint64_t n = a.size();
+        uint64_t n = a.rows();
         const double* a_data = a_f64->data();
         const double* b_data = b_diag->data();
         double* c_data = c_dense_dbl->data();
@@ -1412,31 +1515,34 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     }
 
     // Fallback for generic types (Parallelized)
-    uint64_t n = a.size();
+    const uint64_t m = a.rows();
+    const uint64_t k = a.cols();
+    const uint64_t n = b.cols();
 
     // Generic float32 result fallback for mixed-kind inputs.
     // NOTE: this computes through get_element_as_double (includes scalars) and stores raw values
     // into a float32 result with scalar=1.
     if (c_f32) {
         debug_trace::set_last("cpu.matmul.generic_fallback_f32");
-        if (b.size() != n || result.size() != n) {
+        if (b.rows() != k || result.rows() != m || result.cols() != n) {
             throw std::invalid_argument("Dimension mismatch");
         }
 
         float* c_data = c_f32->data();
         const bool t_c = c_f32->is_transposed();
 
-        ParallelFor(0, n, [&](size_t i) {
+        const uint64_t storage_cols = c_f32->base_cols();
+        ParallelFor(0, m, [&](size_t i) {
             for (size_t j = 0; j < n; ++j) {
                 float sum = 0.0f;
-                for (size_t k = 0; k < n; ++k) {
-                    sum += static_cast<float>(a.get_element_as_double(i, k)) *
-                           static_cast<float>(b.get_element_as_double(k, j));
+                for (size_t kk = 0; kk < k; ++kk) {
+                    sum += static_cast<float>(a.get_element_as_double(static_cast<uint64_t>(i), static_cast<uint64_t>(kk))) *
+                           static_cast<float>(b.get_element_as_double(static_cast<uint64_t>(kk), static_cast<uint64_t>(j)));
                 }
                 if (t_c) {
-                    c_data[j * n + i] = sum;
+                    c_data[static_cast<uint64_t>(j) * storage_cols + static_cast<uint64_t>(i)] = sum;
                 } else {
-                    c_data[i * n + j] = sum;
+                    c_data[static_cast<uint64_t>(i) * storage_cols + static_cast<uint64_t>(j)] = sum;
                 }
             }
         });
@@ -1453,11 +1559,12 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
 
     debug_trace::set_last("cpu.matmul.generic_fallback_f64");
     
-    ParallelFor(0, n, [&](size_t i) {
+    ParallelFor(0, m, [&](size_t i) {
         for (size_t j = 0; j < n; ++j) {
             double sum = 0.0;
-            for (size_t k = 0; k < n; ++k) {
-                sum += a.get_element_as_double(i, k) * b.get_element_as_double(k, j);
+            for (size_t kk = 0; kk < k; ++kk) {
+                sum += a.get_element_as_double(static_cast<uint64_t>(i), static_cast<uint64_t>(kk)) *
+                       b.get_element_as_double(static_cast<uint64_t>(kk), static_cast<uint64_t>(j));
             }
             res_dense->set(i, j, sum);
         }
@@ -1483,7 +1590,7 @@ namespace {
             throw std::invalid_argument("Cannot invert strictly triangular matrix (singular)");
         }
         
-        uint64_t n = a_tri->size();
+        uint64_t n = a_tri->rows();
         
         ParallelFor(0, n, [&](size_t j) {
             double ajj = a_tri->get(j, j);
@@ -1514,37 +1621,46 @@ namespace {
     }
 }
 
-void CpuSolver::inverse(const MatrixBase& in, MatrixBase& out) {
+void CpuSolver::inverse(const MatrixBase& matrix_in, MatrixBase& matrix_out) {
     // Triangular
-    if (auto* in_tri = dynamic_cast<const TriangularMatrix<double>*>(&in)) {
-        if (auto* out_tri = dynamic_cast<TriangularMatrix<double>*>(&out)) {
+    const auto* in_tri = dynamic_cast<const TriangularMatrix<double>*>(&matrix_in);
+    if (in_tri != nullptr) {
+        auto* out_tri = dynamic_cast<TriangularMatrix<double>*>(&matrix_out);
+        if (out_tri != nullptr) {
             invert_triangular(in_tri, out_tri);
             return;
         }
     }
 
     // Double
-    if (auto* in_dense = dynamic_cast<const DenseMatrix<double>*>(&in)) {
-        if (auto* out_dense = dynamic_cast<DenseMatrix<double>*>(&out)) {
-            inverse_impl(in_dense, out_dense);
+    const auto* in_dense_f64 = dynamic_cast<const DenseMatrix<double>*>(&matrix_in);
+    if (in_dense_f64 != nullptr) {
+        auto* out_dense_f64 = dynamic_cast<DenseMatrix<double>*>(&matrix_out);
+        if (out_dense_f64 != nullptr) {
+            inverse_impl(in_dense_f64, out_dense_f64);
             return;
         }
     }
+
     // Float
-    if (auto* in_dense = dynamic_cast<const DenseMatrix<float>*>(&in)) {
-        if (auto* out_dense = dynamic_cast<DenseMatrix<float>*>(&out)) {
-            inverse_impl(in_dense, out_dense);
+    const auto* in_dense_f32 = dynamic_cast<const DenseMatrix<float>*>(&matrix_in);
+    if (in_dense_f32 != nullptr) {
+        auto* out_dense_f32 = dynamic_cast<DenseMatrix<float>*>(&matrix_out);
+        if (out_dense_f32 != nullptr) {
+            inverse_impl(in_dense_f32, out_dense_f32);
             return;
         }
     }
-    
+
     // Diagonal
-    if (auto* in_diag = dynamic_cast<const DiagonalMatrix<double>*>(&in)) {
-        if (auto* out_diag = dynamic_cast<DiagonalMatrix<double>*>(&out)) {
-            uint64_t n = in.size();
+    const auto* in_diag = dynamic_cast<const DiagonalMatrix<double>*>(&matrix_in);
+    if (in_diag != nullptr) {
+        auto* out_diag = dynamic_cast<DiagonalMatrix<double>*>(&matrix_out);
+        if (out_diag != nullptr) {
+            uint64_t n = matrix_in.rows();
             const double* in_data = in_diag->data();
             double* out_data = out_diag->data();
-            
+
             ParallelFor(0, n, [&](size_t i) {
                 double val = in_data[i];
                 if (std::abs(val) < 1e-12) {
@@ -1554,7 +1670,7 @@ void CpuSolver::inverse(const MatrixBase& in, MatrixBase& out) {
                     out_data[i] = 1.0 / val;
                 }
             });
-            
+
             out_diag->set_scalar(1.0 / in_diag->get_scalar());
             return;
         }
@@ -1564,7 +1680,10 @@ void CpuSolver::inverse(const MatrixBase& in, MatrixBase& out) {
 }
 
 void CpuSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {
-    uint64_t n = A.size();
+    uint64_t n = A.rows();
+    if (A.cols() != n) {
+        throw std::invalid_argument("batch_gemv requires square matrix");
+    }
     
     // Check for optimized types
     auto* f32 = dynamic_cast<const DenseMatrix<float>*>(&A);
@@ -1599,7 +1718,18 @@ void CpuSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_
 namespace {
     template <typename T, typename Op>
     void binary_op_impl(const MatrixBase& a, const MatrixBase& b, MatrixBase& result, Op op) {
-        uint64_t n = a.size();
+        const uint64_t rows = result.rows();
+        const uint64_t cols = result.cols();
+
+        if (!is_broadcast_compatible_dim(a.rows(), rows) ||
+            !is_broadcast_compatible_dim(a.cols(), cols) ||
+            !is_broadcast_compatible_dim(b.rows(), rows) ||
+            !is_broadcast_compatible_dim(b.cols(), cols)) {
+            throw std::invalid_argument("operands could not be broadcast together");
+        }
+
+        const bool a_full = (a.rows() == rows) && (a.cols() == cols);
+        const bool b_full = (b.rows() == rows) && (b.cols() == cols);
         
         // 1. DenseMatrix Result
         if (auto* res_dense = dynamic_cast<DenseMatrix<T>*>(&result)) {
@@ -1607,7 +1737,8 @@ namespace {
             auto* b_dense = dynamic_cast<const DenseMatrix<T>*>(&b);
             
             // Fast path: All dense, no transpose, scalar=1
-            if (a_dense && b_dense && 
+            if (a_dense && b_dense && a_full && b_full &&
+                res_dense->get_scalar() == 1.0 && !res_dense->is_transposed() &&
                 a_dense->get_scalar() == 1.0 && !a_dense->is_transposed() &&
                 b_dense->get_scalar() == 1.0 && !b_dense->is_transposed()) {
                 
@@ -1615,23 +1746,27 @@ namespace {
                 const T* b_data = b_dense->data();
                 T* res_data = res_dense->data();
                 
-                ParallelFor(0, n * n, [&](size_t i) {
+                ParallelFor(0, rows * cols, [&](size_t i) {
                     res_data[i] = op(a_data[i], b_data[i]);
                 });
                 return;
             }
             
             // Generic Dense path
-            ParallelFor(0, n, [&](size_t i) {
-                for (size_t j = 0; j < n; ++j) {
+            ParallelFor(0, rows, [&](size_t i) {
+                for (size_t j = 0; j < cols; ++j) {
                     T val_a;
                     T val_b;
+                    const uint64_t ia = broadcast_index(static_cast<uint64_t>(i), a.rows());
+                    const uint64_t ja = broadcast_index(static_cast<uint64_t>(j), a.cols());
+                    const uint64_t ib = broadcast_index(static_cast<uint64_t>(i), b.rows());
+                    const uint64_t jb = broadcast_index(static_cast<uint64_t>(j), b.cols());
                     if constexpr (is_std_complex_v<T>) {
-                        val_a = static_cast<T>(a.get_element_as_complex(i, j));
-                        val_b = static_cast<T>(b.get_element_as_complex(i, j));
+                        val_a = static_cast<T>(a.get_element_as_complex(ia, ja));
+                        val_b = static_cast<T>(b.get_element_as_complex(ib, jb));
                     } else {
-                        val_a = pycauset::scalar::from_double<T>(a.get_element_as_double(i, j));
-                        val_b = pycauset::scalar::from_double<T>(b.get_element_as_double(i, j));
+                        val_a = pycauset::scalar::from_double<T>(a.get_element_as_double(ia, ja));
+                        val_b = pycauset::scalar::from_double<T>(b.get_element_as_double(ib, jb));
                     }
                     res_dense->set(i, j, op(val_a, val_b));
                 }
@@ -1642,10 +1777,17 @@ namespace {
         if constexpr (!is_std_complex_v<T>) {
             // 2. TriangularMatrix Result
             if (auto* res_tri = dynamic_cast<TriangularMatrix<T>*>(&result)) {
-                ParallelFor(0, n, [&](size_t i) {
-                    for (uint64_t j = i + 1; j < n; ++j) {
-                        T val = op(static_cast<T>(a.get_element_as_double(i, j)),
-                                   static_cast<T>(b.get_element_as_double(i, j)));
+                if (rows != cols) {
+                    throw std::invalid_argument("Triangular result requires square dimensions");
+                }
+                ParallelFor(0, rows, [&](size_t i) {
+                    for (uint64_t j = static_cast<uint64_t>(i) + 1; j < rows; ++j) {
+                        const uint64_t ia = broadcast_index(static_cast<uint64_t>(i), a.rows());
+                        const uint64_t ja = broadcast_index(static_cast<uint64_t>(j), a.cols());
+                        const uint64_t ib = broadcast_index(static_cast<uint64_t>(i), b.rows());
+                        const uint64_t jb = broadcast_index(static_cast<uint64_t>(j), b.cols());
+                        T val = op(static_cast<T>(a.get_element_as_double(ia, ja)),
+                                   static_cast<T>(b.get_element_as_double(ib, jb)));
                         if (val != static_cast<T>(0)) {
                             res_tri->set(i, j, val);
                         }
@@ -1658,17 +1800,29 @@ namespace {
             if (auto* res_diag = dynamic_cast<DiagonalMatrix<T>*>(&result)) {
                 // Special case for IdentityMatrix (which is a DiagonalMatrix but immutable/special)
                 if (result.get_matrix_type() == MatrixType::IDENTITY) {
-                     if (n > 0) {
-                         T val = op(static_cast<T>(a.get_element_as_double(0, 0)),
-                                    static_cast<T>(b.get_element_as_double(0, 0)));
+                     if (rows > 0 && cols > 0) {
+                         const uint64_t ia = broadcast_index(0, a.rows());
+                         const uint64_t ja = broadcast_index(0, a.cols());
+                         const uint64_t ib = broadcast_index(0, b.rows());
+                         const uint64_t jb = broadcast_index(0, b.cols());
+                         T val = op(static_cast<T>(a.get_element_as_double(ia, ja)),
+                                    static_cast<T>(b.get_element_as_double(ib, jb)));
                          result.set_scalar(static_cast<double>(val));
                      }
                      return;
                 }
 
-                ParallelFor(0, n, [&](size_t i) {
-                    T val = op(static_cast<T>(a.get_element_as_double(i, i)),
-                               static_cast<T>(b.get_element_as_double(i, i)));
+                if (rows != cols) {
+                    throw std::invalid_argument("Diagonal result requires square dimensions");
+                }
+
+                ParallelFor(0, rows, [&](size_t i) {
+                    const uint64_t ia = broadcast_index(static_cast<uint64_t>(i), a.rows());
+                    const uint64_t ja = broadcast_index(static_cast<uint64_t>(i), a.cols());
+                    const uint64_t ib = broadcast_index(static_cast<uint64_t>(i), b.rows());
+                    const uint64_t jb = broadcast_index(static_cast<uint64_t>(i), b.cols());
+                    T val = op(static_cast<T>(a.get_element_as_double(ia, ja)),
+                               static_cast<T>(b.get_element_as_double(ib, jb)));
                     res_diag->set(i, i, val);
                 });
                 return;
@@ -1676,11 +1830,18 @@ namespace {
 
             // 4. SymmetricMatrix Result
             if (auto* res_sym = dynamic_cast<SymmetricMatrix<T>*>(&result)) {
-                ParallelFor(0, n, [&](size_t i) {
+                if (rows != cols) {
+                    throw std::invalid_argument("Symmetric result requires square dimensions");
+                }
+                ParallelFor(0, rows, [&](size_t i) {
                     // SymmetricMatrix stores upper triangle (including diagonal)
-                    for (uint64_t j = i; j < n; ++j) {
-                        T val = op(static_cast<T>(a.get_element_as_double(i, j)),
-                                   static_cast<T>(b.get_element_as_double(i, j)));
+                    for (uint64_t j = static_cast<uint64_t>(i); j < rows; ++j) {
+                        const uint64_t ia = broadcast_index(static_cast<uint64_t>(i), a.rows());
+                        const uint64_t ja = broadcast_index(static_cast<uint64_t>(j), a.cols());
+                        const uint64_t ib = broadcast_index(static_cast<uint64_t>(i), b.rows());
+                        const uint64_t jb = broadcast_index(static_cast<uint64_t>(j), b.cols());
+                        T val = op(static_cast<T>(a.get_element_as_double(ia, ja)),
+                                   static_cast<T>(b.get_element_as_double(ib, jb)));
                         res_sym->set(i, j, val);
                     }
                 });
@@ -1693,10 +1854,16 @@ namespace {
 
     template <typename T>
     void scalar_op_impl(const MatrixBase& a, double scalar, DenseMatrix<T>* res) {
-        uint64_t n = a.size();
+        const uint64_t rows = res->rows();
+        const uint64_t cols = res->cols();
+        if (a.rows() != rows || a.cols() != cols) {
+            throw std::invalid_argument("Dimension mismatch");
+        }
         auto* a_dense = dynamic_cast<const DenseMatrix<T>*>(&a);
         
-        if (a_dense && a_dense->get_scalar() == 1.0 && !a_dense->is_transposed()) {
+        if (a_dense &&
+            res->get_scalar() == 1.0 && !res->is_transposed() &&
+            a_dense->get_scalar() == 1.0 && !a_dense->is_transposed()) {
             const T* a_data = a_dense->data();
             T* res_data = res->data();
             T s;
@@ -1706,14 +1873,14 @@ namespace {
             } else {
                 s = pycauset::scalar::from_double<T>(scalar);
             }
-            ParallelFor(0, n * n, [&](size_t i) {
+            ParallelFor(0, rows * cols, [&](size_t i) {
                 res_data[i] = a_data[i] * s;
             });
             return;
         }
         
-        ParallelFor(0, n, [&](size_t i) {
-            for (size_t j = 0; j < n; ++j) {
+        ParallelFor(0, rows, [&](size_t i) {
+            for (size_t j = 0; j < cols; ++j) {
                 T val_a;
                 T s;
                 if constexpr (is_std_complex_v<T>) {
@@ -1843,12 +2010,23 @@ void CpuSolver::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, M
         if (!out) {
             throw std::runtime_error("CpuSolver::elementwise_multiply bit result type mismatch");
         }
-        const uint64_t n = out->size();
+        const uint64_t rows = out->rows();
+        const uint64_t cols = out->cols();
+        if (!is_broadcast_compatible_dim(a.rows(), rows) ||
+            !is_broadcast_compatible_dim(a.cols(), cols) ||
+            !is_broadcast_compatible_dim(b.rows(), rows) ||
+            !is_broadcast_compatible_dim(b.cols(), cols)) {
+            throw std::invalid_argument("operands could not be broadcast together");
+        }
         debug_trace::set_last("cpu.elementwise_multiply.bit");
-        ParallelFor(0, n, [&](size_t i) {
-            for (uint64_t j = 0; j < n; ++j) {
-                const bool va = (a.get_element_as_double(i, j) != 0.0);
-                const bool vb = (b.get_element_as_double(i, j) != 0.0);
+        ParallelFor(0, rows, [&](size_t i) {
+            for (uint64_t j = 0; j < cols; ++j) {
+                const uint64_t ia = broadcast_index(static_cast<uint64_t>(i), a.rows());
+                const uint64_t ja = broadcast_index(static_cast<uint64_t>(j), a.cols());
+                const uint64_t ib = broadcast_index(static_cast<uint64_t>(i), b.rows());
+                const uint64_t jb = broadcast_index(static_cast<uint64_t>(j), b.cols());
+                const bool va = (a.get_element_as_double(ia, ja) != 0.0);
+                const bool vb = (b.get_element_as_double(ib, jb) != 0.0);
                 out->set(i, j, va && vb);
             }
         });
@@ -1883,13 +2061,63 @@ void CpuSolver::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, M
     }
 }
 
+void CpuSolver::elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
+    DataType dtype = result.get_data_type();
+    if (dtype == DataType::COMPLEX_FLOAT16) {
+        if (auto* out = dynamic_cast<ComplexFloat16Matrix*>(&result)) {
+            binary_op_complex16_impl(a, b, *out, [](auto x, auto y) { return x / y; });
+            return;
+        }
+        throw std::runtime_error("CpuSolver::elementwise_divide complex_float16 result type mismatch");
+    }
+    if (dtype == DataType::COMPLEX_FLOAT32) {
+        binary_op_impl<std::complex<float>>(a, b, result, [](auto x, auto y) { return x / y; });
+        return;
+    }
+    if (dtype == DataType::COMPLEX_FLOAT64) {
+        binary_op_impl<std::complex<double>>(a, b, result, [](auto x, auto y) { return x / y; });
+        return;
+    }
+
+    if (dtype == DataType::BIT) {
+        throw std::runtime_error("CpuSolver::elementwise_divide bit result type not supported");
+    }
+
+    if (dtype == DataType::FLOAT64) {
+        binary_op_impl<double>(a, b, result, [](auto x, auto y) { return x / y; });
+    } else if (dtype == DataType::FLOAT16) {
+        binary_op_impl<float16_t>(a, b, result, [](auto x, auto y) { return x / y; });
+    } else if (dtype == DataType::FLOAT32) {
+        binary_op_impl<float>(a, b, result, [](auto x, auto y) { return x / y; });
+    } else if (dtype == DataType::INT8) {
+        binary_op_impl<int8_t>(a, b, result, [](auto x, auto y) { return x / y; });
+    } else if (dtype == DataType::INT16) {
+        binary_op_impl<int16_t>(a, b, result, [](auto x, auto y) { return x / y; });
+    } else if (dtype == DataType::INT32) {
+        binary_op_impl<int32_t>(a, b, result, [](auto x, auto y) { return x / y; });
+    } else if (dtype == DataType::INT64) {
+        binary_op_impl<int64_t>(a, b, result, [](auto x, auto y) { return x / y; });
+    } else if (dtype == DataType::UINT8) {
+        binary_op_impl<uint8_t>(a, b, result, [](auto x, auto y) { return x / y; });
+    } else if (dtype == DataType::UINT16) {
+        binary_op_impl<uint16_t>(a, b, result, [](auto x, auto y) { return x / y; });
+    } else if (dtype == DataType::UINT32) {
+        binary_op_impl<uint32_t>(a, b, result, [](auto x, auto y) { return x / y; });
+    } else if (dtype == DataType::UINT64) {
+        binary_op_impl<uint64_t>(a, b, result, [](auto x, auto y) { return x / y; });
+    } else {
+        throw std::runtime_error("CpuSolver::elementwise_divide result data type not supported");
+    }
+}
+
 void CpuSolver::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {
     DataType dtype = result.get_data_type();
     if (dtype == DataType::COMPLEX_FLOAT16) {
         if (auto* out = dynamic_cast<ComplexFloat16Matrix*>(&result)) {
-            const uint64_t n = out->size();
-            ParallelFor(0, n, [&](size_t i) {
-                for (size_t j = 0; j < n; ++j) {
+            const uint64_t rows = out->rows();
+            const uint64_t cols = out->cols();
+            ParallelFor(0, rows, [&](size_t i) {
+                for (size_t j = 0; j < cols; ++j) {
                     out->set(i, j, a.get_element_as_complex(i, j) * scalar);
                 }
             });
@@ -1980,12 +2208,41 @@ double CpuSolver::dot(const VectorBase& a, const VectorBase& b) {
     return sum;
 }
 
+double CpuSolver::l2_norm(const VectorBase& v) {
+    const uint64_t n = v.size();
+    if (n == 0) return 0.0;
+
+    const auto dt = v.get_data_type();
+    if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
+        debug_trace::set_last("cpu.l2_norm.complex");
+        double sum = 0.0;
+        #pragma omp parallel for reduction(+:sum)
+        for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
+            const std::complex<double> z = v.get_element_as_complex(static_cast<uint64_t>(i));
+            sum += std::norm(z);
+        }
+        return std::sqrt(sum);
+    }
+
+    debug_trace::set_last("cpu.l2_norm.real");
+    double sum = 0.0;
+    #pragma omp parallel for reduction(+:sum)
+    for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
+        const double x = v.get_element_as_double(static_cast<uint64_t>(i));
+        sum += x * x;
+    }
+    return std::sqrt(sum);
+}
+
 void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) {
-    if (m.size() != v.size()) throw std::invalid_argument("Dimension mismatch");
-    uint64_t n = m.size();
+    if (m.cols() != v.size()) throw std::invalid_argument("Dimension mismatch");
+    const uint64_t rows = m.rows();
+    const uint64_t cols = m.cols();
+    if (result.size() != rows) throw std::invalid_argument("Dimension mismatch");
 
     // Identity Optimization
     if (m.get_matrix_type() == MatrixType::IDENTITY) {
+        if (rows != cols) throw std::invalid_argument("Dimension mismatch");
         const DataType res_dt = result.get_data_type();
         if (res_dt == DataType::COMPLEX_FLOAT16 || res_dt == DataType::COMPLEX_FLOAT32 || res_dt == DataType::COMPLEX_FLOAT64) {
             debug_trace::set_last("cpu.matvec.identity.complex");
@@ -1993,7 +2250,7 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             if (auto* out16 = dynamic_cast<ComplexFloat16Vector*>(&result)) {
                 auto* rdst = out16->real_data();
                 auto* idst = out16->imag_data();
-                ParallelFor(0, n, [&](size_t i) {
+                ParallelFor(0, rows, [&](size_t i) {
                     const std::complex<double> z = v.get_element_as_complex(i) * scalar;
                     rdst[i] = float16_t(z.real());
                     idst[i] = float16_t(z.imag());
@@ -2003,7 +2260,7 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             }
             if (auto* out32 = dynamic_cast<DenseVector<std::complex<float>>*>(&result)) {
                 auto* dst = out32->data();
-                ParallelFor(0, n, [&](size_t i) {
+                ParallelFor(0, rows, [&](size_t i) {
                     const std::complex<double> z = v.get_element_as_complex(i) * scalar;
                     dst[i] = std::complex<float>(static_cast<float>(z.real()), static_cast<float>(z.imag()));
                 });
@@ -2012,7 +2269,7 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             }
             if (auto* out64 = dynamic_cast<DenseVector<std::complex<double>>*>(&result)) {
                 auto* dst = out64->data();
-                ParallelFor(0, n, [&](size_t i) { dst[i] = v.get_element_as_complex(i) * scalar; });
+                ParallelFor(0, rows, [&](size_t i) { dst[i] = v.get_element_as_complex(i) * scalar; });
                 out64->set_scalar(1.0);
                 return;
             }
@@ -2021,47 +2278,47 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
 
         double scalar = m.get_scalar().real();
         if (auto* res_int = dynamic_cast<DenseVector<int32_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 res_int->set(i, (int32_t)(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_i8 = dynamic_cast<DenseVector<int8_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 res_i8->set(i, static_cast<int8_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_i16 = dynamic_cast<DenseVector<int16_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 res_i16->set(i, static_cast<int16_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_i64 = dynamic_cast<DenseVector<int64_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 res_i64->set(i, static_cast<int64_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_u8 = dynamic_cast<DenseVector<uint8_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 res_u8->set(i, static_cast<uint8_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_u16 = dynamic_cast<DenseVector<uint16_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 res_u16->set(i, static_cast<uint16_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_u32 = dynamic_cast<DenseVector<uint32_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 res_u32->set(i, static_cast<uint32_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_u64 = dynamic_cast<DenseVector<uint64_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 res_u64->set(i, static_cast<uint64_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 res_f16->set(i, float16_t(static_cast<float>(v.get_element_as_double(i) * scalar)));
             });
         } else if (auto* res_f32 = dynamic_cast<DenseVector<float>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 res_f32->set(i, static_cast<float>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_dbl = dynamic_cast<DenseVector<double>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 res_dbl->set(i, v.get_element_as_double(i) * scalar);
             });
         }
@@ -2075,9 +2332,9 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
         if (auto* out16 = dynamic_cast<ComplexFloat16Vector*>(&result)) {
             auto* rdst = out16->real_data();
             auto* idst = out16->imag_data();
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 std::complex<double> sum = 0.0;
-                for (uint64_t j = 0; j < n; ++j) {
+                for (uint64_t j = 0; j < cols; ++j) {
                     sum += m.get_element_as_complex(i, j) * v.get_element_as_complex(j);
                 }
                 rdst[i] = float16_t(sum.real());
@@ -2088,9 +2345,9 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
         }
         if (auto* out32 = dynamic_cast<DenseVector<std::complex<float>>*>(&result)) {
             auto* dst = out32->data();
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 std::complex<double> sum = 0.0;
-                for (uint64_t j = 0; j < n; ++j) {
+                for (uint64_t j = 0; j < cols; ++j) {
                     sum += m.get_element_as_complex(i, j) * v.get_element_as_complex(j);
                 }
                 dst[i] = std::complex<float>(static_cast<float>(sum.real()), static_cast<float>(sum.imag()));
@@ -2100,9 +2357,9 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
         }
         if (auto* out64 = dynamic_cast<DenseVector<std::complex<double>>*>(&result)) {
             auto* dst = out64->data();
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, rows, [&](size_t i) {
                 std::complex<double> sum = 0.0;
-                for (uint64_t j = 0; j < n; ++j) {
+                for (uint64_t j = 0; j < cols; ++j) {
                     sum += m.get_element_as_complex(i, j) * v.get_element_as_complex(j);
                 }
                 dst[i] = sum;
@@ -2119,25 +2376,38 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
     auto* res_int = dynamic_cast<DenseVector<int32_t>*>(&result);
     
     if (m_bit && v_bit && res_int) {
-        debug_trace::set_last("cpu.matvec.bit_x_bit_popcount");
-        const uint64_t* m_data = m_bit->data();
-        const uint64_t* v_data = v_bit->data();
-        int32_t* res_data = res_int->data();
-        
-        uint64_t stride_bytes = m_bit->stride_bytes();
-        uint64_t words_per_row = stride_bytes / 8;
-        
-        ParallelFor(0, n, [&](size_t i) {
-            const uint64_t* row_ptr = m_data + i * words_per_row;
-            int32_t sum = 0;
-            for (size_t k = 0; k < words_per_row; ++k) {
-                sum += std::popcount(row_ptr[k] & v_data[k]);
-            }
-            res_data[i] = sum;
-        });
+        if (m_bit->is_transposed()) {
+            // Fall through to generic path for correctness.
+        } else {
+            debug_trace::set_last("cpu.matvec.bit_x_bit_popcount");
+            const uint64_t* m_data = m_bit->data();
+            const uint64_t* v_data = v_bit->data();
+            int32_t* res_data = res_int->data();
+            
+            const uint64_t stride_bytes = m_bit->stride_bytes();
+            const uint64_t words_per_row = stride_bytes / 8;
+            const uint64_t words_for_cols = (cols + 63u) / 64u;
+            const uint64_t rem_bits = cols % 64u;
+            const uint64_t last_mask = (rem_bits == 0u) ? ~0ull : ((1ull << rem_bits) - 1ull);
+            
+            ParallelFor(0, rows, [&](size_t i) {
+                const uint64_t* row_ptr = m_data + i * words_per_row;
+                int32_t sum = 0;
+                for (uint64_t w = 0; w < words_for_cols; ++w) {
+                    uint64_t mw = row_ptr[w];
+                    uint64_t vw = v_data[w];
+                    if (w == words_for_cols - 1 && rem_bits != 0u) {
+                        mw &= last_mask;
+                        vw &= last_mask;
+                    }
+                    sum += std::popcount(mw & vw);
+                }
+                res_data[i] = sum;
+            });
 
-        res_int->set_scalar(m_bit->get_scalar() * v_bit->get_scalar());
-        return;
+            res_int->set_scalar(m_bit->get_scalar() * v_bit->get_scalar());
+            return;
+        }
     }
 
     // BitMatrix * DenseVector<int32_t>
@@ -2153,15 +2423,19 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             int32_t* res_data = res_i32->data();
 
             const uint64_t words_per_row = m_bit->stride_bytes() / 8;
-            ParallelFor(0, n, [&](size_t i) {
+            const uint64_t words_for_cols = (cols + 63u) / 64u;
+            const uint64_t rem_bits = cols % 64u;
+            const uint64_t last_mask = (rem_bits == 0u) ? ~0ull : ((1ull << rem_bits) - 1ull);
+            ParallelFor(0, rows, [&](size_t i) {
                 const uint64_t* row_ptr = m_data + i * words_per_row;
                 int64_t sum = 0;
-                for (uint64_t w = 0; w < words_per_row; ++w) {
+                for (uint64_t w = 0; w < words_for_cols; ++w) {
                     uint64_t word = row_ptr[w];
+                    if (w == words_for_cols - 1 && rem_bits != 0u) word &= last_mask;
                     while (word) {
                         const uint64_t bit = static_cast<uint64_t>(std::countr_zero(word));
                         const uint64_t k = w * 64 + bit;
-                        if (k < n) {
+                        if (k < cols) {
                             sum = checked_add_int64(sum, static_cast<int64_t>(v_data[k]));
                         }
                         word &= (word - 1);
@@ -2192,15 +2466,19 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             int16_t* res_data = res_i16->data();
 
             const uint64_t words_per_row = m_bit->stride_bytes() / 8;
-            ParallelFor(0, n, [&](size_t i) {
+            const uint64_t words_for_cols = (cols + 63u) / 64u;
+            const uint64_t rem_bits = cols % 64u;
+            const uint64_t last_mask = (rem_bits == 0u) ? ~0ull : ((1ull << rem_bits) - 1ull);
+            ParallelFor(0, rows, [&](size_t i) {
                 const uint64_t* row_ptr = m_data + i * words_per_row;
                 int64_t sum = 0;
-                for (uint64_t w = 0; w < words_per_row; ++w) {
+                for (uint64_t w = 0; w < words_for_cols; ++w) {
                     uint64_t word = row_ptr[w];
+                    if (w == words_for_cols - 1 && rem_bits != 0u) word &= last_mask;
                     while (word) {
                         const uint64_t bit = static_cast<uint64_t>(std::countr_zero(word));
                         const uint64_t k = w * 64 + bit;
-                        if (k < n) {
+                        if (k < cols) {
                             sum = checked_add_int64(sum, static_cast<int64_t>(v_data[k]));
                         }
                         word &= (word - 1);
@@ -2231,15 +2509,19 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             double* res_data = res_f64->data();
 
             const uint64_t words_per_row = m_bit->stride_bytes() / 8;
-            ParallelFor(0, n, [&](size_t i) {
+            const uint64_t words_for_cols = (cols + 63u) / 64u;
+            const uint64_t rem_bits = cols % 64u;
+            const uint64_t last_mask = (rem_bits == 0u) ? ~0ull : ((1ull << rem_bits) - 1ull);
+            ParallelFor(0, rows, [&](size_t i) {
                 const uint64_t* row_ptr = m_data + i * words_per_row;
                 double sum = 0.0;
-                for (uint64_t w = 0; w < words_per_row; ++w) {
+                for (uint64_t w = 0; w < words_for_cols; ++w) {
                     uint64_t word = row_ptr[w];
+                    if (w == words_for_cols - 1 && rem_bits != 0u) word &= last_mask;
                     while (word) {
                         const uint64_t bit = static_cast<uint64_t>(std::countr_zero(word));
                         const uint64_t k = w * 64 + bit;
-                        if (k < n) {
+                        if (k < cols) {
                             sum += v_data[k];
                         }
                         word &= (word - 1);
@@ -2255,89 +2537,89 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
 
     // Generic Fallback
     if (auto* res_int = dynamic_cast<DenseVector<int32_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, rows, [&](size_t i) {
             int64_t sum = 0;
-            for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t j = 0; j < cols; ++j) {
                 sum += static_cast<int64_t>(m.get_element_as_double(i, j) * v.get_element_as_double(j));
             }
             res_int->set(i, static_cast<int32_t>(sum));
         });
     } else if (auto* res_i8_fb = dynamic_cast<DenseVector<int8_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, rows, [&](size_t i) {
             int64_t sum = 0;
-            for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t j = 0; j < cols; ++j) {
                 sum += static_cast<int64_t>(m.get_element_as_double(i, j) * v.get_element_as_double(j));
             }
             res_i8_fb->set(i, static_cast<int8_t>(sum));
         });
     } else if (auto* res_i16_fb = dynamic_cast<DenseVector<int16_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, rows, [&](size_t i) {
             int64_t sum = 0;
-            for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t j = 0; j < cols; ++j) {
                 sum += static_cast<int64_t>(m.get_element_as_double(i, j) * v.get_element_as_double(j));
             }
             res_i16_fb->set(i, static_cast<int16_t>(sum));
         });
     } else if (auto* res_i64_fb = dynamic_cast<DenseVector<int64_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, rows, [&](size_t i) {
             int64_t sum = 0;
-            for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t j = 0; j < cols; ++j) {
                 sum += static_cast<int64_t>(m.get_element_as_double(i, j) * v.get_element_as_double(j));
             }
             res_i64_fb->set(i, sum);
         });
     } else if (auto* res_u8_fb = dynamic_cast<DenseVector<uint8_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, rows, [&](size_t i) {
             uint64_t sum = 0;
-            for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t j = 0; j < cols; ++j) {
                 sum += static_cast<uint64_t>(m.get_element_as_double(i, j) * v.get_element_as_double(j));
             }
             res_u8_fb->set(i, static_cast<uint8_t>(sum));
         });
     } else if (auto* res_u16_fb = dynamic_cast<DenseVector<uint16_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, rows, [&](size_t i) {
             uint64_t sum = 0;
-            for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t j = 0; j < cols; ++j) {
                 sum += static_cast<uint64_t>(m.get_element_as_double(i, j) * v.get_element_as_double(j));
             }
             res_u16_fb->set(i, static_cast<uint16_t>(sum));
         });
     } else if (auto* res_u32_fb = dynamic_cast<DenseVector<uint32_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, rows, [&](size_t i) {
             uint64_t sum = 0;
-            for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t j = 0; j < cols; ++j) {
                 sum += static_cast<uint64_t>(m.get_element_as_double(i, j) * v.get_element_as_double(j));
             }
             res_u32_fb->set(i, static_cast<uint32_t>(sum));
         });
     } else if (auto* res_u64_fb = dynamic_cast<DenseVector<uint64_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, rows, [&](size_t i) {
             uint64_t sum = 0;
-            for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t j = 0; j < cols; ++j) {
                 sum += static_cast<uint64_t>(m.get_element_as_double(i, j) * v.get_element_as_double(j));
             }
             res_u64_fb->set(i, sum);
         });
     } else if (auto* res_dbl = dynamic_cast<DenseVector<double>*>(&result)) {
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, rows, [&](size_t i) {
             double sum = 0.0;
-            for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t j = 0; j < cols; ++j) {
                 sum += m.get_element_as_double(i, j) * v.get_element_as_double(j);
             }
             res_dbl->set(i, sum);
         });
     } else if (auto* res_f32 = dynamic_cast<DenseVector<float>*>(&result)) {
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, rows, [&](size_t i) {
             float sum = 0.0f;
-            for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t j = 0; j < cols; ++j) {
                 sum += static_cast<float>(m.get_element_as_double(i, j) * v.get_element_as_double(j));
             }
             res_f32->set(i, sum);
         });
     } else if (auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t i) {
+        ParallelFor(0, rows, [&](size_t i) {
             float sum = 0.0f;
-            for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t j = 0; j < cols; ++j) {
                 sum += static_cast<float>(m.get_element_as_double(i, j) * v.get_element_as_double(j));
             }
             res_f16->set(i, float16_t(sum));
@@ -2348,11 +2630,14 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
 }
 
 void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) {
-    if (m.size() != v.size()) throw std::invalid_argument("Dimension mismatch");
-    uint64_t n = m.size();
+    const uint64_t rows = m.rows();
+    const uint64_t cols = m.cols();
+    if (rows != v.size()) throw std::invalid_argument("Dimension mismatch");
+    if (result.size() != cols) throw std::invalid_argument("Dimension mismatch");
 
     // Identity Optimization
     if (m.get_matrix_type() == MatrixType::IDENTITY) {
+        if (rows != cols) throw std::invalid_argument("Dimension mismatch");
         const DataType res_dt = result.get_data_type();
         if (res_dt == DataType::COMPLEX_FLOAT16 || res_dt == DataType::COMPLEX_FLOAT32 || res_dt == DataType::COMPLEX_FLOAT64) {
             debug_trace::set_last("cpu.vecmat.identity.complex");
@@ -2360,7 +2645,7 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
             if (auto* out16 = dynamic_cast<ComplexFloat16Vector*>(&result)) {
                 auto* rdst = out16->real_data();
                 auto* idst = out16->imag_data();
-                ParallelFor(0, n, [&](size_t i) {
+                ParallelFor(0, cols, [&](size_t i) {
                     const std::complex<double> z = v.get_element_as_complex(i) * scalar;
                     rdst[i] = float16_t(z.real());
                     idst[i] = float16_t(z.imag());
@@ -2371,7 +2656,7 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
             }
             if (auto* out32 = dynamic_cast<DenseVector<std::complex<float>>*>(&result)) {
                 auto* dst = out32->data();
-                ParallelFor(0, n, [&](size_t i) {
+                ParallelFor(0, cols, [&](size_t i) {
                     const std::complex<double> z = v.get_element_as_complex(i) * scalar;
                     dst[i] = std::complex<float>(static_cast<float>(z.real()), static_cast<float>(z.imag()));
                 });
@@ -2381,7 +2666,7 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
             }
             if (auto* out64 = dynamic_cast<DenseVector<std::complex<double>>*>(&result)) {
                 auto* dst = out64->data();
-                ParallelFor(0, n, [&](size_t i) { dst[i] = v.get_element_as_complex(i) * scalar; });
+                ParallelFor(0, cols, [&](size_t i) { dst[i] = v.get_element_as_complex(i) * scalar; });
                 out64->set_scalar(1.0);
                 result.set_transposed(true);
                 return;
@@ -2391,47 +2676,47 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
 
         double scalar = m.get_scalar().real();
         if (auto* res_int = dynamic_cast<DenseVector<int32_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, cols, [&](size_t i) {
                 res_int->set(i, (int32_t)(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_i8 = dynamic_cast<DenseVector<int8_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, cols, [&](size_t i) {
                 res_i8->set(i, static_cast<int8_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_i16 = dynamic_cast<DenseVector<int16_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, cols, [&](size_t i) {
                 res_i16->set(i, static_cast<int16_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_i64 = dynamic_cast<DenseVector<int64_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, cols, [&](size_t i) {
                 res_i64->set(i, static_cast<int64_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_u8 = dynamic_cast<DenseVector<uint8_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, cols, [&](size_t i) {
                 res_u8->set(i, static_cast<uint8_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_u16 = dynamic_cast<DenseVector<uint16_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, cols, [&](size_t i) {
                 res_u16->set(i, static_cast<uint16_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_u32 = dynamic_cast<DenseVector<uint32_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, cols, [&](size_t i) {
                 res_u32->set(i, static_cast<uint32_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_u64 = dynamic_cast<DenseVector<uint64_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, cols, [&](size_t i) {
                 res_u64->set(i, static_cast<uint64_t>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, cols, [&](size_t i) {
                 res_f16->set(i, float16_t(static_cast<float>(v.get_element_as_double(i) * scalar)));
             });
         } else if (auto* res_f32 = dynamic_cast<DenseVector<float>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, cols, [&](size_t i) {
                 res_f32->set(i, static_cast<float>(v.get_element_as_double(i) * scalar));
             });
         } else if (auto* res_dbl = dynamic_cast<DenseVector<double>*>(&result)) {
-            ParallelFor(0, n, [&](size_t i) {
+            ParallelFor(0, cols, [&](size_t i) {
                 res_dbl->set(i, v.get_element_as_double(i) * scalar);
             });
         }
@@ -2446,39 +2731,42 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
         if (auto* out16 = dynamic_cast<ComplexFloat16Vector*>(&result)) {
             auto* rdst = out16->real_data();
             auto* idst = out16->imag_data();
-            ParallelFor(0, n, [&](size_t j) {
+            ParallelFor(0, cols, [&](size_t j) {
                 std::complex<double> sum = 0.0;
-                for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t i = 0; i < rows; ++i) {
                     sum += v.get_element_as_complex(i) * m.get_element_as_complex(i, j);
                 }
                 rdst[j] = float16_t(sum.real());
                 idst[j] = float16_t(sum.imag());
             });
             out16->set_scalar(1.0);
+            result.set_transposed(true);
             return;
         }
         if (auto* out32 = dynamic_cast<DenseVector<std::complex<float>>*>(&result)) {
             auto* dst = out32->data();
-            ParallelFor(0, n, [&](size_t j) {
+            ParallelFor(0, cols, [&](size_t j) {
                 std::complex<double> sum = 0.0;
-                for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t i = 0; i < rows; ++i) {
                     sum += v.get_element_as_complex(i) * m.get_element_as_complex(i, j);
                 }
                 dst[j] = std::complex<float>(static_cast<float>(sum.real()), static_cast<float>(sum.imag()));
             });
             out32->set_scalar(1.0);
+            result.set_transposed(true);
             return;
         }
         if (auto* out64 = dynamic_cast<DenseVector<std::complex<double>>*>(&result)) {
             auto* dst = out64->data();
-            ParallelFor(0, n, [&](size_t j) {
+            ParallelFor(0, cols, [&](size_t j) {
                 std::complex<double> sum = 0.0;
-                for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t i = 0; i < rows; ++i) {
                     sum += v.get_element_as_complex(i) * m.get_element_as_complex(i, j);
                 }
                 dst[j] = sum;
             });
             out64->set_scalar(1.0);
+            result.set_transposed(true);
             return;
         }
         throw std::runtime_error("Unsupported complex result type for vector_matrix_multiply");
@@ -2486,89 +2774,89 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
 
     // Generic Fallback
     if (auto* res_int = dynamic_cast<DenseVector<int32_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t j) {
+        ParallelFor(0, cols, [&](size_t j) {
             int64_t sum = 0;
-            for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t i = 0; i < rows; ++i) {
                 sum += static_cast<int64_t>(v.get_element_as_double(i) * m.get_element_as_double(i, j));
             }
             res_int->set(j, static_cast<int32_t>(sum));
         });
     } else if (auto* res_i8_fb = dynamic_cast<DenseVector<int8_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t j) {
+        ParallelFor(0, cols, [&](size_t j) {
             int64_t sum = 0;
-            for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t i = 0; i < rows; ++i) {
                 sum += static_cast<int64_t>(v.get_element_as_double(i) * m.get_element_as_double(i, j));
             }
             res_i8_fb->set(j, static_cast<int8_t>(sum));
         });
     } else if (auto* res_i16_fb = dynamic_cast<DenseVector<int16_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t j) {
+        ParallelFor(0, cols, [&](size_t j) {
             int64_t sum = 0;
-            for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t i = 0; i < rows; ++i) {
                 sum += static_cast<int64_t>(v.get_element_as_double(i) * m.get_element_as_double(i, j));
             }
             res_i16_fb->set(j, static_cast<int16_t>(sum));
         });
     } else if (auto* res_i64_fb = dynamic_cast<DenseVector<int64_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t j) {
+        ParallelFor(0, cols, [&](size_t j) {
             int64_t sum = 0;
-            for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t i = 0; i < rows; ++i) {
                 sum += static_cast<int64_t>(v.get_element_as_double(i) * m.get_element_as_double(i, j));
             }
             res_i64_fb->set(j, sum);
         });
     } else if (auto* res_u8_fb = dynamic_cast<DenseVector<uint8_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t j) {
+        ParallelFor(0, cols, [&](size_t j) {
             uint64_t sum = 0;
-            for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t i = 0; i < rows; ++i) {
                 sum += static_cast<uint64_t>(v.get_element_as_double(i) * m.get_element_as_double(i, j));
             }
             res_u8_fb->set(j, static_cast<uint8_t>(sum));
         });
     } else if (auto* res_u16_fb = dynamic_cast<DenseVector<uint16_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t j) {
+        ParallelFor(0, cols, [&](size_t j) {
             uint64_t sum = 0;
-            for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t i = 0; i < rows; ++i) {
                 sum += static_cast<uint64_t>(v.get_element_as_double(i) * m.get_element_as_double(i, j));
             }
             res_u16_fb->set(j, static_cast<uint16_t>(sum));
         });
     } else if (auto* res_u32_fb = dynamic_cast<DenseVector<uint32_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t j) {
+        ParallelFor(0, cols, [&](size_t j) {
             uint64_t sum = 0;
-            for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t i = 0; i < rows; ++i) {
                 sum += static_cast<uint64_t>(v.get_element_as_double(i) * m.get_element_as_double(i, j));
             }
             res_u32_fb->set(j, static_cast<uint32_t>(sum));
         });
     } else if (auto* res_u64_fb = dynamic_cast<DenseVector<uint64_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t j) {
+        ParallelFor(0, cols, [&](size_t j) {
             uint64_t sum = 0;
-            for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t i = 0; i < rows; ++i) {
                 sum += static_cast<uint64_t>(v.get_element_as_double(i) * m.get_element_as_double(i, j));
             }
             res_u64_fb->set(j, sum);
         });
     } else if (auto* res_dbl = dynamic_cast<DenseVector<double>*>(&result)) {
-        ParallelFor(0, n, [&](size_t j) {
+        ParallelFor(0, cols, [&](size_t j) {
             double sum = 0.0;
-            for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t i = 0; i < rows; ++i) {
                 sum += v.get_element_as_double(i) * m.get_element_as_double(i, j);
             }
             res_dbl->set(j, sum);
         });
     } else if (auto* res_f32 = dynamic_cast<DenseVector<float>*>(&result)) {
-        ParallelFor(0, n, [&](size_t j) {
+        ParallelFor(0, cols, [&](size_t j) {
             float sum = 0.0f;
-            for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t i = 0; i < rows; ++i) {
                 sum += static_cast<float>(v.get_element_as_double(i) * m.get_element_as_double(i, j));
             }
             res_f32->set(j, sum);
         });
     } else if (auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result)) {
-        ParallelFor(0, n, [&](size_t j) {
+        ParallelFor(0, cols, [&](size_t j) {
             float sum = 0.0f;
-            for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t i = 0; i < rows; ++i) {
                 sum += static_cast<float>(v.get_element_as_double(i) * m.get_element_as_double(i, j));
             }
             res_f16->set(j, float16_t(sum));
@@ -2576,6 +2864,8 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
     } else {
         throw std::runtime_error("Unsupported result type for vector_matrix_multiply");
     }
+
+    result.set_transposed(true);
 }
 
 void CpuSolver::outer_product(const VectorBase& a, const VectorBase& b, MatrixBase& result) {
@@ -3342,6 +3632,40 @@ void CpuSolver::scalar_add_vector(const VectorBase& a, double scalar, VectorBase
             res_i16_fb->set(i, static_cast<int16_t>(a.get_element_as_double(i) + scalar));
         }
     });
+}
+
+double CpuSolver::frobenius_norm(const MatrixBase& m) {
+    const uint64_t rows = m.rows();
+    const uint64_t cols = m.cols();
+    if (rows == 0 || cols == 0) return 0.0;
+
+    const auto dt = m.get_data_type();
+    const uint64_t total = rows * cols;
+    if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
+        debug_trace::set_last("cpu.frobenius_norm.complex");
+        double sum = 0.0;
+        #pragma omp parallel for reduction(+:sum)
+        for (int64_t idx = 0; idx < static_cast<int64_t>(total); ++idx) {
+            const uint64_t uidx = static_cast<uint64_t>(idx);
+            const uint64_t i = uidx / cols;
+            const uint64_t j = uidx % cols;
+            const std::complex<double> z = m.get_element_as_complex(i, j);
+            sum += std::norm(z);
+        }
+        return std::sqrt(sum);
+    }
+
+    debug_trace::set_last("cpu.frobenius_norm.real");
+    double sum = 0.0;
+    #pragma omp parallel for reduction(+:sum)
+    for (int64_t idx = 0; idx < static_cast<int64_t>(total); ++idx) {
+        const uint64_t uidx = static_cast<uint64_t>(idx);
+        const uint64_t i = uidx / cols;
+        const uint64_t j = uidx % cols;
+        const double x = m.get_element_as_double(i, j);
+        sum += x * x;
+    }
+    return std::sqrt(sum);
 }
 
 } // namespace pycauset

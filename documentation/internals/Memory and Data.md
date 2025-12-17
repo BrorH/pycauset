@@ -67,8 +67,10 @@ The system is built on a hierarchy designed to separate **storage management** f
 classDiagram
     class PersistentObject {
         +shared_ptr~MemoryMapper~ mapper_
-        +double scalar_
+        +complex scalar_
         +bool is_transposed_
+        +uint64_t rows_
+        +uint64_t cols_
         +initialize_storage()
         +copy_storage()
         +ensure_unique()
@@ -77,7 +79,11 @@ classDiagram
     
     class MatrixBase {
         <<abstract>>
-        +uint64_t n_
+        +uint64_t rows()
+        +uint64_t cols()
+        +uint64_t base_rows()
+        +uint64_t base_cols()
+        +uint64_t size()
         +get_element_as_double(i, j)*
         +multiply_scalar()
         +add_scalar()
@@ -86,7 +92,7 @@ classDiagram
 
     class VectorBase {
         <<abstract>>
-        +uint64_t n_
+        +uint64_t size()
         +get_element_as_double(i)*
         +transpose()
     }
@@ -141,12 +147,16 @@ classDiagram
 To maintain performance with large matrices, we avoid iterating over data whenever possible.
 
 *   **Scalars**: Multiplying a matrix by a scalar $k$ does **not** multiply every element in memory. Instead, it updates `PersistentObject::scalar_`.
-*   **Transposition**: Transposing a matrix usually just toggles the `PersistentObject::is_transposed_` flag.
+*   **Transposition**: Transposing a matrix usually just toggles the `PersistentObject::is_transposed_` flag. This is a metadata view: the backing storage stays in row-major order.
+
+Important: `MatrixBase.rows()` / `MatrixBase.cols()` are *logical* dimensions and account for transpose metadata. `MatrixBase.base_rows()` / `MatrixBase.base_cols()` are the backing storage dimensions.
 
 #### Storage vs. View
 The data on disk is the "canonical" storage. The C++ object is a "view" onto that data.
 *   **Raw Data**: `mapper_->get_data()` returns the raw bytes.
 *   **View**: The class (e.g., `DenseMatrix`) interprets those bytes (as `int`, `double`, etc.) and applies metadata (scalar, transpose).
+
+For dense matrices, `MatrixBase.size()` is NumPy-aligned: it returns the total number of logical elements (`rows * cols`).
 
 ## 3. Type System and Dispatch
 
@@ -196,8 +206,14 @@ On the GPU, `CudaDevice::matmul` inspects the `DType` of the operands and routes
 
 ### Memory Layout
 
-To support this efficient dispatch, `MatrixBase` and `CudaDevice` must handle raw pointers of different types.
+To support this efficient dispatch, the backend works with raw, dtype-tagged memory.
 
-*   **Host Memory**: `MatrixBase` stores a `void* data_` pointer. The `dtype_` field tells us how to cast it.
-*   **Device Memory**: `CudaDevice` maintains separate persistent buffers for each type to avoid constant casting or reallocation.
-    *   `d_A` (double), `d_A_f` (float), `d_A_h` (half)
+*   **Host memory** lives behind `MemoryMapper` (`mapper_->get_data()`), which provides access to the mapped bytes.
+*   **Matrix/Vector views** interpret those bytes as typed storage and apply metadata (scalar, transpose).
+*   **Device memory** (CUDA) uses dtype-specific buffers to avoid constant casting or reallocation.
+
+## See also
+
+- [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]
+- [[internals/DType System|internals/DType System]]
+- [[project/protocols/Documentation Protocol.md|Documentation Protocol]]

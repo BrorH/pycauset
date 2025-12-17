@@ -1,12 +1,12 @@
 import unittest
 import pycauset
-from pycauset import Vector, CausalSet, MinkowskiDiamond
+from pycauset import CausalSet, MinkowskiDiamond
 
 class TestVectorsAdvanced(unittest.TestCase):
     def test_large_vector(self):
         # Test with a larger size to check for memory issues or performance
         size = 10000
-        v = Vector(size, dtype="float")
+        v = pycauset.zeros(size, dtype="float")
         self.assertEqual(len(v), size)
         v[size-1] = 1.0
         self.assertEqual(v[size-1], 1.0)
@@ -14,7 +14,7 @@ class TestVectorsAdvanced(unittest.TestCase):
 
     def test_vector_iteration(self):
         data = [1.0, 2.0, 3.0, 4.0]
-        v = Vector(data)
+        v = pycauset.vector(data)
         
         # Check iteration
         extracted = [x for x in v]
@@ -25,7 +25,7 @@ class TestVectorsAdvanced(unittest.TestCase):
         c = CausalSet(n=10, spacetime=MinkowskiDiamond(2))
         
         # Create a vector of size n
-        v = Vector(c.n, dtype="int")
+        v = pycauset.empty(c.n, dtype="int")
         for i in range(c.n):
             v[i] = i
             
@@ -45,7 +45,7 @@ class TestVectorsAdvanced(unittest.TestCase):
         # C is a TriangularBitMatrix.
         # Let's try to multiply it by a vector.
         
-        v = Vector([1.0, 1.0, 1.0], dtype="float")
+        v = pycauset.vector([1.0, 1.0, 1.0], dtype="float")
         
         try:
             # Try direct multiplication
@@ -73,13 +73,13 @@ class TestVectorsAdvanced(unittest.TestCase):
 
     def test_dot_product_types(self):
         # Float dot Float
-        v1 = Vector([1.0, 2.0], dtype="float")
-        v2 = Vector([3.0, 4.0], dtype="float")
+        v1 = pycauset.vector([1.0, 2.0], dtype="float")
+        v2 = pycauset.vector([3.0, 4.0], dtype="float")
         self.assertAlmostEqual(v1.dot(v2), 11.0)
         
         # Int dot Int
-        v3 = Vector([1, 2], dtype="int")
-        v4 = Vector([3, 4], dtype="int")
+        v3 = pycauset.vector([1, 2], dtype="int")
+        v4 = pycauset.vector([3, 4], dtype="int")
         self.assertEqual(v3.dot(v4), 11)
         
         # Mixed (might fail or cast)

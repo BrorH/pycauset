@@ -24,16 +24,19 @@ template <typename T>
 class DenseMatrix : public MatrixBase {
 public:
     DenseMatrix(uint64_t n, const std::string& backing_file = "")
-        : MatrixBase(n, pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {
-        const uint64_t size_in_bytes = n * n * sizeof(T);
+        : DenseMatrix(n, n, backing_file) {}
+
+    DenseMatrix(uint64_t rows, uint64_t cols, const std::string& backing_file = "")
+        : MatrixBase(rows, cols, pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {
+        const uint64_t size_in_bytes = rows * cols * sizeof(T);
         initialize_storage(size_in_bytes,
                            backing_file,
                            std::string("dense_") + MatrixTraits<T>::name,
                            sizeof(T),
                            pycauset::MatrixType::DENSE_FLOAT,
                            MatrixTraits<T>::data_type,
-                           n,
-                           n);
+                           rows,
+                           cols);
     }
 
     DenseMatrix(uint64_t n,
@@ -42,16 +45,25 @@ public:
                 uint64_t seed,
                 std::complex<double> scalar,
                 bool is_transposed)
-        : MatrixBase(n, pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {
-        const uint64_t size_in_bytes = n * n * sizeof(T);
+        : DenseMatrix(n, n, backing_file, offset, seed, scalar, is_transposed) {}
+
+    DenseMatrix(uint64_t rows,
+                uint64_t cols,
+                const std::string& backing_file,
+                size_t offset,
+                uint64_t seed,
+                std::complex<double> scalar,
+                bool is_transposed)
+        : MatrixBase(rows, cols, pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {
+        const uint64_t size_in_bytes = rows * cols * sizeof(T);
         initialize_storage(size_in_bytes,
                            backing_file,
                            "",
                            sizeof(T),
                            pycauset::MatrixType::DENSE_FLOAT,
                            MatrixTraits<T>::data_type,
-                           n,
-                           n,
+                           rows,
+                           cols,
                            offset,
                            false);
 
@@ -61,33 +73,42 @@ public:
     }
 
     DenseMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-        : MatrixBase(n, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {}
+        : DenseMatrix(n, n, std::move(mapper)) {}
+
+    DenseMatrix(uint64_t rows, uint64_t cols, std::shared_ptr<MemoryMapper> mapper)
+        : MatrixBase(rows, cols, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {}
 
     void set(uint64_t i, uint64_t j, T value) {
         ensure_unique();
-        if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
-        const uint64_t idx = is_transposed() ? (j * n_ + i) : (i * n_ + j);
+        if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
+        const uint64_t storage_cols = base_cols();
+        const uint64_t idx = is_transposed() ? (j * storage_cols + i) : (i * storage_cols + j);
         data()[idx] = value;
     }
 
     T get(uint64_t i, uint64_t j) const {
-        if (i >= n_ || j >= n_) throw std::out_of_range("Index out of bounds");
-        const uint64_t idx = is_transposed() ? (j * n_ + i) : (i * n_ + j);
+        if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
+        const uint64_t storage_cols = base_cols();
+        const uint64_t idx = is_transposed() ? (j * storage_cols + i) : (i * storage_cols + j);
         return data()[idx];
     }
 
     void fill(T value) {
         ensure_unique();
         T* ptr = data();
-        const uint64_t total = n_ * n_;
+        const uint64_t total = base_rows() * base_cols();
         pycauset::ParallelFor(0, total, [&](size_t i) { ptr[i] = value; });
         cached_trace_ = std::nullopt;
         cached_determinant_ = std::nullopt;
     }
 
     void set_identity() {
+        if (base_rows() != base_cols()) {
+            throw std::invalid_argument("Identity requires a square matrix");
+        }
         fill(pycauset::scalar::from_double<T>(0.0));
-        for (uint64_t i = 0; i < n_; ++i) {
+        const uint64_t n = base_rows();
+        for (uint64_t i = 0; i < n; ++i) {
             set(i, i, pycauset::scalar::from_double<T>(1.0));
         }
         set_scalar(1.0);
@@ -131,16 +152,12 @@ public:
     }
 
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto out = std::make_unique<DenseMatrix<T>>(n_, std::move(mapper));
+        (void)result_file;
+        auto out = std::make_unique<DenseMatrix<T>>(base_rows(), base_cols(), mapper_);
         out->set_scalar(scalar_ * factor);
         out->set_seed(seed_);
         out->set_transposed(is_transposed());
         out->set_conjugated(is_conjugated());
-        if (result_file.empty()) {
-            out->set_temporary(true);
-        }
         return out;
     }
 
@@ -149,25 +166,21 @@ public:
     }
 
     std::unique_ptr<MatrixBase> multiply_scalar(std::complex<double> factor, const std::string& result_file = "") const override {
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto out = std::make_unique<DenseMatrix<T>>(n_, std::move(mapper));
+        (void)result_file;
+        auto out = std::make_unique<DenseMatrix<T>>(base_rows(), base_cols(), mapper_);
         out->set_scalar(scalar_ * factor);
         out->set_seed(seed_);
         out->set_transposed(is_transposed());
         out->set_conjugated(is_conjugated());
-        if (result_file.empty()) {
-            out->set_temporary(true);
-        }
         return out;
     }
 
     std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        auto result = std::make_unique<DenseMatrix<T>>(n_, result_file);
+        auto result = std::make_unique<DenseMatrix<T>>(base_rows(), base_cols(), result_file);
 
         const T* src_data = data();
         T* dst_data = result->data();
-        const uint64_t total_elements = n_ * n_;
+        const uint64_t total_elements = base_rows() * base_cols();
 
         if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
             const std::complex<double> add = {scalar, 0.0};
@@ -201,16 +214,12 @@ public:
     }
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto out = std::make_unique<DenseMatrix<T>>(n_, std::move(mapper));
+        (void)result_file;
+        auto out = std::make_unique<DenseMatrix<T>>(base_rows(), base_cols(), mapper_);
         out->set_transposed(!is_transposed());
         out->set_scalar(scalar_);
         out->set_seed(seed_);
         out->set_conjugated(is_conjugated());
-        if (result_file.empty()) {
-            out->set_temporary(true);
-        }
         return out;
     }
 
@@ -218,10 +227,10 @@ public:
         if constexpr (!std::is_integral_v<T> || std::is_same_v<T, bool>) {
             throw std::runtime_error("bitwise_not only supported for integer DenseMatrix types");
         } else {
-            auto result = std::make_unique<DenseMatrix<T>>(n_, result_file);
+            auto result = std::make_unique<DenseMatrix<T>>(base_rows(), base_cols(), result_file);
             const T* src = data();
             T* dst = result->data();
-            const uint64_t total = n_ * n_;
+            const uint64_t total = base_rows() * base_cols();
             pycauset::ParallelFor(0, total, [&](size_t i) { dst[i] = static_cast<T>(~src[i]); });
             result->set_scalar(scalar_);
             result->set_seed(seed_);
@@ -234,11 +243,11 @@ public:
     }
 
     std::unique_ptr<DenseMatrix<T>> multiply(const DenseMatrix<T>& other, const std::string& result_file = "") const {
-        if (n_ != other.size()) {
-            throw std::invalid_argument("Matrix dimensions must match");
+        if (cols() != other.rows()) {
+            throw std::invalid_argument("Dimension mismatch");
         }
 
-        auto result = std::make_unique<DenseMatrix<T>>(n_, result_file);
+        auto result = std::make_unique<DenseMatrix<T>>(rows(), other.cols(), result_file);
         pycauset::ComputeContext::instance().get_device()->matmul(*this, other, *result);
         return result;
     }
@@ -247,7 +256,11 @@ public:
         if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
             throw std::runtime_error("Inverse only supported for FloatMatrix (double) or Float32Matrix (float)");
         } else {
-            if (out.rows() != n_ || out.cols() != n_) {
+            if (rows() != cols()) {
+                throw std::runtime_error("Inverse requires a square matrix");
+            }
+            const uint64_t n = rows();
+            if (out.rows() != n || out.cols() != n) {
                 throw std::runtime_error("Output matrix dimension mismatch");
             }
             pycauset::ComputeContext::instance().get_device()->inverse(*this, out);
@@ -258,7 +271,10 @@ public:
         if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
             throw std::runtime_error("Inverse only supported for FloatMatrix (double) or Float32Matrix (float)");
         } else {
-            auto result = std::make_unique<DenseMatrix<T>>(n_, result_file);
+            if (rows() != cols()) {
+                throw std::runtime_error("Inverse requires a square matrix");
+            }
+            auto result = std::make_unique<DenseMatrix<T>>(rows(), cols(), result_file);
             pycauset::ComputeContext::instance().get_device()->inverse(*this, *result);
             return result;
         }
@@ -269,41 +285,45 @@ public:
         if constexpr (!std::is_same_v<T, double>) {
             throw std::runtime_error("QR only supported for FloatMatrix");
         } else {
-            auto Q = std::make_unique<DenseMatrix<double>>(n_, q_file);
-            auto R = std::make_unique<DenseMatrix<double>>(n_, r_file);
+            if (rows() != cols()) {
+                throw std::runtime_error("QR requires a square matrix");
+            }
+            const uint64_t n = rows();
+            auto Q = std::make_unique<DenseMatrix<double>>(n, q_file);
+            auto R = std::make_unique<DenseMatrix<double>>(n, r_file);
 
             const double* src = reinterpret_cast<const double*>(data());
             double* q_data = Q->data();
-            std::copy(src, src + n_ * n_, q_data);
+            std::copy(src, src + n * n, q_data);
 
             double* r_data = R->data();
-            std::fill(r_data, r_data + n_ * n_, 0.0);
+            std::fill(r_data, r_data + n * n, 0.0);
 
-            for (size_t k = 0; k < n_; ++k) {
+            for (size_t k = 0; k < n; ++k) {
                 double norm_sq = 0.0;
-                for (size_t i = 0; i < n_; ++i) {
-                    double val = q_data[i * n_ + k];
+                for (size_t i = 0; i < n; ++i) {
+                    double val = q_data[i * n + k];
                     norm_sq += val * val;
                 }
                 double norm = std::sqrt(norm_sq);
-                r_data[k * n_ + k] = norm;
+                r_data[k * n + k] = norm;
 
                 if (norm > 1e-12) {
                     double inv_norm = 1.0 / norm;
-                    pycauset::ParallelFor(0, n_, [&](size_t i) { q_data[i * n_ + k] *= inv_norm; });
+                    pycauset::ParallelFor(0, n, [&](size_t i) { q_data[i * n + k] *= inv_norm; });
                 } else {
-                    pycauset::ParallelFor(0, n_, [&](size_t i) { q_data[i * n_ + k] = 0.0; });
+                    pycauset::ParallelFor(0, n, [&](size_t i) { q_data[i * n + k] = 0.0; });
                 }
 
-                pycauset::ParallelFor(k + 1, n_, [&](size_t j) {
+                pycauset::ParallelFor(k + 1, n, [&](size_t j) {
                     double dot = 0.0;
-                    for (size_t i = 0; i < n_; ++i) {
-                        dot += q_data[i * n_ + k] * q_data[i * n_ + j];
+                    for (size_t i = 0; i < n; ++i) {
+                        dot += q_data[i * n + k] * q_data[i * n + j];
                     }
-                    r_data[k * n_ + j] = dot;
+                    r_data[k * n + j] = dot;
 
-                    for (size_t i = 0; i < n_; ++i) {
-                        q_data[i * n_ + j] -= dot * q_data[i * n_ + k];
+                    for (size_t i = 0; i < n; ++i) {
+                        q_data[i * n + j] -= dot * q_data[i * n + k];
                     }
                 });
             }
@@ -317,22 +337,26 @@ public:
         if constexpr (!std::is_same_v<T, double>) {
             throw std::runtime_error("LU only supported for FloatMatrix");
         } else {
-            auto L = std::make_unique<DenseMatrix<double>>(n_, l_file);
-            auto U = std::make_unique<DenseMatrix<double>>(n_, u_file);
+            if (rows() != cols()) {
+                throw std::runtime_error("LU requires a square matrix");
+            }
+            const uint64_t n = rows();
+            auto L = std::make_unique<DenseMatrix<double>>(n, l_file);
+            auto U = std::make_unique<DenseMatrix<double>>(n, u_file);
 
             const double* src = reinterpret_cast<const double*>(data());
             double* u_data = U->data();
-            std::copy(src, src + n_ * n_, u_data);
+            std::copy(src, src + n * n, u_data);
 
             double* l_data = L->data();
-            std::fill(l_data, l_data + n_ * n_, 0.0);
-            for (size_t i = 0; i < n_; ++i) l_data[i * n_ + i] = 1.0;
+            std::fill(l_data, l_data + n * n, 0.0);
+            for (size_t i = 0; i < n; ++i) l_data[i * n + i] = 1.0;
 
-            for (size_t k = 0; k < n_; ++k) {
+            for (size_t k = 0; k < n; ++k) {
                 size_t pivot = k;
-                double max_val = std::abs(u_data[k * n_ + k]);
-                for (size_t i = k + 1; i < n_; ++i) {
-                    double val = std::abs(u_data[i * n_ + k]);
+                double max_val = std::abs(u_data[k * n + k]);
+                for (size_t i = k + 1; i < n; ++i) {
+                    double val = std::abs(u_data[i * n + k]);
                     if (val > max_val) {
                         max_val = val;
                         pivot = i;
@@ -342,20 +366,20 @@ public:
                 if (max_val < 1e-12) throw std::runtime_error("Matrix is singular");
 
                 if (pivot != k) {
-                    for (size_t j = k; j < n_; ++j) std::swap(u_data[k * n_ + j], u_data[pivot * n_ + j]);
-                    for (size_t j = 0; j < k; ++j) std::swap(l_data[k * n_ + j], l_data[pivot * n_ + j]);
+                    for (size_t j = k; j < n; ++j) std::swap(u_data[k * n + j], u_data[pivot * n + j]);
+                    for (size_t j = 0; j < k; ++j) std::swap(l_data[k * n + j], l_data[pivot * n + j]);
                 }
 
-                double diag = u_data[k * n_ + k];
-                pycauset::ParallelFor(k + 1, n_, [&](size_t i) {
-                    l_data[i * n_ + k] = u_data[i * n_ + k] / diag;
-                    u_data[i * n_ + k] = 0.0;
+                double diag = u_data[k * n + k];
+                pycauset::ParallelFor(k + 1, n, [&](size_t i) {
+                    l_data[i * n + k] = u_data[i * n + k] / diag;
+                    u_data[i * n + k] = 0.0;
                 });
 
-                pycauset::ParallelFor(k + 1, n_, [&](size_t i) {
-                    double l_ik = l_data[i * n_ + k];
-                    for (size_t j = k + 1; j < n_; ++j) {
-                        u_data[i * n_ + j] -= l_ik * u_data[k * n_ + j];
+                pycauset::ParallelFor(k + 1, n, [&](size_t i) {
+                    double l_ik = l_data[i * n + k];
+                    for (size_t j = k + 1; j < n; ++j) {
+                        u_data[i * n + j] -= l_ik * u_data[k * n + j];
                     }
                 });
             }

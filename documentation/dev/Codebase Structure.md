@@ -4,7 +4,7 @@ This page explains **where things live** in the repository and **how the pieces 
 
 ## Core philosophy (non-negotiable)
 
-- **PyCauset is “NumPy for causal sets”.** Users interact with **top-level** Python APIs: `pycauset.Matrix`, `pycauset.CausalMatrix`, `pycauset.matmul`, etc.
+- **PyCauset is “NumPy for causal sets”.** Users interact with **top-level** Python APIs: `pycauset.matrix`, `pycauset.causal_matrix`, `pycauset.matmul`, etc.
 - Storage, dtype selection, backend dispatch (CPU/GPU), and performance optimizations are **automatic and behind the scenes**.
 - Internal code organization may change, but **the public surface stays stable**.
 

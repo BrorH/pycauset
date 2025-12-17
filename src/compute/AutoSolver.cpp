@@ -297,6 +297,11 @@ void AutoSolver::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, 
     cpu_device_->elementwise_multiply(a, b, result);
 }
 
+void AutoSolver::elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
+    // CUDA elementwise_divide is not implemented; keep this CPU-only.
+    cpu_device_->elementwise_divide(a, b, result);
+}
+
 void AutoSolver::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {
     uint64_t elements = a.size() * a.size();
     select_device(elements)->multiply_scalar(a, scalar, result);
@@ -305,6 +310,11 @@ void AutoSolver::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase&
 double AutoSolver::dot(const VectorBase& a, const VectorBase& b) {
     // Always CPU for now
     return cpu_device_->dot(a, b);
+}
+
+double AutoSolver::l2_norm(const VectorBase& v) {
+    // Always CPU for now
+    return cpu_device_->l2_norm(v);
 }
 
 void AutoSolver::add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
@@ -321,6 +331,11 @@ void AutoSolver::scalar_multiply_vector(const VectorBase& a, double scalar, Vect
 
 void AutoSolver::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
     cpu_device_->scalar_add_vector(a, scalar, result);
+}
+
+double AutoSolver::frobenius_norm(const MatrixBase& m) {
+    // Always CPU for now
+    return cpu_device_->frobenius_norm(m);
 }
 
 } // namespace pycauset

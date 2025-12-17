@@ -32,14 +32,19 @@ public:
     virtual void add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
     virtual void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
     virtual void elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
+    virtual void elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
     virtual void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) = 0;
 
     // Vector Operations
     virtual double dot(const VectorBase& a, const VectorBase& b) = 0;
+    virtual double l2_norm(const VectorBase& v) = 0;
     virtual void add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
     virtual void subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
     virtual void scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) = 0;
     virtual void scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) = 0;
+
+    // Reductions / norms
+    virtual double frobenius_norm(const MatrixBase& m) = 0;
 
     // Device Info
     virtual std::string name() const = 0;

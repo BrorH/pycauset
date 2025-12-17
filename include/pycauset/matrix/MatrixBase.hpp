@@ -14,13 +14,30 @@ namespace pycauset {
 
 class MatrixBase : public PersistentObject {
 public:
-    // Constructor for creating new matrix
-    MatrixBase(uint64_t n, 
+    // Constructor for creating new matrix (square)
+    MatrixBase(uint64_t n,
                pycauset::MatrixType matrix_type,
                pycauset::DataType data_type);
 
-    // Constructor for loading/wrapping existing storage
-    MatrixBase(uint64_t n, 
+    // Constructor for creating new matrix (rectangular)
+    MatrixBase(uint64_t rows,
+               uint64_t cols,
+               pycauset::MatrixType matrix_type,
+               pycauset::DataType data_type);
+
+    // Constructor for loading/wrapping existing storage (square)
+    MatrixBase(uint64_t n,
+               std::shared_ptr<MemoryMapper> mapper,
+               pycauset::MatrixType matrix_type,
+               pycauset::DataType data_type,
+               uint64_t seed = 0,
+               std::complex<double> scalar = 1.0,
+               bool is_transposed = false,
+               bool is_temporary = false);
+
+    // Constructor for loading/wrapping existing storage (rectangular)
+    MatrixBase(uint64_t rows,
+               uint64_t cols,
                std::shared_ptr<MemoryMapper> mapper,
                pycauset::MatrixType matrix_type,
                pycauset::DataType data_type,
@@ -34,9 +51,16 @@ public:
 
     std::unique_ptr<PersistentObject> clone() const override;
 
-    uint64_t size() const { return n_; }
-    uint64_t rows() const { return n_; }
-    uint64_t cols() const { return n_; }
+    // NumPy-aligned: size is total elements.
+    uint64_t size() const { return get_rows() * get_cols(); }
+
+    // Logical dimensions (transpose is a metadata view).
+    uint64_t rows() const { return is_transposed() ? get_cols() : get_rows(); }
+    uint64_t cols() const { return is_transposed() ? get_rows() : get_cols(); }
+
+    // Base (storage) dimensions.
+    uint64_t base_rows() const { return get_rows(); }
+    uint64_t base_cols() const { return get_cols(); }
 
     virtual double get_element_as_double(uint64_t i, uint64_t j) const = 0;
     
@@ -67,8 +91,6 @@ public:
     // void clear_cached_eigenvalues() const { cached_eigenvalues_ = std::nullopt; }
 
 protected:
-    uint64_t n_;
-    
     // Cache members
     mutable std::optional<double> cached_trace_;
     mutable std::optional<double> cached_determinant_;

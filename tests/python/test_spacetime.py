@@ -18,7 +18,8 @@ class TestSpacetimeStructure(unittest.TestCase):
         self.assertEqual(c.n, n)
         self.assertEqual(len(c), n)
         self.assertIsNotNone(c.C)
-        self.assertEqual(c.C.size(), n)
+        self.assertEqual(c.C.rows(), n)
+        self.assertEqual(c.C.cols(), n)
         # Density should be calculated
         self.assertIsNotNone(c.density)
         self.assertAlmostEqual(c.density, n / c.spacetime.volume())
@@ -48,7 +49,8 @@ class TestSpacetimeStructure(unittest.TestCase):
         for d in dims:
             c = CausalSet(n=20, spacetime=MinkowskiDiamond(d))
             self.assertEqual(c.spacetime.dimension(), d)
-            self.assertEqual(c.C.size(), 20)
+            self.assertEqual(c.C.rows(), 20)
+            self.assertEqual(c.C.cols(), 20)
 
     def test_persistence(self):
         # Create a causet
@@ -67,7 +69,8 @@ class TestSpacetimeStructure(unittest.TestCase):
         self.assertEqual(c.spacetime.dimension(), c_loaded.spacetime.dimension())
         # Matrices should be identical
         # (Assuming we can compare matrices, or at least their properties)
-        self.assertEqual(c.C.size(), c_loaded.C.size())
+        self.assertEqual(c.C.rows(), c_loaded.C.rows())
+        self.assertEqual(c.C.cols(), c_loaded.C.cols())
         
         # Check a few elements to ensure matrix content is preserved
         # (This depends on matrix implementation, assuming [] access works)

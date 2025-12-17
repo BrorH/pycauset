@@ -6,6 +6,7 @@ A memory-mapped dense matrix storing 32-bit integers. Inherits from [MatrixBase]
 
 ```python
 pycauset.IntegerMatrix(n: int)
+pycauset.IntegerMatrix(rows: int, cols: int)
 ```
 
 ## Properties
@@ -24,9 +25,6 @@ Set the value at row `i` and column `j`.
 ### `multiply(other: IntegerMatrix) -> IntegerMatrix`
 Multiply this matrix by another `IntegerMatrix`.
 
-### `invert() -> IntegerMatrix`
-Compute the inverse of the matrix.
-
 ### `__getitem__(idx: tuple) -> int`
 Get element using `[i, j]` syntax.
 
@@ -35,3 +33,10 @@ Set element using `[i, j] = value` syntax.
 
 ### `__repr__() -> str`
 String representation of the matrix.
+
+## See also
+
+*   [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]
+*   [[docs/functions/pycauset.zeros.md|pycauset.zeros]]
+*   [[docs/functions/pycauset.matmul.md|pycauset.matmul]]
+*   [[guides/Matrix Guide|Matrix Guide]]

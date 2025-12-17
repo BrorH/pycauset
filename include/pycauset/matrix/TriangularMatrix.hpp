@@ -96,7 +96,7 @@ public:
             }
         }
         
-        if (j >= n_) throw std::out_of_range("Index out of bounds");
+        if (j >= cols()) throw std::out_of_range("Index out of bounds");
 
         uint64_t row_offset_bytes = get_row_offset(i);
         // If strict: col_index = j - (i + 1)
@@ -128,7 +128,7 @@ public:
             }
         }
         
-        if (j >= n_) throw std::out_of_range("Index out of bounds");
+        if (j >= cols()) throw std::out_of_range("Index out of bounds");
 
         uint64_t row_offset_bytes = get_row_offset(i);
         uint64_t col_index = has_diagonal_ ? (j - i) : (j - (i + 1));
@@ -159,8 +159,10 @@ public:
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
         std::string new_path = copy_storage(result_file);
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto new_matrix = std::make_unique<TriangularMatrix<T>>(n_, std::move(mapper));
+        auto new_matrix = std::make_unique<TriangularMatrix<T>>(base_rows(), std::move(mapper), has_diagonal_);
         new_matrix->set_scalar(scalar_ * factor);
+        new_matrix->set_seed(seed_);
+        new_matrix->set_transposed(is_transposed());
         if (result_file.empty()) {
             new_matrix->set_temporary(true);
         }
@@ -172,14 +174,15 @@ public:
     }
 
     std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        auto result = std::make_unique<DenseMatrix<T>>(n_, result_file);
+        const uint64_t n = rows();
+        auto result = std::make_unique<DenseMatrix<T>>(n, result_file);
         T* dst_data = result->data();
         
-        for (uint64_t i = 0; i < n_; ++i) {
-            for (uint64_t j = 0; j < n_; ++j) {
+        for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t j = 0; j < n; ++j) {
                 // get_element_as_double handles scalar_
                 double val = get_element_as_double(i, j) + scalar;
-                dst_data[i * n_ + j] = static_cast<T>(val);
+                dst_data[i * n + j] = static_cast<T>(val);
             }
         }
         
@@ -201,26 +204,24 @@ public:
         // If we do implicit transpose, get(i, j) where i > j (lower triangle) becomes get(j, i) (upper triangle).
         // This works perfectly!
         
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto new_matrix = std::make_unique<TriangularMatrix<T>>(n_, std::move(mapper));
-        
-        new_matrix->set_transposed(!this->is_transposed());
-        
-        if (result_file.empty()) {
-            new_matrix->set_temporary(true);
-        }
-        return new_matrix;
+        (void)result_file;
+        auto out = std::make_unique<TriangularMatrix<T>>(base_rows(), mapper_, has_diagonal_);
+        out->set_transposed(!this->is_transposed());
+        out->set_scalar(scalar_);
+        out->set_seed(seed_);
+        out->set_conjugated(is_conjugated());
+        return out;
     }
 
     std::unique_ptr<TriangularMatrix<T>> bitwise_not(const std::string& result_file = "") const {
-        auto result = std::make_unique<TriangularMatrix<T>>(n_, result_file);
+        const uint64_t n = rows();
+        auto result = std::make_unique<TriangularMatrix<T>>(n, result_file, has_diagonal_);
         
         const T* src_data = data();
         T* dst_data = result->data();
         
-        for (uint64_t i = 0; i < n_; ++i) {
-            uint64_t row_len = (n_ - 1) - i;
+        for (uint64_t i = 0; i < n; ++i) {
+            uint64_t row_len = has_diagonal_ ? ((n > i) ? (n - i) : 0) : ((n > i) ? (n - 1 - i) : 0);
             if (row_len == 0) continue;
             
             uint64_t row_offset_bytes = get_row_offset(i);
@@ -247,11 +248,11 @@ public:
     }
 
     std::unique_ptr<TriangularMatrix<T>> multiply(const TriangularMatrix<T>& other, const std::string& result_file = "") const {
-        if (n_ != other.size()) {
+        if (rows() != other.rows() || cols() != other.cols()) {
             throw std::invalid_argument("Matrix dimensions must match");
         }
 
-        auto result = std::make_unique<TriangularMatrix<T>>(n_, result_file);
+        auto result = std::make_unique<TriangularMatrix<T>>(base_rows(), result_file, has_diagonal_);
         
         // Delegate to ComputeContext (AutoSolver)
         pycauset::ComputeContext::instance().get_device()->matmul(*this, other, *result);

@@ -1,11 +1,21 @@
 # Functions
 
 * **[[docs/functions/pycauset.I.md|pycauset.I]]**
+* **[[docs/functions/pycauset.identity.md|pycauset.identity]]**
+* **[[docs/functions/pycauset.matrix.md|pycauset.matrix]]**
+* **[[docs/functions/pycauset.vector.md|pycauset.vector]]**
+* **[[docs/functions/pycauset.zeros.md|pycauset.zeros]]**
+* **[[docs/functions/pycauset.ones.md|pycauset.ones]]**
+* **[[docs/functions/pycauset.empty.md|pycauset.empty]]**
+* **[[docs/functions/pycauset.causal_matrix.md|pycauset.causal_matrix]]**
+* **[[docs/functions/pycauset.causet.md|pycauset.causet]]**
 * **[[docs/functions/pycauset.asarray.md|asarray]]**
 * **[[docs/functions/pycauset.bitwise_not.md|bitwise_not]]**
 * **[[docs/functions/pycauset.compute_k.md|compute_k]]**
 * **[[docs/functions/pycauset.compute_k_matrix.md|compute_k_matrix]]**
 * **[[docs/functions/pycauset.dot.md|dot]]**
+* **[[docs/functions/pycauset.divide.md|divide]]**
+* **[[docs/functions/pycauset.norm.md|norm]]**
 * **[[docs/functions/pycauset.get_memory_threshold.md|get_memory_threshold]]**
 * **[[docs/functions/pycauset.get_num_threads.md|get_num_threads]]**
 * **[[docs/functions/pycauset.invert.md|invert]]**

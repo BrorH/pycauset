@@ -89,6 +89,31 @@ class TestBitMixedFastPaths(unittest.TestCase):
         trace = pycauset._debug_last_kernel_trace()
         self.assertIn("cpu.matmul.bit_x_f64", trace)
 
+    def test_bit_x_float64_matmul_rectangular_uses_fastpath(self):
+        a = pycauset.DenseBitMatrix(3, 4)
+        b = pycauset.FloatMatrix(4, 2)
+
+        # A row0 selects rows 0 and 2 from B
+        a.set(0, 0, 1)
+        a.set(0, 2, 1)
+
+        b[0, 0] = 2.5
+        b[2, 0] = 3.5
+        b[0, 1] = 7.0
+        b[2, 1] = 11.0
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", pycauset.PyCausetWarning)
+            c = a @ b
+
+        self.assertEqual(c.shape, (3, 2))
+        self.assertAlmostEqual(c[0, 0], 6.0)
+        self.assertAlmostEqual(c[0, 1], 18.0)
+        self.assertAlmostEqual(c[1, 0], 0.0)
+
+        trace = pycauset._debug_last_kernel_trace()
+        self.assertIn("cpu.matmul.bit_x_f64", trace)
+
     def test_bit_x_int32_matvec_uses_fastpath(self):
         n = 128
         m = pycauset.DenseBitMatrix(n)

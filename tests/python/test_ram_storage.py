@@ -57,7 +57,8 @@ def test_save_ram_object():
         # Load it back
         m2 = pycauset.load(save_path)
         assert m2.get(0, 1) == True
-        assert m2.size() == 100
+        assert m2.rows() == 100
+        assert m2.cols() == 100
         # Loaded object should be disk-backed (unless we load into RAM? load() maps the file provided)
         # assert m2.get_backing_file() == os.path.abspath(save_path)
         m2.close() # Close to release file lock

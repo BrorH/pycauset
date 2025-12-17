@@ -1,6 +1,6 @@
 # Vector
 
-* **[[docs/classes/vector/pycauset.Vector.md|pycauset.Vector]]**
+* **[[docs/functions/pycauset.vector.md|pycauset.vector]]**
 * **[[docs/classes/vector/pycauset.VectorBase.md|pycauset.VectorBase]]**
 * **[[docs/classes/vector/pycauset.UnitVector.md|pycauset.UnitVector]]**
 * **[[docs/classes/vector/pycauset.BitVector.md|pycauset.BitVector]]**
@@ -15,7 +15,6 @@
 * **[[docs/classes/vector/pycauset.FloatVector.md|pycauset.FloatVector]]**
 * **[[docs/classes/vector/pycauset.Float32Vector.md|pycauset.Float32Vector]]**
 * **[[docs/classes/vector/pycauset.Float16Vector.md|pycauset.Float16Vector]]**
-* **[[docs/classes/vector/pycauset.ComplexVector.md|pycauset.ComplexVector]]**
 * **[[docs/classes/vector/pycauset.ComplexFloat64Vector.md|pycauset.ComplexFloat64Vector]]**
 * **[[docs/classes/vector/pycauset.ComplexFloat32Vector.md|pycauset.ComplexFloat32Vector]]**
 * **[[docs/classes/vector/pycauset.ComplexFloat16Vector.md|pycauset.ComplexFloat16Vector]]**

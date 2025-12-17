@@ -39,7 +39,8 @@ class TestSpacetimeExtensive(unittest.TestCase):
         # N = 1
         c1 = CausalSet(n=1, spacetime=MinkowskiDiamond(2))
         self.assertEqual(len(c1), 1)
-        self.assertEqual(c1.C.size(), 1)
+        self.assertEqual(c1.C.rows(), 1)
+        self.assertEqual(c1.C.cols(), 1)
         
         # N = 0 (Should probably fail or produce empty)
         try:
@@ -88,7 +89,8 @@ class TestSpacetimeExtensive(unittest.TestCase):
         n = 2000
         c = CausalSet(n=n, spacetime=MinkowskiDiamond(4))
         self.assertEqual(len(c), n)
-        self.assertEqual(c.C.size(), n)
+        self.assertEqual(c.C.rows(), n)
+        self.assertEqual(c.C.cols(), n)
 
 if __name__ == '__main__':
     unittest.main()

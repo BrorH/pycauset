@@ -78,7 +78,7 @@ def main() -> int:
         "sprinkle": "CausalSet sprinkling",
         "make_coordinates": "CausalSet.coordinates",
         # Core types used by factories
-        "TriangularBitMatrix": "CausalMatrix + causal sprinkling output",
+        "TriangularBitMatrix": "causal_matrix + causal sprinkling output",
         "DenseBitMatrix": "bool dense matrix support",
         "IntegerMatrix": "int matrix support",
         "TriangularFloatMatrix": "compute_k result",
@@ -87,9 +87,9 @@ def main() -> int:
         "matmul": "pycauset.matmul optimized path",
         "compute_k_matrix": "pycauset.compute_k",
         # Vectors
-        "FloatVector": "pycauset.Vector default",
-        "IntegerVector": "pycauset.Vector(int) support",
-        "BitVector": "pycauset.Vector(bool) support",
+        "FloatVector": "pycauset.vector default",
+        "IntegerVector": "pycauset.vector(int) support",
+        "BitVector": "pycauset.vector(bool) support",
         "UnitVector": "unit vectors used by persistence/engine",
         # System
         "MemoryGovernor": "memory governor public API",
@@ -146,9 +146,9 @@ def main() -> int:
             if K.size() != 10:
                 raise RuntimeError("compute_k returned wrong size")
 
-            v = pycauset.Vector([1, 2, 3])
+            v = pycauset.vector([1, 2, 3])
             if len(v) != 3:
-                raise RuntimeError("Vector factory returned wrong length")
+                raise RuntimeError("vector factory returned wrong length")
         except Exception as exc:
             print("FAIL: smoke test failed")
             print(f"  {type(exc).__name__}: {exc}")

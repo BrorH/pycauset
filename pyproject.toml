@@ -39,3 +39,15 @@ sdist.include = ["python/pycauset/_version.py"]
 
 [tool.setuptools_scm]
 write_to = "python/pycauset/_version.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+norecursedirs = [
+  "build",
+  "build_*",
+  "_deps",
+  ".venv",
+  "__pycache__",
+  ".git",
+  "site",
+]

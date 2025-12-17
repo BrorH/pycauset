@@ -93,16 +93,16 @@ K = field.propagator()
 You can use PyCauset as a high-performance sparse/dense matrix library.
 
 ```python
-# Create a random boolean matrix (10k x 10k)
-A = pc.CausalMatrix(10000, populate=True)
-B = pc.CausalMatrix(10000, populate=True)
+# Create random causal matrices (10k x 10k)
+A = pc.causal_matrix(10000, populate=True)
+B = pc.causal_matrix(10000, populate=True)
 
 # Fast GPU-accelerated BitMatrix multiplication
 # Returns an IntegerMatrix of path counts
 Paths = A @ B 
 
 # Invert a dense float matrix
-M = pc.Matrix(2000, dtype=pc.float32)  # also accepts np.float32 or "float32" (case-insensitive)
+M = pc.zeros((2000, 2000), dtype=pc.float32)  # also accepts np.float32 or "float32" (case-insensitive)
 M_inv = ~M # or M.inverse()
 ```
 

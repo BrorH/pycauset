@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import pycauset
-from pycauset import CausalMatrix, compute_k
+from pycauset import causal_matrix, compute_k
 
 class TestKMatrix(unittest.TestCase):
     def test_small_matrix(self):
@@ -9,7 +9,7 @@ class TestKMatrix(unittest.TestCase):
         a = 2.0
         
         # Create random causal matrix
-        C = CausalMatrix.random(N, 0.5)
+        C = causal_matrix.random(N, 0.5)
         
         # Convert to numpy for verification
         C_np = np.zeros((N, N))
@@ -41,7 +41,7 @@ class TestKMatrix(unittest.TestCase):
         a = 1.0
         
         # Empty matrix
-        C1 = CausalMatrix(N, populate=False)
+        C1 = causal_matrix(N, populate=False)
         K_mat1 = compute_k(C1, a)
         for i in range(N):
             for j in range(N):
@@ -50,7 +50,7 @@ class TestKMatrix(unittest.TestCase):
         # K_mat1.close()
                 
         # Full upper triangular
-        C2 = CausalMatrix(N, populate=False)
+        C2 = causal_matrix(N, populate=False)
         for i in range(N):
             for j in range(i + 1, N):
                 C2.set(i, j, True)

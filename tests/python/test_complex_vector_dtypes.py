@@ -6,12 +6,12 @@ import unittest
 import numpy as np
 
 import pycauset
-from pycauset import Vector, save
+from pycauset import save
 
 
 class TestComplexVectorDTypes(unittest.TestCase):
     def test_construct_set_get_complex_float32(self):
-        v = Vector(3, dtype="complex_float32")
+        v = pycauset.empty(3, dtype="complex_float32")
         self.assertTrue("ComplexFloat32Vector" in str(v))
 
         v[0] = 1.25 + 2.5j
@@ -28,7 +28,7 @@ class TestComplexVectorDTypes(unittest.TestCase):
 
     def test_numpy_roundtrip_complex64(self):
         arr = np.array([1 + 2j, 3 - 4j, 0.25 + 0.5j], dtype=np.complex64)
-        v = Vector(arr)
+        v = pycauset.vector(arr)
         self.assertTrue("ComplexFloat32Vector" in str(v))
 
         out = np.array(v)
@@ -41,8 +41,8 @@ class TestComplexVectorDTypes(unittest.TestCase):
         a = np.array([1 + 2j, 3 - 4j, -0.25 + 0.5j], dtype=np.complex64)
         b = np.array([-2 + 1j, 0.5 + 0.25j, 4 + 0j], dtype=np.complex64)
 
-        va = Vector(a)
-        vb = Vector(b)
+        va = pycauset.vector(a)
+        vb = pycauset.vector(b)
 
         vc = va + vb
         vd = va - vb
@@ -59,7 +59,7 @@ class TestComplexVectorDTypes(unittest.TestCase):
         a = np.array([1 + 2j, 3 - 4j, -0.25 + 0.5j], dtype=np.complex64)
         s = 1.5 - 0.5j
 
-        va = Vector(a)
+        va = pycauset.vector(a)
         vb = va * s
 
         self.assertTrue(np.allclose(np.array(vb), a * s))
@@ -70,7 +70,7 @@ class TestComplexVectorDTypes(unittest.TestCase):
     def test_complex_float16_numpy_view_and_persistence(self):
         tmp_dir = tempfile.mkdtemp(prefix="pycauset_cf16_vec_")
         try:
-            v = Vector([1 + 2j, 3 - 4j, 0.25 + 0.5j], dtype="complex_float16")
+            v = pycauset.vector([1 + 2j, 3 - 4j, 0.25 + 0.5j], dtype="complex_float16")
             self.assertTrue("ComplexFloat16Vector" in str(v))
 
             out = np.array(v)
@@ -95,8 +95,8 @@ class TestComplexVectorDTypes(unittest.TestCase):
         a = np.array([1 + 2j, 3 - 4j, -0.25 + 0.5j], dtype=np.complex64)
         b = np.array([-2 + 1j, 0.5 + 0.25j, 4 + 0j], dtype=np.complex64)
 
-        va = Vector(a)
-        vb = Vector(b)
+        va = pycauset.vector(a)
+        vb = pycauset.vector(b)
 
         got_matmul = va @ vb
         got_method = va.dot(vb)
@@ -121,8 +121,8 @@ class TestComplexVectorDTypes(unittest.TestCase):
         )
         v = np.array([1 + 2j, 3 - 4j, -0.25 + 0.5j], dtype=np.complex64)
 
-        pm = pycauset.Matrix(m)
-        pv = Vector(v)
+        pm = pycauset.matrix(m)
+        pv = pycauset.vector(v)
 
         got_mv = pm @ pv
         got_vm = pv @ pm
@@ -149,8 +149,8 @@ class TestComplexVectorDTypes(unittest.TestCase):
         )
         v = np.array([1 + 2j, 3 - 4j, -0.25 + 0.5j], dtype=np.complex64)
 
-        pm = pycauset.Matrix(m, dtype="complex_float16")
-        pv = Vector(v, dtype="complex_float16")
+        pm = pycauset.matrix(m, dtype="complex_float16")
+        pv = pycauset.vector(v, dtype="complex_float16")
 
         got = pm @ pv
         expected = (m @ v).astype(np.complex64)

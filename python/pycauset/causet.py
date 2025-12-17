@@ -73,24 +73,27 @@ class CausalSet:
 
         # --- Matrix Generation / Assignment ---
         if matrix is not None:
-            if matrix.size() != self._n:
-                raise ValueError(f"Provided matrix size ({matrix.size()}) does not match n ({self._n}).")
+            if hasattr(matrix, "rows") and hasattr(matrix, "cols"):
+                if matrix.rows() != self._n or matrix.cols() != self._n:
+                    raise ValueError(
+                        f"Provided matrix shape ({matrix.rows()}, {matrix.cols()}) does not match n ({self._n})."
+                    )
+            else:
+                if matrix.size() != self._n:
+                    raise ValueError(f"Provided matrix size ({matrix.size()}) does not match n ({self._n}).")
             self._matrix = matrix
         else:
             # Generate the matrix immediately using the stateless sprinkler
             self._matrix = _native.sprinkle(self._spacetime, self._n, self._seed)
 
     @property
-    def CausalMatrix(self):
-        """
-        The causal matrix (TriangularBitMatrix) representing the causal relations.
-        This is the primary product of the sprinkling process.
-        """
+    def causal_matrix(self):
+        """The causal matrix (TriangularBitMatrix) representing the causal relations."""
         return self._matrix
 
     @property
     def C(self):
-        """Alias for CausalMatrix."""
+        """Alias for causal_matrix."""
         return self._matrix
     
     @property
@@ -191,8 +194,8 @@ class CausalSet:
             "object_type": "CausalSet",
             "matrix_type": "CAUSAL",
             "data_type": "BIT",
-            "rows": self._matrix.size(),
-            "cols": self._matrix.size(),
+            "rows": self._matrix.rows() if hasattr(self._matrix, "rows") else self._matrix.size(),
+            "cols": self._matrix.cols() if hasattr(self._matrix, "cols") else self._matrix.size(),
             "scalar": 1.0,
             "is_transposed": False
         }

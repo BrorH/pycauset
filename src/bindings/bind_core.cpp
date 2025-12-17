@@ -6,6 +6,9 @@
 #include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/compute/AcceleratorConfig.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
+#include "pycauset/math/LinearAlgebra.hpp"
+#include "pycauset/matrix/MatrixBase.hpp"
+#include "pycauset/vector/VectorBase.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -64,6 +67,7 @@ inline pycauset::promotion::BinaryOp parse_op(const std::string& s_raw) {
     if (s == "add") return pycauset::promotion::BinaryOp::Add;
     if (s == "subtract" || s == "sub") return pycauset::promotion::BinaryOp::Subtract;
     if (s == "elementwise_multiply" || s == "elem_mul" || s == "mul") return pycauset::promotion::BinaryOp::ElementwiseMultiply;
+    if (s == "divide" || s == "truediv" || s == "elementwise_divide" || s == "div") return pycauset::promotion::BinaryOp::Divide;
     if (s == "matmul") return pycauset::promotion::BinaryOp::Matmul;
     if (s == "matvec" || s == "matrix_vector_multiply") return pycauset::promotion::BinaryOp::MatrixVectorMultiply;
     if (s == "vecmat" || s == "vector_matrix_multiply") return pycauset::promotion::BinaryOp::VectorMatrixMultiply;
@@ -81,6 +85,16 @@ void bind_core_classes(py::module_& m) {
     m.def("get_memory_threshold", &pycauset::get_memory_threshold);
 
     m.def("is_gpu_available", []() { return pycauset::ComputeContext::instance().is_gpu_active(); });
+
+    m.def(
+        "norm",
+        [](const pycauset::VectorBase& v) { return pycauset::norm(v); },
+        py::arg("x"));
+
+    m.def(
+        "norm",
+        [](const pycauset::MatrixBase& mat) { return pycauset::norm(mat); },
+        py::arg("x"));
 
     py::module_ cuda = m.def_submodule("cuda", "CUDA acceleration controls");
     cuda.def("is_available", []() { return pycauset::ComputeContext::instance().is_gpu_active(); });

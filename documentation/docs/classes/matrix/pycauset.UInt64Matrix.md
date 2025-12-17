@@ -1,4 +1,3 @@
-````markdown
 # pycauset.UInt64Matrix
 
 A memory-mapped dense matrix storing 64-bit unsigned integers. Inherits from [MatrixBase](pycauset.MatrixBase.md).
@@ -7,6 +6,7 @@ A memory-mapped dense matrix storing 64-bit unsigned integers. Inherits from [Ma
 
 ```python
 pycauset.UInt64Matrix(n: int)
+pycauset.UInt64Matrix(rows: int, cols: int)
 ```
 
 ## Properties
@@ -17,5 +17,3 @@ Returns a tuple `(rows, cols)` representing the dimensions of the matrix.
 ## Methods
 
 Inherits the common matrix interface from [[pycauset.MatrixBase]].
-
-````

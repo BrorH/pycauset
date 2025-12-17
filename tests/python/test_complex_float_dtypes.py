@@ -21,7 +21,7 @@ class TestComplexFloatDTypes(unittest.TestCase):
         if getattr(pycauset, "ComplexFloat32Matrix", None) is None:
             self.skipTest("ComplexFloat32Matrix is not available")
 
-        a = pycauset.Matrix(2, dtype=pycauset.complex_float32)
+        a = pycauset.empty((2, 2), dtype=pycauset.complex_float32)
         self.assertIsInstance(a, pycauset.ComplexFloat32Matrix)
 
         a[0, 0] = 1 + 2j
@@ -34,7 +34,7 @@ class TestComplexFloatDTypes(unittest.TestCase):
             self.skipTest("ComplexFloat32Matrix is not available")
 
         arr = np.array([[1 + 2j, 0 + 0j], [0 + 0j, 3 - 4j]], dtype=np.complex64)
-        m = pycauset.Matrix(arr)
+        m = pycauset.matrix(arr)
         self.assertIsInstance(m, pycauset.ComplexFloat32Matrix)
 
         out = np.array(m)
@@ -46,7 +46,7 @@ class TestComplexFloatDTypes(unittest.TestCase):
             self.skipTest("ComplexFloat64Matrix is not available")
 
         arr = np.array([[1 + 2j, 0 + 0j], [0 + 0j, 3 - 4j]], dtype=np.complex128)
-        m = pycauset.Matrix(arr)
+        m = pycauset.matrix(arr)
         self.assertIsInstance(m, pycauset.ComplexFloat64Matrix)
 
         out = np.array(m)
@@ -60,8 +60,8 @@ class TestComplexFloatDTypes(unittest.TestCase):
         a0 = np.array([[1 + 2j, 2 - 1j], [0.5 + 0j, -3 + 4j]], dtype=np.complex64)
         b0 = np.array([[5 + 0j, 0 + 6j], [7 - 2j, 1 + 0j]], dtype=np.complex64)
 
-        a = pycauset.Matrix(a0)
-        b = pycauset.Matrix(b0)
+        a = pycauset.matrix(a0)
+        b = pycauset.matrix(b0)
 
         add_out = np.array(a + b)
         mul_out = np.array(a * b)
@@ -75,7 +75,7 @@ class TestComplexFloatDTypes(unittest.TestCase):
         if getattr(pycauset, "ComplexFloat16Matrix", None) is None:
             self.skipTest("ComplexFloat16Matrix is not available")
 
-        m = pycauset.Matrix(2, dtype=pycauset.complex_float16)
+        m = pycauset.empty((2, 2), dtype=pycauset.complex_float16)
         self.assertIsInstance(m, pycauset.ComplexFloat16Matrix)
 
         m[0, 0] = 1.5 + 2.25j
@@ -107,8 +107,8 @@ class TestComplexFloatDTypes(unittest.TestCase):
             dtype=np.complex64,
         )
 
-        a = pycauset.Matrix(2, dtype=pycauset.complex_float16)
-        b = pycauset.Matrix(2, dtype=pycauset.complex_float16)
+        a = pycauset.empty((2, 2), dtype=pycauset.complex_float16)
+        b = pycauset.empty((2, 2), dtype=pycauset.complex_float16)
 
         for i in range(2):
             for j in range(2):
@@ -139,7 +139,7 @@ class TestComplexFloatDTypes(unittest.TestCase):
                 if cls is None:
                     continue
 
-                m = pycauset.Matrix(2, dtype=dtype_token)
+                m = pycauset.empty((2, 2), dtype=dtype_token)
                 m2 = None
                 try:
                     m[0, 0] = 1 + 2j

@@ -30,7 +30,7 @@ def test_skew_symmetric_solver():
     
     # 3. Create PyCauset matrix
     # We use Float64 for accuracy in this test
-    A_pc = pycauset.Matrix(A_np)
+    A_pc = pycauset.matrix(A_np)
     
     print(f"Matrix size: {N}x{N}")
     print(f"Computing {k} eigenvalues...")

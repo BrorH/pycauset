@@ -32,6 +32,36 @@ using Float16Matrix = DenseMatrix<float16_t>;
 
 // --- Helpers ---
 
+namespace {
+    inline uint64_t broadcast_dim(uint64_t a, uint64_t b, const char* opname, uint64_t a_other, uint64_t b_other, bool rows) {
+        if (a == b) return a;
+        if (a == 1) return b;
+        if (b == 1) return a;
+        std::string msg = std::string(opname) + ": operands could not be broadcast together with shapes (" +
+                          std::to_string(a_other) + "," + std::to_string(rows ? a : a_other) + ") and (" +
+                          std::to_string(b_other) + "," + std::to_string(rows ? b : b_other) + ")";
+        throw std::invalid_argument(msg);
+    }
+
+    inline std::pair<uint64_t, uint64_t> broadcast_shape_2d(const MatrixBase& a, const MatrixBase& b, const char* opname) {
+        const uint64_t ar = a.rows();
+        const uint64_t ac = a.cols();
+        const uint64_t br = b.rows();
+        const uint64_t bc = b.cols();
+        if (ar == br && ac == bc) return {ar, ac};
+        // Numpy-style 2D broadcasting.
+        const uint64_t rr = (ar == br) ? ar : (ar == 1 ? br : (br == 1 ? ar : 0));
+        const uint64_t rc = (ac == bc) ? ac : (ac == 1 ? bc : (bc == 1 ? ac : 0));
+        if (rr == 0 || rc == 0) {
+            std::string msg = std::string(opname) + ": operands could not be broadcast together with shapes (" +
+                              std::to_string(ar) + "," + std::to_string(ac) + ") and (" +
+                              std::to_string(br) + "," + std::to_string(bc) + ")";
+            throw std::invalid_argument(msg);
+        }
+        return {rr, rc};
+    }
+}
+
 bool is_triangular(const MatrixBase& m) {
     return dynamic_cast<const TriangularMatrixBase*>(&m) != nullptr;
 }
@@ -44,6 +74,9 @@ bool is_identity(const MatrixBase& m) {
 
 std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
     if (is_identity(a) && is_identity(b)) {
+        if (a.rows() != b.rows() || a.cols() != b.cols()) {
+            throw std::invalid_argument("add: identity operands must have identical shapes");
+        }
         if (a.get_data_type() == DataType::FLOAT64 && b.get_data_type() == DataType::FLOAT64) {
             const auto& a_id = static_cast<const IdentityMatrix<double>&>(a);
             const auto& b_id = static_cast<const IdentityMatrix<double>&>(b);
@@ -55,6 +88,8 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
             return a_id.add(b_id, result_file);
         }
     }
+
+    const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "add");
 
     DataType type_a = a.get_data_type();
     DataType type_b = b.get_data_type();
@@ -64,7 +99,7 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::Add, type_a, type_b).result_dtype;
     MatrixType res_mtype = matrix_promotion::resolve(mtype_a, mtype_b);
 
-    auto result = ObjectFactory::create_matrix(a.size(), res_dtype, res_mtype, result_file);
+    auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     
     ComputeContext::instance().get_device()->add(a, b, *result);
     
@@ -73,6 +108,9 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
 
 std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
     if (is_identity(a) && is_identity(b)) {
+        if (a.rows() != b.rows() || a.cols() != b.cols()) {
+            throw std::invalid_argument("subtract: identity operands must have identical shapes");
+        }
         if (a.get_data_type() == DataType::FLOAT64 && b.get_data_type() == DataType::FLOAT64) {
             const auto& a_id = static_cast<const IdentityMatrix<double>&>(a);
             const auto& b_id = static_cast<const IdentityMatrix<double>&>(b);
@@ -84,6 +122,8 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
             return a_id.subtract(b_id, result_file);
         }
     }
+
+    const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "subtract");
 
     DataType type_a = a.get_data_type();
     DataType type_b = b.get_data_type();
@@ -93,7 +133,7 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::Subtract, type_a, type_b).result_dtype;
     MatrixType res_mtype = matrix_promotion::resolve(mtype_a, mtype_b);
 
-    auto result = ObjectFactory::create_matrix(a.size(), res_dtype, res_mtype, result_file);
+    auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     
     ComputeContext::instance().get_device()->subtract(a, b, *result);
     
@@ -102,6 +142,9 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
 
 std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
     if (is_identity(a) && is_identity(b)) {
+        if (a.rows() != b.rows() || a.cols() != b.cols()) {
+            throw std::invalid_argument("elementwise_multiply: identity operands must have identical shapes");
+        }
         if (a.get_data_type() == DataType::FLOAT64 && b.get_data_type() == DataType::FLOAT64) {
             const auto& a_id = static_cast<const IdentityMatrix<double>&>(a);
             const auto& b_id = static_cast<const IdentityMatrix<double>&>(b);
@@ -114,6 +157,8 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
         }
     }
 
+    const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "elementwise_multiply");
+
     DataType type_a = a.get_data_type();
     DataType type_b = b.get_data_type();
     MatrixType mtype_a = a.get_matrix_type();
@@ -122,10 +167,27 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, type_a, type_b).result_dtype;
     MatrixType res_mtype = matrix_promotion::resolve(mtype_a, mtype_b);
 
-    auto result = ObjectFactory::create_matrix(a.size(), res_dtype, res_mtype, result_file);
+    auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     
     ComputeContext::instance().get_device()->elementwise_multiply(a, b, *result);
     
+    return result;
+}
+
+std::unique_ptr<MatrixBase> elementwise_divide(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
+    const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "elementwise_divide");
+
+    DataType type_a = a.get_data_type();
+    DataType type_b = b.get_data_type();
+    DataType res_dtype = promotion::resolve(promotion::BinaryOp::Divide, type_a, type_b).result_dtype;
+    // Division is not generally structure-preserving (e.g., implicit 0/0 off-triangle).
+    // Materialize a dense result for correctness.
+    MatrixType res_mtype = MatrixType::DENSE_FLOAT;
+
+    auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
+
+    ComputeContext::instance().get_device()->elementwise_divide(a, b, *result);
+
     return result;
 }
 
@@ -235,6 +297,14 @@ double dot_product(const VectorBase& a, const VectorBase& b) {
         throw std::invalid_argument("dot_product: complex vectors not supported yet");
     }
     return ComputeContext::instance().get_device()->dot(a, b);
+}
+
+double norm(const VectorBase& v) {
+    return ComputeContext::instance().get_device()->l2_norm(v);
+}
+
+double norm(const MatrixBase& m) {
+    return ComputeContext::instance().get_device()->frobenius_norm(m);
 }
 
 std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& b) {
@@ -598,6 +668,10 @@ using DenseBitMatrix = DenseMatrix<bool>;
 std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBase& b, std::string saveas) {
     if (saveas.empty()) saveas = make_unique_storage_file("matmul");
 
+    if (a.cols() != b.rows()) {
+        throw std::invalid_argument("Dimension mismatch");
+    }
+
     // Try to cast to known types
     auto* a_fm = dynamic_cast<const FloatMatrix*>(&a);
     auto* b_fm = dynamic_cast<const FloatMatrix*>(&b);
@@ -611,19 +685,17 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
 
     // Identity x Identity -> Identity
     if (a_is_id && b_is_id) {
-        if (a.size() != b.size()) throw std::invalid_argument("Dimension mismatch");
         DataType res_dtype = promotion::resolve(
             promotion::BinaryOp::Matmul,
             a.get_data_type(),
             b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.size(), res_dtype, MatrixType::IDENTITY, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::IDENTITY, saveas);
         res->set_scalar(a.get_scalar() * b.get_scalar());
         return res;
     }
 
     // Identity x Any -> Any * scalar
-    if (a_is_id) {
-        if (a.size() != b.size()) throw std::invalid_argument("Dimension mismatch");
+    if (a_is_id && a.rows() == a.cols()) {
         std::complex<double> s = a.get_scalar();
         if (s.imag() == 0.0) {
             return b.multiply_scalar(s.real(), saveas);
@@ -632,8 +704,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     }
 
     // Any x Identity -> Any * scalar
-    if (b_is_id) {
-        if (a.size() != b.size()) throw std::invalid_argument("Dimension mismatch");
+    if (b_is_id && b.rows() == b.cols()) {
         std::complex<double> s = b.get_scalar();
         if (s.imag() == 0.0) {
             return a.multiply_scalar(s.real(), saveas);
@@ -649,33 +720,33 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
         (b.get_data_type() == DataType::COMPLEX_FLOAT16 || b.get_data_type() == DataType::COMPLEX_FLOAT32 ||
          b.get_data_type() == DataType::COMPLEX_FLOAT64);
     if (a_is_cplx || b_is_cplx) {
-        if (a.size() != b.size()) throw std::invalid_argument("Dimension mismatch");
+        if (a.cols() != b.rows()) throw std::invalid_argument("Dimension mismatch");
         const DataType res_dtype = promotion::resolve(
             promotion::BinaryOp::Matmul,
             a.get_data_type(),
             b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.size(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
 
     // Use ComputeDevice for FloatMatrix x FloatMatrix
     if (a_fm && b_fm && ComputeContext::instance().is_gpu_active()) {
-        auto res = std::make_unique<FloatMatrix>(a.size(), saveas);
+        auto res = std::make_unique<FloatMatrix>(a.rows(), b.cols(), saveas);
         ComputeContext::instance().get_device()->matmul(*a_fm, *b_fm, *res);
         return res;
     }
 
     // Use ComputeDevice for Float32Matrix x Float32Matrix
     if (a_fm32 && b_fm32 && ComputeContext::instance().is_gpu_active()) {
-        auto res = std::make_unique<Float32Matrix>(a.size(), saveas);
+        auto res = std::make_unique<Float32Matrix>(a.rows(), b.cols(), saveas);
         ComputeContext::instance().get_device()->matmul(*a_fm32, *b_fm32, *res);
         return res;
     }
 
     // Mixed float precision underpromotes to float32 (CPU fallback via AutoSolver)
     if ((a_fm && b_fm32) || (a_fm32 && b_fm)) {
-        auto res = std::make_unique<Float32Matrix>(a.size(), saveas);
+        auto res = std::make_unique<Float32Matrix>(a.rows(), b.cols(), saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -694,7 +765,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             promotion::BinaryOp::Matmul,
             a.get_data_type(),
             b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.size(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -707,7 +778,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
          return a_fm32->multiply(*b_fm32, saveas);
     }
     if (a_fm16 && b_fm16) {
-        auto res = std::make_unique<Float16Matrix>(a.size(), saveas);
+        auto res = std::make_unique<Float16Matrix>(a.rows(), b.cols(), saveas);
         ComputeContext::instance().get_device()->matmul(*a_fm16, *b_fm16, *res);
         return res;
     }
@@ -725,22 +796,22 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     // DenseBitMatrix x {IntegerMatrix, FloatMatrix, Float32Matrix}
     // Scale-first: keep A bit-packed and avoid materializing it to dense ints/floats.
     if (a_dbm && b_im) {
-        auto res = std::make_unique<IntegerMatrix>(a.size(), saveas);
+        auto res = std::make_unique<IntegerMatrix>(a.rows(), b.cols(), saveas);
         ComputeContext::instance().get_device()->matmul(*a_dbm, *b_im, *res);
         return res;
     }
     if (a_dbm && b_i16m) {
-        auto res = std::make_unique<Int16Matrix>(a.size(), saveas);
+        auto res = std::make_unique<Int16Matrix>(a.rows(), b.cols(), saveas);
         ComputeContext::instance().get_device()->matmul(*a_dbm, *b_i16m, *res);
         return res;
     }
     if (a_dbm && b_fm) {
-        auto res = std::make_unique<FloatMatrix>(a.size(), saveas);
+        auto res = std::make_unique<FloatMatrix>(a.rows(), b.cols(), saveas);
         ComputeContext::instance().get_device()->matmul(*a_dbm, *b_fm, *res);
         return res;
     }
     if (a_dbm && b_fm32) {
-        auto res = std::make_unique<Float32Matrix>(a.size(), saveas);
+        auto res = std::make_unique<Float32Matrix>(a.rows(), b.cols(), saveas);
         ComputeContext::instance().get_device()->matmul(*a_dbm, *b_fm32, *res);
         return res;
     }
@@ -757,7 +828,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             promotion::BinaryOp::Matmul,
             a.get_data_type(),
             b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.size(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -776,7 +847,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             promotion::BinaryOp::Matmul,
             a_dt,
             b_dt).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.size(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -804,7 +875,7 @@ std::unique_ptr<pycauset::TriangularMatrix<double>> compute_k_matrix(
     const std::string& output_path, 
     int num_threads
 ) {
-    uint64_t n = C.size();
+    uint64_t n = C.rows();
     auto K = std::make_unique<pycauset::TriangularMatrix<double>>(n, output_path);
     
     // Get base pointer for C

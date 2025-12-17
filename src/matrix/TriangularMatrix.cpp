@@ -5,10 +5,11 @@
 namespace pycauset {
 
 uint64_t TriangularMatrixBase::calculate_triangular_offsets(uint64_t element_bits, uint64_t alignment_bits) {
-    row_offsets_.resize(n_);
+    const uint64_t n = base_rows();
+    row_offsets_.resize(n);
     uint64_t current_offset_bits = 0;
 
-    for (uint64_t i = 0; i < n_; ++i) {
+    for (uint64_t i = 0; i < n; ++i) {
         // Store current offset (converted to bytes)
         row_offsets_[i] = current_offset_bits / 8;
 
@@ -17,9 +18,9 @@ uint64_t TriangularMatrixBase::calculate_triangular_offsets(uint64_t element_bit
         // If strict: columns i+1 to N-1 => Count = N - 1 - i
         uint64_t num_elements;
         if (has_diagonal_) {
-            num_elements = (n_ > i) ? (n_ - i) : 0;
+            num_elements = (n > i) ? (n - i) : 0;
         } else {
-            num_elements = (n_ > i) ? (n_ - 1 - i) : 0;
+            num_elements = (n > i) ? (n - 1 - i) : 0;
         }
         
         if (num_elements > 0) {
