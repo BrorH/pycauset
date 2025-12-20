@@ -7,6 +7,50 @@
 #include "pycauset/core/ParallelUtils.hpp"
 #include <iostream>
 #include <stdexcept>
+
+namespace pycauset {
+
+std::complex<double> CudaDevice::dot_complex(const VectorBase& a, const VectorBase& b) {
+    (void)a;
+    (void)b;
+    throw std::runtime_error("CUDA dot_complex not implemented");
+}
+
+std::complex<double> CudaDevice::sum(const VectorBase& v) {
+    (void)v;
+    throw std::runtime_error("CudaDevice::sum(VectorBase) not implemented");
+}
+
+void CudaDevice::scalar_multiply_vector_complex(const VectorBase& a, std::complex<double> scalar, VectorBase& result) {
+    (void)a;
+    (void)scalar;
+    (void)result;
+    throw std::runtime_error("CUDA scalar_multiply_vector_complex not implemented");
+}
+
+std::complex<double> CudaDevice::sum(const MatrixBase& m) {
+    (void)m;
+    throw std::runtime_error("CudaDevice::sum(MatrixBase) not implemented");
+}
+
+double CudaDevice::trace(const MatrixBase& m) {
+    (void)m;
+    throw std::runtime_error("CudaDevice::trace not implemented");
+}
+
+double CudaDevice::determinant(const MatrixBase& m) {
+    (void)m;
+    throw std::runtime_error("CudaDevice::determinant not implemented");
+}
+
+void CudaDevice::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
+    (void)in;
+    (void)Q;
+    (void)R;
+    throw std::runtime_error("CudaDevice::qr not implemented");
+}
+
+} // namespace pycauset
 #include <vector>
 #include <algorithm>
 #include <chrono>
@@ -923,6 +967,26 @@ void CudaDevice::scalar_multiply_vector(const VectorBase& a, double scalar, Vect
 
 void CudaDevice::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
     throw std::runtime_error("CudaDevice::scalar_add_vector not implemented");
+}
+
+void CudaDevice::cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) {
+    (void)a;
+    (void)b;
+    (void)result;
+    throw std::runtime_error("CudaDevice::cross_product not implemented");
+}
+
+std::unique_ptr<TriangularMatrix<double>> CudaDevice::compute_k_matrix(
+    const TriangularMatrix<bool>& C,
+    double a,
+    const std::string& output_path,
+    int num_threads
+) {
+    (void)C;
+    (void)a;
+    (void)output_path;
+    (void)num_threads;
+    throw std::runtime_error("CudaDevice::compute_k_matrix not implemented");
 }
 
 double CudaDevice::frobenius_norm(const MatrixBase& m) {

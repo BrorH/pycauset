@@ -15,6 +15,7 @@
 #include "pycauset/vector/DenseVector.hpp"
 #include "pycauset/vector/ComplexFloat16Vector.hpp"
 #include "pycauset/vector/UnitVector.hpp"
+#include "pycauset/matrix/TriangularBitMatrix.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
 #include "pycauset/matrix/SymmetricMatrix.hpp"
 #include "pycauset/matrix/DiagonalMatrix.hpp"
@@ -24,6 +25,7 @@
 #include "pycauset/core/MemoryHints.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/DebugTrace.hpp"
+#include <Eigen/Dense>
 #include <stdexcept>
 #include <algorithm>
 #include <cmath>
@@ -43,6 +45,42 @@
 #endif
 
 namespace pycauset {
+
+namespace {
+std::vector<double> to_memory_flat_real_square(const MatrixBase& m) {
+    const uint64_t rows = m.rows();
+    const uint64_t cols = m.cols();
+    if (rows != cols) {
+        throw std::runtime_error("Operation requires square matrix");
+    }
+
+    const uint64_t n = rows;
+    std::vector<double> mat(n * n);
+    ParallelFor(0, n, [&](size_t i) {
+        for (size_t j = 0; j < n; ++j) {
+            mat[i * n + j] = m.get_element_as_double(static_cast<uint64_t>(i), static_cast<uint64_t>(j));
+        }
+    });
+    return mat;
+}
+
+std::vector<std::complex<double>> to_memory_flat_complex_square(const MatrixBase& m) {
+    const uint64_t rows = m.rows();
+    const uint64_t cols = m.cols();
+    if (rows != cols) {
+        throw std::runtime_error("Operation requires square matrix");
+    }
+
+    const uint64_t n = rows;
+    std::vector<std::complex<double>> mat(n * n);
+    ParallelFor(0, n, [&](size_t i) {
+        for (size_t j = 0; j < n; ++j) {
+            mat[i * n + j] = m.get_element_as_complex(static_cast<uint64_t>(i), static_cast<uint64_t>(j));
+        }
+    });
+    return mat;
+}
+} // namespace
 
 namespace {
     inline int64_t checked_add_int64(int64_t a, int64_t b) {
@@ -2208,6 +2246,59 @@ double CpuSolver::dot(const VectorBase& a, const VectorBase& b) {
     return sum;
 }
 
+std::complex<double> CpuSolver::dot_complex(const VectorBase& a, const VectorBase& b) {
+    const uint64_t n = a.size();
+    if (b.size() != n) {
+        throw std::invalid_argument("Vector dimensions mismatch");
+    }
+
+    // Semantics: simple sum_i a[i] * b[i] (no conjugation).
+    debug_trace::set_last("cpu.dot.complex_fallback");
+    double re = 0.0;
+    double im = 0.0;
+
+    #pragma omp parallel for reduction(+:re, im)
+    for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
+        const std::complex<double> prod = a.get_element_as_complex(static_cast<uint64_t>(i)) *
+                                          b.get_element_as_complex(static_cast<uint64_t>(i));
+        re += prod.real();
+        im += prod.imag();
+    }
+    return {re, im};
+}
+
+std::complex<double> CpuSolver::sum(const VectorBase& v) {
+    const uint64_t n = v.size();
+    if (n == 0) {
+        return {0.0, 0.0};
+    }
+
+    const auto dt = v.get_data_type();
+    const bool complex =
+        (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64);
+
+    if (complex) {
+        debug_trace::set_last("cpu.sum.vector.complex");
+        double re = 0.0;
+        double im = 0.0;
+        #pragma omp parallel for reduction(+:re, im)
+        for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
+            const std::complex<double> z = v.get_element_as_complex(static_cast<uint64_t>(i));
+            re += z.real();
+            im += z.imag();
+        }
+        return {re, im};
+    }
+
+    debug_trace::set_last("cpu.sum.vector.real");
+    double sum = 0.0;
+    #pragma omp parallel for reduction(+:sum)
+    for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
+        sum += v.get_element_as_double(static_cast<uint64_t>(i));
+    }
+    return {sum, 0.0};
+}
+
 double CpuSolver::l2_norm(const VectorBase& v) {
     const uint64_t n = v.size();
     if (n == 0) return 0.0;
@@ -3540,6 +3631,66 @@ void CpuSolver::subtract_vector(const VectorBase& a, const VectorBase& b, Vector
 
 void CpuSolver::scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) {
     uint64_t n = a.size();
+
+    const bool needs_metadata_path = (a.get_scalar() != std::complex<double>(1.0, 0.0)) || a.is_conjugated();
+
+    auto* a_cf16 = dynamic_cast<const ComplexFloat16Vector*>(&a);
+    auto* res_cf16 = dynamic_cast<ComplexFloat16Vector*>(&result);
+    if (a_cf16 && res_cf16) {
+        float16_t* r_re = res_cf16->real_data();
+        float16_t* r_im = res_cf16->imag_data();
+        if (needs_metadata_path) {
+            ParallelFor(0, n, [&](size_t i) {
+                const std::complex<double> z = a.get_element_as_complex(i) * scalar;
+                r_re[i] = float16_t(z.real());
+                r_im[i] = float16_t(z.imag());
+            });
+        } else {
+            const float16_t* a_re = a_cf16->real_data();
+            const float16_t* a_im = a_cf16->imag_data();
+            ParallelFor(0, n, [&](size_t i) {
+                r_re[i] = float16_t(static_cast<double>(a_re[i]) * scalar);
+                r_im[i] = float16_t(static_cast<double>(a_im[i]) * scalar);
+            });
+        }
+        return;
+    }
+
+    auto* a_c32 = dynamic_cast<const DenseVector<std::complex<float>>*>(&a);
+    auto* res_c32 = dynamic_cast<DenseVector<std::complex<float>>*>(&result);
+    if (a_c32 && res_c32) {
+        std::complex<float>* res_data = res_c32->data();
+        const float s = static_cast<float>(scalar);
+        if (needs_metadata_path) {
+            ParallelFor(0, n, [&](size_t i) {
+                const std::complex<double> z = a.get_element_as_complex(i) * scalar;
+                res_data[i] = std::complex<float>(static_cast<float>(z.real()), static_cast<float>(z.imag()));
+            });
+        } else {
+            const std::complex<float>* a_data = a_c32->data();
+            ParallelFor(0, n, [&](size_t i) {
+                res_data[i] = a_data[i] * s;
+            });
+        }
+        return;
+    }
+
+    auto* a_c64 = dynamic_cast<const DenseVector<std::complex<double>>*>(&a);
+    auto* res_c64 = dynamic_cast<DenseVector<std::complex<double>>*>(&result);
+    if (a_c64 && res_c64) {
+        std::complex<double>* res_data = res_c64->data();
+        if (needs_metadata_path) {
+            ParallelFor(0, n, [&](size_t i) {
+                res_data[i] = a.get_element_as_complex(i) * scalar;
+            });
+        } else {
+            const std::complex<double>* a_data = a_c64->data();
+            ParallelFor(0, n, [&](size_t i) {
+                res_data[i] = a_data[i] * scalar;
+            });
+        }
+        return;
+    }
     
     auto* a_dbl = dynamic_cast<const DenseVector<double>*>(&a);
     auto* res_dbl = dynamic_cast<DenseVector<double>*>(&result);
@@ -3550,6 +3701,28 @@ void CpuSolver::scalar_multiply_vector(const VectorBase& a, double scalar, Vecto
         
         ParallelFor(0, n, [&](size_t i) {
             res_data[i] = a_data[i] * scalar;
+        });
+        return;
+    }
+
+    auto* a_f32 = dynamic_cast<const DenseVector<float>*>(&a);
+    auto* res_f32 = dynamic_cast<DenseVector<float>*>(&result);
+    if (a_f32 && res_f32) {
+        const float* a_data = a_f32->data();
+        float* res_data = res_f32->data();
+        ParallelFor(0, n, [&](size_t i) {
+            res_data[i] = static_cast<float>(static_cast<double>(a_data[i]) * scalar);
+        });
+        return;
+    }
+
+    auto* a_f16 = dynamic_cast<const DenseVector<float16_t>*>(&a);
+    auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result);
+    if (a_f16 && res_f16) {
+        const float16_t* a_data = a_f16->data();
+        float16_t* res_data = res_f16->data();
+        ParallelFor(0, n, [&](size_t i) {
+            res_data[i] = float16_t(static_cast<double>(a_data[i]) * scalar);
         });
         return;
     }
@@ -3586,8 +3759,122 @@ void CpuSolver::scalar_multiply_vector(const VectorBase& a, double scalar, Vecto
     });
 }
 
+void CpuSolver::scalar_multiply_vector_complex(const VectorBase& a, std::complex<double> scalar, VectorBase& result) {
+    const uint64_t n = a.size();
+
+    const bool needs_metadata_path = (a.get_scalar() != std::complex<double>(1.0, 0.0)) || a.is_conjugated();
+
+    auto* a_cf16 = dynamic_cast<const ComplexFloat16Vector*>(&a);
+    auto* res_cf16 = dynamic_cast<ComplexFloat16Vector*>(&result);
+    if (a_cf16 && res_cf16) {
+        float16_t* r_re = res_cf16->real_data();
+        float16_t* r_im = res_cf16->imag_data();
+        if (needs_metadata_path) {
+            ParallelFor(0, n, [&](size_t i) {
+                const std::complex<double> p = a.get_element_as_complex(i) * scalar;
+                r_re[i] = float16_t(p.real());
+                r_im[i] = float16_t(p.imag());
+            });
+        } else {
+            const float16_t* a_re = a_cf16->real_data();
+            const float16_t* a_im = a_cf16->imag_data();
+            ParallelFor(0, n, [&](size_t i) {
+                const std::complex<double> z(static_cast<double>(a_re[i]), static_cast<double>(a_im[i]));
+                const std::complex<double> p = z * scalar;
+                r_re[i] = float16_t(p.real());
+                r_im[i] = float16_t(p.imag());
+            });
+        }
+        return;
+    }
+
+    auto* a_c32 = dynamic_cast<const DenseVector<std::complex<float>>*>(&a);
+    auto* res_c32 = dynamic_cast<DenseVector<std::complex<float>>*>(&result);
+    if (a_c32 && res_c32) {
+        std::complex<float>* res_data = res_c32->data();
+        const std::complex<float> s(static_cast<float>(scalar.real()), static_cast<float>(scalar.imag()));
+        if (needs_metadata_path) {
+            ParallelFor(0, n, [&](size_t i) {
+                const std::complex<double> p = a.get_element_as_complex(i) * scalar;
+                res_data[i] = std::complex<float>(static_cast<float>(p.real()), static_cast<float>(p.imag()));
+            });
+        } else {
+            const std::complex<float>* a_data = a_c32->data();
+            ParallelFor(0, n, [&](size_t i) {
+                res_data[i] = a_data[i] * s;
+            });
+        }
+        return;
+    }
+
+    auto* a_c64 = dynamic_cast<const DenseVector<std::complex<double>>*>(&a);
+    auto* res_c64 = dynamic_cast<DenseVector<std::complex<double>>*>(&result);
+    if (a_c64 && res_c64) {
+        std::complex<double>* res_data = res_c64->data();
+        if (needs_metadata_path) {
+            ParallelFor(0, n, [&](size_t i) {
+                res_data[i] = a.get_element_as_complex(i) * scalar;
+            });
+        } else {
+            const std::complex<double>* a_data = a_c64->data();
+            ParallelFor(0, n, [&](size_t i) {
+                res_data[i] = a_data[i] * scalar;
+            });
+        }
+        return;
+    }
+
+    throw std::invalid_argument("scalar_multiply_vector_complex requires a complex vector dtype");
+}
+
 void CpuSolver::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
     uint64_t n = a.size();
+
+    // Match VectorBase::add_scalar semantics:
+    // - Applies the vector's stored scalar_ factor.
+    // - Does NOT apply conjugation (add_scalar uses raw storage).
+    const std::complex<double> s_self = a.get_scalar();
+    const std::complex<double> add(scalar, 0.0);
+
+    auto* a_cf16 = dynamic_cast<const ComplexFloat16Vector*>(&a);
+    auto* res_cf16 = dynamic_cast<ComplexFloat16Vector*>(&result);
+    if (a_cf16 && res_cf16) {
+        const float16_t* a_re = a_cf16->real_data();
+        const float16_t* a_im = a_cf16->imag_data();
+        float16_t* r_re = res_cf16->real_data();
+        float16_t* r_im = res_cf16->imag_data();
+        ParallelFor(0, n, [&](size_t i) {
+            const std::complex<double> z(static_cast<double>(a_re[i]), static_cast<double>(a_im[i]));
+            const std::complex<double> out = z * s_self + add;
+            r_re[i] = float16_t(out.real());
+            r_im[i] = float16_t(out.imag());
+        });
+        return;
+    }
+
+    auto* a_c32 = dynamic_cast<const DenseVector<std::complex<float>>*>(&a);
+    auto* res_c32 = dynamic_cast<DenseVector<std::complex<float>>*>(&result);
+    if (a_c32 && res_c32) {
+        const std::complex<float>* a_data = a_c32->data();
+        std::complex<float>* res_data = res_c32->data();
+        ParallelFor(0, n, [&](size_t i) {
+            const std::complex<double> z(static_cast<double>(a_data[i].real()), static_cast<double>(a_data[i].imag()));
+            const std::complex<double> out = z * s_self + add;
+            res_data[i] = std::complex<float>(static_cast<float>(out.real()), static_cast<float>(out.imag()));
+        });
+        return;
+    }
+
+    auto* a_c64 = dynamic_cast<const DenseVector<std::complex<double>>*>(&a);
+    auto* res_c64 = dynamic_cast<DenseVector<std::complex<double>>*>(&result);
+    if (a_c64 && res_c64) {
+        const std::complex<double>* a_data = a_c64->data();
+        std::complex<double>* res_data = res_c64->data();
+        ParallelFor(0, n, [&](size_t i) {
+            res_data[i] = a_data[i] * s_self + add;
+        });
+        return;
+    }
     
     auto* a_dbl = dynamic_cast<const DenseVector<double>*>(&a);
     auto* res_dbl = dynamic_cast<DenseVector<double>*>(&result);
@@ -3598,6 +3885,28 @@ void CpuSolver::scalar_add_vector(const VectorBase& a, double scalar, VectorBase
         
         ParallelFor(0, n, [&](size_t i) {
             res_data[i] = a_data[i] + scalar;
+        });
+        return;
+    }
+
+    auto* a_f32 = dynamic_cast<const DenseVector<float>*>(&a);
+    auto* res_f32 = dynamic_cast<DenseVector<float>*>(&result);
+    if (a_f32 && res_f32) {
+        const float* a_data = a_f32->data();
+        float* res_data = res_f32->data();
+        ParallelFor(0, n, [&](size_t i) {
+            res_data[i] = static_cast<float>(static_cast<double>(a_data[i]) + scalar);
+        });
+        return;
+    }
+
+    auto* a_f16 = dynamic_cast<const DenseVector<float16_t>*>(&a);
+    auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result);
+    if (a_f16 && res_f16) {
+        const float16_t* a_data = a_f16->data();
+        float16_t* res_data = res_f16->data();
+        ParallelFor(0, n, [&](size_t i) {
+            res_data[i] = float16_t(static_cast<double>(a_data[i]) + scalar);
         });
         return;
     }
@@ -3634,6 +3943,117 @@ void CpuSolver::scalar_add_vector(const VectorBase& a, double scalar, VectorBase
     });
 }
 
+void CpuSolver::cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) {
+    if (a.size() != 3 || b.size() != 3 || result.size() != 3) {
+        throw std::invalid_argument("cross_product only defined for 3D vectors");
+    }
+
+    auto* res_dbl = dynamic_cast<DenseVector<double>*>(&result);
+    if (!res_dbl) {
+        throw std::runtime_error("CpuSolver::cross_product requires DenseVector<double> result");
+    }
+
+    const auto* a_dbl = dynamic_cast<const DenseVector<double>*>(&a);
+    const auto* b_dbl = dynamic_cast<const DenseVector<double>*>(&b);
+
+    double ax, ay, az, bx, by, bz;
+
+    if (a_dbl) {
+        const double* d = a_dbl->data();
+        ax = d[0];
+        ay = d[1];
+        az = d[2];
+    } else {
+        ax = a.get_element_as_double(0);
+        ay = a.get_element_as_double(1);
+        az = a.get_element_as_double(2);
+    }
+
+    if (b_dbl) {
+        const double* d = b_dbl->data();
+        bx = d[0];
+        by = d[1];
+        bz = d[2];
+    } else {
+        bx = b.get_element_as_double(0);
+        by = b.get_element_as_double(1);
+        bz = b.get_element_as_double(2);
+    }
+
+    res_dbl->set(0, ay * bz - az * by);
+    res_dbl->set(1, az * bx - ax * bz);
+    res_dbl->set(2, ax * by - ay * bx);
+}
+
+std::unique_ptr<TriangularMatrix<double>> CpuSolver::compute_k_matrix(
+    const TriangularMatrix<bool>& C,
+    double a,
+    const std::string& output_path,
+    int num_threads
+) {
+    (void)num_threads; // ParallelFor uses global ThreadPool settings
+
+    const uint64_t n = C.rows();
+    auto K = std::make_unique<TriangularMatrix<double>>(n, output_path);
+
+    const char* c_raw_bytes = reinterpret_cast<const char*>(C.data());
+    char* k_base_ptr = reinterpret_cast<char*>(K->data());
+
+    ParallelFor(0, n, [&](size_t j) {
+        std::vector<double> col_j(j + 1, 0.0);
+
+        for (int64_t i = static_cast<int64_t>(j) - 1; i >= 0; --i) {
+            double sum = 0.0;
+
+            const uint64_t row_offset = C.get_row_offset(static_cast<uint64_t>(i));
+            const uint64_t* row_ptr = reinterpret_cast<const uint64_t*>(c_raw_bytes + row_offset);
+
+            if (j > static_cast<uint64_t>(i) + 1) {
+                const uint64_t max_bit_index = j - static_cast<uint64_t>(i) - 2;
+                const uint64_t num_words = (max_bit_index / 64) + 1;
+
+                for (uint64_t w = 0; w < num_words; ++w) {
+                    uint64_t word = row_ptr[w];
+                    if (word == 0) continue;
+
+                    if (w == num_words - 1) {
+                        const uint64_t bits_in_last_word = (max_bit_index % 64) + 1;
+                        if (bits_in_last_word < 64) {
+                            const uint64_t mask = (1ULL << bits_in_last_word) - 1;
+                            word &= mask;
+                        }
+                    }
+
+                    while (word != 0) {
+                        const int bit = std::countr_zero(word);
+                        const uint64_t m = (static_cast<uint64_t>(i) + 1) + (w * 64 + static_cast<uint64_t>(bit));
+                        if (m < j) {
+                            sum += col_j[m];
+                        }
+                        word &= (word - 1);
+                    }
+                }
+            }
+
+            const uint64_t bit_offset_j = j - (static_cast<uint64_t>(i) + 1);
+            const uint64_t word_idx_j = bit_offset_j / 64;
+            const uint64_t bit_idx_j = bit_offset_j % 64;
+            const uint64_t word_j = row_ptr[word_idx_j];
+            const bool c_ij = ((word_j >> bit_idx_j) & 1ULL) != 0;
+
+            const double val = ((c_ij ? 1.0 : 0.0) - sum) / a;
+            col_j[static_cast<uint64_t>(i)] = val;
+
+            const uint64_t k_row_offset = K->get_row_offset(static_cast<uint64_t>(i));
+            const uint64_t k_col_idx = j - (static_cast<uint64_t>(i) + 1);
+            double* k_row_ptr = reinterpret_cast<double*>(k_base_ptr + k_row_offset);
+            k_row_ptr[k_col_idx] = val;
+        }
+    });
+
+    return K;
+}
+
 double CpuSolver::frobenius_norm(const MatrixBase& m) {
     const uint64_t rows = m.rows();
     const uint64_t cols = m.cols();
@@ -3666,6 +4086,209 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
         sum += x * x;
     }
     return std::sqrt(sum);
+}
+
+std::complex<double> CpuSolver::sum(const MatrixBase& m) {
+    const uint64_t rows = m.rows();
+    const uint64_t cols = m.cols();
+    if (rows == 0 || cols == 0) {
+        return {0.0, 0.0};
+    }
+
+    const auto dt = m.get_data_type();
+    const bool complex =
+        (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64);
+
+    if (complex) {
+        debug_trace::set_last("cpu.sum.matrix.complex");
+        double re = 0.0;
+        double im = 0.0;
+        #pragma omp parallel for reduction(+:re, im)
+        for (int64_t i = 0; i < static_cast<int64_t>(rows); ++i) {
+            for (uint64_t j = 0; j < cols; ++j) {
+                const std::complex<double> z = m.get_element_as_complex(static_cast<uint64_t>(i), j);
+                re += z.real();
+                im += z.imag();
+            }
+        }
+        return {re, im};
+    }
+
+    debug_trace::set_last("cpu.sum.matrix.real");
+    double sum = 0.0;
+    #pragma omp parallel for reduction(+:sum)
+    for (int64_t i = 0; i < static_cast<int64_t>(rows); ++i) {
+        for (uint64_t j = 0; j < cols; ++j) {
+            sum += m.get_element_as_double(static_cast<uint64_t>(i), j);
+        }
+    }
+    return {sum, 0.0};
+}
+
+double CpuSolver::trace(const MatrixBase& matrix) {
+    const uint64_t rows = matrix.rows();
+    const uint64_t cols = matrix.cols();
+    const uint64_t n = std::min(rows, cols);
+
+    const auto type = matrix.get_matrix_type();
+    if (type == MatrixType::IDENTITY) {
+        return matrix.get_scalar().real() * static_cast<double>(n);
+    }
+
+    const auto dt = matrix.get_data_type();
+    const bool is_complex = (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64);
+
+    double tr = 0.0;
+    if (is_complex) {
+        for (uint64_t i = 0; i < n; ++i) {
+            tr += matrix.get_element_as_complex(i, i).real();
+        }
+    } else {
+        for (uint64_t i = 0; i < n; ++i) {
+            tr += matrix.get_element_as_double(i, i);
+        }
+    }
+    return tr;
+}
+
+double CpuSolver::determinant(const MatrixBase& matrix) {
+    const uint64_t rows = matrix.rows();
+    const uint64_t cols = matrix.cols();
+    if (rows != cols) {
+        throw std::runtime_error("Determinant requires square matrix");
+    }
+
+    const uint64_t n = rows;
+    const auto type = matrix.get_matrix_type();
+    const auto dt = matrix.get_data_type();
+    const bool is_complex = (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64);
+
+    if (type == MatrixType::IDENTITY) {
+        return std::pow(matrix.get_scalar(), n).real();
+    }
+
+    if (type == MatrixType::DIAGONAL) {
+        if (is_complex) {
+            std::complex<double> det = 1.0;
+            for (uint64_t i = 0; i < n; ++i) {
+                det *= matrix.get_element_as_complex(i, i);
+            }
+            return det.real();
+        }
+
+        double det = 1.0;
+        for (uint64_t i = 0; i < n; ++i) {
+            det *= matrix.get_element_as_double(i, i);
+        }
+        return det;
+    }
+
+    if (type == MatrixType::TRIANGULAR_FLOAT || type == MatrixType::CAUSAL) {
+        bool has_diag = false;
+        if (auto* m = dynamic_cast<const TriangularMatrix<double>*>(&matrix)) {
+            has_diag = m->has_diagonal();
+        } else if (auto* m = dynamic_cast<const TriangularMatrix<int32_t>*>(&matrix)) {
+            has_diag = m->has_diagonal();
+        }
+
+        if (!has_diag) {
+            return 0.0;
+        }
+
+        if (is_complex) {
+            std::complex<double> det = 1.0;
+            for (uint64_t i = 0; i < n; ++i) {
+                det *= matrix.get_element_as_complex(i, i);
+            }
+            return det.real();
+        }
+
+        double det = 1.0;
+        for (uint64_t i = 0; i < n; ++i) {
+            det *= matrix.get_element_as_double(i, i);
+        }
+        return det;
+    }
+
+    // General case: LU determinant.
+    // If there is any complex scalar/component, compute using complex LU and return the real part.
+    const bool use_complex = is_complex || std::abs(matrix.get_scalar().imag()) > 1e-14;
+
+    if (!use_complex) {
+        auto data = to_memory_flat_real_square(matrix);
+        Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> mat_eigen(
+            data.data(), static_cast<Eigen::Index>(n), static_cast<Eigen::Index>(n));
+
+        Eigen::PartialPivLU<Eigen::MatrixXd> lu(mat_eigen);
+        return lu.determinant();
+    }
+
+    auto data = to_memory_flat_complex_square(matrix);
+    Eigen::Map<Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> mat_eigen(
+        data.data(), static_cast<Eigen::Index>(n), static_cast<Eigen::Index>(n));
+
+    Eigen::PartialPivLU<Eigen::MatrixXcd> lu(mat_eigen);
+    return lu.determinant().real();
+}
+
+void CpuSolver::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
+    // Keep the same contract as DenseMatrix<double>::qr: square float64 matrices.
+    if (in.rows() != in.cols()) {
+        throw std::runtime_error("QR requires a square matrix");
+    }
+
+    auto* q_out = dynamic_cast<DenseMatrix<double>*>(&Q);
+    auto* r_out = dynamic_cast<DenseMatrix<double>*>(&R);
+    if (!q_out || !r_out) {
+        throw std::runtime_error("CpuSolver::qr requires DenseMatrix<double> outputs");
+    }
+
+    const uint64_t n = in.rows();
+    if (q_out->rows() != n || q_out->cols() != n || r_out->rows() != n || r_out->cols() != n) {
+        throw std::runtime_error("CpuSolver::qr output matrix dimension mismatch");
+    }
+
+    double* q_data = q_out->data();
+    double* r_data = r_out->data();
+
+    // Initialize Q from input.
+    ParallelFor(0, n, [&](size_t i) {
+        for (size_t j = 0; j < n; ++j) {
+            q_data[i * n + j] = in.get_element_as_double(static_cast<uint64_t>(i), static_cast<uint64_t>(j));
+        }
+    });
+
+    std::fill(r_data, r_data + n * n, 0.0);
+
+    for (size_t k = 0; k < n; ++k) {
+        double norm_sq = 0.0;
+        for (size_t i = 0; i < n; ++i) {
+            const double val = q_data[i * n + k];
+            norm_sq += val * val;
+        }
+
+        const double norm = std::sqrt(norm_sq);
+        r_data[k * n + k] = norm;
+
+        if (norm > 1e-12) {
+            const double inv_norm = 1.0 / norm;
+            ParallelFor(0, n, [&](size_t i) { q_data[i * n + k] *= inv_norm; });
+        } else {
+            ParallelFor(0, n, [&](size_t i) { q_data[i * n + k] = 0.0; });
+        }
+
+        ParallelFor(k + 1, n, [&](size_t j) {
+            double dot = 0.0;
+            for (size_t i = 0; i < n; ++i) {
+                dot += q_data[i * n + k] * q_data[i * n + j];
+            }
+            r_data[k * n + j] = dot;
+
+            for (size_t i = 0; i < n; ++i) {
+                q_data[i * n + j] -= dot * q_data[i * n + k];
+            }
+        });
+    }
 }
 
 } // namespace pycauset

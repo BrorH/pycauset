@@ -50,6 +50,13 @@ Implementation note (small but important): the framework treats these complex pe
 - `float32` is the explicit smaller float storage/compute dtype.
 - Mixed-float behavior is **underpromotion by default**: e.g. `float32` + `float64` operations select `float32` unless an op’s promotion policy says otherwise (warnings may apply).
 
+**Float16/ComplexFloat16 execution note (scope + expectations)**
+
+- `float16` and `complex_float16` are **first-class storage dtypes**.
+- On CPU, it is acceptable (and currently implemented in some ops) to **upcast internally for compute** (e.g., accumulate in float32 / complex<double>) and then store back to float16/complex_float16.
+- CPU BLAS acceleration is **not** expected for float16; treat float16 primarily as a storage/bandwidth dtype on CPU unless/until a dedicated backend exists.
+- SRP requirement: when an op upcasts internally, that must be explicit in the op’s contract/support status (so users understand precision/perf tradeoffs).
+
 ### 1.2 Core scalar model + C++ `DataType` snapshot
 
 PyCauset’s scalar system is best understood as a **base dtype** plus a small set of orthogonal flags.
@@ -97,18 +104,30 @@ Authoritative sources:
 - `add(a, b)`
 - `subtract(a, b)`
 - `elementwise_multiply(a, b)`
-- `matmul(a, b)`
+- `elementwise_divide(a, b)`
+- `dispatch_matmul(a, b)` (matmul)
 
 **Vector × Vector**
 - `add_vectors(a, b)`
 - `subtract_vectors(a, b)`
 - `dot_product(a, b)`
+- `dot_product_complex(a, b)`
 - `cross_product(a, b)`
 
+**Reductions**
+- `norm(v)` (vector L2)
+- `norm(m)` (matrix Frobenius)
+- `sum(v)` (complex-valued accumulator; real inputs return imag=0)
+- `sum(m)` (complex-valued accumulator; real inputs return imag=0)
+
 **Matrix/Vector mixed**
-- `matvec(a, x)`
-- `vecmat(x, a)`
+- `matrix_vector_multiply(m, v)` (a.k.a. “matvec”)
+- `vector_matrix_multiply(v, m)` (a.k.a. “vecmat”)
 - `outer_product(x, y)`
+
+**Scalar operations on vectors**
+- `scalar_multiply_vector(v, s)` (overloads for `double`, `int64_t`, `complex<double>`)
+- `scalar_add_vector(v, s)` (overloads for `double`, `int64_t`)
 
 **Special**
 - `compute_k_matrix(...)`
@@ -122,6 +141,64 @@ Authoritative source: `include/pycauset/compute/ComputeDevice.hpp`.
 **Note:** The device layer is the *implementation contract*. If an operation exists here, it must have:
 - CPU correctness (required)
 - GPU coverage (optional, but must be explicitly routed/blocked)
+
+### 2.2.1 Current per-op device/out-of-core status (SRP handoff table)
+
+This table is a **living** SRP handoff artifact. It records the *current routing policy*:
+
+- **CPU**: whether a correctness implementation exists (required)
+- **GPU**: `GPU-enabled` vs `CPU-route` vs `blocked`
+- **Out-of-core**: `naive` vs `streaming-enabled`
+
+| ComputeDevice op | CPU | GPU | Out-of-core | Notes |
+|---|---:|---|---|---|
+| `matmul` | ✅ | GPU-enabled (Dense float32/64; bit×bit→int32) | streaming-enabled (CUDA VRAM chunking) | AutoSolver uses heuristic + dtype checks |
+| `inverse` | ✅ | GPU-enabled (Dense float32/64) | naive | AutoSolver uses heuristic + dtype checks |
+| `batch_gemv` | ✅ | GPU-enabled | streaming-enabled (CUDA VRAM chunking) | AutoSolver uses size-based selection |
+| `matrix_vector_multiply` | ✅ | CPU-route | naive | CUDA implementation not present |
+| `vector_matrix_multiply` | ✅ | CPU-route | naive | CUDA implementation not present |
+| `outer_product` | ✅ | CPU-route | naive | CUDA implementation not present |
+| `add` | ✅ | GPU-enabled (Dense float32/64; matching dtype) | naive | AutoSolver uses heuristic + dtype checks |
+| `subtract` | ✅ | GPU-enabled (Dense float32/64; matching dtype) | naive | AutoSolver uses heuristic + dtype checks |
+| `elementwise_multiply` | ✅ | CPU-route | naive | CUDA implementation not present |
+| `elementwise_divide` | ✅ | CPU-route | naive | CUDA implementation not present |
+| `multiply_scalar` | ✅ | GPU-enabled (Dense float32/64; matching dtype) | naive | AutoSolver uses heuristic + dtype checks |
+| `dot` | ✅ | CPU-route | naive | Always CPU for now |
+| `dot_complex` | ✅ | CPU-route | naive | Always CPU for now |
+| `sum(VectorBase)` | ✅ | CPU-route | naive | Always CPU for now |
+| `l2_norm` | ✅ | CPU-route | naive | Always CPU for now |
+| `add_vector` | ✅ | CPU-route | naive | Always CPU for now |
+| `subtract_vector` | ✅ | CPU-route | naive | Always CPU for now |
+| `scalar_multiply_vector` | ✅ | CPU-route | naive | Always CPU for now |
+| `scalar_multiply_vector_complex` | ✅ | CPU-route | naive | Always CPU for now |
+| `scalar_add_vector` | ✅ | CPU-route | naive | Always CPU for now |
+| `cross_product` | ✅ | CPU-route | naive | Always CPU for now |
+| `compute_k_matrix` | ✅ | CPU-route | naive | Always CPU for now |
+| `frobenius_norm` | ✅ | CPU-route | naive | Always CPU for now |
+| `sum(MatrixBase)` | ✅ | CPU-route | naive | Always CPU for now |
+| `trace` | ✅ | CPU-route | naive | Always CPU for now |
+| `determinant` | ✅ | CPU-route | naive | Always CPU for now |
+| `qr` | ✅ | CPU-route | naive | Always CPU for now |
+
+### 2.2.2 Python-level linalg endpoints (Phase G, endpoint-first)
+
+These are **high-level** Python entrypoints exposed at `pycauset.*`.
+
+They are allowed to be implemented initially via composition (calling existing ops) or via a NumPy fallback, as long as behavior is deterministic and documented.
+
+| Python endpoint | Current status | Notes |
+|---|---|---|
+| `solve(a, b)` | ✅ baseline | Currently uses `invert(a) @ b` when no dedicated solver exists |
+| `lstsq(a, b)` | ✅ baseline | Normal-equations baseline: $(A^T A)^{-1} A^T b$ (returns only `x`) |
+| `slogdet(a)` | ✅ baseline | Uses `a.determinant()` then returns `(sign, logabsdet)` |
+| `cond(a)` | ✅ baseline | Uses `norm(a) * norm(invert(a))` |
+| `eigh(a)` | ✅ baseline | NumPy fallback (`numpy.linalg.eigh`) |
+| `eigvalsh(a)` | ✅ baseline | NumPy fallback (`numpy.linalg.eigvalsh`) |
+| `solve_triangular(...)` | blocked | Not implemented yet |
+| `lu(...)` | blocked | Not implemented yet |
+| `cholesky(...)` | blocked | Not implemented yet |
+| `svd(...)` | blocked | Not implemented yet |
+| `pinv(...)` | blocked | Not implemented yet |
 
 ### 2.3 Object protocol (required for any public dtype)
 
@@ -159,9 +236,19 @@ Minimum expectations by kind:
   - Dense storage is row-major contiguous.
   - Large-size defaults may prefer float32 for storage efficiency when policy says so.
 
+- **float16**
+  - Dense storage uses `float16` payload (`pycauset::float16_t`) and is treated as a first-class dtype.
+  - CPU kernels may compute in higher precision (typically float32) and then store float16 results.
+  - If an operation’s correctness depends on upcasted compute, the support status must say so (compute dtype vs storage dtype).
+
 - **complex (flag/permutation)**
   - Supported complex dtypes are complex floats only.
   - Storage is either true complex float storage (performance path) or two-plane float16 storage for `complex_float16` (scale-first / bandwidth path).
+
+Implementation reality check (must remain aligned with code):
+
+- CPU `matmul` for `float16` currently uses float32 accumulation with float16 storage.
+- CPU `matmul` for `complex_float16` currently uses upcasted complex compute with float16-plane storage.
 
 ### 3.2 On-disk format expectations
 

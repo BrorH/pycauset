@@ -6,7 +6,10 @@ A memory-mapped vector storing 64-bit floating point numbers. Inherits from [Vec
 
 ```python
 pycauset.FloatVector(n: int)
+pycauset.FloatVector(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-1 with dtype `float64`.
 
 ## Properties
 

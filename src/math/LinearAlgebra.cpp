@@ -307,104 +307,46 @@ double norm(const MatrixBase& m) {
     return ComputeContext::instance().get_device()->frobenius_norm(m);
 }
 
+std::complex<double> sum(const VectorBase& v) {
+    return ComputeContext::instance().get_device()->sum(v);
+}
+
+std::complex<double> sum(const MatrixBase& m) {
+    return ComputeContext::instance().get_device()->sum(m);
+}
+
 std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& b) {
     const uint64_t n = a.size();
     if (b.size() != n) {
         throw std::invalid_argument("Vector dimensions mismatch");
     }
-
-    // Semantics: simple sum_i a[i] * b[i] (no conjugation).
-    double re = 0.0;
-    double im = 0.0;
-
-    #pragma omp parallel for reduction(+:re, im)
-    for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
-        const std::complex<double> prod = a.get_element_as_complex(static_cast<uint64_t>(i)) *
-                                          b.get_element_as_complex(static_cast<uint64_t>(i));
-        re += prod.real();
-        im += prod.imag();
-    }
-    return {re, im};
+    return ComputeContext::instance().get_device()->dot_complex(a, b);
 }
 
 std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b, const std::string& result_file) {
     if (a.size() != 3 || b.size() != 3) {
         throw std::invalid_argument("Cross product only defined for 3D vectors");
     }
-    
-    auto* a_dbl = dynamic_cast<const DenseVector<double>*>(&a);
-    auto* b_dbl = dynamic_cast<const DenseVector<double>*>(&b);
-    
-    double ax, ay, az, bx, by, bz;
-    
-    if (a_dbl) {
-        const double* d = a_dbl->data();
-        ax = d[0]; ay = d[1]; az = d[2];
-    } else {
-        ax = a.get_element_as_double(0);
-        ay = a.get_element_as_double(1);
-        az = a.get_element_as_double(2);
-    }
-    
-    if (b_dbl) {
-        const double* d = b_dbl->data();
-        bx = d[0]; by = d[1]; bz = d[2];
-    } else {
-        bx = b.get_element_as_double(0);
-        by = b.get_element_as_double(1);
-        bz = b.get_element_as_double(2);
-    }
-    
+
     auto result = std::make_unique<DenseVector<double>>(3, result_file);
-    double* r = result->data();
-    
-    r[0] = ay*bz - az*by;
-    r[1] = az*bx - ax*bz;
-    r[2] = ax*by - ay*bx;
-    
+    ComputeContext::instance().get_device()->cross_product(a, b, *result);
     return result;
 }
 
 std::unique_ptr<VectorBase> scalar_multiply_vector(const VectorBase& v, double scalar, const std::string& result_file) {
     const auto dt = v.get_data_type();
-    if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
-        const uint64_t n = v.size();
-        std::unique_ptr<VectorBase> result;
-        if (dt == DataType::COMPLEX_FLOAT16) {
-            result = std::make_unique<ComplexFloat16Vector>(n, result_file);
-            auto* out = static_cast<ComplexFloat16Vector*>(result.get());
-            auto* rdst = out->real_data();
-            auto* idst = out->imag_data();
-            ParallelFor(0, n, [&](size_t i) {
-                const std::complex<double> z = v.get_element_as_complex(i) * scalar;
-                rdst[i] = float16_t(z.real());
-                idst[i] = float16_t(z.imag());
-            });
-        } else if (dt == DataType::COMPLEX_FLOAT32) {
-            result = std::make_unique<DenseVector<std::complex<float>>>(n, result_file);
-            auto* out = static_cast<DenseVector<std::complex<float>>*>(result.get());
-            auto* dst = out->data();
-            ParallelFor(0, n, [&](size_t i) {
-                const std::complex<double> z = v.get_element_as_complex(i) * scalar;
-                dst[i] = std::complex<float>(static_cast<float>(z.real()), static_cast<float>(z.imag()));
-            });
-        } else {
-            result = std::make_unique<DenseVector<std::complex<double>>>(n, result_file);
-            auto* out = static_cast<DenseVector<std::complex<double>>*>(result.get());
-            auto* dst = out->data();
-            ParallelFor(0, n, [&](size_t i) {
-                dst[i] = v.get_element_as_complex(i) * scalar;
-            });
-        }
-
-        result->set_seed(v.get_seed());
-        result->set_transposed(v.is_transposed());
-        result->set_scalar(1.0);
-        return result;
-    }
     uint64_t n = v.size();
     std::unique_ptr<VectorBase> result;
     switch (v.get_data_type()) {
+        case DataType::COMPLEX_FLOAT16:
+            result = std::make_unique<ComplexFloat16Vector>(n, result_file);
+            break;
+        case DataType::COMPLEX_FLOAT32:
+            result = std::make_unique<DenseVector<std::complex<float>>>(n, result_file);
+            break;
+        case DataType::COMPLEX_FLOAT64:
+            result = std::make_unique<DenseVector<std::complex<double>>>(n, result_file);
+            break;
         case DataType::FLOAT16:
             result = std::make_unique<DenseVector<float16_t>>(n, result_file);
             break;
@@ -416,6 +358,12 @@ std::unique_ptr<VectorBase> scalar_multiply_vector(const VectorBase& v, double s
             break;
     }
     ComputeContext::instance().get_device()->scalar_multiply_vector(v, scalar, *result);
+
+    if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
+        result->set_seed(v.get_seed());
+        result->set_transposed(v.is_transposed());
+        result->set_scalar(1.0);
+    }
     return result;
 }
 
@@ -429,30 +377,13 @@ std::unique_ptr<VectorBase> scalar_multiply_vector(const VectorBase& v, std::com
     std::unique_ptr<VectorBase> result;
     if (dt == DataType::COMPLEX_FLOAT16) {
         result = std::make_unique<ComplexFloat16Vector>(n, result_file);
-        auto* out = static_cast<ComplexFloat16Vector*>(result.get());
-        auto* rdst = out->real_data();
-        auto* idst = out->imag_data();
-        ParallelFor(0, n, [&](size_t i) {
-            const std::complex<double> z = v.get_element_as_complex(i) * scalar;
-            rdst[i] = float16_t(z.real());
-            idst[i] = float16_t(z.imag());
-        });
     } else if (dt == DataType::COMPLEX_FLOAT32) {
         result = std::make_unique<DenseVector<std::complex<float>>>(n, result_file);
-        auto* out = static_cast<DenseVector<std::complex<float>>*>(result.get());
-        auto* dst = out->data();
-        ParallelFor(0, n, [&](size_t i) {
-            const std::complex<double> z = v.get_element_as_complex(i) * scalar;
-            dst[i] = std::complex<float>(static_cast<float>(z.real()), static_cast<float>(z.imag()));
-        });
     } else {
         result = std::make_unique<DenseVector<std::complex<double>>>(n, result_file);
-        auto* out = static_cast<DenseVector<std::complex<double>>*>(result.get());
-        auto* dst = out->data();
-        ParallelFor(0, n, [&](size_t i) {
-            dst[i] = v.get_element_as_complex(i) * scalar;
-        });
     }
+
+    ComputeContext::instance().get_device()->scalar_multiply_vector_complex(v, scalar, *result);
 
     result->set_seed(v.get_seed());
     result->set_transposed(v.is_transposed());
@@ -492,12 +423,18 @@ std::unique_ptr<VectorBase> scalar_multiply_vector(const VectorBase& v, int64_t 
 
 std::unique_ptr<VectorBase> scalar_add_vector(const VectorBase& v, double scalar, const std::string& result_file) {
     const auto dt = v.get_data_type();
-    if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
-        return v.add_scalar(scalar, result_file);
-    }
     uint64_t n = v.size();
     std::unique_ptr<VectorBase> result;
     switch (v.get_data_type()) {
+        case DataType::COMPLEX_FLOAT16:
+            result = std::make_unique<ComplexFloat16Vector>(n, result_file);
+            break;
+        case DataType::COMPLEX_FLOAT32:
+            result = std::make_unique<DenseVector<std::complex<float>>>(n, result_file);
+            break;
+        case DataType::COMPLEX_FLOAT64:
+            result = std::make_unique<DenseVector<std::complex<double>>>(n, result_file);
+            break;
         case DataType::FLOAT16:
             result = std::make_unique<DenseVector<float16_t>>(n, result_file);
             break;
@@ -509,13 +446,18 @@ std::unique_ptr<VectorBase> scalar_add_vector(const VectorBase& v, double scalar
             break;
     }
     ComputeContext::instance().get_device()->scalar_add_vector(v, scalar, *result);
+
+    if ((dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) && result_file.empty()) {
+        // Preserve prior behavior when this path delegated to v.add_scalar(...)
+        result->set_temporary(true);
+    }
     return result;
 }
 
 std::unique_ptr<VectorBase> scalar_add_vector(const VectorBase& v, int64_t scalar, const std::string& result_file) {
     const auto dt = v.get_data_type();
     if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
-        return v.add_scalar(static_cast<double>(scalar), result_file);
+        return scalar_add_vector(v, static_cast<double>(scalar), result_file);
     }
     uint64_t n = v.size();
     if (v.get_data_type() == DataType::INT32 || v.get_data_type() == DataType::BIT) {
@@ -744,9 +686,13 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
         return res;
     }
 
-    // Mixed float precision underpromotes to float32 (CPU fallback via AutoSolver)
+    // Mixed float precision: output dtype is policy-driven via PromotionResolver.
     if ((a_fm && b_fm32) || (a_fm32 && b_fm)) {
-        auto res = std::make_unique<Float32Matrix>(a.rows(), b.cols(), saveas);
+        const DataType res_dtype = promotion::resolve(
+            promotion::BinaryOp::Matmul,
+            a.get_data_type(),
+            b.get_data_type()).result_dtype;
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -875,70 +821,5 @@ std::unique_ptr<pycauset::TriangularMatrix<double>> compute_k_matrix(
     const std::string& output_path, 
     int num_threads
 ) {
-    uint64_t n = C.rows();
-    auto K = std::make_unique<pycauset::TriangularMatrix<double>>(n, output_path);
-    
-    // Get base pointer for C
-    const char* c_raw_bytes = reinterpret_cast<const char*>(C.data());
-    char* k_base_ptr = reinterpret_cast<char*>(K->data());
-
-    pycauset::ParallelFor(0, n, [&](size_t j) {
-        // Allocate temporary column buffer for K[0...j-1][j]
-        std::vector<double> col_j(j + 1, 0.0);
-        
-        // Iterate i from j-1 down to 0
-        for (int64_t i = j - 1; i >= 0; --i) {
-            double sum = 0.0;
-            
-            uint64_t row_offset = C.get_row_offset(i);
-            const uint64_t* row_ptr = reinterpret_cast<const uint64_t*>(c_raw_bytes + row_offset);
-            
-            if (j > i + 1) {
-                uint64_t max_bit_index = j - i - 2;
-                uint64_t num_words = (max_bit_index / 64) + 1;
-                
-                for (uint64_t w = 0; w < num_words; ++w) {
-                    uint64_t word = row_ptr[w];
-                    if (word == 0) continue;
-                    
-                    if (w == num_words - 1) {
-                        uint64_t bits_in_last_word = (max_bit_index % 64) + 1;
-                        if (bits_in_last_word < 64) {
-                            uint64_t mask = (1ULL << bits_in_last_word) - 1;
-                            word &= mask;
-                        }
-                    }
-
-                    while (word != 0) {
-                        int bit = std::countr_zero(word);
-                        uint64_t m = (i + 1) + (w * 64 + bit);
-                        
-                        if (m < j) {
-                            sum += col_j[m];
-                        }
-                        word &= (word - 1);
-                    }
-                }
-            }
-            
-            bool c_ij = false;
-            uint64_t bit_offset_j = j - (i + 1);
-            uint64_t word_idx_j = bit_offset_j / 64;
-            uint64_t bit_idx_j = bit_offset_j % 64;
-            
-            uint64_t word_j = row_ptr[word_idx_j];
-            if ((word_j >> bit_idx_j) & 1ULL) {
-                c_ij = true;
-            }
-            
-            double val = ( (c_ij ? 1.0 : 0.0) - sum ) / a;
-            col_j[i] = val;
-            
-            uint64_t k_row_offset = K->get_row_offset(i);
-            uint64_t k_col_idx = j - (i + 1);
-            double* k_row_ptr = reinterpret_cast<double*>(k_base_ptr + k_row_offset);
-            k_row_ptr[k_col_idx] = val;
-        }
-    });
-    return K;
+    return pycauset::ComputeContext::instance().get_device()->compute_k_matrix(C, a, output_path, num_threads);
 }

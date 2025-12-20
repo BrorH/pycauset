@@ -7,7 +7,10 @@ A memory-mapped dense matrix storing 32-bit integers. Inherits from [MatrixBase]
 ```python
 pycauset.IntegerMatrix(n: int)
 pycauset.IntegerMatrix(rows: int, cols: int)
+pycauset.IntegerMatrix(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-2 with dtype `int32`.
 
 ## Properties
 

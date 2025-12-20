@@ -696,6 +696,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<double>, VectorBase, std::shared_ptr<DenseVector<double>>>(m, "FloatVector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<double>>(array)) {
+                    throw py::type_error("FloatVector(np_array): expected dtype float64 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<double>(array.cast<py::array_t<double>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -719,6 +727,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<float>, VectorBase, std::shared_ptr<DenseVector<float>>>(m, "Float32Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<float>>(array)) {
+                    throw py::type_error("Float32Vector(np_array): expected dtype float32 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<float>(array.cast<py::array_t<float>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -742,6 +758,24 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<float16_t>, VectorBase, std::shared_ptr<DenseVector<float16_t>>>(m, "Float16Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!is_numpy_float16(array)) {
+                    throw py::type_error("Float16Vector(np_array): expected dtype float16 and rank-1");
+                }
+                auto buf = array.request();
+                require_1d(buf);
+                const uint64_t n = static_cast<uint64_t>(buf.shape[0]);
+                auto result = std::make_shared<DenseVector<float16_t>>(n);
+                const uint16_t* src_ptr = static_cast<const uint16_t*>(buf.ptr);
+                float16_t* dst_ptr = result->data();
+                const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
+                for (uint64_t i = 0; i < n; ++i) {
+                    dst_ptr[i] = float16_t(static_cast<uint16_t>(src_ptr[i * stride0]));
+                }
+                return result;
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -769,6 +803,40 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<ComplexFloat16Vector, VectorBase, std::shared_ptr<ComplexFloat16Vector>>(m, "ComplexFloat16Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                auto buf = array.request();
+                require_1d(buf);
+                const uint64_t n = static_cast<uint64_t>(buf.shape[0]);
+                auto out = std::make_shared<ComplexFloat16Vector>(n);
+                auto* rdst = out->real_data();
+                auto* idst = out->imag_data();
+
+                if (py::isinstance<py::array_t<std::complex<float>>>(array)) {
+                    const auto* src = static_cast<const std::complex<float>*>(buf.ptr);
+                    const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(std::complex<float>)));
+                    for (uint64_t i = 0; i < n; ++i) {
+                        const std::complex<float> z = src[i * stride0];
+                        rdst[i] = float16_t(static_cast<double>(z.real()));
+                        idst[i] = float16_t(static_cast<double>(z.imag()));
+                    }
+                    return out;
+                }
+
+                if (py::isinstance<py::array_t<std::complex<double>>>(array)) {
+                    const auto* src = static_cast<const std::complex<double>*>(buf.ptr);
+                    const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(std::complex<double>)));
+                    for (uint64_t i = 0; i < n; ++i) {
+                        const std::complex<double> z = src[i * stride0];
+                        rdst[i] = float16_t(z.real());
+                        idst[i] = float16_t(z.imag());
+                    }
+                    return out;
+                }
+
+                throw py::type_error("ComplexFloat16Vector(np_array): expected dtype complex64 or complex128 and rank-1");
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -792,6 +860,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<std::complex<float>>, VectorBase, std::shared_ptr<DenseVector<std::complex<float>>>>(m, "ComplexFloat32Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<std::complex<float>>>(array)) {
+                    throw py::type_error("ComplexFloat32Vector(np_array): expected dtype complex64 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<std::complex<float>>(array.cast<py::array_t<std::complex<float>>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -817,6 +893,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<std::complex<double>>, VectorBase, std::shared_ptr<DenseVector<std::complex<double>>>>(m, "ComplexFloat64Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<std::complex<double>>>(array)) {
+                    throw py::type_error("ComplexFloat64Vector(np_array): expected dtype complex128 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<std::complex<double>>(array.cast<py::array_t<std::complex<double>>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -840,6 +924,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<int32_t>, VectorBase, std::shared_ptr<DenseVector<int32_t>>>(m, "IntegerVector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<int32_t>>(array)) {
+                    throw py::type_error("IntegerVector(np_array): expected dtype int32 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<int32_t>(array.cast<py::array_t<int32_t>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -863,6 +955,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<int16_t>, VectorBase, std::shared_ptr<DenseVector<int16_t>>>(m, "Int16Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<int16_t>>(array)) {
+                    throw py::type_error("Int16Vector(np_array): expected dtype int16 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<int16_t>(array.cast<py::array_t<int16_t>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -886,6 +986,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<int8_t>, VectorBase, std::shared_ptr<DenseVector<int8_t>>>(m, "Int8Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<int8_t>>(array)) {
+                    throw py::type_error("Int8Vector(np_array): expected dtype int8 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<int8_t>(array.cast<py::array_t<int8_t>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -909,6 +1017,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<int64_t>, VectorBase, std::shared_ptr<DenseVector<int64_t>>>(m, "Int64Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<int64_t>>(array)) {
+                    throw py::type_error("Int64Vector(np_array): expected dtype int64 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<int64_t>(array.cast<py::array_t<int64_t>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -932,6 +1048,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<uint8_t>, VectorBase, std::shared_ptr<DenseVector<uint8_t>>>(m, "UInt8Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<uint8_t>>(array)) {
+                    throw py::type_error("UInt8Vector(np_array): expected dtype uint8 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<uint8_t>(array.cast<py::array_t<uint8_t>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -955,6 +1079,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<uint16_t>, VectorBase, std::shared_ptr<DenseVector<uint16_t>>>(m, "UInt16Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<uint16_t>>(array)) {
+                    throw py::type_error("UInt16Vector(np_array): expected dtype uint16 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<uint16_t>(array.cast<py::array_t<uint16_t>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -978,6 +1110,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<uint32_t>, VectorBase, std::shared_ptr<DenseVector<uint32_t>>>(m, "UInt32Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<uint32_t>>(array)) {
+                    throw py::type_error("UInt32Vector(np_array): expected dtype uint32 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<uint32_t>(array.cast<py::array_t<uint32_t>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -1001,6 +1141,14 @@ void bind_vector_classes(py::module_& m) {
 
     py::class_<DenseVector<uint64_t>, VectorBase, std::shared_ptr<DenseVector<uint64_t>>>(m, "UInt64Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
+        .def(
+            py::init([](const py::array& array) {
+                if (!py::isinstance<py::array_t<uint64_t>>(array)) {
+                    throw py::type_error("UInt64Vector(np_array): expected dtype uint64 and rank-1");
+                }
+                return dense_vector_from_numpy_1d<uint64_t>(array.cast<py::array_t<uint64_t>>());
+            }),
+            py::arg("array"))
         .def_static(
             "_from_storage",
             [](uint64_t n,

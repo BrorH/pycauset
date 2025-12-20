@@ -11,11 +11,13 @@
 ## Phase 1: Preparation & Cleanup
 *Objective: Simplify the codebase before adding new dependencies.*
 
-1.  **Retire Float16 Support** (DONE)
-    *   **Reason:** OpenBLAS does not support Float16 on CPU. Custom implementation is maintenance-heavy.
-    *   **Action:** Remove `Float16` dispatch logic from `CpuSolver::matmul`. (DONE)
-    *   **Action:** Remove `Float16` specific unit tests. (DONE)
-    *   **Action:** Mark `Float16` data type as deprecated or unsupported in documentation. (DONE)
+1.  **Do not target Float16 for CPU BLAS acceleration** (DONE)
+    *   **Reason:** OpenBLAS does not provide Float16 GEMM on CPU.
+    *   **Clarification:** `float16` is still a first-class dtype in PyCauset (storage + interop) and is not retired.
+        - Codebase evidence: `DataType::FLOAT16` exists; `DenseMatrix<float16_t>` exists; Python exposes `pycauset.float16` and `pycauset.Float16Matrix`.
+        - Current behavior: CPU `matmul` supports `Float16Matrix` results via a fallback that **accumulates in float32** and stores float16.
+    *   **Action:** Keep Float16 as a storage dtype; for BLAS-backed matmul, use Float32/Float64.
+    *   **Action:** Document Float16 limitation: on CPU, matmul is not BLAS-accelerated for Float16.
 
 2.  **Snapshot Benchmarks**
     *   **Action:** Record current "Native C++" performance for Float64 (already done: ~22 GFLOPS).

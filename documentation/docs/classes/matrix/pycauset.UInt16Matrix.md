@@ -7,7 +7,10 @@ A memory-mapped dense matrix storing 16-bit unsigned integers. Inherits from [Ma
 ```python
 pycauset.UInt16Matrix(n: int)
 pycauset.UInt16Matrix(rows: int, cols: int)
+pycauset.UInt16Matrix(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-2 with dtype `uint16`.
 
 ## Properties
 

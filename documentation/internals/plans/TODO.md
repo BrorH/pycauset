@@ -53,11 +53,13 @@ Use GitHub-style task boxes:
 Release 1 nodes:
 - [x] R1_DOCS
 - [x] R1_API
-- [ ] R1_SHAPES
+- [x] R1_SHAPES
+- [ ] R1_FLAGS
 - [ ] R1_SRP
 - [ ] R1_IO
 - [ ] R1_NUMPY
 - [ ] R1_LINALG
+- [ ] R1_BLOCKMATRIX
 - [ ] R1_GPU
 - [ ] R1_QA
 - [ ] R1_REL
@@ -78,23 +80,29 @@ flowchart TD
         R1_DOCS["R1_DOCS<br/>Docs System That Scales<br/>(Diataxis + MkDocs IA)"]
         R1_API["R1_API<br/>Public API + Naming + Contracts<br/>(stability, deprecations)"]
         R1_SHAPES["R1_SHAPES<br/>NxM Matrices Across The System<br/>(end-to-end)"]
+        R1_FLAGS["R1_FLAGS<br/>Property Flags + Flag-Aware Algebra<br/>(flags-as-gospel + propagation + persistence)"]
         R1_SRP["R1_SRP<br/>Support Readiness Program<br/>(dtypes x ops x devices x storage)<br/>+ optimize to >= 0.90x NumPy"]
         R1_IO["R1_IO<br/>Out-of-core I/O + Persistence Performance<br/>(streaming + mmap correctness)"]
         R1_NUMPY["R1_NUMPY<br/>Fast NumPy Interop<br/>(import/export must be competitive)"]
         R1_LINALG["R1_LINALG<br/>Core Linalg Surface Completeness<br/>(norms/division/init-from-array/etc)"]
+        R1_BLOCKMATRIX["R1_BLOCKMATRIX<br/>Block Matrices + Heterogeneous Dtypes<br/>(nesting + manifests + semi-lazy ops)"]
         R1_GPU["R1_GPU<br/>GPU Parity + Routing Policy<br/>(CPU-only vs GPU-enabled is explicit)"]
         R1_QA["R1_QA<br/>Bench + Correctness Gates Enforced<br/>(CI + thresholds)"]
         R1_REL["R1_REL<br/>Release Mechanics<br/>(packaging + release checklist)"]
     end
 
     %% Main dependency chain (the path)
-    R1_DOCS --> R1_API --> R1_SHAPES --> R1_SRP --> R1_QA --> R1_REL
+    R1_DOCS --> R1_API --> R1_SHAPES --> R1_FLAGS --> R1_SRP --> R1_QA --> R1_REL
 
     %% Parallel prerequisites feeding SRP/QA
     R1_IO --> R1_SRP
     R1_NUMPY --> R1_SRP
     R1_LINALG --> R1_SRP
+    R1_BLOCKMATRIX --> R1_SRP
     R1_GPU --> R1_SRP
+
+    %% Flags feed linalg correctness/dispatch (and therefore SRP)
+    R1_FLAGS --> R1_LINALG
 
     %% Post-R1: physics release parked (not detailed here)
     R2_PHYS["Release 2 - Physics + Large-Scale Experiments (Parked)<br/>(Pauli-Jordan, curved spacetimes, 100GB K)"]:::parked
@@ -153,6 +161,28 @@ Phased approach:
     - how they interact with NxM operands,
     - and what gets blocked vs implemented.
 
+### R1_FLAGS — Property Flags + Flag-Aware Algebra
+
+Status: - [ ]
+
+Goal: introduce a **canonical property-flag system** that is treated as **gospel** by the compute layer.
+
+Flags are not validated for mathematical truth. If a matrix has `is_unitary=True`, the system is allowed to use unitary identities and skip work, even if the underlying data is not truly unitary.
+
+Starting point:
+- `documentation/internals/plans/R1_FLAGS_PLAN.md`
+
+Deliverables:
+- A canonical flag schema (keys, meanings, and a priority/implication model).
+- Flag propagation rules for metadata-only transforms (`transpose`, conjugation, scalar scale, etc).
+- Minimal sanity checks for **incompatible** flags (not truth validation).
+- Persistence: flags stored in `.pycauset` metadata and always present after R1_FLAGS.
+- Flag-aware operator implementations and/or dispatch in the compute layer.
+
+Definition of Done:
+- Every public matrix/vector object has the required flag fields populated (explicit `True/False`, not missing).
+- Operators that can exploit flags do so deterministically and correctly per “flags-as-gospel”.
+
 ### R1_SRP — Support Readiness Program (SRP)
 
 Status: - [ ]
@@ -173,6 +203,9 @@ Definition of Done (Release 1 gate):
 - No “silent wrong answers” and no “mysterious slow paths”.
 - Benchmarks exist and failures are actionable.
 
+Notes:
+- SRP correctness/coverage must include **flag-aware variants** of operators once R1_FLAGS lands (because flags change semantics and algorithmic work).
+
 ### R1_IO — Out-of-core I/O + Persistence Performance
 
 Status: - [ ]
@@ -182,9 +215,10 @@ Goal: disk-backed operation performance is a first-class feature, not an acciden
 Deliverables:
 - Streaming strategy for large operations (read patterns + hints).
 - Persistence round-trips for every public dtype/structure.
+- Persistence round-trips must preserve required metadata fields that affect semantics (including flags after R1_FLAGS).
 - Large-scale read/write is demonstrably efficient.
 
-### R1_NUMPY — Fast NumPy Interop and general NumPy compatibility and imitation
+### R1_NUMPY — Fast NumPy Interop
 
 Status: - [ ]
 
@@ -192,9 +226,7 @@ Goal: converting to/from NumPy is not a bottleneck.
 
 Deliverables:
 - `np.array(obj)` and `Matrix(np_array)`/`Vector(np_array)` paths are optimized.
-- pycauset elements should be interchangeable with numpy elements. ALL operations should be doable with mixing numpy and pycauset elements. (note: optimalization of these are not to be done here, that is  for later)
-- Consider more numpy features that we want to adopt to broaden the feeling that pycauset is "numpy for causal sets"
-
+- Performance target: ≥0.90× NumPy baseline for conversion-heavy workflows (define regimes).
 
 ### R1_LINALG — Core Linalg Surface Completeness
 
@@ -206,14 +238,29 @@ Seed items (from prior TODO):
 - Norms, normalization, projections
 - Elementwise division for matrices/vectors
 - Initialization from array input for typed classes (not only factories)
-- Block matrices/vectors
+- Block matrices/vectors (moved to **R1_BLOCKMATRIX**; see `documentation/internals/plans/R1_BLOCKMATRIX_PLAN.md`)
 - Advanced indexing (slicing, fancy indexing)
 - Random matrix/vector generation
-- Matrix properties (is_symmetric, is_positive_definite, etc)
+- Matrix properties (expressed via **flags** and consumed by operators; see `documentation/internals/plans/R1_FLAGS_PLAN.md`)
 
-Other desireable linalg operations should also be here. 
-We must make sure that the operations respects underpromotion mantra and that no "surprises" involving dtypes happen.
-These operations need only be implemented sequential for now (some are already CPU/GPU optimized, they dont need to be removed).
+### R1_BLOCKMATRIX — Block Matrices + Heterogeneous Dtypes
+
+Status: - [ ]
+
+Goal: make block matrices a first-class internal representation built from existing matrices,
+with **heterogeneous dtypes**, **manifest-based reference persistence**, and **semi-lazy block ops**
+that preserve storage efficiency.
+
+Authoritative plan: `documentation/internals/plans/R1_BLOCKMATRIX_PLAN.md`.
+
+Deliverables:
+- `pycauset.matrix(block_grid)` constructs a block matrix from a 2D grid of blocks (e.g., list-of-lists) without densifying.
+- Block matrices are infinitely nestable.
+- Element indexing behaves like normal matrices (elements, not blocks).
+- Block replacement via explicit API (e.g., `set_block`).
+- Elementwise ops + matmul decompose into leaf ops that route via AutoSolver/ComputeDevice.
+- Save/load uses a reference-manifest (no expanded dense write) and is nestable.
+
 ### R1_GPU — GPU Parity + Routing Policy
 
 Status: - [ ]

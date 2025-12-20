@@ -165,28 +165,23 @@ std::unique_ptr<DenseMatrix<int32_t>> DenseMatrix<bool>::multiply(const DenseMat
 }
 
 std::unique_ptr<MatrixBase> DenseMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {
-    std::string new_path = copy_storage(result_file);
-    auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-    auto new_matrix = std::make_unique<DenseMatrix<bool>>(base_rows(), base_cols(), std::move(mapper));
-    new_matrix->set_scalar(scalar_ * factor);
-    if (result_file.empty()) {
-        new_matrix->set_temporary(true);
-    }
-    return new_matrix;
+    (void)result_file;
+    auto out = std::make_unique<DenseMatrix<bool>>(base_rows(), base_cols(), mapper_);
+    out->set_scalar(scalar_ * factor);
+    out->set_seed(seed_);
+    out->set_transposed(is_transposed());
+    out->set_conjugated(is_conjugated());
+    return out;
 }
 
 std::unique_ptr<MatrixBase> DenseMatrix<bool>::transpose(const std::string& result_file) const {
-    std::string new_path = copy_storage(result_file);
-    auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-    auto new_matrix = std::make_unique<DenseMatrix<bool>>(base_rows(), base_cols(), std::move(mapper));
-    
-    // Flip the transposed bit
-    new_matrix->set_transposed(!this->is_transposed());
-    
-    if (result_file.empty()) {
-        new_matrix->set_temporary(true);
-    }
-    return new_matrix;
+    (void)result_file;
+    auto out = std::make_unique<DenseMatrix<bool>>(base_rows(), base_cols(), mapper_);
+    out->set_transposed(!is_transposed());
+    out->set_scalar(scalar_);
+    out->set_seed(seed_);
+    out->set_conjugated(is_conjugated());
+    return out;
 }
 
 std::unique_ptr<DenseMatrix<bool>> DenseMatrix<bool>::bitwise_not(const std::string& result_file) const {

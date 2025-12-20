@@ -1,4 +1,3 @@
-````markdown
 # pycauset.divide
 
 ```python
@@ -7,7 +6,16 @@ pycauset.divide(a, b) -> Any
 
 Elementwise division.
 
-This is a convenience wrapper around the `/` operator and follows **NumPy-style 2D broadcasting**.
+This is a convenience wrapper around the `/` operator and follows **NumPy-style 2D broadcasting** for matrix inputs.
+
+## Parameters
+
+- `a`: Left operand (typically a matrix).
+- `b`: Right operand (matrix, scalar, or NumPy array depending on the operator overload).
+
+## Returns
+
+- A new `pycauset` object containing the elementwise division result.
 
 ## Broadcasting rules (2D)
 
@@ -20,7 +28,14 @@ When mixing a matrix with a **1D NumPy array** in an elementwise operation, the 
 ## Dtype behavior
 
 - If either operand is float/complex, the result is a float/complex type.
-- If neither operand is float/complex (e.g. int/uint/bit), the result promotes to `float64` (NumPy-like behavior).
+- If neither operand is float/complex (e.g. int/uint/bit), the result promotes to a float dtype based on the current promotion precision mode:
+  - `lowest` (default): `float32`
+  - `highest`: `float64`
+
+## Exceptions
+
+- Raises `TypeError` if the operand types are not supported by the `/` operator.
+- Raises `ValueError` / `RuntimeError` on invalid shapes or unsupported dtype combinations.
 
 ## Examples
 
@@ -37,7 +52,6 @@ C = A / row             # equivalent
 
 ## See also
 
+- [[docs/functions/pycauset.precision_mode.md|pycauset.precision_mode]]
 - [[docs/functions/pycauset.matmul.md|pycauset.matmul]]
 - [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]
-
-````

@@ -2,6 +2,8 @@
 
 PyCauset provides an interface for computing the mathematical inverse ($A^{-1}$) of a matrix.
 
+**Implementation note (current reality):** the public `invert` entrypoint is correctness-first and may fall back to a NumPy CPU implementation (`numpy.linalg.inv`) if a native inversion path is unavailable or fails.
+
 ## Usage
 
 You can use the `.invert()` method on a matrix object or the [[pycauset.invert]] function.

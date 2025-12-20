@@ -2,10 +2,14 @@
 
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/vector/VectorBase.hpp"
+#include <complex>
 #include <memory>
 #include <string>
 
 namespace pycauset {
+
+template <typename T>
+class TriangularMatrix;
 
 class ComputeDevice {
 public:
@@ -37,14 +41,37 @@ public:
 
     // Vector Operations
     virtual double dot(const VectorBase& a, const VectorBase& b) = 0;
+    virtual std::complex<double> dot_complex(const VectorBase& a, const VectorBase& b) = 0;
+    virtual std::complex<double> sum(const VectorBase& v) = 0;
     virtual double l2_norm(const VectorBase& v) = 0;
     virtual void add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
     virtual void subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
     virtual void scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) = 0;
+    virtual void scalar_multiply_vector_complex(const VectorBase& a, std::complex<double> scalar, VectorBase& result) = 0;
     virtual void scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) = 0;
+
+    // Specialized vector ops
+    virtual void cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
+
+    // Special solvers / structured ops
+    virtual std::unique_ptr<TriangularMatrix<double>> compute_k_matrix(
+        const TriangularMatrix<bool>& C,
+        double a,
+        const std::string& output_path,
+        int num_threads) = 0;
 
     // Reductions / norms
     virtual double frobenius_norm(const MatrixBase& m) = 0;
+    virtual std::complex<double> sum(const MatrixBase& m) = 0;
+
+    // Linalg utilities
+    virtual double trace(const MatrixBase& m) = 0;
+    virtual double determinant(const MatrixBase& m) = 0;
+
+    // Factorizations
+    // Computes a QR factorization of `in` into `Q` and `R`.
+    // Contract: in is square float64; Q and R are pre-allocated square float64 dense matrices.
+    virtual void qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) = 0;
 
     // Device Info
     virtual std::string name() const = 0;

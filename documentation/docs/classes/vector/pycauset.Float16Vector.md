@@ -6,7 +6,10 @@ A memory-mapped vector storing 16-bit floating point numbers (half precision). I
 
 ```python
 pycauset.Float16Vector(n: int)
+pycauset.Float16Vector(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-1 with dtype `float16`.
 
 ## Notes
 

@@ -3,6 +3,7 @@
 #include "pycauset/compute/ComputeDevice.hpp"
 #include "pycauset/compute/cpu/CpuDevice.hpp"
 #include "pycauset/compute/AcceleratorConfig.hpp"
+#include <complex>
 #include <memory>
 #include <string>
 
@@ -42,13 +43,28 @@ public:
     void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) override;
 
     double dot(const VectorBase& a, const VectorBase& b) override;
+    std::complex<double> dot_complex(const VectorBase& a, const VectorBase& b) override;
+    std::complex<double> sum(const VectorBase& v) override;
     double l2_norm(const VectorBase& v) override;
     void add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) override;
     void subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) override;
     void scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) override;
+    void scalar_multiply_vector_complex(const VectorBase& a, std::complex<double> scalar, VectorBase& result) override;
     void scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) override;
 
+    void cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) override;
+
+    std::unique_ptr<TriangularMatrix<double>> compute_k_matrix(
+        const TriangularMatrix<bool>& C,
+        double a,
+        const std::string& output_path,
+        int num_threads) override;
+
     double frobenius_norm(const MatrixBase& m) override;
+    std::complex<double> sum(const MatrixBase& m) override;
+    double trace(const MatrixBase& m) override;
+    double determinant(const MatrixBase& m) override;
+    void qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) override;
 
     std::string name() const override;
     bool is_gpu() const override; // Returns true if GPU is *enabled* and *active*

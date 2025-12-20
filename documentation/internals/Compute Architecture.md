@@ -47,9 +47,10 @@ The `ComputeContext` is a singleton that serves as the entry point for all hardw
 
 ### 1.2 AutoSolver
 The `AutoSolver` is a smart dispatcher that implements the `ComputeDevice` interface. It automatically selects the best device for a given operation based on:
-*   **Matrix Size**: Small matrices ($N < 512$) are processed on the CPU to avoid PCIe transfer overhead. Large matrices are sent to the GPU.
+*   **Problem Size**: Uses an element-count threshold (`gpu_threshold_elements_`) to avoid PCIe transfer overhead on small workloads.
+*   **Measured Speedup**: When a GPU is available, `AutoSolver` runs a small startup micro-benchmark and may prefer CPU if the GPU is slower for the tested workload.
 *   **Hardware Availability**: If no GPU is detected, it falls back to the CPU.
-*   **Data Type**: It ensures the device supports the required precision (Float32/Float64/Int32).
+*   **Operation + Type Support**: GPU routing is operation-specific and gated by matrix type + dtype compatibility (for example, dense float32/float64 with matching dtypes). Many operations are intentionally CPU-only for now (e.g., matrix-vector multiply, outer product, elementwise multiply/divide, dot/sum/norm).
 
 ### 1.3 IO Acceleration Integration
 To minimize page faults during computation, the compute backend integrates with the **IO Accelerator** (see [[MemoryArchitecture]]).
@@ -88,7 +89,7 @@ For operations not supported by standard libraries, PyCauset implements custom C
     1.  Transpose Matrix B using warp shuffles (`__ballot_sync`).
     2.  Perform bitwise AND + POPCOUNT on 64-bit words.
     3.  Achieves theoretical peak throughput (64 ops/cycle/thread).
-*   **Element-wise Ops**: `k_add`, `k_sub`, `k_mul_scalar` for massive parallel array operations.
+*   **Selected Element-wise Ops**: `k_add`, `k_sub`, `k_mul_scalar` are available for dense float matrices when the `AutoSolver` routes the operation to CUDA. Some elementwise operations (notably elementwise multiply/divide) are currently CPU-only.
 
 ### 3.3 Pinned Memory
 To maximize data transfer speeds, PyCauset uses **Pinned Memory** (Page-Locked Memory) when a GPU is active.
@@ -119,9 +120,12 @@ The decision is based on the GPU's Compute Capability (CC):
 
 ### Python Binding Integration
 
-The `asarray` function in `bindings.cpp` queries the active `ComputeDevice` (if GPU is enabled).
-*   If the input is `float64` (NumPy default) AND the device prefers `Float32`, the data is **downcasted** during import.
-*   This ensures that users getting started with `np.random.rand()` immediately see high performance without needing to know about `dtype=np.float32`.
+The `asarray` function converts NumPy arrays into PyCauset vectors/matrices based on shape and dtype.
+*   **Shape**: Supports 1D (vector) and 2D (matrix) arrays.
+*   **Dtype policy (current)**:
+    *   1D `float32` vectors are **promoted to float64** vectors.
+    *   2D `float32` matrices remain `float32` matrices.
+    *   This conversion does not currently depend on GPU availability or `preferred_precision()`.
 
 ## 5. Async GPU Architecture & Streaming
 
@@ -191,9 +195,9 @@ This section outlines the plan to address the remaining gaps in the PyCauset acc
 *   **Status**: ✅ Complete (Symmetric Only)
 *   **Implementation**: Uses `syevd` for symmetric matrices (checked at runtime) and falls back to CPU for non-symmetric ones.
 
-### Phase 2: Element-wise Operations on GPU (Complete)
-*   **Status**: ✅ Complete
-*   **Implementation**: Custom CUDA kernels (`k_add`, `k_sub`, `k_mul_scalar`) implemented in `CudaSolver.cu`. Supports `float` and `double` to avoid round-tripping to CPU.
+### Phase 2: Element-wise Operations on GPU (Partial)
+*   **Status**: 🟡 Partial
+*   **Implementation**: CUDA supports `add`, `subtract`, and `multiply_scalar` for dense float32/float64 with matching dtypes. Elementwise multiply/divide are currently CPU-only.
 
 ### Phase 3: BitMatrix Optimization (Complete)
 *   **Status**: ✅ Complete

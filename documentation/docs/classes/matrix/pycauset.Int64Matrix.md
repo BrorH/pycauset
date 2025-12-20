@@ -7,7 +7,10 @@ A memory-mapped dense matrix storing 64-bit signed integers. Inherits from [Matr
 ```python
 pycauset.Int64Matrix(n: int)
 pycauset.Int64Matrix(rows: int, cols: int)
+pycauset.Int64Matrix(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-2 with dtype `int64`.
 
 ## Properties
 

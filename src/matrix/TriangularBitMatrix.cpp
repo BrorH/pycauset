@@ -105,17 +105,13 @@ std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::random(uint64_t 
 }
 
 std::unique_ptr<MatrixBase> TriangularMatrix<bool>::transpose(const std::string& result_file) const {
-    std::string new_path = copy_storage(result_file);
-    auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-    auto new_matrix = std::make_unique<TriangularMatrix<bool>>(base_rows(), std::move(mapper));
-    
-    // Flip the transposed bit
-    new_matrix->set_transposed(!this->is_transposed());
-    
-    if (result_file.empty()) {
-        new_matrix->set_temporary(true);
-    }
-    return new_matrix;
+    (void)result_file;
+    auto out = std::make_unique<TriangularMatrix<bool>>(base_rows(), mapper_);
+    out->set_transposed(!is_transposed());
+    out->set_scalar(scalar_);
+    out->set_seed(seed_);
+    out->set_conjugated(is_conjugated());
+    return out;
 }
 
 std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::bitwise_not(const std::string& result_file) const {
@@ -442,19 +438,13 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
 }
 
 std::unique_ptr<MatrixBase> TriangularMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {
-    std::string new_path = copy_storage(result_file);
-    
-    uint64_t file_size = std::filesystem::file_size(new_path);
-    uint64_t data_size = file_size;
-    auto mapper = std::make_unique<MemoryMapper>(new_path, data_size, false);
-    
-    auto result = std::make_unique<TriangularMatrix<bool>>(base_rows(), std::move(mapper));
-    result->set_scalar(scalar_ * factor);
-    if (result_file.empty()) {
-        result->set_temporary(true);
-    }
-    
-    return result;
+    (void)result_file;
+    auto out = std::make_unique<TriangularMatrix<bool>>(base_rows(), mapper_);
+    out->set_scalar(scalar_ * factor);
+    out->set_seed(seed_);
+    out->set_transposed(is_transposed());
+    out->set_conjugated(is_conjugated());
+    return out;
 }
 
 

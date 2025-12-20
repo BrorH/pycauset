@@ -6,7 +6,10 @@ A memory-mapped vector storing 32-bit floating point numbers (single precision).
 
 ```python
 pycauset.Float32Vector(n: int)
+pycauset.Float32Vector(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-1 with dtype `float32`.
 
 ## Methods
 

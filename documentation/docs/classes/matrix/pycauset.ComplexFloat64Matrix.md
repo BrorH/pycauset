@@ -7,7 +7,10 @@ A memory-mapped dense matrix storing complex numbers in `complex_float64` format
 ```python
 pycauset.ComplexFloat64Matrix(n: int)
 pycauset.ComplexFloat64Matrix(rows: int, cols: int)
+pycauset.ComplexFloat64Matrix(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-2 with dtype `complex128`.
 
 ## Notes
 

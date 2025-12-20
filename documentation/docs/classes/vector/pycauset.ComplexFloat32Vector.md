@@ -6,7 +6,10 @@ A memory-mapped vector storing complex numbers in `complex_float32` format (equi
 
 ```python
 pycauset.ComplexFloat32Vector(n: int)
+pycauset.ComplexFloat32Vector(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-1 with dtype `complex64`.
 
 ## Notes
 

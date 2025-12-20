@@ -7,7 +7,10 @@ A memory-mapped dense matrix storing 32-bit unsigned integers. Inherits from [Ma
 ```python
 pycauset.UInt32Matrix(n: int)
 pycauset.UInt32Matrix(rows: int, cols: int)
+pycauset.UInt32Matrix(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-2 with dtype `uint32`.
 
 ## Properties
 

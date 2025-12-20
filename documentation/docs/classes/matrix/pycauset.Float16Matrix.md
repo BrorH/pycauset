@@ -7,7 +7,10 @@ A memory-mapped dense matrix storing 16-bit floating point numbers (half precisi
 ```python
 pycauset.Float16Matrix(n: int)
 pycauset.Float16Matrix(rows: int, cols: int)
+pycauset.Float16Matrix(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-2 with dtype `float16`.
 
 ## Notes
 

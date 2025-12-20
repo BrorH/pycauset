@@ -2,6 +2,8 @@
 #include "pycauset/compute/cpu/CpuDevice.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/matrix/TriangularBitMatrix.hpp"
+#include "pycauset/matrix/TriangularMatrix.hpp"
 #include <iostream>
 #include <algorithm>
 #include <chrono>
@@ -226,18 +228,18 @@ void AutoSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y
 }
 
 void AutoSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) {
-    uint64_t elements = m.size() * m.size();
-    select_device(elements)->matrix_vector_multiply(m, v, result);
+    // CUDA matrix_vector_multiply is not implemented; keep this CPU-only.
+    cpu_device_->matrix_vector_multiply(m, v, result);
 }
 
 void AutoSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) {
-    uint64_t elements = m.size() * m.size();
-    select_device(elements)->vector_matrix_multiply(v, m, result);
+    // CUDA vector_matrix_multiply is not implemented; keep this CPU-only.
+    cpu_device_->vector_matrix_multiply(v, m, result);
 }
 
 void AutoSolver::outer_product(const VectorBase& a, const VectorBase& b, MatrixBase& result) {
-    uint64_t elements = a.size() * b.size();
-    select_device(elements)->outer_product(a, b, result);
+    // CUDA outer_product is not implemented; keep this CPU-only.
+    cpu_device_->outer_product(a, b, result);
 }
 
 void AutoSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
@@ -304,12 +306,40 @@ void AutoSolver::elementwise_divide(const MatrixBase& a, const MatrixBase& b, Ma
 
 void AutoSolver::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {
     uint64_t elements = a.size() * a.size();
-    select_device(elements)->multiply_scalar(a, scalar, result);
+
+    bool use_gpu = false;
+    if (is_gpu_active() && elements >= gpu_threshold_elements_) {
+        // CUDA multiply_scalar supports only dense float32/float64 with matching dtypes.
+        bool type_ok = (a.get_matrix_type() == MatrixType::DENSE_FLOAT) &&
+                       (result.get_matrix_type() == MatrixType::DENSE_FLOAT);
+
+        DataType dt_a = a.get_data_type();
+        DataType dt_r = result.get_data_type();
+        bool dtype_ok = (dt_a == dt_r) && (dt_r == DataType::FLOAT64 || dt_r == DataType::FLOAT32);
+
+        use_gpu = type_ok && dtype_ok;
+    }
+
+    if (use_gpu) {
+        gpu_device_->multiply_scalar(a, scalar, result);
+    } else {
+        cpu_device_->multiply_scalar(a, scalar, result);
+    }
 }
 
 double AutoSolver::dot(const VectorBase& a, const VectorBase& b) {
     // Always CPU for now
     return cpu_device_->dot(a, b);
+}
+
+std::complex<double> AutoSolver::dot_complex(const VectorBase& a, const VectorBase& b) {
+    // Always CPU for now
+    return cpu_device_->dot_complex(a, b);
+}
+
+std::complex<double> AutoSolver::sum(const VectorBase& v) {
+    // Always CPU for now
+    return cpu_device_->sum(v);
 }
 
 double AutoSolver::l2_norm(const VectorBase& v) {
@@ -329,13 +359,53 @@ void AutoSolver::scalar_multiply_vector(const VectorBase& a, double scalar, Vect
     cpu_device_->scalar_multiply_vector(a, scalar, result);
 }
 
+void AutoSolver::scalar_multiply_vector_complex(const VectorBase& a, std::complex<double> scalar, VectorBase& result) {
+    // Always CPU for now
+    cpu_device_->scalar_multiply_vector_complex(a, scalar, result);
+}
+
 void AutoSolver::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
     cpu_device_->scalar_add_vector(a, scalar, result);
+}
+
+void AutoSolver::cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) {
+    // Always CPU for now
+    cpu_device_->cross_product(a, b, result);
+}
+
+std::unique_ptr<TriangularMatrix<double>> AutoSolver::compute_k_matrix(
+    const TriangularMatrix<bool>& C,
+    double a,
+    const std::string& output_path,
+    int num_threads
+) {
+    // Always CPU for now (structured, bit-packed triangular)
+    return cpu_device_->compute_k_matrix(C, a, output_path, num_threads);
 }
 
 double AutoSolver::frobenius_norm(const MatrixBase& m) {
     // Always CPU for now
     return cpu_device_->frobenius_norm(m);
+}
+
+std::complex<double> AutoSolver::sum(const MatrixBase& m) {
+    // Always CPU for now
+    return cpu_device_->sum(m);
+}
+
+double AutoSolver::trace(const MatrixBase& m) {
+    // Always CPU for now
+    return cpu_device_->trace(m);
+}
+
+double AutoSolver::determinant(const MatrixBase& m) {
+    // Always CPU for now
+    return cpu_device_->determinant(m);
+}
+
+void AutoSolver::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
+    // Always CPU for now
+    cpu_device_->qr(in, Q, R);
 }
 
 } // namespace pycauset

@@ -15,8 +15,10 @@ class TestSupportMatrix(unittest.TestCase):
             "add": "add",
             "sub": "subtract",
             "mul": "elementwise_multiply",
+            "div": "divide",
             "matmul": "matmul",
             "matvec": "matvec",
+            "vecmat": "vecmat",
             "outer": "outer_product",
         }
 
@@ -37,6 +39,49 @@ class TestSupportMatrix(unittest.TestCase):
             "complex_float32": np.complex64,
             "complex_float64": np.complex128,
         }
+
+        def scalar_value(token: str):
+            if token == "scalar_int64":
+                return 3
+            if token == "scalar_float64":
+                return 1.5
+            if token == "scalar_complex128":
+                return 1.25 - 0.5j
+            raise ValueError(f"Unknown scalar token: {token}")
+
+        def expected_vector_scalar_result_dtype(v_dtype: str, scalar_token: str, *, op: str) -> str:
+            # Mirrors the C++ implementation in src/math/LinearAlgebra.cpp:
+            # - Complex vectors preserve complex dtype for real/complex scalar mul, and for real scalar add.
+            # - For non-complex vectors:
+            #    - float scalar: float16/float32 preserved; everything else -> float64
+            #    - int scalar: int16 preserved; int32/bit -> int32; float16/float32 preserved; everything else -> float64
+            if v_dtype.startswith("complex_"):
+                if scalar_token == "scalar_complex128" and op != "mul_scalar":
+                    raise ValueError("Complex scalar add is not supported")
+                return v_dtype
+
+            if scalar_token == "scalar_complex128":
+                raise ValueError("Complex scalar requires complex vector")
+
+            if scalar_token == "scalar_float64":
+                if v_dtype == "float16":
+                    return "float16"
+                if v_dtype == "float32":
+                    return "float32"
+                return "float64"
+
+            if scalar_token == "scalar_int64":
+                if v_dtype == "int16":
+                    return "int16"
+                if v_dtype in ("int32", "bit"):
+                    return "int32"
+                if v_dtype == "float16":
+                    return "float16"
+                if v_dtype == "float32":
+                    return "float32"
+                return "float64"
+
+            raise ValueError(f"Unknown scalar token: {scalar_token}")
 
         def quantize_expected(expected: np.ndarray, result_dtype: str) -> np.ndarray:
             if result_dtype == "complex_float16":
@@ -82,6 +127,14 @@ class TestSupportMatrix(unittest.TestCase):
                 return [[1.25, -2.5], [3.0, 0.5]]
             return [[1 + 2j, 3 - 4j], [-5 + 0.5j, 0 + 6j]]
 
+        def values_matrix_denominator(dtype: str) -> list[list[object]]:
+            # Avoid zeros in denominators. The NumPy reference path uses complex128
+            # arrays for uniformity, and complex division by 0 produces NaNs.
+            if dtype == "bit" or dtype.startswith("uint"):
+                return [[1, 1], [1, 1]]
+            # Current defaults for other dtypes contain no zeros.
+            return values_matrix(dtype)
+
         def values_vector(dtype: str) -> list[object]:
             if dtype == "bit":
                 return [1, 0]
@@ -93,9 +146,9 @@ class TestSupportMatrix(unittest.TestCase):
                 return [1.25, -2.5]
             return [1 + 2j, -3 + 0.5j]
 
-        def make_matrix(dtype: str):
+        def make_matrix(dtype: str, *, for_divisor: bool = False):
             m = pycauset.empty((2, 2), dtype=dtype)
-            vals = values_matrix(dtype)
+            vals = values_matrix_denominator(dtype) if for_divisor else values_matrix(dtype)
             m[0, 0] = vals[0][0]
             m[0, 1] = vals[0][1]
             m[1, 0] = vals[1][0]
@@ -120,11 +173,14 @@ class TestSupportMatrix(unittest.TestCase):
 
                     if case.kind == "matrix":
                         a = make_matrix(a_dtype)
-                        b = make_matrix(b_dtype)
+                        b = make_matrix(b_dtype, for_divisor=(case.op == "div"))
                         out = None
                         try:
                             a_np = np.array(values_matrix(a_dtype), dtype=np.complex128)
-                            b_np = np.array(values_matrix(b_dtype), dtype=np.complex128)
+                            b_np = np.array(
+                                values_matrix_denominator(b_dtype) if case.op == "div" else values_matrix(b_dtype),
+                                dtype=np.complex128,
+                            )
 
                             if case.op == "add":
                                 out = a + b
@@ -135,6 +191,9 @@ class TestSupportMatrix(unittest.TestCase):
                             elif case.op == "mul":
                                 out = a * b
                                 expected = a_np * b_np
+                            elif case.op == "div":
+                                out = a / b
+                                expected = a_np / b_np
                             elif case.op == "matmul":
                                 out = a @ b
                                 expected = a_np @ b_np
@@ -249,6 +308,68 @@ class TestSupportMatrix(unittest.TestCase):
                             assert_close(label, out_np, expected_q, dtype_token=res_dtype)
                         finally:
                             for obj in (out, v, m):
+                                if obj is not None and hasattr(obj, "close"):
+                                    try:
+                                        obj.close()
+                                    except Exception:
+                                        pass
+
+                    elif case.kind == "vecmat":
+                        v = make_vector(a_dtype)
+                        m = make_matrix(b_dtype)
+                        out = None
+                        try:
+                            v_np = np.array(values_vector(a_dtype), dtype=np.complex128)
+                            m_np = np.array(values_matrix(b_dtype), dtype=np.complex128)
+                            out = v @ m
+                            expected = (v_np @ m_np).reshape(1, -1)
+                            res = pycauset._debug_resolve_promotion(op_to_resolver[case.op], a_dtype, b_dtype)
+                            res_dtype = res["result_dtype"]
+                            out_np = np.array(out)
+                            expected_q = quantize_expected(expected, res_dtype)
+                            self.assertEqual(out_np.dtype, np.dtype(dtype_to_np[res_dtype]), f"{label}: dtype mismatch")
+                            assert_close(label, out_np, expected_q, dtype_token=res_dtype)
+                        finally:
+                            for obj in (out, m, v):
+                                if obj is not None and hasattr(obj, "close"):
+                                    try:
+                                        obj.close()
+                                    except Exception:
+                                        pass
+
+                    elif case.kind == "vector_scalar":
+                        v = make_vector(a_dtype)
+                        s_token = b_dtype
+                        s = scalar_value(s_token)
+
+                        out1 = None
+                        out2 = None
+                        try:
+                            v_np = np.array(values_vector(a_dtype), dtype=np.complex128)
+
+                            if case.op == "add_scalar":
+                                out1 = v + s
+                                out2 = s + v
+                                expected = v_np + s
+                                res_dtype = expected_vector_scalar_result_dtype(a_dtype, s_token, op="add_scalar")
+                            elif case.op == "mul_scalar":
+                                out1 = v * s
+                                out2 = s * v
+                                expected = v_np * s
+                                res_dtype = expected_vector_scalar_result_dtype(a_dtype, s_token, op="mul_scalar")
+                            else:
+                                raise ValueError(f"Unknown op: {case.op}")
+
+                            out1_np = np.array(out1)
+                            out2_np = np.array(out2)
+
+                            expected_q = quantize_expected(expected, res_dtype)
+                            self.assertEqual(out1_np.dtype, np.dtype(dtype_to_np[res_dtype]), f"{label}: dtype mismatch")
+                            self.assertEqual(out2_np.dtype, np.dtype(dtype_to_np[res_dtype]), f"{label}: dtype mismatch")
+                            assert_close(label + ":lhs", out1_np, expected_q, dtype_token=res_dtype)
+                            assert_close(label + ":rhs", out2_np, expected_q, dtype_token=res_dtype)
+                        finally:
+                            for obj in (out2, out1, v):
                                 if obj is not None and hasattr(obj, "close"):
                                     try:
                                         obj.close()

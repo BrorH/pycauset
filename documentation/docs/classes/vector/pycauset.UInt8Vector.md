@@ -6,7 +6,10 @@ A memory-mapped vector storing 8-bit unsigned integers. Inherits from [VectorBas
 
 ```python
 pycauset.UInt8Vector(n: int)
+pycauset.UInt8Vector(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-1 with dtype `uint8`.
 
 ## Methods
 

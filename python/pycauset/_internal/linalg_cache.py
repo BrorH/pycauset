@@ -5,6 +5,8 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from .persistence import zip_member_data_offset
 
 
@@ -41,7 +43,17 @@ def make_inverse(FloatMatrix: Any) -> Any:
                 pass
 
         if hasattr(self, "_invert_native"):
-            inv = self._invert_native()
+            try:
+                inv = self._invert_native()
+            except Exception as exc:
+                # Correctness-first fallback: if native inversion is unavailable/buggy,
+                # attempt a NumPy CPU inverse. Preserve original error if NumPy fails
+                # (e.g., truly singular matrices).
+                try:
+                    inv_np = np.linalg.inv(np.asarray(self))
+                    inv = FloatMatrix(inv_np)
+                except Exception:
+                    raise exc
         else:
             raise NotImplementedError("Native invert not found")
 

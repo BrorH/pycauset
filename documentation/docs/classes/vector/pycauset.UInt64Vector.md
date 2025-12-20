@@ -6,7 +6,10 @@ A memory-mapped vector storing 64-bit unsigned integers. Inherits from [VectorBa
 
 ```python
 pycauset.UInt64Vector(n: int)
+pycauset.UInt64Vector(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-1 with dtype `uint64`.
 
 ## Methods
 

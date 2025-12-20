@@ -23,7 +23,10 @@ Matrix multiplication (`multiply` or `@`) is **GPU-accelerated** for `Float32Mat
 ```python
 pycauset.Float32Matrix(n: int)
 pycauset.Float32Matrix(rows: int, cols: int)
+pycauset.Float32Matrix(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-2 with dtype `float32`.
 
 *   `n`: The size of a square matrix ($N \times N$).
 *   `rows`, `cols`: The shape of a rectangular matrix.

@@ -7,7 +7,10 @@ A memory-mapped dense matrix storing 8-bit unsigned integers. Inherits from [Mat
 ```python
 pycauset.UInt8Matrix(n: int)
 pycauset.UInt8Matrix(rows: int, cols: int)
+pycauset.UInt8Matrix(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-2 with dtype `uint8`.
 
 ## Properties
 

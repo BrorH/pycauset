@@ -9,6 +9,7 @@ except ImportError:
 import os
 import warnings
 from pathlib import Path
+from contextlib import contextmanager
 from types import SimpleNamespace as _SimpleNamespace
 from typing import Any
 from importlib import import_module as _import_module
@@ -71,12 +72,17 @@ from . import spacetime
 from . import field
 
 
-def _debug_resolve_promotion(op: str, a_dtype: str, b_dtype: str) -> dict[str, object]:
+def _debug_resolve_promotion(
+    op: str,
+    a_dtype: str,
+    b_dtype: str,
+    precision_mode: str | None = None,
+) -> dict[str, object]:
     """Internal/test helper: return promotion resolver decision without running kernels."""
     fn = getattr(_native, "_debug_resolve_promotion", None)
     if fn is None:
         raise RuntimeError("Native helper _debug_resolve_promotion is not available")
-    return fn(op, a_dtype, b_dtype)
+    return fn(op, a_dtype, b_dtype, precision_mode)
 
 
 def _debug_last_kernel_trace() -> str:
@@ -786,6 +792,21 @@ def matmul(a: Any, b: Any) -> Any:
     return _ops.matmul(a, b, deps=_OPS_DEPS)
 
 
+def dot(a: Any, b: Any) -> float | complex:
+    """Compute the dot product of two vectors.
+
+    This is a convenience wrapper around the vector method `a.dot(b)`.
+
+    Notes:
+    - For real vectors, returns a Python `float`.
+    - For complex vectors, returns a Python `complex`.
+    """
+    fn = getattr(a, "dot", None)
+    if fn is None:
+        raise TypeError("pycauset.dot: expected a vector-like object with a .dot(other) method")
+    return fn(b)
+
+
 def divide(a: Any, b: Any) -> Any:
     """Elementwise division with NumPy-style 2D broadcasting.
 
@@ -815,6 +836,19 @@ def norm(x: Any) -> float:
     if fn is None:
         raise RuntimeError("Native function norm is not available")
     return float(fn(x))
+
+
+def sum(x: Any) -> complex:
+    """Return the sum of all elements in a vector or matrix.
+
+    Notes:
+    - For real inputs, the result is returned as `complex` with zero imaginary part.
+    - For complex inputs, the full complex sum is returned.
+    """
+    fn = getattr(_native, "sum", None)
+    if fn is None:
+        raise RuntimeError("Native function sum is not available")
+    return complex(fn(x))
 
 def compute_k(matrix: TriangularBitMatrix, a: float):
     """
@@ -859,6 +893,83 @@ def invert(matrix: Any) -> Any:
     return _ops.invert(matrix, deps=_OPS_DEPS)
 
 
+def solve(a: Any, b: Any) -> Any:
+    """Solve the linear system $a x = b$ (endpoint-first baseline)."""
+    return _ops.solve(a, b, deps=_OPS_DEPS)
+
+
+def lstsq(a: Any, b: Any) -> Any:
+    """Least-squares solve (endpoint-first baseline).
+
+    Returns only the solution `x` (unlike NumPy, which returns a tuple).
+    """
+    return _ops.lstsq(a, b, deps=_OPS_DEPS)
+
+
+def slogdet(a: Any) -> tuple[float, float]:
+    """Return `(sign, logabsdet)` using the current determinant implementation."""
+    return _ops.slogdet(a, deps=_OPS_DEPS)
+
+
+def cond(a: Any, p: Any = None) -> float:
+    """Condition number estimate via `norm(a) * norm(invert(a))`."""
+    return _ops.cond(a, deps=_OPS_DEPS, p=p)
+
+
+def eigh(a: Any) -> tuple[Any, Any]:
+    """Eigen-decomposition for symmetric/Hermitian matrices (NumPy fallback)."""
+    return _ops.eigh(a, deps=_OPS_DEPS)
+
+
+def eigvalsh(a: Any) -> Any:
+    """Eigenvalues for symmetric/Hermitian matrices (NumPy fallback)."""
+    return _ops.eigvalsh(a, deps=_OPS_DEPS)
+
+
+def solve_triangular(*args: Any, **kwargs: Any) -> Any:
+    return _ops.solve_triangular(*args, **kwargs)
+
+
+def lu(*args: Any, **kwargs: Any) -> Any:
+    return _ops.lu(*args, **kwargs)
+
+
+def cholesky(*args: Any, **kwargs: Any) -> Any:
+    return _ops.cholesky(*args, **kwargs)
+
+
+def svd(*args: Any, **kwargs: Any) -> Any:
+    return _ops.svd(*args, **kwargs)
+
+
+def pinv(*args: Any, **kwargs: Any) -> Any:
+    return _ops.pinv(*args, **kwargs)
+
+
+def eig(*_args: Any, **_kwargs: Any) -> Any:
+    raise NotImplementedError(
+        "pycauset.eig is not available. The legacy eigendecomposition subsystem was removed."
+    )
+
+
+def eigvals(*_args: Any, **_kwargs: Any) -> Any:
+    raise NotImplementedError(
+        "pycauset.eigvals is not available. The legacy eigenvalue subsystem was removed."
+    )
+
+
+def eigvals_skew(*_args: Any, **_kwargs: Any) -> Any:
+    raise NotImplementedError(
+        "pycauset.eigvals_skew is not available. The legacy eigenvalue subsystem was removed."
+    )
+
+
+def eigvals_arnoldi(*_args: Any, **_kwargs: Any) -> Any:
+    raise NotImplementedError(
+        "pycauset.eigvals_arnoldi is not available. The legacy eigenvalue subsystem was removed."
+    )
+
+
 def identity(x: Any) -> Any:
     """Create an identity-like matrix.
 
@@ -875,6 +986,31 @@ def identity(x: Any) -> Any:
         return I_cls(x)
     except Exception as e:
         raise TypeError("identity(x) expects an int, [rows, cols], or a matrix/vector") from e
+
+
+@contextmanager
+def precision_mode(mode: str):
+    """Temporarily override the thread-local promotion precision mode.
+
+    Examples:
+        with pycauset.precision_mode("highest"):
+            c = a @ b
+
+    Notes:
+        This controls promotion decisions (storage dtype selection). It does not
+        directly control accelerator internal compute dtype.
+    """
+    get_fn = getattr(_native, "get_precision_mode", None)
+    set_fn = getattr(_native, "set_precision_mode", None)
+    if get_fn is None or set_fn is None:
+        raise RuntimeError("Native precision mode controls are not available")
+
+    previous = str(get_fn())
+    set_fn(mode)
+    try:
+        yield
+    finally:
+        set_fn(previous)
 
 
 # Alias for IdentityMatrix
@@ -910,7 +1046,23 @@ _extra_exports = [
     "compute_k",
     "bitwise_not",
     "invert",
+    "solve",
+    "lstsq",
+    "slogdet",
+    "cond",
+    "eigh",
+    "eigvalsh",
+    "solve_triangular",
+    "lu",
+    "cholesky",
+    "svd",
+    "pinv",
+    "eig",
+    "eigvals",
+    "eigvals_skew",
+    "eigvals_arnoldi",
     "identity",
+    "precision_mode",
     "I",
     "causet",
     "MemoryHint",

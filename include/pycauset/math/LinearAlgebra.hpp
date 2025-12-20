@@ -25,6 +25,8 @@ double dot_product(const VectorBase& a, const VectorBase& b);
 std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& b);
 double norm(const VectorBase& v);
 double norm(const MatrixBase& m);
+std::complex<double> sum(const VectorBase& v);
+std::complex<double> sum(const MatrixBase& m);
 std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b, const std::string& result_file = "");
 
 // Scalar operations on vectors

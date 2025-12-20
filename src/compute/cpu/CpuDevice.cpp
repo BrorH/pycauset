@@ -57,6 +57,14 @@ double CpuDevice::dot(const VectorBase& a, const VectorBase& b) {
     return solver_.dot(a, b);
 }
 
+std::complex<double> CpuDevice::dot_complex(const VectorBase& a, const VectorBase& b) {
+    return solver_.dot_complex(a, b);
+}
+
+std::complex<double> CpuDevice::sum(const VectorBase& v) {
+    return solver_.sum(v);
+}
+
 double CpuDevice::l2_norm(const VectorBase& v) {
     return solver_.l2_norm(v);
 }
@@ -73,12 +81,45 @@ void CpuDevice::scalar_multiply_vector(const VectorBase& a, double scalar, Vecto
     solver_.scalar_multiply_vector(a, scalar, result);
 }
 
+void CpuDevice::scalar_multiply_vector_complex(const VectorBase& a, std::complex<double> scalar, VectorBase& result) {
+    solver_.scalar_multiply_vector_complex(a, scalar, result);
+}
+
 void CpuDevice::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
     solver_.scalar_add_vector(a, scalar, result);
 }
 
+void CpuDevice::cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) {
+    solver_.cross_product(a, b, result);
+}
+
+std::unique_ptr<TriangularMatrix<double>> CpuDevice::compute_k_matrix(
+    const TriangularMatrix<bool>& C,
+    double a,
+    const std::string& output_path,
+    int num_threads
+) {
+    return solver_.compute_k_matrix(C, a, output_path, num_threads);
+}
+
 double CpuDevice::frobenius_norm(const MatrixBase& m) {
     return solver_.frobenius_norm(m);
+}
+
+std::complex<double> CpuDevice::sum(const MatrixBase& m) {
+    return solver_.sum(m);
+}
+
+double CpuDevice::trace(const MatrixBase& m) {
+    return solver_.trace(m);
+}
+
+double CpuDevice::determinant(const MatrixBase& m) {
+    return solver_.determinant(m);
+}
+
+void CpuDevice::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
+    solver_.qr(in, Q, R);
 }
 
 } // namespace pycauset

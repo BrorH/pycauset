@@ -6,7 +6,10 @@ A memory-mapped vector storing 16-bit unsigned integers. Inherits from [VectorBa
 
 ```python
 pycauset.UInt16Vector(n: int)
+pycauset.UInt16Vector(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-1 with dtype `uint16`.
 
 ## Methods
 

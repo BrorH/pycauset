@@ -8,17 +8,16 @@ This plan is the canonical source of truth for block matrices in Release 1.
 
 **Last updated:** 2025-12-17
 
-**Current phase step:** Design lock (contracts + persistence format + thunk model)
+**Current phase step:** Not started (implementation)
 
 **What is done (DONE):**
 
-- Block matrix requirements discussed and captured (heterogeneous dtypes, reference-save manifests, semi-lazy matmul thunks).
-- Roadmap node `R1_BLOCKMATRIX` created; block work moved out of R1_LINALG.
+- (none; no code implementation started yet)
 
 **What is next (NEXT):**
 
-- Formalize contracts: dtype semantics, mutation/versioning, evaluation triggers, caching policy, and partition refinement rules.
-- Implement internal node types (`BlockMatrix`, `SubmatrixView`, `ThunkBlock`/equivalent) and wire persistence manifests.
+- Confirm/lock the contracts in this document (evaluation triggers, caching/invalidation, deterministic per-block accumulation dtype, partition refinement via `SubmatrixView`, mutation semantics).
+- Start implementation: internal node types (`BlockMatrix`, `SubmatrixView`, `ThunkBlock`/equivalent) and manifest persistence wiring.
 
 **Blocked / deferred:**
 
@@ -55,7 +54,16 @@ Non-goals (for now):
 
 Target syntax:
 
-- `pycauset.matrix([ [A, B], [C, D] ])` where `A,B,C,D` are matrices (including block matrices).
+- Example:
+
+```python
+M = pycauset.matrix([
+  [A, B],
+  [C, D],
+])
+```
+
+where `A,B,C,D` are matrices (including block matrices).
 
 Validation:
 
@@ -66,7 +74,7 @@ Validation:
 ### 1.2 Indexing semantics
 
 - `M[i, j]` returns a scalar element.
-- `M[i0:i1, j0:j1]` slicing is deferred to the broader indexing plan; block work requires an internal view node.
+- `M[i0:i1, j0:j1]` slicing is deferred to the broader indexing plan in R1_LINALG_PLAN; block work requires an internal view node.
 
 ### 1.3 Block replacement API
 
@@ -77,7 +85,48 @@ Minimum API:
 - `get_block(r, c) -> MatrixBase`
 - `set_block(r, c, block: MatrixBase) -> None`
 
+`r,c` are **block indices** into the current block grid (not element indices):
+
+- `r` is the block-row index in `[0, block_rows)`
+- `c` is the block-col index in `[0, block_cols)`
+
+Required introspection API (minimal):
+
+- `block_rows` and `block_cols` (or equivalent methods)
+- `row_partitions` and `col_partitions` returning the boundary arrays (prefix sums) used by the block grid
+  - Example: `row_partitions == [0, r1, r2, ..., rows]`
+  - Example: `col_partitions == [0, c1, c2, ..., cols]`
+
 `set_block` must validate that the replacement block matches the existing block-row height and block-col width.
+
+Optional (nice-to-have) helpers for debugging:
+
+- `block_shape(r, c) -> (rows, cols)`
+- `block_dtype(r, c) -> DataType`
+
+### 1.4 Visualization / printing (must not trigger evaluation)
+
+Block matrices are primarily about structure. Default printing must emphasize structure without forcing computation.
+
+Required behavior:
+
+- `repr(M)` / `str(M)` prints a **structure summary** and never evaluates thunks.
+- The summary includes:
+  - overall shape,
+  - block grid size (block_rows × block_cols),
+  - row/col partitions,
+  - per-block descriptors: shape, dtype, and kind (`leaf`, `view`, `thunk`, `block`).
+
+Recommended formatting (human-scannable):
+
+- 1-line header: `BlockMatrix(shape=(...), grid=RxC, dtype=MIXED)`
+- Then an ASCII grid of block descriptors, truncated by `max_depth` and `max_blocks`.
+
+Explicitly opt-in value printing (may evaluate):
+
+- If we add a helper like `M.to_dense_string(...)` or `M.materialize()` later, it must be clearly named and documented as a trigger.
+
+
 
 ---
 
@@ -149,7 +198,7 @@ Contract:
 
 - Result is a `BlockMatrix` of output blocks.
 
-#### Semi-lazy evaluation (decision)
+#### Semi-lazy evaluation 
 
 We use **semi-lazy** evaluation for block matmul outputs:
 
@@ -368,6 +417,43 @@ This keeps OpenBLAS/CUDA integration straightforward:
 - They accelerate the leaf `matmul/add/...` kernels.
 - Block orchestration decides *which* leaf ops to run and *when* (via thunks).
 
+### 6.1 Alignment with Compute Architecture
+
+This plan is designed to remain compatible with `documentation/internals/Compute Architecture.md`:
+
+- All heavy numerical work still goes through `ComputeContext::instance().get_device()`.
+- AutoSolver remains the routing point that decides CPU vs GPU based on size and capabilities.
+
+#### Device capability reality (important)
+
+CUDA matmul is not a universal backend today:
+
+- `CudaDevice::matmul` supports dense `float32`/`float64` matrices.
+- Complex matmul is supported on CPU (`cpu.matmul.c32`, `cpu.matmul.c64`, plus `cpu.matmul.cf16_fallback`) but is not supported on CUDA today.
+
+Therefore:
+
+- Block matrices containing complex blocks must still work, but AutoSolver must route those leaf ops to CPU.
+- Mixed-dtype block containers are fine because routing happens per leaf op, not per container.
+
+### 6.2 IO Accelerator compatibility (prefetch/discard)
+
+To stay compatible with the IO acceleration layer:
+
+- Before evaluating a thunk block, the orchestrator should prefetch the required input blocks/views (where available) via each matrix’s accelerator interface.
+- After a thunk block is evaluated and its intermediate temporaries are no longer needed, the orchestrator should allow (or request) discard of those temporaries.
+
+This preserves the existing “minimize page faults” strategy for out-of-core workloads.
+
+### 6.3 Views and BLAS/GPU friendliness (without copying)
+
+`SubmatrixView` must not force a copy. For performance (later), it should expose an optional “dense window” representation when possible:
+
+- pointer/offset/leading-dimension view into a dense backing,
+- otherwise fall back to the generic `get_element_as_*` path on CPU.
+
+GPU support for views can be added later if/when CUDA kernels accept strides/offsets.
+
 ---
 
 ## 7) Testing strategy (minimum)
@@ -387,6 +473,11 @@ This keeps OpenBLAS/CUDA integration straightforward:
 - Persistence:
   - save/load round-trip for nested manifests.
 
+Additions (to catch subtle bugs early):
+
+- Complex blocks (CPU fallback): ensure complex32/complex64/complex-f16 blocks round-trip through elementwise ops and matmul without densifying the whole matrix.
+- Printing: `repr`/`str` must not evaluate thunks (verify via trace tags).
+
 ---
 
 ## 8) Risk register
@@ -394,6 +485,10 @@ This keeps OpenBLAS/CUDA integration straightforward:
 - Snapshot/versioning complexity: must avoid silent stale caches.
 - Excessive overhead for many small blocks: mitigated by later scheduling/materialization knobs.
 - Deep nesting inefficiency: accepted for completeness.
+- CUDA capability gaps: complex blocks and some view/shape cases will route to CPU until CUDA support expands.
+- Thread-safety: concurrent evaluation of the same thunk block must not corrupt caches (R1 uses single-eval locking; see below).
+- View correctness: views over nested blocks that cross block boundaries are subtle; ensure we represent them as structured compositions of smaller views, not as copies.
+- Scalar/transpose flags: ensure `SubmatrixView` and manifest metadata preserve scalar multipliers and transpose status without changing numeric meaning.
 
 ---
 
@@ -402,3 +497,88 @@ This keeps OpenBLAS/CUDA integration straightforward:
 1) Exact API surface for block operations (`get_block`/`set_block`, `materialize`, cache controls).
 2) Whether `SubmatrixView` supports all structured matrices or only dense initially.
 3) Exact manifest format (JSON vs custom binary header + records). Recommended: small custom binary for speed + robustness.
+
+R1 decisions (locked in):
+
+4) Concurrency semantics for thunks: use single-eval locking per thunk (e.g., `std::mutex` + double-checked caching or `std::once_flag`). If multiple threads request the same thunked block, only one computes and installs the cached result; other threads wait and then reuse the cached block.
+
+5) `SubmatrixView` spanning multiple blocks is allowed: represent it as a `BlockMatrix` of `SubmatrixView` tiles (a “tiled view”), with no copying and no densification.
+  - Note: such a tiled view may be `DataType::MIXED` if it spans blocks with different dtypes. Element access remains well-defined; dense materialization chooses a target dtype using the existing dtype promotion rules.
+
+---
+
+## 10) Documentation requirements (must be thorough)
+
+We need both API docs and internals docs so future work (I/O, CPU, GPU) can safely optimize without breaking semantics.
+
+### 10.1 Public/API documentation
+
+- `pycauset.matrix(...)` block-grid construction rules and validation errors.
+- Block matrix behavior expectations:
+  - element indexing returns elements,
+  - block replacement only via explicit API (`get_block`/`set_block`),
+  - “once block, always block” default.
+- Evaluation triggers (what forces computation) and non-triggers.
+- Save/load semantics for manifests (what is stored, what is not).
+- Device routing expectations (AutoSolver may run different blocks on CPU vs GPU depending on dtype/shape/capability).
+- Printing/visualization behavior (structure summary by default; no implicit evaluation).
+
+### 10.2 Internals documentation
+
+- Data model: `BlockMatrix`, `SubmatrixView`, `ThunkBlock`.
+- Versioning + staleness semantics (snapshot-at-creation; stale thunks error).
+- Caching rules + lifecycle of temp files.
+- Partition refinement algorithm and “no silent densify” rule.
+- Manifest format: schema, examples, and compatibility rules for future extensions.
+- Complex-number storage notes:
+  - complex32/complex64 dense matrices store `std::complex<T>` values,
+  - ComplexFloat16 matrices may store real/imag planes; views and thunks must treat them consistently.
+
+---
+
+## 11) Agent handoff: implementation checklist (for the next AI agent)
+
+This section is intentionally explicit to reduce the chance of subtle bugs.
+
+### 11.1 Core correctness checklist
+
+- Implement `BlockMatrix` shape, partitions, and fast element-to-block lookup (binary search on `row_partitions`/`col_partitions`).
+- Implement `SubmatrixView` with strict no-copy semantics and correct composition over:
+  - transpose flags,
+  - scalar multipliers,
+  - nested block matrices.
+- Implement `ThunkBlock` evaluation + caching with version checks:
+  - snapshot input versions at creation,
+  - error on stale access.
+
+### 11.2 Compute boundary checklist (must match Compute Architecture)
+
+- Orchestrator decomposes ops into leaf ops and calls AutoSolver/ComputeDevice.
+- Respect device capability gating:
+  - complex blocks must route to CPU today,
+  - CUDA paths are limited to supported dtypes/shapes.
+
+### 11.3 Determinism checklist
+
+- Block matmul thunk evaluation must use a fixed `k` order.
+- Accumulator dtype for each output block must be determined from dtype metadata only (no data-dependent decisions).
+- Avoid parallel reductions that change summation order unless explicitly documented.
+
+### 11.4 Persistence checklist
+
+- Manifest save/load must preserve nesting and references.
+- Saving must not write a single expanded dense buffer for the whole block matrix.
+- Thunk blocks must be saved as stable child matrices (evaluate per-block), then referenced.
+
+### 11.5 Debug/visualization checklist
+
+- `repr`/`str` must never evaluate thunks.
+- Provide readable structural summaries (shape, partitions, per-block metadata).
+
+### 11.6 “Don’t get trapped” pitfalls
+
+- Do not accidentally materialize views to make BLAS happy (violates storage-first).
+- Be explicit about complex behavior:
+  - CPU supports complex matmul; CUDA does not today.
+  - ComplexFloat16 uses split planes; views must handle both planes consistently.
+- Ensure partial caching cannot produce mixed-snapshot results (stale access must error).

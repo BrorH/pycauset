@@ -38,6 +38,11 @@ If you unzip a `.pycauset` file, you can inspect `metadata.json`:
   "seed": 12345,
   "scalar": 1.0,
   "is_transposed": false,
+  "is_conjugated": false,
+  "flags": {
+    "is_unitary": true,
+    "is_hermitian": false
+  },
   "matrix_type": "INTEGER",
   "data_type": "INT32"
 }
@@ -52,6 +57,8 @@ If you unzip a `.pycauset` file, you can inspect `metadata.json`:
 *   **`seed`**: The random seed used to generate the object (if applicable). This allows for reproducibility.
 *   **`scalar`**: A global scaling factor applied to all elements (see "Lazy Evaluation" below).
 *   **`is_transposed`**: A boolean flag indicating if the matrix is logically transposed (see "Lazy Evaluation" below).
+*   **`is_conjugated`**: A boolean flag indicating if the matrix is logically conjugated (a metadata view).
+*   **`flags`**: A dictionary of boolean property hints (e.g., `is_unitary`). These may be set by users and/or internal constructors, are persisted verbatim, and may be used by future solver optimizations.
 
 ## Compute-Once Caching
 

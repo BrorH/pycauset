@@ -6,7 +6,10 @@ A memory-mapped vector storing 32-bit integers. Inherits from [VectorBase](pycau
 
 ```python
 pycauset.IntegerVector(n: int)
+pycauset.IntegerVector(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-1 with dtype `int32`.
 
 ## Properties
 

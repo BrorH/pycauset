@@ -41,6 +41,34 @@ class TestFloatUnderpromotionWarning(unittest.TestCase):
         # Ensure repeated call still works.
         self.assertIn("Float32Matrix", str(type(c2)))
 
+    def test_mixed_float_matmul_highest_no_underpromotion_warning(self):
+        if not hasattr(pycauset, "Float32Matrix") or pycauset.Float32Matrix is None:
+            self.skipTest("Float32Matrix not available")
+
+        a = pycauset.Float32Matrix(2)
+        b = pycauset.FloatMatrix(2)
+
+        a[0, 0] = 1.0
+        a[1, 1] = 1.0
+        b[0, 0] = 2.0
+        b[1, 1] = 3.0
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            with pycauset.precision_mode("highest"):
+                c = a @ b
+
+        hits = [
+            str(item.message)
+            for item in w
+            if issubclass(item.category, getattr(pycauset, "PyCausetDTypeWarning", Warning))
+            and "underpromotes to float32" in str(item.message)
+        ]
+        self.assertEqual(len(hits), 0)
+        self.assertIn("FloatMatrix", str(type(c)))
+        self.assertAlmostEqual(c.get(0, 0), 2.0, places=12)
+        self.assertAlmostEqual(c.get(1, 1), 3.0, places=12)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -32,7 +32,6 @@ v1 = pc.zeros(1000, dtype="float64")
 v2 = pc.vector([1, 2, 3, 4, 5])
 
 # Explicit widths / unsigned
-v_i8 = pc.vector([1, 2, 3], dtype="int8")
 v_u64 = pc.vector([1, 2, 3], dtype="uint64")
 
 # Complex float vectors
@@ -41,6 +40,24 @@ v_c = pc.vector([1+2j, 3-4j], dtype="complex_float32")
 # Create a bit-packed boolean vector (1 bit per element)
 v3 = pc.vector([True, False, True, True])
 ```
+
+## Typed NumPy Constructors
+
+If you already have a `numpy.ndarray` and want an explicitly-typed PyCauset vector, most concrete vector classes support a direct NumPy constructor.
+
+```python
+import numpy as np
+import pycauset as pc
+
+v64 = pc.FloatVector(np.array([1.0, 2.0, 3.0], dtype=np.float64))
+v32 = pc.Float32Vector(np.array([1.0, 2.0, 3.0], dtype=np.float32))
+vi = pc.IntegerVector(np.array([1, 2, 3], dtype=np.int32))
+```
+
+**Requirements**:
+
+- The array must be 1D.
+- The dtype must match the target class (e.g. `Float32Vector` requires `np.float32`).
 
 ## Unit Vectors
 
@@ -53,7 +70,6 @@ import pycauset as pc
 u = pc.UnitVector(1000, 5)
 
 print(u[5]) # 1.0
-print(u[0]) # 0.0
 ```
 
 **Benefits:**
@@ -118,30 +134,6 @@ result = pc.dot(v1, v2)  # 1*4 + 2*5 + 3*6 = 32.0
 # OR
 result = v1.dot(v2)
 ```
-
-### Cross Product
-
-The cross product is defined for 3D vectors.
-
-```python
-v1 = pc.vector([1, 0, 0])
-v2 = pc.vector([0, 1, 0])
-v3 = v1.cross(v2)  # [0, 0, 1]
-```
-
-You can compute the cross product of two 3D vectors using `Vector.cross` (preferred). A top-level `pycauset.cross` function is not documented yet.
-
-```python
-import pycauset as pc
-
-v1 = pc.vector([1, 0, 0])
-v2 = pc.vector([0, 1, 0])
-
-# v1 x v2 = [0, 0, 1]
-v3 = pc.cross(v1, v2)
-```
-
-**Note**: The cross product is only defined for vectors of size 3. Passing vectors of other sizes will raise a `ValueError`.
 
 ## Transposition & Matrix Operations
 

@@ -70,10 +70,13 @@ void PersistentObject::close() {
 
         bool temp = is_temporary_;
         std::string path = mapper_->get_filename();
+        const long use_count = mapper_.use_count();
         // std::cout << "Closing object. Temp: " << temp << ", Path: " << path << std::endl;
         mapper_.reset(); // Close file mapping
 
-        if (temp && !path.empty() && path != ":memory:") {
+        // Only delete temporary files when this object is the last owner of the mapping.
+        // Many operations return metadata-only views that share storage (CoW semantics).
+        if (temp && use_count == 1 && !path.empty() && path != ":memory:") {
             try {
                 // Use char8_t cast for UTF-8 string to handle Unicode paths
                 std::filesystem::path p(reinterpret_cast<const char8_t*>(path.c_str()));

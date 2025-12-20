@@ -7,7 +7,10 @@ A memory-mapped dense matrix storing 64-bit floating point numbers. Inherits fro
 ```python
 pycauset.FloatMatrix(n: int)
 pycauset.FloatMatrix(rows: int, cols: int)
+pycauset.FloatMatrix(array: numpy.ndarray)
 ```
+
+When constructed from a NumPy array, the array must be rank-2 with dtype `float64`.
 
 ## Properties
 

@@ -292,42 +292,7 @@ public:
             auto Q = std::make_unique<DenseMatrix<double>>(n, q_file);
             auto R = std::make_unique<DenseMatrix<double>>(n, r_file);
 
-            const double* src = reinterpret_cast<const double*>(data());
-            double* q_data = Q->data();
-            std::copy(src, src + n * n, q_data);
-
-            double* r_data = R->data();
-            std::fill(r_data, r_data + n * n, 0.0);
-
-            for (size_t k = 0; k < n; ++k) {
-                double norm_sq = 0.0;
-                for (size_t i = 0; i < n; ++i) {
-                    double val = q_data[i * n + k];
-                    norm_sq += val * val;
-                }
-                double norm = std::sqrt(norm_sq);
-                r_data[k * n + k] = norm;
-
-                if (norm > 1e-12) {
-                    double inv_norm = 1.0 / norm;
-                    pycauset::ParallelFor(0, n, [&](size_t i) { q_data[i * n + k] *= inv_norm; });
-                } else {
-                    pycauset::ParallelFor(0, n, [&](size_t i) { q_data[i * n + k] = 0.0; });
-                }
-
-                pycauset::ParallelFor(k + 1, n, [&](size_t j) {
-                    double dot = 0.0;
-                    for (size_t i = 0; i < n; ++i) {
-                        dot += q_data[i * n + k] * q_data[i * n + j];
-                    }
-                    r_data[k * n + j] = dot;
-
-                    for (size_t i = 0; i < n; ++i) {
-                        q_data[i * n + j] -= dot * q_data[i * n + k];
-                    }
-                });
-            }
-
+            pycauset::ComputeContext::instance().get_device()->qr(*this, *Q, *R);
             return {std::move(Q), std::move(R)};
         }
     }
