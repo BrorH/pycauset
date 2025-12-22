@@ -44,7 +44,7 @@ Implication: NxM support does **not** apply to triangular/causal matrices as a g
 - `MatrixBase` / `PersistentObject` track `rows` and `cols`; `size()` is total elements (`rows * cols`).
 - Dense numeric matrices support rectangular storage and indexing.
 - `ObjectFactory::create_matrix(rows, cols, ...)` exists and is used in core math paths.
-- Persistence stores `rows`/`cols` in `metadata.json` and loaders prefer rectangular constructors.
+- Persistence stores `rows`/`cols` in typed metadata and loaders prefer rectangular constructors.
 - Python allocation (`zeros` / `ones` / `empty`) supports rectangular shapes for dense numeric dtypes.
 
 ## Python layer: remaining square-only surfaces

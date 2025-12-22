@@ -1,12 +1,11 @@
 import unittest
 import os
 import shutil
-import zipfile
-import json
-import struct
 from pathlib import Path
 import pycauset
 from pycauset import CausalSet, TriangularBitMatrix, IntegerMatrix, FloatMatrix, MinkowskiCylinder
+
+from pycauset._internal import persistence as _persistence
 
 class TestStorageExtensive(unittest.TestCase):
     def setUp(self):
@@ -130,16 +129,12 @@ class TestStorageExtensive(unittest.TestCase):
         
         try:
             c.save(path)
-            
-            # Verify metadata manually
-            with zipfile.ZipFile(path, "r") as zf:
-                with zf.open("metadata.json") as f:
-                    meta = json.load(f)
-                    self.assertEqual(meta["object_type"], "CausalSet")
-                    self.assertEqual(meta["spacetime"]["type"], "MinkowskiCylinder")
-                    self.assertEqual(meta["spacetime"]["args"]["dimension"], 2)
-                    # Note: height/circumference might not be in args if not exposed by C++ getter, 
-                    # but let's check what we put in causet.py
+
+            meta, _ = _persistence._read_new_container_metadata_and_offset(path)
+            self.assertEqual(meta.get("object_type"), "CausalSet")
+            st = meta.get("spacetime", {})
+            self.assertEqual(st.get("type"), "MinkowskiCylinder")
+            self.assertEqual(st.get("args", {}).get("dimension"), 2)
             
             # Load back
             loaded_c = CausalSet.load(path)

@@ -4,25 +4,144 @@
 
 This plan is the canonical source of truth for block matrices in Release 1.
 
+!!! warning "Active plan (not shipped)"
+    The behavior in this document is not guaranteed to exist in the current codebase.
+    Do not add user-facing Guides or API Reference that implies this feature is available until implementation lands (Phase G).
+
+## Canonical dependencies (read before implementing)
+
+- Roadmap node: [PyCauset Roadmap](TODO.md)
+- Foundations:
+  - [Compute Architecture](../Compute%20Architecture.md)
+  - [DType System](../DType%20System.md)
+- Release 1 foundations (implemented behavior elsewhere in the system):
+  - [Storage](../../guides/release1/storage.md)
+  - [Properties](../../guides/release1/properties.md)
+  - [DTypes](../../guides/release1/dtypes.md)
+  - [Linear Algebra](../../guides/release1/linalg.md)
+
 ## Progress snapshot (MUST keep updated)
 
-**Last updated:** 2025-12-17
+**Last updated:** 2025-12-21
 
-**Current phase step:** Not started (implementation)
+**Current phase step:** Phase F — Integration (properties/device/IO) (completed 2025-12-21)
 
 **What is done (DONE):**
 
-- (none; no code implementation started yet)
+- Phase A contract lock completed (interfaces, invariants, determinism, persistence shape, and staleness semantics).
+- Phase B completed: internal `BlockMatrix` container implemented (Python layer) with construction validation, element reads, and structure-only `repr`/`str`.
+- Phase B tests added for construction/indexing/printing validation.
+- Phase C started: internal `SubmatrixView` container implemented (Python layer) with view composition, dense + block sources, and structure-only printing.
+- Phase C tests added for dense + block view element reads, cross-block views, and repr/str non-trigger behavior.
+- Phase C refinement implemented (Python layer): `BlockMatrix.refine_partitions(...)` produces a refined block grid using `SubmatrixView` without densification; deterministic validation errors are enforced.
+- Phase C refinement tests added (correctness + error cases).
+- Phase D started (Python layer): `ThunkBlock` implemented with structure-only printing, lazy evaluation on element access, caching, and snapshot-at-creation staleness checks based on `version` pins.
+- Phase D started (Python layer): internal `block_matmul(A,B)` orchestrator produces a BlockMatrix of thunk blocks and refines inner partitions deterministically.
+- Phase D tests added for trigger/non-trigger behavior, deterministic k-order accumulation, and stale-thunk errors.
+- Phase D elementwise started (Python layer): internal `block_add(A,B)` aligns partitions by refinement-union and returns a BlockMatrix of thunk blocks.
+- Phase D note: when refinement produces Python `SubmatrixView` blocks, view-local `+`/`@` fall back to small dense evaluation (block-local only) to keep orchestration correct without global densification.
+- Phase E completed: `.pycauset` save/load supports internal `BlockMatrix` via a manifest (`matrix_type=BLOCK`) that references child `.pycauset` files stored in a sibling directory (`<file>.blocks/`).
+- Phase E behavior: saving a BlockMatrix evaluates `ThunkBlock` blocks blockwise (no global densify), persists realized results, and raises on stale thunks.
+- Phase E hardening: thunk staleness pins include leaf blocks (and view sources) so in-place leaf mutation with a `version` bumps stale deterministically; concurrency test ensures single-eval caching under threads.
+- Phase E hardening: child references are validated deterministically (path safety + pinned child `payload_uuid`), and multi-file saves use staging/commit to reduce partial-update risk.
+- Phase E coverage: nested, mixed-dtype, and view-block (SubmatrixView) persistence paths have round-trip tests.
+
+- Phase F started: public constructor disambiguation and “once block, always block” routing are wired.
+- Phase F started: mixed-operand operator behavior (`dense + block`, `dense @ block`) defers to BlockMatrix via NotImplemented fallback in native operator bindings.
+- Phase F started: leaf `matmul` inside thunk evaluation routes through the public compute boundary for native matrices, preserving property-aware dispatch.
+- Phase F started: IO accelerator hooks are exposed (best-effort prefetch/discard) with trace validation support.
+- Phase F started: integration tests cover operator fallback and device routing for block addition when CUDA is active (with CPU fallback for unsupported dtypes).
+- Phase F completed: elementwise block ops (`+`, `-`, `*`, `/`) are thunked and partition-aligned, with IO prefetch/discard hooks.
+- Phase F completed: integration tests cover mixed-operand fallbacks (`dense op block`) and device routing expectations for `+`/`-` (GPU when supported, CPU otherwise) plus CPU-only guarantees for `*`/`/` under CUDA.
+
+Phase E policy choices (locked for this implementation pass):
+
+- Sidecar directory naming: use `str(path) + ".blocks"` (example: `bm.pycauset` → `bm.pycauset.blocks/`).
+- Overwrite cleanup: best-effort delete only deterministic child block files matching `block_r*_c*.pycauset` in the sidecar directory; do not wipe unrelated files.
+- Stale thunk on save: saving must raise a deterministic stale-thunk error (no silent recompute).
+- Persisted snapshot integrity: each manifest child entry pins the child file's `payload_uuid`; load validates this and errors if a child file was replaced/rewritten (prevents silent mixed-snapshot loads).
+- Container-level cached-derived: no block-matrix-level `trace/determinant/norm/sum/...` caching is defined for R1 internal `BlockMatrix`; cached-derived persistence remains per-child (leaf matrices) under the existing signature rules.
+- View persistence (R1 internal policy): if a BlockMatrix contains `SubmatrixView` blocks (e.g., from `refine_partitions`), saving materializes each view **block-locally** by copying elements into a small NumPy array (with dtype inferred from the view’s source type) and then converting it via `native.asarray`; there is no multi-file "view reference" format in R1.
+- Multi-file save hardening (best-effort): BlockMatrix saves stage managed child files (and nested child `.blocks/` trees) in a temporary staging directory and then commit via replace/rename. This reduces partial updates; if a crash still occurs mid-commit, `payload_uuid` pinning ensures loads fail deterministically rather than silently mixing snapshots.
 
 **What is next (NEXT):**
 
-- Confirm/lock the contracts in this document (evaluation triggers, caching/invalidation, deterministic per-block accumulation dtype, partition refinement via `SubmatrixView`, mutation semantics).
-- Start implementation: internal node types (`BlockMatrix`, `SubmatrixView`, `ThunkBlock`/equivalent) and manifest persistence wiring.
+- Phase G: documentation (publish internals/API as allowed by the Documentation Protocol).
 
 **Blocked / deferred:**
 
 - Full symbolic lazy evaluation / fusion across arbitrary expression graphs is deferred.
 - GPU kernels for block-aware ops are deferred; leaf ops must still route via AutoSolver/ComputeDevice.
+- Block-matrix-aware slicing is deferred until the slicing phase in the [R1_LINALG plan](completed/R1_LINALG_PLAN.md) is completed; integrate block slicing/views thereafter.
+
+---
+
+## Phased execution plan (docs/testing baked in)
+
+- **Phase A — Contract lock (planning):** finalize semantics for evaluation triggers, caching/versioning, dtype accumulation, partition refinement, mutation, and manifest shape. Exit: written acceptance criteria + updated risk/open questions if any. Docs: update this plan + roadmap status.
+- **Phase B — Core types & validation:** implement `BlockMatrix` container (partitions, lookup, mixed dtype metadata), construction validation, structural `repr`/`str`. Exit: construction/indexing unit tests + structure-only printing tests.
+- **Phase C — Views & partition refinement:** deliver `SubmatrixView` (no-copy), block-grid refinement for mismatched partitions, tiled views across blocks, scalar/transpose propagation. Exit: view composition tests (dense + block), refinement correctness tests, deterministic error cases for unsupported views.
+- **Phase D — Ops orchestration & thunks:** elementwise ops and block matmul orchestration with deterministic per-block accumulator dtype, thunk creation, evaluation triggers, and snapshot/version checks. Exit: lazy-eval tests (triggers/non-triggers), dtype accumulator tests, stale-thunk error tests, and CPU routing for complex blocks; add trace tags for observability.
+- **Phase E — Persistence & caching:** manifest save/load for nested blocks, temp handling for thunks, cache invalidation on `set_block`/child mutation, single-eval locking. Exit: save/load round-trip tests (nested, mixed dtype), cache invalidation tests, concurrent thunk evaluation test.
+- **Phase F — Integration (properties/device/IO):** ensure “once block, always block” behavior with AutoSolver boundary, property metadata pass-through, IO accelerator prefetch/discard hooks, and CPU fallback for CUDA gaps. Exit: integration tests covering property propagation, device routing expectations, and IO prefetch/discard trace validation.
+- **Phase G — Documentation:** publish API + internals per Documentation Protocol (construction rules, triggers, manifest schema, versioning/staleness, device routing expectations, printing). Exit: docs merged + updated roadmap status.
+- **Phase H — Testing & hardening:** expand coverage (complex blocks, float16, deep nesting), stress/block-count overhead checks, and CLI/bench hooks if needed. Exit: test suite green, known gaps documented; optional perf guardrails noted.
+
+---
+
+## Phase A — Contract lock (COMPLETED 2025-12-21)
+
+This section freezes the semantics and interfaces so Phase B+ can implement without re-litigating contracts.
+
+### A.1 Locked decisions
+
+1) **User entrypoint (constructor) is `pycauset.matrix(...)` (extended, not replaced).**
+
+The current `pycauset.matrix(source, dtype=None, **kwargs)` is a numeric data constructor (1D→vector, 2D→dense matrix).
+
+Block-matrix construction will be added without breaking existing behavior:
+
+- If `source` is 2D and **every element is a `MatrixBase`-like object**, treat `source` as a block grid and construct a `BlockMatrix`.
+- If `source` is 2D and **no elements are matrices** (numeric scalars / NumPy scalars), keep current dense behavior.
+- If `source` is 2D and **mixes matrices and scalars**, raise a deterministic `TypeError` (no implicit lifting / no implicit densification).
+
+Rationale: avoids ambiguity with the existing numeric constructor while enabling the target syntax.
+
+2) **Block-level access is explicit, element access remains elementwise.**
+
+- `M[i, j]` returns an element.
+- Block access is via `get_block(r, c)` / `set_block(r, c, block)` with `r,c` as block-grid indices.
+
+3) **No silent densification.**
+
+- Any unsupported view/refinement case must raise a deterministic error.
+- There is no fallback that materializes a whole dense matrix “just to make it work”.
+
+4) **Semi-lazy matmul outputs thunk per output block, with fixed determinism rules.**
+
+- Thunks are evaluated only on triggers (element access, dense export, persistence, or leaf-compute boundary).
+- Per-block accumulation dtype follows the deterministic metadata-only rule already defined in this plan.
+- Summation order over `k` is fixed.
+
+5) **Staleness semantics are snapshot-at-creation (default).**
+
+- Thunks capture input references + versions.
+- If any input version differs on evaluation/cache hit, raise a deterministic “stale thunk” error (do not silently recompute).
+
+6) **Persistence shape is manifest + referenced children (nestable).**
+
+- A saved block matrix stores a manifest in `.pycauset` metadata that describes the grid topology and references child matrices.
+- Thunk blocks are evaluated **blockwise** for save (no global densify).
+- If a referenced child is temporary, saving persists it to a stable child file first and then references it.
+
+### A.2 Acceptance criteria (Phase A exit)
+
+- The constructor disambiguation rules for `pycauset.matrix(...)` are explicit (numeric vs block-grid vs mixed error).
+- Minimum public-facing block API is frozen: `get_block`, `set_block`, `block_rows`, `block_cols`, `row_partitions`, `col_partitions`.
+- Evaluation triggers and non-triggers are frozen (especially: `repr/str` and metadata queries must never evaluate thunks).
+- “No silent densify” rule is frozen (unsupported views/refinements error deterministically).
+- Staleness semantics are frozen (snapshot-at-creation; stale access errors).
+- Persistence intent is frozen (manifest + referenced child matrices; thunk save is blockwise).
 
 ---
 
@@ -74,7 +193,7 @@ Validation:
 ### 1.2 Indexing semantics
 
 - `M[i, j]` returns a scalar element.
-- `M[i0:i1, j0:j1]` slicing is deferred to the broader indexing plan in R1_LINALG_PLAN; block work requires an internal view node.
+- `M[i0:i1, j0:j1]` slicing is deferred to the broader indexing plan in the [R1_LINALG plan](completed/R1_LINALG_PLAN.md); block work requires an internal view node.
 
 ### 1.3 Block replacement API
 
@@ -160,6 +279,10 @@ Block matrices do **not** have a single dtype.
 Element reads:
 
 - `get_element_as_double(i,j)` / `get_element_as_complex(i,j)` are defined by delegating into the appropriate block.
+
+Structured view scope (initial):
+
+- `SubmatrixView` supports dense matrices and block matrices first; other structured types must raise a deterministic “view not supported yet” error until explicitly added.
 
 ---
 
@@ -309,6 +432,10 @@ R1 default (locked in):
 - Thunks capture a snapshot of inputs (by reference + versioning).
 - If any input block changes after thunk creation, cached results are invalidated or evaluation is forbidden until re-derived.
 
+Recomputation policy:
+
+- If serving a request would require more than O(1) work relative to cached state, do not auto-recompute; stale accesses raise a deterministic error. In R1, all stale thunk/cache hits fall under this rule and must error.
+
 Implementation direction:
 
 - Add per-object monotonic `version` counters that increment on mutation.
@@ -394,6 +521,10 @@ When a user calls `.save(path)` on a block matrix:
   - row/col partition sizes,
   - for each block: reference to the child’s backing file + block metadata (transpose/conjugate/scalar/etc),
   - recursion for nested blocks.
+
+Format requirement:
+
+- Manifest is a binary header + records inside the `.pycauset` file; JSON/zip formats are removed and must not be referenced in code or docs.
 
 The manifest does **not** store expanded dense elements.
 
@@ -496,7 +627,7 @@ Additions (to catch subtle bugs early):
 
 1) Exact API surface for block operations (`get_block`/`set_block`, `materialize`, cache controls).
 2) Whether `SubmatrixView` supports all structured matrices or only dense initially.
-3) Exact manifest format (JSON vs custom binary header + records). Recommended: small custom binary for speed + robustness.
+3) Manifest format is locked to the binary header + records inside `.pycauset`; JSON/zip are deprecated and removed.
 
 R1 decisions (locked in):
 

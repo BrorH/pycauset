@@ -9,8 +9,17 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import pycauset
 
+try:
+    import pycauset._pycauset as _native
+except Exception:  # pragma: no cover
+    _native = None
 
-_HAVE_EIG = hasattr(pycauset, "eigvals") and hasattr(pycauset, "eigvals_arnoldi")
+
+_HAVE_EIG = (
+    _native is not None
+    and hasattr(_native, "eigvals")
+    and hasattr(_native, "eigvals_arnoldi")
+)
 
 
 @pytest.mark.skipif(

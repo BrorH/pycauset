@@ -65,9 +65,7 @@ def matrix_str(self: Any) -> str:
         rows = self.rows()
         cols = self.cols()
     else:
-        # Backwards-compat: older builds exposed only size() as the square dimension.
-        rows = self.size()
-        cols = self.size()
+        raise TypeError("matrix_str requires rows()/cols()")
 
     info = [f"shape=({rows}, {cols})"]
 

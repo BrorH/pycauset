@@ -21,3 +21,7 @@ class PyCausetOverflowRiskWarning(PyCausetWarning):
 
 class PyCausetPerformanceWarning(PyCausetWarning):
     """Warnings about likely performance pitfalls (e.g., slow fallbacks)."""
+
+
+class PyCausetStorageWarning(PyCausetWarning):
+    """Warnings about storage and memory semantics (files, mmap, caches)."""

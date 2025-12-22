@@ -18,10 +18,19 @@ Documentation requirement (always on): any new public function/method/class adde
 
 Authoritative higher-level context:
 
-- Project roadmap node: `documentation/project/TODO.md` → **R1_SHAPES**.
+- Project roadmap node: `documentation/internals/plans/TODO.md` → **R1_SHAPES**.
 - Square-only map: `documentation/dev/Square-only Assumptions.md`.
 - Warning/exception rules: `documentation/dev/Warnings & Exceptions.md`.
 - Philosophy mantra: `documentation/project/Philosophy.md`.
+
+> Documentation note:
+>
+> This file is a planning/spec artifact. User-visible R1 behavior is documented in:
+>
+> - [[guides/release1/shapes.md|Release 1: Shapes (what shipped)]]
+> - [[guides/NxM Support.md|NxM Support Status]]
+> - [[guides/Matrix Guide.md|Matrix Guide]] and [[guides/Vector Guide.md|Vector Guide]]
+> - Factory API pages (e.g., [[docs/functions/pycauset.matrix.md|pycauset.matrix]], [[docs/functions/pycauset.zeros.md|pycauset.zeros]])
 
 Non-goals (explicit):
 
@@ -150,8 +159,8 @@ This is a breaking semantic change and must be done carefully.
 
 Persistence format decision:
 
-- Keep transform state (transpose/scalar/conjugation) in `metadata.json` 
-- Avoid re-introducing a separate binary header unless a clear performance case emerges. If such a performance case is discovered, discuss it and figure out if it is worth pursuing. Await confirmation to implement.
+- Keep transform state (transpose/scalar/conjugation) in the typed metadata block.
+- Do not introduce additional per-object headers beyond the `.pycauset` container header; view-state should remain metadata-only.
 
 Vector representation (chosen: Option A / NumPy-like vectors):
 

@@ -42,7 +42,7 @@ fig.show()
 See the [[Visualization]] guide for more options.
 
 ### 4. Saving and Loading
-You can save your entire causal set (including the causal matrix, coordinates, and metadata) to a portable archive file.
+You can save your entire causal set (including the causal matrix, coordinates, and metadata) to a portable, single-file `.pycauset` container.
 
 ```python
 # Save to disk

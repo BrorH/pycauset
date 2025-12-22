@@ -49,6 +49,17 @@ When adding a new operation, you must decide and/or implement support in each of
     - Add/modify API docs in `documentation/docs/` and guides in `documentation/guides/`.
     - Add tests (Python and/or C++) covering dtype permutations and “error-by-design” cases.
 
+7. **Properties (R1_PROPERTIES)**
+    - Decide which properties the op **consumes** (e.g., `is_upper_triangular`, `is_hermitian`).
+    - Decide whether the op **produces/propagates/changes** properties on its outputs.
+    - Enforce the **no-scan rule**: properties must never be validated by scanning payload data.
+    - Document “power user” semantics where relevant: properties are gospel and may override payload truth.
+
+8. **Cached-derived properties (R1_PROPERTIES)**
+    - Decide which cached-derived properties (e.g., `trace`) the op **invalidates** (default: invalidate all cached-derived values on any payload mutation).
+    - If the op is a metadata-only transform, decide which cached-derived values can be **propagated** via explicit $O(1)$ rules (otherwise clear).
+    - If the op is parallelized, decide whether it should emit a constant-size **effect summary** to help the post-op health check update metadata without a second payload pass.
+
 ## Step-by-step (what to edit, in order)
 
 ### 1) Add the device-interface method
@@ -93,6 +104,10 @@ Responsibilities of the frontend:
 - allocate the result using `ObjectFactory::create_matrix/create_vector`,
 - dispatch via `ComputeContext::instance().get_device()->...`.
 
+Additional responsibility (R1_PROPERTIES):
+
+- Compute any **effective structure category** once (e.g., zero/identity/diagonal/triangular/general) from properties and pass that decision down to avoid repeated property lookups in inner loops.
+
 ### 6) Bind to Python
 
 Add the binding to the appropriate `src/bindings/bind_*.cpp` and ensure it is reachable from `src/bindings.cpp`.
@@ -117,8 +132,24 @@ These rules are defined in [[internals/DType System|internals/DType System]] and
 - [ ] Dtype behavior documented (including bit exceptions and cross-kind rules).
 - [ ] Tests cover supported dtypes + at least one “error-by-design” dtype.
 
+If the op is property-aware (R1_PROPERTIES):
+
+- [ ] The op’s behavior with properties is documented (which properties it reads, and which it writes/propagates).
+- [ ] Property behavior is deterministic and respects the “no truth validation / no data scans” rule.
+
+If the op interacts with cached-derived properties (R1_PROPERTIES):
+
+- [ ] Cache behavior is documented (which cached-derived values can be preserved/propagated vs must be cleared).
+- [ ] Cache behavior is deterministic and uses only $O(1)$ rules (no scans / no extra passes).
+
 For `bit` specifically, always state whether the new op is:
 
 - **bitwise** (stays `bit`, stays packed), or
 - **numeric** (may widen to `int`/`float`, potentially huge), or
 - **error-by-design** for `bit` unless the user explicitly requests widening.
+
+## See also
+
+- [[project/protocols/Documentation Protocol.md|Documentation Protocol]]
+- [[internals/plans/completed/R1_PROPERTIES_PLAN.md|R1_PROPERTIES plan (properties + caches)]]
+- [[internals/DType System|internals/DType System]]

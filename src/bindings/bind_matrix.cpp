@@ -7,6 +7,7 @@
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/core/Float16.hpp"
+#include "pycauset/matrix/DiagonalMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/ComplexFloat16Matrix.hpp"
@@ -498,17 +499,490 @@ inline std::shared_ptr<MatrixBase> elementwise_operand_matrix_from_numpy(const p
     throw py::type_error("Unsupported NumPy dtype for matrix conversion");
 }
 
-inline std::pair<uint64_t, uint64_t> parse_matrix_index(const py::handle& key) {
-    if (!py::isinstance<py::tuple>(key) && !py::isinstance<py::list>(key)) {
-        throw py::type_error("Matrix indices must be a tuple (i, j)");
+struct SliceInfo {
+    bool is_scalar;
+    bool is_array;
+    uint64_t index;
+    py::ssize_t start;
+    py::ssize_t step;
+    uint64_t length;
+    std::vector<uint64_t> indices;
+};
+
+struct ParsedIndex {
+    SliceInfo rows;
+    SliceInfo cols;
+};
+
+inline bool coerce_bit_value(const py::handle& value);
+
+inline SliceInfo make_scalar_index(py::ssize_t idx, uint64_t dim) {
+    if (idx < 0) {
+        idx += static_cast<py::ssize_t>(dim);
     }
-    py::sequence seq = key.cast<py::sequence>();
-    if (seq.size() != 2) {
-        throw py::type_error("Matrix indices must be a tuple (i, j)");
+    if (idx < 0 || idx >= static_cast<py::ssize_t>(dim)) {
+        throw py::index_error("Index out of bounds");
     }
-    uint64_t i = seq[0].cast<uint64_t>();
-    uint64_t j = seq[1].cast<uint64_t>();
-    return {i, j};
+    return SliceInfo{true, false, static_cast<uint64_t>(idx), 0, 1, 1, {}};
+}
+
+inline SliceInfo make_full_slice(uint64_t dim) {
+    return SliceInfo{false, false, 0, 0, 1, dim, {}};
+}
+
+inline SliceInfo slice_from_object(const py::handle& obj, uint64_t dim) {
+    if (py::isinstance<py::int_>(obj)) {
+        return make_scalar_index(obj.cast<py::ssize_t>(), dim);
+    }
+    if (py::isinstance<py::slice>(obj)) {
+        py::slice s = obj.cast<py::slice>();
+        py::ssize_t start, stop, step, slicelength;
+        if (!s.compute(static_cast<py::ssize_t>(dim), &start, &stop, &step, &slicelength)) {
+            throw py::value_error("Invalid slice");
+        }
+        return SliceInfo{false, false, 0, start, step, static_cast<uint64_t>(slicelength), {}};
+    }
+    if (py::isinstance<py::ellipsis>(obj)) {
+        return make_full_slice(dim);
+    }
+    if (obj.is_none()) {
+        throw py::value_error("newaxis/None would create >2D result; not supported (matrices/vectors only)");
+    }
+    if (py::isinstance<py::array>(obj)) {
+        if (py::isinstance<py::array_t<bool>>(obj)) {
+            auto mask = py::array_t<bool, py::array::c_style | py::array::forcecast>::ensure(obj);
+            if (!mask) {
+                throw py::type_error("Boolean index array must be 1D bool");
+            }
+            auto buf = mask.request();
+            if (buf.ndim != 1) {
+                throw py::type_error("Boolean index array must be 1D");
+            }
+            if (static_cast<uint64_t>(buf.shape[0]) != dim) {
+                throw py::index_error("Boolean index length must match dimension length");
+            }
+            const bool* ptr = static_cast<const bool*>(buf.ptr);
+            std::vector<uint64_t> indices;
+            indices.reserve(static_cast<size_t>(buf.shape[0]));
+            for (py::ssize_t i = 0; i < buf.shape[0]; ++i) {
+                if (ptr[i]) {
+                    indices.push_back(static_cast<uint64_t>(i));
+                }
+            }
+            return SliceInfo{false, true, 0, 0, 1, static_cast<uint64_t>(indices.size()), std::move(indices)};
+        }
+
+        auto idx = py::array_t<long long, py::array::c_style | py::array::forcecast>::ensure(obj);
+        if (!idx) {
+            throw py::type_error("Advanced index arrays must be integer or boolean");
+        }
+        auto buf = idx.request();
+        if (buf.ndim != 1) {
+            throw py::type_error("Advanced index array must be 1D");
+        }
+        const long long* ptr = static_cast<const long long*>(buf.ptr);
+        std::vector<uint64_t> indices;
+        indices.reserve(static_cast<size_t>(buf.shape[0]));
+        for (py::ssize_t i = 0; i < buf.shape[0]; ++i) {
+            long long v = ptr[i];
+            if (v < 0) {
+                v += static_cast<long long>(dim);
+            }
+            if (v < 0 || v >= static_cast<long long>(dim)) {
+                throw py::index_error("Index out of bounds");
+            }
+            indices.push_back(static_cast<uint64_t>(v));
+        }
+        return SliceInfo{false, true, 0, 0, 1, static_cast<uint64_t>(indices.size()), std::move(indices)};
+    }
+    throw py::type_error("Matrix indices must be integers or slices");
+}
+
+inline ParsedIndex parse_matrix_subscript(const py::handle& key, uint64_t rows, uint64_t cols) {
+    // Normalize to exactly two entries (row, col). Ellipsis expands to full slices.
+    py::object first;
+    py::object second;
+
+    if (py::isinstance<py::ellipsis>(key)) {
+        first = py::slice();
+        second = py::slice();
+    } else if (py::isinstance<py::tuple>(key) || py::isinstance<py::list>(key)) {
+        py::sequence seq = key.cast<py::sequence>();
+        if (seq.size() == 1) {
+            if (py::isinstance<py::ellipsis>(seq[0])) {
+                first = py::slice();
+                second = py::slice();
+            } else {
+                throw py::type_error("Matrix indices must be (row, col)");
+            }
+        } else if (seq.size() == 2) {
+            first = seq[0];
+            second = seq[1];
+            if (py::isinstance<py::ellipsis>(first)) {
+                first = py::slice();
+            }
+            if (py::isinstance<py::ellipsis>(second)) {
+                second = py::slice();
+            }
+        } else {
+            throw py::type_error("Matrix indices must be 2D (row, col) for matrices/vectors");
+        }
+    } else {
+        throw py::type_error("Matrix indices must be provided as [row, col]");
+    }
+
+    SliceInfo r = slice_from_object(first, rows);
+    SliceInfo c = slice_from_object(second, cols);
+    return ParsedIndex{r, c};
+}
+
+inline std::pair<uint64_t, uint64_t> parse_matrix_index(const py::handle& key, uint64_t rows, uint64_t cols) {
+    auto parsed = parse_matrix_subscript(key, rows, cols);
+    if (!parsed.rows.is_scalar || !parsed.cols.is_scalar) {
+        throw py::type_error("Matrix indices must be integers (no slices) for this operation");
+    }
+    return {parsed.rows.index, parsed.cols.index};
+}
+
+inline uint64_t slice_length(const SliceInfo& s) {
+    return s.is_scalar ? 1 : s.length;
+}
+
+inline std::pair<uint64_t, uint64_t> slice_shape(const SliceInfo& r, const SliceInfo& c) {
+    uint64_t out_r = slice_length(r);
+    uint64_t out_c = slice_length(c);
+    return {out_r, out_c};
+}
+
+template <typename T>
+inline std::shared_ptr<DenseMatrix<T>> slice_dense_matrix(const DenseMatrix<T>& mat, const SliceInfo& r, const SliceInfo& c) {
+    const bool has_array = r.is_array || c.is_array;
+
+    // DenseMatrix<bool> (DenseBitMatrix) does not support the mapper/view-offset constructor.
+    // Guard the view path at compile time so the bool instantiation still compiles.
+    if constexpr (!std::is_same_v<T, bool>) {
+        const bool can_view = !has_array && r.step == 1 && c.step == 1;
+        if (can_view) {
+            const uint64_t logical_rows = mat.is_transposed() ? slice_length(c) : slice_length(r);
+            const uint64_t logical_cols = mat.is_transposed() ? slice_length(r) : slice_length(c);
+
+            const uint64_t row_start = r.is_scalar ? r.index : static_cast<uint64_t>(r.start);
+            const uint64_t col_start = c.is_scalar ? c.index : static_cast<uint64_t>(c.start);
+            const uint64_t base_row_offset = mat.row_offset() + (mat.is_transposed() ? col_start : row_start);
+            const uint64_t base_col_offset = mat.col_offset() + (mat.is_transposed() ? row_start : col_start);
+
+            auto view = std::make_shared<DenseMatrix<T>>(logical_rows,
+                                                         logical_cols,
+                                                         mat.shared_mapper(),
+                                                         mat.base_rows(),
+                                                         mat.base_cols(),
+                                                         base_row_offset,
+                                                         base_col_offset,
+                                                         mat.get_seed(),
+                                                         mat.get_scalar(),
+                                                         mat.is_transposed(),
+                                                         mat.is_conjugated(),
+                                                         mat.is_temporary());
+            return view;
+        }
+    }
+
+    if (r.is_array && c.is_array) {
+        const uint64_t len_r = slice_length(r);
+        const uint64_t len_c = slice_length(c);
+        uint64_t out_len = 0;
+        if (len_r == len_c) {
+            out_len = len_r;
+        } else if (len_r == 1) {
+            out_len = len_c;
+        } else if (len_c == 1) {
+            out_len = len_r;
+        } else {
+            throw py::value_error("Row and column index arrays must have the same length or be broadcastable (length 1)");
+        }
+
+        auto result = std::make_shared<DenseMatrix<T>>(1, out_len);
+        for (uint64_t k = 0; k < out_len; ++k) {
+            const uint64_t src_r = r.indices[len_r == 1 ? 0 : k];
+            const uint64_t src_c = c.indices[len_c == 1 ? 0 : k];
+            result->set(0, k, mat.get(src_r, src_c));
+        }
+        return result;
+    }
+
+    if (r.is_array) {
+        const uint64_t out_r = slice_length(r);
+        const uint64_t out_c = slice_length(c);
+        auto result = std::make_shared<DenseMatrix<T>>(out_r, out_c);
+        for (uint64_t rr = 0; rr < out_r; ++rr) {
+            const uint64_t src_r = r.indices[rr];
+            for (uint64_t cc = 0; cc < out_c; ++cc) {
+                const uint64_t src_c = c.is_scalar ? c.index : static_cast<uint64_t>(c.start + static_cast<py::ssize_t>(cc) * c.step);
+                result->set(rr, cc, mat.get(src_r, src_c));
+            }
+        }
+        return result;
+    }
+
+    if (c.is_array) {
+        const uint64_t out_r = slice_length(r);
+        const uint64_t out_c = slice_length(c);
+        auto result = std::make_shared<DenseMatrix<T>>(out_r, out_c);
+        for (uint64_t rr = 0; rr < out_r; ++rr) {
+            const uint64_t src_r = r.is_scalar ? r.index : static_cast<uint64_t>(r.start + static_cast<py::ssize_t>(rr) * r.step);
+            for (uint64_t cc = 0; cc < out_c; ++cc) {
+                const uint64_t src_c = c.indices[cc];
+                result->set(rr, cc, mat.get(src_r, src_c));
+            }
+        }
+        return result;
+    }
+
+    auto [out_r, out_c] = slice_shape(r, c);
+    auto result = std::make_shared<DenseMatrix<T>>(out_r, out_c);
+    for (uint64_t rr = 0; rr < out_r; ++rr) {
+        const uint64_t src_r = r.is_scalar ? r.index : static_cast<uint64_t>(r.start + static_cast<py::ssize_t>(rr) * r.step);
+        for (uint64_t cc = 0; cc < out_c; ++cc) {
+            const uint64_t src_c = c.is_scalar ? c.index : static_cast<uint64_t>(c.start + static_cast<py::ssize_t>(cc) * c.step);
+            result->set(rr, cc, mat.get(src_r, src_c));
+        }
+    }
+    return result;
+}
+
+template <typename T>
+inline T cast_scalar_to(const py::object& value) {
+    return value.cast<T>();
+}
+
+template <>
+inline bool cast_scalar_to<bool>(const py::object& value) {
+    return coerce_bit_value(value);
+}
+
+template <typename T>
+inline void maybe_warn_assignment_cast(const py::dtype& src_dtype) {
+    const py::dtype target_dtype = py::dtype::of<T>();
+    if (src_dtype.equal(target_dtype)) {
+        return;
+    }
+
+    const auto src_name = py::str(src_dtype).cast<std::string>();
+    const auto tgt_name = py::str(target_dtype).cast<std::string>();
+    std::string msg = "pycauset assignment: casting RHS from ";
+    msg += src_name;
+    msg += " to ";
+    msg += tgt_name;
+    bindings_warn::warn_once_with_category(
+        "pycauset.assign.cast.",
+        msg,
+        "PyCausetDTypeWarning",
+        /*stacklevel=*/3);
+
+    if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+        const py::ssize_t src_size = src_dtype.itemsize();
+        const py::ssize_t tgt_size = static_cast<py::ssize_t>(sizeof(T));
+        const char kind = src_dtype.kind();
+        if (kind == 'f' || src_size > tgt_size) {
+            std::string risk = "pycauset assignment: possible overflow when casting from ";
+            risk += src_name;
+            risk += " to ";
+            risk += tgt_name;
+            bindings_warn::warn_once_with_category(
+                "pycauset.assign.overflow_risk.",
+                risk,
+                "PyCausetOverflowRiskWarning",
+                /*stacklevel=*/3);
+        }
+    }
+}
+
+template <typename T>
+struct AssignmentValue {
+    bool is_scalar = true;
+    T scalar{};
+    std::shared_ptr<DenseMatrix<T>> mat;
+    uint64_t rows = 1;
+    uint64_t cols = 1;
+};
+
+template <typename T>
+inline AssignmentValue<T> normalize_assignment_value(const py::object& value) {
+    AssignmentValue<T> out;
+
+    if (py::isinstance<py::array>(value)) {
+        py::array arr = py::array::ensure(value);
+        const py::dtype src_dtype = arr.dtype();
+        auto buf = arr.request();
+        if (buf.ndim == 0) {
+            maybe_warn_assignment_cast<T>(src_dtype);
+            out.scalar = value.cast<T>();
+            out.is_scalar = true;
+            return out;
+        }
+        if (buf.ndim == 1 || buf.ndim == 2) {
+            const uint64_t rows = (buf.ndim == 1) ? 1 : static_cast<uint64_t>(buf.shape[0]);
+            const uint64_t cols = (buf.ndim == 1) ? static_cast<uint64_t>(buf.shape[0]) : static_cast<uint64_t>(buf.shape[1]);
+            py::array_t<T, py::array::c_style | py::array::forcecast> arr_t = py::array_t<T, py::array::c_style | py::array::forcecast>::ensure(arr);
+            if (!arr_t) {
+                throw py::type_error("Assignment array dtype is not convertible to target matrix dtype");
+            }
+            maybe_warn_assignment_cast<T>(src_dtype);
+            auto converted = arr_t.request();
+            auto m = std::make_shared<DenseMatrix<T>>(rows, cols);
+            const T* src = static_cast<const T*>(converted.ptr);
+            const uint64_t stride0 = static_cast<uint64_t>(converted.strides[0] / static_cast<py::ssize_t>(sizeof(T)));
+            const uint64_t stride1 = (converted.ndim == 1)
+                                         ? 1
+                                         : static_cast<uint64_t>(converted.strides[1] / static_cast<py::ssize_t>(sizeof(T)));
+            for (uint64_t i = 0; i < rows; ++i) {
+                for (uint64_t j = 0; j < cols; ++j) {
+                    m->set(i, j, src[i * stride0 + j * stride1]);
+                }
+            }
+            out.is_scalar = false;
+            out.mat = std::move(m);
+            out.rows = rows;
+            out.cols = cols;
+            return out;
+        }
+        throw py::value_error("Assignment array rank must be 0, 1, or 2");
+    }
+
+    if (py::isinstance<std::shared_ptr<DenseMatrix<T>>>(value)) {
+        out.mat = value.cast<std::shared_ptr<DenseMatrix<T>>>();
+        out.is_scalar = false;
+        out.rows = out.mat->rows();
+        out.cols = out.mat->cols();
+        return out;
+    }
+
+    out.scalar = cast_scalar_to<T>(value);
+    out.is_scalar = true;
+    return out;
+}
+
+template <typename T>
+inline bool can_broadcast_to(uint64_t target_rows, uint64_t target_cols, const AssignmentValue<T>& v) {
+    if (v.is_scalar) {
+        return true;
+    }
+    const bool rows_ok = (v.rows == target_rows) || (v.rows == 1);
+    const bool cols_ok = (v.cols == target_cols) || (v.cols == 1);
+    return rows_ok && cols_ok;
+}
+
+template <typename T>
+inline T value_at(const AssignmentValue<T>& v, uint64_t i, uint64_t j) {
+    if (v.is_scalar) {
+        return v.scalar;
+    }
+    const uint64_t src_i = (v.rows == 1) ? 0 : i;
+    const uint64_t src_j = (v.cols == 1) ? 0 : j;
+    return v.mat->get(src_i, src_j);
+}
+
+template <typename T>
+inline void dense_set_slice(DenseMatrix<T>& mat, const SliceInfo& r, const SliceInfo& c, const AssignmentValue<T>& vinfo) {
+    auto [out_r, out_c] = slice_shape(r, c);
+    if (!can_broadcast_to(out_r, out_c, vinfo)) {
+        throw py::value_error("Right-hand side cannot broadcast to the indexed slice");
+    }
+
+    for (uint64_t rr = 0; rr < out_r; ++rr) {
+        const uint64_t src_r = r.is_scalar ? r.index : static_cast<uint64_t>(r.start + static_cast<py::ssize_t>(rr) * r.step);
+        for (uint64_t cc = 0; cc < out_c; ++cc) {
+            const uint64_t src_c = c.is_scalar ? c.index : static_cast<uint64_t>(c.start + static_cast<py::ssize_t>(cc) * c.step);
+            mat.set(src_r, src_c, value_at(vinfo, rr, cc));
+        }
+    }
+}
+
+template <typename T>
+inline void dense_set_advanced(DenseMatrix<T>& mat, const SliceInfo& r, const SliceInfo& c, const AssignmentValue<T>& vinfo) {
+    const bool rows_array = r.is_array;
+    const bool cols_array = c.is_array;
+
+    if (rows_array && cols_array) {
+        const uint64_t len_r = slice_length(r);
+        const uint64_t len_c = slice_length(c);
+        uint64_t out_len = 0;
+        if (len_r == len_c) {
+            out_len = len_r;
+        } else if (len_r == 1) {
+            out_len = len_c;
+        } else if (len_c == 1) {
+            out_len = len_r;
+        } else {
+            throw py::value_error("Row and column index arrays must have the same length or be broadcastable (length 1)");
+        }
+        if (!can_broadcast_to(1, out_len, vinfo)) {
+            throw py::value_error("Right-hand side cannot broadcast to the indexed slice");
+        }
+        for (uint64_t k = 0; k < out_len; ++k) {
+            const uint64_t src_r = r.indices[len_r == 1 ? 0 : k];
+            const uint64_t src_c = c.indices[len_c == 1 ? 0 : k];
+            mat.set(src_r, src_c, value_at(vinfo, 0, k));
+        }
+        return;
+    }
+
+    if (rows_array) {
+        const uint64_t out_r = slice_length(r);
+        const uint64_t out_c = slice_length(c);
+        if (!can_broadcast_to(out_r, out_c, vinfo)) {
+            throw py::value_error("Right-hand side cannot broadcast to the indexed slice");
+        }
+        for (uint64_t rr = 0; rr < out_r; ++rr) {
+            const uint64_t src_r = r.indices[rr];
+            for (uint64_t cc = 0; cc < out_c; ++cc) {
+                const uint64_t src_c = c.is_scalar ? c.index : static_cast<uint64_t>(c.start + static_cast<py::ssize_t>(cc) * c.step);
+                mat.set(src_r, src_c, value_at(vinfo, rr, cc));
+            }
+        }
+        return;
+    }
+
+    if (cols_array) {
+        const uint64_t out_r = slice_length(r);
+        const uint64_t out_c = slice_length(c);
+        if (!can_broadcast_to(out_r, out_c, vinfo)) {
+            throw py::value_error("Right-hand side cannot broadcast to the indexed slice");
+        }
+        for (uint64_t rr = 0; rr < out_r; ++rr) {
+            const uint64_t src_r = r.is_scalar ? r.index : static_cast<uint64_t>(r.start + static_cast<py::ssize_t>(rr) * r.step);
+            for (uint64_t cc = 0; cc < out_c; ++cc) {
+                const uint64_t src_c = c.indices[cc];
+                mat.set(src_r, src_c, value_at(vinfo, rr, cc));
+            }
+        }
+        return;
+    }
+}
+
+template <typename T>
+inline py::object dense_getitem(const DenseMatrix<T>& mat, const py::object& key) {
+    auto parsed = parse_matrix_subscript(key, mat.rows(), mat.cols());
+    if (parsed.rows.is_scalar && parsed.cols.is_scalar) {
+        return py::cast(mat.get(parsed.rows.index, parsed.cols.index));
+    }
+    auto sliced = slice_dense_matrix(mat, parsed.rows, parsed.cols);
+    return py::cast(sliced);
+}
+
+template <typename T>
+inline void dense_setitem(DenseMatrix<T>& mat, const py::object& key, const py::object& value) {
+    auto parsed = parse_matrix_subscript(key, mat.rows(), mat.cols());
+    if (parsed.rows.is_scalar && parsed.cols.is_scalar) {
+        mat.set(parsed.rows.index, parsed.cols.index, cast_scalar_to<T>(value));
+        return;
+    }
+    const AssignmentValue<T> vinfo = normalize_assignment_value<T>(value);
+    if (parsed.rows.is_array || parsed.cols.is_array) {
+        dense_set_advanced(mat, parsed.rows, parsed.cols, vinfo);
+    } else {
+        dense_set_slice(mat, parsed.rows, parsed.cols, vinfo);
+    }
 }
 
 inline bool coerce_bit_value(const py::handle& value) {
@@ -530,6 +1004,64 @@ inline bool coerce_bit_value(const py::handle& value) {
     throw py::type_error("Bit matrices only accept 0/1/False/True");
 }
 
+inline py::object matrixbase_getitem_dispatch(const MatrixBase& mat, const py::object& key) {
+    auto parsed = parse_matrix_subscript(key, mat.rows(), mat.cols());
+    if (parsed.rows.is_scalar && parsed.cols.is_scalar) {
+        const DataType dt = mat.get_data_type();
+        if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
+            return py::cast(mat.get_element_as_complex(parsed.rows.index, parsed.cols.index));
+        }
+        return py::float_(mat.get_element_as_double(parsed.rows.index, parsed.cols.index));
+    }
+
+    // Slicing: supported for dense matrix types; others raise for now.
+    if (auto* md = dynamic_cast<const DenseMatrix<double>*>(&mat)) {
+        return dense_getitem(*md, key);
+    }
+    if (auto* mf = dynamic_cast<const DenseMatrix<float>*>(&mat)) {
+        return dense_getitem(*mf, key);
+    }
+    if (auto* mf16 = dynamic_cast<const DenseMatrix<float16_t>*>(&mat)) {
+        return dense_getitem(*mf16, key);
+    }
+    if (auto* mi32 = dynamic_cast<const DenseMatrix<int32_t>*>(&mat)) {
+        return dense_getitem(*mi32, key);
+    }
+    if (auto* mi16 = dynamic_cast<const DenseMatrix<int16_t>*>(&mat)) {
+        return dense_getitem(*mi16, key);
+    }
+    if (auto* mi8 = dynamic_cast<const DenseMatrix<int8_t>*>(&mat)) {
+        return dense_getitem(*mi8, key);
+    }
+    if (auto* mi64 = dynamic_cast<const DenseMatrix<int64_t>*>(&mat)) {
+        return dense_getitem(*mi64, key);
+    }
+    if (auto* mu8 = dynamic_cast<const DenseMatrix<uint8_t>*>(&mat)) {
+        return dense_getitem(*mu8, key);
+    }
+    if (auto* mu16 = dynamic_cast<const DenseMatrix<uint16_t>*>(&mat)) {
+        return dense_getitem(*mu16, key);
+    }
+    if (auto* mu32 = dynamic_cast<const DenseMatrix<uint32_t>*>(&mat)) {
+        return dense_getitem(*mu32, key);
+    }
+    if (auto* mu64 = dynamic_cast<const DenseMatrix<uint64_t>*>(&mat)) {
+        return dense_getitem(*mu64, key);
+    }
+    if (auto* mb = dynamic_cast<const DenseMatrix<bool>*>(&mat)) {
+        return dense_getitem(*mb, key);
+    }
+    if (auto* mcf32 = dynamic_cast<const DenseMatrix<std::complex<float>>*>(&mat)) {
+        return dense_getitem(*mcf32, key);
+    }
+    if (auto* mcf64 = dynamic_cast<const DenseMatrix<std::complex<double>>*>(&mat)) {
+        return dense_getitem(*mcf64, key);
+    }
+
+    PyErr_SetString(PyExc_NotImplementedError, "Slicing not supported for this matrix type yet");
+    throw py::error_already_set();
+}
+
 template <typename Fn>
 inline auto translate_invalid_argument(Fn&& fn) {
     try {
@@ -549,6 +1081,11 @@ void bind_matrix_classes(py::module_& m) {
         .def("set_temporary", &MatrixBase::set_temporary)
         .def("close", &MatrixBase::close)
         .def("copy_storage", &MatrixBase::copy_storage, py::arg("result_file_hint") = "")
+        .def(
+            "get_accelerator",
+            &MatrixBase::get_accelerator,
+            py::return_value_policy::reference_internal)
+        .def("hint", &MatrixBase::hint, py::arg("hint"))
         .def_property("seed", &MatrixBase::get_seed, &MatrixBase::set_seed)
         .def_property("scalar", &MatrixBase::get_scalar, &MatrixBase::set_scalar)
         .def("get_scalar", &MatrixBase::get_scalar)
@@ -812,47 +1349,16 @@ void bind_matrix_classes(py::module_& m) {
             py::arg("copy") = py::none())
         .def("trace", [](py::object self) {
             auto& mat = self.cast<MatrixBase&>();
-            if (py::hasattr(self, "cached_trace")) {
-                py::object v = self.attr("cached_trace");
-                if (!v.is_none()) {
-                    return v.cast<double>();
-                }
-            }
-            if (auto cached = mat.get_cached_trace()) {
-                double v = *cached;
-                self.attr("cached_trace") = v;
-                return v;
-            }
             double v = pycauset::trace(mat);
-            mat.set_cached_trace(v);
-            self.attr("cached_trace") = v;
             return v;
         })
         .def("determinant", [](py::object self) {
             auto& mat = self.cast<MatrixBase&>();
-            if (py::hasattr(self, "cached_determinant")) {
-                py::object v = self.attr("cached_determinant");
-                if (!v.is_none()) {
-                    return v.cast<double>();
-                }
-            }
-            if (auto cached = mat.get_cached_determinant()) {
-                double v = *cached;
-                self.attr("cached_determinant") = v;
-                return v;
-            }
             double v = pycauset::determinant(mat);
-            mat.set_cached_determinant(v);
-            self.attr("cached_determinant") = v;
             return v;
         })
         .def("__getitem__", [](const MatrixBase& mat, const py::object& key) -> py::object {
-            auto [i, j] = parse_matrix_index(key);
-            const DataType dt = mat.get_data_type();
-            if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
-                return py::cast(mat.get_element_as_complex(i, j));
-            }
-            return py::float_(mat.get_element_as_double(i, j));
+            return matrixbase_getitem_dispatch(mat, key);
         })
         .def(
             "__matmul__",
@@ -916,6 +1422,14 @@ void bind_matrix_classes(py::module_& m) {
             },
             py::is_operator())
         .def(
+            "__matmul__",
+            [](const MatrixBase&, const py::object&) -> py::object {
+                // Allow other operand types (e.g., internal BlockMatrix) to
+                // handle the operation via their __rmatmul__.
+                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+            },
+            py::is_operator())
+        .def(
             "__add__",
             [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) {
                 maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, a, *b);
@@ -954,6 +1468,14 @@ void bind_matrix_classes(py::module_& m) {
             [](const MatrixBase& a, int64_t s) {
                 auto out = a.add_scalar(s, "");
                 return std::shared_ptr<MatrixBase>(out.release());
+            },
+            py::is_operator())
+        .def(
+            "__add__",
+            [](const MatrixBase&, const py::object&) -> py::object {
+                // Allow other operand types (e.g., internal BlockMatrix) to
+                // handle the operation via their __radd__.
+                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
             },
             py::is_operator())
         .def(
@@ -1038,6 +1560,14 @@ void bind_matrix_classes(py::module_& m) {
             },
             py::is_operator())
         .def(
+            "__sub__",
+            [](const MatrixBase&, const py::object&) -> py::object {
+                // Allow other operand types (e.g., internal BlockMatrix) to
+                // handle the operation via their __rsub__.
+                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+            },
+            py::is_operator())
+        .def(
             "__rsub__",
             [](const MatrixBase& a, const py::array& b) {
                 auto mb = elementwise_operand_matrix_from_numpy(b);
@@ -1099,6 +1629,14 @@ void bind_matrix_classes(py::module_& m) {
             },
             py::is_operator())
         .def(
+            "__truediv__",
+            [](const MatrixBase&, const py::object&) -> py::object {
+                // Allow other operand types (e.g., internal BlockMatrix) to
+                // handle the operation via their __rtruediv__.
+                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+            },
+            py::is_operator())
+        .def(
             "__mul__",
             [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) {
                 maybe_warn_float_underpromotion("elementwise_multiply", promotion::BinaryOp::ElementwiseMultiply, a, *b);
@@ -1113,6 +1651,14 @@ void bind_matrix_classes(py::module_& m) {
                 maybe_warn_float_underpromotion("elementwise_multiply", promotion::BinaryOp::ElementwiseMultiply, a, *mb);
                 auto out = pycauset::elementwise_multiply(a, *mb, "");
                 return std::shared_ptr<MatrixBase>(out.release());
+            },
+            py::is_operator())
+        .def(
+            "__mul__",
+            [](const MatrixBase&, const py::object&) -> py::object {
+                // Allow other operand types (e.g., internal BlockMatrix) to
+                // handle the operation via their __rmul__.
+                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
             },
             py::is_operator())
         .def(
@@ -1224,9 +1770,8 @@ void bind_matrix_classes(py::module_& m) {
             py::arg("is_transposed"))
         .def("get", &DenseMatrix<double>::get)
         .def("set", &DenseMatrix<double>::set)
-        .def("__setitem__", [](DenseMatrix<double>& mat, const py::object& key, double value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, value);
+        .def("__setitem__", [](DenseMatrix<double>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
         })
         .def_buffer([](DenseMatrix<double>& m) -> py::buffer_info {
             py::ssize_t stride0 = static_cast<py::ssize_t>(sizeof(double) * m.base_cols());
@@ -1319,9 +1864,8 @@ void bind_matrix_classes(py::module_& m) {
             py::arg("is_transposed"))
         .def("get", &DenseMatrix<float>::get)
         .def("set", &DenseMatrix<float>::set)
-        .def("__setitem__", [](DenseMatrix<float>& mat, const py::object& key, float value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, value);
+        .def("__setitem__", [](DenseMatrix<float>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
         })
         .def_buffer([](DenseMatrix<float>& m) -> py::buffer_info {
             py::ssize_t stride0 = static_cast<py::ssize_t>(sizeof(float) * m.base_cols());
@@ -1438,9 +1982,8 @@ void bind_matrix_classes(py::module_& m) {
             [](DenseMatrix<float16_t>& mat, uint64_t i, uint64_t j, double value) {
                 mat.set(i, j, float16_t(value));
             })
-        .def("__setitem__", [](DenseMatrix<float16_t>& mat, const py::object& key, double value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, float16_t(value));
+        .def("__setitem__", [](DenseMatrix<float16_t>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
         })
         .def_buffer([](DenseMatrix<float16_t>& m) -> py::buffer_info {
             py::ssize_t stride0 = static_cast<py::ssize_t>(sizeof(float16_t) * m.base_cols());
@@ -1564,7 +2107,7 @@ void bind_matrix_classes(py::module_& m) {
             [](ComplexFloat16Matrix& mat, std::complex<double> v) { mat.fill(v); },
             py::arg("value"))
         .def("__setitem__", [](ComplexFloat16Matrix& mat, const py::object& key, std::complex<double> value) {
-            auto [i, j] = parse_matrix_index(key);
+            auto [i, j] = parse_matrix_index(key, mat.rows(), mat.cols());
             mat.set(i, j, value);
         });
 
@@ -1624,9 +2167,8 @@ void bind_matrix_classes(py::module_& m) {
         .def("set", &DenseMatrix<std::complex<float>>::set)
         .def("fill", &DenseMatrix<std::complex<float>>::fill)
         .def("set_identity", &DenseMatrix<std::complex<float>>::set_identity)
-        .def("__setitem__", [](DenseMatrix<std::complex<float>>& mat, const py::object& key, std::complex<float> value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, value);
+        .def("__setitem__", [](DenseMatrix<std::complex<float>>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
         });
 
     py::class_<DenseMatrix<std::complex<double>>, MatrixBase, std::shared_ptr<DenseMatrix<std::complex<double>>>>(
@@ -1684,8 +2226,37 @@ void bind_matrix_classes(py::module_& m) {
         .def("set", &DenseMatrix<std::complex<double>>::set)
         .def("fill", &DenseMatrix<std::complex<double>>::fill)
         .def("set_identity", &DenseMatrix<std::complex<double>>::set_identity)
-        .def("__setitem__", [](DenseMatrix<std::complex<double>>& mat, const py::object& key, std::complex<double> value) {
-            auto [i, j] = parse_matrix_index(key);
+        .def("__setitem__", [](DenseMatrix<std::complex<double>>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
+        });
+
+    // --- Diagonal matrix ---
+    py::class_<DiagonalMatrix<double>, MatrixBase, std::shared_ptr<DiagonalMatrix<double>>>(m, "DiagonalMatrix")
+        .def(
+            py::init([](uint64_t n) { return std::make_shared<DiagonalMatrix<double>>(n, ""); }),
+            py::arg("n"))
+        .def_static(
+            "_from_storage",
+            [](uint64_t n,
+               const std::string& backing_file,
+               size_t offset,
+               uint64_t seed,
+               std::complex<double> scalar,
+               bool is_transposed) {
+                return std::make_shared<DiagonalMatrix<double>>(n, backing_file, offset, seed, scalar, is_transposed);
+            },
+            py::arg("n"),
+            py::arg("backing_file"),
+            py::arg("offset"),
+            py::arg("seed"),
+            py::arg("scalar"),
+            py::arg("is_transposed"))
+        .def("get", &DiagonalMatrix<double>::get)
+        .def("set", &DiagonalMatrix<double>::set)
+        .def("get_diagonal", &DiagonalMatrix<double>::get_diagonal)
+        .def("set_diagonal", &DiagonalMatrix<double>::set_diagonal)
+        .def("__setitem__", [](DiagonalMatrix<double>& mat, const py::object& key, double value) {
+            auto [i, j] = parse_matrix_index(key, mat.rows(), mat.cols());
             mat.set(i, j, value);
         });
 
@@ -1854,20 +2425,18 @@ void bind_matrix_classes(py::module_& m) {
             py::arg("is_transposed"))
         .def("get", &DenseMatrix<int32_t>::get)
         .def("set", &DenseMatrix<int32_t>::set)
+        .def("__getitem__", [](const DenseMatrix<int32_t>& mat, const py::object& key) {
+            return dense_getitem(mat, key);
+        })
+        .def("__setitem__", [](DenseMatrix<int32_t>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
+        })
+        .def("fill", &DenseMatrix<int32_t>::fill)
         .def(
             "invert",
             [](const DenseMatrix<int32_t>& /*m*/) {
                 throw std::runtime_error("Inverse not implemented for IntegerMatrix");
             })
-        .def("__getitem__", [](const DenseMatrix<int32_t>& mat, const py::object& key) {
-            auto [i, j] = parse_matrix_index(key);
-            return mat.get(i, j);
-        })
-        .def("fill", &DenseMatrix<int32_t>::fill)
-        .def("__setitem__", [](DenseMatrix<int32_t>& mat, const py::object& key, int32_t value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, value);
-        })
         .def(
             "__invert__",
             [](const DenseMatrix<int32_t>& mat) {
@@ -1929,14 +2498,12 @@ void bind_matrix_classes(py::module_& m) {
         .def("get", &DenseMatrix<int16_t>::get)
         .def("set", &DenseMatrix<int16_t>::set)
         .def("__getitem__", [](const DenseMatrix<int16_t>& mat, const py::object& key) {
-            auto [i, j] = parse_matrix_index(key);
-            return mat.get(i, j);
+            return dense_getitem(mat, key);
+        })
+        .def("__setitem__", [](DenseMatrix<int16_t>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
         })
         .def("fill", &DenseMatrix<int16_t>::fill)
-        .def("__setitem__", [](DenseMatrix<int16_t>& mat, const py::object& key, int16_t value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, value);
-        })
         .def(
             "__invert__",
             [](const DenseMatrix<int16_t>& mat) {
@@ -1998,13 +2565,11 @@ void bind_matrix_classes(py::module_& m) {
         .def("get", &DenseMatrix<int8_t>::get)
         .def("set", &DenseMatrix<int8_t>::set)
         .def("__getitem__", [](const DenseMatrix<int8_t>& mat, const py::object& key) {
-            auto [i, j] = parse_matrix_index(key);
-            return mat.get(i, j);
+            return dense_getitem(mat, key);
         })
         .def("fill", &DenseMatrix<int8_t>::fill)
-        .def("__setitem__", [](DenseMatrix<int8_t>& mat, const py::object& key, int8_t value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, value);
+        .def("__setitem__", [](DenseMatrix<int8_t>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
         })
         .def(
             "__invert__",
@@ -2067,13 +2632,11 @@ void bind_matrix_classes(py::module_& m) {
         .def("get", &DenseMatrix<int64_t>::get)
         .def("set", &DenseMatrix<int64_t>::set)
         .def("__getitem__", [](const DenseMatrix<int64_t>& mat, const py::object& key) {
-            auto [i, j] = parse_matrix_index(key);
-            return mat.get(i, j);
+            return dense_getitem(mat, key);
         })
         .def("fill", &DenseMatrix<int64_t>::fill)
-        .def("__setitem__", [](DenseMatrix<int64_t>& mat, const py::object& key, int64_t value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, value);
+        .def("__setitem__", [](DenseMatrix<int64_t>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
         })
         .def(
             "__invert__",
@@ -2136,13 +2699,11 @@ void bind_matrix_classes(py::module_& m) {
         .def("get", &DenseMatrix<uint8_t>::get)
         .def("set", &DenseMatrix<uint8_t>::set)
         .def("__getitem__", [](const DenseMatrix<uint8_t>& mat, const py::object& key) {
-            auto [i, j] = parse_matrix_index(key);
-            return mat.get(i, j);
+            return dense_getitem(mat, key);
         })
         .def("fill", &DenseMatrix<uint8_t>::fill)
-        .def("__setitem__", [](DenseMatrix<uint8_t>& mat, const py::object& key, uint8_t value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, value);
+        .def("__setitem__", [](DenseMatrix<uint8_t>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
         })
         .def(
             "__invert__",
@@ -2205,13 +2766,11 @@ void bind_matrix_classes(py::module_& m) {
         .def("get", &DenseMatrix<uint16_t>::get)
         .def("set", &DenseMatrix<uint16_t>::set)
         .def("__getitem__", [](const DenseMatrix<uint16_t>& mat, const py::object& key) {
-            auto [i, j] = parse_matrix_index(key);
-            return mat.get(i, j);
+            return dense_getitem(mat, key);
         })
         .def("fill", &DenseMatrix<uint16_t>::fill)
-        .def("__setitem__", [](DenseMatrix<uint16_t>& mat, const py::object& key, uint16_t value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, value);
+        .def("__setitem__", [](DenseMatrix<uint16_t>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
         })
         .def(
             "__invert__",
@@ -2274,13 +2833,11 @@ void bind_matrix_classes(py::module_& m) {
         .def("get", &DenseMatrix<uint32_t>::get)
         .def("set", &DenseMatrix<uint32_t>::set)
         .def("__getitem__", [](const DenseMatrix<uint32_t>& mat, const py::object& key) {
-            auto [i, j] = parse_matrix_index(key);
-            return mat.get(i, j);
+            return dense_getitem(mat, key);
         })
         .def("fill", &DenseMatrix<uint32_t>::fill)
-        .def("__setitem__", [](DenseMatrix<uint32_t>& mat, const py::object& key, uint32_t value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, value);
+        .def("__setitem__", [](DenseMatrix<uint32_t>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
         })
         .def(
             "__invert__",
@@ -2343,13 +2900,11 @@ void bind_matrix_classes(py::module_& m) {
         .def("get", &DenseMatrix<uint64_t>::get)
         .def("set", &DenseMatrix<uint64_t>::set)
         .def("__getitem__", [](const DenseMatrix<uint64_t>& mat, const py::object& key) {
-            auto [i, j] = parse_matrix_index(key);
-            return mat.get(i, j);
+            return dense_getitem(mat, key);
         })
         .def("fill", &DenseMatrix<uint64_t>::fill)
-        .def("__setitem__", [](DenseMatrix<uint64_t>& mat, const py::object& key, uint64_t value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, value);
+        .def("__setitem__", [](DenseMatrix<uint64_t>& mat, const py::object& key, const py::object& value) {
+            dense_setitem(mat, key, value);
         })
         .def(
             "__invert__",
@@ -2410,12 +2965,10 @@ void bind_matrix_classes(py::module_& m) {
             [](DenseBitMatrix& mat, const py::object& value) { mat.fill(coerce_bit_value(value)); },
             py::arg("value"))
         .def("__getitem__", [](const DenseBitMatrix& mat, const py::object& key) {
-            auto [i, j] = parse_matrix_index(key);
-            return mat.get(i, j);
+            return dense_getitem(mat, key);
         })
         .def("__setitem__", [](DenseBitMatrix& mat, const py::object& key, const py::object& value) {
-            auto [i, j] = parse_matrix_index(key);
-            mat.set(i, j, coerce_bit_value(value));
+            dense_setitem(mat, key, value);
         })
         .def(
             "__invert__",
@@ -2470,7 +3023,7 @@ void bind_matrix_classes(py::module_& m) {
             mat.set(i, j, coerce_bit_value(value));
         })
         .def("__getitem__", [](const TriangularBitMatrix& mat, const py::object& key) {
-            auto [i, j] = parse_matrix_index(key);
+            auto [i, j] = parse_matrix_index(key, mat.rows(), mat.cols());
             return mat.get(i, j) ? 1.0 : 0.0;
         })
         .def("__setitem__", [](TriangularBitMatrix& mat, const py::object& key, const py::object& value) {
@@ -2526,7 +3079,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
             }
 
-            auto [i, j] = parse_matrix_index(key);
+            auto [i, j] = parse_matrix_index(key, mat.rows(), mat.cols());
             if (i == j) {
                 bindings_warn::warn("Diagonal assignment ignored for TriangularBitMatrix");
                 return;
@@ -2595,7 +3148,7 @@ void bind_matrix_classes(py::module_& m) {
                 return std::shared_ptr<TriangularMatrix<double>>(out.release());
             })
         .def("__setitem__", [](TriangularMatrix<double>& mat, const py::object& key, double value) {
-            auto [i, j] = parse_matrix_index(key);
+            auto [i, j] = parse_matrix_index(key, mat.rows(), mat.cols());
             mat.set(i, j, value);
         })
         .def(
@@ -2632,7 +3185,7 @@ void bind_matrix_classes(py::module_& m) {
         .def("get", &TriangularMatrix<int32_t>::get)
         .def("set", &TriangularMatrix<int32_t>::set)
         .def("__setitem__", [](TriangularMatrix<int32_t>& mat, const py::object& key, int32_t value) {
-            auto [i, j] = parse_matrix_index(key);
+            auto [i, j] = parse_matrix_index(key, mat.rows(), mat.cols());
             mat.set(i, j, value);
         })
         .def(

@@ -11,6 +11,8 @@ _METHODS_RETURNING_MATRIX = [
     "__sub__",
     "__mul__",
     "__rmul__",
+    "transpose",
+    "conj",
 ]
 def patch_matrix_methods(
     cls: Any,

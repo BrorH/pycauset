@@ -19,4 +19,4 @@ Set to `True` when debugging persistence issues, inspecting intermediate `.pycau
 ## Notes
 
 - This is a global setting that affects the runtime cleanup behavior.
-- It does not automatically “save” objects as portable archives; use `pycauset.save(...)` for that.
+- It does not automatically “save” objects as portable `.pycauset` files; use `pycauset.save(...)` for that.

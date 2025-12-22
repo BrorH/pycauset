@@ -130,7 +130,7 @@ print(f"Realized Density: {c.rho}")
 
 ## Saving and Loading
 
-You can save a `CausalSet` to a portable `.pycauset` file. This archive contains the metadata (parameters, seed, spacetime info) and the binary causal matrix.
+You can save a `CausalSet` to a portable `.pycauset` file. This single-file container contains the metadata (parameters, seed, spacetime info) and the binary causal matrix.
 
 ```python
 # Save

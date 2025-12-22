@@ -20,6 +20,26 @@ Instead of treating the disk as a simple extension of RAM (OS Paging), PyCauset 
     *   OS manages paging.
     *   Used when RAM is full or for persistence.
 
+## Persistence format status
+
+There is exactly **one** on-disk format for `.pycauset`: a **single-file binary container** with an mmap-friendly payload region and a sparse, self-describing, typed metadata block.
+
+Metadata updates are crash-consistent and do not shift the payload.
+
+Authoritative plans:
+
+- `documentation/internals/plans/R1_STORAGE_PLAN.md` (container format)
+- `documentation/internals/plans/R1_PROPERTIES_PLAN.md` (metadata semantics)
+
+## Snapshot semantics (mutation policy)
+
+PyCauset is designed so that persisted `.pycauset` files behave like immutable snapshots when loaded.
+
+- Payload writes should not implicitly overwrite the snapshot.
+- The implementation uses copy-on-write working copies so snapshot payload bytes are not overwritten by incidental mutation.
+
+See [[guides/Storage and Memory]] for the canonical policy and crash-safety notes (including big-blob caches).
+
 ## 1. The Memory Governor (Phase 1)
 
 The `MemoryGovernor` is a singleton that acts as the central resource manager.

@@ -21,7 +21,7 @@ For contributors: the bullets below are the “what happened” summary. The can
 - [~] Phase D — Python internal modularization
   - Public API remains `pycauset.*`.
   - `python/pycauset/_internal/` created and used for implementation.
-  - Persistence + ZIP-offset parsing + linalg caching extracted.
+  - Persistence (single-file container) + linalg caching extracted.
   - Runtime/storage/temp-file policy + patching + factories + formatting extracted.
   - Ops glue (`matmul`, `compute_k`, `bitwise_not`, `invert`) extracted into `python/pycauset/_internal/ops.py` and `__init__.py` delegates.
   - Remaining work: keep shrinking `python/pycauset/__init__.py` and keep dev docs in sync.

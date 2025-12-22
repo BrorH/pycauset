@@ -20,44 +20,86 @@ All matrix and vector classes inherit from `PersistentObject`.
     *   **Access**: Maps the file into the process's address space.
     *   **Destruction**: Unmaps the view. If the object was temporary, the file is deleted.
 
+### Snapshot immutability (mutation policy)
+
+PyCauset distinguishes between:
+
+- persisted `.pycauset` snapshots on disk, and
+- runtime working copies that may be mutated.
+
+Policy (Release 1):
+
+- Loading a `.pycauset` file yields a snapshot-backed view.
+- Payload writes do not implicitly overwrite the snapshot file.
+- Mutations transition to a copy-on-write working copy so snapshot payload bytes are not overwritten by incidental edits.
+
+Developer reference:
+
+- [[guides/Storage and Memory]]
+
 ### File Format (`.pycauset`)
 
-The `.pycauset` format is a **ZIP archive** (uncompressed) that bundles metadata with raw binary data. This design allows for easy inspection of metadata (using any ZIP tool) while maintaining the performance benefits of memory mapping for the heavy numerical data.
+`.pycauset` is a **single-file binary container** designed for mmap-friendly payload access and sparse, typed metadata.
 
-#### Structure
-A `.pycauset` file is a standard ZIP file containing at least two entries:
+Authoritative plans:
 
-1.  **`metadata.json`**: A JSON file containing object properties.
-2.  **`data.bin`**: The raw binary data, stored **uncompressed** (`ZIP_STORED`).
+- `documentation/internals/plans/R1_STORAGE_PLAN.md` (container format)
+- `documentation/internals/plans/R1_PROPERTIES_PLAN.md` (metadata semantics)
 
-#### `metadata.json` Schema
-The metadata file describes how to interpret the binary data.
+### Container summary
 
-```json
-{
-  "rows": 1000,
-  "cols": 1000,
-  "seed": 12345,
-  "scalar": 1.0,            // Can be a float or a complex object: {"real": 0.0, "imag": 1.0}
-  "is_transposed": false,
-  "matrix_type": "CAUSAL",      // e.g., CAUSAL, DENSE_FLOAT, VECTOR
-  "data_type": "BIT",           // e.g., BIT, FLOAT64, INT32
-  "cached_trace": 1000.0,       // Optional cached properties
-  "cached_determinant": 1.0
-}
-```
+At a high level, each `.pycauset` file contains:
 
-#### `data.bin` Layout
-The `data.bin` entry contains the raw memory dump of the matrix or vector.
-*   **Storage Method**: It is stored with `zipfile.ZIP_STORED` (no compression).
-*   **Memory Mapping**: When loading, the Python wrapper calculates the absolute byte offset of `data.bin` within the `.pycauset` archive. It passes this offset to the C++ backend, which memory-maps the file starting at that position.
+- A fixed-size header region that selects the active header slot (A/B).
+- A raw payload region at a stable, aligned offset (so it can be memory-mapped efficiently).
+- A typed metadata block (sparse map) that can be appended/updated without shifting the payload.
+
+This design keeps the “heavy” numeric data mmap-friendly while allowing metadata evolution without scans or full rewrites.
 *   **Alignment**: The data is laid out exactly as it would be in memory (e.g., row-major order for dense matrices, bit-packed words for bit matrices).
 
+### Typed metadata is the only schema
+
+All metadata is stored as a typed top-level map (no parallel “legacy”/flattened metadata schema).
+
+Important namespaces:
+
+- `view`: view-state that affects interpretation/derived values (e.g., scalar/transpose/conjugation).
+- `properties`: user-facing gospel assertions (semantic hints; not truth-validated).
+- `cached`: cached-derived values (both small scalars and big-blob references).
+
+### Big-blob caches (generalized mechanism)
+
+A **big-blob cache** is a cached-derived value that is itself large (often another matrix/vector) and therefore must be persisted as an independent `.pycauset` object.
+
+Persistence model:
+
+- The base snapshot stores a typed entry at `cached.<name>`.
+- For big blobs, `cached.<name>.value` is a reference:
+    - `ref_kind`: currently `sibling_object_store`
+    - `object_id`: UUID hex
+- The referenced object lives in a sibling object store directory:
+	`BASE.pycauset.objects/<object_id>.pycauset`
+
+Validity model:
+
+- `cached.<name>.signature` must allow $O(1)$ validation against the base object (no scans).
+- Signatures use `payload_uuid` (a per-snapshot identifier that changes whenever payload bytes are persisted).
+- If the reference is missing/unreadable/stale, it is treated as a cache miss and recomputed.
+- Missing/unreadable big-blob references should emit `PyCausetStorageWarning` and continue load.
+
+Implementation reference (Python):
+
+- `python/pycauset/_internal/persistence.py`
+    - Object store layout helpers: `object_store_path_for_id`, `new_object_id`
+    - Typed ref read/write: `try_get_cached_big_blob_ref`, `write_cached_big_blob_ref`
+- `python/pycauset/_internal/big_blob_cache.py`
+    - Reusable big-blob cache plumbing for operations: `compute_view_signature`, `try_load_cached_matrix`, `persist_cached_object`
+
 #### Loading Process
-1.  Python opens the ZIP archive and reads `metadata.json`.
-2.  Python locates the file header for `data.bin` and calculates the data's start offset.
-3.  Python instantiates the appropriate C++ class (e.g., `_TriangularBitMatrix`), passing the filename and the offset.
-4.  C++ calls `mmap` on the file, applying the offset to map only the relevant binary section.
+1.  Python opens the `.pycauset` container and reads the fixed header.
+2.  Python selects the active header slot (A/B), validates it, and reads the typed metadata block.
+3.  Python instantiates the appropriate C++ class (e.g., `_TriangularBitMatrix`), passing the filename and the payload offset.
+4.  C++ calls `mmap` on the file, applying the payload offset to map only the raw payload region.
 
 ## 2. Matrix & Vector Class Hierarchy
 
@@ -157,6 +199,24 @@ The data on disk is the "canonical" storage. The C++ object is a "view" onto tha
 *   **View**: The class (e.g., `DenseMatrix`) interprets those bytes (as `int`, `double`, etc.) and applies metadata (scalar, transpose).
 
 For dense matrices, `MatrixBase.size()` is NumPy-aligned: it returns the total number of logical elements (`rows * cols`).
+
+#### Indexing and slicing (backend invariants)
+
+Release 1 implements NumPy-style 2D indexing for dense matrices only:
+
+* **Basic indexing (view):** integer/`slice`/`...` with unit steps produces a view that shares the underlying mapper. Logical shape comes from the parsed slice; backing shape/offsets remain on the base. Transpose/conjugate metadata is preserved.
+* **Advanced indexing (copy):** 1D integer arrays (negative wrap) and 1D boolean masks are supported per axis. Any use of arrays returns a copy; two array axes must broadcast length or length-1.
+* **Assignments:** RHS may be scalar, NumPy 0/1/2-D array, or dense matrix. NumPy 2D broadcast rules must hold; otherwise the setter raises. Casting RHS arrays triggers `PyCausetDTypeWarning`; narrowing or float→int casts also trigger `PyCausetOverflowRiskWarning`.
+* **Unsupported:** `None`/newaxis and slicing of structured/triangular matrices.
+* **Kernel guardrail:** Offsets in views are not yet honored by matmul/qr/lu/inverse kernels; calls with nonzero offsets throw and should be materialized via `copy()` first.
+* **Persistence policy (pending):** Persisted sources must prefer view reuse; oversized slices on in-RAM sources should fail deterministically instead of implicit spill/snapshot (not yet implemented).
+
+Code touchpoints:
+* Slice parsing and dispatch: `src/bindings/bind_matrix.cpp` (`SliceInfo`, `parse_matrix_subscript`, `dense_getitem`, `dense_setitem`).
+* View metadata: `MatrixBase` (`logical_rows/cols`, `row_offset/col_offset`) and `DenseMatrix` view constructor/accessors.
+* Kernel guards: `DenseMatrix::multiply`, `inverse`, `qr`, `lu` reject nonzero view offsets.
+
+See also: [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]], [[guides/Matrix Guide.md|Matrix Guide]], [[project/protocols/NumPy Alignment Protocol.md|NumPy Alignment Protocol]]
 
 ## 3. Type System and Dispatch
 

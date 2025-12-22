@@ -104,6 +104,7 @@ void DenseMatrix<bool>::fill(bool value) {
             dst[i * words_per_row + (words_per_row - 1)] &= mask;
         }
     }
+
 }
 
 void DenseMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
@@ -126,6 +127,7 @@ void DenseMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
     } else {
         *data_ptr &= ~(1ULL << bit_index);
     }
+
 }
 
 bool DenseMatrix<bool>::get(uint64_t i, uint64_t j) const {

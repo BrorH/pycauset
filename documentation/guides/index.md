@@ -8,6 +8,10 @@ These guides show how to use PyCauset in practice, from first setup to large-sca
 *   **[[guides/User Guide|User Guide]]**: First workflow: create, visualize, save/load.
 *   **[[guides/Causal Sets|Causal Sets]]**: Core object model and common operations.
 
+## Release 1 (what shipped)
+
+*   **[[guides/release1/index.md|Release 1: What Shipped]]**: A guided map of the Release 1 foundations (NxM shapes, storage container, semantic properties, dtype/overflow rules, and core linalg endpoints).
+
 ## Common workflows
 
 *   **[[guides/Visualization|Visualization]]**: Creating interactive plots of causal sets.
@@ -24,6 +28,7 @@ These guides show how to use PyCauset in practice, from first setup to large-sca
 
 *   **[[guides/Matrix Guide|Matrix Guide]]**: Matrix storage, dtypes, and operations.
 *   **[[guides/Vector Guide|Vector Guide]]**: Vector storage and operations.
+*   **[[guides/Linear Algebra Operations|Linear Algebra Operations]]**: End-to-end linalg workflows (matmul, solves, factorizations, spectral/SVD, routing, warnings).
 
 ---
 

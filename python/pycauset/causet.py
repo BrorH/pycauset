@@ -1,14 +1,8 @@
 from importlib import import_module
 import random
-import json
-import zipfile
-import shutil
 import os
-import struct
 from pathlib import Path
 from typing import Optional, Sequence, List, Union
-
-from ._internal.persistence import zip_member_data_offset
 
 # Import the native extension relative to this package
 try:
@@ -158,131 +152,16 @@ class CausalSet:
         return coords
 
     def save(self, path: str | os.PathLike):
-        """
-        Save the CausalSet to a .causet file (ZIP archive).
-        
-        The archive contains:
-        - metadata.json: Parameters (n, seed, spacetime config).
-        - matrix.bin: The raw binary backing file of the causal matrix.
-        
-        Args:
-            path: Destination path.
-        """
-        path = Path(path)
-        # if path.suffix != ".causet":
-        #     path = path.with_suffix(".causet")
-            
-        # Prepare metadata
-        st_type = self._spacetime.__class__.__name__
-        st_args = {}
-        
-        if st_type == "MinkowskiDiamond":
-            st_args["dimension"] = self._spacetime.dimension()
-        elif st_type == "MinkowskiCylinder":
-            st_args["dimension"] = self._spacetime.dimension()
-            st_args["height"] = self._spacetime.height
-            st_args["circumference"] = self._spacetime.circumference
-            
-        metadata = {
-            "n": self._n,
-            "seed": self._seed,
-            "spacetime": {
-                "type": st_type,
-                "args": st_args
-            },
-            "pycauset_version": "3.0",
-            "object_type": "CausalSet",
-            "matrix_type": "CAUSAL",
-            "data_type": "BIT",
-            "rows": self._matrix.rows() if hasattr(self._matrix, "rows") else self._matrix.size(),
-            "cols": self._matrix.cols() if hasattr(self._matrix, "cols") else self._matrix.size(),
-            "scalar": 1.0,
-            "is_transposed": False
-        }
-        
-        # Create ZIP
-        # We need to handle both file-backed and memory-backed matrices.
-        # copy_storage() creates a physical file copy regardless of the source type.
-        path = path.resolve()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        
-        temp_raw = path.with_suffix(".raw_tmp")
-        self._matrix.copy_storage(str(temp_raw))
-        
-        try:
-            with zipfile.ZipFile(path, 'w', zipfile.ZIP_STORED) as zf:
-                zf.writestr("metadata.json", json.dumps(metadata, indent=2))
-                zf.write(temp_raw, "data.bin")
-        finally:
-            # Clean up the temporary copy
-            if temp_raw.exists():
-                try:
-                    temp_raw.unlink()
-                except OSError:
-                    pass
+        """Save the CausalSet to the single-file `.pycauset` container."""
+        import pycauset as _pycauset
+        _pycauset.save(self, Path(path))
 
     @staticmethod
     def load(path: str | os.PathLike) -> 'CausalSet':
-        """
-        Load a CausalSet from a file.
-        
-        Args:
-            path: Path to the file.
-            
-        Returns:
-            CausalSet: The reconstructed object.
-        """
-        path = Path(path)
-        if not path.exists():
-            raise FileNotFoundError(f"File not found: {path}")
-            
-        with zipfile.ZipFile(path, 'r') as zf:
-            # 1. Read Metadata
-            with zf.open("metadata.json") as f:
-                metadata = json.load(f)
-            
-            # 2. Reconstruct Spacetime
-            st_info = metadata.get("spacetime", {})
-            st_type = st_info.get("type", "MinkowskiDiamond")
-            st_args = st_info.get("args", {"dimension": 2})
-            
-            if st_type == "MinkowskiDiamond":
-                spacetime = _native.MinkowskiDiamond(st_args.get("dimension", 2))
-            elif st_type == "MinkowskiCylinder":
-                spacetime = _native.MinkowskiCylinder(
-                    st_args.get("dimension", 2), 
-                    st_args.get("height", 1.0), 
-                    st_args.get("circumference", 1.0)
-                )
-            else:
-                # Fallback
-                spacetime = _native.MinkowskiDiamond(2)
-                
-            # 3. Find offset of data.bin
-            try:
-                info = zf.getinfo("data.bin")
-                data_offset = zip_member_data_offset(path, info)
-            except KeyError:
-                raise ValueError("Invalid file format: missing data.bin")
-
-            # 4. Load Matrix directly from ZIP
-            rows = metadata.get("rows", metadata.get("n"))
-            seed = metadata.get("seed", 0)
-            
-            matrix = _native.TriangularBitMatrix._from_storage(
-                rows,
-                str(path),
-                data_offset,
-                seed,
-                1.0,
-                False,
-            )
-
-            # 5. Create CausalSet
-            return CausalSet(
-                n=metadata.get("n"),
-                spacetime=spacetime,
-                seed=seed,
-                matrix=matrix
-            )
+        """Load a CausalSet from the single-file `.pycauset` container."""
+        import pycauset as _pycauset
+        obj = _pycauset.load(Path(path))
+        if not isinstance(obj, CausalSet):
+            raise ValueError("file did not contain a CausalSet")
+        return obj
 

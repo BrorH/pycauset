@@ -8,7 +8,7 @@ Causal sets are computationally demanding. For a set of size $N$, the causal mat
 
 PyCauset solves this with a **Hybrid Architecture**:
 1.  **RAM-First**: Small matrices behave exactly like NumPy arrays.
-2.  **Disk-Backed**: Large matrices automatically spill to memory-mapped files (`.pycauset` ZIP archives).
+2.  **Disk-Backed**: Large matrices automatically spill to memory-mapped files (single-file `.pycauset` containers).
 3.  **Bit-Packing**: Causal relations are stored as single bits, reducing memory usage by 64x compared to standard integers.
 
 ## Documentation Structure
@@ -32,7 +32,7 @@ Detailed documentation of classes and functions.
 Deep dive into the C++ core for contributors.
 *   **[[internals/Compute Architecture|Compute Architecture]]**: CPU/GPU dispatch and solvers.
 *   **[[internals/MemoryArchitecture|Memory Architecture]]**: Tiered storage, Governor, and CoW.
-*   **[[internals/Memory and Data|Memory & Data]]**: The `.pycauset` ZIP format and memory mapping.
+*   **[[internals/Memory and Data|Memory & Data]]**: The `.pycauset` container format and memory mapping.
 *   **[[internals/Algorithms|Algorithms]]**: Mathematical derivations and implementation details.
 
 ### 🚀 [[project/index|Project]]

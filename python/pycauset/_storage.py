@@ -18,10 +18,14 @@ def cleanup_storage(storage_root: Path) -> None:
 
 def set_temporary_file(path: Path, is_temp: bool) -> None:
     """
-    Legacy function. 
-    In the new architecture, temporary files are identified by extension (.tmp).
+    Mark a file as temporary.
+
+    In the current storage architecture, temporary files are identified by their
+    filename extension (e.g. `.tmp`, `.raw_tmp`). This function is intentionally
+    a no-op because renaming an in-use backing file is not reliable across
+    platforms.
     """
-    pass
+    return
 
 def is_temporary_file(path: Path) -> bool:
     """Check if a file is temporary based on extension."""

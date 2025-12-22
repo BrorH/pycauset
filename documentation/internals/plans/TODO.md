@@ -2,6 +2,16 @@
 
 ## Roadmap principles
 
+### Roadmap hygiene (convergence rules)
+
+It is normal for implementation work to reveal new dependencies (e.g., linear algebra work reveals missing metadata semantics; metadata semantics reveals persistence constraints). To avoid accumulating half-finished work and repeatedly reshuffling the graph, Release 1 follows these convergence rules:
+
+- **Freeze contracts early:** when a lower layer is needed (e.g., persistence), we first lock the interface contract it must satisfy (types, invariants, on-disk encoding conventions). Higher layers may not keep changing those contracts while the lower layer is being completed.
+- **One implementation WIP at a time:** only one of {Storage, Properties, Linalg} is actively being implemented at any moment. The other plans may be edited for clarity, but do not spawn new implementation work.
+- **Gate before expanding scope:** a node is “done” only when its Definition of Done is met (tests + docs included). New ideas go into the appropriate plan’s Open Questions or into R2, unless they are a hard blocker for the current node.
+
+This is how we keep the roadmap “tasteful”: each layer becomes stable before the next layer depends on it.
+
 ### Release definition
 
 **Release 1 (“Foundation Release”) ships when** the linear algebra base is *solid*:
@@ -54,11 +64,12 @@ Release 1 nodes:
 - [x] R1_DOCS
 - [x] R1_API
 - [x] R1_SHAPES
-- [ ] R1_FLAGS
+- [x] R1_STORAGE
+- [x] R1_PROPERTIES
 - [ ] R1_SRP
 - [ ] R1_IO
 - [ ] R1_NUMPY
-- [ ] R1_LINALG
+- [x] R1_LINALG
 - [ ] R1_BLOCKMATRIX
 - [ ] R1_GPU
 - [ ] R1_QA
@@ -77,10 +88,11 @@ flowchart TD
     %% Release 1 is the main path; Release 2 (physics) is intentionally parked.
 
     subgraph R1["Release 1 - Linear Algebra Foundation (Ship Gate)"]
-        R1_DOCS["R1_DOCS<br/>Docs System That Scales<br/>(Diataxis + MkDocs IA)"]
-        R1_API["R1_API<br/>Public API + Naming + Contracts<br/>(stability, deprecations)"]
-        R1_SHAPES["R1_SHAPES<br/>NxM Matrices Across The System<br/>(end-to-end)"]
-        R1_FLAGS["R1_FLAGS<br/>Property Flags + Flag-Aware Algebra<br/>(flags-as-gospel + propagation + persistence)"]
+        R1_DOCS["R1_DOCS<br/>Docs System That Scales<br/>(Diataxis + MkDocs IA)<br/>[x]"]
+        R1_API["R1_API<br/>Public API + Naming + Contracts<br/>(stability, deprecations)<br/>[x]"]
+        R1_SHAPES["R1_SHAPES<br/>NxM Matrices Across The System<br/>(end-to-end)<br/>[x]"]
+        R1_STORAGE["R1_STORAGE<br/>Single-File Persistence Container<br/>(mmap + typed sparse metadata)<br/>[x]"]
+        R1_PROPERTIES["R1_PROPERTIES<br/>Semantic Properties + Property-Aware Algebra<br/>(properties-as-gospel + propagation + caching + persistence metadata)"]
         R1_SRP["R1_SRP<br/>Support Readiness Program<br/>(dtypes x ops x devices x storage)<br/>+ optimize to >= 0.90x NumPy"]
         R1_IO["R1_IO<br/>Out-of-core I/O + Persistence Performance<br/>(streaming + mmap correctness)"]
         R1_NUMPY["R1_NUMPY<br/>Fast NumPy Interop<br/>(import/export must be competitive)"]
@@ -92,7 +104,7 @@ flowchart TD
     end
 
     %% Main dependency chain (the path)
-    R1_DOCS --> R1_API --> R1_SHAPES --> R1_FLAGS --> R1_SRP --> R1_QA --> R1_REL
+    R1_DOCS --> R1_API --> R1_SHAPES --> R1_STORAGE --> R1_PROPERTIES --> R1_SRP --> R1_QA --> R1_REL
 
     %% Parallel prerequisites feeding SRP/QA
     R1_IO --> R1_SRP
@@ -101,8 +113,11 @@ flowchart TD
     R1_BLOCKMATRIX --> R1_SRP
     R1_GPU --> R1_SRP
 
-    %% Flags feed linalg correctness/dispatch (and therefore SRP)
-    R1_FLAGS --> R1_LINALG
+    %% Storage also feeds IO directly
+    R1_STORAGE --> R1_IO
+
+    %% Properties feed linalg correctness/dispatch (and therefore SRP)
+    R1_PROPERTIES --> R1_LINALG
 
     %% Post-R1: physics release parked (not detailed here)
     R2_PHYS["Release 2 - Physics + Large-Scale Experiments (Parked)<br/>(Pauli-Jordan, curved spacetimes, 100GB K)"]:::parked
@@ -149,7 +164,7 @@ Deliverables:
 
 ### R1_SHAPES — NxM Matrices Across The System
 
-Status: - [ ]
+Status: - [x]
 
 Goal: remove square-only assumptions so later work doesn’t require rewrites.
 
@@ -161,27 +176,54 @@ Phased approach:
     - how they interact with NxM operands,
     - and what gets blocked vs implemented.
 
-### R1_FLAGS — Property Flags + Flag-Aware Algebra
+### R1_STORAGE — Single-File Persistence Container
 
-Status: - [ ]
+Status: - [x]
 
-Goal: introduce a **canonical property-flag system** that is treated as **gospel** by the compute layer.
-
-Flags are not validated for mathematical truth. If a matrix has `is_unitary=True`, the system is allowed to use unitary identities and skip work, even if the underlying data is not truly unitary.
+Goal: define and maintain the **single-file `.pycauset` binary container** that preserves mmap-friendly payload access and supports sparse, typed, forward-compatible metadata.
 
 Starting point:
-- `documentation/internals/plans/R1_FLAGS_PLAN.md`
+- `documentation/internals/plans/completed/R1_STORAGE_PLAN.md`
 
 Deliverables:
-- A canonical flag schema (keys, meanings, and a priority/implication model).
-- Flag propagation rules for metadata-only transforms (`transpose`, conjugation, scalar scale, etc).
-- Minimal sanity checks for **incompatible** flags (not truth validation).
-- Persistence: flags stored in `.pycauset` metadata and always present after R1_FLAGS.
-- Flag-aware operator implementations and/or dispatch in the compute layer.
+- Single-file container spec (header + payload offsets + metadata blocks).
+- Typed sparse metadata encoding that preserves missing vs explicit values.
+- Append/update strategy that does not shift payload.
+- Hard-break policy: one format only; format changes update tests/docs in lockstep.
 
 Definition of Done:
-- Every public matrix/vector object has the required flag fields populated (explicit `True/False`, not missing).
-- Operators that can exploit flags do so deterministically and correctly per “flags-as-gospel”.
+- Payload is mmap-accessible at a stable offset.
+- Metadata round-trips preserve tri-state property semantics (missing vs explicit `False`).
+- Frontend save/load APIs are unchanged; only storage plumbing changes.
+
+### R1_PROPERTIES — Semantic Properties + Property-Aware Algebra
+
+Status: - [x]
+
+Goal: introduce a **canonical semantic properties system** that is treated as **gospel** by the compute layer.
+
+Properties are not validated for mathematical truth. If a matrix has `is_unitary=True`, the system is allowed to use unitary identities and skip work, even if the underlying data is not truly unitary.
+
+Starting point:
+- `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md`
+
+Deliverables:
+- A canonical properties schema (keys, meanings, typing, and a priority/implication model for structural properties).
+- Property propagation rules for metadata-only transforms (`transpose`, conjugation, scalar scale, etc).
+- Minimal sanity checks for **incompatible** structural properties (not truth validation).
+- Persistence: properties stored in `.pycauset` metadata with explicit-vs-unset semantics preserved.
+- Property-aware operator implementations and/or dispatch in the compute layer.
+- A more rigorous cached-derived model (validation + invalidation) so cached metadata cannot become stale.
+
+Definition of Done:
+- Every public matrix/vector object exposes a `properties` container and preserves the distinction between `False` and “unset” (missing/`None`), per `documentation/internals/plans/R1_PROPERTIES_PLAN.md`.
+- Every public matrix/vector object exposes a `properties` container and preserves the distinction between `False` and “unset” (missing/`None`), per `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md`.
+- Operators that can exploit properties do so deterministically and correctly per “properties-as-gospel”.
+
+Persistence format note:
+
+- R1_PROPERTIES depends on the storage layer for encoding, but the container format change itself is tracked under **R1_STORAGE**.
+- The metadata schema must not block moving to a single-file binary `.pycauset` container with a sparse, forward-compatible typed metadata block (see `documentation/internals/plans/completed/R1_STORAGE_PLAN.md`).
 
 ### R1_SRP — Support Readiness Program (SRP)
 
@@ -204,7 +246,7 @@ Definition of Done (Release 1 gate):
 - Benchmarks exist and failures are actionable.
 
 Notes:
-- SRP correctness/coverage must include **flag-aware variants** of operators once R1_FLAGS lands (because flags change semantics and algorithmic work).
+- SRP correctness/coverage must include **property-aware variants** of operators once R1_PROPERTIES lands (because properties change semantics and algorithmic work).
 
 ### R1_IO — Out-of-core I/O + Persistence Performance
 
@@ -215,7 +257,7 @@ Goal: disk-backed operation performance is a first-class feature, not an acciden
 Deliverables:
 - Streaming strategy for large operations (read patterns + hints).
 - Persistence round-trips for every public dtype/structure.
-- Persistence round-trips must preserve required metadata fields that affect semantics (including flags after R1_FLAGS).
+- Persistence round-trips must preserve required metadata fields that affect semantics (including properties after R1_PROPERTIES).
 - Large-scale read/write is demonstrably efficient.
 
 ### R1_NUMPY — Fast NumPy Interop
@@ -241,11 +283,19 @@ Seed items (from prior TODO):
 - Block matrices/vectors (moved to **R1_BLOCKMATRIX**; see `documentation/internals/plans/R1_BLOCKMATRIX_PLAN.md`)
 - Advanced indexing (slicing, fancy indexing)
 - Random matrix/vector generation
-- Matrix properties (expressed via **flags** and consumed by operators; see `documentation/internals/plans/R1_FLAGS_PLAN.md`)
+- Matrix properties (expressed via **properties** and consumed by operators; see `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md`)
 
 ### R1_BLOCKMATRIX — Block Matrices + Heterogeneous Dtypes
 
 Status: - [ ]
+
+Progress:
+- Phase A (contract lock): [x] (2025-12-21)
+- Phase B (core types & validation): [x] (completed 2025-12-21)
+- Phase C (views & refinement): [x]
+- Phase D (ops orchestration & thunks): [x]
+- Phase E (persistence & caching): [x]
+- Phase F (integration): [x] (completed 2025-12-21)
 
 Goal: make block matrices a first-class internal representation built from existing matrices,
 with **heterogeneous dtypes**, **manifest-based reference persistence**, and **semi-lazy block ops**
@@ -271,6 +321,7 @@ Deliverables:
 - AutoSolver routing is explicit and testable.
 - For unsupported GPU cases: either CPU route or clear error.
 - Benchmark-based thresholds are documented.
+- Routing policy must account for **semantic properties** (effective structure categories) deterministically when GPU/CPU support differs by structure.
 
 ### R1_QA — Bench + Correctness Gates Enforced
 
@@ -281,6 +332,7 @@ Goal: prevent regressions (correctness and performance).
 Deliverables:
 - Gate-style CI checks: correctness + persistence + a small benchmark suite.
 - Performance regressions are visible (even if not hard-failed at first).
+-  Sniff out deprecated features and dead code to clean up codebase
 
 ### R1_REL — Release Mechanics
 

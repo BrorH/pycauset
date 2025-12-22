@@ -89,11 +89,9 @@ Compute the K-matrix (retarded propagator) for this causal set.
 def save(self, path: str)
 ```
 
-Save the `CausalSet` to a `.causet` file. This creates a ZIP archive containing:
-1.  `metadata.json`: The parameters ($N$, seed, spacetime configuration).
-2.  `matrix.bin`: The raw binary backing file of the causal matrix.
+Save the `CausalSet` to a single-file `.pycauset` container.
 
-*   **path** (*str*): The destination path. If the extension is missing, `.causet` is appended.
+*   **path** (*str*): The destination path.
 
 ### load
 
@@ -102,9 +100,9 @@ Save the `CausalSet` to a `.causet` file. This creates a ZIP archive containing:
 def load(path: str) -> CausalSet
 ```
 
-Load a `CausalSet` from a `.causet` file. This reconstructs the `CausalSet` object with the exact same parameters and matrix as the saved instance, without re-running the sprinkling process.
+Load a `CausalSet` from a `.pycauset` container. This reconstructs the `CausalSet` object with the exact same parameters and matrix as the saved instance, without re-running the sprinkling process.
 
-*   **path** (*str*): Path to the `.causet` file.
+*   **path** (*str*): Path to the `.pycauset` file.
 *   **Returns**: A new `CausalSet` instance.
 
 ### \_\_len\_\_
@@ -125,7 +123,7 @@ c = pycauset.CausalSet(1000, seed=42)
 c.save("my_universe")
 
 # 2. Load
-c_loaded = pycauset.CausalSet.load("my_universe.causet")
+c_loaded = pycauset.CausalSet.load("my_universe.pycauset")
 print(f"Loaded N={len(c_loaded)}")
 
 # 3. Compute K

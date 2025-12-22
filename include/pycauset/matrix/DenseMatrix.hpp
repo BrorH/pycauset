@@ -78,28 +78,57 @@ public:
     DenseMatrix(uint64_t rows, uint64_t cols, std::shared_ptr<MemoryMapper> mapper)
         : MatrixBase(rows, cols, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {}
 
+    DenseMatrix(uint64_t view_rows,
+                uint64_t view_cols,
+                std::shared_ptr<MemoryMapper> mapper,
+                uint64_t base_rows,
+                uint64_t base_cols,
+                uint64_t row_offset,
+                uint64_t col_offset,
+                uint64_t seed,
+                std::complex<double> scalar,
+                bool is_transposed,
+                bool is_conjugated,
+                bool is_temporary)
+        : MatrixBase(base_rows, base_cols, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type, seed, scalar, is_transposed, is_temporary) {
+        set_view(view_rows, view_cols, row_offset, col_offset);
+        set_conjugated(is_conjugated);
+    }
+
     void set(uint64_t i, uint64_t j, T value) {
         ensure_unique();
         if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
         const uint64_t storage_cols = base_cols();
-        const uint64_t idx = is_transposed() ? (j * storage_cols + i) : (i * storage_cols + j);
+        const uint64_t storage_row = row_offset() + (is_transposed() ? j : i);
+        const uint64_t storage_col = col_offset() + (is_transposed() ? i : j);
+        const uint64_t idx = storage_row * storage_cols + storage_col;
         data()[idx] = value;
     }
 
     T get(uint64_t i, uint64_t j) const {
         if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
         const uint64_t storage_cols = base_cols();
-        const uint64_t idx = is_transposed() ? (j * storage_cols + i) : (i * storage_cols + j);
+        const uint64_t storage_row = row_offset() + (is_transposed() ? j : i);
+        const uint64_t storage_col = col_offset() + (is_transposed() ? i : j);
+        const uint64_t idx = storage_row * storage_cols + storage_col;
         return data()[idx];
     }
 
     void fill(T value) {
         ensure_unique();
-        T* ptr = data();
-        const uint64_t total = base_rows() * base_cols();
-        pycauset::ParallelFor(0, total, [&](size_t i) { ptr[i] = value; });
-        cached_trace_ = std::nullopt;
-        cached_determinant_ = std::nullopt;
+        const bool full_span = row_offset() == 0 && col_offset() == 0 && !is_transposed() && rows() == base_rows() && cols() == base_cols();
+        if (full_span) {
+            T* ptr = data();
+            const uint64_t total = base_rows() * base_cols();
+            pycauset::ParallelFor(0, total, [&](size_t i) { ptr[i] = value; });
+            return;
+        }
+
+        for (uint64_t i = 0; i < rows(); ++i) {
+            for (uint64_t j = 0; j < cols(); ++j) {
+                set(i, j, value);
+            }
+        }
     }
 
     void set_identity() {
@@ -112,8 +141,6 @@ public:
             set(i, i, pycauset::scalar::from_double<T>(1.0));
         }
         set_scalar(1.0);
-        cached_trace_ = std::nullopt;
-        cached_determinant_ = std::nullopt;
     }
 
     double get_element_as_double(uint64_t i, uint64_t j) const override {
@@ -153,11 +180,18 @@ public:
 
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
         (void)result_file;
-        auto out = std::make_unique<DenseMatrix<T>>(base_rows(), base_cols(), mapper_);
-        out->set_scalar(scalar_ * factor);
-        out->set_seed(seed_);
-        out->set_transposed(is_transposed());
-        out->set_conjugated(is_conjugated());
+        auto out = std::make_unique<DenseMatrix<T>>(rows(),
+                                                    cols(),
+                                                    mapper_,
+                                                    base_rows(),
+                                                    base_cols(),
+                                                    row_offset(),
+                                                    col_offset(),
+                                                    seed_,
+                                                    scalar_ * factor,
+                                                    is_transposed(),
+                                                    is_conjugated(),
+                                                    is_temporary());
         return out;
     }
 
@@ -167,37 +201,61 @@ public:
 
     std::unique_ptr<MatrixBase> multiply_scalar(std::complex<double> factor, const std::string& result_file = "") const override {
         (void)result_file;
-        auto out = std::make_unique<DenseMatrix<T>>(base_rows(), base_cols(), mapper_);
-        out->set_scalar(scalar_ * factor);
-        out->set_seed(seed_);
-        out->set_transposed(is_transposed());
-        out->set_conjugated(is_conjugated());
+        auto out = std::make_unique<DenseMatrix<T>>(rows(),
+                                                    cols(),
+                                                    mapper_,
+                                                    base_rows(),
+                                                    base_cols(),
+                                                    row_offset(),
+                                                    col_offset(),
+                                                    seed_,
+                                                    scalar_ * factor,
+                                                    is_transposed(),
+                                                    is_conjugated(),
+                                                    is_temporary());
         return out;
     }
 
     std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        auto result = std::make_unique<DenseMatrix<T>>(base_rows(), base_cols(), result_file);
+        auto result = std::make_unique<DenseMatrix<T>>(rows(), cols(), result_file);
 
-        const T* src_data = data();
-        T* dst_data = result->data();
-        const uint64_t total_elements = base_rows() * base_cols();
+        const bool full_span = row_offset() == 0 && col_offset() == 0 && !is_transposed() && rows() == base_rows() && cols() == base_cols();
 
-        if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
-            const std::complex<double> add = {scalar, 0.0};
-            pycauset::ParallelFor(0, total_elements, [&](size_t i) {
-                const std::complex<double> v = pycauset::scalar::to_complex_double(src_data[i]);
-                dst_data[i] = pycauset::scalar::from_complex_double<T>(v * scalar_ + add);
-            });
-        } else if constexpr (std::is_same_v<T, float>) {
-            const float s = static_cast<float>(scalar);
-            const float s_self = static_cast<float>(scalar_.real());
-            pycauset::ParallelFor(0, total_elements, [&](size_t i) { dst_data[i] = src_data[i] * s_self + s; });
+        if (full_span) {
+            const T* src_data = data();
+            T* dst_data = result->data();
+            const uint64_t total_elements = base_rows() * base_cols();
+
+            if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+                const std::complex<double> add = {scalar, 0.0};
+                pycauset::ParallelFor(0, total_elements, [&](size_t i) {
+                    const std::complex<double> v = pycauset::scalar::to_complex_double(src_data[i]);
+                    dst_data[i] = pycauset::scalar::from_complex_double<T>(v * scalar_ + add);
+                });
+            } else if constexpr (std::is_same_v<T, float>) {
+                const float s = static_cast<float>(scalar);
+                const float s_self = static_cast<float>(scalar_.real());
+                pycauset::ParallelFor(0, total_elements, [&](size_t i) { dst_data[i] = src_data[i] * s_self + s; });
+            } else {
+                const double s_self = scalar_.real();
+                pycauset::ParallelFor(0, total_elements, [&](size_t i) {
+                    double val = static_cast<double>(src_data[i]) * s_self + scalar;
+                    dst_data[i] = pycauset::scalar::from_double<T>(val);
+                });
+            }
         } else {
-            const double s_self = scalar_.real();
-            pycauset::ParallelFor(0, total_elements, [&](size_t i) {
-                double val = static_cast<double>(src_data[i]) * s_self + scalar;
-                dst_data[i] = pycauset::scalar::from_double<T>(val);
-            });
+            for (uint64_t i = 0; i < rows(); ++i) {
+                for (uint64_t j = 0; j < cols(); ++j) {
+                    const auto v = get(i, j);
+                    if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+                        const std::complex<double> z = pycauset::scalar::to_complex_double(v) * scalar_ + std::complex<double>{scalar, 0.0};
+                        result->set(i, j, pycauset::scalar::from_complex_double<T>(z));
+                    } else {
+                        const double z = static_cast<double>(v) * scalar_.real() + scalar;
+                        result->set(i, j, pycauset::scalar::from_double<T>(z));
+                    }
+                }
+            }
         }
 
         result->set_scalar(1.0);
@@ -215,11 +273,18 @@ public:
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
         (void)result_file;
-        auto out = std::make_unique<DenseMatrix<T>>(base_rows(), base_cols(), mapper_);
-        out->set_transposed(!is_transposed());
-        out->set_scalar(scalar_);
-        out->set_seed(seed_);
-        out->set_conjugated(is_conjugated());
+        auto out = std::make_unique<DenseMatrix<T>>(logical_rows(),
+                                                    logical_cols(),
+                                                    mapper_,
+                                                    base_rows(),
+                                                    base_cols(),
+                                                    col_offset(),
+                                                    row_offset(),
+                                                    seed_,
+                                                    scalar_,
+                                                    !is_transposed(),
+                                                    is_conjugated(),
+                                                    is_temporary());
         return out;
     }
 
@@ -227,11 +292,22 @@ public:
         if constexpr (!std::is_integral_v<T> || std::is_same_v<T, bool>) {
             throw std::runtime_error("bitwise_not only supported for integer DenseMatrix types");
         } else {
-            auto result = std::make_unique<DenseMatrix<T>>(base_rows(), base_cols(), result_file);
-            const T* src = data();
-            T* dst = result->data();
-            const uint64_t total = base_rows() * base_cols();
-            pycauset::ParallelFor(0, total, [&](size_t i) { dst[i] = static_cast<T>(~src[i]); });
+            auto result = std::make_unique<DenseMatrix<T>>(rows(), cols(), result_file);
+
+            const bool full_span = row_offset() == 0 && col_offset() == 0 && !is_transposed() && rows() == base_rows() && cols() == base_cols();
+            if (full_span) {
+                const T* src = data();
+                T* dst = result->data();
+                const uint64_t total = base_rows() * base_cols();
+                pycauset::ParallelFor(0, total, [&](size_t i) { dst[i] = static_cast<T>(~src[i]); });
+            } else {
+                for (uint64_t i = 0; i < rows(); ++i) {
+                    for (uint64_t j = 0; j < cols(); ++j) {
+                        result->set(i, j, static_cast<T>(~get(i, j)));
+                    }
+                }
+            }
+
             result->set_scalar(scalar_);
             result->set_seed(seed_);
             result->set_transposed(is_transposed());
@@ -243,6 +319,9 @@ public:
     }
 
     std::unique_ptr<DenseMatrix<T>> multiply(const DenseMatrix<T>& other, const std::string& result_file = "") const {
+        if (has_view_offset() || other.has_view_offset()) {
+            throw std::runtime_error("matmul on views with offsets is not supported; materialize with copy() first");
+        }
         if (cols() != other.rows()) {
             throw std::invalid_argument("Dimension mismatch");
         }
@@ -253,6 +332,9 @@ public:
     }
 
     void inverse_to(DenseMatrix<T>& out) const {
+        if (has_view_offset() || out.has_view_offset()) {
+            throw std::runtime_error("inverse on views with offsets is not supported; materialize with copy() first");
+        }
         if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
             throw std::runtime_error("Inverse only supported for FloatMatrix (double) or Float32Matrix (float)");
         } else {
@@ -268,6 +350,9 @@ public:
     }
 
     std::unique_ptr<DenseMatrix<T>> inverse(const std::string& result_file = "") const {
+        if (has_view_offset()) {
+            throw std::runtime_error("inverse on views with offsets is not supported; materialize with copy() first");
+        }
         if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
             throw std::runtime_error("Inverse only supported for FloatMatrix (double) or Float32Matrix (float)");
         } else {
@@ -282,6 +367,9 @@ public:
 
     std::pair<std::unique_ptr<DenseMatrix<double>>, std::unique_ptr<DenseMatrix<double>>> qr(const std::string& q_file = "",
                                                                                               const std::string& r_file = "") const {
+        if (has_view_offset()) {
+            throw std::runtime_error("QR on views with offsets is not supported; materialize with copy() first");
+        }
         if constexpr (!std::is_same_v<T, double>) {
             throw std::runtime_error("QR only supported for FloatMatrix");
         } else {
@@ -299,6 +387,9 @@ public:
 
     std::pair<std::unique_ptr<DenseMatrix<double>>, std::unique_ptr<DenseMatrix<double>>> lu(const std::string& l_file = "",
                                                                                               const std::string& u_file = "") const {
+        if (has_view_offset()) {
+            throw std::runtime_error("LU on views with offsets is not supported; materialize with copy() first");
+        }
         if constexpr (!std::is_same_v<T, double>) {
             throw std::runtime_error("LU only supported for FloatMatrix");
         } else {

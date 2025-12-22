@@ -63,6 +63,77 @@ Mc = pc.matrix(((1 + 2j, 0), (0, 3 - 4j)), dtype=pc.complex_float32)  # ComplexF
 C = pc.causal_matrix(100)
 ```
 
+## Block matrices (experimental)
+
+!!! warning "Pre-alpha / experimental"
+    Block matrices are supported as an experimental Python `BlockMatrix` type.
+
+    The behavior is usable today, but the exact semantics and public API surface may change as the feature hardens.
+
+### Goal
+
+Represent a large matrix as a 2D grid of child matrices (blocks) without global densification.
+
+### Minimal example
+
+```python
+import pycauset as pc
+
+A = pc.matrix(((1.0, 0.0), (0.0, 1.0)))
+B = pc.matrix(((2.0, 3.0), (4.0, 5.0)))
+
+# 2x2 block grid of 2x2 blocks -> overall 4x4
+BM = pc.matrix(((A, B), (B, A)))
+
+assert BM.shape == (4, 4)
+assert BM.block_rows == 2
+assert BM.block_cols == 2
+
+# Block access is explicit
+blk00 = BM.get_block(0, 0)
+assert blk00.shape == (2, 2)
+
+# Element access reads through to the relevant block
+_ = BM[0, 0]
+```
+
+### Construction rules (important)
+
+For 2D nested sequences:
+
+- If **every** element is matrix-like: constructs a block matrix.
+- If **no** elements are matrices: constructs a dense native matrix (normal `pycauset.matrix` behavior).
+- If you **mix** matrices and scalars: raises `TypeError` (ambiguous; no implicit lifting).
+
+Block-grid input rejects `dtype` and `**kwargs`.
+
+### Operations and laziness
+
+When either operand is a block matrix, the result stays block (“once block, always block”) for:
+
+- `@` / [[docs/functions/pycauset.matmul.md|pycauset.matmul]]
+- `+`, `-`, `*`, `/`
+
+Results are typically **thunked per output block** and only evaluate on triggers:
+
+- Accessing an element (e.g. `C[i, j]`)
+- Converting to NumPy (`np.asarray(C)`) — useful for debugging, but it evaluates all elements via Python loops
+- Saving (`pc.save(C, ...)`) — evaluates blocks as needed to persist a stable snapshot
+
+### Saving and loading
+
+Saving a block matrix writes a container file plus a sidecar directory:
+
+```python
+pc.save(BM, "bm.pycauset")
+# creates bm.pycauset and bm.pycauset.blocks/
+
+BM2 = pc.load("bm.pycauset")
+```
+
+See [[internals/Block Matrices.md|Block Matrices]] for the manifest shape.
+
+
 ## Precision and Storage
 
 Choose precision explicitly via `dtype` at allocation time:
@@ -76,6 +147,57 @@ M64 = pc.empty((5000, 5000), dtype="float64")
 # Matrix Operations
 
 `pycauset` provides efficient implementations for matrix operations, mirroring `numpy` semantics where appropriate but optimized for specific matrix structures (e.g., triangular, bit-packed).
+
+## Indexing, slicing, and assignment (NumPy-style)
+
+PyCauset implements NumPy-like 2D indexing for dense matrices only. Structured/triangular matrices currently reject slicing.
+
+### Basic indexing → views (shared storage)
+
+* Supported: integers (negative wrap), `:`, `slice` with step (±), `...`.
+* Returns a view when both row/col steps are `1`; mutations reflect in the source.
+
+```python
+M = pc.matrix([ [1, 2, 3], [4, 5, 6] ], dtype="float64")
+sub = M[:, 1:]          # view, shares backing
+sub[0, 0] = 20
+assert M.get(0, 1) == 20
+```
+
+### Advanced indexing → copies
+
+* Supported per axis: 1D integer arrays (negative wrap) and 1D boolean masks.
+* Any use of arrays (alone or mixed with basic) returns a copy with NumPy shape rules; two array axes must have equal length or length-1.
+
+```python
+rows = pc.np.array([0, 1], dtype=int)
+cols = pc.np.array([2, 1], dtype=int)
+picked = M[rows, cols]   # copy; shape (1, 2) after broadcast
+```
+
+### Assignment with broadcasting
+
+* RHS may be a scalar, NumPy 0/1/2-D array, or another dense matrix.
+* NumPy 2D broadcast rules apply; shape mismatch raises `ValueError`.
+* Casting RHS arrays triggers `PyCausetDTypeWarning`; narrowing or float→int casts also trigger `PyCausetOverflowRiskWarning`.
+
+```python
+rhs = pc.np.arange(6).reshape(2, 3)
+M[:2, :3] = rhs          # broadcasts OK
+
+M[:, :2] = pc.np.array([1.5, 2.5], dtype=pc.np.float32)  # warns: cast float32 → float64
+```
+
+### Unsupported (current build)
+
+* `None` / `newaxis` (matrices stay 2D-only).
+* Slicing structured/triangular types.
+
+### Kernel guardrails
+
+Views with storage offsets are rejected by `matmul`, `qr`, `lu`, and `inverse`; call `copy()` first.
+
+See also: [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]], [[project/protocols/NumPy Alignment Protocol.md|NumPy Alignment Protocol]], [[guides/Storage and Memory.md|Storage and Memory]]
 
 ## GPU Acceleration
 
@@ -196,7 +318,7 @@ By default, `pycauset` manages backing files automatically. Files are stored in 
 
 # Caching and Persistence
 
-Some operations cache small derived values (for example `trace` / `determinant`) into `metadata.json` when saving matrices. Other caches are build-dependent and may not be available in all builds.
+Some operations cache small derived values (for example `trace` / `determinant`) into the file’s typed metadata when saving matrices. Other caches are build-dependent and may not be available in all builds.
 
 
 # Matrix Hierarchy

@@ -1,5 +1,6 @@
 #include "pycauset/compute/AutoSolver.hpp"
 #include "pycauset/compute/cpu/CpuDevice.hpp"
+#include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
@@ -262,6 +263,15 @@ void AutoSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& resul
     }
 
     if (use_gpu) {
+        // Test-only observability: GPU add routing.
+        // CpuSolver::add also sets a trace when CPU is chosen.
+        if (result.get_data_type() == DataType::FLOAT64) {
+            debug_trace::set_last("gpu.add.f64");
+        } else if (result.get_data_type() == DataType::FLOAT32) {
+            debug_trace::set_last("gpu.add.f32");
+        } else {
+            debug_trace::set_last("gpu.add");
+        }
         gpu_device_->add(a, b, result);
     } else {
         cpu_device_->add(a, b, result);
@@ -288,6 +298,15 @@ void AutoSolver::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& 
     }
 
     if (use_gpu) {
+        // Test-only observability: GPU subtract routing.
+        // CpuSolver::subtract sets a trace when CPU is chosen.
+        if (result.get_data_type() == DataType::FLOAT64) {
+            debug_trace::set_last("gpu.subtract.f64");
+        } else if (result.get_data_type() == DataType::FLOAT32) {
+            debug_trace::set_last("gpu.subtract.f32");
+        } else {
+            debug_trace::set_last("gpu.subtract");
+        }
         gpu_device_->subtract(a, b, result);
     } else {
         cpu_device_->subtract(a, b, result);

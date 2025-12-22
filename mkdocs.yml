@@ -86,12 +86,20 @@ nav:
     - guides/index.md
     - Installation: guides/Installation.md
     - User Guide: guides/User Guide.md
+    - Release 1:
+      - Overview: guides/release1/index.md
+      - Shapes (NxM Matrices): guides/release1/shapes.md
+      - Storage (Persistence Container): guides/release1/storage.md
+      - Properties (Semantic Metadata): guides/release1/properties.md
+      - DTypes (Integers, Float16, Complex): guides/release1/dtypes.md
+      - Linear Algebra (Core Ops): guides/release1/linalg.md
     - Causal Sets: guides/Causal Sets.md
     - Spacetime: guides/Spacetime.md
     - Field Theory: guides/Field Theory.md
     - Visualization: guides/Visualization.md
     - Matrix Guide: guides/Matrix Guide.md
     - Vector Guide: guides/Vector Guide.md
+    - Linear Algebra Operations: guides/Linear Algebra Operations.md
     - NxM Support: guides/NxM Support.md
     - Storage and Memory: guides/Storage and Memory.md
     - Performance Guide: guides/Performance Guide.md
@@ -106,6 +114,7 @@ nav:
     - internals/index.md
     - DType System: internals/DType System.md
     - Compute Architecture: internals/Compute Architecture.md
+    - Block Matrices: internals/Block Matrices.md
     - Memory Architecture: internals/MemoryArchitecture.md
     - Memory and Data: internals/Memory and Data.md
     - Algorithms: internals/Algorithms.md
@@ -114,6 +123,7 @@ nav:
       - internals/plans/BLAS_INTEGRATION_PLAN.md
   - Dev Handbook:
     - dev/index.md
+    - Agent Bootstrap: dev/Agent Bootstrap.md
     - Restructure Plan: dev/Restructure Plan.md
     - Codebase Structure: dev/Codebase Structure.md
     - Python Internals: dev/Python Internals.md
@@ -136,4 +146,4 @@ nav:
       - Release Process: project/protocols/Release Process.md
       - Testing and Bug Tracking: project/protocols/Testing and Bug Tracking.md
     - Contributing: project/Contributing.md
-    - Roadmap: project/TODO.md
+    - Roadmap: internals/plans/TODO.md

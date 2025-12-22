@@ -17,6 +17,7 @@ Warnings are for cases where execution can continue correctly, but the user shou
 - **Policy surprises** (e.g., underpromotion within floats, reduction accumulator widening)
 - **Heuristic risk checks** (e.g., integer matmul overflow-risk preflight)
 - **Performance hazards** (e.g., a fallback that will be much slower than expected)
+  - Example: a cached-derived value (including a “big blob cache” like an inverse) cannot be loaded because its referenced storage object is missing/corrupt, so the runtime will recompute.
 
 Warnings should be:
 
@@ -44,6 +45,7 @@ Defined in `python/pycauset/_internal/warnings.py` and re-exported from `pycause
 - `pycauset.PyCausetDTypeWarning` (promotion/accumulator dtype notifications)
 - `pycauset.PyCausetOverflowRiskWarning` (heuristic overflow risk preflights)
 - `pycauset.PyCausetPerformanceWarning` (slow-path / performance notifications)
+- `pycauset.PyCausetStorageWarning` (storage/mmap/cache notifications)
 
 ### Filtering examples
 
@@ -68,6 +70,23 @@ Noise control requirements:
 
 - Use a **warn-once** mechanism keyed by a stable identifier (usually `op + dtype tuple`).
 - Prefer `stacklevel` so the warning points to user code.
+
+### Storage/cache warning guidance
+
+When a cached-derived value cannot be used (missing/stale/malformed signature; referenced big-blob object missing or corrupt), execution can typically continue correctly by recomputing.
+
+Policy:
+
+- Prefer a warning (not an exception) when the runtime can safely ignore the cached entry and recompute.
+- Use `pycauset.PyCausetStorageWarning` for missing/corrupt/stale cached storage objects (including big-blob caches).
+
+Slicing/indexing assignment warnings
+
+- When `M[slice] = X` triggers dtype conversion or promotion, emit `PyCausetDTypeWarning` (and `PyCausetOverflowRiskWarning` if the conversion increases overflow risk) while applying the NumPy broadcast/shape rules for the indexed region. Shape-changing assignments must raise.
+
+Suggested message pattern:
+
+- `pycauset invert cache unavailable (missing/corrupt cached object); recomputing`
 
 ## Where warnings should be emitted
 

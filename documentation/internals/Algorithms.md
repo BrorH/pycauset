@@ -68,7 +68,7 @@ For $N = 10^9$ (1 billion) in $D=4$ dimensions, storing the coordinates alone wo
 
 #### Block-Based Matrix Generation
 
-When generating the causal matrix (which is stored on disk as a memory-mapped file inside a `.pycauset` ZIP archive), we process the points in blocks that fit comfortably in the CPU cache (e.g., 1024 points at a time).
+When generating the causal matrix (which is stored on disk as a memory-mapped payload inside a single-file `.pycauset` container), we process the points in blocks that fit comfortably in the CPU cache (e.g., 1024 points at a time).
 
 1.  **Generate Block A**: We generate the coordinates for a small block of points (Row Block).
 2.  **Generate Block B**: We generate the coordinates for another small block (Column Block).

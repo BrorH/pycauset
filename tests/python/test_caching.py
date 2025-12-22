@@ -2,6 +2,7 @@
 import unittest
 import os
 import shutil
+import warnings
 import numpy as np
 import pycauset
 from pathlib import Path
@@ -45,12 +46,10 @@ class TestCaching(unittest.TestCase):
             # Load
             m2 = pycauset.load(path)
 
-            # Check if cached values are present
-            self.assertTrue(hasattr(m2, "cached_trace"))
-            self.assertEqual(m2.cached_trace, 9.0)
-
-            self.assertTrue(hasattr(m2, "cached_determinant"))
-            self.assertEqual(m2.cached_determinant, 24.0)
+            # Cached-derived values are surfaced via obj.properties.
+            self.assertTrue(hasattr(m2, "properties"))
+            self.assertEqual(m2.properties.get("trace"), 9.0)
+            self.assertEqual(m2.properties.get("determinant"), 24.0)
 
             # Verify calling trace() returns cached value
             self.assertEqual(m2.trace(), 9.0)
@@ -64,73 +63,11 @@ class TestCaching(unittest.TestCase):
         raise unittest.SkipTest(
             "Eigenvalue caching was removed with the legacy complex subsystem."
         )
-        m = None
-        m2 = None
-        try:
-            m = pycauset.FloatMatrix(2)
-            m.set(0, 0, 1.0)
-            m.set(1, 1, 2.0)
-
-            _ = m.eigenvalues()
-
-            path = self.test_dir / "matrix_evals.pycauset"
-            pycauset.save(m, path)
-
-            m2 = pycauset.load(path)
-
-            self.assertTrue(hasattr(m2, "cached_eigenvalues"))
-            self.assertEqual(len(m2.cached_eigenvalues), 2)
-            v0 = m2.cached_eigenvalues[0]
-            self.assertAlmostEqual(v0.real, 1.0)
-        finally:
-            if m is not None:
-                m.close()
-            if m2 is not None:
-                m2.close()
 
     def test_eigenvectors_persistence(self):
         raise unittest.SkipTest(
             "Eigenvector caching was removed with the legacy complex subsystem."
         )
-        m = None
-        m2 = None
-        m3 = None
-        vecs = None
-        vecs3 = None
-        try:
-            m = pycauset.FloatMatrix(2)
-            m.set(0, 0, 1.0)
-            m.set(1, 1, 2.0)
-
-            path = self.test_dir / "matrix_evecs.pycauset"
-            pycauset.save(m, path)
-
-            # Load and compute eigenvectors with save=True
-            m2 = pycauset.load(path)
-            vecs = m2.eigenvectors(save=True)
-
-            import zipfile
-            with zipfile.ZipFile(path, "r") as zf:
-                self.assertIn("eigenvectors.real.bin", zf.namelist())
-                self.assertIn("cache.json", zf.namelist())
-
-            # Load again and check if eigenvectors are retrieved from cache
-            m3 = pycauset.load(path)
-            vecs3 = m3.eigenvectors()
-
-            real_backing = vecs3.real.get_backing_file()
-            self.assertEqual(str(Path(real_backing).resolve()), str(path.resolve()))
-        finally:
-            if vecs3 is not None:
-                vecs3.close()
-            if vecs is not None:
-                vecs.close()
-            if m3 is not None:
-                m3.close()
-            if m2 is not None:
-                m2.close()
-            if m is not None:
-                m.close()
 
     def test_inverse_persistence(self):
         m = None
@@ -149,15 +86,69 @@ class TestCaching(unittest.TestCase):
             m2 = pycauset.load(path)
             inv = m2.invert(save=True)
 
-            import zipfile
-            with zipfile.ZipFile(path, "r") as zf:
-                self.assertIn("inverse.bin", zf.namelist())
+            # Returns a correct inverse matrix.
+            self.assertAlmostEqual(inv.get(0, 0), 1.0)
+            self.assertAlmostEqual(inv.get(1, 1), 0.5)
 
+            # Load again and verify inverse is retrieved from the file-backed cache.
             m3 = pycauset.load(path)
             inv3 = m3.invert()
 
-            inv_backing = inv3.get_backing_file()
-            self.assertEqual(str(Path(inv_backing).resolve()), str(path.resolve()))
+            self.assertAlmostEqual(inv3.get(0, 0), 1.0)
+            self.assertAlmostEqual(inv3.get(1, 1), 0.5)
+
+            store_dir = path.with_suffix(path.suffix + ".objects")
+            cache_files = list(store_dir.glob("*.pycauset"))
+            self.assertEqual(len(cache_files), 1)
+
+            inv3_backing = Path(inv3.get_backing_file()).resolve()
+            self.assertEqual(str(inv3_backing), str(cache_files[0].resolve()))
+        finally:
+            if inv3 is not None:
+                inv3.close()
+            if inv is not None:
+                inv.close()
+            if m3 is not None:
+                m3.close()
+            if m2 is not None:
+                m2.close()
+            if m is not None:
+                m.close()
+
+    def test_inverse_cache_missing_warns_and_recomputes(self):
+        m = None
+        m2 = None
+        m3 = None
+        inv = None
+        inv3 = None
+        try:
+            m = pycauset.FloatMatrix(2)
+            m.set(0, 0, 1.0)
+            m.set(1, 1, 2.0)
+
+            path = self.test_dir / "matrix_inv_missing_cache.pycauset"
+            pycauset.save(m, path)
+
+            m2 = pycauset.load(path)
+            inv = m2.invert(save=True)
+            inv.close()
+            inv = None
+            m2.close()
+            m2 = None
+
+            store_dir = path.with_suffix(path.suffix + ".objects")
+            cache_files = list(store_dir.glob("*.pycauset"))
+            self.assertEqual(len(cache_files), 1)
+            cache_files[0].unlink()
+
+            m3 = pycauset.load(path)
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                inv3 = m3.invert()
+
+            self.assertTrue(any(issubclass(x.category, pycauset.PyCausetStorageWarning) for x in w))
+            self.assertAlmostEqual(inv3.get(0, 0), 1.0)
+            self.assertAlmostEqual(inv3.get(1, 1), 0.5)
         finally:
             if inv3 is not None:
                 inv3.close()

@@ -69,6 +69,7 @@ void TriangularMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
     } else {
         *data_ptr &= ~(1ULL << bit_index);
     }
+
 }
 
 bool TriangularMatrix<bool>::get(uint64_t i, uint64_t j) const {
@@ -293,6 +294,8 @@ std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::elementwise_mult
 }
 
 void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t> seed) {
+    ensure_unique();
+
     std::mt19937_64 gen;
     if (seed.has_value()) {
         gen.seed(*seed);
@@ -307,18 +310,21 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
 
     const size_t CHUNK_SIZE = 64 * 1024 * 1024; // 64 MB
     size_t granularity = MemoryMapper::get_granularity();
-    size_t file_header_size = 0;
-    size_t data_start_offset = 0;
-    size_t file_size = mapper->get_data_size();
+    const size_t payload_start_offset = mapper->get_offset();
+    const size_t payload_size = mapper->get_data_size();
+    const size_t payload_end_offset = payload_start_offset + payload_size;
 
     // Helper to map a chunk covering a specific file offset
-    auto map_chunk_for_offset = [&](size_t offset, size_t min_size, void*& view_ptr, size_t& view_start, size_t& view_size) {
-        size_t aligned_start = (offset / granularity) * granularity;
-        size_t required_end = offset + min_size;
+    auto map_chunk_for_offset = [&](size_t absolute_offset, size_t min_size, void*& view_ptr, size_t& view_start, size_t& view_size) {
+        size_t aligned_start = (absolute_offset / granularity) * granularity;
+        size_t required_end = absolute_offset + min_size;
         size_t map_len = std::max(CHUNK_SIZE, required_end - aligned_start);
         
-        if (aligned_start + map_len > file_size) {
-            map_len = file_size - aligned_start;
+        if (aligned_start + map_len > payload_end_offset) {
+            if (payload_end_offset <= aligned_start) {
+                throw std::runtime_error("Failed to map region: offset out of payload range");
+            }
+            map_len = payload_end_offset - aligned_start;
         }
         
         view_ptr = mapper->map_region(aligned_start, map_len);
@@ -338,7 +344,7 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
 
             uint64_t words = (row_len + 63) / 64;
             uint64_t row_offset_rel = get_row_offset(i);
-            uint64_t row_file_start = data_start_offset + row_offset_rel;
+            uint64_t row_file_start = payload_start_offset + row_offset_rel;
             uint64_t row_size_bytes = words * 8;
 
             // Check if current row fits in current view
@@ -386,7 +392,7 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
 
             uint64_t words = (row_len + 63) / 64;
             uint64_t row_offset_rel = get_row_offset(i);
-            uint64_t row_file_start = data_start_offset + row_offset_rel;
+            uint64_t row_file_start = payload_start_offset + row_offset_rel;
             uint64_t row_size_bytes = words * 8;
 
             bool fits = false;

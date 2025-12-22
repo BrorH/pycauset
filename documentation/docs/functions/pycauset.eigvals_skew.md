@@ -1,5 +1,5 @@
 ﻿# pycauset.eigvals_skew
 
-This function is currently not available.
+This function is currently not available in pre-alpha builds.
 
-The legacy complex/eigendecomposition subsystem was removed. Eigenvalue APIs will return once the new complex dtype system is implemented.
+It is present as a stub API and will raise `NotImplementedError`.

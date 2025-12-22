@@ -12,11 +12,12 @@ This section is the canonical onboarding path for contributors working on PyCaus
 1. [[dev/Restructure Plan]]
 2. [[dev/Codebase Structure]]
 3. [[dev/Python Internals]]
-4. [[dev/Build System]]
-5. [[dev/Bindings & Dispatch]]
-6. [[dev/Warnings & Exceptions]]
-7. [[dev/Testing & Benchmarks]]
-8. [[dev/Repository Hygiene]]
+4. [[guides/Storage and Memory]]
+5. [[dev/Build System]]
+6. [[dev/Bindings & Dispatch]]
+7. [[dev/Warnings & Exceptions]]
+8. [[dev/Testing & Benchmarks]]
+9. [[dev/Repository Hygiene]]
 
 ## Related
 

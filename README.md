@@ -19,7 +19,7 @@ The authoritative dtype rules live in `documentation/internals/DType System.md`.
 
 ## Key Features
 
-*   **Hybrid Storage Architecture**: PyCauset automatically manages memory. Small matrices live in RAM for speed, while massive datasets spill seamlessly to **memory-mapped disk storage** (ZIP-compressed archives).
+*   **Hybrid Storage Architecture**: PyCauset automatically manages memory. Small matrices live in RAM for speed, while massive datasets spill seamlessly to **memory-mapped disk storage** (single-file `.pycauset` containers).
 *   **GPU Acceleration**: Built-in NVIDIA CUDA backend for matrix multiplication, inversion, and eigenvalue problems. Includes custom kernels for **accelerated bit-matrix operations**.
 *   **Smart Precision**: Automatically selects `Float64` or `Float32` based on matrix size and hardware capabilities to maximize throughput.
 *   **Physics Engines**:
@@ -118,9 +118,15 @@ If no GPU is found, PyCauset falls back to a highly optimized multi-threaded CPU
 
 ## Storage Format
 
-Large datasets are stored in the **`.pycauset`** format, which is a standard ZIP archive containing:
-1.  `metadata.json`: Dimensions, types, and generation parameters.
-2.  `data.bin`: Raw binary data (memory-mapped directly from the archive).
+Large datasets are stored in the **`.pycauset`** format, a **single-file binary container** designed for mmap-friendly payload access and crash-consistent metadata updates.
+
+High level:
+
+- A fixed-size header selects the active “header slot” (A/B) to locate the payload and the current metadata block.
+- The payload is raw matrix/vector bytes at a stable, aligned offset (so it can be memory-mapped efficiently).
+- Metadata is a sparse, typed block that can be appended/updated without shifting the payload.
+
+The authoritative container spec lives in `documentation/internals/plans/R1_STORAGE_PLAN.md`.
 
 ```python
 # Save your simulation

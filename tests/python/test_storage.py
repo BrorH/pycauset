@@ -1,13 +1,98 @@
 import unittest
 import os
 import shutil
-import zipfile
-import json
-import struct
 from pathlib import Path
 import pycauset
-import pycauset
 from pycauset import CausalSet, TriangularBitMatrix, IntegerMatrix, FloatMatrix
+
+from pycauset._internal import persistence as _persistence
+
+
+def _assert_is_container(path: Path) -> None:
+    with path.open("rb") as f:
+        magic = f.read(8)
+    if magic != b"PYCAUSET":
+        raise AssertionError(f"expected PYCAUSET magic, got {magic!r}")
+
+
+def _corrupt_container_cols(path: Path, *, cols: int) -> None:
+    file_size = path.stat().st_size
+
+    with path.open("rb+") as f:
+        f.seek(_persistence._SLOT_A_OFFSET)
+        slot_a = _persistence._unpack_slot(f.read(_persistence._SLOT_SIZE))
+        f.seek(_persistence._SLOT_B_OFFSET)
+        slot_b = _persistence._unpack_slot(f.read(_persistence._SLOT_SIZE))
+
+        def _slot_valid(s: dict[str, int]) -> bool:
+            if not s.get("crc_ok"):
+                return False
+            if s["payload_offset"] % 4096 != 0:
+                return False
+            if s["metadata_offset"] % 16 != 0:
+                return False
+            if s["payload_offset"] + s["payload_length"] > file_size:
+                return False
+            if s["metadata_offset"] + s["metadata_length"] > file_size:
+                return False
+            return True
+
+        candidates = [s for s in (slot_a, slot_b) if _slot_valid(s)]
+        if not candidates:
+            raise AssertionError("no valid slot to corrupt")
+
+        active = max(candidates, key=lambda s: s["generation"])
+        active_is_a = active is slot_a
+        inactive_offset = _persistence._SLOT_B_OFFSET if active_is_a else _persistence._SLOT_A_OFFSET
+
+        # Read existing metadata block
+        f.seek(active["metadata_offset"])
+        block = f.read(active["metadata_length"])
+        if block[:4] != _persistence._METADATA_BLOCK_MAGIC:
+            raise AssertionError("metadata block magic mismatch")
+
+        payload_len = int(_persistence.struct.unpack("<Q", block[16:24])[0])
+        payload = block[32 : 32 + payload_len]
+        typed_meta = _persistence._decode_metadata_top_map(payload)
+        typed_meta["cols"] = int(cols)
+
+        payload2 = _persistence._encode_metadata_top_map(typed_meta)
+        payload_crc = _persistence._crc32(payload2)
+        block_header = (
+            _persistence._METADATA_BLOCK_MAGIC
+            + _persistence.struct.pack(
+                "<III",
+                _persistence._METADATA_BLOCK_VERSION,
+                _persistence._METADATA_ENCODING_VERSION,
+                0,
+            )
+            + _persistence.struct.pack("<Q", len(payload2))
+            + _persistence.struct.pack("<I", payload_crc)
+            + _persistence.struct.pack("<I", 0)
+        )
+
+        f.seek(0, os.SEEK_END)
+        cur = f.tell()
+        new_meta_offset = _persistence._align_up(cur, 16)
+        if new_meta_offset != cur:
+            f.write(b"\x00" * (new_meta_offset - cur))
+
+        f.write(block_header)
+        f.write(payload2)
+        new_meta_len = 32 + len(payload2)
+
+        new_slot = _persistence._pack_slot(
+            generation=int(active["generation"]) + 1,
+            payload_offset=int(active["payload_offset"]),
+            payload_length=int(active["payload_length"]),
+            metadata_offset=int(new_meta_offset),
+            metadata_length=int(new_meta_len),
+            hot_offset=0,
+            hot_length=0,
+        )
+
+        f.seek(inactive_offset)
+        f.write(new_slot)
 
 class TestStorage(unittest.TestCase):
     def setUp(self):
@@ -31,16 +116,10 @@ class TestStorage(unittest.TestCase):
             # Verify file exists
             self.assertTrue(path.exists())
             
-            # Verify ZIP structure
-            with zipfile.ZipFile(path, "r") as zf:
-                self.assertIn("metadata.json", zf.namelist())
-                self.assertIn("data.bin", zf.namelist())
-                
-                # Check metadata
-                with zf.open("metadata.json") as f:
-                    meta = json.load(f)
-                    self.assertEqual(meta["rows"], n)
-                    self.assertEqual(meta["matrix_type"], "CAUSAL")
+            _assert_is_container(path)
+            meta, _ = _persistence._read_new_container_metadata_and_offset(path)
+            self.assertEqual(meta["rows"], n)
+            self.assertEqual(meta["matrix_type"], "CAUSAL")
                     
             # Load
             loaded_matrix = pycauset.load(path)
@@ -61,16 +140,11 @@ class TestStorage(unittest.TestCase):
         try:
             # Save
             c.save(path)
-            
-            # Verify ZIP structure
-            with zipfile.ZipFile(path, "r") as zf:
-                self.assertIn("metadata.json", zf.namelist())
-                self.assertIn("data.bin", zf.namelist())
-                
-                with zf.open("metadata.json") as f:
-                    meta = json.load(f)
-                    self.assertEqual(meta["object_type"], "CausalSet")
-                    self.assertEqual(meta["n"], 50)
+
+            _assert_is_container(path)
+            meta, _ = _persistence._read_new_container_metadata_and_offset(path)
+            self.assertEqual(meta.get("object_type"), "CausalSet")
+            self.assertEqual(meta.get("n"), 50)
                     
             # Load
             loaded_c = CausalSet.load(path)
@@ -114,12 +188,10 @@ class TestStorage(unittest.TestCase):
         try:
             pycauset.save(m, path)
 
-            with zipfile.ZipFile(path, "r") as zf:
-                with zf.open("metadata.json") as f:
-                    meta = json.load(f)
-                    self.assertEqual(meta["rows"], 3)
-                    self.assertEqual(meta["cols"], 5)
-                    self.assertEqual(meta.get("data_type"), "BIT")
+            meta, _ = _persistence._read_new_container_metadata_and_offset(path)
+            self.assertEqual(meta["rows"], 3)
+            self.assertEqual(meta["cols"], 5)
+            self.assertEqual(meta.get("data_type"), "BIT")
 
             loaded = pycauset.load(path)
             try:
@@ -143,16 +215,8 @@ class TestStorage(unittest.TestCase):
         try:
             pycauset.save(matrix, path)
 
-            with zipfile.ZipFile(path, "r") as zf:
-                meta = json.loads(zf.read("metadata.json").decode("utf-8"))
-                data = zf.read("data.bin")
-
-            # Corrupt the shape: triangular/causal matrices are square-only.
-            meta["cols"] = int(n + 1)
-
-            with zipfile.ZipFile(bad_path, "w", zipfile.ZIP_STORED) as zf:
-                zf.writestr("metadata.json", json.dumps(meta, indent=2))
-                zf.writestr("data.bin", data)
+            shutil.copy2(path, bad_path)
+            _corrupt_container_cols(bad_path, cols=n + 1)
 
             with self.assertRaises(ValueError):
                 pycauset.load(bad_path)

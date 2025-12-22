@@ -45,6 +45,21 @@ See also: [[dev/Python Internals|Python Internals]] and [[dev/Bindings & Dispatc
 - Concrete matrix/vector classes follow `…Matrix` / `…Vector` naming.
   - Examples: `FloatMatrix`, `TriangularFloatMatrix`, `IntegerVector`.
 
+### Matrix/vector semantic properties (`obj.properties`)
+
+All public matrix/vector objects expose a `properties` mapping.
+
+Contract:
+
+- `obj.properties` is the single user-facing metadata container.
+- Properties are **gospel**: they are not truth-validated by scanning payload bytes.
+- Boolean-like properties use tri-state semantics via key presence:
+  - unset means the key is absent,
+  - explicit `False` is preserved.
+- Some keys (e.g. `trace`, `determinant`) may be treated as **cached-derived** values:
+  - they are persisted with validity signatures under `cached.*`,
+  - and are surfaced back into `obj.properties` on load only when valid.
+
 ### Functions
 
 - Public functions use `snake_case`.
@@ -78,7 +93,7 @@ Rule:
 
 ### Exceptions and warnings
 
-- Warnings derive from `PyCausetWarning` (examples: `PyCausetPerformanceWarning`).
+- Warnings derive from `PyCausetWarning` (examples: `PyCausetPerformanceWarning`, `PyCausetStorageWarning`).
 - Exceptions should be specific and predictable; prefer raising built-in exceptions (`ValueError`, `TypeError`) unless a dedicated PyCauset exception is warranted.
 
 See also: [[dev/Warnings & Exceptions|Warnings & Exceptions]].

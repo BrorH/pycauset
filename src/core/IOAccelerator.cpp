@@ -1,4 +1,5 @@
 #include "pycauset/core/IOAccelerator.hpp"
+#include "pycauset/core/DebugTrace.hpp"
 #include <iostream>
 #include <algorithm>
 
@@ -20,6 +21,7 @@ IOAccelerator::IOAccelerator(MemoryMapper* mapper) : mapper_(mapper) {}
 IOAccelerator::~IOAccelerator() {}
 
 void IOAccelerator::prefetch(size_t offset, size_t size) {
+    pycauset::debug_trace::set_last_io("io.prefetch");
     if (!mapper_) return;
     
     uint8_t* base = static_cast<uint8_t*>(mapper_->get_data());
@@ -34,6 +36,7 @@ void IOAccelerator::prefetch(size_t offset, size_t size) {
 }
 
 void IOAccelerator::discard(size_t offset, size_t size) {
+    pycauset::debug_trace::set_last_io("io.discard");
     if (!mapper_) return;
 
     uint8_t* base = static_cast<uint8_t*>(mapper_->get_data());

@@ -1,13 +1,23 @@
 from __future__ import annotations
 
 import os
-import zipfile
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from .persistence import zip_member_data_offset
+_PYCAUSET_MAGIC = b"PYCAUSET"
+
+from . import persistence as _persistence
+from . import big_blob_cache as _big_blob_cache
+
+
+def _is_new_container(backing: str) -> bool:
+    try:
+        with open(backing, "rb") as f:
+            return f.read(len(_PYCAUSET_MAGIC)) == _PYCAUSET_MAGIC
+    except OSError:
+        return False
 
 
 def patch_matrixbase_save(native: Any, save_func: Any) -> None:
@@ -23,24 +33,50 @@ def make_inverse(FloatMatrix: Any) -> Any:
         if hasattr(self, "_cached_inverse"):
             return self._cached_inverse
 
-        backing = self.get_backing_file()
-        if backing and backing.endswith(".pycauset") and os.path.exists(backing):
-            try:
-                with zipfile.ZipFile(backing, "r") as zf:
-                    if "inverse.bin" in zf.namelist():
-                        info = zf.getinfo("inverse.bin")
-                        offset = zip_member_data_offset(backing, info)
+        backing = None
+        try:
+            backing = self.get_backing_file()
+        except Exception:
+            backing = None
 
-                        try:
-                            inv = FloatMatrix._from_storage(
-                                self.rows(), self.cols(), backing, offset, 0, 1.0, False
-                            )
-                        except TypeError:
-                            inv = FloatMatrix._from_storage(self.rows(), backing, offset, 0, 1.0, False)
-                        self._cached_inverse = inv
-                        return inv
-            except Exception:
-                pass
+        if backing and isinstance(self, FloatMatrix) and backing.endswith(".pycauset") and os.path.exists(backing):
+            if _is_new_container(backing):
+                # If a persisted inverse object exists for this view state, load it.
+                try:
+                    view_sig = _big_blob_cache.compute_view_signature(self)
+                    inv = _big_blob_cache.try_load_cached_matrix(
+                        backing,
+                        name="inverse",
+                        view_signature=view_sig,
+                        MatrixClass=FloatMatrix,
+                    )
+                except Exception:
+                    inv = None
+
+                if inv is not None:
+                    self._cached_inverse = inv
+                    return inv
+
+                # Correctness-first: native invert currently produces invalid results for
+                # matrices backed by the new container (likely ignoring payload offsets).
+                # Until native inversion is made container-aware, force a NumPy inverse.
+                inv_np = np.linalg.inv(np.asarray(self))
+                inv = FloatMatrix(inv_np)
+                self._cached_inverse = inv
+
+                if save:
+                    try:
+                        _big_blob_cache.persist_cached_object(
+                            backing,
+                            name="inverse",
+                            obj=inv,
+                            view_signature=view_sig,
+                        )
+                    except Exception:
+                        # Best-effort cache: computation result still returned.
+                        pass
+
+                return inv
 
         if hasattr(self, "_invert_native"):
             try:
@@ -59,20 +95,18 @@ def make_inverse(FloatMatrix: Any) -> Any:
 
         self._cached_inverse = inv
 
-        if save:
-            if backing and backing.endswith(".pycauset") and os.path.exists(backing):
-                with zipfile.ZipFile(backing, "a") as zf:
-                    inv_file = inv.get_backing_file()
-                    if inv_file and inv_file != ":memory:" and os.path.exists(inv_file):
-                        zf.write(inv_file, "inverse.bin")
-                    else:
-                        temp_inv = str(Path(backing).with_suffix(".inv.tmp"))
-                        inv.copy_storage(temp_inv)
-                        zf.write(temp_inv, "inverse.bin")
-                        try:
-                            os.unlink(temp_inv)
-                        except OSError:
-                            pass
+        # If requested, persist inverse for container-backed matrices.
+        if save and backing and backing.endswith(".pycauset") and os.path.exists(backing) and _is_new_container(backing):
+            try:
+                view_sig = _big_blob_cache.compute_view_signature(self)
+                _big_blob_cache.persist_cached_object(
+                    backing,
+                    name="inverse",
+                    obj=inv,
+                    view_signature=view_sig,
+                )
+            except Exception:
+                pass
 
         return inv
 

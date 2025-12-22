@@ -4,6 +4,8 @@
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/core/PromotionResolver.hpp"
 #include "pycauset/core/DebugTrace.hpp"
+#include "pycauset/core/MemoryHints.hpp"
+#include "pycauset/core/IOAccelerator.hpp"
 #include "pycauset/compute/AcceleratorConfig.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
@@ -184,4 +186,36 @@ void bind_core_classes(py::module_& m) {
 
     m.def("_debug_last_kernel_trace", []() { return pycauset::debug_trace::get_last(); });
     m.def("_debug_clear_kernel_trace", []() { pycauset::debug_trace::clear(); });
+
+    // --- Lookahead protocol / IO accelerator (Phase F) ---
+    py::enum_<pycauset::core::AccessPattern>(m, "AccessPattern")
+        .value("Sequential", pycauset::core::AccessPattern::Sequential)
+        .value("Reverse", pycauset::core::AccessPattern::Reverse)
+        .value("Strided", pycauset::core::AccessPattern::Strided)
+        .value("Random", pycauset::core::AccessPattern::Random)
+        .value("Once", pycauset::core::AccessPattern::Once);
+
+    py::class_<pycauset::core::MemoryHint>(m, "MemoryHint")
+        .def(py::init<>())
+        .def_readwrite("pattern", &pycauset::core::MemoryHint::pattern)
+        .def_readwrite("start_offset", &pycauset::core::MemoryHint::start_offset)
+        .def_readwrite("length", &pycauset::core::MemoryHint::length)
+        .def_readwrite("stride_bytes", &pycauset::core::MemoryHint::stride_bytes)
+        .def_readwrite("block_bytes", &pycauset::core::MemoryHint::block_bytes)
+        .def_static("sequential", &pycauset::core::MemoryHint::sequential, py::arg("start"), py::arg("len"))
+        .def_static(
+            "strided",
+            &pycauset::core::MemoryHint::strided,
+            py::arg("start"),
+            py::arg("len"),
+            py::arg("stride"),
+            py::arg("block"));
+
+    py::class_<pycauset::core::IOAccelerator>(m, "IOAccelerator")
+        .def("prefetch", &pycauset::core::IOAccelerator::prefetch, py::arg("offset"), py::arg("size"))
+        .def("discard", &pycauset::core::IOAccelerator::discard, py::arg("offset"), py::arg("size"))
+        .def("process_hint", &pycauset::core::IOAccelerator::process_hint, py::arg("hint"));
+
+    m.def("_debug_last_io_trace", []() { return pycauset::debug_trace::get_last_io(); });
+    m.def("_debug_clear_io_trace", []() { pycauset::debug_trace::clear_io(); });
 }

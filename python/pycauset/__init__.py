@@ -18,6 +18,7 @@ from ._internal import linalg_cache as _linalg_cache
 from ._internal import runtime as _runtime_mod
 from ._internal import formatting as _formatting
 from ._internal import patching as _patching
+from ._internal import properties as _properties
 from ._internal import coercion as _coercion
 from ._internal import factories as _factories
 from ._internal.dtypes import normalize_dtype as _normalize_dtype
@@ -29,6 +30,7 @@ from ._internal.warnings import (
     PyCausetDTypeWarning,
     PyCausetOverflowRiskWarning,
     PyCausetPerformanceWarning,
+    PyCausetStorageWarning,
 )
 
 try:  # NumPy is optional at runtime
@@ -424,6 +426,187 @@ _patching.apply_native_storage_patches(
     mark_temporary_if_auto=_mark_temporary_if_auto,
 )
 
+_properties.apply_properties_patches(
+    classes=[
+        _IntegerMatrix,
+        _Int8Matrix,
+        _Int16Matrix,
+        _Int64Matrix,
+        _UInt8Matrix,
+        _UInt16Matrix,
+        _UInt32Matrix,
+        _UInt64Matrix,
+        _FloatMatrix,
+        _Float16Matrix,
+        _Float32Matrix,
+        _ComplexFloat16Matrix,
+        _ComplexFloat32Matrix,
+        _ComplexFloat64Matrix,
+        _TriangularFloatMatrix,
+        _TriangularIntegerMatrix,
+        _DenseBitMatrix,
+        _TriangularBitMatrix,
+        _FloatVector,
+        _Float32Vector,
+        _Float16Vector,
+        _ComplexFloat16Vector,
+        _ComplexFloat32Vector,
+        _ComplexFloat64Vector,
+        _Int8Vector,
+        _IntegerVector,
+        _Int16Vector,
+        _Int64Vector,
+        _UInt8Vector,
+        _UInt16Vector,
+        _UInt32Vector,
+        _UInt64Vector,
+        _BitVector,
+        _UnitVector,
+    ]
+)
+
+_properties.apply_properties_mutation_patches(
+    classes=[
+        _IntegerMatrix,
+        _Int8Matrix,
+        _Int16Matrix,
+        _Int64Matrix,
+        _UInt8Matrix,
+        _UInt16Matrix,
+        _UInt32Matrix,
+        _UInt64Matrix,
+        _FloatMatrix,
+        _Float16Matrix,
+        _Float32Matrix,
+        _ComplexFloat16Matrix,
+        _ComplexFloat32Matrix,
+        _ComplexFloat64Matrix,
+        _TriangularFloatMatrix,
+        _TriangularIntegerMatrix,
+        _DenseBitMatrix,
+        _TriangularBitMatrix,
+        _FloatVector,
+        _Float32Vector,
+        _Float16Vector,
+        _ComplexFloat16Vector,
+        _ComplexFloat32Vector,
+        _ComplexFloat64Vector,
+        _Int8Vector,
+        _IntegerVector,
+        _Int16Vector,
+        _Int64Vector,
+        _UInt8Vector,
+        _UInt16Vector,
+        _UInt32Vector,
+        _UInt64Vector,
+        _BitVector,
+        _UnitVector,
+    ]
+)
+
+_properties.apply_properties_view_patches(
+    classes=[
+        _IntegerMatrix,
+        _Int8Matrix,
+        _Int16Matrix,
+        _Int64Matrix,
+        _UInt8Matrix,
+        _UInt16Matrix,
+        _UInt32Matrix,
+        _UInt64Matrix,
+        _FloatMatrix,
+        _Float16Matrix,
+        _Float32Matrix,
+        _ComplexFloat16Matrix,
+        _ComplexFloat32Matrix,
+        _ComplexFloat64Matrix,
+        _TriangularFloatMatrix,
+        _TriangularIntegerMatrix,
+        _DenseBitMatrix,
+        _TriangularBitMatrix,
+        _FloatVector,
+        _Float32Vector,
+        _Float16Vector,
+        _ComplexFloat16Vector,
+        _ComplexFloat32Vector,
+        _ComplexFloat64Vector,
+        _Int8Vector,
+        _IntegerVector,
+        _Int16Vector,
+        _Int64Vector,
+        _UInt8Vector,
+        _UInt16Vector,
+        _UInt32Vector,
+        _UInt64Vector,
+        _BitVector,
+        _UnitVector,
+    ],
+    track_matrix=_track_matrix,
+    mark_temporary_if_auto=_mark_temporary_if_auto,
+)
+
+_properties.apply_properties_operator_patches(
+    classes=[
+        _IntegerMatrix,
+        _Int8Matrix,
+        _Int16Matrix,
+        _Int64Matrix,
+        _UInt8Matrix,
+        _UInt16Matrix,
+        _UInt32Matrix,
+        _UInt64Matrix,
+        _FloatMatrix,
+        _Float16Matrix,
+        _Float32Matrix,
+        _ComplexFloat16Matrix,
+        _ComplexFloat32Matrix,
+        _ComplexFloat64Matrix,
+        _TriangularFloatMatrix,
+        _TriangularIntegerMatrix,
+        _DenseBitMatrix,
+        _TriangularBitMatrix,
+    ]
+)
+
+_properties.apply_properties_arithmetic_patches(
+    classes=[
+        _IntegerMatrix,
+        _Int8Matrix,
+        _Int16Matrix,
+        _Int64Matrix,
+        _UInt8Matrix,
+        _UInt16Matrix,
+        _UInt32Matrix,
+        _UInt64Matrix,
+        _FloatMatrix,
+        _Float16Matrix,
+        _Float32Matrix,
+        _ComplexFloat16Matrix,
+        _ComplexFloat32Matrix,
+        _ComplexFloat64Matrix,
+        _TriangularFloatMatrix,
+        _TriangularIntegerMatrix,
+        _DenseBitMatrix,
+        _TriangularBitMatrix,
+        _FloatVector,
+        _Float32Vector,
+        _Float16Vector,
+        _ComplexFloat16Vector,
+        _ComplexFloat32Vector,
+        _ComplexFloat64Vector,
+        _Int8Vector,
+        _IntegerVector,
+        _Int16Vector,
+        _Int64Vector,
+        _UInt8Vector,
+        _UInt16Vector,
+        _UInt32Vector,
+        _UInt64Vector,
+        _BitVector,
+        _UnitVector,
+    ]
+)
+
 TriangularBitMatrix = _TriangularBitMatrix
 
 
@@ -519,6 +702,39 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
             )
         return source
 
+    # Internal BlockMatrix support (Phase F integration): if the input is already
+    # an internal block/view/thunk matrix, treat it as a matrix.
+    try:
+        from ._internal.blockmatrix import BlockMatrix  # type: ignore
+        from ._internal.submatrix_view import SubmatrixView  # type: ignore
+        from ._internal.thunks import ThunkBlock  # type: ignore
+    except Exception:  # pragma: no cover
+        BlockMatrix = None  # type: ignore[assignment]
+        SubmatrixView = None  # type: ignore[assignment]
+        ThunkBlock = None  # type: ignore[assignment]
+
+    if BlockMatrix is not None and isinstance(source, BlockMatrix):
+        if dtype is not None or kwargs:
+            raise TypeError(
+                "matrix(...) does not accept dtype/kwargs when source is already a matrix. "
+                "Pass data instead."
+            )
+        return source
+    if SubmatrixView is not None and isinstance(source, SubmatrixView):
+        if dtype is not None or kwargs:
+            raise TypeError(
+                "matrix(...) does not accept dtype/kwargs when source is already a matrix. "
+                "Pass data instead."
+            )
+        return source
+    if ThunkBlock is not None and isinstance(source, ThunkBlock):
+        if dtype is not None or kwargs:
+            raise TypeError(
+                "matrix(...) does not accept dtype/kwargs when source is already a matrix. "
+                "Pass data instead."
+            )
+        return source
+
     _VectorBase = getattr(_native, "VectorBase", None)
     if _VectorBase is not None and isinstance(source, _VectorBase):
         if dtype is not None or kwargs:
@@ -545,6 +761,48 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
             # Reject higher-rank nested sequences deterministically.
             if len(first) > 0 and _is_sequence_like(first[0]):
                 raise TypeError("matrix(...) expects 1D or 2D input")
+
+            # Phase F integration: disambiguate block-grid construction.
+            # - All elements are matrices -> BlockMatrix
+            # - No elements are matrices -> dense data constructor
+            # - Mixed matrices and scalars -> error
+            native_matrix_base = getattr(_native, "MatrixBase", None)
+
+            def _is_matrix_obj(x: Any) -> bool:
+                if native_matrix_base is not None and isinstance(x, native_matrix_base):
+                    return True
+                if BlockMatrix is not None and isinstance(x, BlockMatrix):
+                    return True
+                if SubmatrixView is not None and isinstance(x, SubmatrixView):
+                    return True
+                if ThunkBlock is not None and isinstance(x, ThunkBlock):
+                    return True
+                return False
+
+            any_matrix = False
+            all_matrix = True
+            for row in source:
+                if not _is_sequence_like(row):
+                    all_matrix = False
+                    continue
+                for item in row:
+                    is_m = _is_matrix_obj(item)
+                    any_matrix = any_matrix or is_m
+                    all_matrix = all_matrix and is_m
+
+            if any_matrix and not all_matrix:
+                raise TypeError(
+                    "matrix(...) 2D input mixes matrices and scalars; this is ambiguous. "
+                    "Provide either all matrices (block grid) or all numeric scalars (dense data)."
+                )
+
+            if all_matrix:
+                if dtype is not None or kwargs:
+                    raise TypeError("matrix(block_grid) does not accept dtype/kwargs")
+                if BlockMatrix is None:
+                    raise ImportError("BlockMatrix support is unavailable")
+                return BlockMatrix(source)
+
             if dtype is None:
                 return _matrix_api.Matrix(source, **kwargs)
             return _matrix_api.Matrix(source, dtype=dtype, **kwargs)
@@ -832,10 +1090,32 @@ def norm(x: Any) -> float:
     - For vectors: $\\ell_2$ norm.
     - For matrices: Frobenius norm.
     """
+
+    # Cached-derived fast path (R1_PROPERTIES): if the object exposes a properties
+    # mapping and already has a cached norm, use it.
+    try:
+        props = getattr(x, "properties", None)
+        if props is not None:
+            cached = props.get("norm")  # type: ignore[union-attr]
+            if cached is not None:
+                return float(cached)
+    except Exception:
+        pass
+
     fn = getattr(_native, "norm", None)
     if fn is None:
         raise RuntimeError("Native function norm is not available")
-    return float(fn(x))
+    out = float(fn(x))
+
+    # Best-effort populate cache.
+    try:
+        props = getattr(x, "properties", None)
+        if props is not None:
+            props["norm"] = out  # type: ignore[index]
+    except Exception:
+        pass
+
+    return out
 
 
 def sum(x: Any) -> complex:
@@ -845,10 +1125,32 @@ def sum(x: Any) -> complex:
     - For real inputs, the result is returned as `complex` with zero imaginary part.
     - For complex inputs, the full complex sum is returned.
     """
+
+    # Cached-derived fast path (R1_PROPERTIES): if the object exposes a properties
+    # mapping and already has a cached sum, use it.
+    try:
+        props = getattr(x, "properties", None)
+        if props is not None:
+            cached = props.get("sum")  # type: ignore[union-attr]
+            if cached is not None:
+                return complex(cached)
+    except Exception:
+        pass
+
     fn = getattr(_native, "sum", None)
     if fn is None:
         raise RuntimeError("Native function sum is not available")
-    return complex(fn(x))
+    out = complex(fn(x))
+
+    # Best-effort populate cache.
+    try:
+        props = getattr(x, "properties", None)
+        if props is not None:
+            props["sum"] = out  # type: ignore[index]
+    except Exception:
+        pass
+
+    return out
 
 def compute_k(matrix: TriangularBitMatrix, a: float):
     """
@@ -927,6 +1229,9 @@ def eigvalsh(a: Any) -> Any:
 
 
 def solve_triangular(*args: Any, **kwargs: Any) -> Any:
+    if "deps" in kwargs:
+        raise TypeError("solve_triangular: deps is internal")
+    kwargs["deps"] = _OPS_DEPS
     return _ops.solve_triangular(*args, **kwargs)
 
 
@@ -947,27 +1252,19 @@ def pinv(*args: Any, **kwargs: Any) -> Any:
 
 
 def eig(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError(
-        "pycauset.eig is not available. The legacy eigendecomposition subsystem was removed."
-    )
+    raise NotImplementedError("pycauset.eig is not available yet (pre-alpha).")
 
 
 def eigvals(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError(
-        "pycauset.eigvals is not available. The legacy eigenvalue subsystem was removed."
-    )
+    raise NotImplementedError("pycauset.eigvals is not available yet (pre-alpha).")
 
 
 def eigvals_skew(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError(
-        "pycauset.eigvals_skew is not available. The legacy eigenvalue subsystem was removed."
-    )
+    raise NotImplementedError("pycauset.eigvals_skew is not available yet (pre-alpha).")
 
 
 def eigvals_arnoldi(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError(
-        "pycauset.eigvals_arnoldi is not available. The legacy eigenvalue subsystem was removed."
-    )
+    raise NotImplementedError("pycauset.eigvals_arnoldi is not available yet (pre-alpha).")
 
 
 def identity(x: Any) -> Any:

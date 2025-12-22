@@ -86,7 +86,7 @@ class TestIdentityFactory(unittest.TestCase):
     def test_identity_persistence_roundtrip_rectangular(self):
         m = pycauset.identity([3, 5])
         with tempfile.TemporaryDirectory() as td:
-            path = Path(td) / "id_3x5.zip"
+            path = Path(td) / "id_3x5.pycauset"
             pycauset.save(m, path)
             loaded = pycauset.load(path)
             try:

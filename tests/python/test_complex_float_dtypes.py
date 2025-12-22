@@ -145,7 +145,7 @@ class TestComplexFloatDTypes(unittest.TestCase):
                     m[0, 0] = 1 + 2j
                     m[1, 1] = 3 - 4j
 
-                    path = str(Path(tmp) / f"persist_{dtype_token}.zip")
+                    path = str(Path(tmp) / f"persist_{dtype_token}.pycauset")
                     pycauset.save(m, path)
                     m2 = pycauset.load(path)
 

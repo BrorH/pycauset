@@ -19,6 +19,10 @@ MatrixBase::MatrixBase(uint64_t rows,
     data_type_ = data_type;
     rows_ = rows;
     cols_ = cols;
+    logical_rows_ = rows;
+    logical_cols_ = cols;
+    row_offset_ = 0;
+    col_offset_ = 0;
 }
 
 MatrixBase::MatrixBase(uint64_t n, 
@@ -40,11 +44,19 @@ MatrixBase::MatrixBase(uint64_t rows,
                        std::complex<double> scalar,
                        bool is_transposed,
                        bool is_temporary)
-    : PersistentObject(std::move(mapper), matrix_type, data_type, rows, cols, seed, scalar, is_transposed, is_temporary) {}
+    : PersistentObject(std::move(mapper), matrix_type, data_type, rows, cols, seed, scalar, is_transposed, is_temporary) {
+    logical_rows_ = rows;
+    logical_cols_ = cols;
+    row_offset_ = 0;
+    col_offset_ = 0;
+}
 
 std::unique_ptr<PersistentObject> MatrixBase::clone() const {
     auto out = ObjectFactory::clone_matrix(mapper_, base_rows(), base_cols(), data_type_, matrix_type_, seed_, scalar_, is_transposed_);
     out->set_conjugated(is_conjugated());
+    if (auto* m = dynamic_cast<MatrixBase*>(out.get())) {
+        m->set_view(logical_rows_, logical_cols_, row_offset_, col_offset_);
+    }
     return out;
 }
 

@@ -21,7 +21,12 @@ $$
 
 ## Notes
 
-Current implementation is an endpoint-first baseline that uses `invert(a) @ b` when no dedicated solver is available.
+Property-aware shortcuts (R1_PROPERTIES):
+- If `a.properties["is_identity"]` is asserted, the solver returns `b` directly (square only).
+- If `a.properties["is_zero"]` is asserted, the solver raises a singularity error.
+- If `is_diagonal` / `is_upper_triangular` / `is_lower_triangular` is asserted, the solver routes to `solve_triangular`.
+
+Otherwise, the endpoint-first baseline uses `invert(a) @ b` when no dedicated solver is available.
 
 ## Examples
 

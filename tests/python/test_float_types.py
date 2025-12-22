@@ -24,7 +24,7 @@ class TestFloatTypes(unittest.TestCase):
         self.assertAlmostEqual(float(res.get(0, 0)), 7.0, places=2)
 
         # Persistence roundtrip
-        tmp_path = os.path.abspath("tmp_test_float16.zip")
+        tmp_path = os.path.abspath("tmp_test_float16.pycauset")
         try:
             save(m, tmp_path)
             m_loaded = load(tmp_path)

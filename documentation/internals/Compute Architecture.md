@@ -58,6 +58,20 @@ To minimize page faults during computation, the compute backend integrates with 
 *   **Prefetching**: Before starting a heavy operation (like `matmul` or `inverse`), the solver calls `matrix->get_accelerator()->prefetch()`. This hints the OS to load the data into RAM asynchronously.
 *   **Discarding**: For temporary intermediate results, the solver may call `discard()` after usage to free up memory immediately.
 
+### 1.4 Debug trace tags (kernel vs IO)
+
+For deterministic testing and debugging (especially device routing and “did this trigger evaluation?” checks), PyCauset exposes a small trace surface:
+
+- Kernel trace (thread-local):
+    - `pycauset._debug_clear_kernel_trace()`
+    - `pycauset._debug_last_kernel_trace()`
+
+- IO trace (separate channel, thread-local):
+    - `pycauset._debug_clear_io_trace()`
+    - `pycauset._debug_last_io_trace()`
+
+The IO trace is intentionally separate so IO hints (prefetch/discard) don’t clobber kernel dispatch traces.
+
 ## 2. CPU Backend
 
 The CPU backend is designed for low-latency execution of small-to-medium workloads and robust fallback for all operations.

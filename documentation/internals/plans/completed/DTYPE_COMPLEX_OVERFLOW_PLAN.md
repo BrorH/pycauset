@@ -24,6 +24,10 @@ This file is an implementation plan. The authoritative dtype behavior documentat
 
 - `documentation/internals/DType System.md`
 
+User-facing summary of what shipped in Release 1:
+
+- [[guides/release1/dtypes.md|Release 1: DTypes (what shipped)]]
+
 ## 0) Problem statement
 
 PyCauset supports several fundamentally different scalar/storage types (bit-packed `bit`, integers, floats) plus a partially-separate complex system. Adding a new operation currently requires touching multiple layers and remembering many dtype-specific corner cases:
@@ -336,7 +340,7 @@ Completed in the current codebase:
   - promotion resolver supports complex results for matmul/add/sub/elementwise, plus dot/matvec/vecmat/outer.
   - CPU solver contains complex implementations for dot/matvec/vecmat/outer and vector elementwise/scalar ops.
 - Python/NumPy/persistence:
-  - dtype tokens + factory inference + `np.array(...)` interop + zip persistence round-trip.
+  - dtype tokens + factory inference + `np.array(...)` interop + container persistence round-trip.
   - dot returns Python `complex` when either operand is complex.
 
 Optional backlog (not required for plan completion):
@@ -456,12 +460,12 @@ Specific expectations:
 
 Current implementation note (updated 2025-12-16):
 
-- `complex_float16` uses a two-plane in-memory layout (real + imag), but is persisted as a **single contiguous raw payload** (`data.bin`) that contains both planes back-to-back.
-- `metadata.json` records the dtype identity (`complex_float16`) and the normal shape/layout fields; there is no need for multi-member zip payloads to round-trip correctly.
+- `complex_float16` uses a two-plane in-memory layout (real + imag), but is persisted as a **single contiguous raw payload** containing both planes back-to-back.
+- Typed metadata records the dtype identity (`complex_float16`) and the normal shape/layout fields; there is no need for multi-member payloads to round-trip correctly.
 
 Future option (not required for correctness):
 
-- Multi-member payloads (e.g., `data_real.bin` + `data_imag.bin`) could still be introduced later for tooling/inspection convenience, but would be an on-disk format enhancement rather than a correctness requirement.
+- Multi-member payloads could still be introduced later for tooling/inspection convenience, but would be an on-disk format enhancement rather than a correctness requirement.
 
 ### 3.6 GPU/CPU selection policy
 

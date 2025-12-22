@@ -10,6 +10,27 @@ Vectors are persistent objects (RAM-backed for small sizes; disk-backed for larg
 - `v.T` returns a transposed view (row-vector semantics).
 - For complex vector types, `v.H` returns the conjugate-transpose view.
 
+## Properties
+
+### `properties`
+
+Vectors expose `v.properties`, a typed mapping used for:
+
+- gospel assertions (e.g. ordering-related hints such as `is_sorted`), and
+- cached-derived values (e.g. `norm`, `sum`) with strict validity.
+
+Gospel assertions are authoritative (not truth-validated), and incompatible asserted states raise immediately (no payload scan).
+
+See [[guides/release1/properties.md|R1 Properties]] and [[guides/Storage and Memory.md|Storage and Memory]].
+
+## Fill
+
+### `fill(value)`
+
+Fill the vector with a scalar value.
+
+This is an explicit full write. On very large disk-backed vectors, this can be a long I/O operation.
+
 ## Common operations
 
 ### Dot product
@@ -54,3 +75,4 @@ Note: this materializes the full vector in memory.
 - [[docs/functions/pycauset.sum.md|pycauset.sum]]
 - [[docs/functions/pycauset.vector.md|pycauset.vector]]
 - [[guides/Vector Guide|Vector Guide]]
+

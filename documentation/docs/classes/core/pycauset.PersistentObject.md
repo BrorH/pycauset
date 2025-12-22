@@ -1,22 +1,36 @@
-# pycauset.PersistentObject
+# Persistent objects (base behavior)
 
-Base class for all persistent objects in pycauset (Matrices and Vectors).
+PyCauset objects are typically backed by either RAM or a memory-mapped file, and they can be persisted as `.pycauset` snapshots.
 
-## Properties
+There is no stable public Python class named `pycauset.PersistentObject` in Release 1.
 
-### `scalar`
-Get the scalar value associated with this object, if any.
+Instead, these behaviors surface through:
 
-### `seed`
-Get the random seed used to generate this object, if applicable.
+- [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]
+- [[docs/classes/vector/pycauset.VectorBase.md|pycauset.VectorBase]]
 
-### `is_temporary`
-Check if the object is backed by a temporary file that will be deleted on close.
+## Storage concepts
 
-## Methods
+- **Backed by disk or RAM:** the API is the same either way.
+- **Snapshots are immutable by default:** `load()` does not implicitly overwrite the file you loaded.
+- **Metadata-first:** shape, dtype, view-state, and semantic properties are stored/propagated without scanning payload.
 
-### `close()`
-Release the memory-mapped backing file. The object becomes unusable afterward.
+The canonical Release 1 persistence semantics and container format are documented in:
 
-### `get_backing_file()`
-Get the path to the memory-mapped file backing this object.
+- [[guides/Storage and Memory.md|Storage and Memory]]
+
+## Semantic properties
+
+Matrices and vectors expose `obj.properties`, a typed mapping used for:
+
+- gospel semantic assertions (e.g. `is_upper_triangular=True`), and
+- cached-derived values (e.g. `trace`, `determinant`, `norm`) with strict validity.
+
+See [[guides/release1/properties.md|R1 Properties]] for the user-facing contract.
+
+## See also
+
+- [[docs/functions/pycauset.save.md|pycauset.save]]
+- [[docs/functions/pycauset.load.md|pycauset.load]]
+- [[guides/Storage and Memory.md|Storage and Memory]]
+- [[guides/release1/properties.md|R1 Properties]]

@@ -252,18 +252,18 @@ Implementation reality check (must remain aligned with code):
 
 ### 3.2 On-disk format expectations
 
-Persistence is ZIP + raw storage payload (often memory-mapped directly out of the zip member).
+Persistence is a single-file `.pycauset` container with an mmap-friendly raw payload and a typed metadata block.
 
 **Invariants**
-- `metadata.json` must record at least:
+- Metadata must record at least:
   - `matrix_type`
   - `data_type`
   - dimensions + seed + scalar + transpose flag
-- `data.bin` is the raw storage payload used by `_from_storage(...)` to memory-map.
+- The payload region is the raw storage bytes used by `_from_storage(...)` to memory-map.
 
-**Complex payloads (current):** `complex_float16` uses two-plane storage in-memory, but persistence round-trips via a **single raw payload** (`data.bin`) containing both planes contiguously. `metadata.json` identifies the dtype as `complex_float16` and normal shape/layout fields.
+**Complex payloads (current):** `complex_float16` uses two-plane storage in-memory, but persistence round-trips via a **single raw payload** containing both planes contiguously. Metadata identifies the dtype as `complex_float16` and normal shape/layout fields.
 
-**Complex payloads (optional future enhancement):** multiple payload members inside the zip (e.g. `data_real.bin` + `data_imag.bin`) could be added later for ease of inspection/tooling, but are not required for correctness.
+**Complex payloads (optional future enhancement):** multiple payload regions (or named blobs) could be added later for ease of inspection/tooling, but are not required for correctness.
 
 **Definition of done:** saving + loading must round-trip for each (dtype, structure) that is public.
 

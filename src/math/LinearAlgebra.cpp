@@ -606,6 +606,8 @@ using Float32Matrix = DenseMatrix<float>;
 using Float16Matrix2 = DenseMatrix<float16_t>;
 using TriangularBitMatrix = TriangularMatrix<bool>;
 using DenseBitMatrix = DenseMatrix<bool>;
+using TriangularFloat64Matrix = pycauset::TriangularMatrix<double>;
+using DiagonalFloat64Matrix = pycauset::DiagonalMatrix<double>;
 
 std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBase& b, std::string saveas) {
     if (saveas.empty()) saveas = make_unique_storage_file("matmul");
@@ -652,6 +654,50 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             return a.multiply_scalar(s.real(), saveas);
         }
         return a.multiply_scalar(s, saveas);
+    }
+
+    // --- Structured float64 matrices (Diagonal / TriangularFloat64) ---
+    // These are supported by CpuSolver matmul specializations when the result type matches.
+    auto* a_diag = dynamic_cast<const DiagonalFloat64Matrix*>(&a);
+    auto* b_diag = dynamic_cast<const DiagonalFloat64Matrix*>(&b);
+    auto* a_tri_f64 = dynamic_cast<const TriangularFloat64Matrix*>(&a);
+    auto* b_tri_f64 = dynamic_cast<const TriangularFloat64Matrix*>(&b);
+
+    // Diagonal x Diagonal -> Diagonal
+    if (a_diag && b_diag) {
+        if (a.rows() != a.cols() || b.rows() != b.cols()) {
+            throw std::invalid_argument("Diagonal matmul requires square operands");
+        }
+        auto res = std::make_unique<DiagonalFloat64Matrix>(a.rows(), saveas);
+        ComputeContext::instance().get_device()->matmul(a, b, *res);
+        return res;
+    }
+
+    // Diagonal x DenseFloat64 -> DenseFloat64
+    if (a_diag && b_fm) {
+        auto res = std::make_unique<FloatMatrix>(a.rows(), b.cols(), saveas);
+        ComputeContext::instance().get_device()->matmul(a, b, *res);
+        return res;
+    }
+
+    // DenseFloat64 x Diagonal -> DenseFloat64
+    if (a_fm && b_diag) {
+        auto res = std::make_unique<FloatMatrix>(a.rows(), b.cols(), saveas);
+        ComputeContext::instance().get_device()->matmul(a, b, *res);
+        return res;
+    }
+
+    // TriangularFloat64 x TriangularFloat64 -> TriangularFloat64
+    if (a_tri_f64 && b_tri_f64) {
+        if (a.rows() != a.cols() || b.rows() != b.cols()) {
+            throw std::invalid_argument("Triangular matmul requires square operands");
+        }
+        bool has_diag = a_tri_f64->has_diagonal() || b_tri_f64->has_diagonal();
+        auto res = std::make_unique<TriangularFloat64Matrix>(a.rows(), saveas, has_diag);
+        // Preserve lower/upper orientation from the left operand.
+        res->set_transposed(a_tri_f64->is_transposed());
+        ComputeContext::instance().get_device()->matmul(a, b, *res);
+        return res;
     }
 
     // Complex matmul (CPU fallback): allocate promoted complex dtype and dispatch via device.
