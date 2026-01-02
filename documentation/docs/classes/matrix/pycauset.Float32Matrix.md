@@ -35,8 +35,7 @@ When constructed from a NumPy array, the array must be rank-2 with dtype `float3
 
 Inherits all methods from [[pycauset.MatrixBase]].
 
-*   `get(i, j)`: Returns the element at $(i, j)$ as a float.
-*   `set(i, j, value)`: Sets the element at $(i, j)$.
+*   Indexing: read with `M[i, j]`, write with `M[i, j] = value`.
 *   `inverse()` / `invert()`: Computes the inverse (**square-only**; requires `rows == cols`).
 
 ## See Also

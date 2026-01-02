@@ -10,13 +10,11 @@ This is a data constructor (aligned with `np.array(...)` semantics).
 
 If `source` is 2D, returns a matrix. If `source` is 1D, returns a vector.
 
-!!! warning "Pre-alpha note (block matrices)"
-		`pycauset.matrix(...)` also supports constructing a block matrix when given a 2D grid of matrix objects.
-		This feature is **pre-alpha** and currently returns a Python `BlockMatrix`.
+`pycauset.matrix(...)` also supports constructing a block matrix when given a 2D grid of matrix objects.
 
 Rectangular shapes are supported for dense matrices, including numeric dtypes (int/uint/float/complex) and boolean/bit matrices. Boolean 2D inputs use bit-packed storage (`DenseBitMatrix`).
 
-## Block-grid construction (experimental)
+## Block-grid construction
 
 For a 2D nested sequence (e.g. list-of-lists), `pycauset.matrix(...)` disambiguates between:
 
@@ -31,6 +29,8 @@ Rules:
 - If any element is matrix-like and not all elements are matrix-like: raise `TypeError` (ambiguous input).
 - If all elements are matrix-like: return a `BlockMatrix`.
 	- `dtype` and `**kwargs` are rejected for block-grid input.
+	- Block-grid validation requires each block-row to share height and each block-col to share width; shape mismatches raise deterministically.
+	- Block matrices support element access and block-aware slicing; slices tile with `SubmatrixView` blocks (no silent densify) and may error if a view cannot be represented.
 
 ## Parameters
 

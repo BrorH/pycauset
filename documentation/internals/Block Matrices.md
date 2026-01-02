@@ -37,7 +37,7 @@ Invariants enforced at construction:
 
 The container exposes:
 
-- Elementwise indexing via `M[i, j]` / `M.get(i, j)`.
+- Elementwise indexing via `M[i, j]`.
 - Block access via `get_block(r, c)` and `set_block(r, c, block)`.
 - Partition metadata via `row_partitions` / `col_partitions`.
 
@@ -49,7 +49,7 @@ The container exposes:
 - `repr/str` are structure-only.
 - A view-of-a-view composes deterministically into a single view.
 
-In block orchestration, `SubmatrixView` is used to tile operands when block boundaries do not align.
+In block orchestration, `SubmatrixView` is used to tile operands when block boundaries do not align. Block-aware slicing returns tiled `SubmatrixView` blocks (no densify); unsupported view shapes error deterministically.
 
 ### `ThunkBlock`
 
@@ -59,11 +59,11 @@ A `ThunkBlock` represents a deferred computation that produces a concrete matrix
 - It is thread-safe for single-eval concurrency.
 - It is triggered by element access (`get` / `__getitem__`) or explicit `materialize()`.
 
-Staleness:
+Staleness (snapshot-at-creation, R1):
 
-- `ThunkBlock` can pin `version` attributes on captured source objects.
-- `BlockMatrix` increments its own `version` on `set_block`.
-- Not all native matrix types currently expose an automatic mutation version; if a leaf matrix is mutated in-place and does not update a pinned `version`, a previously created thunk may not detect the change.
+- `ThunkBlock` pins `version` on captured sources; evaluation/cache hits check versions and **raise** on mismatch (no auto-recompute).
+- `BlockMatrix` increments its own `version` on `set_block`, invalidating cached/thunked blocks owned by the container.
+- Leaf mutations are expected to bump their `version`; stale access is an error.
 
 ## Orchestration semantics
 
@@ -86,6 +86,22 @@ The refinement step creates `SubmatrixView` tiles when necessary.
 ### Leaf compute boundary
 
 When orchestration reaches “leaf × leaf” matmul between native matrices, it routes through the public dispatch boundary (`pycauset.matmul`) so property-aware conversions (diagonal/triangular) still apply.
+
+Device routing follows [[internals/Compute Architecture.md|Compute Architecture]] per leaf op: AutoSolver decides CPU vs GPU for each block. Complex matmul is CPU-only on CUDA builds today; mixed-dtype containers stay heterogeneous because routing is per leaf op.
+
+### Evaluation triggers (semi-lazy)
+
+- Trigger evaluation of the minimal required block(s): element access, crossing the compute boundary, dense conversion (`np.asarray`), or persistence (`pycauset.save`).
+- Non-triggers: `repr/str`, shape/partition metadata, and `get_block`.
+- Cached results are reused until a version mismatch is detected; stale hits raise.
+
+Concurrency: each `ThunkBlock` uses single-eval locking (e.g., `once_flag`/`mutex`) so concurrent requests compute once and reuse the cached block.
+
+### Deterministic accumulation per output block
+
+- Fixed `k` order for `Σ_k A_ik @ B_kj`.
+- Accumulator dtype is chosen from metadata before evaluation by folding the add-result dtype across term dtypes.
+- Local promotion is per-block; container stays heterogeneous.
 
 ## IO accelerator integration
 
@@ -117,6 +133,13 @@ Snapshot integrity:
 
 - Each manifest entry pins the child `payload_uuid`.
 - Load validates the pinned UUID; mismatch errors deterministically.
+
+Save policies (Release 1):
+
+- Stale thunks fail save deterministically (no implicit recompute).
+- Overwrite cleanup deletes only deterministic child filenames within the sidecar.
+- Saves stage child files (and nested sidecars) then commit/rename to reduce partial updates.
+- No block-level cached-derived persistence (trace/determinant/norm/sum) is defined; caches remain per leaf child.
 
 View blocks on save:
 

@@ -9,7 +9,7 @@ class TestNumpyInterop(unittest.TestCase):
 
     def test_asarray_vector(self):
         arr = np.array([1.0, 2.0, 3.0])
-        vec = pycauset.asarray(arr)
+        vec = pycauset.vector(arr)
         self.assertIsInstance(vec, pycauset.FloatVector)
         self.assertEqual(len(vec), 3)
         self.assertEqual(vec[0], 1.0)
@@ -18,12 +18,12 @@ class TestNumpyInterop(unittest.TestCase):
         self.assertEqual(vec[2], 3.0)
 
         arr_int = np.array([1, 2, 3], dtype=np.int32)
-        vec_int = pycauset.asarray(arr_int)
+        vec_int = pycauset.vector(arr_int)
         self.assertIsInstance(vec_int, pycauset.IntegerVector)
         self.assertEqual(vec_int[0], 1)
 
         arr_i16 = np.array([1, 2, -3], dtype=np.int16)
-        vec_i16 = pycauset.asarray(arr_i16)
+        vec_i16 = pycauset.vector(arr_i16)
         if getattr(pycauset, "Int16Vector", None) is None:
             self.skipTest("Int16Vector is not available")
         self.assertIsInstance(vec_i16, pycauset.Int16Vector)
@@ -31,14 +31,59 @@ class TestNumpyInterop(unittest.TestCase):
         self.assertEqual(vec_i16[2], -3)
 
         arr_bool = np.array([True, False, True], dtype=bool)
-        vec_bool = pycauset.asarray(arr_bool)
+        vec_bool = pycauset.vector(arr_bool)
         self.assertIsInstance(vec_bool, pycauset.BitVector)
         self.assertEqual(vec_bool[0], True)
         self.assertEqual(vec_bool[1], False)
 
+    def test_vector_from_negative_stride_numpy(self):
+        arr = np.arange(10, dtype=np.float64)[::-1]
+        vec = pycauset.vector(arr)
+        self.assertEqual(len(vec), len(arr))
+        self.assertTrue(np.array_equal(pycauset.to_numpy(vec), arr))
+
+    def test_vector_import_float32_promotes_to_float64(self):
+        arr = np.array([1.25, -2.5, 3.0], dtype=np.float32)
+        vec = pycauset.vector(arr)
+        # Current contract: float32 vectors promote to float64 vectors.
+        self.assertIsInstance(vec, pycauset.FloatVector)
+        out = pycauset.to_numpy(vec)
+        self.assertEqual(out.dtype, np.dtype(np.float64))
+        self.assertTrue(np.array_equal(out, arr.astype(np.float64)))
+
+    def test_vector_numpy_respects_max_in_ram_bytes(self):
+        arr = np.arange(8, dtype=np.float64)
+        native = getattr(pycauset, "_native", None)
+        if native is None or not hasattr(native, "asarray"):
+            self.skipTest("native.asarray not available")
+
+        calls = {"count": 0}
+        original = native.asarray
+
+        def wrapped(x, *args, **kwargs):
+            calls["count"] += 1
+            return original(x, *args, **kwargs)
+
+        native.asarray = wrapped
+        try:
+            vec = pycauset.vector(arr, max_in_ram_bytes=1)
+            self.assertGreater(calls["count"], 0)
+            self.assertEqual(len(vec), len(arr))
+
+            # Phase 2: exporting file-backed/out-of-core objects via NumPy coercion
+            # is blocked because NumPy can't pass allow_huge.
+            with self.assertRaises(RuntimeError):
+                np.asarray(vec)
+
+            # Explicit override path.
+            arr2 = pycauset.to_numpy(vec, allow_huge=True)
+            self.assertTrue(np.array_equal(arr2, arr))
+        finally:
+            native.asarray = original
+
     def test_asarray_matrix(self):
         arr = np.array([[1.0, 2.0], [3.0, 4.0]])
-        mat = pycauset.asarray(arr)
+        mat = pycauset.matrix(arr)
         self.assertIsInstance(mat, pycauset.FloatMatrix)
         self.assertEqual(mat.rows(), 2)
         self.assertEqual(mat.cols(), 2)
@@ -47,33 +92,58 @@ class TestNumpyInterop(unittest.TestCase):
         self.assertEqual(mat[1, 1], 4.0)
 
         arr_rect = np.arange(6, dtype=np.float64).reshape(2, 3)
-        mat_rect = pycauset.asarray(arr_rect)
+        mat_rect = pycauset.matrix(arr_rect)
         self.assertIsInstance(mat_rect, pycauset.FloatMatrix)
         self.assertEqual(mat_rect.rows(), 2)
         self.assertEqual(mat_rect.cols(), 3)
         self.assertTrue(np.array_equal(np.asarray(mat_rect), arr_rect))
 
         arr_int = np.array([[1, 2], [3, 4]], dtype=np.int32)
-        mat_int = pycauset.asarray(arr_int)
+        mat_int = pycauset.matrix(arr_int)
         self.assertIsInstance(mat_int, pycauset.IntegerMatrix)
 
         arr_i16 = np.array([[1, 2], [-3, 4]], dtype=np.int16)
-        mat_i16 = pycauset.asarray(arr_i16)
+        mat_i16 = pycauset.matrix(arr_i16)
         if getattr(pycauset, "Int16Matrix", None) is None:
             self.skipTest("Int16Matrix is not available")
         self.assertIsInstance(mat_i16, pycauset.Int16Matrix)
         self.assertEqual(mat_i16[1, 0], -3)
 
         arr_bool = np.array([[True, False], [False, True]], dtype=bool)
-        mat_bool = pycauset.asarray(arr_bool)
+        mat_bool = pycauset.matrix(arr_bool)
         self.assertIsInstance(mat_bool, pycauset.DenseBitMatrix)
 
         arr_bool_rect = np.array([[True, False, True], [False, True, False]], dtype=bool)
-        mat_bool_rect = pycauset.asarray(arr_bool_rect)
+        mat_bool_rect = pycauset.matrix(arr_bool_rect)
         self.assertIsInstance(mat_bool_rect, pycauset.DenseBitMatrix)
         self.assertEqual(mat_bool_rect.rows(), 2)
         self.assertEqual(mat_bool_rect.cols(), 3)
         self.assertTrue(np.array_equal(np.asarray(mat_bool_rect), arr_bool_rect))
+
+    def test_matrix_from_negative_stride_numpy(self):
+        base = np.arange(12, dtype=np.float64).reshape(3, 4)
+        arr = base[:, ::-1]
+        mat = pycauset.matrix(arr)
+        self.assertEqual(mat.rows(), arr.shape[0])
+        self.assertEqual(mat.cols(), arr.shape[1])
+        self.assertTrue(np.array_equal(pycauset.to_numpy(mat), arr))
+
+    def test_matrix_import_float32_preserves_float32(self):
+        arr = np.arange(12, dtype=np.float32).reshape(3, 4)
+        mat = pycauset.matrix(arr)
+        self.assertIsInstance(mat, pycauset.Float32Matrix)
+        out = pycauset.to_numpy(mat)
+        self.assertEqual(out.dtype, np.dtype(np.float32))
+        self.assertTrue(np.array_equal(out, arr))
+
+    def test_matrix_from_transposed_numpy(self):
+        base = np.arange(12, dtype=np.float64).reshape(3, 4)
+        arr = base.T
+        self.assertFalse(arr.flags["C_CONTIGUOUS"])
+        mat = pycauset.matrix(arr)
+        self.assertEqual(mat.rows(), arr.shape[0])
+        self.assertEqual(mat.cols(), arr.shape[1])
+        self.assertTrue(np.array_equal(pycauset.to_numpy(mat), arr))
 
     def test_array_protocol(self):
         vec = pycauset.FloatVector(3)
@@ -105,6 +175,45 @@ class TestNumpyInterop(unittest.TestCase):
             a16m = np.array(m16)
             self.assertEqual(a16m.dtype, np.dtype(np.int16))
             self.assertTrue(np.array_equal(a16m, np.array([[7, 0], [-1, 0]], dtype=np.int16)))
+
+    def test_vector_buffer_protocol_allows_zero_copy_when_safe(self):
+        vec = pycauset.FloatVector(4)
+        vec[0] = 1.0
+        vec[1] = 2.0
+        vec[2] = 3.0
+        vec[3] = 4.0
+
+        mv = memoryview(vec)
+        arr = np.asarray(mv)
+        self.assertEqual(arr.dtype, np.dtype(np.float64))
+        self.assertTrue(np.array_equal(arr, np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float64)))
+
+        # Buffer path should be a view into the underlying storage.
+        arr[1] = 123.0
+        self.assertEqual(vec[1], 123.0)
+
+        # The high-level helper should also use zero-copy when requested.
+        arr2 = pycauset.to_numpy(vec, copy=False)
+        arr2[2] = -5.0
+        self.assertEqual(vec[2], -5.0)
+
+    def test_vector_buffer_protocol_rejects_scaled_or_conjugated(self):
+        vec = pycauset.FloatVector(2)
+        vec[0] = 3.0
+        vec[1] = 4.0
+
+        # Reject raw-storage buffer export when the vector is logically scaled.
+        vec.set_scalar(2.0)
+        with self.assertRaises(BufferError):
+            memoryview(vec)
+
+        # Reject raw-storage buffer export when the vector is logically conjugated.
+        vec2 = pycauset.FloatVector(2)
+        vec2[0] = 1.0
+        vec2[1] = 2.0
+        vec2.set_conjugated(True)
+        with self.assertRaises(BufferError):
+            memoryview(vec2)
 
     def test_arithmetic_mixed(self):
         vec = pycauset.FloatVector(3)

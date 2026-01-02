@@ -20,11 +20,14 @@ Returns a tuple `(rows, cols)` representing the dimensions of the matrix.
 
 ## Methods
 
-### `get(i: int, j: int) -> bool`
-Get the value at row `i` and column `j`.
+### Indexing
 
-### `set(i: int, j: int, value: bool)`
-Set the value at row `i` and column `j`.
+Element access uses NumPy-style indexing:
+
+```python
+x = M[i, j]
+M[i, j] = value
+```
 
 ### `multiply(other: DenseBitMatrix) -> IntegerMatrix`
 Multiply this matrix by another `DenseBitMatrix`.
@@ -42,11 +45,6 @@ If no GPU is available, the operation uses optimized AVX-512/NEON `popcount` ins
 ### `__invert__() -> DenseBitMatrix`
 Compute the bitwise NOT of the matrix.
 
-### `__getitem__(idx: tuple) -> bool`
-Get element using `[i, j]` syntax.
-
-### `__setitem__(idx: tuple, value: bool)`
-Set element using `[i, j] = value` syntax.
 
 ### `__repr__() -> str`
 String representation of the matrix.

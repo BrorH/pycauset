@@ -31,8 +31,10 @@ Inherits from [[pycauset.MatrixBase]].
 
 ## Methods
 
-### `get(i, j)`
-Returns the value at row `i` and column `j`.
+### Indexing
+
+Element reads use NumPy-style indexing: `x = I[i, j]`.
+
 *   Returns `scalar` if $i == j$ and $i < \min(rows, cols)$.
 *   Returns `0.0` if $i \neq j$.
 

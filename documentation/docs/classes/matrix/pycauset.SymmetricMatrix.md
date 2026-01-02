@@ -16,14 +16,14 @@ Note: For anti-symmetric matrices, use [[docs/classes/AntiSymmetricMatrix.md|pyc
 
 ## Methods
 
-### `get(i, j)`
-Returns the element at row `i` and column `j`.
-*   If `i > j`, it returns `A[j, i]` (or `-A[j, i]` if anti-symmetric).
+### Indexing
 
-### `set(i, j, value)`
-Sets the element at row `i` and column `j`.
-*   If `i > j`, it sets `A[j, i]` (or `-value` if anti-symmetric).
-*   **Note**: For anti-symmetric matrices, the diagonal must be zero.
+Element access uses NumPy-style indexing:
+
+*   Read: `x = A[i, j]` (if `i > j`, reads from the stored upper triangle)
+*   Write: `A[i, j] = value` (if `i > j`, writes into the stored upper triangle)
+
+Note: For anti-symmetric matrices, the diagonal must be zero.
 
 ### `transpose()`
 Returns a new matrix representing the transpose.

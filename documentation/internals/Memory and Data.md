@@ -43,8 +43,8 @@ Developer reference:
 
 Authoritative plans:
 
-- `documentation/internals/plans/R1_STORAGE_PLAN.md` (container format)
-- `documentation/internals/plans/R1_PROPERTIES_PLAN.md` (metadata semantics)
+- `documentation/internals/plans/completed/R1_STORAGE_PLAN.md` (container format)
+- `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md` (metadata semantics)
 
 ### Container summary
 
@@ -84,7 +84,8 @@ Validity model:
 
 - `cached.<name>.signature` must allow $O(1)$ validation against the base object (no scans).
 - Signatures use `payload_uuid` (a per-snapshot identifier that changes whenever payload bytes are persisted).
-- If the reference is missing/unreadable/stale, it is treated as a cache miss and recomputed.
+- If the reference is missing/unreadable/stale, it is treated as a cache miss (ignored).
+- A `PyCausetStorageWarning` is emitted and the cache is **not** implicitly recomputed.
 - Missing/unreadable big-blob references should emit `PyCausetStorageWarning` and continue load.
 
 Implementation reference (Python):
@@ -141,19 +142,19 @@ classDiagram
     
     class DenseMatrix~T~ {
         +T* data()
-        +set(i, j, val)
-        +get(i, j)
+        +read(i, j)
+        +write(i, j, value)
     }
     
     class TriangularMatrix~T~ {
         +vector~uint64_t~ row_offsets_
-        +get(i, j) T
-        +set(i, j, value)
+        +read(i, j) T
+        +write(i, j, value)
     }
 
     class DiagonalMatrix~T~ {
-        +get(i, j) T
-        +set(i, j, value)
+        +read(i, j) T
+        +write(i, j, value)
         +get_diagonal(i)
     }
 
@@ -164,13 +165,13 @@ classDiagram
 
     class DenseVector~T~ {
         +T* data()
-        +get(i)
-        +set(i, val)
+        +read(i)
+        +write(i, value)
     }
 
     class UnitVector {
         +uint64_t active_index_
-        +get(i)
+        +read(i)
     }
 
     PersistentObject <|-- MatrixBase

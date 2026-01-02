@@ -210,7 +210,7 @@ Independently of “math ops”, a dtype is not considered **publicly supported*
 - Transpose behavior (view vs materialize policy is explicit)
 - Scalar handling (where supported) and dtype reporting
 - Persistence hooks (`copy_storage`, `_from_storage`) and round-trip load/save
-- NumPy interop where available (e.g., `asarray` fast-path or explicit conversion path)
+- NumPy interop where available (e.g., NumPy import/export fast-paths like internal `native.asarray` and `np.asarray(obj)`)
 
 ---
 

@@ -70,23 +70,14 @@ double DenseVector<bool>::get_element_as_double(uint64_t i) const {
 }
 
 std::unique_ptr<VectorBase> DenseVector<bool>::transpose(const std::string& saveas) const {
-    std::string target = saveas;
-    if (target.empty()) {
-        target = pycauset::make_unique_storage_file("transpose");
-    }
-    std::string new_path = this->copy_storage(target);
-    
-    // Calculate data size (file size)
-    uint64_t file_size = std::filesystem::file_size(new_path);
-    uint64_t data_size = file_size;
-
-    auto mapper = std::make_unique<MemoryMapper>(new_path, data_size, false);
-    auto new_vec = std::make_unique<DenseVector<bool>>(this->size(), std::move(mapper));
-    
-    // Flip the transposed bit
-    new_vec->set_transposed(!this->is_transposed());
-    
-    return new_vec;
+    (void)saveas;
+    auto out = std::make_unique<DenseVector<bool>>(this->size(), this->mapper_);
+    out->set_scalar(this->scalar_);
+    out->set_seed(this->seed_);
+    out->set_transposed(!this->is_transposed());
+    out->set_conjugated(this->is_conjugated());
+    out->set_temporary(this->is_temporary());
+    return out;
 }
 
 std::unique_ptr<VectorBase> DenseVector<bool>::multiply_scalar(double factor, const std::string& result_file) const {

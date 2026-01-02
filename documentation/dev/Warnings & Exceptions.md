@@ -17,7 +17,7 @@ Warnings are for cases where execution can continue correctly, but the user shou
 - **Policy surprises** (e.g., underpromotion within floats, reduction accumulator widening)
 - **Heuristic risk checks** (e.g., integer matmul overflow-risk preflight)
 - **Performance hazards** (e.g., a fallback that will be much slower than expected)
-  - Example: a cached-derived value (including a “big blob cache” like an inverse) cannot be loaded because its referenced storage object is missing/corrupt, so the runtime will recompute.
+  - Example: a cached-derived value (including a “big blob cache” like an inverse) cannot be loaded because its referenced storage object is missing/corrupt; the runtime will warn and ignore the cached entry (no implicit recompute).
 
 Warnings should be:
 
@@ -73,11 +73,12 @@ Noise control requirements:
 
 ### Storage/cache warning guidance
 
-When a cached-derived value cannot be used (missing/stale/malformed signature; referenced big-blob object missing or corrupt), execution can typically continue correctly by recomputing.
+When a cached-derived value cannot be used (missing/stale/malformed signature; referenced big-blob object missing or corrupt), execution can typically continue correctly by **ignoring the cached entry**.
+If you want the derived result again, you must request it explicitly (and optionally re-persist it).
 
 Policy:
 
-- Prefer a warning (not an exception) when the runtime can safely ignore the cached entry and recompute.
+- Prefer a warning (not an exception) when the runtime can safely ignore the cached entry without changing user-visible results.
 - Use `pycauset.PyCausetStorageWarning` for missing/corrupt/stale cached storage objects (including big-blob caches).
 
 Slicing/indexing assignment warnings
@@ -86,7 +87,7 @@ Slicing/indexing assignment warnings
 
 Suggested message pattern:
 
-- `pycauset invert cache unavailable (missing/corrupt cached object); recomputing`
+- `pycauset invert cache unavailable (missing/corrupt cached object); cached entry ignored`
 
 ## Where warnings should be emitted
 

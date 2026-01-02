@@ -1,0 +1,211 @@
+{
+  "preset": "r1",
+  "env": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "numpy": "2.3.5",
+    "pycauset": "0.3.1.dev3+gb45e21e6d.d20251215",
+    "pycauset_file": "C:\\Users\\ireal\\Documents\\pycauset\\python\\pycauset\\__init__.py",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1"
+  },
+  "results": [
+    {
+      "name": "import_matrix",
+      "kind": "matrix",
+      "dtype": "float64",
+      "layout": "contig",
+      "shape": [
+        2048,
+        2048
+      ],
+      "bytes": 33554432,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 0.013866200000848039,
+      "mb_s": 2419.872207089747,
+      "baseline_seconds_median": 0.006895799999256269,
+      "baseline_mb_s": 4865.923026134595,
+      "ratio_mb_s": 0.49731000554113813
+    },
+    {
+      "name": "import_matrix",
+      "kind": "matrix",
+      "dtype": "float32",
+      "layout": "contig",
+      "shape": [
+        4096,
+        4096
+      ],
+      "bytes": 67108864,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 0.027036699999371194,
+      "mb_s": 2482.139610291226,
+      "baseline_seconds_median": 0.01454340000054799,
+      "baseline_mb_s": 4614.386181874345,
+      "ratio_mb_s": 0.5379132808695675
+    },
+    {
+      "name": "import_vector",
+      "kind": "vector",
+      "dtype": "float64",
+      "layout": "contig",
+      "shape": [
+        4194304
+      ],
+      "bytes": 33554432,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 0.013379300000451622,
+      "mb_s": 2507.936289556805,
+      "baseline_seconds_median": 0.006894599999213824,
+      "baseline_mb_s": 4866.769936446804,
+      "ratio_mb_s": 0.5153184396030507
+    },
+    {
+      "name": "import_vector",
+      "kind": "vector",
+      "dtype": "float32",
+      "layout": "contig",
+      "shape": [
+        8388608
+      ],
+      "bytes": 33554432,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 0.03725330000088434,
+      "mb_s": 900.7103263121245,
+      "baseline_seconds_median": 0.007281800000782823,
+      "baseline_mb_s": 4607.985937047538,
+      "ratio_mb_s": 0.19546724721326605
+    },
+    {
+      "name": "import_matrix",
+      "kind": "matrix",
+      "dtype": "float64",
+      "layout": "transposed",
+      "shape": [
+        2048,
+        2048
+      ],
+      "bytes": 33554432,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 0.07121540000116511,
+      "mb_s": 471.16820237548393,
+      "baseline_seconds_median": 0.006605700000363868,
+      "baseline_mb_s": 5079.617905468261,
+      "ratio_mb_s": 0.09275662286887101
+    },
+    {
+      "name": "import_vector",
+      "kind": "vector",
+      "dtype": "float64",
+      "layout": "negstride",
+      "shape": [
+        4194304
+      ],
+      "bytes": 33554432,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 0.01884769999924174,
+      "mb_s": 1780.2931923444198,
+      "baseline_seconds_median": 0.008285300000352436,
+      "baseline_mb_s": 4049.8753211800026,
+      "ratio_mb_s": 0.43959209880705663
+    },
+    {
+      "name": "export_matrix_copy_to_numpy",
+      "kind": "matrix",
+      "dtype": "float64",
+      "layout": "contig",
+      "shape": [
+        2048,
+        2048
+      ],
+      "bytes": 33554432,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 0.006342999999105814,
+      "mb_s": 5289.99400988968,
+      "baseline_seconds_median": 0.006222600000910461,
+      "baseline_mb_s": 5392.349178010876,
+      "ratio_mb_s": 0.9810184458123401
+    },
+    {
+      "name": "export_matrix_copy_np_array",
+      "kind": "matrix",
+      "dtype": "float64",
+      "layout": "contig",
+      "shape": [
+        2048,
+        2048
+      ],
+      "bytes": 33554432,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 0.00685189999967406,
+      "mb_s": 4897.098907105497,
+      "baseline_seconds_median": 0.006528300000354648,
+      "baseline_mb_s": 5139.842225108706,
+      "ratio_mb_s": 0.9527722238598336
+    },
+    {
+      "name": "export_vector_copy_to_numpy",
+      "kind": "vector",
+      "dtype": "float64",
+      "layout": "contig",
+      "shape": [
+        4194304
+      ],
+      "bytes": 33554432,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 0.006952200001251185,
+      "mb_s": 4826.448029970545,
+      "baseline_seconds_median": 0.006241899998713052,
+      "baseline_mb_s": 5375.675997199284,
+      "ratio_mb_s": 0.8978309021014499
+    },
+    {
+      "name": "export_vector_copy_np_array",
+      "kind": "vector",
+      "dtype": "float64",
+      "layout": "contig",
+      "shape": [
+        4194304
+      ],
+      "bytes": 33554432,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 0.006373300000632298,
+      "mb_s": 5264.844271675748,
+      "baseline_seconds_median": 0.0062234000015450874,
+      "baseline_mb_s": 5391.65600663133,
+      "ratio_mb_s": 0.9764800026560276
+    },
+    {
+      "name": "export_vector_view_to_numpy_copy_false",
+      "dtype": "float64",
+      "n": 4194304,
+      "bytes": 33554432,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 3.96999985241564e-05,
+      "mb_s": 845199.8299088856,
+      "note": "informational (view path; not compared to copy baseline)"
+    },
+    {
+      "name": "export_vector_view_memoryview_np_asarray",
+      "dtype": "float64",
+      "n": 4194304,
+      "bytes": 33554432,
+      "warmups": 2,
+      "runs": 7,
+      "seconds_median": 2.9000002541579306e-06,
+      "mb_s": 11570492.779057758,
+      "note": "informational (view path; not compared to copy baseline)"
+    }
+  ]
+}

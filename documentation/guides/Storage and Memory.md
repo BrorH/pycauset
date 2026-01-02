@@ -1,409 +1,318 @@
-# Storage and Memory Management
+# Storage and Memory
 
-PyCauset is designed to handle causal sets and matrices of any size, from small test cases to massive simulations that exceed physical RAM. It achieves this through a **Tiered Storage Architecture**.
+PyCauset lets you work with matrices that don’t fit in RAM by storing their data on disk and letting the operating system load pieces as you touch them.
 
-## The Philosophy: Tiered Storage
+If you’re comfortable with NumPy, this will feel familiar: you use normal indexing (`M[i, j]`), shapes, and transpose views (`M.T`). Nothing “auto-saves” behind your back — saving is explicit.
 
-In standard Python (e.g., NumPy), creating a matrix allocates memory in RAM. If you run out of RAM, your program crashes.
+Most of the time you don’t need to think about file layouts or memory maps. You just create matrices, use normal indexing (`M[i, j]`), and call `save()` / `load()`.
 
-In PyCauset, we treat storage as a hierarchy:
+In examples below, assume `import pycauset as pc` unless shown.
 
-1.  **L1 (RAM)**: Small matrices and frequently accessed data live here for maximum speed.
-2.  **L2 (Disk)**: Large matrices automatically spill to **memory-mapped files** on your SSD/HDD.
+## Quickstart: save and load
 
-The **Memory Governor** manages this automatically. It monitors your system's available RAM and decides where to place each new object.
-*   **Instant Access**: Whether in RAM or on Disk, the API is identical.
-*   **Automatic Caching**: For disk-backed objects, the OS automatically keeps frequently used parts in RAM.
-*   **Persistence**: Disk-backed objects are persistent. RAM objects are transient but can be saved easily.
-
-## The File Format (`.pycauset`)
-
-PyCauset uses a unified, portable file format for all objects (`CausalSet`, `FloatMatrix`, `IntegerMatrix`, etc.).
-
-A `.pycauset` file is a **single-file binary container** designed for mmap-friendly payload access and sparse, typed metadata.
-
-At a high level:
-
-1.  A fixed-size header selects the active header slot (A/B) to locate the payload and metadata.
-2.  The payload is raw, aligned binary data (so it can be memory-mapped efficiently).
-3.  Metadata is stored as a sparse, typed block that can be updated without shifting the payload.
-
-### Metadata Example
-
-Conceptually, the metadata includes fields like:
-
-```json
-{
-  "rows": 1000,
-  "cols": 1000,
-  "seed": 12345,
-  "scalar": 1.0,
-  "is_transposed": false,
-  "is_conjugated": false,
-  "properties": {
-    "is_unitary": true,
-    "is_hermitian": false
-  },
-  "cached": {
-    "trace": {
-      "value": 1000.0
-    },
-    "determinant": {
-      "value": 1.0
-    }
-  },
-  "matrix_type": "INTEGER",
-  "data_type": "INT32"
-}
-```
-
-### Metadata Fields Explained
-
-*   **`matrix_type`**: The logical mathematical structure (`INTEGER`, `DENSE_FLOAT`, `CAUSAL`, `TRIANGULAR_FLOAT`).
-*   **`data_type`**: The underlying binary format of elements (`INT32`, `FLOAT64`, `BIT`).
-*   **`rows`**: Number of rows.
-*   **`cols`**: Number of columns.
-*   **`seed`**: The random seed used to generate the object (if applicable). This allows for reproducibility.
-*   **`scalar`**: A global scaling factor applied to all elements (see "Lazy Evaluation" below).
-*   **`is_transposed`**: A boolean flag indicating if the matrix is logically transposed (see "Lazy Evaluation" below).
-*   **`is_conjugated`**: A boolean flag indicating if the matrix is logically conjugated (a metadata view).
-*   **`properties`**: A dictionary of user-facing **gospel** properties (semantic assertions like `is_unitary`). These are not truth-validated. For boolean-like keys, tri-state semantics are represented by key presence: unset means the key is absent; explicit `False` is stored as `false`.
-*   **`cached`**: A dictionary of **cached-derived** values stored alongside validity metadata (e.g., `trace`, `determinant`). On load, valid cached-derived entries are surfaced into `obj.properties` under clean names; invalid/stale entries are ignored.
-
-## Release 1 semantics (snapshots, mutation, caches)
-
-This section is the **canonical** Release 1 documentation for snapshot immutability and caching behavior.
-
-### Terms
-
-- **Snapshot**: a persisted `.pycauset` file on disk, treated as an immutable baseline.
-- **Working copy**: a runtime object that may diverge from its source snapshot after mutation.
-- **Dirty**: a working copy with payload writes that are not yet persisted.
-- **Cached-derived value**: a value that can be recomputed from payload + view-state and must be validated before reuse.
-- **Big blob cache**: a cached-derived value that must refer to another `PersistentObject` because it is too large to store directly in typed metadata (e.g., an inverse matrix).
-
-### Power users: gospel `properties`
-
-`obj.properties` is a power-user escape hatch that can intentionally change algorithm choices.
-
-- **Gospel assertions are authoritative:** if you set `obj.properties["is_upper_triangular"] = True`, structure-aware algorithms are allowed to behave *as if* entries below the diagonal are zero.
-- **No truth validation:** PyCauset does not scan payload data to confirm your assertions.
-- **Tri-state booleans via key presence:**
-  - unset means the key is **absent** from the mapping,
-  - explicit `False` means the key is present with value `False`.
-
-Examples (Release 1):
-
-- `matmul`: if you assert `is_diagonal` or `is_upper_triangular`/`is_lower_triangular`, multiplication is allowed to treat out-of-structure entries as zero and route structured fast paths.
-- `solve`: `solve(a, b)` will use `solve_triangular(a, b)` when `a` is marked diagonal/triangular.
-- `eigvalsh`: consults/seeds cached `eigenvalues`; if `is_hermitian` is explicitly `False`, it rejects.
-
-Note: `obj.properties` also surfaces some **cached-derived** values (like `trace`, `determinant`, `norm`, `sum`) for convenience, but these are treated differently:
-
-- cached-derived values are used only when their validity signature matches the current payload + view-state,
-- otherwise they are ignored and recomputed on demand.
-
-## Compute-Once Caching
-
-PyCauset implements a "compute-once" philosophy for expensive mathematical operations.
-
-Cache validity is strict: cached values are used only when they are known to match the object’s current payload + view-state. If an object’s payload is mutated, affected caches are discarded.
-
-Note: the on-disk representation splits user-facing metadata into two parts:
-
-- `properties` holds gospel assertions.
-- `cached.*` holds cached-derived values plus validity signatures.
-
-Runtime access stays unified via `obj.properties`.
-
-### Cache validity identity (R1, $O(1)$)
-
-Cached-derived values are used only if their signature matches the current object state.
-
-- `payload_uuid`: a persisted snapshot identity for the payload bytes (changes when payload bytes are persisted).
-- `view_signature`: a compact signature derived from view-state (`is_transposed`, `is_conjugated`, `scalar`).
-
-These allow deterministic cache reuse decisions without scanning payload.
-
-## Snapshot semantics (mutating loaded files)
-
-PyCauset is designed so you can:
-
-- load a persisted matrix that already has expensive cached artifacts (inverse, eigenvectors, etc.),
-- do exploratory one-off edits,
-- and not accidentally destroy the on-disk snapshot.
-
-Policy (Release 1):
-
-- A `.pycauset` file is treated as an **immutable snapshot**.
-- `pycauset.load(path)` returns a snapshot-backed object.
-- **Payload mutation does not implicitly write back** to `path`.
-- To persist payload changes, you must explicitly save a new snapshot.
-
-Implementation:
-
-- Implementation uses copy-on-write working copies so small edits do not overwrite the on-disk snapshot.
-
-### Scalar cached values (Trace, Determinant)
-When you compute cached-derived scalars like `trace()` or `determinant()`, the result may be stored in the matrix object's memory.
-*   **Automatic Persistence**: When you call `pycauset.save(matrix, path)`, cached-derived values may be written into the file’s typed metadata.
-*   **Automatic Restoration**: When you `load()` the matrix later, these values are read from metadata, making them available instantly without recomputation.
-
-In Release 1, this same “small cached-derived” mechanism also applies to values like `norm` (when available for the object type).
-
-### Large cached artifacts (Inverse)
-For large results that are matrices themselves (like an inverse), PyCauset supports optional persistence to avoid repeating expensive computation.
+### Create → save → load
 
 ```python
-# Compute an inverse and persist it as a big-blob cache (FloatMatrix only)
-inv = matrix.invert(save=True)
+import pycauset as pc
+
+M = pc.zeros((5000, 5000), dtype=pc.int32)
+M[0, 0] = 42
+
+pc.save(M, "my_matrix.pycauset")
+N = pc.load("my_matrix.pycauset")
+
+assert N[0, 0] == 42
 ```
 
-Big blob cache rule:
+## A simple mental model: “data bytes” + “info bytes”
 
-- If a cached value needs to refer to another `PersistentObject` (because it is too large for typed metadata), it is treated as a **big blob cache**.
-- Big blob caches are persisted as **independent `.pycauset` objects** and the base object stores only a typed reference under `cached.*`.
-- In R1 these big-blob objects live next to the base snapshot in `BASE.pycauset.objects/<object_id>.pycauset`.
+Most PyCauset objects have the same basic structure on disk, and the stored file can be broken into two sections:
+
+- **Payload (data bytes):** the matrix/vector entries themselves.
+- **Metadata (info bytes):** small structured information that explains what the payload means (shape, dtype, layout) and how to interpret it (transpose, scalar, conjugation), plus optional properties and caches.
+
+The important consequence is that PyCauset can scale because it does *not* require the payload to be in RAM all at once. The operating system will automatically keep recently-used parts in memory.
+
+### A concrete example
+
+Suppose you create and save a matrix:
+
+```python
+M = pc.zeros((2, 3), dtype="float32")
+M[0, 1] = 20
+pc.save(M, "M.pycauset")
+```
+
+Conceptually, the saved file contains:
+
+- **Payload (data bytes):** the raw 2×3 float32 numbers stored as bits.
+- **Metadata (info bytes):** small information like:
+   - shape: 2 rows, 3 cols
+   - dtype: float32
+   - view-state: “not transposed”, “scalar = 1.0”, etc.
+   - optional: user properties and cached results
+
+You can think of metadata like the “label on the box” and payload like “what’s inside the box”.
+
+### Why this matters
+
+This specific format enables two user-facing behaviors:
+
+1) **Gigantic matrices actually work:** the payload lives on disk and is paged in as needed.
+2) **Some operations are instant:** things like transpose or scaling can be represented by changing metadata (no rewrite of the large payload).
+
+Also, even if you *haven’t manually saved anything yet*, PyCauset still needs a place to put the payload bytes for big matrices.
+
+So most large matrices you create during a session are backed by files under the storage root directory (by default, `.pycauset/`). Your OS then treats those files like disk-backed working memory: it keeps “hot” pages in RAM automatically and reloads them on demand.
+
+## Where backing files go (temporary storage)
+
+A **backing file** is the on-disk file that holds a matrix’s payload bytes while you work.
+
+Why it’s needed:
+
+- It lets PyCauset memory-map the payload, so matrices can be larger than RAM.
+- It gives the OS something concrete to page in/out (instead of forcing PyCauset to keep all bytes in Python-managed memory).
+
+When PyCauset needs to create these backing files automatically, it uses a storage root directory:
+
+- Default: a `.pycauset/` directory under your current working directory.
+- To change it: call `pc.set_backing_dir(...)` once after import (and ideally before allocating large matrices).
+
+Example:
+
+```python
+import pycauset as pc
+# Call once, early in your program.
+pc.set_backing_dir(r"D:\\pycauset_tmp")
+```
+
+PyCauset cleans up temporary backing files (extensions like `.tmp` / `.raw_tmp`) in two places:
+
+- **On import** (startup): removes potential leftovers from previous runs.
+- **On interpreter exit**: removes temporary files from the current run.
+
+Note: `pc.keep_temp_files = True` prevents the exit-time cleanup. Startup cleanup still runs so you don't accidentally reuse stale temp files.
+
+If you want to keep them around for debugging:
+
+```python
+pc.keep_temp_files = True # Files will not be deleted on program exit
+```
+
+## Spill (“switch to file-backed mapping”)
+
+When a matrix starts out in RAM, PyCauset may later **spill** it to disk to free RAM.
+
+In concrete terms, **spill** means that the live object switches from a *RAM-only* mapper to a **file-backed (memory-mapped) mapper**.
+
+Important details:
+
+- Spilling writes the **payload bytes only** to a temporary `.tmp` backing file under the current backing dir.
+- The live Python object keeps its **metadata, properties, and any already-computed cached values** in memory.
+- Spilling does **not** create a `.pycauset` snapshot container. If you want the object to remain on your disk, you must explicitly call `save()`.
+
+## `.tmp` vs `.raw_tmp` vs `.pycauset`
+
+You may see these extensions in your backing directory:
+
+- `.tmp`: temporary backing files that hold **payload bytes** during a session (including spill/eviction and large auto-allocations).
+- `.raw_tmp`: a staging file used while writing a snapshot via `save()`. It is only renamed/committed to `.pycauset` when the write completes.
+- `.pycauset`: a **snapshot container** you created explicitly via `save()` (plus optional sibling cached objects like `X.pycauset.objects/...`).
+
+## NumPy conversion safety: when materialization is allowed
+
+PyCauset protects you from accidental full materialization when converting to NumPy:
+
+- **Snapshot-backed objects** (`.pycauset`): `np.asarray(obj)` is allowed and returns a copy.
+- **RAM-backed objects** (`:memory:`): `np.asarray(obj)` is allowed and stays in-memory.
+- **Spill/file-backed objects** (e.g., `.tmp`): `np.asarray(obj)` **raises** by default to avoid surprise RAM blow-ups. Opt in explicitly via `pc.to_numpy(obj, allow_huge=True)`.
+- **Ceiling control**: `pc.set_export_max_bytes(bytes_or_None)` sets a materialization limit for NumPy exports; `None` disables the size ceiling (file-backed safety still applies unless you pass `allow_huge=True`).
+
+Takeaway: if something is spill-backed and large, you must opt-in to materialize; snapshots and in-RAM objects remain convertible without the opt-in.
+
+## Streaming manager: routing and observability
+
+PyCauset routes large or file-backed operations through a streaming manager so out-of-core work is predictable and observable.
+
+- **Threshold-based routing:** set the IO streaming threshold via `pc.set_io_streaming_threshold(bytes_or_None)`. File-backed operands always stream; `allow_huge=True` on an op bypasses the threshold check.
+- **Per-op descriptors:** `matmul`, `invert`, `eigvalsh`, `eigh`, and `eigvals_arnoldi` publish access patterns and tiling/queue hints. Non-square eig/invert inputs are forced to the direct route via a guard.
+- **Plan + events:** the last plan is available through `pc.last_io_trace(...)` and includes `{route, reason, tile_shape, queue_depth, plan.access_pattern, events}`. Prefetch/discard events and `impl=...` markers show which path executed.
+- **Default behavior:** when thresholds are tiny, tiles shrink automatically and queue depth stays bounded. When thresholds are disabled (`None`), routes stay direct unless operands are file-backed.
+
+## Snapshots vs working copies
+
+The biggest user-facing rule is: a `.pycauset` file is treated as an **immutable snapshot**.
+
+A "snapshot" is a saved, read-only point-in-time artifact. Loading a snapshot gives you an object that *reads from* that file, but editing the object does not “edit the file”.
+
+This is intentionally NumPy-like: `np.load(...)` gives you an array in memory; mutating it doesn’t rewrite the file on disk. PyCauset keeps the same principle, even though the payload may be disk-backed.
+
+- `pc.load(path)` gives you an object backed by that snapshot.
+- Mutating the object does **not** implicitly overwrite the object saved at `path`.
+- If you want a new persisted version, explicitly `pc.save(obj, new_path)`.
+
+Why this exists: it protects expensive “baseline” snapshots (and their cached artifacts) from accidental overwrite during exploratory work.
+
+## Metadata-driven “views” (fast operations without rewriting payload)
+
+A **view** is a matrix/vector object that **shares the same payload bytes** as another object, but carries different *metadata* that changes how those bytes are interpreted.
+
+Creating a view is often $O(1)$ because PyCauset only needs to allocate a small wrapper + update metadata. The large payload file is not rewritten or copied.
+This is the same basic idea as NumPy’s transpose: `M.T` is not a deep copy.
+
+### What counts as a view?
+
+These are typical metadata-only transforms:
+
+- **Transpose**: toggles a transpose flag (e.g. `M.T` / `M.transpose()`).
+- **Conjugation**: toggles a conjugation flag (e.g. `M.conj()`).
+- **Scalar scaling**: stores a scalar multiplier in metadata (e.g. `3 * M`).
+
+### Where does the cost go?
+
+The “work” is deferred until you actually read/compute:
+
+- On element access `V[i, j]`, PyCauset maps that request back to the base payload and applies the view-state.
+
+Concrete intuition:
+
+```python
+M = pc.zeros((2, 3), dtype="float32")
+V = M.T
+
+# Same payload; different interpretation:
+# V[i, j] reads the bytes for M[j, i].
+assert V[1, 0] == M[0, 1]
+```
+
+This is why the container format reserves a `view` namespace in metadata: view-state is part of the object’s meaning, and it must survive `save()` / `load()`.
+
+## Properties and caches: what gets remembered (and when it is trusted)
+
+PyCauset separates two ideas that often get mixed up:
+
+### 1) Gospel properties (`obj.properties`)
+
+`obj.properties` is a power-user escape hatch for *semantic assertions* that algorithms are allowed to trust.
+
+- Example: if you set `obj.properties["is_upper_triangular"] = True`, structure-aware algorithms may treat entries below the diagonal as zero.
+- PyCauset does not scan payload data to validate these assertions.
+- Booleans are tri-state via key presence: “unknown” = key absent, “known false” = key present with `False`.
+
+### 2) Cached-derived values (compute-once)
+
+Cached-derived values are results PyCauset can recompute from payload + view-state (trace, determinant, norm, etc.).
+
+They are only used when they’re known to match the current object state. Cache validity is checked in $O(1)$ via a signature:
+
+- `payload_uuid`: identity of the persisted payload bytes.
+- `view_signature`: compact signature derived from view-state.
+
+On disk, cached-derived values live under `cached.*` (with their signature). At runtime they’re surfaced via `obj.properties` for convenience.
+
+### Big-blob caches (e.g., persisted inverse)
+
+Some cached results are too large to store directly inside metadata. In that case, PyCauset stores them as separate sibling `.pycauset` objects and links to them from the base snapshot.
+
+Example:
+
+```python
+pc.save(pc.FloatMatrix(2), "A.pycauset")
+A = pc.load("A.pycauset")
+
+# Persist the inverse as a sibling cached object.
+inv = A.invert(save=True)
+```
+
+On disk, the cached object lives in a sibling directory:
+
+- Base snapshot: `A.pycauset`
+- Object store: `A.pycauset.objects/<object_id>.pycauset`
 
 Failure behavior:
 
-- If a referenced big-blob object is missing or corrupt, PyCauset treats it as a cache miss, emits a storage warning, and recomputes.
+- If a referenced cached object is missing or unreadable, PyCauset emits `PyCausetStorageWarning` and treats that cache entry as unusable.
+- PyCauset does **not** implicitly recompute or “repair” missing big-blob cache objects. If you want that cached result again, you must request it explicitly (for example, `A.invert(save=True)` to rebuild a missing inverse cache).
 
-Note:
+## Multi-file snapshots: BlockMatrix sidecars
 
-- General eigensolver APIs (`eig`, `eigvals`, `eigvals_arnoldi`, etc.) are not available yet in pre-alpha builds.
+Most objects persist as a single `.pycauset` file. Block matrices are the main exception.
+
+When you save a block matrix, PyCauset writes:
+
+- the container file, and
+- a sibling sidecar directory `path + ".blocks"` containing child block snapshots.
+
+The block manifest pins each child’s `payload_uuid` so mixed-snapshot loads fail deterministically.
+
+Practical rule:
+
+- To move/copy a saved block matrix, copy `X.pycauset` **and** `X.pycauset.blocks/`.
+
+## Format interoperability (what we support)
+
+PyCauset ships one canonical snapshot format and a minimal NumPy bridge for pipelines:
+
+- `.pycauset`: canonical snapshot container (always supported).
+- `.npy` / `.npz`: import/export supported via `pc.convert_file`, `pc.load_npy`, `pc.load_npz`, `pc.save_npy`, `pc.save_npz`.
+
+Example (convert snapshot → npy → snapshot without materializing into Python first):
+
+```python
+pc.convert_file("A.pycauset", "A.npy")
+pc.convert_file("A.npy", "A_roundtrip.pycauset")
+```
+
+Routing rules and guardrails:
+
+- `.npy`/`.npz` exports honor the same materialization safety as `np.asarray`: file-backed objects require `allow_huge=True` to load into RAM; otherwise export raises.
+- `.npz` imports default to the first key; set `npz_key` to pick a named entry.
+- `pc.convert_file(src, dst, ...)` infers formats from suffixes and converts between `.pycauset` and `.npy`/`.npz` without you having to write load/save boilerplate.
+
+Formats we are considering (not implemented in R1): MatrixMarket `.mtx`, MATLAB `.mat`, Parquet/Arrow/CSV for tabular interop. These remain future work until documented otherwise.
+
+### Future format targets (not implemented yet)
+
+- **MatrixMarket `.mtx`**: common sparse/text interchange; useful for scientific benchmarks.
+- **MATLAB `.mat`**: prevalent in engineering/scientific workflows.
+- **Parquet / Arrow / CSV**: tabular interop for pandas-style pipelines; CSV primarily for debugging/sanity checks.
+- **HDF5/NetCDF** (under evaluation): only if a stable, low-maintenance reader fits the maintenance budget.
+
+These are roadmap candidates; support will be added only when implemented and documented.
+
+## File format and debugging (advanced)
+
+If you’re writing tooling, debugging a corrupted file, or just curious about the exact on-disk layout, see:
+
+- [[dev/PyCauset Container Format.md|PyCauset Container Format]] (canonical `.pycauset` format spec)
+- [[dev/Storage Semantics.md|Storage Semantics]] (developer-facing semantics and runbooks)
+
+### Copying snapshots correctly
+
+- For a plain matrix snapshot, copying the single `X.pycauset` file is sufficient.
+- For block matrices, also copy `X.pycauset.blocks/`.
+- For persisted big-blob caches (inverse, etc.), also copy `X.pycauset.objects/`.
+
+## Memory efficiency (why causal sets fit)
+
+Storage format is only half the story: PyCauset also uses domain-specific representations (bit-packing, triangular storage) so the payload itself is smaller.
+
+See:
+
+- [[guides/Causal Sets.md|Causal Sets]]
+- [[guides/Matrix Guide.md|Matrix Guide]]
+- [[guides/Performance Guide.md|Performance Guide]]
 
 ## See also
+
+- [[docs/functions/pycauset.save.md|pycauset.save]]
+- [[docs/functions/pycauset.load.md|pycauset.load]]
+- [[docs/functions/pycauset.convert_file.md|pycauset.convert_file]]
+- [[guides/release1/storage.md|R1 Storage]]
+- [[dev/Storage Semantics.md|Storage Semantics]]
 - [[internals/MemoryArchitecture.md|MemoryArchitecture]]
-- [[project/protocols/Adding Operations.md|Protocol: Adding Operations]]
-
-## Release 1 container format (on-disk)
-
-This section is the **canonical** Release 1 on-disk container format for `.pycauset` files.
-
-### Goals (R1)
-
-- **Memory-map friendly payload**: large payload bytes live at a stable offset.
-- **Sparse, typed metadata**: metadata round-trips missing vs explicit values.
-- **Deterministic load**: load selects an active header slot and validates CRCs; no scanning.
-- **Crash-safe metadata updates**: A/B header slots select the newest valid metadata pointer.
-
-### Endianness
-
-- R1 containers are **little-endian only**.
-- A header endian marker lets readers fail fast.
-
-### Alignment
-
-- `payload_offset` is aligned to **4096 bytes**.
-- `metadata_offset` is aligned to **16 bytes**.
-
-### Fixed header (4096 bytes)
-
-The file begins with a fixed **4096-byte header region**:
-
-- A 16-byte preamble.
-- Two 128-byte header slots (A and B).
-- Remaining bytes are reserved (zero in R1).
-
-#### Preamble (offset 0)
-
-| Field | Type | Notes |
-|---|---:|---|
-| `magic` | 8 bytes | ASCII `PYCAUSET` |
-| `format_version` | u32 | R1 = 1 |
-| `endian` | u8 | 1 = little-endian |
-| `header_bytes` | u16 | R1 = 4096 |
-| `reserved0` | u8[1] | must be 0 |
-
-#### Header slots (A and B)
-
-Each slot is 128 bytes and stores the authoritative pointers:
-
-| Field | Type | Notes |
-|---|---:|---|
-| `generation` | u64 | monotonic; higher wins |
-| `payload_offset` | u64 | aligned to 4096 |
-| `payload_length` | u64 | bytes |
-| `metadata_offset` | u64 | aligned to 16 |
-| `metadata_length` | u64 | bytes |
-| `hot_offset` | u64 | 0 in R1 |
-| `hot_length` | u64 | 0 in R1 |
-| `slot_crc32` | u32 | CRC32 of the first 7 fields (56 bytes) |
-| `slot_reserved` | u8[68] | must be 0 |
-
-**Slot validity** (R1):
-
-- `slot_crc32` matches
-- offsets/lengths are in-range for file size
-- alignment constraints satisfied
-
-**Active slot selection**:
-
-- Choose the valid slot with the highest `generation`.
-- If neither slot is valid, loading fails.
-
-### Payload region
-
-The payload is a raw backing store suitable for memory mapping.
-
-- Starts at `payload_offset`.
-- Spans `payload_length` bytes.
-- Interpretation is defined by identity metadata (rows/cols/matrix_type/data_type/payload_layout).
-
-### Metadata blocks (append-only)
-
-Metadata is stored as one or more blocks after the payload. The active header slot points to the authoritative block.
-
-#### Metadata framing
-
-At `metadata_offset`:
-
-| Field | Type | Notes |
-|---|---:|---|
-| `block_magic` | 4 bytes | ASCII `PCMB` |
-| `block_version` | u32 | R1 = 1 |
-| `encoding_version` | u32 | typed-metadata encoding version; R1 = 1 |
-| `reserved0` | u32 | must be 0 |
-| `payload_length` | u64 | bytes of encoded metadata payload |
-| `payload_crc32` | u32 | CRC32 of encoded metadata payload |
-| `reserved1` | u32 | must be 0 |
-| `payload` | bytes | length = `payload_length` |
-
-If framing or CRC fails, loading fails deterministically.
-
-### Typed metadata encoding v1 (R1)
-
-The encoded metadata payload is a single top-level **Map** with string keys.
-
-Reserved namespaces:
-
-- `view`: system-managed view-state
-- `properties`: user-facing gospel assertions (tri-state booleans via key presence)
-- `cached`: cached-derived values plus validity metadata
-- `provenance`: optional non-semantic provenance
-
-Readers ignore unknown keys.
-
-### Crash-consistent update rule (metadata)
-
-To update metadata without scanning:
-
-1) Append the new metadata block to the end of the file.
-2) Ensure it is fully written (and flushed if applicable).
-3) Write the inactive header slot with `generation = active.generation + 1` and the new metadata pointer.
-4) Optionally flush the header region.
-
-This guarantees $O(1)$ load with no "search for the last valid block".
-
-## Debugging runbook (R1 containers)
-
-When a `.pycauset` file fails to load, the goal is to diagnose it **without scanning payload**.
-
-Checklist:
-
-1) Confirm the file is the R1 container (magic `PYCAUSET`).
-2) Inspect header slot A/B:
-  - CRC valid?
-  - offsets/lengths in-range?
-  - alignments satisfied (`payload_offset % 4096 == 0`, `metadata_offset % 16 == 0`)?
-  - which slot is active (highest generation among valid slots)?
-3) Validate the metadata pointer from the active slot:
-  - `metadata_offset + metadata_length` is within file size
-  - metadata block magic is `PCMB`
-  - metadata block/encoding versions are supported
-  - metadata payload CRC32 matches
-4) Validate the payload pointer:
-  - `payload_offset + payload_length` is within file size
-  - payload is mmap-friendly at `payload_offset`
-
-Developer tool:
-
-- `python/pycauset/_internal/storage_debug.py` exposes `summarize_container(path)` which returns a best-effort header summary (preamble + slot A/B + active slot selection).
-
-This tool is exercised by `tests/python/test_storage_debug_tool.py`.
-
-## Working with Files
-
-### Saving
-
-Since all PyCauset objects are backed by files on creation, "saving" typically means copying/linking the backing `.pycauset` container to a permanent location.
-
-```python
-import pycauset
-
-# Create a matrix (backed by a temp file)
-M = pycauset.zeros((5000, 5000), dtype=pycauset.int32)
-M.set(0, 0, 42)
-
-# Save to a permanent location
-pycauset.save(M, "my_matrix.pycauset")
-```
-
-### Loading
-
-Loading opens the `.pycauset` container and memory-maps the payload directly.
-
-```python
-# Load the matrix
-M_loaded = pycauset.load("my_matrix.pycauset")
-
-print(M_loaded.get(0, 0)) # 42
-```
-
-### Temporary Files
-
-When you create a matrix without loading it, PyCauset creates a temporary file to back it.
-
-*   **Location**: By default, these are stored in a `.pycauset` folder in your current working directory.
-*   **Changing Location**: You can change this by setting the `PYCAUSET_STORAGE_DIR` environment variable before importing the library.
-*   **Cleanup**: These files are **automatically deleted** when the Python object is garbage collected or the script exits. To keep the data, you *must* use `pycauset.save()`.
-
-## Memory Efficiency
-
-PyCauset is highly optimized for the specific types of matrices used in Causal Set Theory.
-
-### Bit Packing
-Causal matrices (adjacency matrices) are boolean (0 or 1). PyCauset stores them as **Bit Matrices**, using 1 bit per element.
-*   **NumPy `bool`**: 1 byte (8 bits) per element.
-*   **PyCauset `BitMatrix`**: 1 bit per element (8x smaller).
-
-### Triangular Storage
-Causal matrices are strictly upper triangular (events can only influence future events). PyCauset only stores the upper triangle.
-*   **Space Savings**: ~2x smaller than a dense matrix.
-
-**Combined Impact**:
-For a causal set of size $N=100,000$:
-*   **NumPy (`int8`)**: $100,000^2$ bytes $\approx$ **10 GB**
-*   **PyCauset (`TriangularBitMatrix`)**: $\frac{100,000^2}{2 \times 8}$ bytes $\approx$ **625 MB**
-
-> **Performance Note**: While PyCauset makes it *possible* to run simulations with hundreds of thousands of elements on a laptop (which would be impossible with RAM-based arrays), please note that **disk I/O is slower than RAM**. Operations on these massive datasets will take time. A fast NVMe SSD is highly recommended.
-
-## Lazy Evaluation & Metadata Operations
-
-PyCauset uses "lazy evaluation" to perform certain operations instantly, regardless of matrix size. Instead of modifying the massive binary data on disk, we simply update lightweight metadata.
-
-### 1. Scalar Multiplication
-If you multiply a matrix by a scalar, PyCauset updates the `scalar` field in the metadata.
-*   **Operation**: `M_new = M * 2.5`
-*   **Result**: The binary data is copied (or referenced), and the `scalar` field becomes `old_scalar * 2.5`.
-*   **Access**: When you read an element `M.get(i, j)`, the library reads the raw value and multiplies it by the scalar on the fly.
-
-### 2. Transposition
-Transposing a matrix is an $O(1)$ operation.
-*   **Operation**: `M_T = M.transpose()`
-*   **Result**: The `is_transposed` flag in the metadata is toggled.
-*   **Access**: When you read `M.get(i, j)`, the library internally swaps the indices and reads `(j, i)` from the raw data.
-
-This allows you to manipulate the mathematical properties of massive matrices without paying the cost of rewriting gigabytes of data.
-
-## Best Practices
-
-1.  **Use SSDs**: Since memory mapping relies on disk I/O, a fast NVMe SSD will significantly improve performance compared to a mechanical HDD.
-2.  **Close Objects**: While Python's garbage collector handles cleanup, explicitly calling `matrix.close()` on a _very_ large file ensures the underlying file handles are released immediately.
-3.  **Transposition**: Transposing a matrix (`M.transpose()`) is a metadata-only operation ($O(1)$). It just sets a flag. The data is not moved.
-4.  **Context Managers**: Use `with` blocks to ensure files are closed.
-    ```python
-    with pycauset.load("data.pycauset") as M:
-        print(M.size())
-    ```
+- [[internals/Memory and Data.md|Memory and Data]]
+- [[internals/plans/completed/R1_STORAGE_PLAN.md|R1_STORAGE_PLAN]]
+- [[internals/plans/completed/R1_PROPERTIES_PLAN.md|R1_PROPERTIES_PLAN]]
+- [[project/protocols/Documentation Protocol.md|Documentation Protocol]]

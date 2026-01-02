@@ -12,6 +12,8 @@
 
 #include "pycauset/matrix/MatrixBase.hpp"
 
+#include "numpy_export_guard.hpp"
+
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -23,6 +25,119 @@
 using namespace pycauset;
 
 namespace {
+
+struct DenseVectorBufferState {
+    Py_ssize_t shape[2];
+    Py_ssize_t strides[2];
+};
+
+inline bool u64_to_py_ssize(uint64_t v, Py_ssize_t* out) {
+    if (v > static_cast<uint64_t>(PY_SSIZE_T_MAX)) {
+        return false;
+    }
+    *out = static_cast<Py_ssize_t>(v);
+    return true;
+}
+
+template <typename ScalarT>
+inline const char* dense_vector_buffer_format() {
+    static const std::string fmt = py::format_descriptor<ScalarT>::format();
+    return fmt.c_str();
+}
+
+template <>
+inline const char* dense_vector_buffer_format<float16_t>() {
+    return "e"; // PEP 3118: float16
+}
+
+template <typename ScalarT>
+int dense_vector_getbuffer(PyObject* obj, Py_buffer* view, int flags) {
+    if (view == nullptr) {
+        PyErr_SetString(PyExc_BufferError, "NULL view in getbuffer");
+        return -1;
+    }
+
+    DenseVector<ScalarT>* v = nullptr;
+    try {
+        v = &py::handle(obj).cast<DenseVector<ScalarT>&>();
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return -1;
+    }
+
+    try {
+        pycauset::bindings::ensure_numpy_export_allowed(static_cast<const VectorBase&>(*v));
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return -1;
+    }
+
+    // Buffer exports expose raw storage; they are only correct for unscaled, unconjugated views.
+    if (v->get_scalar() != std::complex<double>(1.0, 0.0) || v->is_conjugated()) {
+        PyErr_SetString(PyExc_BufferError, "Buffer export requires scalar==1 and not conjugated");
+        return -1;
+    }
+
+    Py_ssize_t n_ss = 0;
+    if (!u64_to_py_ssize(v->size(), &n_ss)) {
+        PyErr_SetString(PyExc_OverflowError, "Vector too large for Python buffer protocol");
+        return -1;
+    }
+
+    const bool as_row = v->is_transposed();
+    const int ndim = as_row ? 2 : 1;
+    const Py_ssize_t itemsize = static_cast<Py_ssize_t>(sizeof(ScalarT));
+
+    uint64_t len_u64 = 0;
+    if (v->size() == 0) {
+        len_u64 = 0;
+    } else {
+        len_u64 = static_cast<uint64_t>(v->size()) * static_cast<uint64_t>(sizeof(ScalarT));
+    }
+    if (len_u64 > static_cast<uint64_t>(PY_SSIZE_T_MAX)) {
+        PyErr_SetString(PyExc_OverflowError, "Buffer too large for Python buffer protocol");
+        return -1;
+    }
+
+    if (PyBuffer_FillInfo(view, obj, static_cast<void*>(v->data()), static_cast<Py_ssize_t>(len_u64), /*readonly=*/0, flags) != 0) {
+        return -1;
+    }
+
+    auto* state = new DenseVectorBufferState();
+    state->shape[0] = as_row ? static_cast<Py_ssize_t>(1) : n_ss;
+    state->shape[1] = n_ss;
+    state->strides[0] = as_row ? static_cast<Py_ssize_t>(static_cast<uint64_t>(n_ss) * sizeof(ScalarT)) : itemsize;
+    state->strides[1] = itemsize;
+
+    view->internal = state;
+    view->itemsize = itemsize;
+    view->ndim = ndim;
+    view->suboffsets = nullptr;
+
+    view->format = (flags & PyBUF_FORMAT) ? const_cast<char*>(dense_vector_buffer_format<ScalarT>()) : nullptr;
+    view->shape = (flags & PyBUF_ND) ? state->shape : nullptr;
+    view->strides = (flags & PyBUF_STRIDES) ? state->strides : nullptr;
+
+    return 0;
+}
+
+template <typename ScalarT>
+void dense_vector_releasebuffer(PyObject* /*obj*/, Py_buffer* view) {
+    auto* state = reinterpret_cast<DenseVectorBufferState*>(view->internal);
+    delete state;
+    view->internal = nullptr;
+}
+
+template <typename ScalarT>
+void install_dense_vector_buffer(py::handle type_handle) {
+    auto* type = reinterpret_cast<PyTypeObject*>(type_handle.ptr());
+    static PyBufferProcs procs{dense_vector_getbuffer<ScalarT>, dense_vector_releasebuffer<ScalarT>};
+    type->tp_as_buffer = &procs;
+#ifdef Py_TPFLAGS_HAVE_NEWBUFFER
+    type->tp_flags |= Py_TPFLAGS_HAVE_NEWBUFFER;
+#endif
+    PyType_Modified(type);
+}
 
 inline bool is_numpy_float16(const py::array& array) {
     try {
@@ -241,6 +356,7 @@ void bind_vector_classes(py::module_& m) {
         .def(
             "__array__",
             [](const VectorBase& v, py::object /*dtype*/, py::object /*copy*/) -> py::array {
+                pycauset::bindings::ensure_numpy_export_allowed(v);
                 uint64_t n_u = v.size();
                 py::ssize_t n = static_cast<py::ssize_t>(n_u);
                 bool as_row = v.is_transposed();
@@ -725,6 +841,8 @@ void bind_vector_classes(py::module_& m) {
         .def("__getitem__", [](const DenseVector<double>& v, uint64_t i) { return v.get(i); })
         .def("__setitem__", [](DenseVector<double>& v, uint64_t i, double val) { v.set(i, val); });
 
+    install_dense_vector_buffer<double>(m.attr("FloatVector"));
+
     py::class_<DenseVector<float>, VectorBase, std::shared_ptr<DenseVector<float>>>(m, "Float32Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
         .def(
@@ -755,6 +873,8 @@ void bind_vector_classes(py::module_& m) {
         .def("set", &DenseVector<float>::set)
         .def("__getitem__", [](const DenseVector<float>& v, uint64_t i) { return v.get(i); })
         .def("__setitem__", [](DenseVector<float>& v, uint64_t i, float val) { v.set(i, val); });
+
+    install_dense_vector_buffer<float>(m.attr("Float32Vector"));
 
     py::class_<DenseVector<float16_t>, VectorBase, std::shared_ptr<DenseVector<float16_t>>>(m, "Float16Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
@@ -800,6 +920,8 @@ void bind_vector_classes(py::module_& m) {
             [](DenseVector<float16_t>& v, uint64_t i, double val) { v.set(i, float16_t(val)); })
         .def("__getitem__", [](const DenseVector<float16_t>& v, uint64_t i) { return static_cast<float>(v.get(i)); })
         .def("__setitem__", [](DenseVector<float16_t>& v, uint64_t i, double val) { v.set(i, float16_t(val)); });
+
+    install_dense_vector_buffer<float16_t>(m.attr("Float16Vector"));
 
     py::class_<ComplexFloat16Vector, VectorBase, std::shared_ptr<ComplexFloat16Vector>>(m, "ComplexFloat16Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
@@ -891,6 +1013,8 @@ void bind_vector_classes(py::module_& m) {
             v.set(i, std::complex<float>(static_cast<float>(val.real()), static_cast<float>(val.imag())));
         });
 
+    install_dense_vector_buffer<std::complex<float>>(m.attr("ComplexFloat32Vector"));
+
     py::class_<DenseVector<std::complex<double>>, VectorBase, std::shared_ptr<DenseVector<std::complex<double>>>>(m, "ComplexFloat64Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
         .def(
@@ -921,6 +1045,8 @@ void bind_vector_classes(py::module_& m) {
         .def("set", &DenseVector<std::complex<double>>::set)
         .def("__getitem__", [](const DenseVector<std::complex<double>>& v, uint64_t i) { return v.get(i); })
         .def("__setitem__", [](DenseVector<std::complex<double>>& v, uint64_t i, std::complex<double> val) { v.set(i, val); });
+
+    install_dense_vector_buffer<std::complex<double>>(m.attr("ComplexFloat64Vector"));
 
     py::class_<DenseVector<int32_t>, VectorBase, std::shared_ptr<DenseVector<int32_t>>>(m, "IntegerVector")
         .def(py::init<uint64_t>(), py::arg("n"))
@@ -953,6 +1079,8 @@ void bind_vector_classes(py::module_& m) {
         .def("__getitem__", [](const DenseVector<int32_t>& v, uint64_t i) { return v.get(i); })
         .def("__setitem__", [](DenseVector<int32_t>& v, uint64_t i, int32_t val) { v.set(i, val); });
 
+    install_dense_vector_buffer<int32_t>(m.attr("IntegerVector"));
+
     py::class_<DenseVector<int16_t>, VectorBase, std::shared_ptr<DenseVector<int16_t>>>(m, "Int16Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
         .def(
@@ -983,6 +1111,8 @@ void bind_vector_classes(py::module_& m) {
         .def("set", &DenseVector<int16_t>::set)
         .def("__getitem__", [](const DenseVector<int16_t>& v, uint64_t i) { return v.get(i); })
         .def("__setitem__", [](DenseVector<int16_t>& v, uint64_t i, int16_t val) { v.set(i, val); });
+
+    install_dense_vector_buffer<int16_t>(m.attr("Int16Vector"));
 
     py::class_<DenseVector<int8_t>, VectorBase, std::shared_ptr<DenseVector<int8_t>>>(m, "Int8Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
@@ -1015,6 +1145,8 @@ void bind_vector_classes(py::module_& m) {
         .def("__getitem__", [](const DenseVector<int8_t>& v, uint64_t i) { return v.get(i); })
         .def("__setitem__", [](DenseVector<int8_t>& v, uint64_t i, int8_t val) { v.set(i, val); });
 
+    install_dense_vector_buffer<int8_t>(m.attr("Int8Vector"));
+
     py::class_<DenseVector<int64_t>, VectorBase, std::shared_ptr<DenseVector<int64_t>>>(m, "Int64Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
         .def(
@@ -1045,6 +1177,8 @@ void bind_vector_classes(py::module_& m) {
         .def("set", &DenseVector<int64_t>::set)
         .def("__getitem__", [](const DenseVector<int64_t>& v, uint64_t i) { return v.get(i); })
         .def("__setitem__", [](DenseVector<int64_t>& v, uint64_t i, int64_t val) { v.set(i, val); });
+
+    install_dense_vector_buffer<int64_t>(m.attr("Int64Vector"));
 
     py::class_<DenseVector<uint8_t>, VectorBase, std::shared_ptr<DenseVector<uint8_t>>>(m, "UInt8Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
@@ -1077,6 +1211,8 @@ void bind_vector_classes(py::module_& m) {
         .def("__getitem__", [](const DenseVector<uint8_t>& v, uint64_t i) { return v.get(i); })
         .def("__setitem__", [](DenseVector<uint8_t>& v, uint64_t i, uint8_t val) { v.set(i, val); });
 
+    install_dense_vector_buffer<uint8_t>(m.attr("UInt8Vector"));
+
     py::class_<DenseVector<uint16_t>, VectorBase, std::shared_ptr<DenseVector<uint16_t>>>(m, "UInt16Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
         .def(
@@ -1107,6 +1243,8 @@ void bind_vector_classes(py::module_& m) {
         .def("set", &DenseVector<uint16_t>::set)
         .def("__getitem__", [](const DenseVector<uint16_t>& v, uint64_t i) { return v.get(i); })
         .def("__setitem__", [](DenseVector<uint16_t>& v, uint64_t i, uint16_t val) { v.set(i, val); });
+
+    install_dense_vector_buffer<uint16_t>(m.attr("UInt16Vector"));
 
     py::class_<DenseVector<uint32_t>, VectorBase, std::shared_ptr<DenseVector<uint32_t>>>(m, "UInt32Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
@@ -1139,6 +1277,8 @@ void bind_vector_classes(py::module_& m) {
         .def("__getitem__", [](const DenseVector<uint32_t>& v, uint64_t i) { return v.get(i); })
         .def("__setitem__", [](DenseVector<uint32_t>& v, uint64_t i, uint32_t val) { v.set(i, val); });
 
+    install_dense_vector_buffer<uint32_t>(m.attr("UInt32Vector"));
+
     py::class_<DenseVector<uint64_t>, VectorBase, std::shared_ptr<DenseVector<uint64_t>>>(m, "UInt64Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
         .def(
@@ -1169,6 +1309,8 @@ void bind_vector_classes(py::module_& m) {
         .def("set", &DenseVector<uint64_t>::set)
         .def("__getitem__", [](const DenseVector<uint64_t>& v, uint64_t i) { return v.get(i); })
         .def("__setitem__", [](DenseVector<uint64_t>& v, uint64_t i, uint64_t val) { v.set(i, val); });
+
+    install_dense_vector_buffer<uint64_t>(m.attr("UInt64Vector"));
 
     py::class_<DenseVector<bool>, VectorBase, std::shared_ptr<DenseVector<bool>>>(m, "BitVector")
         .def(py::init<uint64_t>(), py::arg("n"))

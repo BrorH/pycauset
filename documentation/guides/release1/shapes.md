@@ -98,4 +98,5 @@ For the current status list, see:
 - [[guides/Matrix Guide.md|Matrix Guide]]
 - [[guides/Vector Guide.md|Vector Guide]]
 - [[docs/functions/pycauset.matmul.md|pycauset.matmul]]
-- [[docs/functions/pycauset.asarray.md|pycauset.asarray]]
+- [[docs/functions/pycauset.matrix.md|pycauset.matrix]]
+- [[docs/functions/pycauset.vector.md|pycauset.vector]]

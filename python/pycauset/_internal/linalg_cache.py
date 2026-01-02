@@ -42,8 +42,17 @@ def make_inverse(FloatMatrix: Any) -> Any:
         if backing and isinstance(self, FloatMatrix) and backing.endswith(".pycauset") and os.path.exists(backing):
             if _is_new_container(backing):
                 # If a persisted inverse object exists for this view state, load it.
+                ref_exists = False
                 try:
                     view_sig = _big_blob_cache.compute_view_signature(self)
+                    ref_exists = isinstance(
+                        _persistence.try_get_cached_big_blob_ref(
+                            backing,
+                            name="inverse",
+                            view_signature=view_sig,
+                        ),
+                        dict,
+                    )
                     inv = _big_blob_cache.try_load_cached_matrix(
                         backing,
                         name="inverse",
@@ -56,6 +65,16 @@ def make_inverse(FloatMatrix: Any) -> Any:
                 if inv is not None:
                     self._cached_inverse = inv
                     return inv
+
+                # Cache reference exists but the referenced object is missing/unreadable.
+                # Policy: warn (handled in big_blob_cache) and do NOT implicitly recompute.
+                # Users can explicitly rebuild the cache by calling invert(save=True).
+                if ref_exists and not save:
+                    raise FileNotFoundError(
+                        "cached inverse object is missing or unreadable; "
+                        "no implicit recompute is performed. "
+                        "Call invert(save=True) to rebuild the cached inverse."
+                    )
 
                 # Correctness-first: native invert currently produces invalid results for
                 # matrices backed by the new container (likely ignoring payload offsets).

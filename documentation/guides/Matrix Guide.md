@@ -63,16 +63,11 @@ Mc = pc.matrix(((1 + 2j, 0), (0, 3 - 4j)), dtype=pc.complex_float32)  # ComplexF
 C = pc.causal_matrix(100)
 ```
 
-## Block matrices (experimental)
-
-!!! warning "Pre-alpha / experimental"
-    Block matrices are supported as an experimental Python `BlockMatrix` type.
-
-    The behavior is usable today, but the exact semantics and public API surface may change as the feature hardens.
+## Block matrices
 
 ### Goal
 
-Represent a large matrix as a 2D grid of child matrices (blocks) without global densification.
+Represent a large matrix as a 2D grid of child matrices (blocks) without global densification or surprise dtype promotion.
 
 ### Minimal example
 
@@ -107,18 +102,18 @@ For 2D nested sequences:
 
 Block-grid input rejects `dtype` and `**kwargs`.
 
-### Operations and laziness
+### Operations, laziness, and slicing
 
-When either operand is a block matrix, the result stays block (“once block, always block”) for:
-
-- `@` / [[docs/functions/pycauset.matmul.md|pycauset.matmul]]
-- `+`, `-`, `*`, `/`
-
-Results are typically **thunked per output block** and only evaluate on triggers:
-
-- Accessing an element (e.g. `C[i, j]`)
-- Converting to NumPy (`np.asarray(C)`) — useful for debugging, but it evaluates all elements via Python loops
-- Saving (`pc.save(C, ...)`) — evaluates blocks as needed to persist a stable snapshot
+- “Once block, always block”: `@`, `+`, `-`, `*`, `/` preserve block structure and return a block matrix result.
+- Results are thunked per output block and evaluate only on triggers:
+    - element access (`C[i, j]`),
+    - dense conversion (`np.asarray(C)`),
+    - persistence (`pc.save(C, ...)`),
+    - crossing the compute boundary (e.g., feeding a thunk block into another op).
+- Non-triggers: `repr/str`, shape/partition metadata, and `get_block`.
+- Block-aware slicing is supported: slicing a block matrix returns tiled `SubmatrixView` blocks without densifying; it raises deterministically if a required view cannot be represented.
+- Partition mismatches during ops or slicing are handled by refinement (union of boundaries) with `SubmatrixView` tiling—no silent densify.
+- Staleness: thunks pin input `version` metadata; `set_block` or child mutation bumps versions. Stale thunks/caches raise on access (no auto-recompute).
 
 ### Saving and loading
 
@@ -131,7 +126,7 @@ pc.save(BM, "bm.pycauset")
 BM2 = pc.load("bm.pycauset")
 ```
 
-See [[internals/Block Matrices.md|Block Matrices]] for the manifest shape.
+Saves evaluate thunk blocks **blockwise**, raise on stale thunks, and materialize `SubmatrixView` blocks locally for stable storage. See [[internals/Block Matrices.md|Block Matrices]] for the manifest shape and sidecar policy.
 
 
 ## Precision and Storage
@@ -150,7 +145,7 @@ M64 = pc.empty((5000, 5000), dtype="float64")
 
 ## Indexing, slicing, and assignment (NumPy-style)
 
-PyCauset implements NumPy-like 2D indexing for dense matrices only. Structured/triangular matrices currently reject slicing.
+PyCauset implements NumPy-like 2D indexing for dense matrices. Block matrices support element access and block-aware slicing via tiled `SubmatrixView` (no densify); structured/triangular matrices still reject slicing.
 
 ### Basic indexing → views (shared storage)
 
@@ -161,7 +156,7 @@ PyCauset implements NumPy-like 2D indexing for dense matrices only. Structured/t
 M = pc.matrix([ [1, 2, 3], [4, 5, 6] ], dtype="float64")
 sub = M[:, 1:]          # view, shares backing
 sub[0, 0] = 20
-assert M.get(0, 1) == 20
+assert M[0, 1] == 20
 ```
 
 ### Advanced indexing → copies
@@ -283,10 +278,15 @@ In pycauset, large matrices are automatically stored on your device's storage di
 ### Temporary Files & Lifecycle
 By default, `pycauset` manages backing files automatically. Files are stored in a `.pycauset` directory in the current working directory.
 
-*   **Configuration**: Set the `PYCAUSET_STORAGE_DIR` environment variable to relocate the storage directory.
-*   **Automatic Cleanup**: Temporary files are deleted when the Python interpreter exits.
+*   **Configuration**: Call `pycauset.set_backing_dir("...")` once after import (and before allocating large matrices).
+*   **Automatic Cleanup**: Temporary files are deleted on import (leftovers from previous runs) and again when the Python interpreter exits.
 *   **Persistence**: Set `pycauset.keep_temp_files = True` to prevent deletion (useful for debugging).
 *   **Manual Cleanup**: Call `matrix.close()` to release the memory-mapped handle immediately.
+
+Temporary file types you may see in the backing directory:
+
+*   `.tmp`: session-only backing files holding payload bytes (including spill/eviction).
+*   `.raw_tmp`: staging files created while `save()` is writing a snapshot.
 
 ### Saving a Matrix
 Matrices are backed by temporary files that are deleted when the program exits, unless [[pycauset.keep_temp_files]] is set to `True`. To permanently save a specific matrix, use [[pycauset.save]]. 
@@ -311,8 +311,8 @@ print(type(matrix))
 ```
 
 ### Temporary Files
-By default, `pycauset` manages backing files automatically. Files are stored in a `.pycauset` directory (or `$PYCAUSET_STORAGE_DIR`).
-- **Automatic Cleanup**: Temporary files are deleted on exit.
+By default, `pycauset` manages backing files automatically. Files are stored in a `.pycauset` directory.
+- **Automatic Cleanup**: Temporary files are deleted on import (leftovers) and on exit.
 - **Persistence**: Set `pycauset.keep_temp_files = True` to prevent deletion of temporary files (useful for debugging).
 - **Explicit Saving**: Use [[pycauset.save]] to keep specific matrices.
 
@@ -335,11 +335,11 @@ classDiagram
         +get_element_as_double()
     }
     class DenseMatrix~T~ {
-        +get(i, j) T
+        +read(i, j) T
     }
     class TriangularMatrix~T~ {
         +vector~uint64_t~ row_offsets_
-        +get(i, j) T
+        +read(i, j) T
     }
     
     MatrixBase <|-- DenseMatrix

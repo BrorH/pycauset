@@ -71,7 +71,7 @@ print(inv[0, 0]) # 0.6
 
 *   **Algorithm**: Gaussian elimination with partial pivoting.
 *   **Parallelism**: The row operations are parallelized using OpenMP for performance on large matrices.
-*   **Storage**: The operation creates a temporary backing file for the working matrix during computation, which is deleted automatically upon completion.
+*   **Storage**: The operation may create temporary backing files (for example `.tmp`) for intermediates and/or the result. These session files are normally cleaned up on interpreter exit (unless `pycauset.keep_temp_files = True`). Use `save()` to persist a portable `.pycauset` snapshot.
 *   **Scalars**: If the input matrix has a scalar factor $S$, the resulting inverse will have a scalar factor $1/S$.
 
 ### Errors

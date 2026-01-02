@@ -13,11 +13,9 @@ for _path in (_REPO_ROOT, _PYTHON_DIR):
     if path_str not in sys.path:
         sys.path.insert(0, path_str)
 
-# Set up storage dir before importing pycauset
 _STORAGE_TMP = tempfile.TemporaryDirectory()
-os.environ["PYCAUSET_STORAGE_DIR"] = _STORAGE_TMP.name
-
 import pycauset
+pycauset.set_backing_dir(_STORAGE_TMP.name)
 
 class TestMatrixOperations(unittest.TestCase):
     @classmethod
@@ -149,8 +147,8 @@ class TestMatrixOperations(unittest.TestCase):
         a_np = np.arange(6, dtype=np.float64).reshape(2, 3)
         b_np = np.arange(12, dtype=np.float64).reshape(3, 4)
 
-        a = pycauset.asarray(a_np)
-        b = pycauset.asarray(b_np)
+        a = pycauset.matrix(a_np)
+        b = pycauset.matrix(b_np)
 
         out = pycauset.matmul(a, b)
         self.assertEqual(out.shape, (2, 4))
@@ -160,8 +158,8 @@ class TestMatrixOperations(unittest.TestCase):
         # matrix @ vector -> vector
         a_np = np.arange(6, dtype=np.float64).reshape(2, 3)
         v_np = np.array([1.0, 2.0, 3.0], dtype=np.float64)
-        a = pycauset.asarray(a_np)
-        v = pycauset.asarray(v_np)
+        a = pycauset.matrix(a_np)
+        v = pycauset.vector(v_np)
 
         out = pycauset.matmul(a, v)
         self.assertEqual(out.shape, (2,))
@@ -169,7 +167,7 @@ class TestMatrixOperations(unittest.TestCase):
 
         # vector @ matrix -> row-vector semantics (matches v.T @ A)
         w_np = np.array([10.0, 20.0], dtype=np.float64)
-        w = pycauset.asarray(w_np)
+        w = pycauset.vector(w_np)
         out2 = pycauset.matmul(w, a)
         self.assertEqual(out2.shape, (1, 3))
         self.assertTrue(np.allclose(np.array(out2), (w_np @ a_np).reshape(1, 3)))

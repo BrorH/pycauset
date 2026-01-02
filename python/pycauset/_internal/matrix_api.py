@@ -5,6 +5,8 @@ from typing import Any, Callable
 
 from . import formatting as _formatting
 from .dtypes import normalize_dtype as _normalize_dtype
+from . import export_guard
+from .native_threshold import temporary_native_memory_threshold
 
 
 _np: Any | None = None
@@ -113,6 +115,8 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
         coerce_general_matrix = _coerce_general_matrix
 
         target_dtype = _normalize_dtype(dtype, np_module=_np)
+
+        max_in_ram_bytes = kwargs.pop("max_in_ram_bytes", None)
 
         if isinstance(size_or_data, (int, float)) and (
             isinstance(size_or_data, int) or size_or_data.is_integer()
@@ -231,6 +235,12 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                     getattr(np, "complex64", object()),
                     getattr(np, "complex128", object()),
                 ) and hasattr(native, "asarray"):
+                    if max_in_ram_bytes is not None:
+                        est = export_guard.estimate_materialized_bytes(data)
+                        if est is not None and est > max_in_ram_bytes:
+                            # Force native allocation policy for this import (best-effort).
+                            with temporary_native_memory_threshold(native, int(max_in_ram_bytes)):
+                                return native.asarray(data)
                     return native.asarray(data)
 
                 if dtype is None:

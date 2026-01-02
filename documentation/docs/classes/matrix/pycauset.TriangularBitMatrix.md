@@ -19,13 +19,12 @@ Inherits from [[pycauset.TriangularMatrix]].
 
 ## Methods
 
-### `get(i, j)`
-Returns the boolean value at row `i` and column `j`.
-*   Returns `False` if $i \ge j$.
+### Indexing
 
-### `set(i, j, value)`
-Sets the value at row `i` and column `j`.
-*   Raises `ValueError` if $i \ge j$ (strictly upper triangular).
+Element access uses NumPy-style indexing:
+
+*   Read: `x = M[i, j]` (returns `False` if $i \ge j$)
+*   Write: `M[i, j] = value` (raises `ValueError` if $i \ge j$)
 
 ### `multiply(other)`
 Multiplies this matrix by another `TriangularBitMatrix`.

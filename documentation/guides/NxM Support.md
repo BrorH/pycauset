@@ -39,7 +39,8 @@ Rectangular dense matrices are supported for:
 
 ### NumPy interop
 
-- `pycauset.asarray(np_array)` supports rectangular 2D arrays for dense matrices.
+- `pycauset.matrix(np_array)` supports rectangular 2D arrays for dense matrices.
+- `pycauset.vector(np_array)` supports 1D arrays for vectors.
 - `np.asarray(pycauset_matrix)` / `np.array(pycauset_matrix)` returns arrays with matching shape.
 
 ### Persistence

@@ -23,6 +23,9 @@ from ._internal import coercion as _coercion
 from ._internal import factories as _factories
 from ._internal.dtypes import normalize_dtype as _normalize_dtype
 from ._internal import ops as _ops
+from ._internal import io_observability as _io_observability
+from ._internal import streaming_manager as _streaming_manager
+from ._internal import export_guard as _export_guard
 from ._internal import native as _native_mod
 from ._internal import matrix_api as _matrix_api
 from ._internal.warnings import (
@@ -235,10 +238,161 @@ _runtime = _runtime_mod.Runtime(
 
 keep_temp_files: bool = False
 seed: int | None = None
+_EXPORT_MAX_BYTES: int | None = None
+_DEFAULT_MEMORY_THRESHOLD = getattr(_native, "get_memory_threshold", lambda: None)()
+_IO_OBS = _io_observability.IOObservability(memory_threshold_bytes=_DEFAULT_MEMORY_THRESHOLD)
+
+_STREAMING_MANAGER = _streaming_manager.StreamingManager(io_observer=_IO_OBS)
+for _desc in (
+    _streaming_manager.StreamingDescriptor(
+        op="matmul",
+        access_pattern="blocked_rowcol",
+        tile_budget_fn=_streaming_manager._matmul_tile_budget,
+        queue_depth_fn=_streaming_manager._matmul_queue_depth,
+        guard=_streaming_manager._matmul_guard,
+    ),
+    _streaming_manager.StreamingDescriptor(
+        op="invert",
+        access_pattern="invert_dense",
+        tile_budget_fn=_streaming_manager._square_tile_budget,
+        queue_depth_fn=_streaming_manager._unary_queue_depth,
+        guard=_streaming_manager._square_guard,
+    ),
+    _streaming_manager.StreamingDescriptor(
+        op="eigvalsh",
+        access_pattern="symmetric_eigvals",
+        tile_budget_fn=_streaming_manager._square_tile_budget,
+        queue_depth_fn=_streaming_manager._unary_queue_depth,
+        guard=_streaming_manager._square_guard,
+    ),
+    _streaming_manager.StreamingDescriptor(
+        op="eigh",
+        access_pattern="symmetric_eigh",
+        tile_budget_fn=_streaming_manager._square_tile_budget,
+        queue_depth_fn=_streaming_manager._unary_queue_depth,
+        guard=_streaming_manager._square_guard,
+    ),
+    _streaming_manager.StreamingDescriptor(
+        op="eigvals_arnoldi",
+        access_pattern="arnoldi_topk",
+        tile_budget_fn=_streaming_manager._square_tile_budget,
+        queue_depth_fn=_streaming_manager._unary_queue_depth,
+        guard=_streaming_manager._square_guard,
+    ),
+):
+    _STREAMING_MANAGER.register(_desc)
 
 
 def _storage_root() -> Path:
     return _runtime.storage_root()
+
+
+def set_backing_dir(path: str | Path) -> Path:
+    """Set the directory used for auto-created backing files.
+
+    This is the recommended way to choose where PyCauset places temporary
+    disk-backed payloads (the files behind large matrices).
+
+    Guidance:
+    - Call once, right after importing PyCauset, before creating large matrices.
+    - Repeatedly switching this directory mid-session is allowed, but not
+      guaranteed to be stable for already-created objects.
+    """
+    import warnings
+
+    from ._internal.warnings import PyCausetStorageWarning
+
+    new_root = Path(path).expanduser().resolve()
+
+    try:
+        old_root = _runtime.storage_root().resolve()
+    except Exception:
+        old_root = None
+
+    # Native code allocates backing files; configure it directly.
+    set_native_root = getattr(_native, "set_storage_root", None)
+    if callable(set_native_root):
+        set_native_root(str(new_root))
+
+    if old_root is not None and new_root != old_root and _runtime.has_live_matrices():
+        warnings.warn(
+            "Changing the backing directory after matrices have been created can leave "
+            "some objects backed by the old directory and may complicate cleanup. "
+            "Prefer calling pycauset.set_backing_dir(...) immediately after import.",
+            PyCausetStorageWarning,
+            stacklevel=2,
+        )
+
+    return _runtime.set_storage_root(new_root)
+
+
+def get_memory_threshold() -> int | None:
+    getter = getattr(_native, "get_memory_threshold", None)
+    if getter is None:
+        return None
+    try:
+        return int(getter())
+    except Exception:
+        return None
+
+
+def set_memory_threshold(limit: int | None) -> int | None:
+    setter = getattr(_native, "set_memory_threshold", None)
+    getter = getattr(_native, "get_memory_threshold", None)
+    if setter is None:
+        raise RuntimeError("Native memory threshold control is unavailable")
+
+    target = limit
+    if target is None:
+        target = _DEFAULT_MEMORY_THRESHOLD
+
+    if target is None:
+        raise RuntimeError("Native memory threshold default is unavailable")
+
+    setter(int(target))
+    return int(getter()) if getter is not None else int(target)
+
+
+def set_io_streaming_threshold(limit: int | None) -> int | None:
+    """Set the routing threshold for IO observability heuristics (bytes)."""
+
+    return _IO_OBS.set_memory_threshold(limit)
+
+
+def get_io_streaming_threshold() -> int | None:
+    """Return the current IO routing threshold (bytes)."""
+
+    return _IO_OBS.get_memory_threshold()
+
+
+def last_io_trace(op: str | None = None) -> dict[str, Any] | None:
+    """Return the most recent IO trace (optionally filtered by op name)."""
+
+    return _IO_OBS.last(op)
+
+
+def clear_io_traces() -> None:
+    """Clear recorded IO traces (observability/debug only)."""
+
+    _IO_OBS.clear()
+
+
+# --- Deprecated configuration ---
+# Historically, users could set PYCAUSET_STORAGE_DIR before import.
+# This is now deprecated in favor of pycauset.set_backing_dir(...).
+_deprecated_env = os.environ.get("PYCAUSET_STORAGE_DIR")
+if _deprecated_env:
+    import warnings
+
+    warnings.warn(
+        "PYCAUSET_STORAGE_DIR is deprecated; use pycauset.set_backing_dir(...) instead.",
+        PyCausetStorageWarning,
+        stacklevel=2,
+    )
+    try:
+        set_backing_dir(_deprecated_env)
+    except Exception:
+        pass
 
 
 # Perform initial cleanup of temporary files from previous runs
@@ -258,6 +412,149 @@ def _register_cleanup() -> None:
 
 
 _register_cleanup()
+
+# NumPy export safety hooks for native matrices/vectors
+_MatrixBaseType = getattr(_native, "MatrixBase", None)
+_VectorBaseType = getattr(_native, "VectorBase", None)
+
+
+def _guarded_array_export(self: Any, dtype: Any = None, copy: Any = None) -> Any:
+    # NumPy 2.x may pass copy=... to __array__; honor when provided.
+    copy_flag = True if copy is None else copy
+    return _export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype, copy=copy_flag)
+
+
+def _install_array_export_hook(native_type: Any) -> None:
+    if native_type is None:
+        return
+    if getattr(native_type, "__pycauset_array_wrapped__", False):
+        return
+    try:
+        native_type.__array__ = _guarded_array_export
+        native_type.__array_priority__ = 1e6
+        setattr(native_type, "__pycauset_array_wrapped__", True)
+    except Exception:
+        return
+
+
+def _coerce_scalar_for_native(value: Any) -> Any:
+    """Downcast NumPy scalar types to plain Python scalars for pybind setters."""
+    try:
+        import numpy as _np_local  # type: ignore
+    except Exception:
+        _np_local = None
+
+    if _np_local is not None and isinstance(value, _np_local.generic):
+        try:
+            return value.item()
+        except Exception:
+            pass
+    return value
+
+
+def _wrap_setitem_for_scalars(base_type: Any) -> None:
+    if base_type is None:
+        return
+    if getattr(base_type, "__pycauset_setitem_wrapped__", False):
+        return
+    original = getattr(base_type, "__setitem__", None)
+    set_method = getattr(base_type, "set", None)
+    if not callable(original):
+        return
+
+    def _wrapped(self: Any, key: Any, value: Any, _orig=original) -> Any:
+        coerced = _coerce_scalar_for_native(value)
+        if callable(set_method):
+            try:
+                # Matrices use (i, j); vectors use i.
+                if isinstance(key, tuple) and len(key) == 2:
+                    return set_method(self, int(key[0]), int(key[1]), coerced)
+                return set_method(self, int(key), coerced)
+            except Exception:
+                # Fall back to the original setter on any failure (e.g., slicing).
+                pass
+        return _orig(self, key, coerced)
+
+    base_type.__setitem__ = _wrapped  # type: ignore[attr-defined]
+    setattr(base_type, "__pycauset_setitem_wrapped__", True)
+
+
+try:
+    if _MatrixBaseType is not None:
+        _install_array_export_hook(_MatrixBaseType)
+        _wrap_setitem_for_scalars(_MatrixBaseType)
+    if _VectorBaseType is not None:
+        _install_array_export_hook(_VectorBaseType)
+        _wrap_setitem_for_scalars(_VectorBaseType)
+except Exception:
+    pass
+
+# Ensure NumPy scalar coercion also applies to concrete native classes that
+# may override __setitem__.
+for _cls in (
+    _Float16Matrix,
+    _Float32Matrix,
+    _FloatMatrix,
+    _IntegerMatrix,
+    _Int8Matrix,
+    _Int16Matrix,
+    _Int64Matrix,
+    _UInt8Matrix,
+    _UInt16Matrix,
+    _UInt32Matrix,
+    _UInt64Matrix,
+    _ComplexFloat16Matrix,
+    _ComplexFloat32Matrix,
+    _ComplexFloat64Matrix,
+    _TriangularFloatMatrix,
+    _TriangularIntegerMatrix,
+    _DenseBitMatrix,
+    _Float16Vector,
+    _Float32Vector,
+    _FloatVector,
+    _IntegerVector,
+    _Int8Vector,
+    _Int16Vector,
+    _Int64Vector,
+    _UInt8Vector,
+    _UInt16Vector,
+    _UInt32Vector,
+    _UInt64Vector,
+    _ComplexFloat16Vector,
+    _ComplexFloat32Vector,
+    _ComplexFloat64Vector,
+    _BitVector,
+):
+    _install_array_export_hook(_cls)
+    _wrap_setitem_for_scalars(_cls)
+
+
+def set_export_max_bytes(limit: int | None) -> None:
+    """Set the materialization ceiling (bytes) for NumPy exports.
+
+    None disables the size ceiling (file-backed objects still hard-error).
+    """
+
+    global _EXPORT_MAX_BYTES
+    _EXPORT_MAX_BYTES = limit
+    _export_guard.set_max_bytes(limit)
+    try:
+        setter = getattr(_native, "_set_numpy_export_max_bytes", None)
+        if callable(setter):
+            setter(limit)
+    except Exception:
+        pass
+
+
+def to_numpy(obj: Any, *, allow_huge: bool = False, dtype: Any = None, copy: bool = True) -> Any:
+    """Convert a PyCauset object to NumPy, enforcing out-of-core safety.
+
+    - By default, file-backed or over-ceiling exports hard-error.
+    - Pass allow_huge=True to intentionally materialize.
+    - Ceiling is controlled via set_export_max_bytes(...).
+    """
+
+    return _export_guard.export_to_numpy(obj, allow_huge=allow_huge, dtype=dtype, copy=copy)
 
 _PERSISTENCE_DEPS = _SimpleNamespace(
     CausalSet=CausalSet,
@@ -306,6 +603,126 @@ def save(obj: Any, path: str | Path) -> None:
 
 def load(path: str | Path) -> Any:
     return _persistence.load(path, deps=_PERSISTENCE_DEPS)
+
+
+def _array_to_pycauset(arr: Any) -> Any:
+    if _np is None:
+        raise RuntimeError("NumPy is required for NumPy-based imports")
+
+    if not isinstance(arr, _np.ndarray):
+        arr = _np.array(arr)
+
+    if arr.ndim == 1:
+        return vector(arr)
+    if arr.ndim == 2:
+        return matrix(arr)
+    raise ValueError("Only 1D or 2D arrays can be imported")
+
+
+def load_npy(path: str | Path) -> Any:
+    if _np is None:
+        raise RuntimeError("NumPy is required for .npy import")
+    arr = _np.load(path)
+    return _array_to_pycauset(arr)
+
+
+def load_npz(path: str | Path, *, key: str | None = None) -> Any:
+    if _np is None:
+        raise RuntimeError("NumPy is required for .npz import")
+
+    data = _np.load(path)
+    keys = list(data.keys())
+    if not keys:
+        raise ValueError(".npz archive is empty")
+
+    use_key = key if key is not None else sorted(keys)[0]
+    if use_key not in data:
+        raise KeyError(f"Key '{use_key}' not found in npz archive")
+    arr = data[use_key]
+    return _array_to_pycauset(arr)
+
+
+def save_npy(obj: Any, path: str | Path, *, allow_huge: bool = False, dtype: Any = None) -> Path:
+    if _np is None:
+        raise RuntimeError("NumPy is required for .npy export")
+    arr = to_numpy(obj, allow_huge=allow_huge, dtype=dtype)
+    _np.save(path, arr)
+    return Path(path)
+
+
+def save_npz(
+    obj: Any,
+    path: str | Path,
+    *,
+    allow_huge: bool = False,
+    dtype: Any = None,
+    key: str = "array",
+) -> Path:
+    if _np is None:
+        raise RuntimeError("NumPy is required for .npz export")
+    arr = to_numpy(obj, allow_huge=allow_huge, dtype=dtype)
+    _np.savez(path, **{key: arr})
+    return Path(path)
+
+
+def convert_file(
+    src_path: str | Path,
+    dst_path: str | Path,
+    *,
+    dst_format: str | None = None,
+    allow_huge: bool = False,
+    dtype: Any = None,
+    npz_key: str | None = None,
+) -> Path:
+    """Convert between .pycauset and NumPy formats (.npy/.npz).
+
+    - dst_format defaults from dst_path suffix when not provided.
+    - npz imports default to the first key unless npz_key is provided.
+    - Exports respect the NumPy materialization guard via allow_huge.
+    """
+
+    src = Path(src_path)
+    dst = Path(dst_path)
+
+    def _infer_format(p: Path, explicit: str | None) -> str:
+        if explicit:
+            return explicit.lower()
+        suf = p.suffix.lower().lstrip(".")
+        if suf in {"pycauset", "npy", "npz"}:
+            return suf
+        raise ValueError("Could not infer format from path; provide dst_format")
+
+    src_fmt = _infer_format(src, None)
+    dst_fmt = _infer_format(dst, dst_format)
+
+    obj = None
+    try:
+        if src_fmt == "pycauset":
+            obj = load(src)
+        elif src_fmt == "npy":
+            obj = load_npy(src)
+        elif src_fmt == "npz":
+            obj = load_npz(src, key=npz_key)
+        else:
+            raise ValueError(f"Unsupported source format: {src_fmt}")
+
+        if dst_fmt == "pycauset":
+            save(obj, dst)
+        elif dst_fmt == "npy":
+            save_npy(obj, dst, allow_huge=allow_huge, dtype=dtype)
+        elif dst_fmt == "npz":
+            save_npz(obj, dst, allow_huge=allow_huge, dtype=dtype, key=npz_key or "array")
+        else:
+            raise ValueError(f"Unsupported destination format: {dst_fmt}")
+    finally:
+        close = getattr(obj, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
+
+    return dst
 
 
 _linalg_cache.patch_matrixbase_save(_native, save)
@@ -627,11 +1044,19 @@ def _is_sequence_like(value: Any) -> bool:
     return _coercion.is_sequence_like(value)
 
 
-def vector(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
+def vector(
+    source: Any,
+    dtype: Any = None,
+    *,
+    max_in_ram_bytes: int | None = None,
+    **kwargs: Any,
+) -> Any:
     """Create a 1D vector from vector-like input.
 
     NumPy alignment: this is a data constructor. Use `zeros/ones/empty` for allocation.
+    The optional max_in_ram_bytes routes NumPy inputs through native-backed asarray when set.
     """
+    max_in_ram_bytes = kwargs.pop("max_in_ram_bytes", max_in_ram_bytes)
     if _is_scalar_0d(source):
         raise TypeError(
             "vector(...) constructs from data; shape allocation uses zeros/ones/empty. "
@@ -660,6 +1085,7 @@ def vector(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
         source,
         dtype=dtype,
         np_module=_np,
+        native=_native,
         Float16Vector=_Float16Vector,
         Float32Vector=_Float32Vector,
         FloatVector=_FloatVector,
@@ -676,6 +1102,7 @@ def vector(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
         Int16Vector=_Int16Vector,
         BitVector=_BitVector,
         kwargs=kwargs,
+        max_in_ram_bytes=max_in_ram_bytes,
     )
 
 
@@ -1038,6 +1465,8 @@ _OPS_DEPS = _ops.OpsDeps(
     track_matrix=_track_matrix,
     mark_temporary_if_auto=_mark_temporary_if_auto,
     warnings_module=warnings,
+    io_observer=_IO_OBS,
+    streaming_manager=_STREAMING_MANAGER,
 )
 
 def matmul(a: Any, b: Any) -> Any:
@@ -1228,6 +1657,12 @@ def eigvalsh(a: Any) -> Any:
     return _ops.eigvalsh(a, deps=_OPS_DEPS)
 
 
+def eigvals_arnoldi(a: Any, k: int, m: int, tol: float = 1e-6) -> Any:
+    """Top-k eigenvalues via Arnoldi/Lanczos-style iteration (native when available)."""
+
+    return _ops.eigvals_arnoldi(a, k, m, tol, deps=_OPS_DEPS)
+
+
 def solve_triangular(*args: Any, **kwargs: Any) -> Any:
     if "deps" in kwargs:
         raise TypeError("solve_triangular: deps is internal")
@@ -1261,10 +1696,6 @@ def eigvals(*_args: Any, **_kwargs: Any) -> Any:
 
 def eigvals_skew(*_args: Any, **_kwargs: Any) -> Any:
     raise NotImplementedError("pycauset.eigvals_skew is not available yet (pre-alpha).")
-
-
-def eigvals_arnoldi(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError("pycauset.eigvals_arnoldi is not available yet (pre-alpha).")
 
 
 def identity(x: Any) -> Any:
@@ -1328,6 +1759,13 @@ __all__ = [name for name in dir(_native) if not name.startswith("_")]
 # `from pycauset import *` can fail if a symbol is not exported by the native module.
 _extra_exports = [
     "save",
+    "set_backing_dir",
+    "get_memory_threshold",
+    "set_memory_threshold",
+    "get_io_streaming_threshold",
+    "set_io_streaming_threshold",
+    "last_io_trace",
+    "clear_io_traces",
     "keep_temp_files",
     "seed",
     "matrix",
@@ -1335,6 +1773,11 @@ _extra_exports = [
     "zeros",
     "ones",
     "empty",
+    "load_npy",
+    "load_npz",
+    "save_npy",
+    "save_npz",
+    "convert_file",
     "causal_matrix",
     "TriangularBitMatrix",
     "matmul",

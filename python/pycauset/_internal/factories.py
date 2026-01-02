@@ -3,6 +3,8 @@ from __future__ import annotations
 import warnings
 from typing import Any, Callable
 
+from . import export_guard as _export_guard
+from .native_threshold import temporary_native_memory_threshold
 from .dtypes import normalize_dtype as _normalize_dtype
 
 
@@ -27,8 +29,12 @@ def vector_factory(
     Int16Vector: Any | None,
     BitVector: Any | None,
     kwargs: dict[str, Any],
+    native: Any | None = None,
+    max_in_ram_bytes: int | None = None,
 ) -> Any:
     dtype_norm = _normalize_dtype(dtype, np_module=np_module)
+    ctor_kwargs: dict[str, Any] = dict(kwargs)
+    limit = ctor_kwargs.pop("max_in_ram_bytes", max_in_ram_bytes)
 
     # 1) Creation by size
     if isinstance(size_or_data, (int, float)) and (
@@ -36,41 +42,70 @@ def vector_factory(
     ):
         n = int(size_or_data)
         if dtype_norm == "int8" and Int8Vector:
-            return Int8Vector(n, **kwargs)
+            return Int8Vector(n, **ctor_kwargs)
         if dtype_norm == "int16" and Int16Vector:
-            return Int16Vector(n, **kwargs)
+            return Int16Vector(n, **ctor_kwargs)
         if dtype_norm == "int32" and IntegerVector:
-            return IntegerVector(n, **kwargs)
+            return IntegerVector(n, **ctor_kwargs)
         if dtype_norm == "int64" and Int64Vector:
-            return Int64Vector(n, **kwargs)
+            return Int64Vector(n, **ctor_kwargs)
         if dtype_norm == "uint8" and UInt8Vector:
-            return UInt8Vector(n, **kwargs)
+            return UInt8Vector(n, **ctor_kwargs)
         if dtype_norm == "uint16" and UInt16Vector:
-            return UInt16Vector(n, **kwargs)
+            return UInt16Vector(n, **ctor_kwargs)
         if dtype_norm == "uint32" and UInt32Vector:
-            return UInt32Vector(n, **kwargs)
+            return UInt32Vector(n, **ctor_kwargs)
         if dtype_norm == "uint64" and UInt64Vector:
-            return UInt64Vector(n, **kwargs)
+            return UInt64Vector(n, **ctor_kwargs)
         if dtype_norm == "bool" and BitVector:
-            return BitVector(n, **kwargs)
+            return BitVector(n, **ctor_kwargs)
         if dtype_norm == "float16" and Float16Vector:
-            return Float16Vector(n, **kwargs)
+            return Float16Vector(n, **ctor_kwargs)
         if dtype_norm == "float32" and Float32Vector:
-            return Float32Vector(n, **kwargs)
+            return Float32Vector(n, **ctor_kwargs)
         if dtype_norm == "float64" and FloatVector:
-            return FloatVector(n, **kwargs)
+            return FloatVector(n, **ctor_kwargs)
         if dtype_norm == "complex_float16" and ComplexFloat16Vector:
-            return ComplexFloat16Vector(n, **kwargs)
+            return ComplexFloat16Vector(n, **ctor_kwargs)
         if dtype_norm == "complex_float32" and ComplexFloat32Vector:
-            return ComplexFloat32Vector(n, **kwargs)
+            return ComplexFloat32Vector(n, **ctor_kwargs)
         if dtype_norm == "complex_float64" and ComplexFloat64Vector:
-            return ComplexFloat64Vector(n, **kwargs)
+            return ComplexFloat64Vector(n, **ctor_kwargs)
         raise ImportError("Vector classes not available in native extension.")
 
     data: Any = size_or_data
 
     # 2) Normalize NumPy
     if np_module is not None and isinstance(data, np_module.ndarray):
+        # Complex vectors are supported via the dedicated native vector types,
+        # but native.asarray currently only supports complex for 2D.
+        if getattr(np_module, "complex64", None) is not None and data.dtype == np_module.complex64:
+            if ComplexFloat32Vector is not None:
+                return ComplexFloat32Vector(data, **ctor_kwargs)
+        if getattr(np_module, "complex128", None) is not None and data.dtype == np_module.complex128:
+            if ComplexFloat64Vector is not None:
+                return ComplexFloat64Vector(data, **ctor_kwargs)
+
+        if native is not None and hasattr(native, "asarray") and data.dtype in (
+            getattr(np_module, "int8", object()),
+            np_module.int16,
+            np_module.int32,
+            np_module.int64,
+            getattr(np_module, "uint8", object()),
+            getattr(np_module, "uint16", object()),
+            getattr(np_module, "uint32", object()),
+            getattr(np_module, "uint64", object()),
+            getattr(np_module, "bool_", object()),
+            getattr(np_module, "float16", object()),
+            np_module.float32,
+            np_module.float64,
+        ):
+            if limit is not None:
+                est = _export_guard.estimate_materialized_bytes(data)
+                if est is not None and est > limit:
+                    with temporary_native_memory_threshold(native, int(limit)):
+                        return native.asarray(data)
+            return native.asarray(data)
         if dtype_norm is None:
             dtype_norm = _normalize_dtype(data.dtype, np_module=np_module)
         data = data.tolist()
@@ -88,35 +123,35 @@ def vector_factory(
     n = len(data)
 
     if dtype_norm == "int8" and Int8Vector:
-        vec = Int8Vector(n, **kwargs)
+        vec = Int8Vector(n, **ctor_kwargs)
     elif dtype_norm == "int16" and Int16Vector:
-        vec = Int16Vector(n, **kwargs)
+        vec = Int16Vector(n, **ctor_kwargs)
     elif dtype_norm == "int32" and IntegerVector:
-        vec = IntegerVector(n, **kwargs)
+        vec = IntegerVector(n, **ctor_kwargs)
     elif dtype_norm == "int64" and Int64Vector:
-        vec = Int64Vector(n, **kwargs)
+        vec = Int64Vector(n, **ctor_kwargs)
     elif dtype_norm == "uint8" and UInt8Vector:
-        vec = UInt8Vector(n, **kwargs)
+        vec = UInt8Vector(n, **ctor_kwargs)
     elif dtype_norm == "uint16" and UInt16Vector:
-        vec = UInt16Vector(n, **kwargs)
+        vec = UInt16Vector(n, **ctor_kwargs)
     elif dtype_norm == "uint32" and UInt32Vector:
-        vec = UInt32Vector(n, **kwargs)
+        vec = UInt32Vector(n, **ctor_kwargs)
     elif dtype_norm == "uint64" and UInt64Vector:
-        vec = UInt64Vector(n, **kwargs)
+        vec = UInt64Vector(n, **ctor_kwargs)
     elif dtype_norm == "bool" and BitVector:
-        vec = BitVector(n, **kwargs)
+        vec = BitVector(n, **ctor_kwargs)
     elif dtype_norm == "float16" and Float16Vector:
-        vec = Float16Vector(n, **kwargs)
+        vec = Float16Vector(n, **ctor_kwargs)
     elif dtype_norm == "float32" and Float32Vector:
-        vec = Float32Vector(n, **kwargs)
+        vec = Float32Vector(n, **ctor_kwargs)
     elif dtype_norm == "float64" and FloatVector:
-        vec = FloatVector(n, **kwargs)
+        vec = FloatVector(n, **ctor_kwargs)
     elif dtype_norm == "complex_float16" and ComplexFloat16Vector:
-        vec = ComplexFloat16Vector(n, **kwargs)
+        vec = ComplexFloat16Vector(n, **ctor_kwargs)
     elif dtype_norm == "complex_float32" and ComplexFloat32Vector:
-        vec = ComplexFloat32Vector(n, **kwargs)
+        vec = ComplexFloat32Vector(n, **ctor_kwargs)
     elif dtype_norm == "complex_float64" and ComplexFloat64Vector:
-        vec = ComplexFloat64Vector(n, **kwargs)
+        vec = ComplexFloat64Vector(n, **ctor_kwargs)
     else:
         raise ImportError("Vector classes not available in native extension.")
 

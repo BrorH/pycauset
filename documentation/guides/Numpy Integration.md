@@ -6,6 +6,8 @@
 
 You can convert NumPy arrays into `pycauset` objects using [[docs/functions/pycauset.matrix.md|pycauset.matrix]] and [[docs/functions/pycauset.vector.md|pycauset.vector]]. These constructors automatically detect the data type of the NumPy array and create the corresponding optimized object.
 
+Note: PyCauset does **not** expose a `pycauset.asarray` API. In PyCauset, “arrays” are not a first-class concept; matrices and vectors are.
+
 Rectangular 2D arrays are supported for dense numeric matrices (int/uint/float/complex). Boolean 2D arrays are bit-packed (`DenseBitMatrix`) and also support rectangular `(rows, cols)` shapes.
 
 Supported dtypes include:
@@ -57,7 +59,34 @@ mean_val = np.mean(v)
 std_val = np.std(v)
 ```
 
-**Note**: This operation loads the entire dataset into memory as a standard NumPy array. Be careful when doing this with very large disk-backed matrices that exceed your RAM capacity.
+**Safety rules (materialization)**
+
+- **Snapshot-backed** (`.pycauset`) and **RAM-backed** (`:memory:`) objects: `np.array(obj)` is allowed and returns a copy.
+- **Spill/file-backed** objects (e.g., `.tmp`): `np.array(obj)` **raises** by default to prevent surprise full materialization. Opt in explicitly via `pc.to_numpy(obj, allow_huge=True)` if you truly want to load it into RAM.
+- **Ceiling control**: [[docs/functions/pycauset.set_export_max_bytes.md|pc.set_export_max_bytes(bytes_or_None)]] sets a materialization limit. `None` disables the size ceiling; file-backed objects still require `allow_huge=True`.
+
+If you see an export error, either downsize, keep the data in PyCauset ops, or opt in with `allow_huge=True` intentionally.
+
+### On-disk conversions (NumPy formats)
+
+If you need to move data between PyCauset snapshots and NumPy container files, use [[docs/functions/pycauset.convert_file.md|pc.convert_file]].
+
+Important note: exporting from `.pycauset` to `.npy`/`.npz` still produces a dense NumPy array in-process today (guarded by `allow_huge`), because NumPy’s writers expect dense arrays.
+
+- Supported formats: `.pycauset`, `.npy`, `.npz` (import/export in any direction).
+- `npz_key` selects a named array inside an archive; defaults to the first key.
+- Exports honor the same materialization guard: spill/file-backed sources require `allow_huge=True`.
+
+Example:
+
+```python
+# Snapshot -> npy -> snapshot round-trip
+pc.convert_file("A.pycauset", "A.npy")
+pc.convert_file("A.npy", "A_roundtrip.pycauset")
+
+# Pick a specific array inside an npz
+pc.convert_file("bundle.npz", "vec.pycauset", npz_key="vector0")
+```
 
 ## Mixed Arithmetic
 
@@ -93,3 +122,11 @@ v_result = M @ v_np  # [5.0, 6.0]
 *   **NumPy as Primary**: If you use a NumPy function like `np.add(pycauset_obj, numpy_obj)`, NumPy will convert the `pycauset` object to an in-memory array first. This might be slower and memory-intensive for large datasets.
 
 **Best Practice**: For massive datasets, stick to `pycauset` native operations and objects as much as possible, only converting to NumPy for small results or specific analysis steps that `pycauset` doesn't yet support.
+
+## See also
+
+- [[docs/functions/pycauset.convert_file.md|pycauset.convert_file]]
+- [[docs/functions/pycauset.to_numpy.md|pycauset.to_numpy]]
+- [[docs/functions/pycauset.set_export_max_bytes.md|pycauset.set_export_max_bytes]]
+- [[docs/functions/pycauset.save.md|pycauset.save]] / [[docs/functions/pycauset.load.md|pycauset.load]]
+- [[guides/Storage and Memory|Storage and Memory]]

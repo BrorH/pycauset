@@ -62,7 +62,16 @@ std::string PersistentObject::get_backing_file() const {
 
 void PersistentObject::close() {
     if (mapper_) {
-        std::cout << "DEBUG: PersistentObject::close() called for " << (void*)this << std::endl;
+        static const bool kDebugClose = []() {
+            const char* v = std::getenv("PYCAUSET_DEBUG_PERSISTENT_CLOSE");
+            if (!v) {
+                return false;
+            }
+            return std::string(v) == "1";
+        }();
+        if (kDebugClose) {
+            std::cout << "DEBUG: PersistentObject::close() called for " << (void*)this << std::endl;
+        }
         // Unregister from Governor if we were in RAM
         if (storage_state_ == pycauset::core::StorageState::RAM_ONLY) {
             pycauset::core::MemoryGovernor::instance().unregister_object(this);

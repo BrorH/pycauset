@@ -134,7 +134,9 @@ The decision is based on the GPU's Compute Capability (CC):
 
 ### Python Binding Integration
 
-The `asarray` function converts NumPy arrays into PyCauset vectors/matrices based on shape and dtype.
+PyCauset’s Python bindings include an internal “NumPy → PyCauset” import helper (referred to in code as `native.asarray`) that converts NumPy arrays into PyCauset vectors/matrices based on shape and dtype.
+
+Note: this is **not** a public `pycauset.asarray` API; the user-facing constructors are `pycauset.vector(...)` and `pycauset.matrix(...)`.
 *   **Shape**: Supports 1D (vector) and 2D (matrix) arrays.
 *   **Dtype policy (current)**:
     *   1D `float32` vectors are **promoted to float64** vectors.

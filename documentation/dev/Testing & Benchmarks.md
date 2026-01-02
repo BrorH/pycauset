@@ -36,6 +36,9 @@ Benchmarks exist to compare:
 - direct vs streaming paths,
 - CPU vs GPU paths.
 
+Quick smoke harness:
+- `benchmarks/benchmark_io_smoke.py` measures save/load wall time and MB/s for a configurable square size (env `PYCAUSET_IO_BENCH_SIZE`). It is CI-friendly and useful for regression spot checks.
+
 Recommended baseline:
 - run the “CPU vs NumPy” benchmark suite after solver changes.
 

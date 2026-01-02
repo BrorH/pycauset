@@ -122,6 +122,16 @@ Every new op must explicitly state its dtype behavior. In particular:
 
 These rules are defined in [[internals/DType System|internals/DType System]] and summarized in [[project/Philosophy|project/Philosophy]].
 
+## Streaming manager wiring (per-op template)
+
+Use this when deciding whether an op should stream and how to express it.
+
+1. **Decide streamability and invariants.** Specify when streaming is allowed (e.g., associative/commutative reductions, block-separable transforms) and when to fall back to single-shot (e.g., global normalization constants, shape-dependent fusion that would regress correctness). Capture the rationale so AutoSolver can gate.
+2. **Define the streaming descriptor.** Choose chunk shape (rows/tiles/blocks), prefetch distance, double-buffering vs single-buffer, and whether pinned host staging is required. Provide CPU defaults and GPU defaults separately; GPU defaults should include host<->device staging policy and max in-flight buffers.
+3. **Route through AutoSolver.** Add a routing path that prefers the streaming plan when the device supports it and the op’s streamability predicates are satisfied; otherwise route to the non-streaming implementation or raise a clear “streaming not supported for this configuration” error.
+4. **Budgeting with the memory governor.** Set per-op limits: max residency for staging buffers, spill/evict behavior, and what to do when budgets are tight (e.g., shrink chunk size, drop to CPU-only, or disable streaming). Avoid hidden allocations outside the governor.
+5. **Telemetry and tests.** Add a minimal streaming test that asserts the op uses the streaming path (e.g., via a debug hook or perf counter) and a fallback test that confirms graceful degradation when streaming is blocked. Document the defaults and any known non-streamable cases in the op’s docstring/API doc.
+
 ## Minimal “Definition of Done” for a new op
 
 - [ ] `ComputeDevice` interface updated.

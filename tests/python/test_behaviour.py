@@ -16,14 +16,13 @@ for _path in (_REPO_ROOT, _PYTHON_DIR):
 
 _STORAGE_TMP = tempfile.TemporaryDirectory()
 atexit.register(_STORAGE_TMP.cleanup)
-os.environ["PYCAUSET_STORAGE_DIR"] = _STORAGE_TMP.name
-
 import pycauset
+pycauset.set_backing_dir(_STORAGE_TMP.name)
 
 
 class CausalMatrixBehaviourTests(unittest.TestCase):
     def setUp(self):
-        self.storage_dir = Path(os.environ["PYCAUSET_STORAGE_DIR"])
+        self.storage_dir = Path(_STORAGE_TMP.name)
         self._cleanup_storage_dir()
 
     def tearDown(self):

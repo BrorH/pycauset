@@ -53,7 +53,7 @@ def try_resolve_cached_object_path(
     if ref_kind != "sibling_object_store" or not isinstance(object_id, str) or not object_id:
         _warn_storage_once(
             (str(base_path), f"cached.{name}.unsupported_ref"),
-            f"cached {name} reference kind unsupported; recomputing",
+            f"cached {name} reference kind unsupported; cache entry ignored (no implicit recompute)",
         )
         return None
 
@@ -61,7 +61,7 @@ def try_resolve_cached_object_path(
     if not obj_path.exists():
         _warn_storage_once(
             (str(base_path), f"cached.{name}.miss:{object_id}"),
-            f"cached {name} object missing; recomputing (object_id={object_id})",
+            f"cached {name} object missing; cache entry ignored (object_id={object_id})",
         )
         return None
 
@@ -97,7 +97,8 @@ def try_load_cached_matrix(
 
         return MatrixClass._from_storage(rows, cols, str(obj_path), int(payload_offset), seed, scalar, is_transposed)
     except Exception:
-        # Treat as cache miss: warn and let caller recompute.
+        # Treat as cache miss: warn and let caller decide what to do.
+        # Policy: do not implicitly recompute missing/unreadable cached objects.
         # Best-effort to include object_id in the key/message.
         try:
             ref = _persistence.try_get_cached_big_blob_ref(base_path, name=name, view_signature=view_signature)
@@ -108,7 +109,7 @@ def try_load_cached_matrix(
         suffix = f":{object_id}" if object_id else ""
         _warn_storage_once(
             (str(base_path), f"cached.{name}.error{suffix}"),
-            f"cached {name} object unreadable; recomputing" + (f" (object_id={object_id})" if object_id else ""),
+            f"cached {name} object unreadable; cache entry ignored" + (f" (object_id={object_id})" if object_id else ""),
         )
         return None
 

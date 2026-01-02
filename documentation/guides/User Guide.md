@@ -1,7 +1,7 @@
 # PyCauset User Guide
 
 ## Overview
-**PyCauset** is a high-performance library for Causal Set Theory. It bridges the gap between abstract mathematical models and large-scale numerical simulations by using a hybrid storage model: small objects live in RAM, while massive datasets automatically spill over to memory-mapped files on disk.
+**PyCauset** is a high-performance library for Causal Set Theory. It bridges the gap between abstract mathematical models and large-scale numerical simulations by using a hybrid storage model: small objects live in RAM, while massive datasets may automatically **spill** by switching to temporary memory-mapped backing files on disk.
 
 ## Getting Started
 
@@ -104,19 +104,22 @@ pc.set_memory_threshold(100 * 1024 * 1024)
 ### Storage Location
 PyCauset may create temporary and/or backing files for disk-backed objects.
 
-By default, these files are stored in a `.pycauset` directory under your current working directory. To override this, set the `PYCAUSET_STORAGE_DIR` environment variable **before importing** `pycauset`.
+By default, these files are stored in a `.pycauset` directory under your current working directory. To override this, call `pycauset.set_backing_dir(...)` once after import (and before allocating large matrices).
 
 Example (cross-platform):
 
 ```python
-import os
-
-os.environ["PYCAUSET_STORAGE_DIR"] = r"D:\pycauset_storage"  # set before importing
-
+from pathlib import Path
 import pycauset as pc
+pc.set_backing_dir(Path.cwd() / "pycauset_storage")
 ```
 
 For details on what gets stored, when cleanup happens, and how persistence works, see [[Storage and Memory]].
+
+Rule of thumb:
+
+- Spill/working storage uses temporary session files (for example `.tmp` under the backing directory).
+- Portable persistence is explicit: `save()` writes a `.pycauset` snapshot.
 
 Related knobs:
 

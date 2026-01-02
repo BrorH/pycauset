@@ -43,15 +43,14 @@ This is particularly useful for computing the Pauli-Jordan function $\Delta = K 
 
 ## Methods
 
-### `get(i, j)`
-Returns the element at row `i` and column `j`.
+### Indexing
+Read elements using NumPy-style indexing: `x = A[i, j]`.
 *   **i, j** (int): Indices.
 *   **Returns**: The value at $(i, j)$.
     *   If $i > j$, returns $-A_{ji}$.
     *   If $i == j$, returns 0.
 
-### `set(i, j, value)`
-Sets the element at row `i` and column `j`.
+Write elements using NumPy-style indexing: `A[i, j] = value`.
 *   **i, j** (int): Indices.
 *   **value**: The value to set.
     *   If $i > j$, it sets $A_{ji} = -value$.

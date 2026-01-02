@@ -8,7 +8,7 @@ Perform matrix multiplication.
 
 For native objects, this routes through the standard compute boundary (AutoSolver / device routing) and dispatches to optimized C++ implementations.
 
-For block matrices (constructed via `pycauset.matrix(block_grid)` where every element is matrix-like), `pycauset.matmul(a, b)` preserves “once block, always block” by returning a thunked block-matrix result.
+For block matrices (constructed via `pycauset.matrix(block_grid)` where every element is matrix-like), `pycauset.matmul(a, b)` preserves “once block, always block” by returning a thunked block-matrix result with partition refinement (union of shared boundaries via `SubmatrixView` tiling).
 
 This function is NumPy-like:
 
@@ -34,8 +34,14 @@ When either operand is a `BlockMatrix`, the result is a `BlockMatrix` (typically
 
 Block-matrix results are **semi-lazy**:
 
-- Triggers (evaluate minimal required blocks): element access (e.g. `C[i, j]`), conversion to NumPy (`np.asarray(C)`), and persistence (`pycauset.save(C, ...)`).
+- Triggers (evaluate minimal required blocks): element access (e.g. `C[i, j]`), conversion to NumPy (`np.asarray(C)`), persistence (`pycauset.save(C, ...)`), and crossing the compute boundary.
 - Non-triggers: `repr(C)`, `str(C)`, and partition metadata access.
+
+Determinism:
+
+- Fixed `k` order for each output block’s accumulation.
+- Accumulator dtype is chosen from operand dtype metadata only (folding add-result dtype across terms) before evaluation.
+- Leaf matmul runs through the public compute boundary (AutoSolver) per block; complex blocks route to CPU on CUDA builds.
 
 See [[internals/Block Matrices.md|Block Matrices]] for details.
 

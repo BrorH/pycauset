@@ -99,14 +99,21 @@ def import_native_extension(*, package: str, module: str = "._pycauset") -> Any:
 
             # Prefer build outputs (when present) to keep the extension module and
             # the shared core DLL in sync during source checkout development.
+            candidates: list[str] = []
             for base in search_dirs:
                 for suffix in importlib.machinery.EXTENSION_SUFFIXES:
                     candidate = os.path.join(base, mod_name + suffix)
-                    if not os.path.exists(candidate):
-                        continue
-                    spec = importlib.util.spec_from_file_location(full_name, candidate)
-                    if spec is None or spec.loader is None:
-                        continue
+                    if os.path.exists(candidate):
+                        candidates.append(candidate)
+
+            if candidates:
+                # In practice, source checkouts can accumulate multiple build artifacts
+                # (e.g. an old multi-config build in build/Release alongside a fresh
+                # single-config Ninja build in build/). Prefer the newest file so
+                # developers and tests load what was just built.
+                best = max(candidates, key=lambda p: os.path.getmtime(p))
+                spec = importlib.util.spec_from_file_location(full_name, best)
+                if spec is not None and spec.loader is not None:
                     mod = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(mod)
                     return mod

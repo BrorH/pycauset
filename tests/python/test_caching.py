@@ -115,7 +115,7 @@ class TestCaching(unittest.TestCase):
             if m is not None:
                 m.close()
 
-    def test_inverse_cache_missing_warns_and_recomputes(self):
+    def test_inverse_cache_missing_warns_and_raises_no_recompute(self):
         m = None
         m2 = None
         m3 = None
@@ -144,11 +144,10 @@ class TestCaching(unittest.TestCase):
             m3 = pycauset.load(path)
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
-                inv3 = m3.invert()
+                with self.assertRaises(FileNotFoundError):
+                    m3.invert()
 
             self.assertTrue(any(issubclass(x.category, pycauset.PyCausetStorageWarning) for x in w))
-            self.assertAlmostEqual(inv3.get(0, 0), 1.0)
-            self.assertAlmostEqual(inv3.get(1, 1), 0.5)
         finally:
             if inv3 is not None:
                 inv3.close()

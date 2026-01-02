@@ -17,53 +17,67 @@ namespace {
     __global__ void k_add(const T* a, const T* b, T* c, size_t n) {
         size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
         if (idx < n) {
-        
-        uint32_t x = row_bits;
-        // Swap 16x16 blocks
-        // mask = 0x0000FFFF; shift = 16;
-        // if (tid & 16) x = (x << 16) | (other >> 16) ...
-        // Actually, standard algorithm:
-        // 1. Swap 16x16 quadrants.
-        //    Target: thread i (0..15) bit j (16..31) <-> thread i+16 bit j-16
-        //    Use shfl_xor(16).
-        
-        uint32_t y = __shfl_xor_sync(0xFFFFFFFF, x, 16);
-        // Threads 0..15: x has rows 0..15. y has rows 16..31.
-        // We want bits 0..15 from x, and bits 0..15 from y (shifted).
-        // Wait, this is getting complicated.
-        // Let's use the O(32) ballot loop, it's simple and robust. 32 iterations is fine.
-        
+            c[idx] = a[idx] + b[idx];
+        }
+    }
+
+    template <typename T>
+    __global__ void k_sub(const T* a, const T* b, T* c, size_t n) {
+        size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+        if (idx < n) {
+            c[idx] = a[idx] - b[idx];
+        }
+    }
+
+    template <typename T>
+    __global__ void k_mul_scalar(const T* a, T scalar, T* c, size_t n) {
+        size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+        if (idx < n) {
+            c[idx] = a[idx] * scalar;
+        }
+    }
+
+    // Transpose BitMatrix
+    // Each block handles a 32x32 tile.
+    // Grid: (N+31)/32 x (N+31)/32
+    __global__ void k_transpose_bits(const uint64_t* src, uint64_t* dst, size_t n, size_t stride_words) {
+        size_t tile_x = blockIdx.x * 32;
+        size_t tile_y = blockIdx.y * 32;
+        size_t tid = threadIdx.x; // 0..31
+
+        // 1. Read 32x32 tile from src at (row=tile_y, col=tile_x)
+        // Each thread reads one row of the tile.
+        size_t r = tile_y + tid;
+        uint32_t row_bits = 0;
+        if (r < n) {
+            size_t word_idx = tile_x / 64;
+            size_t bit_offset = tile_x % 64;
+            if (word_idx < stride_words) {
+                 uint64_t word = src[r * stride_words + word_idx];
+                 row_bits = (uint32_t)(word >> bit_offset);
+            }
+        }
+
+        // 2. Transpose locally using warp shuffle
+        uint32_t col_bits = 0;
         for (int k = 0; k < 32; ++k) {
+            // Get k-th bit from all threads -> forms k-th column
             uint32_t c = __ballot_sync(0xFFFFFFFF, (row_bits >> k) & 1);
             if (tid == k) col_bits = c;
         }
-        
-        // Write to dst
-        // We are writing row 'tile_x + tid' of dst.
-        // This corresponds to column 'tile_x + tid' of src.
-        // We have 32 bits: rows 'tile_y' to 'tile_y + 31'.
-        // These go into dst[dst_row * stride_words + word_idx]
-        
-        size_t dst_row = tile_x + tid;
-        if (dst_row < n) {
-            size_t dst_word_idx = tile_y / 64;
-            size_t dst_bit_offset = tile_y % 64; // 0 or 32
+
+        // 3. Write 32x32 tile to dst at (row=tile_x, col=tile_y)
+        // We write 'col_bits' as a row in dst.
+        size_t dst_r = tile_x + tid;
+        if (dst_r < n) {
+            size_t word_idx = tile_y / 64;
+            size_t bit_offset = tile_y % 64;
             
-            if (tile_y < n) {
-                // We need to write 'col_bits' into the 64-bit word at dst_word_idx.
-                // It goes into bits [dst_bit_offset, dst_bit_offset + 31].
-                // Since multiple blocks might write to the same word (if tile_y=0 and tile_y=32),
-                // we need atomic operations OR we ensure we write full words?
-                // No, we process tiles.
-                // If we use atomicOr, it's safe.
-                
-                unsigned long long* addr = (unsigned long long*)&dst[dst_row * stride_words + dst_word_idx];
-                unsigned long long val = (unsigned long long)col_bits << dst_bit_offset;
-                
-                // We need to clear the bits first?
-                // Assuming dst is initialized to 0.
-                atomicOr(addr, val);
-            }
+            unsigned long long* addr = (unsigned long long*)&dst[dst_r * stride_words + word_idx];
+            unsigned long long val = (unsigned long long)col_bits << bit_offset;
+            
+            // dst is assumed to be zero-initialized
+            atomicOr(addr, val);
         }
     }
 

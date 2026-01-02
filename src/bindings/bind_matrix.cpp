@@ -20,8 +20,13 @@
 #include "pycauset/vector/DenseVector.hpp"
 #include "pycauset/vector/VectorBase.hpp"
 
+#include "numpy_export_guard.hpp"
+
+#include <Eigen/Dense>
+
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -30,6 +35,154 @@
 using namespace pycauset;
 
 namespace {
+
+struct DenseMatrix2DBufferState {
+    Py_ssize_t shape[2];
+    Py_ssize_t strides[2];
+};
+
+inline bool u64_to_py_ssize(uint64_t v, Py_ssize_t* out) {
+    if (v > static_cast<uint64_t>(PY_SSIZE_T_MAX)) {
+        return false;
+    }
+    *out = static_cast<Py_ssize_t>(v);
+    return true;
+}
+
+inline bool add_overflow_u64(uint64_t a, uint64_t b, uint64_t* out) {
+    if (a > (std::numeric_limits<uint64_t>::max)() - b) {
+        return true;
+    }
+    *out = a + b;
+    return false;
+}
+
+template <typename ScalarT>
+inline const char* dense_matrix_buffer_format() {
+    static const std::string fmt = py::format_descriptor<ScalarT>::format();
+    return fmt.c_str();
+}
+
+template <>
+inline const char* dense_matrix_buffer_format<float16_t>() {
+    return "e"; // PEP 3118: float16
+}
+
+template <typename ScalarT>
+int dense_matrix_getbuffer(PyObject* obj, Py_buffer* view, int flags) {
+    if (view == nullptr) {
+        PyErr_SetString(PyExc_BufferError, "NULL view in getbuffer");
+        return -1;
+    }
+
+    DenseMatrix<ScalarT>* m = nullptr;
+    try {
+        m = &py::handle(obj).cast<DenseMatrix<ScalarT>&>();
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return -1;
+    }
+
+    try {
+        pycauset::bindings::ensure_numpy_export_allowed(static_cast<const MatrixBase&>(*m));
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return -1;
+    }
+
+    // Buffer exports expose raw storage; they are only correct for unscaled, unconjugated views.
+    // For scalar/conjugated matrices, fall back to __array__/materialization paths.
+    if (m->get_scalar() != std::complex<double>(1.0, 0.0) || m->is_conjugated()) {
+        PyErr_SetString(PyExc_BufferError, "Buffer export requires scalar==1 and not conjugated");
+        return -1;
+    }
+
+    Py_ssize_t rows_ss = 0;
+    Py_ssize_t cols_ss = 0;
+    if (!u64_to_py_ssize(m->rows(), &rows_ss) || !u64_to_py_ssize(m->cols(), &cols_ss)) {
+        PyErr_SetString(PyExc_OverflowError, "Matrix too large for Python buffer protocol");
+        return -1;
+    }
+
+    uint64_t stride0_u64 = 0;
+    uint64_t stride1_u64 = 0;
+    if (pycauset::bindings::mul_overflow_u64(sizeof(ScalarT), m->base_cols(), &stride0_u64)) {
+        PyErr_SetString(PyExc_OverflowError, "Stride overflow in Python buffer protocol");
+        return -1;
+    }
+    stride1_u64 = sizeof(ScalarT);
+    if (m->is_transposed()) {
+        std::swap(stride0_u64, stride1_u64);
+    }
+
+    if (stride0_u64 > static_cast<uint64_t>(PY_SSIZE_T_MAX) || stride1_u64 > static_cast<uint64_t>(PY_SSIZE_T_MAX)) {
+        PyErr_SetString(PyExc_OverflowError, "Stride too large for Python buffer protocol");
+        return -1;
+    }
+
+    const uint64_t rows_u64 = m->rows();
+    const uint64_t cols_u64 = m->cols();
+    uint64_t len_u64 = 0;
+    if (rows_u64 == 0 || cols_u64 == 0) {
+        len_u64 = 0;
+    } else {
+        uint64_t off0 = 0;
+        uint64_t off1 = 0;
+        uint64_t tmp = 0;
+        if (pycauset::bindings::mul_overflow_u64(rows_u64 - 1, stride0_u64, &off0) ||
+            pycauset::bindings::mul_overflow_u64(cols_u64 - 1, stride1_u64, &off1) ||
+            add_overflow_u64(off0, off1, &tmp) ||
+            add_overflow_u64(tmp, sizeof(ScalarT), &len_u64)) {
+            PyErr_SetString(PyExc_OverflowError, "Buffer size overflow in Python buffer protocol");
+            return -1;
+        }
+    }
+
+    if (len_u64 > static_cast<uint64_t>(PY_SSIZE_T_MAX)) {
+        PyErr_SetString(PyExc_OverflowError, "Buffer too large for Python buffer protocol");
+        return -1;
+    }
+
+    const auto len_ss = static_cast<Py_ssize_t>(len_u64);
+    if (PyBuffer_FillInfo(view, obj, static_cast<void*>(m->data()), len_ss, /*readonly=*/0, flags) != 0) {
+        return -1;
+    }
+
+    auto* state = new DenseMatrix2DBufferState();
+    state->shape[0] = rows_ss;
+    state->shape[1] = cols_ss;
+    state->strides[0] = static_cast<Py_ssize_t>(stride0_u64);
+    state->strides[1] = static_cast<Py_ssize_t>(stride1_u64);
+
+    view->internal = state;
+    view->itemsize = static_cast<Py_ssize_t>(sizeof(ScalarT));
+    view->ndim = 2;
+    view->suboffsets = nullptr;
+
+    view->format = (flags & PyBUF_FORMAT) ? const_cast<char*>(dense_matrix_buffer_format<ScalarT>()) : nullptr;
+    view->shape = (flags & PyBUF_ND) ? state->shape : nullptr;
+    view->strides = (flags & PyBUF_STRIDES) ? state->strides : nullptr;
+
+    return 0;
+}
+
+template <typename ScalarT>
+void dense_matrix_releasebuffer(PyObject* /*obj*/, Py_buffer* view) {
+    auto* state = reinterpret_cast<DenseMatrix2DBufferState*>(view->internal);
+    delete state;
+    view->internal = nullptr;
+}
+
+template <typename ScalarT>
+void install_dense_matrix_buffer(py::handle type_handle) {
+    auto* type = reinterpret_cast<PyTypeObject*>(type_handle.ptr());
+    static PyBufferProcs procs{dense_matrix_getbuffer<ScalarT>, dense_matrix_releasebuffer<ScalarT>};
+    type->tp_as_buffer = &procs;
+#ifdef Py_TPFLAGS_HAVE_NEWBUFFER
+    type->tp_flags |= Py_TPFLAGS_HAVE_NEWBUFFER;
+#endif
+    PyType_Modified(type);
+}
 
 inline bool is_numpy_float16(const py::array& array) {
     try {
@@ -229,16 +382,72 @@ std::shared_ptr<DenseMatrix<T>> dense_matrix_from_numpy_2d(const py::array_t<T>&
     const T* src_ptr = static_cast<const T*>(buf.ptr);
     T* dst_ptr = result->data();
 
-    if (buf.strides[1] == static_cast<py::ssize_t>(sizeof(T)) &&
-        buf.strides[0] == static_cast<py::ssize_t>(cols * sizeof(T))) {
+    const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(T)));
+    const ptrdiff_t stride1 = static_cast<ptrdiff_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(T)));
+
+    // Fast path: fully C-contiguous.
+    if (stride1 == 1 && stride0 == static_cast<ptrdiff_t>(cols)) {
         std::memcpy(dst_ptr, src_ptr, rows * cols * sizeof(T));
-    } else {
-        const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(T)));
-        const auto stride1 = static_cast<uint64_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(T)));
+        return result;
+    }
+
+    // Fast path: row-contiguous (possibly with padding between rows).
+    if (stride1 == 1) {
         for (uint64_t i = 0; i < rows; ++i) {
+            const T* src_row = src_ptr + static_cast<ptrdiff_t>(i) * stride0;
+            T* dst_row = dst_ptr + i * cols;
+            std::memcpy(dst_row, src_row, cols * sizeof(T));
+        }
+        return result;
+    }
+
+    // Fast path: row-contiguous but reversed along columns (e.g., arr[:, ::-1]).
+    if (stride1 == -1) {
+        for (uint64_t i = 0; i < rows; ++i) {
+            const T* src_row = src_ptr + static_cast<ptrdiff_t>(i) * stride0;
+            T* dst_row = dst_ptr + i * cols;
+            const T* p = src_row;
             for (uint64_t j = 0; j < cols; ++j) {
-                dst_ptr[i * cols + j] = src_ptr[i * stride0 + j * stride1];
+                dst_row[j] = *p;
+                p += stride1;
             }
+        }
+        return result;
+    }
+
+    // Fast path: contiguous along the first dimension (common for transpose / Fortran-like layouts).
+    // Use a small tile buffer to achieve both contiguous reads and contiguous writes.
+    if (stride0 == 1 || stride0 == -1) {
+        constexpr uint64_t B = 32;
+        alignas(64) T tile[B * B];
+
+        for (uint64_t j0 = 0; j0 < cols; j0 += B) {
+            const uint64_t jb = std::min<uint64_t>(B, cols - j0);
+            for (uint64_t i0 = 0; i0 < rows; i0 += B) {
+                const uint64_t ib = std::min<uint64_t>(B, rows - i0);
+
+                for (uint64_t j = 0; j < jb; ++j) {
+                    const T* src_col = src_ptr + static_cast<ptrdiff_t>(i0) * stride0 +
+                                       static_cast<ptrdiff_t>(j0 + j) * stride1;
+                    for (uint64_t i = 0; i < ib; ++i) {
+                        tile[i * B + j] = src_col[static_cast<ptrdiff_t>(i) * stride0];
+                    }
+                }
+
+                for (uint64_t i = 0; i < ib; ++i) {
+                    T* dst_row = dst_ptr + (i0 + i) * cols + j0;
+                    std::memcpy(dst_row, tile + i * B, jb * sizeof(T));
+                }
+            }
+        }
+        return result;
+    }
+
+    // Generic strided fallback.
+    for (uint64_t i = 0; i < rows; ++i) {
+        for (uint64_t j = 0; j < cols; ++j) {
+            const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0 + static_cast<ptrdiff_t>(j) * stride1;
+            dst_ptr[i * cols + j] = src_ptr[idx];
         }
     }
     return result;
@@ -253,13 +462,41 @@ std::shared_ptr<DenseVector<T>> dense_vector_from_numpy_1d(const py::array_t<T>&
 
     const T* src_ptr = static_cast<const T*>(buf.ptr);
     T* dst_ptr = result->data();
-    const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(T)));
+    const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(T)));
     if (stride0 == 1) {
         std::memcpy(dst_ptr, src_ptr, n * sizeof(T));
     } else {
         for (uint64_t i = 0; i < n; ++i) {
-            dst_ptr[i] = src_ptr[i * stride0];
+            const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0;
+            dst_ptr[i] = src_ptr[idx];
         }
+    }
+    return result;
+}
+
+inline std::shared_ptr<DenseVector<double>> dense_vector_from_numpy_1d_float32_promote_to_float64(const py::array_t<float>& array) {
+    auto buf = array.request();
+    require_1d(buf);
+    const uint64_t n = static_cast<uint64_t>(buf.shape[0]);
+
+    auto result = std::make_shared<DenseVector<double>>(n);
+    const float* src_ptr = static_cast<const float*>(buf.ptr);
+    double* dst_ptr = result->data();
+
+    const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(float)));
+
+    // Contiguous float32 -> float64 is the hot path; parallelize only when it's worth it.
+    if (stride0 == 1) {
+        const Eigen::Index n_e = static_cast<Eigen::Index>(n);
+        Eigen::Map<const Eigen::ArrayXf> src(src_ptr, n_e);
+        Eigen::Map<Eigen::ArrayXd> dst(dst_ptr, n_e);
+        dst = src.cast<double>();
+        return result;
+    }
+
+    for (uint64_t i = 0; i < n; ++i) {
+        const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0;
+        dst_ptr[i] = static_cast<double>(src_ptr[idx]);
     }
     return result;
 }
@@ -274,12 +511,13 @@ std::shared_ptr<DenseMatrix<T>> dense_row_matrix_from_numpy_1d(const py::array_t
 
     const T* src_ptr = static_cast<const T*>(buf.ptr);
     T* dst_ptr = result->data();
-    const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(T)));
+    const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(T)));
     if (stride0 == 1) {
         std::memcpy(dst_ptr, src_ptr, cols * sizeof(T));
     } else {
         for (uint64_t j = 0; j < cols; ++j) {
-            dst_ptr[j] = src_ptr[j * stride0];
+            const ptrdiff_t idx = static_cast<ptrdiff_t>(j) * stride0;
+            dst_ptr[j] = src_ptr[idx];
         }
     }
     return result;
@@ -320,26 +558,16 @@ inline std::shared_ptr<VectorBase> vector_from_numpy(const py::array& array) {
         uint64_t n = static_cast<uint64_t>(buf.shape[0]);
         auto result = std::make_shared<DenseVector<bool>>(n);
         const bool* src_ptr = static_cast<const bool*>(buf.ptr);
-        const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
+        const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
         for (uint64_t i = 0; i < n; ++i) {
-            result->set(i, src_ptr[i * stride0]);
+            const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0;
+            result->set(i, src_ptr[idx]);
         }
         return result;
     }
     if (py::isinstance<py::array_t<float>>(array)) {
         // Promote float32 vectors to float64 vectors for now.
-        auto tmp = array.cast<py::array_t<float>>();
-        auto buf = tmp.request();
-        require_1d(buf);
-        uint64_t n = static_cast<uint64_t>(buf.shape[0]);
-        auto result = std::make_shared<DenseVector<double>>(n);
-        const float* src_ptr = static_cast<const float*>(buf.ptr);
-        double* dst_ptr = result->data();
-        const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(float)));
-        for (uint64_t i = 0; i < n; ++i) {
-            dst_ptr[i] = static_cast<double>(src_ptr[i * stride0]);
-        }
-        return result;
+        return dense_vector_from_numpy_1d_float32_promote_to_float64(array.cast<py::array_t<float>>());
     }
     throw py::type_error("Unsupported NumPy dtype for vector conversion");
 }
@@ -356,11 +584,17 @@ inline std::shared_ptr<MatrixBase> matrix_from_numpy(const py::array& array) {
         const uint16_t* src_ptr = static_cast<const uint16_t*>(buf.ptr);
         float16_t* dst_ptr = result->data();
 
-        const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
-        const auto stride1 = static_cast<uint64_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(uint16_t)));
-        for (uint64_t i = 0; i < rows; ++i) {
-            for (uint64_t j = 0; j < cols; ++j) {
-                dst_ptr[i * cols + j] = float16_t(static_cast<uint16_t>(src_ptr[i * stride0 + j * stride1]));
+        if (buf.strides[1] == static_cast<py::ssize_t>(sizeof(uint16_t)) &&
+            buf.strides[0] == static_cast<py::ssize_t>(cols * sizeof(uint16_t))) {
+            std::memcpy(dst_ptr, src_ptr, rows * cols * sizeof(uint16_t));
+        } else {
+            const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
+            const ptrdiff_t stride1 = static_cast<ptrdiff_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(uint16_t)));
+            for (uint64_t i = 0; i < rows; ++i) {
+                for (uint64_t j = 0; j < cols; ++j) {
+                    const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0 + static_cast<ptrdiff_t>(j) * stride1;
+                    dst_ptr[i * cols + j] = float16_t(static_cast<uint16_t>(src_ptr[idx]));
+                }
             }
         }
         return result;
@@ -403,11 +637,12 @@ inline std::shared_ptr<MatrixBase> matrix_from_numpy(const py::array& array) {
         uint64_t cols = static_cast<uint64_t>(buf.shape[1]);
         auto result = std::make_shared<DenseBitMatrix>(rows, cols);
         const bool* src_ptr = static_cast<const bool*>(buf.ptr);
-        const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
-        const auto stride1 = static_cast<uint64_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(bool)));
+        const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
+        const ptrdiff_t stride1 = static_cast<ptrdiff_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(bool)));
         for (uint64_t i = 0; i < rows; ++i) {
             for (uint64_t j = 0; j < cols; ++j) {
-                result->set(i, j, src_ptr[i * stride0 + j * stride1]);
+                const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0 + static_cast<ptrdiff_t>(j) * stride1;
+                result->set(i, j, src_ptr[idx]);
             }
         }
         return result;
@@ -439,9 +674,14 @@ inline std::shared_ptr<MatrixBase> elementwise_operand_matrix_from_numpy(const p
         const uint16_t* src_ptr = static_cast<const uint16_t*>(buf.ptr);
         float16_t* dst_ptr = result->data();
 
-        const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
-        for (uint64_t j = 0; j < cols; ++j) {
-            dst_ptr[j] = float16_t(static_cast<uint16_t>(src_ptr[j * stride0]));
+        if (buf.strides[0] == static_cast<py::ssize_t>(sizeof(uint16_t))) {
+            std::memcpy(dst_ptr, src_ptr, cols * sizeof(uint16_t));
+        } else {
+            const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
+            for (uint64_t j = 0; j < cols; ++j) {
+                const ptrdiff_t idx = static_cast<ptrdiff_t>(j) * stride0;
+                dst_ptr[j] = float16_t(static_cast<uint16_t>(src_ptr[idx]));
+            }
         }
         return result;
     }
@@ -482,9 +722,10 @@ inline std::shared_ptr<MatrixBase> elementwise_operand_matrix_from_numpy(const p
         uint64_t cols = static_cast<uint64_t>(tmp_buf.shape[0]);
         auto result = std::make_shared<DenseBitMatrix>(1, cols);
         const bool* src_ptr = static_cast<const bool*>(tmp_buf.ptr);
-        const auto stride0 = static_cast<uint64_t>(tmp_buf.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
+        const ptrdiff_t stride0 = static_cast<ptrdiff_t>(tmp_buf.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
         for (uint64_t j = 0; j < cols; ++j) {
-            result->set(0, j, src_ptr[j * stride0]);
+            const ptrdiff_t idx = static_cast<ptrdiff_t>(j) * stride0;
+            result->set(0, j, src_ptr[idx]);
         }
         return result;
     }
@@ -1170,6 +1411,7 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__array__",
             [](const MatrixBase& mat, py::object /*dtype*/, py::object /*copy*/) -> py::array {
+                pycauset::bindings::ensure_numpy_export_allowed(mat);
                 uint64_t rows = mat.rows();
                 uint64_t cols = mat.cols();
 
@@ -1347,6 +1589,7 @@ void bind_matrix_classes(py::module_& m) {
             },
             py::arg("dtype") = py::none(),
             py::arg("copy") = py::none())
+
         .def("trace", [](py::object self) {
             auto& mat = self.cast<MatrixBase&>();
             double v = pycauset::trace(mat);
@@ -1717,8 +1960,23 @@ void bind_matrix_classes(py::module_& m) {
     py::object mb_cls = m.attr("MatrixBase");
     mb_cls.attr("__array_priority__") = py::float_(1000.0);
 
-    py::class_<DenseMatrix<double>, MatrixBase, std::shared_ptr<DenseMatrix<double>>>(
-        m, "FloatMatrix", py::buffer_protocol())
+    // Native-side export ceiling so NumPy coercion paths (buffer protocol / native __array__)
+    // honor the same policy as pycauset.to_numpy(...).
+    m.def(
+        "_set_numpy_export_max_bytes",
+        [](py::object limit) {
+            if (limit.is_none()) {
+                pycauset::bindings::g_numpy_export_max_bytes.store(-1);
+                return;
+            }
+            const int64_t v = limit.cast<int64_t>();
+            pycauset::bindings::g_numpy_export_max_bytes.store(v);
+        },
+        py::arg("limit"));
+    m.def("_get_numpy_export_max_bytes", []() { return pycauset::bindings::g_numpy_export_max_bytes.load(); });
+
+    auto float_matrix = py::class_<DenseMatrix<double>, MatrixBase, std::shared_ptr<DenseMatrix<double>>>(m, "FloatMatrix");
+    float_matrix
         .def(
             py::init([](int n) { return std::make_shared<DenseMatrix<double>>(n); }),
             py::arg("n"))
@@ -1773,20 +2031,6 @@ void bind_matrix_classes(py::module_& m) {
         .def("__setitem__", [](DenseMatrix<double>& mat, const py::object& key, const py::object& value) {
             dense_setitem(mat, key, value);
         })
-        .def_buffer([](DenseMatrix<double>& m) -> py::buffer_info {
-            py::ssize_t stride0 = static_cast<py::ssize_t>(sizeof(double) * m.base_cols());
-            py::ssize_t stride1 = static_cast<py::ssize_t>(sizeof(double));
-            if (m.is_transposed()) {
-                std::swap(stride0, stride1);
-            }
-            return py::buffer_info(
-                m.data(),                                 /* Pointer to buffer */
-                sizeof(double),                           /* Size of one scalar */
-                py::format_descriptor<double>::format(),  /* Python struct-style format descriptor */
-                2,                                        /* Number of dimensions */
-                {m.rows(), m.cols()},                     /* Buffer dimensions */
-                {stride0, stride1});
-        })
         .def(
             "inverse",
             [](const DenseMatrix<double>& m) {
@@ -1810,9 +2054,11 @@ void bind_matrix_classes(py::module_& m) {
             },
             py::arg("other"));
 
+    install_dense_matrix_buffer<double>(float_matrix);
+
     // --- Float32 Support ---
-    py::class_<DenseMatrix<float>, MatrixBase, std::shared_ptr<DenseMatrix<float>>>(
-        m, "Float32Matrix", py::buffer_protocol())
+    auto float32_matrix = py::class_<DenseMatrix<float>, MatrixBase, std::shared_ptr<DenseMatrix<float>>>(m, "Float32Matrix");
+    float32_matrix
         .def(
             py::init([](int n) { return std::make_shared<DenseMatrix<float>>(n); }),
             py::arg("n"))
@@ -1867,20 +2113,6 @@ void bind_matrix_classes(py::module_& m) {
         .def("__setitem__", [](DenseMatrix<float>& mat, const py::object& key, const py::object& value) {
             dense_setitem(mat, key, value);
         })
-        .def_buffer([](DenseMatrix<float>& m) -> py::buffer_info {
-            py::ssize_t stride0 = static_cast<py::ssize_t>(sizeof(float) * m.base_cols());
-            py::ssize_t stride1 = static_cast<py::ssize_t>(sizeof(float));
-            if (m.is_transposed()) {
-                std::swap(stride0, stride1);
-            }
-            return py::buffer_info(
-                m.data(),                                /* Pointer to buffer */
-                sizeof(float),                           /* Size of one scalar */
-                py::format_descriptor<float>::format(),  /* Python struct-style format descriptor */
-                2,                                       /* Number of dimensions */
-                {m.rows(), m.cols()},                    /* Buffer dimensions */
-                {stride0, stride1});
-        })
         .def(
             "inverse",
             [](const DenseMatrix<float>& m) {
@@ -1904,9 +2136,11 @@ void bind_matrix_classes(py::module_& m) {
             },
             py::arg("other"));
 
+    install_dense_matrix_buffer<float>(float32_matrix);
+
     // --- Float16 Support ---
-    py::class_<DenseMatrix<float16_t>, MatrixBase, std::shared_ptr<DenseMatrix<float16_t>>>(
-        m, "Float16Matrix", py::buffer_protocol())
+    auto float16_matrix = py::class_<DenseMatrix<float16_t>, MatrixBase, std::shared_ptr<DenseMatrix<float16_t>>>(m, "Float16Matrix");
+    float16_matrix
         .def(
             py::init([](int n) { return std::make_shared<DenseMatrix<float16_t>>(n); }),
             py::arg("n"))
@@ -1985,20 +2219,6 @@ void bind_matrix_classes(py::module_& m) {
         .def("__setitem__", [](DenseMatrix<float16_t>& mat, const py::object& key, const py::object& value) {
             dense_setitem(mat, key, value);
         })
-        .def_buffer([](DenseMatrix<float16_t>& m) -> py::buffer_info {
-            py::ssize_t stride0 = static_cast<py::ssize_t>(sizeof(float16_t) * m.base_cols());
-            py::ssize_t stride1 = static_cast<py::ssize_t>(sizeof(float16_t));
-            if (m.is_transposed()) {
-                std::swap(stride0, stride1);
-            }
-            return py::buffer_info(
-                m.data(),                               /* Pointer to buffer */
-                sizeof(float16_t),                      /* Size of one scalar */
-                "e",                                    /* PEP 3118: float16 */
-                2,                                      /* Number of dimensions */
-                {m.rows(), m.cols()},                   /* Buffer dimensions */
-                {stride0, stride1});
-        })
         .def("set_identity", &DenseMatrix<float16_t>::set_identity)
         .def(
             "fill",
@@ -2011,6 +2231,8 @@ void bind_matrix_classes(py::module_& m) {
                 return std::shared_ptr<DenseMatrix<float16_t>>(m.multiply(other, ""));
             },
             py::arg("other"));
+
+    install_dense_matrix_buffer<float16_t>(float16_matrix);
 
     // --- Complex Float16 Support (two-plane storage) ---
     py::class_<ComplexFloat16Matrix, MatrixBase, std::shared_ptr<ComplexFloat16Matrix>>(
@@ -3274,9 +3496,14 @@ void bind_matrix_classes(py::module_& m) {
                 auto result = std::make_shared<DenseVector<float16_t>>(n);
                 const uint16_t* src_ptr = static_cast<const uint16_t*>(b.ptr);
                 float16_t* dst_ptr = result->data();
-                const auto stride0 = static_cast<uint64_t>(b.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
-                for (uint64_t i = 0; i < n; ++i) {
-                    dst_ptr[i] = float16_t(static_cast<uint16_t>(src_ptr[i * stride0]));
+                if (b.strides[0] == static_cast<py::ssize_t>(sizeof(uint16_t))) {
+                    std::memcpy(dst_ptr, src_ptr, n * sizeof(uint16_t));
+                } else {
+                    const ptrdiff_t stride0 = static_cast<ptrdiff_t>(b.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
+                    for (uint64_t i = 0; i < n; ++i) {
+                        const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0;
+                        dst_ptr[i] = float16_t(static_cast<uint16_t>(src_ptr[idx]));
+                    }
                 }
                 return py::cast(result);
             }
@@ -3285,18 +3512,7 @@ void bind_matrix_classes(py::module_& m) {
             }
             if (py::isinstance<py::array_t<float>>(array)) {
                 // Promote float32 vectors to float64 vectors
-                auto tmp = array.cast<py::array_t<float>>();
-                auto b = tmp.request();
-                require_1d(b);
-                uint64_t n = static_cast<uint64_t>(b.shape[0]);
-                auto result = std::make_shared<DenseVector<double>>(n);
-                const float* src_ptr = static_cast<const float*>(b.ptr);
-                double* dst_ptr = result->data();
-                const auto stride0 = static_cast<uint64_t>(b.strides[0] / static_cast<py::ssize_t>(sizeof(float)));
-                for (uint64_t i = 0; i < n; ++i) {
-                    dst_ptr[i] = static_cast<double>(src_ptr[i * stride0]);
-                }
-                return py::cast(result);
+                return py::cast(dense_vector_from_numpy_1d_float32_promote_to_float64(array.cast<py::array_t<float>>()));
             }
             if (py::isinstance<py::array_t<int32_t>>(array)) {
                 return py::cast(dense_vector_from_numpy_1d<int32_t>(array.cast<py::array_t<int32_t>>()));
@@ -3329,9 +3545,10 @@ void bind_matrix_classes(py::module_& m) {
                 uint64_t n = static_cast<uint64_t>(b.shape[0]);
                 auto result = std::make_shared<DenseVector<bool>>(n);
                 const bool* src_ptr = static_cast<const bool*>(b.ptr);
-                const auto stride0 = static_cast<uint64_t>(b.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
+                const ptrdiff_t stride0 = static_cast<ptrdiff_t>(b.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
                 for (uint64_t i = 0; i < n; ++i) {
-                    result->set(i, src_ptr[i * stride0]);
+                    const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0;
+                    result->set(i, src_ptr[idx]);
                 }
                 return py::cast(result);
             }
@@ -3380,11 +3597,12 @@ void bind_matrix_classes(py::module_& m) {
                 uint64_t cols = static_cast<uint64_t>(b.shape[1]);
                 auto result = std::make_shared<DenseBitMatrix>(rows, cols);
                 const bool* src_ptr = static_cast<const bool*>(b.ptr);
-                const auto stride0 = static_cast<uint64_t>(b.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
-                const auto stride1 = static_cast<uint64_t>(b.strides[1] / static_cast<py::ssize_t>(sizeof(bool)));
+                const ptrdiff_t stride0 = static_cast<ptrdiff_t>(b.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
+                const ptrdiff_t stride1 = static_cast<ptrdiff_t>(b.strides[1] / static_cast<py::ssize_t>(sizeof(bool)));
                 for (uint64_t i = 0; i < rows; ++i) {
                     for (uint64_t j = 0; j < cols; ++j) {
-                        result->set(i, j, src_ptr[i * stride0 + j * stride1]);
+                        const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0 + static_cast<ptrdiff_t>(j) * stride1;
+                        result->set(i, j, src_ptr[idx]);
                     }
                 }
                 return py::cast(result);

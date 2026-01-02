@@ -14,9 +14,8 @@ for _path in (_REPO_ROOT, _PYTHON_DIR):
         sys.path.insert(0, path_str)
 
 _STORAGE_TMP = tempfile.TemporaryDirectory()
-os.environ["PYCAUSET_STORAGE_DIR"] = _STORAGE_TMP.name
-
 import pycauset as pc
+pc.set_backing_dir(_STORAGE_TMP.name)
 
 
 class TestPhaseGLinalgEndpoints(unittest.TestCase):

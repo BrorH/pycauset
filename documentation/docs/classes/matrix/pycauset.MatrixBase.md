@@ -99,8 +99,11 @@ This is a **square-only** operation and will raise for non-square shapes.
 ### `transpose()` / `T`
 Returns a transposed view of the same underlying storage (usually metadata-only; no element-wise copy).
 
-### `get(i, j)` / `set(i, j, value)`
-Element access. Equivalent to `m[i, j]` and `m[i, j] = value`.
+### Indexing (`M[i, j]`)
+Element access uses NumPy-style indexing:
+
+*   Read: `x = M[i, j]`
+*   Write: `M[i, j] = value`
 
 ## Examples
 

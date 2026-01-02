@@ -625,7 +625,7 @@ Failure semantics (R1 decision; aligns with Warnings & Exceptions):
 
 - If a big-blob cache link is missing, stale, or points to a corrupt object:
   - treat it as a cache miss (ignore/clear the cached entry),
-  - emit a **user-facing warning** (`PyCausetStorageWarning`; recomputation likely),
+  - emit a **user-facing warning** (`PyCausetStorageWarning`; no implicit recompute),
   - continue loading the base object.
 
 Deliverables:
@@ -642,7 +642,7 @@ Acceptance criteria:
 Additional acceptance criteria (big blob caches):
 
 - The base object never points to a partially-written big-blob object after a crash.
-- The system can recompute big-blob caches when missing/corrupt without corrupting the base snapshot.
+- Missing/corrupt big-blob caches are never implicitly recomputed; regeneration must be explicitly requested by the user.
 
 ### Phase 4 — Native/C++ persistence alignment (if applicable in R1)
 

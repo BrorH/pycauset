@@ -21,7 +21,7 @@ pycauset.solve_triangular(A, b)
 ```python
 A = pycauset.identity(3)
 A.properties["is_upper_triangular"] = True  # gospel assertion
-b = pycauset.asarray([1, 2, 3])
+b = pycauset.vector([1, 2, 3])
 x = pycauset.solve_triangular(A, b)
 ```
 

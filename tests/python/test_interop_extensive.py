@@ -26,7 +26,7 @@ class TestInteropExtensive(unittest.TestCase):
         # 1. Empty array
         arr_empty = np.zeros((0, 0))
         try:
-            m_empty = pycauset.asarray(arr_empty)
+            m_empty = pycauset.matrix(arr_empty)
             self.assertEqual(m_empty.size(), 0)
         except (ValueError, RuntimeError):
             # If empty not supported, that's fine
@@ -34,10 +34,8 @@ class TestInteropExtensive(unittest.TestCase):
 
         # 2. 1D array (should fail or be treated as vector?)
         arr_1d = np.array([1, 2, 3])
-        # If asarray expects matrix, this might fail or return Vector
         try:
-            obj = pycauset.asarray(arr_1d)
-            # If it returns a vector, check size
+            obj = pycauset.vector(arr_1d)
             if hasattr(obj, "size"):
                 self.assertEqual(obj.size(), 3)
         except (ValueError, TypeError):
@@ -45,7 +43,7 @@ class TestInteropExtensive(unittest.TestCase):
 
         # 3. Non-square 2D array
         arr_rect = np.zeros((3, 4))
-        m_rect = pycauset.asarray(arr_rect)
+        m_rect = pycauset.matrix(arr_rect)
         self.assertEqual(m_rect.rows(), 3)
         self.assertEqual(m_rect.cols(), 4)
         self.assertEqual(np.array(m_rect).shape, (3, 4))
@@ -55,17 +53,17 @@ class TestInteropExtensive(unittest.TestCase):
         
         # Float64 -> FloatMatrix
         arr_f64 = np.eye(3, dtype=np.float64)
-        m_f64 = pycauset.asarray(arr_f64)
+        m_f64 = pycauset.matrix(arr_f64)
         self.assertIsInstance(m_f64, pycauset.FloatMatrix)
         
         # Int32 -> IntegerMatrix
         arr_i32 = np.eye(3, dtype=np.int32)
-        m_i32 = pycauset.asarray(arr_i32)
+        m_i32 = pycauset.matrix(arr_i32)
         self.assertIsInstance(m_i32, pycauset.IntegerMatrix)
         
         # Bool -> DenseBitMatrix (or TriangularBitMatrix if triangular)
         arr_bool = np.eye(3, dtype=bool)
-        m_bool = pycauset.asarray(arr_bool)
+        m_bool = pycauset.matrix(arr_bool)
         # Could be DenseBitMatrix or TriangularBitMatrix depending on implementation preference
         self.assertTrue("BitMatrix" in str(type(m_bool)))
 
@@ -75,7 +73,7 @@ class TestInteropExtensive(unittest.TestCase):
         original = np.random.rand(n, n)
         
         # To PyCauset
-        m = pycauset.asarray(original)
+        m = pycauset.matrix(original)
         
         # Back to NumPy
         restored = np.array(m)

@@ -3,6 +3,7 @@ import numpy as np
 import os
 import sys
 import tempfile
+from pathlib import Path
 import pycauset
 from pycauset import FloatMatrix
 
@@ -19,8 +20,7 @@ class TestGPUAcceleration(unittest.TestCase):
     
     def setUp(self):
         self._storage_dir_ctx = tempfile.TemporaryDirectory(prefix="pycauset_gpu_")
-        self._old_storage_dir = os.environ.get("PYCAUSET_STORAGE_DIR")
-        os.environ["PYCAUSET_STORAGE_DIR"] = self._storage_dir_ctx.name
+        pycauset.set_backing_dir(self._storage_dir_ctx.name)
 
         self.has_cuda = pycauset.cuda.is_available()
         print(f"\nCUDA Available: {self.has_cuda}")
@@ -289,10 +289,10 @@ class TestGPUAcceleration(unittest.TestCase):
                 except:
                     pass
 
-        if self._old_storage_dir is None:
-            os.environ.pop("PYCAUSET_STORAGE_DIR", None)
-        else:
-            os.environ["PYCAUSET_STORAGE_DIR"] = self._old_storage_dir
+        try:
+            pycauset.set_backing_dir(Path.cwd() / ".pycauset")
+        except Exception:
+            pass
 
         self._storage_dir_ctx.cleanup()
 

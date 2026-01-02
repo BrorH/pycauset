@@ -41,10 +41,21 @@ The Release 1 linalg surface includes these function families:
   - [[docs/functions/pycauset.cond.md|pycauset.cond]]
   - [[docs/functions/pycauset.slogdet.md|pycauset.slogdet]]
 
+## Block matrices (Release 1 behavior)
+
+- Construction: `pycauset.matrix(...)` builds a block matrix when given a 2D grid where every element is matrix-like; mixed scalars + matrices raise `TypeError`.
+- Once block, always block: `@`, `+`, `-`, `*`, `/` return block-matrix results with partition refinement (union of boundaries via `SubmatrixView` tiling). No silent densify; unsupported views error deterministically.
+- Semi-lazy orchestration: outputs are thunked per block. Triggers: element access, dense conversion, persistence, and crossing the compute boundary. Non-triggers: shape/partition metadata, `repr/str`, `get_block`.
+- Deterministic matmul: fixed `k` order and metadata-only dtype fold per output block; accumulation dtype is chosen before evaluation.
+- Block-aware slicing: slices produce tiled `SubmatrixView` blocks without copying; errors if a required view cannot be represented.
+- Device routing: leaf ops still run through AutoSolver; complex blocks route to CPU today on CUDA builds (see [[internals/Compute Architecture.md|Compute Architecture]]). IO prefetch/discard hooks are best-effort and traced separately.
+
 ## Shape constraints
 
 - Dense matmul follows NxM rules: `(m, k) @ (k, n) -> (m, n)`.
 - Many routines are **square-only** by definition (inverse/determinant and most eigen routines).
+
+Block matrices obey the same shape rules at the block grid level; partition refinement enforces compatible dimensions (`A.cols == B.rows` after refinement).
 
 See [[guides/NxM Support.md|NxM Support Status]] and [[dev/Square-only Assumptions.md|Square-only Assumptions]].
 

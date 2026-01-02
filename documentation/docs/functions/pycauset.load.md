@@ -1,10 +1,10 @@
 # pycauset.load
 
 ```python
-pycauset.load(path: str) -> PersistentObject
+pycauset.load(path: str)
 ```
 
-Loads a matrix or vector from a binary file created by PyCauset.
+Loads a matrix, vector, block matrix, or `CausalSet` from a binary file created by PyCauset.
 
 ## Parameters
 
@@ -12,7 +12,7 @@ Loads a matrix or vector from a binary file created by PyCauset.
 
 ## Returns
 
-*   **PersistentObject**: An instance of the appropriate class (e.g., `TriangularBitMatrix`, `IntegerMatrix`, `FloatVector`, etc.) depending on the file content.
+*   **Matrix/vector/BlockMatrix/CausalSet**: The appropriate object for the container’s contents.
 
 	For `matrix_type = "BLOCK"`, this returns a `BlockMatrix` reconstructed from a manifest stored in the container file and child blocks stored in a sibling `.blocks/` directory.
 
@@ -56,7 +56,7 @@ If the container is a block matrix (`matrix_type = "BLOCK"`), load expects:
 - `bm.pycauset.blocks/` (sidecar directory)
 	- `block_r{r}_c{c}.pycauset` children
 
-The block manifest can also pin each child’s `payload_uuid`; load validates these pins and fails deterministically on mismatch.
+The block manifest pins each child’s `payload_uuid`; load validates these pins and fails deterministically on mismatch. Missing sidecar entries or mismatched child files error rather than silently mixing snapshots. View blocks are loaded from the materialized child files (no view references on disk in Release 1).
 
 See [[internals/Block Matrices.md|Block Matrices]] for details.
 

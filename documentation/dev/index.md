@@ -18,6 +18,7 @@ This section is the canonical onboarding path for contributors working on PyCaus
 7. [[dev/Warnings & Exceptions]]
 8. [[dev/Testing & Benchmarks]]
 9. [[dev/Repository Hygiene]]
+10. [[internals/Streaming Manager]]
 
 ## Related
 

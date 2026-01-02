@@ -10,21 +10,21 @@ This plan is the canonical source of truth for block matrices in Release 1.
 
 ## Canonical dependencies (read before implementing)
 
-- Roadmap node: [PyCauset Roadmap](TODO.md)
+- Roadmap node: [PyCauset Roadmap](../TODO.md)
 - Foundations:
-  - [Compute Architecture](../Compute%20Architecture.md)
-  - [DType System](../DType%20System.md)
+  - [Compute Architecture](../../Compute%20Architecture.md)
+  - [DType System](../../DType%20System.md)
 - Release 1 foundations (implemented behavior elsewhere in the system):
-  - [Storage](../../guides/release1/storage.md)
-  - [Properties](../../guides/release1/properties.md)
-  - [DTypes](../../guides/release1/dtypes.md)
-  - [Linear Algebra](../../guides/release1/linalg.md)
+  - [Storage](../../../guides/release1/storage.md)
+  - [Properties](../../../guides/release1/properties.md)
+  - [DTypes](../../../guides/release1/dtypes.md)
+  - [Linear Algebra](../../../guides/release1/linalg.md)
 
 ## Progress snapshot (MUST keep updated)
 
-**Last updated:** 2025-12-21
+**Last updated:** 2025-12-22
 
-**Current phase step:** Phase F — Integration (properties/device/IO) (completed 2025-12-21)
+**Current phase step:** Phase H — Testing & hardening (completed 2025-12-22)
 
 **What is done (DONE):**
 
@@ -53,6 +53,8 @@ This plan is the canonical source of truth for block matrices in Release 1.
 - Phase F started: integration tests cover operator fallback and device routing for block addition when CUDA is active (with CPU fallback for unsupported dtypes).
 - Phase F completed: elementwise block ops (`+`, `-`, `*`, `/`) are thunked and partition-aligned, with IO prefetch/discard hooks.
 - Phase F completed: integration tests cover mixed-operand fallbacks (`dense op block`) and device routing expectations for `+`/`-` (GPU when supported, CPU otherwise) plus CPU-only guarantees for `*`/`/` under CUDA.
+- Phase G completed: documentation footprint added per Documentation Protocol — public guides (Matrix Guide, R1 linalg/storage), API reference (`pycauset.matrix`, `pycauset.matmul`, `pycauset.save`, `pycauset.load`), and internals (Block Matrices) now cover construction rules, slicing, triggers/non-triggers, refinement, staleness, persistence sidecars, and device routing expectations.
+- Phase H completed: hardening tests added for complex matmul vs dense (CPU fallback with guarded skip when complex matmul/persistence unsupported), float16 matmul vs dense, many-small-block matmul vs dense, mixed-dtype add vs dense, nested complex matmul+persistence (guarded skip), thunk concurrency single-eval locking, and `set_block` staleness invalidation; suite is green with expected skips only.
 
 Phase E policy choices (locked for this implementation pass):
 
@@ -66,13 +68,13 @@ Phase E policy choices (locked for this implementation pass):
 
 **What is next (NEXT):**
 
-- Phase G: documentation (publish internals/API as allowed by the Documentation Protocol).
+- Optional follow-ups: perf guardrails or stress/block-count overhead checks, plus CLI/bench hooks if product asks; otherwise plan is complete for R1 scope.
 
 **Blocked / deferred:**
 
 - Full symbolic lazy evaluation / fusion across arbitrary expression graphs is deferred.
 - GPU kernels for block-aware ops are deferred; leaf ops must still route via AutoSolver/ComputeDevice.
-- Block-matrix-aware slicing is deferred until the slicing phase in the [R1_LINALG plan](completed/R1_LINALG_PLAN.md) is completed; integrate block slicing/views thereafter.
+*** Block-matrix-aware slicing completed (integrated into guides/API/internals); no longer deferred.
 
 ---
 
@@ -193,7 +195,7 @@ Validation:
 ### 1.2 Indexing semantics
 
 - `M[i, j]` returns a scalar element.
-- `M[i0:i1, j0:j1]` slicing is deferred to the broader indexing plan in the [R1_LINALG plan](completed/R1_LINALG_PLAN.md); block work requires an internal view node.
+- `M[i0:i1, j0:j1]` slicing is deferred to the broader indexing plan in the [R1_LINALG plan](R1_LINALG_PLAN.md); block work requires an internal view node.
 
 ### 1.3 Block replacement API
 
@@ -337,7 +339,7 @@ A thunk for an output block `C_ij` **must not** run “in the background”. It 
 
 - Element access (`C[i, j]`) evaluates the unique block that contains `(i, j)`.
 - Any operation that requires dense contents of `C` evaluates all blocks:
-  - conversion/export (`np.array(C)`, `pycauset.asarray(C)`),
+  - conversion/export (`np.asarray(C)`, `pycauset.to_numpy(C)`),
   - any future `materialize()` API.
 - Persistence (`C.save(path)`) evaluates all thunk blocks, but must do so **blockwise** (materialize each block into a child matrix file; never densify the full matrix into one giant buffer).
 - Passing a thunk block across the leaf compute boundary (AutoSolver/ComputeDevice) evaluates it first.

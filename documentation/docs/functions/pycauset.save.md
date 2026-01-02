@@ -1,15 +1,15 @@
 # pycauset.save
 
 ```python
-pycauset.save(obj: Union[PersistentObject, CausalSet], path: str)
+pycauset.save(obj, path: str)
 ```
 
-Saves a persistent object (matrix, vector) or a `CausalSet` to a permanent location on disk.
+Saves a matrix, vector, block matrix, or a `CausalSet` to a permanent location on disk.
 
 This writes a new `.pycauset` **snapshot container**.
 
 *   **For native matrices/vectors**: writes a new container file by copying the payload data (via the object’s `copy_storage(...)` implementation) and recording metadata.
-*   **For block matrices**: writes a small container file plus a sibling sidecar directory holding the child blocks (see below).
+*   **For block matrices**: writes a small container file plus a sibling sidecar directory holding the child blocks (see below). Thunk blocks are evaluated **blockwise** (no global densify). Saving raises deterministically if any captured input is stale.
 *   **For CausalSets**: saves the causal matrix payload plus causet metadata.
 
 !!! note "Snapshot semantics"
@@ -17,7 +17,7 @@ This writes a new `.pycauset` **snapshot container**.
 
 ## Parameters
 
-*   **obj** (*PersistentObject* | *CausalSet*): The object to save.
+*   **obj** (*matrix, vector, BlockMatrix, or CausalSet*): The object to save.
 *   **path** (*str*): The destination path.
 
 ## Example
@@ -49,7 +49,13 @@ When saving a `BlockMatrix`, PyCauset writes:
 - Sidecar directory: `bm.pycauset.blocks/`
 	- Child files: `block_r{r}_c{c}.pycauset`
 
-The container stores a `block_manifest` that records partitions and references child blocks.
+The container stores a `block_manifest` that records partitions and references child blocks. Manifest entries pin each child’s `payload_uuid`; load validates the pins.
+
+Additional policies:
+
+- `SubmatrixView` blocks are materialized **block-locally** to stable child files (no multi-block densify).
+- Overwrite cleanup deletes only deterministic child filenames inside the sidecar.
+- Saves stage child files (and nested sidecars) before commit to reduce partial-update risk.
 
 See [[internals/Block Matrices.md|Block Matrices]] for details.
 

@@ -11,11 +11,9 @@ for _path in (_REPO_ROOT, _PYTHON_DIR):
     if path_str not in sys.path:
         sys.path.insert(0, path_str)
 
-# Set up storage dir before importing pycauset
 _STORAGE_TMP = tempfile.TemporaryDirectory()
-os.environ["PYCAUSET_STORAGE_DIR"] = _STORAGE_TMP.name
-
 import pycauset
+pycauset.set_backing_dir(_STORAGE_TMP.name)
 
 
 class TestIdentityFactory(unittest.TestCase):

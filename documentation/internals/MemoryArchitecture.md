@@ -16,9 +16,9 @@ Instead of treating the disk as a simple extension of RAM (OS Paging), PyCauset 
     *   Fastest access.
     *   Managed by `MemoryGovernor`.
 2.  **L2: Memory-Mapped Disk (Warm/Cold)**
-    *   Objects are stored in `.pycauset` files and mapped into virtual memory.
-    *   OS manages paging.
-    *   Used when RAM is full or for persistence.
+    *   Under RAM pressure, objects may **spill** by switching from RAM-only mapping to a file-backed (memory-mapped) mapper.
+    *   The file-backed mapper uses session backing files (for example `.tmp` files under the backing directory).
+    *   Portable persistence uses explicit `.pycauset` snapshots written by `save()`.
 
 ## Persistence format status
 
@@ -28,8 +28,8 @@ Metadata updates are crash-consistent and do not shift the payload.
 
 Authoritative plans:
 
-- `documentation/internals/plans/R1_STORAGE_PLAN.md` (container format)
-- `documentation/internals/plans/R1_PROPERTIES_PLAN.md` (metadata semantics)
+- `documentation/internals/plans/completed/R1_STORAGE_PLAN.md` (container format)
+- `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md` (metadata semantics)
 
 ## Snapshot semantics (mutation policy)
 

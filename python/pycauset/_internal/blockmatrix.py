@@ -485,14 +485,9 @@ class BlockMatrix:
 
     def __array__(self, dtype: Any = None) -> Any:
         try:
-            import numpy as np  # type: ignore
+            from . import export_guard
 
-            out = np.empty(self.shape, dtype=dtype)
-            r, c = self.shape
-            for i in range(r):
-                for j in range(c):
-                    out[i, j] = self.get(i, j)
-            return out
+            return export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype)
         except Exception as e:
             raise TypeError("BlockMatrix cannot be converted to a NumPy array") from e
 

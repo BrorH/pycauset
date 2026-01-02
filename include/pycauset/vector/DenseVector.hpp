@@ -145,17 +145,14 @@ public:
     }
 
     std::unique_ptr<VectorBase> transpose(const std::string& result_file = "") const override {
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto new_vector = std::make_unique<DenseVector<T>>(n_, std::move(mapper));
-        new_vector->set_scalar(scalar_);
-        new_vector->set_seed(seed_);
-        new_vector->set_transposed(!is_transposed());
-        new_vector->set_conjugated(is_conjugated());
-        if (result_file.empty()) {
-            new_vector->set_temporary(true);
-        }
-        return new_vector;
+        (void)result_file;
+        auto out = std::make_unique<DenseVector<T>>(n_, mapper_);
+        out->set_scalar(scalar_);
+        out->set_seed(seed_);
+        out->set_transposed(!is_transposed());
+        out->set_conjugated(is_conjugated());
+        out->set_temporary(is_temporary());
+        return out;
     }
 };
 

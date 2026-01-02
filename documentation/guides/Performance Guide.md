@@ -44,7 +44,7 @@ When PyCauset initializes, the ComputeContext queries your system:
 
 ### Default Behavior
 
-When you convert a NumPy array to a PyCauset matrix using `pycauset.asarray()`:
+When you convert a NumPy array to a PyCauset matrix using `pycauset.matrix()`:
 
 1.  **Float32 Input**: Always creates a `Float32Matrix`.
 2.  **Float64 Input (Standard NumPy)**:
@@ -63,7 +63,7 @@ PyCauset ensures you get this speedup by default.
 PyCauset uses a **"RAM-First"** architecture to maximize speed.
 
 1.  **Use All Available RAM**: The system aggressively utilizes available physical RAM to keep matrices in memory for maximum throughput.
-2.  **Automatic Disk Spillover**: When physical RAM is exhausted, the system seamlessly switches to disk-backed storage (memory-mapped files).
+2.  **Automatic Disk Spillover**: When physical RAM is exhausted, the system can spill by switching to file-backed (memory-mapped) storage (for example `.tmp` backing files under the backing directory).
 3.  **Hybrid Async Pipeline**:
     *   **Small Matrices**: If a matrix fits entirely in VRAM, it is uploaded once and processed at maximum speed.
     *   **Large Matrices**: If a matrix exceeds VRAM (or the configured memory_limit), the system automatically switches to **Streaming Mode**.

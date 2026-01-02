@@ -106,25 +106,150 @@ nav:
     - NumPy Integration: guides/Numpy Integration.md
   - API Reference:
     - docs/index.md
-    - Classes: docs/classes/index.md
-    - Functions: docs/functions/index.md
-    - Parameters: docs/parameters/index.md
-    - Visualization (pycauset.vis): docs/pycauset.vis/index.md
+    - Classes:
+      - docs/classes/index.md
+      - Matrix:
+        - docs/classes/matrix/index.md
+        - docs/classes/matrix/pycauset.MatrixBase.md
+        - docs/classes/matrix/pycauset.FloatMatrix.md
+        - docs/classes/matrix/pycauset.Float16Matrix.md
+        - docs/classes/matrix/pycauset.Float32Matrix.md
+        - docs/classes/matrix/pycauset.IntegerMatrix.md
+        - docs/classes/matrix/pycauset.Int8Matrix.md
+        - docs/classes/matrix/pycauset.Int16Matrix.md
+        - docs/classes/matrix/pycauset.Int64Matrix.md
+        - docs/classes/matrix/pycauset.UInt8Matrix.md
+        - docs/classes/matrix/pycauset.UInt16Matrix.md
+        - docs/classes/matrix/pycauset.UInt32Matrix.md
+        - docs/classes/matrix/pycauset.UInt64Matrix.md
+        - docs/classes/matrix/pycauset.DenseBitMatrix.md
+        - docs/classes/matrix/pycauset.ComplexFloat16Matrix.md
+        - docs/classes/matrix/pycauset.ComplexFloat32Matrix.md
+        - docs/classes/matrix/pycauset.ComplexFloat64Matrix.md
+        - docs/classes/matrix/pycauset.IdentityMatrix.md
+        - docs/classes/matrix/pycauset.TriangularMatrix.md
+        - docs/classes/matrix/pycauset.TriangularFloatMatrix.md
+        - docs/classes/matrix/pycauset.TriangularIntegerMatrix.md
+        - docs/classes/matrix/pycauset.TriangularBitMatrix.md
+        - docs/classes/matrix/pycauset.SymmetricMatrix.md
+        - docs/classes/AntiSymmetricMatrix.md
+        - docs/classes/SymmetricMatrix.md
+      - Vector:
+        - docs/classes/vector/index.md
+        - docs/classes/vector/pycauset.VectorBase.md
+        - docs/classes/vector/pycauset.FloatVector.md
+        - docs/classes/vector/pycauset.Float16Vector.md
+        - docs/classes/vector/pycauset.Float32Vector.md
+        - docs/classes/vector/pycauset.Int8Vector.md
+        - docs/classes/vector/pycauset.Int16Vector.md
+        - docs/classes/vector/pycauset.Int64Vector.md
+        - docs/classes/vector/pycauset.UInt8Vector.md
+        - docs/classes/vector/pycauset.UInt16Vector.md
+        - docs/classes/vector/pycauset.UInt32Vector.md
+        - docs/classes/vector/pycauset.UInt64Vector.md
+        - docs/classes/vector/pycauset.IntegerVector.md
+        - docs/classes/vector/pycauset.UnitVector.md
+        - docs/classes/vector/pycauset.BitVector.md
+        - docs/classes/vector/pycauset.ComplexFloat16Vector.md
+        - docs/classes/vector/pycauset.ComplexFloat32Vector.md
+        - docs/classes/vector/pycauset.ComplexFloat64Vector.md
+      - Spacetime:
+        - docs/classes/spacetime/index.md
+        - docs/classes/spacetime/pycauset.CausalSet.md
+        - docs/classes/spacetime/pycauset.spacetime.md
+        - docs/classes/spacetime/pycauset.spacetime.CausalSpacetime.md
+        - docs/classes/spacetime/pycauset.spacetime.MinkowskiBox.md
+        - docs/classes/spacetime/pycauset.spacetime.MinkowskiCylinder.md
+        - docs/classes/spacetime/pycauset.spacetime.MinkowskiDiamond.md
+      - Field:
+        - docs/classes/field/index.md
+        - docs/classes/field/pycauset.field.Field.md
+        - docs/classes/field/pycauset.field.ScalarField.md
+      - Core:
+        - docs/classes/core/index.md
+        - docs/classes/core/pycauset.PersistentObject.md
+    - Functions:
+      - docs/functions/index.md
+      - docs/functions/pycauset.matrix.md
+      - docs/functions/pycauset.vector.md
+      - docs/functions/pycauset.zeros.md
+      - docs/functions/pycauset.ones.md
+      - docs/functions/pycauset.empty.md
+      - docs/functions/pycauset.identity.md
+      - docs/functions/pycauset.I.md
+      - docs/functions/pycauset.asarray.md
+      - docs/functions/pycauset.bitwise_not.md
+      - docs/functions/pycauset.causal_matrix.md
+      - docs/functions/pycauset.causet.md
+      - docs/functions/pycauset.cholesky.md
+      - docs/functions/pycauset.compute_k.md
+      - docs/functions/pycauset.compute_k_matrix.md
+      - docs/functions/pycauset.cond.md
+      - docs/functions/pycauset.divide.md
+      - docs/functions/pycauset.dot.md
+      - docs/functions/pycauset.eig.md
+      - docs/functions/pycauset.eigh.md
+      - docs/functions/pycauset.eigvals.md
+      - docs/functions/pycauset.eigvals_arnoldi.md
+      - docs/functions/pycauset.eigvals_skew.md
+      - docs/functions/pycauset.eigvalsh.md
+      - docs/functions/pycauset.get_memory_threshold.md
+      - docs/functions/pycauset.get_num_threads.md
+      - docs/functions/pycauset.get_precision_mode.md
+      - docs/functions/pycauset.invert.md
+      - docs/functions/pycauset.lstsq.md
+      - docs/functions/pycauset.lu.md
+      - docs/functions/pycauset.matmul.md
+      - docs/functions/pycauset.norm.md
+      - docs/functions/pycauset.pinv.md
+      - docs/functions/pycauset.precision_mode.md
+      - docs/functions/pycauset.save.md
+      - docs/functions/pycauset.set_backing_dir.md
+      - docs/functions/pycauset.set_memory_threshold.md
+      - docs/functions/pycauset.set_num_threads.md
+      - docs/functions/pycauset.set_precision_mode.md
+      - docs/functions/pycauset.slogdet.md
+      - docs/functions/pycauset.solve.md
+      - docs/functions/pycauset.solve_triangular.md
+      - docs/functions/pycauset.sum.md
+      - docs/functions/pycauset.svd.md
+      - docs/functions/pycauset.load.md
+    - Parameters:
+      - docs/parameters/index.md
+      - docs/parameters/pycauset.keep_temp_files.md
+      - docs/parameters/pycauset.seed.md
+    - Visualization (pycauset.vis):
+      - docs/pycauset.vis/index.md
+      - docs/pycauset.vis/plot_causal_matrix.md
+      - docs/pycauset.vis/plot_embedding.md
+      - docs/pycauset.vis/plot_hasse.md
   - Internals:
     - internals/index.md
+    - Cooperative Architecture: internals/CooperativeArchitecture.md
     - DType System: internals/DType System.md
+    - DTYPE Complex Overflow Plan: internals/DTYPE_COMPLEX_OVERFLOW_PLAN.md
     - Compute Architecture: internals/Compute Architecture.md
     - Block Matrices: internals/Block Matrices.md
     - Memory Architecture: internals/MemoryArchitecture.md
     - Memory and Data: internals/Memory and Data.md
+    - Streaming Manager: internals/Streaming Manager.md
     - Algorithms: internals/Algorithms.md
     - Plans:
       - internals/plans/SUPPORT_READINESS_FRAMEWORK.md
       - internals/plans/BLAS_INTEGRATION_PLAN.md
+      - internals/plans/completed/R1_BLOCKMATRIX_PLAN.md
+      - internals/plans/completed/R1_LINALG_PLAN.md
+      - internals/plans/completed/R1_PROPERTIES_PLAN.md
+      - internals/plans/completed/R1_SHAPES_PLAN.md
+      - internals/plans/completed/R1_STORAGE_PLAN.md
+      - internals/plans/completed/DTYPE_COMPLEX_OVERFLOW_PLAN.md
+      - internals/plans/completed/Restructure Plan.md
   - Dev Handbook:
     - dev/index.md
     - Agent Bootstrap: dev/Agent Bootstrap.md
     - Restructure Plan: dev/Restructure Plan.md
+    - PyCauset Container Format: dev/PyCauset Container Format.md
+    - Storage Semantics: dev/Storage Semantics.md
     - Codebase Structure: dev/Codebase Structure.md
     - Python Internals: dev/Python Internals.md
     - Build System: dev/Build System.md
@@ -143,6 +268,7 @@ nav:
       - Documentation Protocol: project/protocols/Documentation Protocol.md
       - Adding Operations: project/protocols/Adding Operations.md
       - Adding Types: project/protocols/Adding Types.md
+      - NumPy Alignment Protocol: project/protocols/NumPy Alignment Protocol.md
       - Release Process: project/protocols/Release Process.md
       - Testing and Bug Tracking: project/protocols/Testing and Bug Tracking.md
     - Contributing: project/Contributing.md

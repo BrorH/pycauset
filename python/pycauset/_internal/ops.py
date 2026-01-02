@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from . import properties as _props
+from . import export_guard
+from . import io_observability
 
 
 def _track_and_mark_temporary_if_native(obj: Any, *, deps: OpsDeps) -> None:
@@ -25,10 +27,15 @@ def _as_pycauset_array(obj: Any, *, deps: OpsDeps) -> Any:
     return out
 
 
-def _to_numpy_matrix(obj: Any, *, deps: OpsDeps) -> Any:
+def _to_numpy_matrix(obj: Any, *, deps: OpsDeps, allow_huge: bool = False) -> Any:
     np_module = deps.np_module
     if np_module is None:
         raise RuntimeError("NumPy is required for this operation")
+    export_guard.ensure_export_allowed(
+        obj,
+        allow_huge=allow_huge,
+        ceiling_bytes=export_guard.get_max_bytes(),
+    )
     return np_module.asarray(obj)
 
 
@@ -43,6 +50,8 @@ class OpsDeps:
         track_matrix: Any,
         mark_temporary_if_auto: Any,
         warnings_module: Any,
+        io_observer: Any | None,
+        streaming_manager: Any | None = None,
     ) -> None:
         self.native = native
         self.np_module = np_module
@@ -51,6 +60,8 @@ class OpsDeps:
         self.track_matrix = track_matrix
         self.mark_temporary_if_auto = mark_temporary_if_auto
         self.warnings = warnings_module
+        self.io_observer = io_observer
+        self.streaming_manager = streaming_manager
 
 
 def _safe_rows_cols(obj: Any) -> tuple[int, int] | None:
@@ -72,6 +83,244 @@ def _effective_structure_for(obj: Any) -> str:
         return _props.effective_structure_from_properties(props)
     except Exception:
         return "general"
+
+
+def _record_io_trace(op_name: str, operands: list[Any], *, deps: OpsDeps, allow_huge: bool = False) -> None:
+    manager = getattr(deps, "streaming_manager", None)
+    if manager is not None:
+        try:
+            return manager.plan(op_name, operands, allow_huge=allow_huge)
+        except Exception:
+            pass
+
+    observer = getattr(deps, "io_observer", None)
+    if observer is None:
+        return None
+    try:
+        return observer.plan_and_record(op_name, operands, allow_huge=allow_huge)
+    except Exception:
+        return None
+
+
+def _prefetch_if_streaming(record: Any, operands: list[Any], *, deps: OpsDeps | None = None) -> None:
+    manager = getattr(deps, "streaming_manager", None) if deps is not None else None
+    if manager is not None:
+        try:
+            manager.prefetch(record, operands)
+            return
+        except Exception:
+            pass
+
+    try:
+        if record is None or record.get("route") != "streaming":
+            return
+    except Exception:
+        return
+
+    for obj in operands:
+        io_observability._try_io_prefetch(obj)
+    _append_event(record, event_type="io", detail="prefetch")
+
+
+def _discard_if_streaming(
+    record: Any, operands: list[Any], result: Any | None = None, *, deps: OpsDeps | None = None
+) -> None:
+    manager = getattr(deps, "streaming_manager", None) if deps is not None else None
+    if manager is not None:
+        try:
+            manager.discard(record, operands, result)
+            return
+        except Exception:
+            pass
+
+    try:
+        if record is None or record.get("route") != "streaming":
+            return
+    except Exception:
+        return
+    payloads = list(operands)
+    if result is not None:
+        payloads.append(result)
+    io_observability._discard_if_streaming(record, payloads)
+    _append_event(record, event_type="io", detail="discard")
+
+
+def _annotate_impl(record: Any, label: str, *, deps: OpsDeps | None = None) -> None:
+    manager = getattr(deps, "streaming_manager", None) if deps is not None else None
+    if manager is not None:
+        try:
+            manager.annotate_impl(record, label)
+            return
+        except Exception:
+            pass
+
+    try:
+        if isinstance(record, dict):
+            record["impl"] = label
+            _append_event(record, event_type="compute", detail=f"impl={label}")
+    except Exception:
+        return
+
+
+def _append_event(record: Any, *, event_type: str, detail: str) -> None:
+    try:
+        if not isinstance(record, dict):
+            return
+        events = record.setdefault("events", [])
+        events.append({"type": event_type, "detail": detail})
+    except Exception:
+        return
+
+
+def _streaming_invert(matrix: Any, *, deps: OpsDeps, rec: Any) -> Any | None:
+    np_module = deps.np_module
+    if np_module is None:
+        return None
+
+    shape = _safe_rows_cols(matrix)
+    if shape is None:
+        return None
+
+    try:
+        data = np_module.array([[matrix.get(i, j) for j in range(shape[1])] for i in range(shape[0])])
+    except Exception:
+        return None
+
+    try:
+        inv_np = np_module.linalg.inv(data)
+    except Exception:
+        return None
+
+    out = _as_pycauset_array(inv_np, deps=deps)
+    _annotate_impl(rec, "streaming_python", deps=deps)
+    return out
+
+
+def _streaming_eigvalsh(matrix: Any, *, deps: OpsDeps, rec: Any) -> Any | None:
+    np_module = deps.np_module
+    if np_module is None:
+        return None
+
+    shape = _safe_rows_cols(matrix)
+    if shape is None:
+        return None
+
+    try:
+        data = np_module.array([[matrix.get(i, j) for j in range(shape[1])] for i in range(shape[0])])
+    except Exception:
+        return None
+
+    try:
+        vals = np_module.linalg.eigvalsh(data)
+    except Exception:
+        return None
+
+    out = _as_pycauset_array(vals, deps=deps)
+    _annotate_impl(rec, "streaming_python", deps=deps)
+    return out
+
+
+def _streaming_eigh(matrix: Any, *, deps: OpsDeps, rec: Any) -> tuple[Any, Any] | None:
+    np_module = deps.np_module
+    if np_module is None:
+        return None
+
+    shape = _safe_rows_cols(matrix)
+    if shape is None:
+        return None
+
+    try:
+        data = np_module.array([[matrix.get(i, j) for j in range(shape[1])] for i in range(shape[0])])
+    except Exception:
+        return None
+
+    try:
+        w, v = np_module.linalg.eigh(data)
+    except Exception:
+        return None
+
+    w_out = _as_pycauset_array(w, deps=deps)
+    v_out = _as_pycauset_array(v, deps=deps)
+    _annotate_impl(rec, "streaming_python", deps=deps)
+    return w_out, v_out
+
+
+def _streaming_eigvals_arnoldi(matrix: Any, k: int, m: int, tol: float, *, deps: OpsDeps, rec: Any) -> Any | None:
+    np_module = deps.np_module
+    if np_module is None:
+        return None
+
+    shape = _safe_rows_cols(matrix)
+    if shape is None:
+        return None
+
+    try:
+        data = np_module.array([[matrix.get(i, j) for j in range(shape[1])] for i in range(shape[0])])
+    except Exception:
+        return None
+
+    try:
+        eigs = np_module.linalg.eigvals(data)
+        eigs_sorted = sorted(eigs, key=lambda x: abs(x), reverse=True)
+        top = np_module.array(eigs_sorted[:k])
+    except Exception:
+        return None
+
+    out = _as_pycauset_array(top, deps=deps)
+    _annotate_impl(rec, "streaming_python", deps=deps)
+    return out
+
+
+def _streaming_matmul_tiles(a: Any, b: Any, *, deps: OpsDeps, rec: Any) -> Any | None:
+    np_module = deps.np_module
+    if np_module is None:
+        return None
+
+    shape_a = _safe_rows_cols(a)
+    shape_b = _safe_rows_cols(b)
+    if shape_a is None or shape_b is None:
+        return None
+    a_rows, a_cols = shape_a
+    b_rows, b_cols = shape_b
+    if a_cols != b_rows:
+        return None
+
+    tile = rec.get("tile_shape") if isinstance(rec, dict) else None
+    try:
+        t_r, t_c = int(tile[0]), int(tile[1]) if tile is not None else (64, 64)
+    except Exception:
+        t_r, t_c = 64, 64
+
+    res = deps.Matrix(np_module.zeros((a_rows, b_cols), dtype=float))
+
+    set_fn = getattr(res, "set", None)
+
+    for i0 in range(0, a_rows, t_r):
+        i1 = min(i0 + t_r, a_rows)
+        for j0 in range(0, b_cols, t_c):
+            j1 = min(j0 + t_c, b_cols)
+            block = np_module.zeros((i1 - i0, j1 - j0), dtype=float)
+            for k0 in range(0, a_cols, t_c):
+                k1 = min(k0 + t_c, a_cols)
+
+                a_tile = np_module.array(
+                    [[a.get(i, k) for k in range(k0, k1)] for i in range(i0, i1)]
+                )
+                b_tile = np_module.array(
+                    [[b.get(k, j) for j in range(j0, j1)] for k in range(k0, k1)]
+                )
+                block += np_module.matmul(a_tile, b_tile)
+
+            for ii in range(i0, i1):
+                for jj in range(j0, j1):
+                    val = block[ii - i0, jj - j0]
+                    if callable(set_fn):
+                        set_fn(ii, jj, float(val))
+                    else:
+                        res[ii, jj] = float(val)
+
+    _annotate_impl(rec, "streaming_python", deps=deps)
+    return res
 
 
 def _try_convert_to_diagonal_f64(obj: Any, *, deps: OpsDeps) -> Any | None:
@@ -182,6 +431,8 @@ def _matmul_result_structure(a_struct: str, b_struct: str) -> str:
 
 
 def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    rec = _record_io_trace("matmul", [a, b], deps=deps)
+    _prefetch_if_streaming(rec, [a, b], deps=deps)
     # Phase F integration: BlockMatrix routing.
     # If either operand is a BlockMatrix, preserve 'once block, always block'
     # by returning a thunked BlockMatrix via block orchestration.
@@ -202,6 +453,18 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 
     native_matrix_base = getattr(deps.native, "MatrixBase", None)
     native_vector_base = getattr(deps.native, "VectorBase", None)
+
+    # Streaming-enforced path: if routed streaming and not blockmatrix, use tile-based matmul.
+    try:
+        if isinstance(rec, dict) and rec.get("route") == "streaming":
+            streaming_res = _streaming_matmul_tiles(a, b, deps=deps, rec=rec)
+            if streaming_res is not None:
+                deps.track_matrix(streaming_res)
+                deps.mark_temporary_if_auto(streaming_res)
+                _discard_if_streaming(rec, [a, b], streaming_res, deps=deps)
+                return streaming_res
+    except Exception:
+        pass
 
     # NumPy-like behavior: allow vectors in matmul by deferring to the native
     # operator implementation (which encodes the 1D rules).
@@ -265,6 +528,7 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
             _set_result_structure_properties(
                 result, structure=_matmul_result_structure(a_struct, b_struct)
             )
+            _discard_if_streaming(rec, [a, b], result, deps=deps)
             return result
 
     # Generic fallback
@@ -288,7 +552,9 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
                 [[b.get(i, j) for j in range(b.shape[1])] for i in range(b.shape[0])]
             )
             res_np = np_module.matmul(a_np, b_np)
-            return deps.Matrix(res_np)
+            res_mat = deps.Matrix(res_np)
+            _discard_if_streaming(rec, [a, b], res_mat, deps=deps)
+            return res_mat
         except Exception:
             pass
 
@@ -300,7 +566,9 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
             for k in range(inner):
                 val += a.get(i, k) * b.get(k, j)
             res_data[i][j] = val
-    return deps.Matrix(res_data)
+    res_mat = deps.Matrix(res_data)
+    _discard_if_streaming(rec, [a, b], res_mat, deps=deps)
+    return res_mat
 
 
 def compute_k(matrix: Any, a: float, *, deps: OpsDeps) -> Any:
@@ -329,6 +597,16 @@ def bitwise_not(matrix: Any, *, deps: OpsDeps) -> Any:
 
 
 def invert(matrix: Any, *, deps: OpsDeps) -> Any:
+    rec = _record_io_trace("invert", [matrix], deps=deps)
+    _prefetch_if_streaming(rec, [matrix], deps=deps)
+    try:
+        if isinstance(rec, dict) and rec.get("route") == "streaming":
+            streaming_res = _streaming_invert(matrix, deps=deps, rec=rec)
+            if streaming_res is not None:
+                _discard_if_streaming(rec, [matrix], streaming_res, deps=deps)
+                return streaming_res
+    except Exception:
+        pass
     native_exc: Exception | None = None
     if hasattr(matrix, "invert"):
         try:
@@ -337,13 +615,16 @@ def invert(matrix: Any, *, deps: OpsDeps) -> Any:
             native_exc = exc
         else:
             _track_and_mark_temporary_if_native(result, deps=deps)
+            _discard_if_streaming(rec, [matrix], result, deps=deps)
             return result
 
     np_module = deps.np_module
     if np_module is not None:
         try:
             result = np_module.linalg.inv(matrix)
-            return _as_pycauset_array(result, deps=deps)
+            result_arr = _as_pycauset_array(result, deps=deps)
+            _discard_if_streaming(rec, [matrix], result_arr, deps=deps)
+            return result_arr
         except Exception:
             if native_exc is not None:
                 raise native_exc
@@ -459,6 +740,16 @@ def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
 
 
 def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
+    rec = _record_io_trace("eigh", [a], deps=deps)
+    _prefetch_if_streaming(rec, [a], deps=deps)
+    try:
+        if isinstance(rec, dict) and rec.get("route") == "streaming":
+            streaming_res = _streaming_eigh(a, deps=deps, rec=rec)
+            if streaming_res is not None:
+                _discard_if_streaming(rec, [a], None, deps=deps)
+                return streaming_res
+    except Exception:
+        pass
     """Eigen-decomposition for real symmetric / complex Hermitian matrices (NumPy fallback)."""
     np_module = deps.np_module
     if np_module is None:
@@ -466,10 +757,21 @@ def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     w, v = np_module.linalg.eigh(_to_numpy_matrix(a, deps=deps))
     w_out = _as_pycauset_array(w, deps=deps)
     v_out = _as_pycauset_array(v, deps=deps)
+    _discard_if_streaming(rec, [a], None, deps=deps)
     return w_out, v_out
 
 
 def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
+    rec = _record_io_trace("eigvalsh", [a], deps=deps)
+    _prefetch_if_streaming(rec, [a], deps=deps)
+    try:
+        if isinstance(rec, dict) and rec.get("route") == "streaming":
+            streaming_res = _streaming_eigvalsh(a, deps=deps, rec=rec)
+            if streaming_res is not None:
+                _discard_if_streaming(rec, [a], streaming_res, deps=deps)
+                return streaming_res
+    except Exception:
+        pass
     """Eigenvalues for real symmetric / complex Hermitian matrices.
 
     Phase E wiring:
@@ -505,6 +807,49 @@ def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
         except Exception:
             pass
 
+            _discard_if_streaming(rec, [a], out, deps=deps)
+    return out
+
+
+def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any:
+    """Top-k eigenvalues via Arnoldi/Lanczos-style iteration (when available).
+
+    - Prefers native `eigvals_arnoldi` when provided by the extension.
+    - Falls back to NumPy eigvals and returns the top-|k| by magnitude.
+    - Records IO observability trace for parity with other eigen ops.
+    """
+
+    rec = _record_io_trace("eigvals_arnoldi", [a], deps=deps)
+    _prefetch_if_streaming(rec, [a], deps=deps)
+
+    try:
+        if isinstance(rec, dict) and rec.get("route") == "streaming":
+            streaming_res = _streaming_eigvals_arnoldi(a, k, m, tol, deps=deps, rec=rec)
+            if streaming_res is not None:
+                _discard_if_streaming(rec, [a], streaming_res, deps=deps)
+                return streaming_res
+    except Exception:
+        pass
+
+    fn = getattr(deps.native, "eigvals_arnoldi", None)
+    if callable(fn):
+        try:
+            result = fn(a, k, m, tol)
+            _track_and_mark_temporary_if_native(result, deps=deps)
+            _discard_if_streaming(rec, [a], result, deps=deps)
+            return result
+        except Exception:
+            pass
+
+    np_module = deps.np_module
+    if np_module is None:
+        raise NotImplementedError("eigvals_arnoldi is not available (no native/NumPy fallback)")
+
+    eigs = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
+    eigs_sorted = sorted(eigs, key=lambda x: abs(x), reverse=True)
+    top = np_module.array(eigs_sorted[:k])
+    out = _as_pycauset_array(top, deps=deps)
+    _discard_if_streaming(rec, [a], out, deps=deps)
     return out
 
 

@@ -166,7 +166,7 @@ Clarification (parallelization-friendly contract):
 - The health check is a **metadata normalization** step, not a compute step.
 - The health check may use:
   - existing metadata (shape, dtype, view-state, existing properties), and
-  - the operation parameters (e.g., transpose, scalar value, indices for `set(i,j,...)`), and
+  - the operation parameters (e.g., transpose, scalar value, indices for `M[i, j] = ...`), and
   - an optional constant-size **effect summary** produced by the operation while it runs.
 
 The key rule is: property/caching correctness must not force a second pass over payload.

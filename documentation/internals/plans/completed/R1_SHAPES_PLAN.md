@@ -225,7 +225,7 @@ Proposed invariant:
 Index mapping for dense row-major storage:
 
 - Base layout is row-major with base stride = `base_cols`.
-- For `get(i,j)` and `set(i,j)`:
+- For element reads/writes (`M[i, j]` and `M[i, j] = value`):
   - if `is_transposed`: swap `(i,j)` before mapping
   - `idx = i * base_cols + j`
 
@@ -233,7 +233,7 @@ This preserves the “transpose is a view flag” design and avoids touching dat
 
 Implementation note for performance (to keep hot paths hot):
 
-- Provide a fast path when `is_transposed == false` to avoid extra branches/swaps in `get/set`.
+- Provide a fast path when `is_transposed == false` to avoid extra branches/swaps in element access.
 - Keep the mapping logic tiny (ideally inlineable) and avoid allocations.
 
 ### 2.2 Consequence: update `size()` everywhere

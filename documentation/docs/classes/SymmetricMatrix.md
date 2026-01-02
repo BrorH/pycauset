@@ -41,14 +41,13 @@ The resulting matrix $S$ satisfies $S_{ij} = S_{ji} = \text{source}_{ij}$ for $i
 
 ## Methods
 
-### `get(i, j)`
-Returns the element at row `i` and column `j`.
+### Indexing
+Read elements using NumPy-style indexing: `x = S[i, j]`.
 *   **i, j** (int): Indices.
 *   **Returns**: The value at $(i, j)$.
     *   If $i > j$, it accesses the stored value at $(j, i)$.
 
-### `set(i, j, value)`
-Sets the element at row `i` and column `j`.
+Write elements using NumPy-style indexing: `S[i, j] = value`.
 *   **i, j** (int): Indices.
 *   **value**: The value to set.
     *   If $i > j$, it sets the stored value at $(j, i)$.

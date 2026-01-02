@@ -9,7 +9,6 @@
 * **[[docs/functions/pycauset.empty.md|pycauset.empty]]**
 * **[[docs/functions/pycauset.causal_matrix.md|pycauset.causal_matrix]]**
 * **[[docs/functions/pycauset.causet.md|pycauset.causet]]**
-* **[[docs/functions/pycauset.asarray.md|asarray]]**
 * **[[docs/functions/pycauset.bitwise_not.md|bitwise_not]]**
 * **[[docs/functions/pycauset.compute_k.md|compute_k]]**
 * **[[docs/functions/pycauset.compute_k_matrix.md|compute_k_matrix]]**
@@ -33,8 +32,11 @@
 * **[[docs/functions/pycauset.eigh.md|eigh]]**
 * **[[docs/functions/pycauset.eigvalsh.md|eigvalsh]]**
 * **[[docs/functions/pycauset.load.md|load]]**
+* **[[docs/functions/pycauset.convert_file.md|convert_file]]**
+* **[[docs/functions/pycauset.to_numpy.md|to_numpy]]**
 * **[[docs/functions/pycauset.matmul.md|matmul]]**
 * **[[docs/functions/pycauset.save.md|save]]**
+* **[[docs/functions/pycauset.set_export_max_bytes.md|set_export_max_bytes]]**
 * **[[docs/functions/pycauset.set_memory_threshold.md|set_memory_threshold]]**
 * **[[docs/functions/pycauset.set_precision_mode.md|set_precision_mode]]**
 * **[[docs/functions/pycauset.set_num_threads.md|set_num_threads]]**

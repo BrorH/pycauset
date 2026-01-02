@@ -1,6 +1,6 @@
 ﻿# Vector Guide
 
-`pycauset` introduces efficient vectors that integrate seamlessly with the matrix operations. Vectors are stored in RAM for small sizes (behaving like NumPy arrays) and automatically spill to disk for massive datasets.
+`pycauset` introduces efficient vectors that integrate seamlessly with the matrix operations. Vectors are stored in RAM for small sizes (behaving like NumPy arrays) and may automatically **spill** by switching to temporary memory-mapped backing files (for example `.tmp`) for massive datasets.
 
 ## Creating Vectors
 
@@ -20,7 +20,7 @@ Notes:
 
 - `"int"` normalizes to `"int32"`; `"float"` normalizes to `"float64"`; `"uint"` normalizes to `"uint32"`.
 - Complex is limited to complex floats.
-- Exact op coverage is declared in the support matrix (see `documentation/internals/DType System.md`).
+- For large NumPy inputs, you can pass `max_in_ram_bytes` to `pc.vector(...)` to force the constructor down the internal `native.asarray` import path once the estimated payload exceeds the cap, avoiding accidental full-RAM materialization when you prefer a backing file.
 
 ```python
 import pycauset as pc
@@ -226,10 +226,10 @@ arr = np.array(v)
 ```
 
 ### From NumPy
-You can create vectors from NumPy arrays using [[pycauset.asarray]]:
+You can create vectors from NumPy arrays using [[docs/functions/pycauset.vector.md|pycauset.vector]]:
 ```python
 arr = np.array([1.0, 2.0, 3.0])
-v = pc.asarray(arr)
+v = pc.vector(arr)
 ```
 
 ### Mixed Operations
