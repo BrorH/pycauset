@@ -37,7 +37,17 @@ Then apply the mapping below.
 
 ## 2) Where to document (mapping)
 
-### A) API reference (`documentation/docs/`) — mandatory for user-facing surfaces
+### A) Source Code Headers (File-Level) — mandatory for all source files
+
+Every source file (`.hpp`, `.cpp`, `.py`) must start with a technical header block that answers:
+- **What** this file contains (classes, functions, modules).
+- **Why** it exists (architectural role).
+- **Key dependencies** or interactions (e.g., "Implements the CPU backend for AutoSolver").
+- **Thread-safety** or **Performance** notes if relevant.
+
+This is for the *maintainer* reading the code, not the user.
+
+### B) API reference (`documentation/docs/`) — mandatory for user-facing surfaces
 
 Add/update:
 

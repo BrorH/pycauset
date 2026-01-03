@@ -422,6 +422,7 @@ Deliverables:
 - **Linting:** Configure `ruff` and `mypy` in `pyproject.toml`.
 - **Build:** Audit and reduce CMake warning suppressions.
 - **Namespace:** Refactor `__init__.py` to be minimal.
+- **Cleanup:** Remove dead code, legacy "eager" evaluation paths, and unused temporary file logic.
 
 ### R1_REL — Release Mechanics
 

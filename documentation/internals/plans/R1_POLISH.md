@@ -29,3 +29,7 @@
 - [ ] **Slim `__init__.py`:** The main `python/pycauset/__init__.py` is too large (~1800 lines).
 - [ ] **Move Logic:** Extract implementation details to `_internal` modules.
 - [ ] **Public API:** Ensure `__init__.py` only exposes the intended public API.
+
+## 6. Codebase Cleanup
+- [ ] **Dead Code Removal:** Remove legacy "eager" evaluation paths in `MatrixBase` once `R1_LAZY` is stable.
+- [ ] **Temporary File Logic:** Remove obsolete manual temporary file creation logic that is superseded by the `MemoryGovernor` spill mechanism.
