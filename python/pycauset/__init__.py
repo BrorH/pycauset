@@ -1816,3 +1816,16 @@ for _name in _extra_exports:
     if _name in globals() or getattr(_native, _name, None) is not None:
         __all__.append(_name)
 
+# --- Lazy Evaluation Setup ---
+from ._internal import lazy_ufunc as _lazy_ufunc
+
+_lazy_matrix_classes = [
+    IntegerMatrix, Int8Matrix, Int16Matrix, Int64Matrix,
+    UInt8Matrix, UInt16Matrix, UInt32Matrix, UInt64Matrix,
+    FloatMatrix, Float16Matrix, Float32Matrix,
+    ComplexFloat16Matrix, ComplexFloat32Matrix, ComplexFloat64Matrix,
+    TriangularFloatMatrix, TriangularIntegerMatrix,
+    DenseBitMatrix, SymmetricMatrix, AntiSymmetricMatrix,
+]
+_lazy_ufunc.patch_matrix_classes(_lazy_matrix_classes)
+

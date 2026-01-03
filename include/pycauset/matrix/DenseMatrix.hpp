@@ -23,6 +23,8 @@ namespace pycauset {
 template <typename T>
 class DenseMatrix : public MatrixBase {
 public:
+    using MatrixBase::operator=;
+
     DenseMatrix(uint64_t n, const std::string& backing_file = "")
         : DenseMatrix(n, n, backing_file) {}
 
@@ -103,6 +105,10 @@ public:
         const uint64_t storage_col = col_offset() + (is_transposed() ? i : j);
         const uint64_t idx = storage_row * storage_cols + storage_col;
         data()[idx] = value;
+    }
+
+    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+        set(i, j, static_cast<T>(value));
     }
 
     T get(uint64_t i, uint64_t j) const {

@@ -1,6 +1,6 @@
 # R1_LAZY: Lazy Evaluation & Persistence
 
-**Status**: In Progress
+**Status**: Completed
 **Owner**: Chief Programmer / Chief Design Engineer
 
 ## 1. The Problem
@@ -35,57 +35,57 @@ class BinaryExpression : public MatrixExpression {
 
 ### Phase 1: The Expression Hierarchy (C++ Core)
 Define the template structure that will represent lazy computations.
-- [ ] **1.1 Define `MatrixExpression` Interface:** Create the base CRTP (Curiously Recurring Template Pattern) or abstract base class for expressions.
-- [ ] **1.2 Implement Node Types:**
+- [x] **1.1 Define `MatrixExpression` Interface:** Create the base CRTP (Curiously Recurring Template Pattern) or abstract base class for expressions.
+- [x] **1.2 Implement Node Types:**
     - `ScalarExpression` (wraps a double/complex).
     - `MatrixRefExpression` (wraps a `MatrixBase` for reading).
     - `BinaryExpression` (lhs op rhs).
     - `UnaryExpression` (op child).
-- [ ] **1.3 Implement Functors:** Define the operation structs (`Add`, `Sub`, `Mul`, `Sin`, `Exp`, etc.).
-- [ ] **1.4 Solver Integration (Opaque Ops):**
+- [x] **1.3 Implement Functors:** Define the operation structs (`Add`, `Sub`, `Mul`, `Sin`, `Exp`, etc.).
+- [x] **1.4 Solver Integration (Opaque Ops):**
     - Identify "Opaque" operations that cannot be fused (e.g., `MatMul`, `Inverse`).
     - Ensure these operations trigger eager evaluation via `AutoSolver` (or return a special `OpaqueExpression` that forces materialization upon access).
     - Prevent naive $O(N^3)$ loops in the expression engine.
-- [ ] **1.5 DType Dispatch Strategy:**
+- [x] **1.5 DType Dispatch Strategy:**
     - Bridge the gap between runtime-polymorphic `MatrixBase` and compile-time Expression Templates.
     - Implement a dispatch mechanism (e.g., `dispatch_binary_op`) that switches on `DataType` and instantiates the correct typed Expression Template.
     - Define a type-erased wrapper or base class to hold the result.
 
 ### Phase 2: MatrixBase Integration (The "Rewrite")
 Modify the existing `MatrixBase` to participate in the expression system without breaking inheritance.
-- [ ] **2.1 Operator Overloading:** Change `operator+`, `operator-`, etc., in `MatrixBase` (and global scope) to return `BinaryExpression` instead of `std::unique_ptr<MatrixBase>`.
-- [ ] **2.2 Assignment Evaluation:** Implement `MatrixBase::operator=(const MatrixExpression&)` to trigger the actual computation (the "Evaluation Loop").
-- [ ] **2.3 Aliasing Detection:**
+- [x] **2.1 Operator Overloading:** Change `operator+`, `operator-`, etc., in `MatrixBase` (and global scope) to return `BinaryExpression` instead of `std::unique_ptr<MatrixBase>`.
+- [x] **2.2 Assignment Evaluation:** Implement `MatrixBase::operator=(const MatrixExpression&)` to trigger the actual computation (the "Evaluation Loop").
+- [x] **2.3 Aliasing Detection:**
     - Implement `bool aliases(const MatrixBase* target)` in the expression tree.
     - In the assignment operator, check `if (expr.aliases(this))`.
     - If aliasing is detected (and unsafe, like matmul), evaluate to a temporary first, then swap/copy.
     - If safe (elementwise), evaluate in-place.
-- [ ] **2.4 Property Propagation:**
+- [x] **2.4 Property Propagation:**
     - Ensure Expressions compute their output properties (e.g., `Sym + Sym = Sym`).
     - Integrate with the `R1_PROPERTIES` system.
-- [ ] **2.5 Batch Evaluation (Performance):**
+- [x] **2.5 Batch Evaluation (Performance):**
     - Avoid virtual `get_element` calls per pixel.
     - Implement `fill_buffer(start, count, out_ptr)` or similar batch API in `MatrixExpression` to allow vectorized/bulk evaluation.
 
 ### Phase 3: NumPy UFunc Bridge (Python Interop)
 Ensure Python users get lazy behavior even when using NumPy functions.
-- [ ] **3.1 `__array_ufunc__` Hook:** Implement this method on the Python `Matrix` wrapper.
-- [ ] **3.2 UFunc Mapping:** Map `np.add`, `np.sin`, etc., to the corresponding C++ Expression generators.
-- [ ] **3.3 Return Policy:** Ensure these return a `LazyMatrix` (or similar wrapper) that behaves like a matrix but hasn't computed yet.
+- [x] **3.1 `__array_ufunc__` Hook:** Implement this method on the Python `Matrix` wrapper.
+- [x] **3.2 UFunc Mapping:** Map `np.add`, `np.sin`, etc., to the corresponding C++ Expression generators.
+- [x] **3.3 Return Policy:** Ensure these return a `LazyMatrix` (or similar wrapper) that behaves like a matrix but hasn't computed yet.
 
 ### Phase 4: Lazy Persistence (Memory Governor)
 Implement the "RAM-First" policy.
-- [ ] **4.1 Anonymous Memory Default:** Ensure `ObjectFactory` creates RAM-backed mappers by default.
-- [ ] **4.2 Spill Trigger:** Update `MemoryGovernor` to monitor RAM usage during the "Evaluation Loop".
-- [ ] **4.3 Spill Mechanism:** Implement `spill_to_disk()` in `MatrixBase` which transparently moves data from `AnonymousMemory` to `FileBackedMemory` and updates the mapper.
+- [x] **4.1 Anonymous Memory Default:** Ensure `ObjectFactory` creates RAM-backed mappers by default.
+- [x] **4.2 Spill Trigger:** Update `MemoryGovernor` to monitor RAM usage during the "Evaluation Loop". (Implemented via `touch_operands` LRU updates).
+- [x] **4.3 Spill Mechanism:** Implement `spill_to_disk()` in `MatrixBase` which transparently moves data from `AnonymousMemory` to `FileBackedMemory` and updates the mapper.
 
 ### Phase 5: Windows I/O Fix (Safety)
-- [ ] **5.1 Implement `discard()`:** Use `VirtualUnlock` (Windows) or `MADV_DONTNEED` (Linux) to ensure "freed" RAM is actually returned to the OS.
+- [x] **5.1 Implement `discard()`:** Use `VirtualUnlock` (Windows) or `MADV_DONTNEED` (Linux) to ensure "freed" RAM is actually returned to the OS.
 
 ### Phase 6: Documentation & Polish
-- [ ] **6.1 File Headers:** Add technical file-level documentation to all new and modified files (`MatrixExpression.hpp`, `MatrixBase.cpp`, etc.) per the updated Documentation Protocol.
-- [ ] **6.2 Internals Docs:** Update `MemoryArchitecture.md` and `Compute Architecture.md` to reflect the new Lazy Evaluation model.
-- [ ] **6.3 User Guide:** Add a section to the Performance Guide explaining "Lazy Evaluation" and how to use `spill_to_disk()` if manual control is needed.
+- [x] **6.1 File Headers:** Add technical file-level documentation to all new and modified files (`MatrixExpression.hpp`, `MatrixBase.cpp`, etc.) per the updated Documentation Protocol.
+- [x] **6.2 Internals Docs:** Update `MemoryArchitecture.md` and `Compute Architecture.md` to reflect the new Lazy Evaluation model. (Created `LazyEvaluation.md`).
+- [x] **6.3 User Guide:** Add a section to the Performance Guide explaining "Lazy Evaluation" and how to use `spill_to_disk()` if manual control is needed.
 
 ## 4. Risks & Mitigations
 *   **Aliasing:** Addressed in Phase 2.3 via explicit detection.

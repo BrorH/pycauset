@@ -109,6 +109,10 @@ public:
         row_ptr[col_index] = value;
     }
 
+    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+        set(i, j, static_cast<T>(value));
+    }
+
     T get(uint64_t i, uint64_t j) const {
         if (is_transposed()) {
             // Transposed: Lower Triangular.

@@ -44,6 +44,24 @@ vec_bool = pc.vector(arr_bool)  # Returns [[pycauset.BitVector]]
 
 **Note**: This operation creates a **copy** of the data. Depending on the size and the configured memory threshold, the new object will be stored in RAM or on disk. See [[guides/Storage and Memory|guides/Storage and Memory]].
 
+## NumPy UFunc Support
+
+PyCauset matrices support NumPy universal functions (ufuncs) like `np.sin`, `np.add`, etc.
+These operations return lazy expressions that are evaluated efficiently.
+
+```python
+import numpy as np
+import pycauset as pc
+
+A = pc.matrix(np.random.rand(100, 100))
+
+# Element-wise sine
+B = np.sin(A)
+
+# Element-wise addition
+C = np.add(A, A)
+```
+
 ## Converting PyCauset Objects to NumPy
 
 All `pycauset` Matrix and Vector classes implement the NumPy array protocol (`__array__`). This means you can pass any `pycauset` object directly to `np.array()` or any function that expects an array-like object.

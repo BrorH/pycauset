@@ -93,6 +93,15 @@ public:
         return 0.0;
     }
 
+    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+        // Identity is immutable in structure.
+        bool is_diag = (i == j);
+        double expected = is_diag ? scalar_.real() : 0.0;
+        if (std::abs(value - expected) > 1e-9) {
+            throw std::runtime_error("Cannot modify IdentityMatrix structure");
+        }
+    }
+
     // Specialized operations returning IdentityMatrix
     std::unique_ptr<IdentityMatrix<T>> add(const IdentityMatrix<T>& other, const std::string& result_file = "") const {
         if (rows() != other.rows() || cols() != other.cols()) throw std::invalid_argument("Dimension mismatch");

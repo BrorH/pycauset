@@ -41,7 +41,22 @@ fig.show()
 ```
 See the [[Visualization]] guide for more options.
 
-### 4. Saving and Loading
+### 5. Lazy Evaluation
+PyCauset uses lazy evaluation for matrix operations to optimize performance and memory usage.
+Operations like `A + B` or `A * scalar` return lightweight expression objects that are evaluated only when assigned to a matrix or converted to NumPy.
+
+```python
+# Lazy addition (no computation yet)
+expr = A + B
+
+# Evaluation happens here
+C = expr
+
+# Or here
+C_np = pc.to_numpy(expr)
+```
+
+### 6. Saving and Loading
 You can save your entire causal set (including the causal matrix, coordinates, and metadata) to a portable, single-file `.pycauset` container.
 
 ```python

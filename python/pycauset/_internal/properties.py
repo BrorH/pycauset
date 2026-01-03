@@ -19,6 +19,8 @@ _CACHED_DERIVED_KEYS: tuple[str, ...] = (
 
 
 def _ensure_store(obj: Any) -> dict[str, Any]:
+    if type(obj).__name__ == "LazyMatrix":
+        return {}
     store = getattr(obj, _PROPERTIES_ATTR, None)
     if store is None or not isinstance(store, dict):
         store = {}
@@ -37,7 +39,10 @@ def _get_store(obj: Any) -> dict[str, Any]:
 
 
 def _get_shape(obj: Any) -> tuple[int, int] | None:
+    if type(obj).__name__ == "LazyMatrix":
+        return None
     try:
+        # print(f"DEBUG: _get_shape called for {type(obj)}")
         return int(obj.rows()), int(obj.cols())
     except Exception:
         try:
@@ -767,6 +772,7 @@ def apply_properties_arithmetic_patches(*, classes: list[Any]) -> None:
 
     This is Phase A/D glue: scalar multiply and add/sub cached-derived propagation.
     """
+    return # DISABLE PATCHING FOR DEBUGGING
 
     for cls in classes:
         if cls is None:

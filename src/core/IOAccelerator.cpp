@@ -151,13 +151,11 @@ void IOAccelerator::prefetch_ranges_impl(const std::vector<std::pair<void*, size
 }
 
 void IOAccelerator::discard_impl(void* addr, size_t len) {
-    // Windows doesn't have a direct equivalent to MADV_DONTNEED for mapped files 
-    // that is safe and easy to use without unmapping.
-    // OfferVirtualMemory could be used but it's for discarding pages that can be regenerated.
-    // For now, we do nothing on Windows. The OS memory manager is usually good enough
-    // if we don't touch the pages again.
-    
-    // Alternatively, we could use VirtualUnlock if we had locked it.
+    // Windows: VirtualUnlock removes pages from the working set.
+    // It officially requires pages to be locked, but in practice (and some docs),
+    // it acts as a strong hint to the memory manager to trim these pages from the working set.
+    // If it fails, we ignore it.
+    VirtualUnlock(addr, len);
 }
 
 #else

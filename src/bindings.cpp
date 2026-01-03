@@ -7,6 +7,7 @@ PYBIND11_MODULE(_pycauset, m) {
 
     bind_core_classes(m);
     bind_matrix_classes(m);
+    bind_expression_classes(m);
     bind_vector_classes(m);
     bind_causet_classes(m);
 

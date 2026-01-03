@@ -143,6 +143,10 @@ public:
         return static_cast<double>(get(i, j)) * scalar_;
     }
 
+    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+        set(i, j, static_cast<T>(value));
+    }
+
     std::unique_ptr<MatrixBase> multiply_scalar(double scalar, const std::string& result_file = "") const override {
         // Metadata update
         auto clone_ptr = this->clone();

@@ -46,6 +46,11 @@ public:
     // Generic accessor
     double get_element_as_double(uint64_t i, uint64_t j) const override;
 
+    // Generic setter
+    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+        set(i, j, value != 0.0);
+    }
+
     // Standard Matrix Multiplication: Result = this * other
     // Returns a DenseMatrix<int32_t>
     std::unique_ptr<DenseMatrix<int32_t>> multiply(const DenseMatrix<bool>& other, const std::string& result_file) const;

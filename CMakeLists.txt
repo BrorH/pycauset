@@ -170,6 +170,7 @@ set(PYCAUSET_SOURCES
     src/core/ParallelUtils.cpp
     src/core/PromotionResolver.cpp
     src/matrix/MatrixBase.cpp
+    src/matrix/MatrixOps.cpp
     src/matrix/DenseBitMatrix.cpp
     src/matrix/TriangularMatrix.cpp
     src/matrix/TriangularBitMatrix.cpp
@@ -219,6 +220,7 @@ python_add_library(_pycauset MODULE
     src/bindings/bind_core.cpp
     src/bindings/binding_warnings.cpp
     src/bindings/bind_matrix.cpp
+    src/bindings/bind_expression.cpp
     src/bindings/bind_vector.cpp
     src/bindings/bind_causet.cpp
 )
@@ -344,6 +346,18 @@ if(BUILD_TESTS)
     target_include_directories(test_symmetric_matrix PRIVATE include)
     target_link_libraries(test_symmetric_matrix PRIVATE GTest::gtest_main pycauset_core)
     add_test(NAME SymmetricMatrixTests COMMAND test_symmetric_matrix)
+
+    # Lazy Evaluation Tests
+    add_executable(test_lazy_evaluation tests/test_lazy_evaluation.cpp)
+    target_include_directories(test_lazy_evaluation PRIVATE include)
+    target_link_libraries(test_lazy_evaluation PRIVATE GTest::gtest_main pycauset_core)
+    add_test(NAME LazyEvaluationTests COMMAND test_lazy_evaluation)
+
+    # Comprehensive Lazy Tests
+    add_executable(test_lazy_comprehensive tests/test_lazy_comprehensive.cpp)
+    target_include_directories(test_lazy_comprehensive PRIVATE include)
+    target_link_libraries(test_lazy_comprehensive PRIVATE GTest::gtest_main pycauset_core)
+    add_test(NAME LazyComprehensiveTests COMMAND test_lazy_comprehensive)
 
     # Other tests disabled for now as source files are missing in this context
     # add_executable(causal_tests tests/test_main.cpp tests/test_parallel.cpp tests/test_gpu.cpp)

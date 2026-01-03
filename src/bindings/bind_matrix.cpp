@@ -16,6 +16,8 @@
 #include "pycauset/matrix/SymmetricMatrix.hpp"
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
+#include "pycauset/matrix/MatrixOps.hpp"
+#include "pycauset/matrix/expression/MatrixExpressionWrapper.hpp"
 
 #include "pycauset/vector/DenseVector.hpp"
 #include "pycauset/vector/VectorBase.hpp"
@@ -1681,10 +1683,10 @@ void bind_matrix_classes(py::module_& m) {
                     promotion::BinaryOp::Add,
                     a.get_data_type(),
                     b->get_data_type());
-                auto out = pycauset::add(a, *b, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                auto expr = pycauset::wrap_expression(a + *b);
+                return std::shared_ptr<pycauset::MatrixExpressionWrapper>(expr.release());
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
         .def(
             "__add__",
             [](const MatrixBase& a, const py::array& b) {
@@ -1702,15 +1704,15 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__add__",
             [](const MatrixBase& a, double s) {
-                auto out = a.add_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                std::shared_ptr<pycauset::MatrixExpressionWrapper> result = pycauset::wrap_expression(a + s);
+                return result;
             },
             py::is_operator())
         .def(
             "__add__",
             [](const MatrixBase& a, int64_t s) {
-                auto out = a.add_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                std::shared_ptr<pycauset::MatrixExpressionWrapper> result = pycauset::wrap_expression(a + static_cast<double>(s));
+                return result;
             },
             py::is_operator())
         .def(
@@ -1784,8 +1786,8 @@ void bind_matrix_classes(py::module_& m) {
                     promotion::BinaryOp::Subtract,
                     a.get_data_type(),
                     b->get_data_type());
-                auto out = pycauset::subtract(a, *b, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                std::shared_ptr<pycauset::MatrixExpressionWrapper> result = pycauset::wrap_expression(a - *b);
+                return result;
             },
             py::is_operator())
         .def(

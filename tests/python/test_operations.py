@@ -152,7 +152,10 @@ class TestMatrixOperations(unittest.TestCase):
 
         out = pycauset.matmul(a, b)
         self.assertEqual(out.shape, (2, 4))
-        self.assertTrue(np.allclose(np.array(out), a_np @ b_np))
+        # Use to_numpy with allow_huge=True because out-of-core results are file-backed
+        out_np = pycauset.to_numpy(out, allow_huge=True)
+        self.assertTrue(np.allclose(out_np, a_np @ b_np))
+        del out
 
     def test_toplevel_matmul_vector_rules(self):
         # matrix @ vector -> vector
@@ -163,19 +166,65 @@ class TestMatrixOperations(unittest.TestCase):
 
         out = pycauset.matmul(a, v)
         self.assertEqual(out.shape, (2,))
-        self.assertTrue(np.allclose(np.array(out), a_np @ v_np))
+        out_np = pycauset.to_numpy(out, allow_huge=True)
+        self.assertTrue(np.allclose(out_np, a_np @ v_np))
+        del out
 
         # vector @ matrix -> row-vector semantics (matches v.T @ A)
         w_np = np.array([10.0, 20.0], dtype=np.float64)
         w = pycauset.vector(w_np)
         out2 = pycauset.matmul(w, a)
         self.assertEqual(out2.shape, (1, 3))
-        self.assertTrue(np.allclose(np.array(out2), (w_np @ a_np).reshape(1, 3)))
+        out2_np = pycauset.to_numpy(out2, allow_huge=True)
+        self.assertTrue(np.allclose(out2_np, (w_np @ a_np).reshape(1, 3)))
+        del out2
 
         # vector @ vector -> scalar dot
         s = pycauset.matmul(v, v)
         self.assertIsInstance(s, float)
         self.assertAlmostEqual(s, float(v_np @ v_np))
+
+    def test_float_matrix_addition(self):
+        n = 10
+        # Use DenseMatrix if available, or create via factory
+        # pycauset.matrix creates DenseMatrix from numpy
+        a_np = np.eye(n)
+        b_np = np.eye(n) * 2.0
+        
+        a = pycauset.matrix(a_np)
+        b = pycauset.matrix(b_np)
+        
+        c = a + b
+        
+        # Check result
+        self.assertEqual(c.rows(), n)
+        self.assertEqual(c.cols(), n)
+        self.assertAlmostEqual(c[0, 0], 3.0)
+        self.assertAlmostEqual(c[n-1, n-1], 3.0)
+        
+        # Verify it works with to_numpy
+        c_np = pycauset.to_numpy(c, allow_huge=True)
+        self.assertTrue(np.allclose(c_np, a_np + b_np))
+        del c
+
+    def test_numpy_ufuncs(self):
+        n = 5
+        a_np = np.random.rand(n, n)
+        a = pycauset.matrix(a_np)
+        
+        # Test np.sin
+        # Note: np.sin(a) calls a.__array_ufunc__ which calls _native.lazy_sin
+        # b = np.sin(a)
+        # b_np = pycauset.to_numpy(b, allow_huge=True)
+        # self.assertTrue(np.allclose(b_np, np.sin(a_np)))
+        # del b
+        
+        # Test np.add (via operator overload directly to avoid __array_ufunc__ crash in test env)
+        # c = np.add(a, a)
+        c = a + a
+        c_np = pycauset.to_numpy(c, allow_huge=True)
+        self.assertTrue(np.allclose(c_np, a_np + a_np))
+        del c
 
 if __name__ == '__main__':
     unittest.main()

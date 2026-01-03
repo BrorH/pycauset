@@ -67,7 +67,7 @@ Release 1 nodes:
 - [x] R1_STORAGE
 - [x] R1_PROPERTIES
 - [x] R1_IO
-- [ ] R1_LAZY
+- [x] R1_LAZY
 - [ ] R1_PERF
 - [ ] R1_SAFETY
 - [ ] R1_NUMPY
@@ -97,7 +97,7 @@ flowchart TD
         R1_SHAPES["R1_SHAPES<br/>NxM Matrices Across The System<br/>(end-to-end)<br/>[x]"]
         R1_STORAGE["R1_STORAGE<br/>Single-File Persistence Container<br/>(mmap + typed sparse metadata)<br/>[x]"]
         R1_PROPERTIES["R1_PROPERTIES<br/>Semantic Properties + Property-Aware Algebra<br/>(properties-as-gospel + propagation + caching + persistence metadata)<br/>[x]"]
-        R1_LAZY["R1_LAZY<br/>Lazy Evaluation & Persistence<br/>(Expression Templates + RAM-First)<br/>[ ]"]
+        R1_LAZY["R1_LAZY<br/>Lazy Evaluation & Persistence<br/>(Expression Templates + RAM-First)<br/>[x]"]
         R1_PERF["R1_PERF<br/>Performance Optimization<br/>(Import Gap, AVX-512, Threading)<br/>[ ]"]
         R1_SAFETY["R1_SAFETY<br/>Robustness & Safety<br/>(Headers, Fallbacks, Crash Consistency)<br/>[ ]"]
         R1_SRP["R1_SRP<br/>Support Readiness Program<br/>(dtypes x ops x devices x storage)<br/>+ optimize to >= 0.90x NumPy"]
@@ -235,7 +235,7 @@ Persistence format note:
 
 ### R1_LAZY — Lazy Evaluation & Persistence
 
-Status: - [ ]
+Status: - [x]
 
 Goal: Implement the "RAM-First, Disk-Later" strategy and Expression Templates to ensure R1 performance and safety.
 

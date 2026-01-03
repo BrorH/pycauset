@@ -8,5 +8,6 @@ namespace py = pybind11;
 
 void bind_core_classes(py::module_& m);
 void bind_matrix_classes(py::module_& m);
+void bind_expression_classes(py::module_& m);
 void bind_vector_classes(py::module_& m);
 void bind_causet_classes(py::module_& m);

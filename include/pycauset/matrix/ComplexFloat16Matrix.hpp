@@ -136,6 +136,10 @@ public:
         return z;
     }
 
+    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+        set(i, j, std::complex<double>(value, 0.0));
+    }
+
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
         std::string new_path = copy_storage(result_file);
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);

@@ -7,8 +7,10 @@
 #include <vector>
 #include <complex>
 #include <iostream>
+#include <algorithm>
 
 #include "pycauset/core/PersistentObject.hpp"
+#include "pycauset/matrix/expression/MatrixExpression.hpp"
 
 namespace pycauset {
 
@@ -77,6 +79,87 @@ public:
     virtual std::complex<double> get_element_as_complex(uint64_t i, uint64_t j) const {
         return std::complex<double>(get_element_as_double(i, j), 0.0);
     }
+
+    // Virtual setter for generic assignment (Phase 2.2)
+    virtual void set_element_as_double(uint64_t i, uint64_t j, double value) = 0;
+
+    // Phase 2.5: Batch Write
+    // Allows writing a block of data at once, enabling vectorization in derived classes.
+    virtual void write_block(uint64_t start_row, uint64_t start_col, 
+                             uint64_t num_rows, uint64_t num_cols, 
+                             const double* buffer, uint64_t stride) {
+        // Default implementation: loop and set
+        for (uint64_t i = 0; i < num_rows; ++i) {
+            for (uint64_t j = 0; j < num_cols; ++j) {
+                set_element_as_double(start_row + i, start_col + j, buffer[i * stride + j]);
+            }
+        }
+    }
+
+    // Lazy Assignment Operator (Phase 2.2)
+    template <typename E>
+    MatrixBase& operator=(const MatrixExpression<E>& expr) {
+        // 1. Aliasing Check (Phase 2.3)
+        if (expr.aliases(this)) {
+            // Safe fallback: Evaluate to temporary to prevent data corruption.
+            // This handles cases like A = A + B or A = A.transpose().
+            auto temp_obj = this->clone();
+            MatrixBase* temp = dynamic_cast<MatrixBase*>(temp_obj.get());
+            if (!temp) throw std::runtime_error("Internal Error: Clone returned non-MatrixBase");
+            
+            *temp = expr;  // Evaluate expression into temporary
+            *this = *temp; // Copy temporary back to this
+            return *this;
+        }
+
+        // 2. Dimension Check
+        if (rows() != expr.rows() || cols() != expr.cols()) {
+            throw std::runtime_error("Dimension mismatch in assignment");
+        }
+
+        // 3. Touch Operands (Phase 4)
+        // Ensure operands are marked as recently used so they aren't evicted
+        // if we need to spill something else during evaluation.
+        expr.touch_operands();
+
+        // 4. Evaluation Loop (Phase 2.5: Blocked Evaluation)
+        const uint64_t BLOCK_SIZE = 256; 
+        std::vector<double> buffer(BLOCK_SIZE * BLOCK_SIZE);
+
+        for (uint64_t i = 0; i < rows(); i += BLOCK_SIZE) {
+            uint64_t r_chunk = std::min(BLOCK_SIZE, rows() - i);
+            for (uint64_t j = 0; j < cols(); j += BLOCK_SIZE) {
+                uint64_t c_chunk = std::min(BLOCK_SIZE, cols() - j);
+                
+                // Fill buffer from expression
+                expr.fill_buffer(buffer.data(), i, j, r_chunk, c_chunk, BLOCK_SIZE);
+                
+                // Write buffer to matrix
+                this->write_block(i, j, r_chunk, c_chunk, buffer.data(), BLOCK_SIZE);
+            }
+        }
+
+        return *this;
+    }
+
+    // Copy assignment from another MatrixBase (via expression engine)
+    MatrixBase& operator=(const MatrixBase& other);
+
+    // In-place operators (Declarations)
+    MatrixBase& operator+=(const MatrixBase& other);
+    MatrixBase& operator-=(const MatrixBase& other);
+    MatrixBase& operator*=(double scalar);
+    MatrixBase& operator/=(double scalar);
+
+    template <typename E>
+    MatrixBase& operator+=(const MatrixExpression<E>& expr);
+
+    template <typename E>
+    MatrixBase& operator-=(const MatrixExpression<E>& expr);
+
+    // Phase 4.3: Spill Mechanism
+    // Moves data from RAM (Anonymous) to a file-backed mapping.
+    virtual void spill_to_disk(const std::string& filename);
 
     virtual std::unique_ptr<MatrixBase> multiply_scalar(double scalar, const std::string& result_file = "") const = 0;
     virtual std::unique_ptr<MatrixBase> multiply_scalar(int64_t scalar, const std::string& result_file = "") const = 0;
