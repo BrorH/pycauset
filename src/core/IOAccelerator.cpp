@@ -163,6 +163,15 @@ void IOAccelerator::discard_impl(void* addr, size_t len) {
 void IOAccelerator::prefetch_impl(void* addr, size_t len) {
     // Linux: madvise with MADV_WILLNEED
     madvise(addr, len, MADV_WILLNEED);
+    
+    // Huge Pages Investigation (Phase 2)
+    // If the region is large enough (> 2MB), advise the kernel to use huge pages.
+    // This reduces TLB pressure for large matrices.
+    if (len >= 2 * 1024 * 1024) {
+#ifdef MADV_HUGEPAGE
+        madvise(addr, len, MADV_HUGEPAGE);
+#endif
+    }
 }
 
 void IOAccelerator::prefetch_ranges_impl(const std::vector<std::pair<void*, size_t>>& ranges) {

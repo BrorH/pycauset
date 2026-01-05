@@ -85,9 +85,12 @@ The CPU backend is designed for low-latency execution of small-to-medium workloa
     *   **Element-wise Ops**: Parallelized addition, subtraction, and multiplication.
 
 ### 2.2 Parallelization (`ParallelUtils`)
-PyCauset uses a custom thread pool (`ThreadPool`) to manage parallelism.
+PyCauset uses a custom thread pool (`ThreadPool`) to manage parallelism with a **Dynamic Scheduling** model (Work-Stealing Approximation).
+
 *   **`ParallelFor`**: A helper function that splits loops across available threads.
-*   **Granularity**: Tasks are chunked to ensure load balancing without excessive scheduling overhead.
+*   **Dynamic Scheduling**: Unlike static partitioning (which suffers from stalls if one thread hits a page fault), `ParallelFor` uses an atomic index to hand out small chunks of work (`grain_size`) to threads as they finish previous tasks.
+*   **Load Balancing**: This ensures that if one thread is blocked by I/O or OS paging, other threads continue processing the remaining work, maximizing CPU utilization.
+*   **Granularity**: The grain size is tuned (heuristic: `range / (threads * 4)`) to balance load distribution against atomic contention overhead.
 
 ## 3. GPU Backend (CUDA)
 

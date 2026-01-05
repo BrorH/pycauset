@@ -1,4 +1,5 @@
 #include "bindings_common.hpp"
+#include <immintrin.h>
 
 #include "binding_warnings.hpp"
 
@@ -1410,6 +1411,156 @@ void bind_matrix_classes(py::module_& m) {
             }
             return py::float_(mat.get_element_as_double(i, j));
         })
+        .def("_to_numpy_fast", [](const MatrixBase& mat, bool allow_huge) -> py::object {
+            if (!allow_huge) {
+                pycauset::bindings::ensure_numpy_export_allowed(mat);
+            }
+            
+            uint64_t rows = mat.rows();
+            uint64_t cols = mat.cols();
+            const DataType dt = mat.get_data_type();
+
+            if (dt == DataType::FLOAT64) {
+                if (auto* m = dynamic_cast<const DenseMatrix<double>*>(&mat)) {
+                    py::array_t<double> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
+                    if (!mat.is_transposed() && !mat.has_view_offset() && mat.shared_mapper()) {
+                        const void* src_void = mat.shared_mapper()->get_data();
+                        if (src_void) {
+                            auto buf = out.request();
+                            std::memcpy(buf.ptr, src_void, rows * cols * sizeof(double));
+                            return out;
+                        }
+                    }
+                    auto r = out.mutable_unchecked<2>();
+                    for (uint64_t i = 0; i < rows; ++i) {
+                        for (uint64_t j = 0; j < cols; ++j) {
+                            r(i, j) = m->get(i, j);
+                        }
+                    }
+                    return out;
+                }
+            }
+            if (dt == DataType::INT32) {
+                if (auto* m = dynamic_cast<const DenseMatrix<int32_t>*>(&mat)) {
+                    py::array_t<int32_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
+                    if (!mat.is_transposed() && !mat.has_view_offset() && mat.shared_mapper()) {
+                        const void* src_void = mat.shared_mapper()->get_data();
+                        if (src_void) {
+                            auto buf = out.request();
+                            std::memcpy(buf.ptr, src_void, rows * cols * sizeof(int32_t));
+                            return out;
+                        }
+                    }
+                    auto r = out.mutable_unchecked<2>();
+                    for (uint64_t i = 0; i < rows; ++i) {
+                        for (uint64_t j = 0; j < cols; ++j) {
+                            r(i, j) = m->get(i, j);
+                        }
+                    }
+                    return out;
+                }
+            }
+            if (dt == DataType::COMPLEX_FLOAT64) {
+                 py::array out(py::dtype("complex128"), py::array::ShapeContainer{static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
+                 
+                 if (auto* m = dynamic_cast<const DenseMatrix<std::complex<double>>*>(&mat)) {
+                     if (!mat.is_transposed() && !mat.has_view_offset() && mat.shared_mapper()) {
+                         const void* src_void = mat.shared_mapper()->get_data();
+                         if (src_void) {
+                             auto buf = out.request();
+                             std::memcpy(buf.ptr, src_void, rows * cols * sizeof(std::complex<double>));
+                             return out;
+                         }
+                     }
+                     auto buf = out.request();
+                     auto* dst_ptr = static_cast<std::complex<double>*>(buf.ptr);
+                     const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(std::complex<double>)));
+                     const auto stride1 = static_cast<uint64_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(std::complex<double>)));
+                     for (uint64_t i = 0; i < rows; ++i) {
+                         for (uint64_t j = 0; j < cols; ++j) {
+                             dst_ptr[i * stride0 + j * stride1] = m->get(i, j);
+                         }
+                     }
+                     return out;
+                 }
+
+                 auto buf = out.request();
+                 auto* dst_ptr = static_cast<std::complex<double>*>(buf.ptr);
+                 const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(std::complex<double>)));
+                 const auto stride1 = static_cast<uint64_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(std::complex<double>)));
+                 for (uint64_t i = 0; i < rows; ++i) {
+                     for (uint64_t j = 0; j < cols; ++j) {
+                         dst_ptr[i * stride0 + j * stride1] = mat.get_element_as_complex(i, j);
+                     }
+                 }
+                 return out;
+            }
+            
+            if (dt == DataType::BIT) {
+                if (auto* m = dynamic_cast<const DenseBitMatrix*>(&mat)) {
+                    py::array_t<bool> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
+                    auto buf = out.request();
+                    bool* dst = static_cast<bool*>(buf.ptr);
+                    
+                    if (!mat.is_transposed() && !mat.has_view_offset() && mat.shared_mapper()) {
+                        const uint64_t* src = m->data();
+                        uint64_t stride_bytes = m->stride_bytes();
+                        uint64_t stride_words = stride_bytes / 8;
+
+                        const __m128i zero = _mm_setzero_si128();
+                        const __m128i one = _mm_set1_epi8(1);
+                        const __m128i mask_low = _mm_set1_epi16(0x00FF);
+                        // Masks for interleaved expansion: 1, 1, 2, 2, 4, 4, ...
+                        const __m128i interleaved_mask = _mm_set_epi8(
+                            128, 128, 64, 64, 32, 32, 16, 16, 8, 8, 4, 4, 2, 2, 1, 1
+                        );
+                        
+                        for (uint64_t i = 0; i < rows; ++i) {
+                            const uint64_t* row_ptr = src + i * stride_words;
+                            bool* dst_row = dst + i * cols;
+                            
+                            uint64_t j = 0;
+                            for (; j + 64 <= cols; j += 64) {
+                                uint64_t word = row_ptr[j / 64];
+                                for (int k = 0; k < 4; ++k) {
+                                    uint16_t part = (word >> (k * 16)) & 0xFFFF;
+                                    __m128i v = _mm_set1_epi16(part);
+                                    v = _mm_and_si128(v, interleaved_mask);
+                                    v = _mm_cmpgt_epi8(v, zero);
+                                    v = _mm_and_si128(v, one);
+                                    
+                                    // Deinterleave using packus (SSE2)
+                                    __m128i evens = _mm_and_si128(v, mask_low);
+                                    __m128i odds = _mm_srli_epi16(v, 8);
+                                    v = _mm_packus_epi16(evens, odds);
+                                    
+                                    _mm_storeu_si128((__m128i*)(dst_row + j + k * 16), v);
+                                }
+                            }
+                            
+                            if (j < cols) {
+                                uint64_t word = row_ptr[j / 64];
+                                uint64_t limit = cols - j;
+                                for (uint64_t k = 0; k < limit; ++k) {
+                                    dst_row[j + k] = (word >> k) & 1;
+                                }
+                            }
+                        }
+                        return out;
+                    }
+                    
+                    auto r = out.mutable_unchecked<2>();
+                    for (uint64_t i = 0; i < rows; ++i) {
+                        for (uint64_t j = 0; j < cols; ++j) {
+                            r(i, j) = m->get(i, j);
+                        }
+                    }
+                    return out;
+                }
+            }
+
+            return py::none();
+        }, py::arg("allow_huge") = false)
         .def(
             "__array__",
             [](const MatrixBase& mat, py::object /*dtype*/, py::object /*copy*/) -> py::array {
@@ -3201,6 +3352,90 @@ void bind_matrix_classes(py::module_& m) {
                 return std::shared_ptr<DenseBitMatrix>(out.release());
             },
             py::is_operator())
+        .def(
+            "__xor__",
+            [](const DenseBitMatrix& a, const DenseBitMatrix& b) {
+                if (a.rows() != b.rows() || a.cols() != b.cols()) {
+                    throw std::invalid_argument("Matrix dimensions must match for bitwise XOR");
+                }
+                auto out = std::make_shared<DenseBitMatrix>(a.rows(), a.cols(), "");
+                
+                if (!a.is_transposed() && !b.is_transposed() && !a.has_view_offset() && !b.has_view_offset() &&
+                    a.shared_mapper() && b.shared_mapper()) {
+                    const uint64_t* pa = a.data();
+                    const uint64_t* pb = b.data();
+                    uint64_t* pc = out->data();
+                    uint64_t size_bytes = a.stride_bytes() * a.rows();
+                    uint64_t size_words = size_bytes / 8;
+                    for (uint64_t i = 0; i < size_words; ++i) {
+                        pc[i] = pa[i] ^ pb[i];
+                    }
+                } else {
+                    for(uint64_t i=0; i<a.rows(); ++i) {
+                        for(uint64_t j=0; j<a.cols(); ++j) {
+                            out->set(i, j, a.get(i, j) ^ b.get(i, j));
+                        }
+                    }
+                }
+                return out;
+            },
+            py::is_operator())
+        .def(
+            "__and__",
+            [](const DenseBitMatrix& a, const DenseBitMatrix& b) {
+                if (a.rows() != b.rows() || a.cols() != b.cols()) {
+                    throw std::invalid_argument("Matrix dimensions must match for bitwise AND");
+                }
+                auto out = std::make_shared<DenseBitMatrix>(a.rows(), a.cols(), "");
+                
+                if (!a.is_transposed() && !b.is_transposed() && !a.has_view_offset() && !b.has_view_offset() &&
+                    a.shared_mapper() && b.shared_mapper()) {
+                    const uint64_t* pa = a.data();
+                    const uint64_t* pb = b.data();
+                    uint64_t* pc = out->data();
+                    uint64_t size_bytes = a.stride_bytes() * a.rows();
+                    uint64_t size_words = size_bytes / 8;
+                    for (uint64_t i = 0; i < size_words; ++i) {
+                        pc[i] = pa[i] & pb[i];
+                    }
+                } else {
+                    for(uint64_t i=0; i<a.rows(); ++i) {
+                        for(uint64_t j=0; j<a.cols(); ++j) {
+                            out->set(i, j, a.get(i, j) & b.get(i, j));
+                        }
+                    }
+                }
+                return out;
+            },
+            py::is_operator())
+        .def(
+            "__or__",
+            [](const DenseBitMatrix& a, const DenseBitMatrix& b) {
+                if (a.rows() != b.rows() || a.cols() != b.cols()) {
+                    throw std::invalid_argument("Matrix dimensions must match for bitwise OR");
+                }
+                auto out = std::make_shared<DenseBitMatrix>(a.rows(), a.cols(), "");
+                
+                if (!a.is_transposed() && !b.is_transposed() && !a.has_view_offset() && !b.has_view_offset() &&
+                    a.shared_mapper() && b.shared_mapper()) {
+                    const uint64_t* pa = a.data();
+                    const uint64_t* pb = b.data();
+                    uint64_t* pc = out->data();
+                    uint64_t size_bytes = a.stride_bytes() * a.rows();
+                    uint64_t size_words = size_bytes / 8;
+                    for (uint64_t i = 0; i < size_words; ++i) {
+                        pc[i] = pa[i] | pb[i];
+                    }
+                } else {
+                    for(uint64_t i=0; i<a.rows(); ++i) {
+                        for(uint64_t j=0; j<a.cols(); ++j) {
+                            out->set(i, j, a.get(i, j) | b.get(i, j));
+                        }
+                    }
+                }
+                return out;
+            },
+            py::is_operator())
         .def_static(
             "random",
             [](uint64_t n, double p, std::optional<uint64_t> seed) {
@@ -3601,6 +3836,50 @@ void bind_matrix_classes(py::module_& m) {
                 const bool* src_ptr = static_cast<const bool*>(b.ptr);
                 const ptrdiff_t stride0 = static_cast<ptrdiff_t>(b.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
                 const ptrdiff_t stride1 = static_cast<ptrdiff_t>(b.strides[1] / static_cast<py::ssize_t>(sizeof(bool)));
+                
+                uint64_t* dst_data = result->data();
+                uint64_t dst_stride_bytes = result->stride_bytes();
+                uint64_t dst_stride_words = dst_stride_bytes / 8;
+                
+                if (dst_data) {
+                    for (uint64_t i = 0; i < rows; ++i) {
+                        uint64_t* row_ptr = dst_data + i * dst_stride_words;
+                        const bool* src_row = src_ptr + static_cast<ptrdiff_t>(i) * stride0;
+                        
+                        for (uint64_t j = 0; j < cols; j += 64) {
+                            uint64_t word = 0;
+                            uint64_t limit = std::min(cols - j, (uint64_t)64);
+                            
+                            if (stride1 == 1) {
+                                const bool* src_chunk = src_row + j;
+                                uint64_t k = 0;
+                                __m128i zero = _mm_setzero_si128();
+                                while (k + 16 <= limit) {
+                                    __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src_chunk + k));
+                                    __m128i cmp = _mm_cmpeq_epi8(chunk, zero);
+                                    int mask = _mm_movemask_epi8(cmp);
+                                    uint64_t bits = static_cast<uint16_t>(~mask);
+                                    word |= (bits << k);
+                                    k += 16;
+                                }
+                                for (; k < limit; ++k) {
+                                    if (src_chunk[k]) {
+                                        word |= (1ULL << k);
+                                    }
+                                }
+                            } else {
+                                for (uint64_t k = 0; k < limit; ++k) {
+                                    if (src_row[(j + k) * stride1]) {
+                                        word |= (1ULL << k);
+                                    }
+                                }
+                            }
+                            row_ptr[j / 64] = word;
+                        }
+                    }
+                    return py::cast(result);
+                }
+
                 for (uint64_t i = 0; i < rows; ++i) {
                     for (uint64_t j = 0; j < cols; ++j) {
                         const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0 + static_cast<ptrdiff_t>(j) * stride1;

@@ -79,14 +79,19 @@ The `IOAccelerator` optimizes the interaction between the application and the OS
 
 ### Mechanism
 
-*   **Windows**: Uses `PrefetchVirtualMemory` to issue asynchronous requests to the OS memory manager, bringing pages into RAM *before* the CPU faults on them.
-*   **Linux**: Uses `madvise` with `MADV_WILLNEED` to trigger read-ahead.
+*   **Windows**: 
+    *   **Write Optimization**: Uses `SetFileValidData` (requires `SE_MANAGE_VOLUME_NAME`) to extend files without zero-filling, solving the "Import Gap".
+    *   **Read Optimization**: Uses `PrefetchVirtualMemory` to issue asynchronous requests to the OS memory manager, bringing pages into RAM *before* the CPU faults on them.
+*   **Linux**: 
+    *   **Write Optimization**: Uses `fallocate` to pre-allocate disk blocks.
+    *   **Read Optimization**: Uses `madvise` with `MADV_WILLNEED` (or `MAP_POPULATE` at mapping time) to trigger read-ahead.
 
 ### Workflow
 
-1.  **Prefetch**: Before a heavy compute operation (e.g., matrix multiplication), the solver calls `accelerator->prefetch()`. This hints to the OS to populate the page cache.
-2.  **Compute**: The CPU accesses the memory. Since pages are likely already in RAM, major page faults are minimized.
-3.  **Discard**: After the operation, if the data is intermediate or unlikely to be reused soon, `accelerator->discard()` is called. This uses `OfferVirtualMemory` (Windows) or `MADV_DONTNEED` (Linux) to tell the OS these pages can be evicted immediately, freeing up RAM for other tasks.
+1.  **Creation**: When a new file is created, `SetFileValidData`/`fallocate` is called to reserve space instantly.
+2.  **Prefetch**: Before a heavy compute operation (e.g., matrix multiplication), the solver calls `accelerator->prefetch()`. This hints to the OS to populate the page cache.
+3.  **Compute**: The CPU accesses the memory. Since pages are likely already in RAM, major page faults are minimized.
+4.  **Discard**: After the operation, if the data is intermediate or unlikely to be reused soon, `accelerator->discard()` is called. This uses `OfferVirtualMemory` (Windows) or `MADV_DONTNEED` (Linux) to tell the OS these pages can be evicted immediately, freeing up RAM for other tasks.
 
 ## 4. Pinned Memory & Direct Path (Phase 4)
 

@@ -19,9 +19,10 @@ static inline int popcount64(uint64_t x) {
 }
 
 void DenseMatrix<bool>::calculate_stride() {
-    // Align rows to 64-bit (8-byte) boundaries
-    uint64_t words_per_row = (base_cols() + 63) / 64;
-    stride_bytes_ = words_per_row * 8;
+    // Align rows to 512-bit (64-byte) boundaries for AVX-512 optimization.
+    // Even if AVX-512 is not used, cache line alignment (64 bytes) is beneficial.
+    uint64_t min_bytes = (base_cols() + 7) / 8;
+    stride_bytes_ = (min_bytes + 63) & ~63ULL;
 }
 
 DenseMatrix<bool>::DenseMatrix(uint64_t n, const std::string& backing_file)

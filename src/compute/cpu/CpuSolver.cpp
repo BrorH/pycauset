@@ -25,6 +25,7 @@
 #include "pycauset/core/MemoryHints.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/DebugTrace.hpp"
+#include "pycauset/core/Nvtx.hpp"
 #include <Eigen/Dense>
 #include <stdexcept>
 #include <algorithm>
@@ -35,16 +36,49 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <immintrin.h>
 
-#ifdef in
-#undef in
-#endif
-
-#ifdef out
-#undef out
+#ifdef _WIN32
+#include <intrin.h>
+#else
+#include <cpuid.h>
 #endif
 
 namespace pycauset {
+
+namespace {
+    // Runtime CPU detection for AVX-512 VPOPCNTDQ
+    bool has_avx512_vpopcntdq() {
+        static bool checked = false;
+        static bool available = false;
+        if (checked) return available;
+
+        // Check for AVX-512 Foundation (bit 16 of EBX in leaf 7, subleaf 0)
+        // Check for VPOPCNTDQ (bit 14 of ECX in leaf 7, subleaf 0)
+        
+        int cpuInfo[4];
+#ifdef _WIN32
+        __cpuid(cpuInfo, 0);
+        int nIds = cpuInfo[0];
+        if (nIds >= 7) {
+            __cpuidex(cpuInfo, 7, 0);
+            bool avx512f = (cpuInfo[1] & (1 << 16)) != 0;
+            bool avx512vpopcntdq = (cpuInfo[2] & (1 << 14)) != 0;
+            available = avx512f && avx512vpopcntdq;
+        }
+#else
+        unsigned int eax, ebx, ecx, edx;
+        if (__get_cpuid_max(0, &eax) >= 7) {
+            __cpuid_count(7, 0, eax, ebx, ecx, edx);
+            bool avx512f = (ebx & (1 << 16)) != 0;
+            bool avx512vpopcntdq = (ecx & (1 << 14)) != 0;
+            available = avx512f && avx512vpopcntdq;
+        }
+#endif
+        checked = true;
+        return available;
+    }
+}
 
 namespace {
 std::vector<double> to_memory_flat_real_square(const MatrixBase& m) {
@@ -152,6 +186,7 @@ namespace {
     // Returns true if successful, false if memory budget didn't allow it.
     template <typename T>
     bool attempt_direct_path(const DenseMatrix<T>* a_dense, const DenseMatrix<T>* b_dense, DenseMatrix<T>* c_dense) {
+        NVTX_RANGE("CpuSolver::attempt_direct_path");
         // Only supported for Float/Double where we have BLAS
         if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
             const uint64_t a_elems = a_dense->base_rows() * a_dense->base_cols();
@@ -161,9 +196,9 @@ namespace {
             
             auto& governor = pycauset::core::MemoryGovernor::instance();
             
-            // Check 1: Does it fit in RAM?
+            // Check 1: Does it fit in RAM? (Anti-Nanny Logic)
             // Check 2: Do we have enough Pinned Memory Budget?
-            if (governor.can_fit_in_ram(total_bytes) && governor.try_pin_memory(total_bytes)) {
+            if (governor.should_use_direct_path(total_bytes) && governor.try_pin_memory(total_bytes)) {
                 // Attempt to pin all three matrices
                 bool pinned = true;
                 // We use const_cast because pinning is a logical const operation (doesn't change data)
@@ -230,6 +265,7 @@ namespace {
 
     template <typename T>
     void matmul_impl(const DenseMatrix<T>* a_dense, const DenseMatrix<T>* b_dense, DenseMatrix<T>* c_dense) {
+        NVTX_RANGE("CpuSolver::matmul_impl");
         const uint64_t m = a_dense->rows();
         const uint64_t k = a_dense->cols();
         if (b_dense->rows() != k) {
@@ -474,10 +510,10 @@ namespace {
         size_t total_bytes = 2 * n * n * sizeof(T);
         
         if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
-            // if (pycauset::core::MemoryGovernor::instance().should_use_direct_path(total_bytes)) {
+            if (pycauset::core::MemoryGovernor::instance().should_use_direct_path(total_bytes)) {
                 inverse_direct(in_dense, out_dense);
                 return;
-            // }
+            }
         }
 
         // --- Fallback: Out-of-Core Block Gauss-Jordan ---
@@ -1381,13 +1417,33 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
                 }
             }
 
+            const bool use_avx512 = has_avx512_vpopcntdq();
+
             ParallelFor(0, m, [&](size_t i) {
                 const uint64_t* a_row = a_data + i * words_per_row;
                 for (uint64_t j = 0; j < n; ++j) {
                     const uint64_t* b_col = b_transposed_data + j * words_per_row;
 
                     int64_t dot_product = 0;
-                    for (uint64_t w = 0; w < words_per_row; ++w) {
+                    uint64_t w = 0;
+
+                    // AVX-512 Loop (8 words = 512 bits per iteration)
+                    if (use_avx512) {
+                        const uint64_t avx_limit = words_per_row & ~7ULL; // Multiple of 8
+                        __m512i vsum = _mm512_setzero_si512();
+                        
+                        for (; w < avx_limit; w += 8) {
+                            __m512i va = _mm512_loadu_si512((const void*)&a_row[w]);
+                            __m512i vb = _mm512_loadu_si512((const void*)&b_col[w]);
+                            __m512i vand = _mm512_and_si512(va, vb);
+                            __m512i vpop = _mm512_popcnt_epi64(vand);
+                            vsum = _mm512_add_epi64(vsum, vpop);
+                        }
+                        dot_product = _mm512_reduce_add_epi64(vsum);
+                    }
+
+                    // Scalar Loop (Tail)
+                    for (; w < words_per_row; ++w) {
                         uint64_t aw = a_row[w];
                         uint64_t bw = b_col[w];
                         if (w == words_per_row - 1 && rem_bits != 0u) {

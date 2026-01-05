@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <algorithm>
+#include <atomic>
 
 namespace pycauset {
 
@@ -97,24 +98,39 @@ void ParallelFor(size_t start, size_t end, Func func) {
         return;
     }
 
-    size_t chunk_size = (range + num_threads - 1) / num_threads;
+    // Dynamic Scheduling (Work Stealing approximation)
+    // We use an atomic counter to hand out chunks to threads.
+    // This prevents stalls if one thread hits a page fault.
+    
+    // Heuristic: Create ~4 chunks per thread to allow load balancing
+    // but avoid excessive atomic contention.
+    size_t grain_size = std::max(size_t(1), range / (num_threads * 4));
+    
+    // Shared atomic counter for the next index to process
+    auto next_idx = std::make_shared<std::atomic<size_t>>(start);
     
     std::vector<std::future<void>> futures;
     
     for (size_t i = 0; i < num_threads; ++i) {
-        size_t chunk_start = start + i * chunk_size;
-        size_t chunk_end = std::min(end, chunk_start + chunk_size);
-        
-        if (chunk_start >= end) break;
-
         futures.emplace_back(ThreadPool::instance().enqueue([=]() {
-            for (size_t j = chunk_start; j < chunk_end; ++j) {
-                func(j);
+            while (true) {
+                // Claim a chunk
+                size_t chunk_start = next_idx->fetch_add(grain_size);
+                
+                if (chunk_start >= end) {
+                    break;
+                }
+
+                size_t chunk_end = std::min(end, chunk_start + grain_size);
+                
+                for (size_t j = chunk_start; j < chunk_end; ++j) {
+                    func(j);
+                }
             }
         }));
     }
 
-    // Wait for all chunks to complete and propagate exceptions
+    // Wait for all threads to complete and propagate exceptions
     for (auto& fut : futures) {
         fut.get(); 
     }

@@ -39,7 +39,7 @@ PyCauset implements a hybrid CPU/GPU strategy for eigenvalue computation and mat
     2.  **Inversion:** `cusolverDn<t>getri`. Computes $A^{-1}$ using LU factors.
 *   **CPU (Fallback):** Block Gauss-Jordan Elimination.
     *   Matrix is processed in blocks.
-    *   Off-diagonal updates are fully parallelized using OpenMP.
+    *   Off-diagonal updates are fully parallelized using the custom `ThreadPool`.
 
 ### Matrix Multiplication
 
@@ -47,7 +47,10 @@ Matrix multiplication uses a dynamic dispatch system:
 
 *   **GPU:** Uses `cuBLAS` (Float32/Float64) and custom kernels (BitMatrix).
     *   **Streaming Mode:** If matrices exceed VRAM, a hybrid tiling approach is used. CPU threads pack tiles of $A$ and stream them to the GPU.
-*   **CPU:** Uses OpenMP blocked multiplication.
+*   **CPU:** 
+    *   **Float/Double:** Uses OpenBLAS/MKL (if linked) or blocked multiplication parallelized via `ThreadPool`.
+    *   **BitMatrix:** Uses AVX-512 optimized kernels (`_mm512_popcnt_epi64`) for bit-packed operations, achieving significant speedups over naive implementations.
+    *   **Direct Path:** For RAM-resident data, the "Streaming Solver" overhead is bypassed, calling BLAS/LAPACK directly.
 *   **Specialized:**
     *   **Bit Matrices:**
         *   **CPU**: Uses `std::popcount` (AVX-512/NEON hardware instruction) for ultra-fast boolean matrix multiplication and dot products. This replaces naive loops, achieving ~30x speedups.

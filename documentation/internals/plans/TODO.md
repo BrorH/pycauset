@@ -68,7 +68,7 @@ Release 1 nodes:
 - [x] R1_PROPERTIES
 - [x] R1_IO
 - [x] R1_LAZY
-- [ ] R1_PERF
+- [x] R1_PERF
 - [ ] R1_SAFETY
 - [ ] R1_NUMPY
 - [x] R1_LINALG
@@ -98,7 +98,7 @@ flowchart TD
         R1_STORAGE["R1_STORAGE<br/>Single-File Persistence Container<br/>(mmap + typed sparse metadata)<br/>[x]"]
         R1_PROPERTIES["R1_PROPERTIES<br/>Semantic Properties + Property-Aware Algebra<br/>(properties-as-gospel + propagation + caching + persistence metadata)<br/>[x]"]
         R1_LAZY["R1_LAZY<br/>Lazy Evaluation & Persistence<br/>(Expression Templates + RAM-First)<br/>[x]"]
-        R1_PERF["R1_PERF<br/>Performance Optimization<br/>(Import Gap, AVX-512, Threading)<br/>[ ]"]
+        R1_PERF["R1_PERF<br/>Performance Optimization<br/>(Import Gap, AVX-512, Threading)<br/>[x]"]
         R1_SAFETY["R1_SAFETY<br/>Robustness & Safety<br/>(Headers, Fallbacks, Crash Consistency)<br/>[ ]"]
         R1_SRP["R1_SRP<br/>Support Readiness Program<br/>(dtypes x ops x devices x storage)<br/>+ optimize to >= 0.90x NumPy"]
         R1_IO["R1_IO<br/>Out-of-core I/O + Persistence Performance<br/>(streaming + mmap correctness)<br/>[x]"]
@@ -257,7 +257,7 @@ Deliverables:
 
 ### R1_PERF — Performance Optimization & Verification
 
-Status: - [ ]
+Status: - [x]
 
 Goal: Address specific performance bottlenecks to reach "NumPy Parity" and "Theoretical Optimality".
 

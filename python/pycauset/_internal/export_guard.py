@@ -220,6 +220,18 @@ def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool
     except Exception as e:  # pragma: no cover - numpy optional at runtime
         raise RuntimeError("NumPy is required for export") from e
 
+    # Try fast native export if available
+    fast_export = getattr(obj, "_to_numpy_fast", None)
+    if callable(fast_export):
+        try:
+            arr = fast_export(allow_huge=allow_huge)
+            if arr is not None:
+                if dtype is not None:
+                    return np.array(arr, dtype=dtype, copy=copy)
+                return arr
+        except Exception:
+            pass
+
     target_dtype = _infer_numpy_dtype(obj, dtype, np)
 
     # When allow_huge=True, the caller explicitly wants to bypass the safety policy.

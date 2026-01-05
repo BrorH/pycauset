@@ -5,6 +5,34 @@
 
 #ifdef _WIN32
 #include <windows.h>
+// Helper to enable privileges (SE_MANAGE_VOLUME_NAME for SetFileValidData)
+static bool EnablePrivilege(LPCTSTR lpszPrivilege) {
+    HANDLE hToken;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
+        return false;
+
+    TOKEN_PRIVILEGES tp;
+    if (!LookupPrivilegeValue(NULL, lpszPrivilege, &tp.Privileges[0].Luid)) {
+        CloseHandle(hToken);
+        return false;
+    }
+
+    tp.PrivilegeCount = 1;
+    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+    if (!AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), (PTOKEN_PRIVILEGES)NULL, (PDWORD)NULL)) {
+        CloseHandle(hToken);
+        return false;
+    }
+
+    if (GetLastError() == ERROR_NOT_ALL_ASSIGNED) {
+        CloseHandle(hToken);
+        return false;
+    }
+
+    CloseHandle(hToken);
+    return true;
+}
 #else
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -107,6 +135,16 @@ void MemoryMapper::open_file(bool create_new) {
             if (!SetEndOfFile(hFile_)) {
                 CloseHandle(hFile_);
                 throw std::runtime_error("Failed to set end of file");
+            }
+
+            // Optimization: SetFileValidData to skip zero-filling
+            // This requires SE_MANAGE_VOLUME_NAME privilege.
+            // If it fails, we just proceed (OS will zero-fill on write/fault).
+            if (EnablePrivilege(SE_MANAGE_VOLUME_NAME)) {
+                if (!SetFileValidData(hFile_, liSize.QuadPart)) {
+                    // Fallback: Just ignore failure, performance will be lower but correct.
+                    // std::cerr << "Warning: SetFileValidData failed." << std::endl;
+                }
             }
         }
     } else {
@@ -251,10 +289,24 @@ void MemoryMapper::open_file(bool create_new) {
 
     if (create_new) {
         if (fd_ != -1) {
+            // Try fallocate first to pre-allocate blocks (avoids fragmentation and some metadata updates)
+            // 0 = default mode (allocate and initialize to zero)
+            // We could use FALLOC_FL_KEEP_SIZE if we wanted, but we want to set size.
+            // Note: fallocate is not standard POSIX, but available on Linux.
+            // If it fails (e.g. not supported by FS), fallback to ftruncate.
+#ifdef __linux__
+            if (fallocate(fd_, 0, 0, total_required_size) != 0) {
+                if (ftruncate(fd_, total_required_size) == -1) {
+                    close(fd_);
+                    throw std::runtime_error("Failed to resize file (fallocate & ftruncate failed)");
+                }
+            }
+#else
             if (ftruncate(fd_, total_required_size) == -1) {
                 close(fd_);
                 throw std::runtime_error("Failed to resize file");
             }
+#endif
         }
     } else {
         if (fd_ != -1) {
@@ -285,6 +337,12 @@ void MemoryMapper::open_file(bool create_new) {
 
     int map_flags = MAP_SHARED;
     if (fd_ == -1) map_flags |= MAP_ANONYMOUS;
+
+#ifdef __linux__
+    // If we are creating a new file, we are likely about to write to it.
+    // MAP_POPULATE pre-faults the pages, reducing page faults during the subsequent write.
+    if (create_new) map_flags |= MAP_POPULATE;
+#endif
 
     base_ptr_ = mmap(NULL, map_size, PROT_READ | PROT_WRITE, map_flags, fd_, aligned_offset);
     

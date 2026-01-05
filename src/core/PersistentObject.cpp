@@ -285,6 +285,15 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     mapper_ = std::make_unique<MemoryMapper>(path, final_size, offset, create_new);
     accelerator_.reset();
 
+#ifdef _WIN32
+    // Optimization: On Windows, prefetch the newly created file to populate page tables.
+    // This reduces page faults during the subsequent write (Import Gap).
+    // On Linux, MAP_POPULATE in MemoryMapper already handles this.
+    if (create_new && !use_ram) {
+        get_accelerator()->prefetch(0, final_size);
+    }
+#endif
+
     // Initialize members
     matrix_type_ = matrix_type;
     data_type_ = data_type;
