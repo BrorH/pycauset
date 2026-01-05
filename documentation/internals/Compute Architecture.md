@@ -225,3 +225,14 @@ This section outlines the plan to address the remaining gaps in the PyCauset acc
 ### Phase 4: Precision Control
 *   **Objective**: Allow users to force Float64 on consumer GPUs.
 *   **Plan**: Add `PrecisionMode` enum (`AUTO`, `FORCE_FLOAT32`, `FORCE_FLOAT64`) to `AcceleratorConfig`.
+
+### 1.5 Resilience & Fallback (R1_SAFETY)
+
+To ensure robustness against hardware instability (e.g., GPU driver crashes, OOM), AutoSolver implements a **Circuit Breaker** pattern:
+
+1.  **Pessimistic Initialization**: GPU context creation is wrapped in 	ry-catch. If it fails, the GPU is disabled for the session.
+2.  **Operation Guard**: Every GPU operation (matmul, inverse, etc.) is guarded.
+3.  **Fallback**: If a GPU operation throws a hardware exception:
+    *   A warning is logged to stderr.
+    *   The GPU is permanently disabled (gpu_device_ = nullptr).
+    *   The operation is retried immediately on the CPU.

@@ -69,7 +69,7 @@ Release 1 nodes:
 - [x] R1_IO
 - [x] R1_LAZY
 - [x] R1_PERF
-- [ ] R1_SAFETY
+- [x] R1_SAFETY
 - [ ] R1_NUMPY
 - [x] R1_LINALG
 - [x] R1_BLOCKMATRIX
@@ -99,7 +99,7 @@ flowchart TD
         R1_PROPERTIES["R1_PROPERTIES<br/>Semantic Properties + Property-Aware Algebra<br/>(properties-as-gospel + propagation + caching + persistence metadata)<br/>[x]"]
         R1_LAZY["R1_LAZY<br/>Lazy Evaluation & Persistence<br/>(Expression Templates + RAM-First)<br/>[x]"]
         R1_PERF["R1_PERF<br/>Performance Optimization<br/>(Import Gap, AVX-512, Threading)<br/>[x]"]
-        R1_SAFETY["R1_SAFETY<br/>Robustness & Safety<br/>(Headers, Fallbacks, Crash Consistency)<br/>[ ]"]
+        R1_SAFETY["R1_SAFETY<br/>Robustness & Safety<br/>(Headers, Fallbacks, Crash Consistency)<br/>[x]"]
         R1_SRP["R1_SRP<br/>Support Readiness Program<br/>(dtypes x ops x devices x storage)<br/>+ optimize to >= 0.90x NumPy"]
         R1_IO["R1_IO<br/>Out-of-core I/O + Persistence Performance<br/>(streaming + mmap correctness)<br/>[x]"]
         R1_NUMPY["R1_NUMPY<br/>Fast NumPy Interop<br/>(import/export must be competitive)"]
@@ -269,7 +269,7 @@ Deliverables:
 
 ### R1_SAFETY — Robustness & Safety (The Shield)
 
-Status: - [ ]
+Status: - [x]
 
 Goal: Ensure PyCauset survives crashes, power outages, and bad hardware states.
 

@@ -68,8 +68,10 @@ void AutoSolver::run_benchmark() {
         // std::cout << "[PyCauset] Hardware Profiling: CPU=" << cpu_time << "s, GPU=" << gpu_time << "s. Speedup=" << gpu_speedup_factor_ << "x." << std::endl;
         
     } catch (const std::exception& e) {
-        std::cerr << "[PyCauset] Warning: Hardware profiling failed (" << e.what() << "). Defaulting to GPU enabled." << std::endl;
-        gpu_speedup_factor_ = 1.5; // Assume GPU is decent if benchmark fails
+        // R1_SAFETY: Pessimistic Fallback
+        std::cerr << "[PyCauset] GPU Initialization/Benchmark failed (" << e.what() << "). Disabling GPU." << std::endl;
+        gpu_device_.reset();
+        gpu_speedup_factor_ = 0.0;
     }
     
     benchmark_done_ = true;
@@ -195,7 +197,13 @@ void AutoSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
     }
     
     if (use_gpu) {
-        gpu_device_->matmul(a, b, result);
+        try {
+            gpu_device_->matmul(a, b, result);
+        } catch (const std::exception& e) {
+            std::cerr << "[PyCauset] GPU Error in matmul: " << e.what() << ". Falling back to CPU." << std::endl;
+            gpu_device_.reset();
+            cpu_device_->matmul(a, b, result);
+        }
     } else {
         cpu_device_->matmul(a, b, result);
     }
@@ -216,7 +224,13 @@ void AutoSolver::inverse(const MatrixBase& in, MatrixBase& out) {
     }
     
     if (use_gpu) {
-        gpu_device_->inverse(in, out);
+        try {
+            gpu_device_->inverse(in, out);
+        } catch (const std::exception& e) {
+            std::cerr << "[PyCauset] GPU Error in inverse: " << e.what() << ". Falling back to CPU." << std::endl;
+            gpu_device_.reset();
+            cpu_device_->inverse(in, out);
+        }
     } else {
         cpu_device_->inverse(in, out);
     }
@@ -225,7 +239,19 @@ void AutoSolver::inverse(const MatrixBase& in, MatrixBase& out) {
 void AutoSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {
     // A is N*N.
     uint64_t elements = A.size() * A.size();
-    select_device(elements)->batch_gemv(A, x_data, y_data, b);
+    ComputeDevice* device = select_device(elements);
+    
+    if (device == gpu_device_.get()) {
+        try {
+            device->batch_gemv(A, x_data, y_data, b);
+        } catch (const std::exception& e) {
+             std::cerr << "[PyCauset] GPU Error in batch_gemv: " << e.what() << ". Falling back to CPU." << std::endl;
+             gpu_device_.reset();
+             cpu_device_->batch_gemv(A, x_data, y_data, b);
+        }
+    } else {
+        device->batch_gemv(A, x_data, y_data, b);
+    }
 }
 
 void AutoSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) {
@@ -272,7 +298,13 @@ void AutoSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& resul
         } else {
             debug_trace::set_last("gpu.add");
         }
-        gpu_device_->add(a, b, result);
+        try {
+            gpu_device_->add(a, b, result);
+        } catch (const std::exception& e) {
+            std::cerr << "[PyCauset] GPU Error in add: " << e.what() << ". Falling back to CPU." << std::endl;
+            gpu_device_.reset();
+            cpu_device_->add(a, b, result);
+        }
     } else {
         cpu_device_->add(a, b, result);
     }
@@ -307,7 +339,13 @@ void AutoSolver::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& 
         } else {
             debug_trace::set_last("gpu.subtract");
         }
-        gpu_device_->subtract(a, b, result);
+        try {
+            gpu_device_->subtract(a, b, result);
+        } catch (const std::exception& e) {
+            std::cerr << "[PyCauset] GPU Error in subtract: " << e.what() << ". Falling back to CPU." << std::endl;
+            gpu_device_.reset();
+            cpu_device_->subtract(a, b, result);
+        }
     } else {
         cpu_device_->subtract(a, b, result);
     }
@@ -340,7 +378,13 @@ void AutoSolver::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase&
     }
 
     if (use_gpu) {
-        gpu_device_->multiply_scalar(a, scalar, result);
+        try {
+            gpu_device_->multiply_scalar(a, scalar, result);
+        } catch (const std::exception& e) {
+            std::cerr << "[PyCauset] GPU Error in multiply_scalar: " << e.what() << ". Falling back to CPU." << std::endl;
+            gpu_device_.reset();
+            cpu_device_->multiply_scalar(a, scalar, result);
+        }
     } else {
         cpu_device_->multiply_scalar(a, scalar, result);
     }

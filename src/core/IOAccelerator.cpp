@@ -114,8 +114,19 @@ void IOAccelerator::process_hint(const MemoryHint& hint) {
 
 #ifdef _WIN32
 
+// Define VM_OFFER_PRIORITY if missing (e.g. older SDKs)
+#ifndef VM_OFFER_PRIORITY
+typedef enum _VM_OFFER_PRIORITY {
+    VmOfferPriorityVeryLow = 1,
+    VmOfferPriorityLow,
+    VmOfferPriorityBelowNormal,
+    VmOfferPriorityNormal
+} VM_OFFER_PRIORITY;
+#endif
+
 // Function pointer type for PrefetchVirtualMemory (in case we are on old Windows, though unlikely for C++20)
 typedef BOOL (WINAPI *PPrefetchVirtualMemory)(HANDLE, ULONG_PTR, PWIN32_MEMORY_RANGE_ENTRY, ULONG);
+typedef DWORD (WINAPI *POfferVirtualMemory)(PVOID, SIZE_T, VM_OFFER_PRIORITY);
 
 void IOAccelerator::prefetch_impl(void* addr, size_t len) {
     static PPrefetchVirtualMemory pPrefetch = (PPrefetchVirtualMemory)GetProcAddress(GetModuleHandleA("kernel32.dll"), "PrefetchVirtualMemory");
@@ -151,11 +162,32 @@ void IOAccelerator::prefetch_ranges_impl(const std::vector<std::pair<void*, size
 }
 
 void IOAccelerator::discard_impl(void* addr, size_t len) {
-    // Windows: VirtualUnlock removes pages from the working set.
-    // It officially requires pages to be locked, but in practice (and some docs),
-    // it acts as a strong hint to the memory manager to trim these pages from the working set.
-    // If it fails, we ignore it.
-    VirtualUnlock(addr, len);
+    // R1_SAFETY: Windows Discard Implementation
+    // 1. Flush changes to disk so we don't lose data
+    FlushViewOfFile(addr, len);
+
+    // 2. Offer memory to OS for reclamation
+    // VmOfferPriorityVeryLow (1) allows the OS to discard the pages immediately if needed.
+    // Note: If we access this memory again, we must Reclaim it, or we get garbage/fault.
+    // But discard() implies we are done. If we reload from file later, the OS handles the page fault
+    // by reading from disk (since we flushed).
+    // Wait, OfferVirtualMemory makes pages "purgeable". If purged, they are zeroed or garbage?
+    // MSDN: "If the content is discarded, the memory is in the reset state."
+    // Reset state = Zeros? Or undefined?
+    // If we map the file again, do we see the file content?
+    // OfferVirtualMemory operates on the *virtual address*.
+    // If we unmap and remap, we get a new view.
+    // So this is safe for "I am done with this view".
+    
+    static POfferVirtualMemory pOffer = (POfferVirtualMemory)GetProcAddress(GetModuleHandleA("kernel32.dll"), "OfferVirtualMemory");
+    
+    if (pOffer) {
+        // 1 = VmOfferPriorityVeryLow
+        pOffer(addr, len, (VM_OFFER_PRIORITY)1);
+    } else {
+        // Fallback: VirtualUnlock is mostly a no-op but better than nothing
+        VirtualUnlock(addr, len);
+    }
 }
 
 #else

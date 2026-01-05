@@ -316,3 +316,11 @@ See:
 - [[internals/plans/completed/R1_STORAGE_PLAN.md|R1_STORAGE_PLAN]]
 - [[internals/plans/completed/R1_PROPERTIES_PLAN.md|R1_PROPERTIES_PLAN]]
 - [[project/protocols/Documentation Protocol.md|Documentation Protocol]]
+
+## Crash Consistency (R1_SAFETY)
+
+PyCauset employs several mechanisms to minimize data loss in the event of a power failure or crash:
+
+1.  **Atomic Metadata Updates**: .pycauset files use double-buffered metadata slots. Updates are written to a new slot, flushed to disk, and then the "Active Slot" pointer is updated atomically.
+2.  **Explicit Flushes**: Critical write operations (like save() or internal spills) call FlushFileBuffers (Windows) or msync (Linux) to ensure data reaches physical media.
+3.  **Header Protection**: All backing files include a versioned header to prevent partial or corrupt files from being misinterpreted as valid data.

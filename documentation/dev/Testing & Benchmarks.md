@@ -59,3 +59,16 @@ The authoritative checklist for dtype/op coverage and readiness gates is:
 When a checklist item changes status:
 - ensure a corresponding test exists (or is added),
 - ensure a benchmark script exists (or is updated).
+
+### 3) Safety Tests (R1_SAFETY)
+
+Location:
+- `tests/python/test_safety.py` (Basic smoke tests)
+- `tests/python/test_r1_safety_comprehensive.py` (Extensive stress/fuzzing suite)
+
+These tests validate:
+- **Corrupt Load**: Ensuring `pc.load()` rejects files with invalid headers or magic bytes (Fuzzing 50+ iterations).
+- **Spill Integrity**: Verifying that internal `.tmp` files (with Simple Headers) are read correctly.
+- **Leak Detection**: Verifying that large alloc/free cycles do not cause OOM (validating `OfferVirtualMemory` logic).
+- **Concurrency**: Threaded I/O stress testing to ensure thread-safety of file operations.
+- **Persistence**: Verifying physical disk writes via explicit flush checks.

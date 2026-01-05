@@ -141,3 +141,24 @@ graph TD
     B2[Matrix B] -->|shared_ptr| M3[MemoryMapper 2]
     end
 ```
+
+## 5. File Formats (R1_SAFETY)
+
+PyCauset uses two distinct file formats for disk-backed storage.
+
+### 5.1 Snapshot Container (.pycauset)
+*   **Role**: Portable, persistent storage for matrices and causal sets.
+*   **Manager**: python/pycauset/_internal/persistence.py.
+*   **Structure**:
+    *   **Header (4KB)**: Magic PYCAUSET, Version 1, Slot pointers.
+    *   **Slots (A/B)**: Double-buffered pointers to metadata blocks (crash consistency).
+    *   **Metadata**: Typed JSON-like map (shape, dtype, properties).
+    *   **Payload**: Raw binary data (aligned to 4KB).
+
+### 5.2 Backing File (.tmp)
+*   **Role**: Temporary storage for spilled objects or large intermediates.
+*   **Manager**: src/core/MemoryMapper.cpp.
+*   **Structure**:
+    *   **Header (64 bytes)**: Magic PYCAUSET, Version 1, Reserved (zeros).
+    *   **Payload**: Raw binary data.
+*   **Safety**: The 64-byte header prevents accidental loading of raw files as valid PyCauset containers (or vice versa). MemoryMapper distinguishes between the two formats by checking the "Reserved" field (which is non-zero in .pycauset headers).

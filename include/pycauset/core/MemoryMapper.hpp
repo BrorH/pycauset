@@ -32,6 +32,13 @@ public:
     void unpin_region(void* ptr, size_t size) const;
 
 private:
+    struct FileHeader {
+        char magic[8];      // "PYCAUSET"
+        uint32_t version;   // 1
+        uint8_t reserved[52];
+    };
+    static_assert(sizeof(FileHeader) == 64, "FileHeader must be 64 bytes");
+
     std::string filename_;
     size_t data_size_;
     size_t offset_;

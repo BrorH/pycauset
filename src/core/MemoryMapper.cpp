@@ -115,6 +115,50 @@ void MemoryMapper::open_file(bool create_new) {
         if (hFile_ == INVALID_HANDLE_VALUE) {
             throw std::runtime_error("Failed to open file: " + filename_);
         }
+
+        // R1_SAFETY: File Header Logic
+        FileHeader header;
+        DWORD bytesProcessed = 0;
+        
+        if (create_new) {
+            std::memcpy(header.magic, "PYCAUSET", 8);
+            header.version = 1;
+            std::memset(header.reserved, 0, sizeof(header.reserved));
+            
+            if (!WriteFile(hFile_, &header, sizeof(header), &bytesProcessed, NULL) || bytesProcessed != sizeof(header)) {
+                CloseHandle(hFile_);
+                throw std::runtime_error("Failed to write file header");
+            }
+            offset_ += sizeof(FileHeader);
+        } else {
+            if (!ReadFile(hFile_, &header, sizeof(header), &bytesProcessed, NULL) || bytesProcessed != sizeof(header)) {
+                CloseHandle(hFile_);
+                throw std::runtime_error("Failed to read file header or file too short");
+            }
+            if (std::memcmp(header.magic, "PYCAUSET", 8) != 0) {
+                CloseHandle(hFile_);
+                throw std::runtime_error("Invalid file format: Bad magic");
+            }
+            if (header.version != 1) {
+                CloseHandle(hFile_);
+                throw std::runtime_error("Unsupported file version: " + std::to_string(header.version));
+            }
+            
+            // Check if it's a Simple Header (all reserved bytes are 0)
+            // If reserved bytes are non-zero, it's likely a .pycauset container (Complex Header)
+            // where the caller provides the correct absolute offset.
+            bool is_simple_header = true;
+            for (int i = 0; i < 52; ++i) {
+                if (header.reserved[i] != 0) {
+                    is_simple_header = false;
+                    break;
+                }
+            }
+            
+            if (is_simple_header) {
+                offset_ += sizeof(FileHeader);
+            }
+        }
     }
 
     size_t granularity = get_granularity();
@@ -278,6 +322,46 @@ void MemoryMapper::open_file(bool create_new) {
         if (fd_ == -1) {
             throw std::runtime_error("Failed to open file: " + filename_ + " (" + std::strerror(errno) + ")");
         }
+
+        // R1_SAFETY: File Header Logic
+        FileHeader header;
+        
+        if (create_new) {
+            std::memcpy(header.magic, "PYCAUSET", 8);
+            header.version = 1;
+            std::memset(header.reserved, 0, sizeof(header.reserved));
+            
+            if (write(fd_, &header, sizeof(header)) != sizeof(header)) {
+                close(fd_);
+                throw std::runtime_error("Failed to write file header");
+            }
+            offset_ += sizeof(FileHeader);
+        } else {
+            if (read(fd_, &header, sizeof(header)) != sizeof(header)) {
+                close(fd_);
+                throw std::runtime_error("Failed to read file header or file too short");
+            }
+            if (std::memcmp(header.magic, "PYCAUSET", 8) != 0) {
+                close(fd_);
+                throw std::runtime_error("Invalid file format: Bad magic");
+            }
+            if (header.version != 1) {
+                close(fd_);
+                throw std::runtime_error("Unsupported file version: " + std::to_string(header.version));
+            }
+            
+            bool is_simple_header = true;
+            for (int i = 0; i < 52; ++i) {
+                if (header.reserved[i] != 0) {
+                    is_simple_header = false;
+                    break;
+                }
+            }
+            
+            if (is_simple_header) {
+                offset_ += sizeof(FileHeader);
+            }
+        }
     }
 
     size_t granularity = get_granularity();
@@ -395,6 +479,10 @@ void MemoryMapper::flush(void* ptr, size_t size) {
     if (ptr && size > 0) {
 #ifdef _WIN32
         FlushViewOfFile(ptr, size);
+        // R1_SAFETY: Ensure metadata/file size changes are also committed
+        if (hFile_ != INVALID_HANDLE_VALUE) {
+            FlushFileBuffers(hFile_);
+        }
 #else
         msync(ptr, size, MS_SYNC);
 #endif
