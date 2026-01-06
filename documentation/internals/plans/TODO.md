@@ -70,7 +70,7 @@ Release 1 nodes:
 - [x] R1_LAZY
 - [x] R1_PERF
 - [x] R1_SAFETY
-- [/] R1_NUMPY (In Progress)
+- [x] R1_NUMPY
 - [x] R1_LINALG
 - [x] R1_BLOCKMATRIX
 - [ ] R1_GPU
@@ -102,7 +102,7 @@ flowchart TD
         R1_SAFETY["R1_SAFETY<br/>Robustness & Safety<br/>(Headers, Fallbacks, Crash Consistency)<br/>[x]"]
         R1_SRP["R1_SRP<br/>Support Readiness Program<br/>(dtypes x ops x devices x storage)<br/>+ optimize to >= 0.90x NumPy"]
         R1_IO["R1_IO<br/>Out-of-core I/O + Persistence Performance<br/>(streaming + mmap correctness)<br/>[x]"]
-        R1_NUMPY["R1_NUMPY<br/>Fast NumPy Interop<br/>(import/export must be competitive)"]
+        R1_NUMPY["R1_NUMPY<br/>Fast NumPy Interop<br/>(import/export must be competitive)<br/>[x]"]
         R1_LINALG["R1_LINALG<br/>Core Linalg Surface Completeness<br/>(norms/division/init-from-array/etc)<br/>[x]"]
         R1_BLOCKMATRIX["R1_BLOCKMATRIX<br/>Block Matrices + Heterogeneous Dtypes<br/>(nesting + manifests + semi-lazy ops)<br/>[x]"]
         R1_GPU["R1_GPU<br/>GPU Parity + Routing Policy<br/>(CPU-only vs GPU-enabled is explicit)"]
@@ -348,7 +348,7 @@ Deliverables:
 
 ### R1_NUMPY — Fast NumPy Interop
 
-Status: - [ ]
+Status: - [x]
 
 Goal: converting to/from NumPy is not a bottleneck. Assert compatibility
 

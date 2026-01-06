@@ -37,6 +37,19 @@ S = M + N                   # elementwise add
 - Elementwise ops follow NumPy 2D broadcasting.
 - See [[docs/functions/pycauset.matmul.md|pycauset.matmul]], [[docs/functions/pycauset.sum.md|pycauset.sum]], [[docs/functions/pycauset.divide.md|pycauset.divide]].
 
+### Mixed Operations (Interop)
+
+You can use NumPy arrays directly in operations with PyCauset matrices. PyCauset automatically handles the conversion.
+
+```python
+N_np = np.eye(2)
+M = pc.matrix([ [1, 2], [3, 4] ], dtype="float64")
+
+# Mix NumPy and PyCauset (returns PyCauset matrix)
+Res = M @ N_np
+Diff = M - N_np
+```
+
 ## Solves and least squares
 
 ```python

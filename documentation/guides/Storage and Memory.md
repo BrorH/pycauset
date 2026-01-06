@@ -304,6 +304,19 @@ See:
 - [[guides/Matrix Guide.md|Matrix Guide]]
 - [[guides/Performance Guide.md|Performance Guide]]
 
+## NumPy Interop & Memory Risks
+
+While PyCauset matrices can be terabytes in size, standard NumPy arrays must fit largely in RAM.
+
+**Interaction Warning:** passing a huge file-backed matrix to `np.array(M)` or `pycauset.to_numpy(M)` attempts to load the **entire payload** into system RAM.
+
+To prevent accidental crashes:
+1.  PyCauset blocks this by default for disk-backed objects.
+2.  You must explicitly opt-in with `pycauset.to_numpy(M, allow_huge=True)`.
+3.  Prefer processing data within PyCauset where possible, as it manages tiling and paging automatically.
+
+See [[guides/Numpy Integration.md|Numpy Integration]] for details.
+
 ## See also
 
 - [[docs/functions/pycauset.save.md|pycauset.save]]

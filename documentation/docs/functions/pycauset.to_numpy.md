@@ -15,7 +15,9 @@ This is the **explicit** NumPy export entrypoint. It exists because converting o
   - When `False`, exporting spill/file-backed objects hard-errors to prevent surprise full materialization.
   - Set to `True` only when you intentionally want to materialize into RAM.
 - **dtype** (optional): Override NumPy dtype on export.
-- **copy** (bool, default `True`): Return a NumPy array whose buffer is independent of the PyCauset object.
+- **copy** (bool, default `True`):
+  - If `True`, returns a deep copy (safe).
+  - If `False`, attempts to return a **read-only view** of the PyCauset memory. If a view is not possible (e.g. incompatible layout or bit-packed), it issues a `UserWarning` and falls back to a copy.
 
 ## Returns
 
@@ -35,6 +37,10 @@ import numpy as np
 M = pc.zeros((3, 3), dtype="float32")
 arr = pc.to_numpy(M)
 assert isinstance(arr, np.ndarray)
+
+# Request a zero-copy view
+view = pc.to_numpy(M, copy=False)
+# view is generic read-only
 ```
 
 ## See also

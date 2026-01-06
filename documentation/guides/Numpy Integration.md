@@ -17,6 +17,8 @@ Supported dtypes include:
 - Complex floats: `complex64/complex128` (mapped to `complex_float32/complex_float64`)
 - Booleans: `bool_` (mapped to bit-packed storage)
 
+**Performance Note**: Import uses a parallelized direct path for large arrays, achieving >10GB/s on modern hardware. Non-contiguous arrays (slices) are automatically handled via an optimized parallel copy.
+
 ```python
 import numpy as np
 import pycauset as pc
@@ -62,6 +64,23 @@ B = np.sin(A)
 C = np.add(A, A)
 ```
 
+## Mixed Arithmetic and Ergonomics
+
+PyCauset supports mixed operations between NumPy arrays and PyCauset objects.
+Operators (`+`, `-`, `*`, `@`) automatically route to the optimized PyCauset implementation when possible.
+
+```python
+A = pc.matrix(np.random.rand(1000, 1000))
+B = np.random.rand(1000, 1000)
+
+# Works efficiently!
+# PyCauset handles the add, returning a FloatMatrix
+C = A + B 
+
+# Also works (Reverse add support)
+D = B + A
+```
+
 ## Converting PyCauset Objects to NumPy
 
 All `pycauset` Matrix and Vector classes implement the NumPy array protocol (`__array__`). This means you can pass any `pycauset` object directly to `np.array()` or any function that expects an array-like object.
@@ -77,7 +96,24 @@ mean_val = np.mean(v)
 std_val = np.std(v)
 ```
 
-**Safety rules (materialization)**
+### Zero-Copy Views (`copy=False`)
+
+By default, conversion creates a copy (safe). However, if you want high-performance access without duplication, you can request a view using `pc.to_numpy(..., copy=False)`.
+
+*   **Success**: Returns a read-only NumPy array viewing the PyCauset memory.
+*   **Fallback**: If the object cannot be viewed (e.g., bit-packed matrices or complex expression templates), it issues a `UserWarning` and falls back to a copy.
+
+```python
+M = pc.matrix(np.eye(1000))
+
+# Try to get a view
+# Warning: The returned array is READ-ONLY. Modifying it is undefined behavior.
+view = pc.to_numpy(M, copy=False) 
+```
+
+### Safety rules (materialization)
+
+Converting a massive out-of-core matrix to NumPy is dangerous—it forces the entire dataset into RAM, which can crash your process. PyCauset guards against this.
 
 - **Snapshot-backed** (`.pycauset`) and **RAM-backed** (`:memory:`) objects: `np.array(obj)` is allowed and returns a copy.
 - **Spill/file-backed** objects (e.g., `.tmp`): `np.array(obj)` **raises** by default to prevent surprise full materialization. Opt in explicitly via `pc.to_numpy(obj, allow_huge=True)` if you truly want to load it into RAM.

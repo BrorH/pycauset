@@ -20,6 +20,15 @@ Instead of treating the disk as a simple extension of RAM (OS Paging), PyCauset 
     *   The file-backed mapper uses session backing files (for example `.tmp` files under the backing directory).
     *   Portable persistence uses explicit `.pycauset` snapshots written by `save()`.
 
+### Export Safety (Materialization Guard)
+
+A specific risk in this architecture is "Implosion": an L2 object (1TB file-backed) being naively converted to an L1 object (NumPy array), instantly exhausting RAM.
+
+The **Export Guard** mechanism prevents this:
+*   File-backed or large spill-backed objects are flagged as `huge`.
+*   APIs like `__array__` (used by `np.array()`) check this flag.
+*   If flagged, export unconditionally **fails** unless the user provides an explicit override (`allow_huge=True` via `to_numpy`).
+
 ## Persistence format status
 
 There is exactly **one** on-disk format for `.pycauset`: a **single-file binary container** with an mmap-friendly payload region and a sparse, self-describing, typed metadata block.

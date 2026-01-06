@@ -35,9 +35,9 @@ Current implementation note (as of Jan 2026):
 ## 1) Dependencies (read before implementing)
 
 - Roadmap node: [PyCauset Roadmap](TODO.md) → **R1_NUMPY**
-- Naming/shape alignment: [NumPy Alignment Protocol](../../project/protocols/NumPy%20Alignment%20Protocol.md)
+- Naming/shape alignment: [NumPy Alignment Protocol](NumPy%20Alignment%20Protocol.md)
 - Out-of-core conversion policies: [R1_IO Plan](R1_IO_PLAN.md)
-- Storage/memory UX rules: [Storage and Memory](../../guides/Storage%20and%20Memory.md)
+- Storage/memory UX rules: [Storage and Memory](Storage%20and%20Memory.md)
 - Benchmark philosophy: [Support Readiness Framework](SUPPORT_READINESS_FRAMEWORK.md)
 
 ---
