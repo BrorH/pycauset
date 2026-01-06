@@ -431,6 +431,8 @@ def _install_array_export_hook(native_type: Any) -> None:
         return
     try:
         native_type.__array__ = _guarded_array_export
+        # Disallow ufuncs so standard ops take precedence (forcing __radd__ over NumPy's buffer path)
+        native_type.__array_ufunc__ = None
         native_type.__array_priority__ = 1e6
         setattr(native_type, "__pycauset_array_wrapped__", True)
     except Exception:
@@ -1827,5 +1829,6 @@ _lazy_matrix_classes = [
     TriangularFloatMatrix, TriangularIntegerMatrix,
     DenseBitMatrix, SymmetricMatrix, AntiSymmetricMatrix,
 ]
-_lazy_ufunc.patch_matrix_classes(_lazy_matrix_classes)
+# Disable lazy ufunc patching to allow C++ operator overloads to handle NumPy interoperability reliably.
+# _lazy_ufunc.patch_matrix_classes(_lazy_matrix_classes)
 

@@ -1,5 +1,6 @@
 #include "bindings_common.hpp"
 #include <immintrin.h>
+#include <iostream>
 
 #include "binding_warnings.hpp"
 
@@ -19,11 +20,14 @@
 #include "pycauset/matrix/TriangularMatrix.hpp"
 #include "pycauset/matrix/MatrixOps.hpp"
 #include "pycauset/matrix/expression/MatrixExpressionWrapper.hpp"
+#include "pycauset/core/ObjectFactory.hpp"
 
 #include "pycauset/vector/DenseVector.hpp"
 #include "pycauset/vector/VectorBase.hpp"
 
 #include "numpy_export_guard.hpp"
+#include "pycauset/core/MemoryGovernor.hpp"
+#include "pycauset/core/ParallelUtils.hpp"
 
 #include <Eigen/Dense>
 
@@ -373,6 +377,62 @@ inline void require_1d(const py::buffer_info& buf) {
     }
 }
 
+// Helper for Parallel Export
+template <typename T>
+py::array_t<T> parallel_export_to_numpy(const DenseMatrix<T>& mat) {
+    // 1. Check Safety (Guard)
+    pycauset::bindings::ensure_numpy_export_allowed(static_cast<const MatrixBase&>(mat));
+
+    uint64_t rows = mat.rows();
+    uint64_t cols = mat.cols();
+    size_t total_bytes = rows * cols * sizeof(T);
+
+    // 2. Allocate uninitialized NumPy array
+    // We use C-contiguous order by default for new arrays.
+    // Use numpy.empty explicitly to avoid any risk of zero-initialization overhead
+    auto np = py::module::import("numpy");
+    py::object result_obj = np.attr("empty")(py::make_tuple(rows, cols), py::dtype::of<T>());
+    py::array_t<T> result = result_obj.cast<py::array_t<T>>();
+
+    // 3. Parallel Copy
+    // If small, use single threaded to avoid overhead.
+    // If huge, use ParallelFor with GIL release.
+    constexpr size_t PARALLEL_THRESHOLD_BYTES = 1024 * 1024; // 1MB
+
+    py::buffer_info buf = result.request();
+    T* dst_ptr = static_cast<T*>(buf.ptr);
+    const T* src_ptr = mat.data();
+
+    // Check strict C-contiguous for safety (newly allocated numpy array usually is)
+    // bool is_c_contiguous = (buf.strides[1] == sizeof(T) && buf.strides[0] == static_cast<py::ssize_t>(cols * sizeof(T)));
+    
+    if (total_bytes >= PARALLEL_THRESHOLD_BYTES) {
+        // Release GIL for parallel copy
+        {
+            py::gil_scoped_release release;
+            // Use strides from buffer info to be safe, though we expect C-contiguous.
+            const py::ssize_t stride0 = buf.strides[0];
+            char* dst_base = static_cast<char*>(buf.ptr);
+
+            // DEBUG PRINT
+            // printf("Parallel Export: rows=%llu, cols=%llu, stride0=%lld, threads=%zu\n",
+            //        (unsigned long long)rows, (unsigned long long)cols, (long long)stride0, pycauset::ThreadPool::get_num_threads());
+            
+            pycauset::ParallelFor(0, rows, [&](size_t i) {
+                const T* src_row = src_ptr + i * cols;
+                // Calculate destination row using stride
+                T* dst_row = reinterpret_cast<T*>(dst_base + i * stride0);
+                std::memcpy(dst_row, src_row, cols * sizeof(T));
+            });
+        }
+    } else {
+        // Fallback: Safe single-threaded consistency
+        std::memcpy(dst_ptr, src_ptr, total_bytes);
+    }
+
+    return result;
+}
+
 template <typename T>
 std::shared_ptr<DenseMatrix<T>> dense_matrix_from_numpy_2d(const py::array_t<T>& array) {
     auto buf = array.request();
@@ -380,6 +440,15 @@ std::shared_ptr<DenseMatrix<T>> dense_matrix_from_numpy_2d(const py::array_t<T>&
 
     uint64_t rows = static_cast<uint64_t>(buf.shape[0]);
     uint64_t cols = static_cast<uint64_t>(buf.shape[1]);
+
+    // R1_NUMPY: Check MemoryGovernor before allocating.
+    // If the matrix is too large for RAM, we should fail fast rather than OOM/Swap-death.
+    // Note: The input is already in RAM (NumPy), so we are effectively doubling memory usage here.
+    size_t required_bytes = rows * cols * sizeof(T);
+    if (!pycauset::core::MemoryGovernor::instance().should_use_direct_path(required_bytes)) {
+        throw std::runtime_error("Import rejected by MemoryGovernor: Matrix too large for available RAM.");
+    }
+
     auto result = std::make_shared<DenseMatrix<T>>(rows, cols);
 
     const T* src_ptr = static_cast<const T*>(buf.ptr);
@@ -387,6 +456,67 @@ std::shared_ptr<DenseMatrix<T>> dense_matrix_from_numpy_2d(const py::array_t<T>&
 
     const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(T)));
     const ptrdiff_t stride1 = static_cast<ptrdiff_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(T)));
+
+    // PHASE 3.5: Advanced Strided Optimizations (Parallel Import)
+    // We release the GIL to allow multi-threaded memory copy if the matrix is large enough.
+    // Heuristic: If total bytes > 1MB, use parallel path.
+    constexpr size_t PARALLEL_THRESHOLD_BYTES = 1024 * 1024;
+    size_t total_bytes = rows * cols * sizeof(T);
+    
+    // Check if we can use the parallel path (requires GIL release)
+    if (total_bytes >= PARALLEL_THRESHOLD_BYTES) {
+        py::gil_scoped_release release;
+        
+        // Fast path: fully C-contiguous.
+        if (stride1 == 1 && stride0 == static_cast<ptrdiff_t>(cols)) {
+            // Parallel memcpy for huge contiguous arrays
+            // Split by rows or chunks.
+            pycauset::ParallelFor(0, rows, [&](size_t i) {
+                const T* src_row = src_ptr + i * cols;
+                T* dst_row = dst_ptr + i * cols;
+                std::memcpy(dst_row, src_row, cols * sizeof(T));
+            });
+            return result;
+        }
+
+        // Fast path: row-contiguous (possibly with padding between rows).
+        if (stride1 == 1) {
+            pycauset::ParallelFor(0, rows, [&](size_t i) {
+                const T* src_row = src_ptr + static_cast<ptrdiff_t>(i) * stride0;
+                T* dst_row = dst_ptr + i * cols;
+                std::memcpy(dst_row, src_row, cols * sizeof(T));
+            });
+            return result;
+        }
+
+        // General path: Strided copy
+        // Parallelize over rows.
+        pycauset::ParallelFor(0, rows, [&](size_t i) {
+            const T* src_row = src_ptr + static_cast<ptrdiff_t>(i) * stride0;
+            T* dst_row = dst_ptr + i * cols;
+
+            // Inner loop: Check if we have stride optimization opportunities
+            if (stride1 == -1) {
+               // Reversed column copy optimization
+               const T* p = src_row;
+               for (uint64_t j = 0; j < cols; ++j) {
+                   dst_row[j] = *p;
+                   p += stride1;
+               }
+            } else {
+               // Generic heavy loop
+               const T* p = src_row;
+               for (uint64_t j = 0; j < cols; ++j) {
+                   dst_row[j] = *p;
+                   p += stride1; // Pointer arithmetic for next element
+               }
+            }
+        });
+
+        return result;
+    }
+
+    // --- Fallback to single-threaded path for small arrays (keeping GIL is fine/faster) ---
 
     // Fast path: fully C-contiguous.
     if (stride1 == 1 && stride0 == static_cast<ptrdiff_t>(cols)) {
@@ -1319,6 +1449,9 @@ inline auto translate_invalid_argument(Fn&& fn) {
 
 void bind_matrix_classes(py::module_& m) {
     py::class_<MatrixBase, std::shared_ptr<MatrixBase>>(m, "MatrixBase", py::dynamic_attr())
+        .def_property_readonly("__array_priority__", [](const MatrixBase&) { 
+            return 1000.0; 
+        })
         .def_property_readonly("backing_file", &MatrixBase::get_backing_file)
         .def("get_backing_file", &MatrixBase::get_backing_file)
         .def_property_readonly("is_temporary", &MatrixBase::is_temporary)
@@ -1423,7 +1556,7 @@ void bind_matrix_classes(py::module_& m) {
             if (dt == DataType::FLOAT64) {
                 if (auto* m = dynamic_cast<const DenseMatrix<double>*>(&mat)) {
                     py::array_t<double> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    if (!mat.is_transposed() && !mat.has_view_offset() && mat.shared_mapper()) {
+                    if (!mat.is_transposed() && !mat.has_view_offset() && mat.shared_mapper() && mat.get_scalar() == 1.0 && !mat.is_conjugated()) {
                         const void* src_void = mat.shared_mapper()->get_data();
                         if (src_void) {
                             auto buf = out.request();
@@ -1434,7 +1567,7 @@ void bind_matrix_classes(py::module_& m) {
                     auto r = out.mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
-                            r(i, j) = m->get(i, j);
+                            r(i, j) = m->get_element_as_double(i, j);
                         }
                     }
                     return out;
@@ -1443,7 +1576,7 @@ void bind_matrix_classes(py::module_& m) {
             if (dt == DataType::INT32) {
                 if (auto* m = dynamic_cast<const DenseMatrix<int32_t>*>(&mat)) {
                     py::array_t<int32_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    if (!mat.is_transposed() && !mat.has_view_offset() && mat.shared_mapper()) {
+                    if (!mat.is_transposed() && !mat.has_view_offset() && mat.shared_mapper() && mat.get_scalar() == 1.0 && !mat.is_conjugated()) {
                         const void* src_void = mat.shared_mapper()->get_data();
                         if (src_void) {
                             auto buf = out.request();
@@ -1464,7 +1597,7 @@ void bind_matrix_classes(py::module_& m) {
                  py::array out(py::dtype("complex128"), py::array::ShapeContainer{static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
                  
                  if (auto* m = dynamic_cast<const DenseMatrix<std::complex<double>>*>(&mat)) {
-                     if (!mat.is_transposed() && !mat.has_view_offset() && mat.shared_mapper()) {
+                     if (!mat.is_transposed() && !mat.has_view_offset() && mat.shared_mapper() && mat.get_scalar() == 1.0 && !mat.is_conjugated()) {
                          const void* src_void = mat.shared_mapper()->get_data();
                          if (src_void) {
                              auto buf = out.request();
@@ -1478,7 +1611,7 @@ void bind_matrix_classes(py::module_& m) {
                      const auto stride1 = static_cast<uint64_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(std::complex<double>)));
                      for (uint64_t i = 0; i < rows; ++i) {
                          for (uint64_t j = 0; j < cols; ++j) {
-                             dst_ptr[i * stride0 + j * stride1] = m->get(i, j);
+                             dst_ptr[i * stride0 + j * stride1] = m->get_element_as_complex(i, j);
                          }
                      }
                      return out;
@@ -1834,10 +1967,10 @@ void bind_matrix_classes(py::module_& m) {
                     promotion::BinaryOp::Add,
                     a.get_data_type(),
                     b->get_data_type());
-                auto expr = pycauset::wrap_expression(a + *b);
-                return std::shared_ptr<pycauset::MatrixExpressionWrapper>(expr.release());
+                auto out = pycauset::add(a, *b, "");
+                return std::shared_ptr<MatrixBase>(out.release());
             },
-            py::is_operator(), py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
+            py::is_operator())
         .def(
             "__add__",
             [](const MatrixBase& a, const py::array& b) {
@@ -1855,15 +1988,15 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__add__",
             [](const MatrixBase& a, double s) {
-                std::shared_ptr<pycauset::MatrixExpressionWrapper> result = pycauset::wrap_expression(a + s);
-                return result;
+                auto out = a.add_scalar(s, "");
+                return std::shared_ptr<MatrixBase>(out.release());
             },
             py::is_operator())
         .def(
             "__add__",
             [](const MatrixBase& a, int64_t s) {
-                std::shared_ptr<pycauset::MatrixExpressionWrapper> result = pycauset::wrap_expression(a + static_cast<double>(s));
-                return result;
+                auto out = a.add_scalar(s, "");
+                return std::shared_ptr<MatrixBase>(out.release());
             },
             py::is_operator())
         .def(
@@ -1890,16 +2023,20 @@ void bind_matrix_classes(py::module_& m) {
             py::is_operator())
         .def(
             "__radd__",
-            [](const MatrixBase& a, const py::array& b) {
-                auto mb = elementwise_operand_matrix_from_numpy(b);
-                maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, *mb, a);
-                maybe_warn_bit_promotes_to_int32(
-                    "add",
-                    promotion::BinaryOp::Add,
-                    mb->get_data_type(),
-                    a.get_data_type());
-                auto out = pycauset::add(*mb, a, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+            [](const MatrixBase& a, py::object b_obj) -> py::object {
+                if (py::isinstance<py::array>(b_obj)) {
+                    auto b = b_obj.cast<py::array>();
+                    auto mb = elementwise_operand_matrix_from_numpy(b);
+                    maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, *mb, a);
+                    maybe_warn_bit_promotes_to_int32(
+                        "add",
+                        promotion::BinaryOp::Add,
+                        mb->get_data_type(),
+                        a.get_data_type());
+                    auto out = pycauset::add(*mb, a, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
+                 return py::reinterpret_borrow<py::object>(Py_NotImplemented);
             },
             py::is_operator())
         .def(
@@ -1937,8 +2074,8 @@ void bind_matrix_classes(py::module_& m) {
                     promotion::BinaryOp::Subtract,
                     a.get_data_type(),
                     b->get_data_type());
-                std::shared_ptr<pycauset::MatrixExpressionWrapper> result = pycauset::wrap_expression(a - *b);
-                return result;
+                auto out = pycauset::subtract(a, *b, "");
+                return std::shared_ptr<MatrixBase>(out.release());
             },
             py::is_operator())
         .def(
@@ -1961,6 +2098,36 @@ void bind_matrix_classes(py::module_& m) {
                 // Allow other operand types (e.g., internal BlockMatrix) to
                 // handle the operation via their __rsub__.
                 return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+            },
+            py::is_operator())
+        .def(
+            "__sub__",
+            [](const MatrixBase& a, double s) {
+                auto out = a.add_scalar(-s, "");
+                return std::shared_ptr<MatrixBase>(out.release());
+            },
+            py::is_operator())
+        .def(
+            "__sub__",
+            [](const MatrixBase& a, int64_t s) {
+                auto out = a.add_scalar(-s, "");
+                return std::shared_ptr<MatrixBase>(out.release());
+            },
+            py::is_operator())
+        .def(
+            "__rsub__",
+            [](const MatrixBase& a, double s) {
+                auto neg = a.multiply_scalar(-1.0, "");
+                auto out = neg->add_scalar(s, "");
+                return std::shared_ptr<MatrixBase>(out.release());
+            },
+            py::is_operator())
+        .def(
+            "__rsub__",
+            [](const MatrixBase& a, int64_t s) {
+                auto neg = a.multiply_scalar(-1.0, "");
+                auto out = neg->add_scalar(s, "");
+                return std::shared_ptr<MatrixBase>(out.release());
             },
             py::is_operator())
         .def(
@@ -2051,14 +2218,6 @@ void bind_matrix_classes(py::module_& m) {
             py::is_operator())
         .def(
             "__mul__",
-            [](const MatrixBase&, const py::object&) -> py::object {
-                // Allow other operand types (e.g., internal BlockMatrix) to
-                // handle the operation via their __rmul__.
-                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-            },
-            py::is_operator())
-        .def(
-            "__mul__",
             [](const MatrixBase& a, double s) {
                 auto out = a.multiply_scalar(s, "");
                 return std::shared_ptr<MatrixBase>(out.release());
@@ -2076,6 +2235,14 @@ void bind_matrix_classes(py::module_& m) {
             [](const MatrixBase& a, std::complex<double> s) {
                 auto out = a.multiply_scalar(s, "");
                 return std::shared_ptr<MatrixBase>(out.release());
+            },
+            py::is_operator())
+        .def(
+            "__mul__",
+            [](const MatrixBase&, const py::object&) -> py::object {
+                // Allow other operand types (e.g., internal BlockMatrix) to
+                // handle the operation via their __rmul__.
+                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
             },
             py::is_operator())
         .def(
@@ -2145,6 +2312,9 @@ void bind_matrix_classes(py::module_& m) {
                 return dense_matrix_from_numpy_2d<double>(array.cast<py::array_t<double>>());
             }),
             py::arg("array"))
+        .def("__array__", [](const DenseMatrix<double>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none())
         .def_static(
             "_from_storage",
             [](uint64_t n,
@@ -2287,7 +2457,10 @@ void bind_matrix_classes(py::module_& m) {
                const DenseMatrix<float>& other) {
                 return std::shared_ptr<DenseMatrix<float>>(m.multiply(other, ""));
             },
-            py::arg("other"));
+            py::arg("other"))
+        .def("__array__", [](const DenseMatrix<float>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none());
 
     install_dense_matrix_buffer<float>(float32_matrix);
 
@@ -2488,7 +2661,7 @@ void bind_matrix_classes(py::module_& m) {
 
     // --- Complex Float32/64 Support ---
     py::class_<DenseMatrix<std::complex<float>>, MatrixBase, std::shared_ptr<DenseMatrix<std::complex<float>>>>(
-        m, "ComplexFloat32Matrix")
+        m, "ComplexFloat32Matrix", py::buffer_protocol())
         .def(
             py::init([](int n) { return std::make_shared<DenseMatrix<std::complex<float>>>(static_cast<uint64_t>(n)); }),
             py::arg("n"))
@@ -2544,10 +2717,23 @@ void bind_matrix_classes(py::module_& m) {
         .def("set_identity", &DenseMatrix<std::complex<float>>::set_identity)
         .def("__setitem__", [](DenseMatrix<std::complex<float>>& mat, const py::object& key, const py::object& value) {
             dense_setitem(mat, key, value);
+        })
+        .def("__array__", [](const DenseMatrix<std::complex<float>>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none())
+        .def_buffer([](DenseMatrix<std::complex<float>> &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),
+                sizeof(std::complex<float>),
+                py::format_descriptor<std::complex<float>>::format(),
+                2,
+                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                { sizeof(std::complex<float>) * m.cols(), sizeof(std::complex<float>) }
+            );
         });
 
     py::class_<DenseMatrix<std::complex<double>>, MatrixBase, std::shared_ptr<DenseMatrix<std::complex<double>>>>(
-        m, "ComplexFloat64Matrix")
+        m, "ComplexFloat64Matrix", py::buffer_protocol())
         .def(
             py::init([](int n) { return std::make_shared<DenseMatrix<std::complex<double>>>(static_cast<uint64_t>(n)); }),
             py::arg("n"))
@@ -2603,6 +2789,19 @@ void bind_matrix_classes(py::module_& m) {
         .def("set_identity", &DenseMatrix<std::complex<double>>::set_identity)
         .def("__setitem__", [](DenseMatrix<std::complex<double>>& mat, const py::object& key, const py::object& value) {
             dense_setitem(mat, key, value);
+        })
+        .def("__array__", [](const DenseMatrix<std::complex<double>>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none())
+        .def_buffer([](DenseMatrix<std::complex<double>> &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),
+                sizeof(std::complex<double>),
+                py::format_descriptor<std::complex<double>>::format(),
+                2,
+                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                { sizeof(std::complex<double>) * m.cols(), sizeof(std::complex<double>) }
+            );
         });
 
     // --- Diagonal matrix ---
@@ -2748,7 +2947,7 @@ void bind_matrix_classes(py::module_& m) {
         .def("get", &IdentityMatrix<double>::get);
 
     // --- Integer + Bit matrices (names expected by Python) ---
-    py::class_<DenseMatrix<int32_t>, MatrixBase, std::shared_ptr<DenseMatrix<int32_t>>>(m, "IntegerMatrix")
+    py::class_<DenseMatrix<int32_t>, MatrixBase, std::shared_ptr<DenseMatrix<int32_t>>>(m, "IntegerMatrix", py::buffer_protocol())
         .def(
             py::init([](uint64_t n) { return std::make_shared<DenseMatrix<int32_t>>(n, ""); }),
             py::arg("n"))
@@ -2818,9 +3017,22 @@ void bind_matrix_classes(py::module_& m) {
                 auto out = mat.bitwise_not("");
                 return std::shared_ptr<DenseMatrix<int32_t>>(out.release());
             },
-            py::is_operator());
+            py::is_operator())
+        .def("__array__", [](const DenseMatrix<int32_t>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none())
+        .def_buffer([](DenseMatrix<int32_t> &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),
+                sizeof(int32_t),
+                py::format_descriptor<int32_t>::format(),
+                2,
+                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                { sizeof(int32_t) * m.cols(), sizeof(int32_t) }
+            );
+        });
 
-    py::class_<DenseMatrix<int16_t>, MatrixBase, std::shared_ptr<DenseMatrix<int16_t>>>(m, "Int16Matrix")
+    py::class_<DenseMatrix<int16_t>, MatrixBase, std::shared_ptr<DenseMatrix<int16_t>>>(m, "Int16Matrix", py::buffer_protocol())
         .def(
             py::init([](uint64_t n) { return std::make_shared<DenseMatrix<int16_t>>(n, ""); }),
             py::arg("n"))
@@ -2885,9 +3097,22 @@ void bind_matrix_classes(py::module_& m) {
                 auto out = mat.bitwise_not("");
                 return std::shared_ptr<DenseMatrix<int16_t>>(out.release());
             },
-            py::is_operator());
+            py::is_operator())
+        .def("__array__", [](const DenseMatrix<int16_t>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none())
+        .def_buffer([](DenseMatrix<int16_t> &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),
+                sizeof(int16_t),
+                py::format_descriptor<int16_t>::format(),
+                2,
+                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                { sizeof(int16_t) * m.cols(), sizeof(int16_t) }
+            );
+        });
 
-    py::class_<DenseMatrix<int8_t>, MatrixBase, std::shared_ptr<DenseMatrix<int8_t>>>(m, "Int8Matrix")
+    py::class_<DenseMatrix<int8_t>, MatrixBase, std::shared_ptr<DenseMatrix<int8_t>>>(m, "Int8Matrix", py::buffer_protocol())
         .def(
             py::init([](uint64_t n) { return std::make_shared<DenseMatrix<int8_t>>(n, ""); }),
             py::arg("n"))
@@ -2952,9 +3177,22 @@ void bind_matrix_classes(py::module_& m) {
                 auto out = mat.bitwise_not("");
                 return std::shared_ptr<DenseMatrix<int8_t>>(out.release());
             },
-            py::is_operator());
+            py::is_operator())
+        .def("__array__", [](const DenseMatrix<int8_t>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none())
+        .def_buffer([](DenseMatrix<int8_t> &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),
+                sizeof(int8_t),
+                py::format_descriptor<int8_t>::format(),
+                2,
+                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                { sizeof(int8_t) * m.cols(), sizeof(int8_t) }
+            );
+        });
 
-    py::class_<DenseMatrix<int64_t>, MatrixBase, std::shared_ptr<DenseMatrix<int64_t>>>(m, "Int64Matrix")
+    py::class_<DenseMatrix<int64_t>, MatrixBase, std::shared_ptr<DenseMatrix<int64_t>>>(m, "Int64Matrix", py::buffer_protocol())
         .def(
             py::init([](uint64_t n) { return std::make_shared<DenseMatrix<int64_t>>(n, ""); }),
             py::arg("n"))
@@ -3019,9 +3257,22 @@ void bind_matrix_classes(py::module_& m) {
                 auto out = mat.bitwise_not("");
                 return std::shared_ptr<DenseMatrix<int64_t>>(out.release());
             },
-            py::is_operator());
+            py::is_operator())
+        .def("__array__", [](const DenseMatrix<int64_t>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none())
+        .def_buffer([](DenseMatrix<int64_t> &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),
+                sizeof(int64_t),
+                py::format_descriptor<int64_t>::format(),
+                2,
+                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                { sizeof(int64_t) * m.cols(), sizeof(int64_t) }
+            );
+        });
 
-    py::class_<DenseMatrix<uint8_t>, MatrixBase, std::shared_ptr<DenseMatrix<uint8_t>>>(m, "UInt8Matrix")
+    py::class_<DenseMatrix<uint8_t>, MatrixBase, std::shared_ptr<DenseMatrix<uint8_t>>>(m, "UInt8Matrix", py::buffer_protocol())
         .def(
             py::init([](uint64_t n) { return std::make_shared<DenseMatrix<uint8_t>>(n, ""); }),
             py::arg("n"))
@@ -3086,9 +3337,22 @@ void bind_matrix_classes(py::module_& m) {
                 auto out = mat.bitwise_not("");
                 return std::shared_ptr<DenseMatrix<uint8_t>>(out.release());
             },
-            py::is_operator());
+            py::is_operator())
+        .def("__array__", [](const DenseMatrix<uint8_t>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none())
+        .def_buffer([](DenseMatrix<uint8_t> &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),
+                sizeof(uint8_t),
+                py::format_descriptor<uint8_t>::format(),
+                2,
+                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                { sizeof(uint8_t) * m.cols(), sizeof(uint8_t) }
+            );
+        });
 
-    py::class_<DenseMatrix<uint16_t>, MatrixBase, std::shared_ptr<DenseMatrix<uint16_t>>>(m, "UInt16Matrix")
+    py::class_<DenseMatrix<uint16_t>, MatrixBase, std::shared_ptr<DenseMatrix<uint16_t>>>(m, "UInt16Matrix", py::buffer_protocol())
         .def(
             py::init([](uint64_t n) { return std::make_shared<DenseMatrix<uint16_t>>(n, ""); }),
             py::arg("n"))
@@ -3153,9 +3417,22 @@ void bind_matrix_classes(py::module_& m) {
                 auto out = mat.bitwise_not("");
                 return std::shared_ptr<DenseMatrix<uint16_t>>(out.release());
             },
-            py::is_operator());
+            py::is_operator())
+        .def("__array__", [](const DenseMatrix<uint16_t>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none())
+        .def_buffer([](DenseMatrix<uint16_t> &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),
+                sizeof(uint16_t),
+                py::format_descriptor<uint16_t>::format(),
+                2,
+                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                { sizeof(uint16_t) * m.cols(), sizeof(uint16_t) }
+            );
+        });
 
-    py::class_<DenseMatrix<uint32_t>, MatrixBase, std::shared_ptr<DenseMatrix<uint32_t>>>(m, "UInt32Matrix")
+    py::class_<DenseMatrix<uint32_t>, MatrixBase, std::shared_ptr<DenseMatrix<uint32_t>>>(m, "UInt32Matrix", py::buffer_protocol())
         .def(
             py::init([](uint64_t n) { return std::make_shared<DenseMatrix<uint32_t>>(n, ""); }),
             py::arg("n"))
@@ -3220,9 +3497,22 @@ void bind_matrix_classes(py::module_& m) {
                 auto out = mat.bitwise_not("");
                 return std::shared_ptr<DenseMatrix<uint32_t>>(out.release());
             },
-            py::is_operator());
+            py::is_operator())
+        .def("__array__", [](const DenseMatrix<uint32_t>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none())
+        .def_buffer([](DenseMatrix<uint32_t> &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),
+                sizeof(uint32_t),
+                py::format_descriptor<uint32_t>::format(),
+                2,
+                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                { sizeof(uint32_t) * m.cols(), sizeof(uint32_t) }
+            );
+        });
 
-    py::class_<DenseMatrix<uint64_t>, MatrixBase, std::shared_ptr<DenseMatrix<uint64_t>>>(m, "UInt64Matrix")
+    py::class_<DenseMatrix<uint64_t>, MatrixBase, std::shared_ptr<DenseMatrix<uint64_t>>>(m, "UInt64Matrix", py::buffer_protocol())
         .def(
             py::init([](uint64_t n) { return std::make_shared<DenseMatrix<uint64_t>>(n, ""); }),
             py::arg("n"))
@@ -3287,7 +3577,20 @@ void bind_matrix_classes(py::module_& m) {
                 auto out = mat.bitwise_not("");
                 return std::shared_ptr<DenseMatrix<uint64_t>>(out.release());
             },
-            py::is_operator());
+            py::is_operator())
+        .def("__array__", [](const DenseMatrix<uint64_t>& mat, py::object, py::object) {
+            return parallel_export_to_numpy(mat);
+        }, py::arg("dtype") = py::none(), py::arg("copy") = py::none())
+        .def_buffer([](DenseMatrix<uint64_t> &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),
+                sizeof(uint64_t),
+                py::format_descriptor<uint64_t>::format(),
+                2,
+                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                { sizeof(uint64_t) * m.cols(), sizeof(uint64_t) }
+            );
+        });
 
     py::class_<DenseBitMatrix, MatrixBase, std::shared_ptr<DenseBitMatrix>>(m, "DenseBitMatrix")
         .def(

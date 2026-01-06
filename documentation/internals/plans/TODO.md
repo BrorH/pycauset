@@ -70,7 +70,7 @@ Release 1 nodes:
 - [x] R1_LAZY
 - [x] R1_PERF
 - [x] R1_SAFETY
-- [ ] R1_NUMPY
+- [/] R1_NUMPY (In Progress)
 - [x] R1_LINALG
 - [x] R1_BLOCKMATRIX
 - [ ] R1_GPU

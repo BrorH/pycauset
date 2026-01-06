@@ -9,6 +9,7 @@
 #include "bindings_common.hpp"
 #include "pycauset/matrix/expression/MatrixExpressionWrapper.hpp"
 #include "pycauset/matrix/MatrixOps.hpp"
+#include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
 
 void bind_expression_classes(py::module& m) {
@@ -26,6 +27,19 @@ void bind_expression_classes(py::module& m) {
                 self.rows(), self.cols(), self.get_dtype(), self.get_matrix_type());
             self.eval_into(*result);
             return std::shared_ptr<pycauset::MatrixBase>(std::move(result));
+        })
+        // R1_NUMPY: Bind __array__ to trigger evaluation automatically (interop fix)
+        .def("__array__", [](const pycauset::MatrixExpressionWrapper& self, py::args args, py::kwargs kwargs) {
+             auto result_ptr = pycauset::ObjectFactory::create_matrix(
+                self.rows(), self.cols(), self.get_dtype(), self.get_matrix_type());
+             self.eval_into(*result_ptr);
+             
+             // Convert unique_ptr to shared_ptr to allow shared ownership with Python
+             std::shared_ptr<pycauset::MatrixBase> shared_res = std::move(result_ptr);
+             
+             // The __array__ protocol requires returning a numpy.ndarray.
+             py::object mat_obj = py::cast(shared_res);
+             return py::array(mat_obj);
         })
         .def_property_readonly("dtype", &pycauset::MatrixExpressionWrapper::get_dtype)
         .def_property_readonly("matrix_type", &pycauset::MatrixExpressionWrapper::get_matrix_type)
@@ -102,7 +116,35 @@ void bind_expression_classes(py::module& m) {
             pycauset::MatrixWrapperExpression rhs(self);
             std::shared_ptr<pycauset::MatrixExpressionWrapper> result = pycauset::wrap_expression(other * rhs);
             return result;
-        }, py::keep_alive<0, 1>());
+        }, py::keep_alive<0, 1>())
+        .def("__matmul__", [](std::shared_ptr<pycauset::MatrixExpressionWrapper> self, std::shared_ptr<pycauset::MatrixExpressionWrapper> other) {
+            auto lhs = pycauset::ObjectFactory::create_matrix(
+                self->rows(), self->cols(), self->get_dtype(), self->get_matrix_type());
+            self->eval_into(*lhs);
+            
+            auto rhs = pycauset::ObjectFactory::create_matrix(
+                other->rows(), other->cols(), other->get_dtype(), other->get_matrix_type());
+            other->eval_into(*rhs);
+            
+            auto out = pycauset::dispatch_matmul(*lhs, *rhs, "");
+            return std::shared_ptr<pycauset::MatrixBase>(out.release());
+        })
+        .def("__matmul__", [](std::shared_ptr<pycauset::MatrixExpressionWrapper> self, const pycauset::MatrixBase& other) {
+            auto lhs = pycauset::ObjectFactory::create_matrix(
+                self->rows(), self->cols(), self->get_dtype(), self->get_matrix_type());
+            self->eval_into(*lhs);
+            
+            auto out = pycauset::dispatch_matmul(*lhs, other, "");
+            return std::shared_ptr<pycauset::MatrixBase>(out.release());
+        })
+        .def("__rmatmul__", [](std::shared_ptr<pycauset::MatrixExpressionWrapper> self, const pycauset::MatrixBase& other) {
+            auto rhs = pycauset::ObjectFactory::create_matrix(
+                self->rows(), self->cols(), self->get_dtype(), self->get_matrix_type());
+            self->eval_into(*rhs);
+            
+            auto out = pycauset::dispatch_matmul(other, *rhs, "");
+            return std::shared_ptr<pycauset::MatrixBase>(out.release());
+        });
 
     // Factory functions for lazy operations
     m.def("lazy_add", [](const pycauset::MatrixBase& a, const pycauset::MatrixBase& b) {

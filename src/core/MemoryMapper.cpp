@@ -145,8 +145,8 @@ void MemoryMapper::open_file(bool create_new) {
             }
             
             // Check if it's a Simple Header (all reserved bytes are 0)
-            // If reserved bytes are non-zero, it's likely a .pycauset container (Complex Header)
-            // where the caller provides the correct absolute offset.
+            // But only if offset is 0! If caller provided an offset (e.g. 4096 for a snapshot),
+            // we trust them and do not skip another header.
             bool is_simple_header = true;
             for (int i = 0; i < 52; ++i) {
                 if (header.reserved[i] != 0) {
@@ -155,7 +155,7 @@ void MemoryMapper::open_file(bool create_new) {
                 }
             }
             
-            if (is_simple_header) {
+            if (is_simple_header && offset_ == 0) {
                 offset_ += sizeof(FileHeader);
             }
         }
@@ -358,7 +358,7 @@ void MemoryMapper::open_file(bool create_new) {
                 }
             }
             
-            if (is_simple_header) {
+            if (is_simple_header && offset_ == 0) {
                 offset_ += sizeof(FileHeader);
             }
         }
