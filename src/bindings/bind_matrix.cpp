@@ -1141,8 +1141,8 @@ inline void maybe_warn_assignment_cast(const py::dtype& src_dtype) {
         return;
     }
 
-    const auto src_name = py::str(src_dtype).cast<std::string>();
-    const auto tgt_name = py::str(target_dtype).cast<std::string>();
+    const auto src_name = py::str(static_cast<py::object>(src_dtype)).cast<std::string>();
+    const auto tgt_name = py::str(static_cast<py::object>(target_dtype)).cast<std::string>();
     std::string msg = "pycauset assignment: casting RHS from ";
     msg += src_name;
     msg += " to ";
@@ -1960,20 +1960,23 @@ void bind_matrix_classes(py::module_& m) {
             py::is_operator())
         .def(
             "__add__",
-            [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) {
+            [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) -> py::object {
                 maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, a, *b);
                 maybe_warn_bit_promotes_to_int32(
                     "add",
                     promotion::BinaryOp::Add,
                     a.get_data_type(),
                     b->get_data_type());
-                auto out = pycauset::add(a, *b, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation: Return an expression wrapper
+                auto ptr = pycauset::wrap_expression(a + *b);
+                // Explicitly cast to shared_ptr and then to python object to ensure proper ownership transfer
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
         .def(
             "__add__",
             [](const MatrixBase& a, const py::array& b) {
+                // Eager Evaluation (Lazy not supported for numpy temporary)
                 auto mb = elementwise_operand_matrix_from_numpy(b);
                 maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, a, *mb);
                 maybe_warn_bit_promotes_to_int32(
@@ -1988,17 +1991,19 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__add__",
             [](const MatrixBase& a, double s) {
-                auto out = a.add_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(a + s);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__add__",
             [](const MatrixBase& a, int64_t s) {
-                auto out = a.add_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(a + static_cast<double>(s));
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__add__",
             [](const MatrixBase&, const py::object&) -> py::object {
@@ -2010,21 +2015,24 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__radd__",
             [](const MatrixBase& a, double s) {
-                auto out = a.add_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(s + a);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__radd__",
             [](const MatrixBase& a, int64_t s) {
-                auto out = a.add_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(static_cast<double>(s) + a);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__radd__",
             [](const MatrixBase& a, py::object b_obj) -> py::object {
                 if (py::isinstance<py::array>(b_obj)) {
+                    // Eager Evaluation
                     auto b = b_obj.cast<py::array>();
                     auto mb = elementwise_operand_matrix_from_numpy(b);
                     maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, *mb, a);
@@ -2074,13 +2082,15 @@ void bind_matrix_classes(py::module_& m) {
                     promotion::BinaryOp::Subtract,
                     a.get_data_type(),
                     b->get_data_type());
-                auto out = pycauset::subtract(a, *b, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(a - *b);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
         .def(
             "__sub__",
             [](const MatrixBase& a, const py::array& b) {
+                // Eager Evaluation
                 auto mb = elementwise_operand_matrix_from_numpy(b);
                 maybe_warn_float_underpromotion("subtract", promotion::BinaryOp::Subtract, a, *mb);
                 maybe_warn_bit_promotes_to_int32(
@@ -2103,36 +2113,39 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__sub__",
             [](const MatrixBase& a, double s) {
-                auto out = a.add_scalar(-s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(a - s);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__sub__",
             [](const MatrixBase& a, int64_t s) {
-                auto out = a.add_scalar(-s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(a - static_cast<double>(s));
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__rsub__",
             [](const MatrixBase& a, double s) {
-                auto neg = a.multiply_scalar(-1.0, "");
-                auto out = neg->add_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(s - a);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__rsub__",
             [](const MatrixBase& a, int64_t s) {
-                auto neg = a.multiply_scalar(-1.0, "");
-                auto out = neg->add_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(static_cast<double>(s) - a);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__rsub__",
             [](const MatrixBase& a, const py::array& b) {
+                // Eager Evaluation
                 auto mb = elementwise_operand_matrix_from_numpy(b);
                 maybe_warn_float_underpromotion("subtract", promotion::BinaryOp::Subtract, *mb, a);
                 maybe_warn_bit_promotes_to_int32(
@@ -2148,13 +2161,15 @@ void bind_matrix_classes(py::module_& m) {
             "__truediv__",
             [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) {
                 maybe_warn_float_underpromotion("elementwise_divide", promotion::BinaryOp::Divide, a, *b);
-                auto out = pycauset::elementwise_divide(a, *b, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(a / *b);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
         .def(
             "__truediv__",
             [](const MatrixBase& a, const py::array& b) {
+                // Eager Evaluation
                 auto mb = elementwise_operand_matrix_from_numpy(b);
                 maybe_warn_float_underpromotion("elementwise_divide", promotion::BinaryOp::Divide, a, *mb);
                 auto out = pycauset::elementwise_divide(a, *mb, "");
@@ -2164,17 +2179,19 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__truediv__",
             [](const MatrixBase& a, double s) {
-                auto out = a.multiply_scalar(1.0 / s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(a / s);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__truediv__",
             [](const MatrixBase& a, int64_t s) {
-                auto out = a.multiply_scalar(1.0 / static_cast<double>(s), "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(a / static_cast<double>(s));
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__truediv__",
             [](const MatrixBase& a, std::complex<double> s) {
@@ -2185,6 +2202,7 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__rtruediv__",
             [](const MatrixBase& a, const py::array& b) {
+                // Eager Evaluation
                 auto mb = elementwise_operand_matrix_from_numpy(b);
                 maybe_warn_float_underpromotion("elementwise_divide", promotion::BinaryOp::Divide, *mb, a);
                 auto out = pycauset::elementwise_divide(*mb, a, "");
@@ -2219,17 +2237,19 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__mul__",
             [](const MatrixBase& a, double s) {
-                auto out = a.multiply_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(a * s);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__mul__",
             [](const MatrixBase& a, int64_t s) {
-                auto out = a.multiply_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(a * static_cast<double>(s));
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__mul__",
             [](const MatrixBase& a, std::complex<double> s) {
@@ -2248,10 +2268,11 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__rmul__",
             [](const MatrixBase& a, double s) {
-                auto out = a.multiply_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(s * a);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__rmul__",
             [](const MatrixBase& a, const py::array& b) {
@@ -2264,10 +2285,11 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__rmul__",
             [](const MatrixBase& a, int64_t s) {
-                auto out = a.multiply_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
+                // Lazy Evaluation
+                auto ptr = pycauset::wrap_expression(static_cast<double>(s) * a);
+                return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator())
+            py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__rmul__",
             [](const MatrixBase& a, std::complex<double> s) {

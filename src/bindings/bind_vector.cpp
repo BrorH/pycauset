@@ -332,7 +332,7 @@ void bind_vector_classes(py::module_& m) {
             "__repr__",
             [](py::object self) {
                 const auto& v = self.cast<const VectorBase&>();
-                std::string type_name = py::str(self.get_type().attr("__name__"));
+                std::string type_name = py::str(py::type::of(self).attr("__name__"));
 
                 std::ostringstream oss;
                 if (v.is_transposed()) {

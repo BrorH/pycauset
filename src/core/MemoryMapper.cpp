@@ -1,4 +1,6 @@
+#define _GNU_SOURCE
 #include "pycauset/core/MemoryMapper.hpp"
+
 #include "pycauset/compute/ComputeContext.hpp"
 #include <iostream>
 #include <filesystem>
@@ -307,8 +309,22 @@ void MemoryMapper::open_file(bool create_new) {
             }
         }
 
+#ifdef __linux__
+        // Use memfd_create for anonymous memory to give it a file descriptor
+        // This allows map_region/unmap to work correctly with persistence.
+        fd_ = memfd_create("pycauset_anon", MFD_CLOEXEC);
+        if (fd_ == -1) {
+            throw std::runtime_error("memfd_create failed: " + std::string(std::strerror(errno)));
+        }
+        if (ftruncate(fd_, data_size_) == -1) {
+            close(fd_);
+            throw std::runtime_error("ftruncate failed: " + std::string(std::strerror(errno)));
+        }
+        offset_ = 0;
+#else
         fd_ = -1;
         offset_ = 0;
+#endif
     } else {
         std::filesystem::path path(filename_);
         if (path.has_parent_path()) {
@@ -322,11 +338,10 @@ void MemoryMapper::open_file(bool create_new) {
         if (fd_ == -1) {
             throw std::runtime_error("Failed to open file: " + filename_ + " (" + std::strerror(errno) + ")");
         }
-
-        // R1_SAFETY: File Header Logic
         FileHeader header;
-        
         if (create_new) {
+
+
             std::memcpy(header.magic, "PYCAUSET", 8);
             header.version = 1;
             std::memset(header.reserved, 0, sizeof(header.reserved));
@@ -336,6 +351,13 @@ void MemoryMapper::open_file(bool create_new) {
                 throw std::runtime_error("Failed to write file header");
             }
             offset_ += sizeof(FileHeader);
+            
+            // R1_SAFETY: On Linux, we must extend the file to the full size before mmap.
+            // Unlike Windows CreateFileMapping which extends automatically.
+            if (ftruncate(fd_, offset_ + data_size_) == -1) {
+                close(fd_);
+                throw std::runtime_error("Failed to resize file: " + std::string(std::strerror(errno)));
+            }
         } else {
             if (read(fd_, &header, sizeof(header)) != sizeof(header)) {
                 close(fd_);
@@ -343,6 +365,10 @@ void MemoryMapper::open_file(bool create_new) {
             }
             if (std::memcmp(header.magic, "PYCAUSET", 8) != 0) {
                 close(fd_);
+                std::cerr << "MemoryMapper Error: Bad magic in file: " << filename_ << std::endl;
+                // Print what we read
+                std::string bad_magic(header.magic, 8);
+                std::cerr << "Read magic: " << bad_magic << std::endl;
                 throw std::runtime_error("Invalid file format: Bad magic");
             }
             if (header.version != 1) {
@@ -360,6 +386,12 @@ void MemoryMapper::open_file(bool create_new) {
             
             if (is_simple_header && offset_ == 0) {
                 offset_ += sizeof(FileHeader);
+            } else if (offset_ == 0) {
+                 std::cerr << "Debug: Simple header check failed. Reserved bytes not zero?" << std::endl;
+                 for(int i=0; i<52; ++i) { 
+                     if (header.reserved[i] != 0) std::cerr << "Res["<<i<<"]="<<(int)header.reserved[i]<<" "; 
+                 }
+                 std::cerr << std::endl;
             }
         }
     }
@@ -421,6 +453,11 @@ void MemoryMapper::open_file(bool create_new) {
 
     int map_flags = MAP_SHARED;
     if (fd_ == -1) map_flags |= MAP_ANONYMOUS;
+    
+    // R1_SAFETY: mmap with length 0 is invalid (EINVAL).
+    if (map_size == 0) {
+        return;
+    }
 
 #ifdef __linux__
     // If we are creating a new file, we are likely about to write to it.
@@ -434,6 +471,9 @@ void MemoryMapper::open_file(bool create_new) {
         if (fd_ != -1) close(fd_);
         throw std::runtime_error("mmap failed: " + std::string(std::strerror(errno)));
     }
+    
+    // Debug print
+    std::cerr << "mmap success: fd=" << fd_ << " size=" << map_size << " off=" << aligned_offset << " adj=" << adjustment << std::endl;
     
     mapped_ptr_ = static_cast<char*>(base_ptr_) + adjustment;
 }
@@ -496,12 +536,21 @@ void MemoryMapper::unmap() {
         mapped_ptr_ = nullptr;
     }
 #else
-    if (mapped_ptr_ && mapped_ptr_ != MAP_FAILED) {
-        munmap(mapped_ptr_, data_size_);
+    if (is_pinned_) return; // Pinned memory cannot be unmapped/remapped dynamically here
+
+    if (base_ptr_ && base_ptr_ != MAP_FAILED) {
+        size_t granularity = get_granularity();
+        size_t aligned_offset = (offset_ / granularity) * granularity;
+        size_t adjustment = offset_ - aligned_offset;
+        size_t map_size = data_size_ + adjustment;
+
+        munmap(base_ptr_, map_size);
         mapped_ptr_ = nullptr;
+        base_ptr_ = nullptr;
     }
 #endif
 }
+
 
 void MemoryMapper::map_all() {
     if (mapped_ptr_) return; // Already mapped
@@ -521,10 +570,19 @@ void MemoryMapper::map_all() {
     int map_flags = MAP_SHARED;
     if (fd_ == -1) map_flags |= MAP_ANONYMOUS;
 
-    mapped_ptr_ = mmap(NULL, data_size_, PROT_READ | PROT_WRITE, map_flags, fd_, offset_);
-    if (mapped_ptr_ == MAP_FAILED) {
-        throw std::runtime_error("mmap failed");
+    // R1_SAFETY: mmap offset must be page-aligned
+    size_t granularity = get_granularity();
+    size_t aligned_offset = (offset_ / granularity) * granularity;
+    size_t adjustment = offset_ - aligned_offset;
+    size_t map_size = data_size_ + adjustment;
+
+    void* base = mmap(NULL, map_size, PROT_READ | PROT_WRITE, map_flags, fd_, aligned_offset);
+    if (base == MAP_FAILED) {
+        throw std::runtime_error("mmap failed: " + std::string(std::strerror(errno)));
     }
+    
+    base_ptr_ = base;
+    mapped_ptr_ = static_cast<char*>(base) + adjustment;
 #endif
 }
 
@@ -542,9 +600,17 @@ void* MemoryMapper::map_region(size_t offset, size_t size) {
     return ptr;
 #else
     if (fd_ == -1) throw std::runtime_error("File descriptor invalid");
-    void* ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, offset);
-    if (ptr == MAP_FAILED) throw std::runtime_error("mmap failed");
-    return ptr;
+
+    // R1_SAFETY: mmap offset must be page-aligned
+    size_t granularity = get_granularity();
+    size_t aligned_offset = (offset / granularity) * granularity;
+    size_t adjustment = offset - aligned_offset;
+    size_t map_size = size + adjustment;
+
+    void* ptr = mmap(NULL, map_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, aligned_offset);
+    if (ptr == MAP_FAILED) throw std::runtime_error("mmap failed: " + std::string(std::strerror(errno)));
+    
+    return static_cast<char*>(ptr) + adjustment;
 #endif
 }
 

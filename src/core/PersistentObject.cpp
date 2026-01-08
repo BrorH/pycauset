@@ -330,23 +330,21 @@ std::string PersistentObject::copy_storage(const std::string& result_file_hint) 
     if (manual_copy) {
         // For RAM-backed objects or objects inside a container (offset > 0),
         // we must write the memory buffer to disk manually to extract just the data.
-        // Use std::filesystem::path to handle Unicode paths correctly on Windows
-        // Since we are using C++20 and pybind11 passes UTF-8 strings, we cast to char8_t
-        std::filesystem::path dest(reinterpret_cast<const char8_t*>(dest_path.c_str()));
-        std::ofstream outfile(dest, std::ios::binary);
-        if (!outfile) {
-            throw std::runtime_error("Failed to open destination file for writing: " + dest_path);
+        // We use MemoryMapper to create the file to ensure the correct header is written.
+        try {
+            size_t size = mapper_->get_data_size();
+            // create_new=true writes the header
+            MemoryMapper dest_mapper(dest_path, size, 0, true);
+            
+            const char* src_data = static_cast<const char*>(mapper_->get_data());
+            char* dst_data = static_cast<char*>(dest_mapper.get_data());
+            
+            // Explicitly flush source if needed (assumed coherent)
+            std::memcpy(dst_data, src_data, size);
+            dest_mapper.flush();
+        } catch (const std::exception& e) {
+             throw std::runtime_error("Failed to copy storage to " + dest_path + ": " + e.what());
         }
-        
-        const char* data = static_cast<const char*>(mapper_->get_data());
-        size_t size = mapper_->get_data_size();
-        
-        // std::cout << "Copying storage: " << size << " bytes from " << (void*)data << " to " << dest_path << std::endl;
-
-        if (!outfile.write(data, size)) {
-            throw std::runtime_error("Failed to write object data to disk: " + dest_path);
-        }
-        outfile.close();
     } else {
         if (source_path.empty()) {
             throw std::runtime_error("Cannot copy object without backing file");

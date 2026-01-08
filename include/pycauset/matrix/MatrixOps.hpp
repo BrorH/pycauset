@@ -32,6 +32,12 @@ inline auto operator-(const MatrixBase& lhs, const MatrixBase& rhs) {
         MatrixRefExpression(lhs), MatrixRefExpression(rhs));
 }
 
+// Matrix / Matrix (Elementwise)
+inline auto operator/(const MatrixBase& lhs, const MatrixBase& rhs) {
+    return make_binary<MatrixRefExpression, MatrixRefExpression, ops::Div>(
+        MatrixRefExpression(lhs), MatrixRefExpression(rhs));
+}
+
 // Matrix * Scalar
 inline auto operator*(const MatrixBase& lhs, double rhs) {
     return make_binary<MatrixRefExpression, ScalarExpression, ops::Mul>(

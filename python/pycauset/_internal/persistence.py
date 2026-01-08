@@ -928,6 +928,8 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
         with path.open("wb") as out_f:
             out_f.write(b"\x00" * _HEADER_BYTES)
             with temp_raw.open("rb") as in_f:
+                # Skip the 64-byte FileHeader written by copy_storage
+                in_f.read(64)
                 while True:
                     chunk = in_f.read(1024 * 1024)
                     if not chunk:

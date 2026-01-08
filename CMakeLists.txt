@@ -57,8 +57,21 @@ if(MSVC)
     # In Release, we keep it default (usually off unless requested)
 endif()
 
+if(NOT MSVC)
+    add_compile_options(-march=native)
+endif()
+
 # --- CUDA Compiler Options ---
 # (Moved to target definition to ensure correct application)
+
+# --- RPATH Settings ---
+# Ensure installed binaries can find adjacent shared libraries (libpycauset_core.so)
+if(UNIX)
+    set(CMAKE_SKIP_BUILD_RPATH FALSE)
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
 
 # --- Dependencies ---
 
@@ -85,6 +98,11 @@ set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
 include(FetchContent)
+set(BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies")
+set(EIGEN_BUILD_TESTING OFF CACHE BOOL "Disable Eigen testing")
+set(EIGEN_BUILD_DOC OFF CACHE BOOL "Disable Eigen docs")
+set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "Disable Eigen pkgconfig")
+
 FetchContent_Declare(
   Eigen3
   URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
@@ -93,7 +111,78 @@ FetchContent_MakeAvailable(Eigen3)
 
 # 3.5 OpenBLAS (Required for high-performance matrix ops)
 # Try to find it on the system first
-find_package(OpenBLAS QUIET)
+message(STATUS "--- Debugging OpenBLAS Detection Start ---")
+find_package(OpenBLAS)
+
+if(OpenBLAS_FOUND)
+   message(STATUS "Standard FindOpenBLAS succeeded.")
+   if(TARGET OpenBLAS::OpenBLAS)
+      message(STATUS "Target OpenBLAS::OpenBLAS exists.")
+   else()
+      message(STATUS "Target OpenBLAS::OpenBLAS DOES NOT EXIST despite Found=TRUE. Attempting to fix...")
+      set(OpenBLAS_FOUND FALSE) # Force retry
+   endif()
+endif()
+
+# Fallback: PkgConfig (Common on Linux)
+if(NOT OpenBLAS_FOUND)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(PC_OPENBLAS openblas) # Removing QUIET to see why it fails
+        if(PC_OPENBLAS_FOUND)
+            message(STATUS "Found OpenBLAS via PkgConfig")
+            if(NOT TARGET OpenBLAS::OpenBLAS)
+                add_library(OpenBLAS::OpenBLAS INTERFACE IMPORTED)
+                set_target_properties(OpenBLAS::OpenBLAS PROPERTIES
+                    INTERFACE_INCLUDE_DIRECTORIES "${PC_OPENBLAS_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${PC_OPENBLAS_LINK_LIBRARIES}"
+                    INTERFACE_LINK_DIRECTORIES "${PC_OPENBLAS_LIBRARY_DIRS}"
+                    INTERFACE_COMPILE_OPTIONS "${PC_OPENBLAS_CFLAGS_OTHER}"
+                )
+            endif()
+            set(OpenBLAS_FOUND TRUE)
+        endif()
+    endif()
+endif()
+
+# Fallback: Manual find_library (Last Resort)
+if(NOT OpenBLAS_FOUND)
+    message(STATUS "Attempting manual find_library...")
+    
+    # Reset variables to ensure fresh search
+    unset(OpenBLAS_LIB CACHE)
+    unset(OpenBLAS_INC CACHE)
+
+    find_library(OpenBLAS_LIB NAMES openblas
+        PATHS 
+        /usr/lib/x86_64-linux-gnu
+        /usr/local/lib
+        /usr/lib
+    )
+    
+    find_path(OpenBLAS_INC NAMES cblas.h
+        PATHS 
+        /usr/include/x86_64-linux-gnu
+        /usr/include/openblas
+        /usr/include
+        /usr/local/include
+    )
+    
+    message(STATUS "Manual find result: LIB=${OpenBLAS_LIB} INC=${OpenBLAS_INC}")
+
+    if(OpenBLAS_LIB)
+        if(NOT TARGET OpenBLAS::OpenBLAS)
+            add_library(OpenBLAS::OpenBLAS UNKNOWN IMPORTED)
+            set_target_properties(OpenBLAS::OpenBLAS PROPERTIES
+                IMPORTED_LOCATION "${OpenBLAS_LIB}"
+            )
+            if(OpenBLAS_INC)
+                set_target_properties(OpenBLAS::OpenBLAS PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${OpenBLAS_INC}")
+            endif()
+        endif()
+        set(OpenBLAS_FOUND TRUE)
+    endif()
+endif()
 
 if(NOT OpenBLAS_FOUND)
     message(STATUS "OpenBLAS not found on system. Downloading...")
@@ -134,6 +223,16 @@ if(NOT OpenBLAS_FOUND)
             URL https://github.com/OpenMathLib/OpenBLAS/archive/v0.3.26.zip
         )
         FetchContent_MakeAvailable(OpenBLAS)
+    endif()
+endif()
+
+# 3.9 LAPACKE Header Fix (Required on some Linux distros)
+if(UNIX AND NOT APPLE)
+    find_package(PkgConfig QUIET)
+    pkg_check_modules(PC_LAPACKE lapacke)
+    if(PC_LAPACKE_FOUND)
+        message(STATUS "Found LAPACKE via PkgConfig: ${PC_LAPACKE_INCLUDE_DIRS}")
+        include_directories(SYSTEM ${PC_LAPACKE_INCLUDE_DIRS})
     endif()
 endif()
 
@@ -190,6 +289,9 @@ set(PYCAUSET_SOURCES
 add_library(pycauset_core SHARED ${PYCAUSET_SOURCES})
 target_include_directories(pycauset_core PUBLIC include)
 target_link_libraries(pycauset_core PUBLIC Eigen3::Eigen OpenBLAS::OpenBLAS)
+if(PC_LAPACKE_FOUND)
+    target_link_libraries(pycauset_core PUBLIC ${PC_LAPACKE_LINK_LIBRARIES})
+endif()
 set_property(TARGET pycauset_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(pycauset_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 

@@ -48,9 +48,7 @@ public:
     DataType get_dtype() const override { return expr_.get_dtype(); }
     MatrixType get_matrix_type() const override { return expr_.get_matrix_type(); }
     void eval_into(MatrixBase& target) const override {
-        std::cout << "DEBUG: eval_into called. Target rows=" << target.rows() << " cols=" << target.cols() << std::endl;
         target = expr_;
-        std::cout << "DEBUG: eval_into finished." << std::endl;
     }
     bool aliases(const MatrixBase* target) const override {
         return expr_.aliases(target);
