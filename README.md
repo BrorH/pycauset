@@ -1,38 +1,26 @@
-# PyCauset
+<div align="center">
+  <img src="documentation/docs/assets/logo/logo.png" width="150" alt="PyCauset Logo" style="vertical-align: middle; margin-right: 20px;">
+  <img src="documentation/docs/assets/logo/logo-text-colour.png" width="300" alt="PyCauset Text" style="vertical-align: middle;">
+
+  <br><br>
 
 [![Documentation](https://img.shields.io/badge/docs-live-blue)](https://brorh.github.io/pycauset/)
 [![PyPI version](https://badge.fury.io/py/pycauset.svg)](https://badge.fury.io/py/pycauset)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**PyCauset** is a high-performance Python library for **Causal Set Theory**. It bridges the gap between abstract mathematical models and large-scale numerical simulations, allowing researchers to work with causal sets of millions of elements on consumer hardware.
+</div>
 
-**Core philosophy:** PyCauset is **NumPy for causal sets**. Users should interact only with Python objects and a NumPy-like API, while storage, hardware dispatch (CPU/GPU), and performance optimizations happen automatically behind the scenes.
+**PyCauset** is a high-performance Python library for **Causal Set Theory**. 
 
-Precision and overflow are policy-driven:
+PyCauset is **NumPy for causal sets**. Any programmer familiar with [NumPy](https://github.com/numpy/numpy) will automatically also know how to operate PyCauset. Like NumPy, PyCauset is backed by a strong C++ engine for efficient numerical linear algebra, while storage, hardware dispatch (CPU/GPU), and performance optimizations happen automatically behind the scenes. 
 
-*   Mixed-float ops underpromote by default (warn-once) rather than silently widening.
-*   Integer overflow is a hard error; large integer matmul may emit a heuristic risk warning.
+PyCauset allows for handling of _humongous_ matrices, as the module efficiently balances storage through both RAM and disk. The only limit to how large matrices you can work with is your disk storage. Example: with a 4TB external SSD, you can work with dense $N\times N$ float64 matrices of $N \sim 10^6$ (check this claim!).
 
-The authoritative dtype rules live in `documentation/internals/DType System.md`.
 
 **[Explore the Full Documentation »](https://brorh.github.io/pycauset/)**
 
-## Key Features
-
-*   **Hybrid Storage Architecture**: PyCauset automatically manages memory. Small matrices live in RAM for speed, while massive datasets spill seamlessly to **memory-mapped disk storage** (single-file `.pycauset` containers).
-*   **GPU Acceleration**: Built-in NVIDIA CUDA backend for matrix multiplication, inversion, and eigenvalue problems. Includes custom kernels for **accelerated bit-matrix operations**.
-*   **Smart Precision**: Automatically selects `Float64` or `Float32` based on matrix size and hardware capabilities to maximize throughput.
-*   **Physics Engines**:
-    *   **Spacetimes**: Minkowski Diamond, Cylinder, and Box manifolds.
-    *   **Fields**: Scalar field propagators ($K_R$) and path integrals.
-*   **Visualization**: Interactive 3D visualization of embeddings and causal structures using Plotly.
 
 ## Installation
-
-## Roadmap (DType System)
-
-*   Expand integer dtype coverage (additional widths + unsigned) end-to-end.
-*   Keep dtype support explicit and enforced via the support-matrix tests/tools.
 
 ### From PyPI (Recommended)
 ```bash
@@ -47,12 +35,28 @@ cd pycauset
 pip install .
 ```
 
-### Development Install
-For contributors, an editable install builds the native extension via `scikit-build-core`:
+## Development Status and Roadmap
+PyCauset is currently in pre-alpha. Here is the three-step roadmap plan for the future version 1.0:
 
-```bash
-pip install -e .
-```
+  1.  **(WIP) High-performance C++ backed numerical linear algebra library**. First focus is to build a _robust_, _reliable_ and _highly efficient_ linear algebra module that is designed with causal sets in mind. It is to behave like NumPy
+  2.  **(PLANNED) Physics enginge and causal sets**. With a robust linear algebra system in place, we will implement efficient methods for researchers to work with causal sets. Examples include: sprinkling methods, Pauli-Jordan eigenvalues, vev and propagator calculations, visualizations. Focus is on user experience and ease of use.
+  3.  **(PLANNED) Documentation, guides, tests and benchmarks**. Create an extensive suite of documentation and guides to help people use PyCauset and show its power and potential. Also perform extensive tests and squash bugs and perform benchmarks to illustrate proficiency.
+
+Version 1.0 will feature the above and more.
+
+## Key Features
+
+*   **Hybrid Storage Architecture**: PyCauset automatically manages memory. Small matrices live in RAM for speed, while massive datasets spill seamlessly to **memory-mapped disk storage** (single-file `.pycauset` containers).
+*   **GPU Acceleration**: Built-in NVIDIA CUDA backend for matrix multiplication, inversion, and eigenvalue problems. Includes custom kernels for **accelerated bit-matrix operations**.
+*   **Smart Precision**: Automatically selects `Float64` or `Float32` based on matrix size and hardware capabilities to maximize throughput.
+*   **Physics Engines**:
+    *   **Spacetimes**: Minkowski Diamond, Cylinder, and Box manifolds.
+    *   **Fields**: Scalar field propagators ($K_R$) and path integrals.
+*   **Visualization**: Interactive 3D visualization of embeddings and causal structures using Plotly.
+*   **Pausing Calculations**: A long-winded and tedious calculation may be paused at any time and continued later. The calculation may also be exported and continued on another machine (WIP).
+
+
+
 
 ## Quick Start
 
@@ -106,37 +110,10 @@ M = pc.zeros((2000, 2000), dtype=pc.float32)  # also accepts np.float32 or "floa
 M_inv = ~M # or M.inverse()
 ```
 
-## GPU Acceleration
-
-PyCauset automatically detects compatible NVIDIA GPUs.
-
-*   **Requirements**: NVIDIA GPU (Compute Capability 6.0+ recommended).
-*   **Drivers**: Recent NVIDIA Drivers.
-*   **Operations**: `matmul`, `inverse`, `popcount`.
-
-If no GPU is found, PyCauset falls back to a highly optimized multi-threaded CPU backend (OpenMP + AVX-512).
-
-## Storage Format
-
-Large datasets are stored in the **`.pycauset`** format, a **single-file binary container** designed for mmap-friendly payload access and crash-consistent metadata updates.
-
-High level:
-
-- A fixed-size header selects the active “header slot” (A/B) to locate the payload and the current metadata block.
-- The payload is raw matrix/vector bytes at a stable, aligned offset (so it can be memory-mapped efficiently).
-- Metadata is a sparse, typed block that can be appended/updated without shifting the payload.
-
-The authoritative container spec lives in `documentation/internals/plans/R1_STORAGE_PLAN.md`.
-
-```python
-# Save your simulation
-c.save("simulation_run_1.pycauset")
-
-# Load it later (instantaneous, no RAM overhead)
-c_loaded = pc.CausalSet.load("simulation_run_1.pycauset")
-```
-
-## Citation
+## License information
+PyCauset is published under the MIT license. 
 
 If you use PyCauset in your research, please cite:
 [https://github.com/BrorH/pycauset](https://github.com/BrorH/pycauset)
+
+If you wish to contribute or have any questions, please contact me at _bror_\[dot\]_hjemgaard_[you can probably guess which symbol comes here]_gmail_(another dot)_com_
