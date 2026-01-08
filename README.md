@@ -117,3 +117,5 @@ If you use PyCauset in your research, please cite:
 [https://github.com/BrorH/pycauset](https://github.com/BrorH/pycauset)
 
 If you wish to contribute or have any questions, please contact me at _bror_\[dot\]_hjemgaard_[you can probably guess which symbol comes here]_gmail_(another dot)_com_
+
+This repo contains AI-genetated code
