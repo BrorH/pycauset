@@ -10,7 +10,7 @@
 
 </div>
 
-**PyCauset** is a high-performance Python library for **Causal Set Theory**. 
+### **PyCauset** is a high-performance Python library for **Causal Set Theory**. 
 
 PyCauset is **NumPy for causal sets**. Any programmer familiar with [NumPy](https://github.com/numpy/numpy) will automatically also know how to operate PyCauset. Like NumPy, PyCauset is backed by a strong C++ engine for efficient numerical linear algebra, while storage, hardware dispatch (CPU/GPU), and performance optimizations happen automatically behind the scenes. 
 
