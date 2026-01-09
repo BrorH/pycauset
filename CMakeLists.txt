@@ -97,6 +97,9 @@ endif()
 set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+# Prevent Eigen from building its own BLAS/LAPACK to avoid collision with OpenBLAS
+set(EIGEN_BUILD_BLAS OFF CACHE BOOL "" FORCE)
+set(EIGEN_BUILD_LAPACK OFF CACHE BOOL "" FORCE)
 
 include(FetchContent)
 set(BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies")
