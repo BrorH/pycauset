@@ -30,9 +30,12 @@ jobs:
         uses: pypa/cibuildwheel@v2.16.5
         env:
           # Configure cibuildwheel to build for Python 3.8+
-          # Skip 32-bit builds (i686)
+          # Skip 32-bit builds (Linux i686 is skipped by pattern, Windows 32-bit by ARCHS config)
           CIBW_SKIP: "cp36-* cp37-* pp* *i686*"
           
+          # Windows: Build only 64-bit wheels (avoids OpenBLAS 32/64 bit mismatch and speeds up CI)
+          CIBW_ARCHS_WINDOWS: "auto64"
+
           # Linux: Use manylinux_2_28 (AlmaLinux 8) and install GCC 12 via gcc-toolset.
           # This ensures full C++20 support (including <bit>, char8_t, <filesystem>).
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28

@@ -203,10 +203,16 @@ if(NOT OpenBLAS_FOUND)
     
     if(WIN32)
         # On Windows, download pre-built binaries to avoid Fortran requirement
-        message(STATUS "Downloading OpenBLAS binaries for Windows (v0.3.26)...")
+        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            set(OPENBLAS_ARCH_SUFFIX "x64")
+        else()
+             set(OPENBLAS_ARCH_SUFFIX "x86")
+        endif()
+
+        message(STATUS "Downloading OpenBLAS binaries for Windows (v0.3.26) for arch: ${OPENBLAS_ARCH_SUFFIX}...")
         FetchContent_Declare(
             OpenBLAS_Binaries
-            URL https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.26/OpenBLAS-0.3.26-x64.zip
+            URL https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.26/OpenBLAS-0.3.26-${OPENBLAS_ARCH_SUFFIX}.zip
         )
         FetchContent_GetProperties(OpenBLAS_Binaries)
         if(NOT openblas_binaries_POPULATED)
