@@ -111,7 +111,17 @@ FetchContent_Declare(
   Eigen3
   URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
 )
-FetchContent_MakeAvailable(Eigen3)
+# FetchContent_MakeAvailable(Eigen3) <- This runs Eigen's CMakeLists.txt which creates conflicting targets
+FetchContent_GetProperties(Eigen3)
+if(NOT eigen3_POPULATED)
+  FetchContent_Populate(Eigen3)
+endif()
+
+# Manually define the target to bypass Eigen's build system
+if(NOT TARGET Eigen3::Eigen)
+  add_library(Eigen3::Eigen INTERFACE IMPORTED)
+  target_include_directories(Eigen3::Eigen INTERFACE "${eigen3_SOURCE_DIR}")
+endif()
 
 # 3.5 OpenBLAS (Required for high-performance matrix ops)
 # Try to find it on the system first
