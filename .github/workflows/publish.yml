@@ -53,11 +53,16 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
           
-          # Install GCC 12 & OpenBLAS on Linux before build
-          CIBW_BEFORE_ALL_LINUX: "yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic openblas-devel ccache"
+          # Install GCC 12 & OpenBLAS on Linux before build.
+          # We also symlink GCC 12 to /usr/local/bin so it takes precedence over system GCC,
+          # avoiding the need to modify PATH (which breaks the container environment if done via list override).
+          CIBW_BEFORE_ALL_LINUX: >
+            yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic openblas-devel ccache &&
+            ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/gcc /usr/local/bin/gcc &&
+            ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/g++ /usr/local/bin/g++
           
-          # Point the build to use the new GCC 12 and ccache
-          CIBW_ENVIRONMENT_LINUX: "CC='/usr/lib64/ccache/gcc' CXX='/usr/lib64/ccache/g++' PATH='/opt/rh/gcc-toolset-12/root/usr/bin:$PATH'"
+          # Point the build to use ccache wrapping the (now default) GCC 12
+          CIBW_ENVIRONMENT_LINUX: "CC='ccache gcc' CXX='ccache g++'"
           
           # macOS: Help CMake find OpenMP and use ccache
           CIBW_BEFORE_BUILD_MACOS: "brew install libomp"
