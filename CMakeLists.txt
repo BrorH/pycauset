@@ -237,6 +237,37 @@ if(NOT OpenBLAS_FOUND)
             URL https://github.com/OpenMathLib/OpenBLAS/archive/v0.3.26.zip
         )
         FetchContent_MakeAvailable(OpenBLAS)
+
+        # Fix for missing OpenBLAS::OpenBLAS target when building from source.
+        # OpenBLAS usually creates a target named 'openblas'.
+        if(NOT TARGET OpenBLAS::OpenBLAS)
+            if(TARGET openblas)
+                message(STATUS "Found target 'openblas', aliasing to OpenBLAS::OpenBLAS")
+                add_library(OpenBLAS::OpenBLAS ALIAS openblas)
+                
+                # Check for include directory in binary dir (where generated headers live)
+                # The log indicates headers are in include/openblas/
+                set(OB_GEN_HEADERS "${openblas_BINARY_DIR}/include/openblas")
+                set(OB_GEN_HEADERS_ROOT "${openblas_BINARY_DIR}/include")
+                
+                if(EXISTS "${OB_GEN_HEADERS}")
+                    message(STATUS "Adding OpenBLAS generated headers: ${OB_GEN_HEADERS}")
+                    target_include_directories(openblas SYSTEM INTERFACE "${OB_GEN_HEADERS}")
+                endif()
+                 if(EXISTS "${OB_GEN_HEADERS_ROOT}")
+                    target_include_directories(openblas SYSTEM INTERFACE "${OB_GEN_HEADERS_ROOT}")
+                endif()
+            else()
+                 # Try to find standard alternative names if 'openblas' isn't it
+                 if(TARGET openblas_static)
+                     add_library(OpenBLAS::OpenBLAS ALIAS openblas_static)
+                 elseif(TARGET openblas_shared)
+                     add_library(OpenBLAS::OpenBLAS ALIAS openblas_shared)
+                 else()
+                     message(WARNING "OpenBLAS built via FetchContent but no expected target (openblas) found. Linking might fail.")
+                 endif()
+            endif()
+        endif()
     endif()
 endif()
 
