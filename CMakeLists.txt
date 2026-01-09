@@ -287,9 +287,10 @@ if(NOT OpenBLAS_FOUND)
                 set(OB_GEN_HEADERS_ROOT "${openblas_BINARY_DIR}/include")
                 
                 # Always add these directories, even if they don't exist at configure time (generated during build)
+                # Use BUILD_INTERFACE generator expression to avoid install-time errors about build-tree paths
                 message(STATUS "Adding OpenBLAS generated headers: ${OB_GEN_HEADERS}")
-                target_include_directories(${_ob_real_target} SYSTEM INTERFACE "${OB_GEN_HEADERS}")
-                target_include_directories(${_ob_real_target} SYSTEM INTERFACE "${OB_GEN_HEADERS_ROOT}")
+                target_include_directories(${_ob_real_target} SYSTEM INTERFACE "$<BUILD_INTERFACE:${OB_GEN_HEADERS}>")
+                target_include_directories(${_ob_real_target} SYSTEM INTERFACE "$<BUILD_INTERFACE:${OB_GEN_HEADERS_ROOT}>")
             else()
                  # Try to find standard alternative names if 'openblas' isn't it
                  if(TARGET openblas_static)
