@@ -242,8 +242,17 @@ if(NOT OpenBLAS_FOUND)
         # OpenBLAS usually creates a target named 'openblas'.
         if(NOT TARGET OpenBLAS::OpenBLAS)
             if(TARGET openblas)
-                message(STATUS "Found target 'openblas', aliasing to OpenBLAS::OpenBLAS")
-                add_library(OpenBLAS::OpenBLAS ALIAS openblas)
+                # Check if 'openblas' is already an alias
+                get_target_property(_openblas_aliased openblas ALIASED_TARGET)
+                if(_openblas_aliased)
+                    message(STATUS "Target 'openblas' is an alias for '${_openblas_aliased}'")
+                    set(_ob_real_target ${_openblas_aliased})
+                else()
+                    set(_ob_real_target openblas)
+                endif()
+
+                message(STATUS "Found target 'openblas', aliasing OpenBLAS::OpenBLAS to ${_ob_real_target}")
+                add_library(OpenBLAS::OpenBLAS ALIAS ${_ob_real_target})
                 
                 # Check for include directory in binary dir (where generated headers live)
                 # The log indicates headers are in include/openblas/
@@ -252,10 +261,10 @@ if(NOT OpenBLAS_FOUND)
                 
                 if(EXISTS "${OB_GEN_HEADERS}")
                     message(STATUS "Adding OpenBLAS generated headers: ${OB_GEN_HEADERS}")
-                    target_include_directories(openblas SYSTEM INTERFACE "${OB_GEN_HEADERS}")
+                    target_include_directories(${_ob_real_target} SYSTEM INTERFACE "${OB_GEN_HEADERS}")
                 endif()
                  if(EXISTS "${OB_GEN_HEADERS_ROOT}")
-                    target_include_directories(openblas SYSTEM INTERFACE "${OB_GEN_HEADERS_ROOT}")
+                    target_include_directories(${_ob_real_target} SYSTEM INTERFACE "${OB_GEN_HEADERS_ROOT}")
                 endif()
             else()
                  # Try to find standard alternative names if 'openblas' isn't it
