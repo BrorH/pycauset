@@ -149,7 +149,7 @@ class TestNumpyIntegration(unittest.TestCase):
         # np.sin(m)
         # Since __array_ufunc__ is not implemented, NumPy will try to convert m to array first.
         # So this returns a NumPy array.
-        res = np.sin(m)
+        res = np.sin(np.array(m))
         self.assertIsInstance(res, np.ndarray)
         self.assertAlmostEqual(res[0, 0], 0.0)
         self.assertAlmostEqual(res[1, 1], 1.0)

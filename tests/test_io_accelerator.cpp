@@ -16,8 +16,18 @@ protected:
 
     void SetUp() override {
         temp_file = pycauset::make_unique_storage_file("io_test");
-        // Create a dummy file
+        // Create a dummy file with valid header
         std::ofstream out(temp_file, std::ios::binary);
+        
+        // Header: Magic(8) + Version(4) + Reserved(52) = 64 bytes
+        const char magic[] = "PYCAUSET";
+        out.write(magic, 8);
+        uint32_t version = 1;
+        out.write(reinterpret_cast<const char*>(&version), sizeof(version));
+        char reserved[52] = {0};
+        out.write(reserved, 52);
+
+        // Data
         std::vector<char> data(file_size, 0);
         out.write(data.data(), file_size);
         out.close();

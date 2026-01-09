@@ -1659,8 +1659,9 @@ void bind_matrix_classes(py::module_& m) {
                                     uint16_t part = (word >> (k * 16)) & 0xFFFF;
                                     __m128i v = _mm_set1_epi16(part);
                                     v = _mm_and_si128(v, interleaved_mask);
-                                    v = _mm_cmpgt_epi8(v, zero);
-                                    v = _mm_and_si128(v, one);
+                                    // Use cmpeq for sign-agnostic check, then invert for "is non-zero"
+                                    v = _mm_cmpeq_epi8(v, zero);
+                                    v = _mm_andnot_si128(v, one);
                                     
                                     // Deinterleave using packus (SSE2)
                                     __m128i evens = _mm_and_si128(v, mask_low);

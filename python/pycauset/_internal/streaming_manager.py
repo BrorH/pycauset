@@ -33,7 +33,19 @@ def _append_event(record: dict[str, Any], *, event_type: str, detail: str, reaso
 
 def _default_tile_shape(threshold_bytes: int | None, operands: List[io_observability.OperandSnapshot]) -> Tuple[int, int]:
     budget = threshold_bytes if threshold_bytes is not None else 1 << 20
-    max_itemsize = max((8,) + tuple(op.itemsize for op in operands if op is not None))
+    
+    sizes = [8]
+    for op in operands:
+        if op is None: continue
+        if isinstance(op, dict):
+            sizes.append(op.get("itemsize", 8))
+        else:
+            try:
+                sizes.append(op.itemsize)
+            except AttributeError:
+                sizes.append(8)
+    
+    max_itemsize = max(sizes)
     try:
         elems = max(1, int(budget // max(1, max_itemsize)))
         dim = max(1, int(elems**0.5))
@@ -70,13 +82,26 @@ def _shape_from_snapshot(snapshot: io_observability.OperandSnapshot | None) -> t
     try:
         if snapshot is None:
             return None
+        if isinstance(snapshot, dict):
+            return snapshot.get("shape")
         return snapshot.shape
     except Exception:
         return None
 
 
 def _max_itemsize(operands: List[io_observability.OperandSnapshot]) -> int:
-    sizes = [op.itemsize for op in operands if op is not None]
+    sizes = []
+    for op in operands:
+        if op is None:
+            continue
+        if isinstance(op, dict):
+            sizes.append(op.get("itemsize", 8))
+        else:
+            try:
+                sizes.append(op.itemsize)
+            except AttributeError:
+                sizes.append(8)
+                
     if not sizes:
         return 8
     try:
