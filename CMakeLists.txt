@@ -177,19 +177,29 @@ if(NOT OpenBLAS_FOUND)
         /usr/local/opt/openblas/lib
     )
     
-    find_path(OpenBLAS_INC NAMES cblas.h
-        PATHS 
-        /opt/homebrew/opt/openblas/include
-        /usr/local/opt/openblas/include
-        /opt/homebrew/include
-        /usr/local/include
-        /usr/include/openblas
-        /usr/include/x86_64-linux-gnu
-        /usr/include
-        NO_DEFAULT_PATH
-    )
-    # If not found with NO_DEFAULT_PATH, try standard paths but be careful of Apple's vecLib
-    if(NOT OpenBLAS_INC)
+    if(APPLE)
+        # On macOS, avoid finding Apple's vecLib (which has cblas.h but not lapacke.h)
+        find_path(OpenBLAS_INC NAMES lapacke.h cblas.h
+            PATHS 
+            /opt/homebrew/opt/openblas/include
+            /usr/local/opt/openblas/include
+            /opt/homebrew/include
+            /usr/local/include
+            NO_DEFAULT_PATH
+        )
+    else()
+        # On Linux/Windows, use standard search
+        find_path(OpenBLAS_INC NAMES cblas.h
+            PATHS 
+            /usr/include/openblas
+            /usr/include/x86_64-linux-gnu
+            /usr/local/include
+            /usr/include
+        )
+    endif()
+
+    if(NOT OpenBLAS_INC AND NOT APPLE)
+        # Fallback to default search on non-Apple
         find_path(OpenBLAS_INC NAMES cblas.h)
     endif()
     
@@ -276,13 +286,10 @@ if(NOT OpenBLAS_FOUND)
                 set(OB_GEN_HEADERS "${openblas_BINARY_DIR}/include/openblas")
                 set(OB_GEN_HEADERS_ROOT "${openblas_BINARY_DIR}/include")
                 
-                if(EXISTS "${OB_GEN_HEADERS}")
-                    message(STATUS "Adding OpenBLAS generated headers: ${OB_GEN_HEADERS}")
-                    target_include_directories(${_ob_real_target} SYSTEM INTERFACE "${OB_GEN_HEADERS}")
-                endif()
-                 if(EXISTS "${OB_GEN_HEADERS_ROOT}")
-                    target_include_directories(${_ob_real_target} SYSTEM INTERFACE "${OB_GEN_HEADERS_ROOT}")
-                endif()
+                # Always add these directories, even if they don't exist at configure time (generated during build)
+                message(STATUS "Adding OpenBLAS generated headers: ${OB_GEN_HEADERS}")
+                target_include_directories(${_ob_real_target} SYSTEM INTERFACE "${OB_GEN_HEADERS}")
+                target_include_directories(${_ob_real_target} SYSTEM INTERFACE "${OB_GEN_HEADERS_ROOT}")
             else()
                  # Try to find standard alternative names if 'openblas' isn't it
                  if(TARGET openblas_static)
