@@ -30,16 +30,13 @@ jobs:
         uses: pypa/cibuildwheel@v2.16.5
         env:
           # Configure cibuildwheel to build for Python 3.8+
-          # Skip 32-bit builds (i686) as they are problematic for C++20/large memory
+          # Skip 32-bit builds (i686)
           CIBW_SKIP: "cp36-* cp37-* pp* *i686*"
           
-          # Linux: Use manylinux_2_28 (AlmaLinux 8) which has GCC 8.5+ (supports C++17/20 better)
-          # Actually, for full C++20 <bit> support we might need GCC 10+.
-          # manylinux_2_28 has GCC 8.5 by default.
-          # Let's try to use the default but if it fails we might need to install a newer compiler.
-          # However, manylinux2014 is definitely too old (GCC 9/10 via devtoolset might work but 2_28 is safer).
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
-          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+          # Linux: Use manylinux2014 which provides GCC 10 (via devtoolset-10) by default.
+          # This is required for C++20 support (char8_t, concepts, etc.) which GCC 8.5 (manylinux_2_28) lacks.
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
           
           # macOS: Help CMake find OpenMP
           CIBW_BEFORE_BUILD_MACOS: "brew install libomp"
