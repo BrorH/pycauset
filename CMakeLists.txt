@@ -58,7 +58,8 @@ if(MSVC)
 endif()
 
 if(NOT MSVC)
-    add_compile_options(-march=native)
+    # Avoid -march=native for distribution wheels to ensure compatibility
+    # add_compile_options(-march=native)
 endif()
 
 # --- CUDA Compiler Options ---
