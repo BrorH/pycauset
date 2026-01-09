@@ -1,5 +1,7 @@
 #include "bindings_common.hpp"
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #include <immintrin.h>
+#endif
 #include <iostream>
 
 #include "binding_warnings.hpp"
@@ -1640,6 +1642,7 @@ void bind_matrix_classes(py::module_& m) {
                         uint64_t stride_bytes = m->stride_bytes();
                         uint64_t stride_words = stride_bytes / 8;
 
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
                         const __m128i zero = _mm_setzero_si128();
                         const __m128i one = _mm_set1_epi8(1);
                         const __m128i mask_low = _mm_set1_epi16(0x00FF);
@@ -1647,12 +1650,14 @@ void bind_matrix_classes(py::module_& m) {
                         const __m128i interleaved_mask = _mm_set_epi8(
                             128, 128, 64, 64, 32, 32, 16, 16, 8, 8, 4, 4, 2, 2, 1, 1
                         );
+#endif
                         
                         for (uint64_t i = 0; i < rows; ++i) {
                             const uint64_t* row_ptr = src + i * stride_words;
                             bool* dst_row = dst + i * cols;
                             
                             uint64_t j = 0;
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
                             for (; j + 64 <= cols; j += 64) {
                                 uint64_t word = row_ptr[j / 64];
                                 for (int k = 0; k < 4; ++k) {
@@ -1671,13 +1676,16 @@ void bind_matrix_classes(py::module_& m) {
                                     _mm_storeu_si128((__m128i*)(dst_row + j + k * 16), v);
                                 }
                             }
+#endif
                             
-                            if (j < cols) {
-                                uint64_t word = row_ptr[j / 64];
-                                uint64_t limit = cols - j;
-                                for (uint64_t k = 0; k < limit; ++k) {
-                                    dst_row[j + k] = (word >> k) & 1;
-                                }
+                            while (j < cols) {
+                                 uint64_t word = row_ptr[j / 64];
+                                 uint64_t start_bit = j % 64;
+                                 uint64_t limit = std::min(cols - j, 64 - start_bit);
+                                 for (uint64_t k = 0; k < limit; ++k) {
+                                     dst_row[j] = (word >> (start_bit + k)) & 1;
+                                     j++;
+                                 }
                             }
                         }
                         return out;
@@ -4179,6 +4187,7 @@ void bind_matrix_classes(py::module_& m) {
                             if (stride1 == 1) {
                                 const bool* src_chunk = src_row + j;
                                 uint64_t k = 0;
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
                                 __m128i zero = _mm_setzero_si128();
                                 while (k + 16 <= limit) {
                                     __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src_chunk + k));
@@ -4188,6 +4197,7 @@ void bind_matrix_classes(py::module_& m) {
                                     word |= (bits << k);
                                     k += 16;
                                 }
+#endif
                                 for (; k < limit; ++k) {
                                     if (src_chunk[k]) {
                                         word |= (1ULL << k);

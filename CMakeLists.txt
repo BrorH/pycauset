@@ -179,14 +179,19 @@ if(NOT OpenBLAS_FOUND)
     
     find_path(OpenBLAS_INC NAMES cblas.h
         PATHS 
-        /usr/include/x86_64-linux-gnu
-        /usr/include/openblas
-        /usr/include
-        /usr/local/include
-        /opt/homebrew/include
         /opt/homebrew/opt/openblas/include
         /usr/local/opt/openblas/include
+        /opt/homebrew/include
+        /usr/local/include
+        /usr/include/openblas
+        /usr/include/x86_64-linux-gnu
+        /usr/include
+        NO_DEFAULT_PATH
     )
+    # If not found with NO_DEFAULT_PATH, try standard paths but be careful of Apple's vecLib
+    if(NOT OpenBLAS_INC)
+        find_path(OpenBLAS_INC NAMES cblas.h)
+    endif()
     
     message(STATUS "Manual find result: LIB=${OpenBLAS_LIB} INC=${OpenBLAS_INC}")
 
