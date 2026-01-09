@@ -5,8 +5,28 @@
 // Force 64-bit integers for LAPACK to match the DLL expectation (likely ILP64)
 // or at least to prevent buffer overflow if the DLL writes 64-bit integers.
 // #define LAPACK_ILP64
+
+#ifdef _WIN32
 #include <cblas.h>
 #include <lapacke.h>
+#elif defined(__APPLE__)
+// On macOS, we can use Accelerate (native) or OpenBLAS (brew). 
+// Our CMake prefers OpenBLAS now.
+// If OpenBLAS is used, we need its specific headers.
+// However, the include path might be <openblas/cblas.h> or just <cblas.h>
+#include <cblas.h>
+// Check if lapacke.h exists or implicit
+#if __has_include(<lapacke.h>)
+#include <lapacke.h>
+#else
+// Fallback for Accelerate or weird paths
+#include <openblas/lapacke.h> 
+#endif
+#else
+// Linux
+#include <cblas.h>
+#include <lapacke.h>
+#endif
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/core/Float16.hpp"
@@ -36,11 +56,13 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#if defined(__x86_64__) || defined(_M_X64)
 #include <immintrin.h>
+#endif
 
 #ifdef _WIN32
 #include <intrin.h>
-#else
+#elif defined(__x86_64__) || defined(_M_X64)
 #include <cpuid.h>
 #endif
 
@@ -49,6 +71,7 @@ namespace pycauset {
 namespace {
     // Runtime CPU detection for AVX-512 VPOPCNTDQ
     bool has_avx512_vpopcntdq() {
+#if defined(__x86_64__) || defined(_M_X64)
         static bool checked = false;
         static bool available = false;
         if (checked) return available;
@@ -77,11 +100,15 @@ namespace {
 #endif
         checked = true;
         return available;
+#else
+        return false;
+#endif
     }
 
-#if defined(__GNUC__) || defined(__clang__)
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(_M_X64))
     __attribute__((target("avx512f,avx512vpopcntdq")))
 #endif
+#if defined(__x86_64__) || defined(_M_X64)
     int64_t dot_product_avx512(const uint64_t* a_row, const uint64_t* b_col, uint64_t count) {
         __m512i vsum = _mm512_setzero_si512();
         for (uint64_t w = 0; w < count; w += 8) {
@@ -93,6 +120,7 @@ namespace {
         }
         return _mm512_reduce_add_epi64(vsum);
     }
+#endif
 }
 
 namespace {
@@ -1444,9 +1472,11 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
 
                     // AVX-512 Loop (8 words = 512 bits per iteration)
                     if (use_avx512) {
+#if defined(__x86_64__) || defined(_M_X64)
                         const uint64_t avx_limit = words_per_row & ~7ULL; // Multiple of 8
                         dot_product = dot_product_avx512(a_row, b_col, avx_limit);
                         w = avx_limit;
+#endif
                     }
 
                     // Scalar Loop (Tail)
