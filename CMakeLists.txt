@@ -172,6 +172,9 @@ if(NOT OpenBLAS_FOUND)
         /usr/lib/x86_64-linux-gnu
         /usr/local/lib
         /usr/lib
+        /opt/homebrew/lib
+        /opt/homebrew/opt/openblas/lib
+        /usr/local/opt/openblas/lib
     )
     
     find_path(OpenBLAS_INC NAMES cblas.h
@@ -180,6 +183,9 @@ if(NOT OpenBLAS_FOUND)
         /usr/include/openblas
         /usr/include
         /usr/local/include
+        /opt/homebrew/include
+        /opt/homebrew/opt/openblas/include
+        /usr/local/opt/openblas/include
     )
     
     message(STATUS "Manual find result: LIB=${OpenBLAS_LIB} INC=${OpenBLAS_INC}")
