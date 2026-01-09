@@ -78,6 +78,21 @@ namespace {
         checked = true;
         return available;
     }
+
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((target("avx512f,avx512vpopcntdq")))
+#endif
+    int64_t dot_product_avx512(const uint64_t* a_row, const uint64_t* b_col, uint64_t count) {
+        __m512i vsum = _mm512_setzero_si512();
+        for (uint64_t w = 0; w < count; w += 8) {
+            __m512i va = _mm512_loadu_si512((const void*)&a_row[w]);
+            __m512i vb = _mm512_loadu_si512((const void*)&b_col[w]);
+            __m512i vand = _mm512_and_si512(va, vb);
+            __m512i vpop = _mm512_popcnt_epi64(vand);
+            vsum = _mm512_add_epi64(vsum, vpop);
+        }
+        return _mm512_reduce_add_epi64(vsum);
+    }
 }
 
 namespace {
@@ -1430,16 +1445,8 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
                     // AVX-512 Loop (8 words = 512 bits per iteration)
                     if (use_avx512) {
                         const uint64_t avx_limit = words_per_row & ~7ULL; // Multiple of 8
-                        __m512i vsum = _mm512_setzero_si512();
-                        
-                        for (; w < avx_limit; w += 8) {
-                            __m512i va = _mm512_loadu_si512((const void*)&a_row[w]);
-                            __m512i vb = _mm512_loadu_si512((const void*)&b_col[w]);
-                            __m512i vand = _mm512_and_si512(va, vb);
-                            __m512i vpop = _mm512_popcnt_epi64(vand);
-                            vsum = _mm512_add_epi64(vsum, vpop);
-                        }
-                        dot_product = _mm512_reduce_add_epi64(vsum);
+                        dot_product = dot_product_avx512(a_row, b_col, avx_limit);
+                        w = avx_limit;
                     }
 
                     // Scalar Loop (Tail)
