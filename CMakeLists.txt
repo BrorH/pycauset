@@ -286,17 +286,27 @@ if(NOT OpenBLAS_FOUND)
                 set(OB_GEN_HEADERS "${openblas_BINARY_DIR}/include/openblas")
                 set(OB_GEN_HEADERS_ROOT "${openblas_BINARY_DIR}/include")
                 
-                # Always add these directories, even if they don't exist at configure time (generated during build)
-                # Use BUILD_INTERFACE generator expression to avoid install-time errors about build-tree paths
-                message(STATUS "Adding OpenBLAS generated headers: ${OB_GEN_HEADERS}")
-                target_include_directories(${_ob_real_target} SYSTEM INTERFACE "$<BUILD_INTERFACE:${OB_GEN_HEADERS}>")
-                target_include_directories(${_ob_real_target} SYSTEM INTERFACE "$<BUILD_INTERFACE:${OB_GEN_HEADERS_ROOT}>")
+                # Save these for manual addition to pycauset_core later, to ensure order and visibility
+                set(PYCAUSET_OPENBLAS_BUILD_INCLUDES "${OB_GEN_HEADERS}" "${OB_GEN_HEADERS_ROOT}")
+                set(PYCAUSET_OPENBLAS_DEPENDS "${_ob_real_target}")
+                
+                # Check where cblas.h actually is (Debugging)
+                message(STATUS "CHECK: Expected OpenBLAS include dir: ${OB_GEN_HEADERS}")
+
             else()
                  # Try to find standard alternative names if 'openblas' isn't it
                  if(TARGET openblas_static)
                      add_library(OpenBLAS::OpenBLAS ALIAS openblas_static)
+                     set(PYCAUSET_OPENBLAS_DEPENDS openblas_static)
+                     
+                     # Assuming standard layout for static build too
+                     set(OB_GEN_HEADERS "${openblas_BINARY_DIR}/include/openblas")
+                     set(OB_GEN_HEADERS_ROOT "${openblas_BINARY_DIR}/include")
+                     set(PYCAUSET_OPENBLAS_BUILD_INCLUDES "${OB_GEN_HEADERS}" "${OB_GEN_HEADERS_ROOT}")
+                     
                  elseif(TARGET openblas_shared)
                      add_library(OpenBLAS::OpenBLAS ALIAS openblas_shared)
+                     set(PYCAUSET_OPENBLAS_DEPENDS openblas_shared)
                  else()
                      message(WARNING "OpenBLAS built via FetchContent but no expected target (openblas) found. Linking might fail.")
                  endif()
@@ -367,7 +377,20 @@ set(PYCAUSET_SOURCES
 # Create a shared library for the core functionality to avoid recompiling for every test
 add_library(pycauset_core SHARED ${PYCAUSET_SOURCES})
 target_include_directories(pycauset_core PUBLIC include)
-target_link_libraries(pycauset_core PUBLIC Eigen3::Eigen OpenBLAS::OpenBLAS)
+
+# Change linkage to PRIVATE to avoid propagating bad interface paths if OpenBLAS has them
+target_link_libraries(pycauset_core PRIVATE Eigen3::Eigen OpenBLAS::OpenBLAS)
+
+if(PYCAUSET_OPENBLAS_DEPENDS)
+    add_dependencies(pycauset_core ${PYCAUSET_OPENBLAS_DEPENDS})
+endif()
+
+if(PYCAUSET_OPENBLAS_BUILD_INCLUDES)
+    foreach(INC_DIR ${PYCAUSET_OPENBLAS_BUILD_INCLUDES})
+        target_include_directories(pycauset_core PRIVATE "$<BUILD_INTERFACE:${INC_DIR}>")
+    endforeach()
+endif()
+
 if(PC_LAPACKE_FOUND)
     target_link_libraries(pycauset_core PUBLIC ${PC_LAPACKE_LINK_LIBRARIES})
 endif()

@@ -42,6 +42,10 @@ static bool EnablePrivilege(LPCTSTR lpszPrivilege) {
 #include <unistd.h>
 #include <cstring>
 #include <cerrno>
+
+#ifndef MAP_POPULATE
+#define MAP_POPULATE 0
+#endif
 #endif
 
 MemoryMapper::MemoryMapper(const std::string& filename, size_t data_size, size_t offset, bool create_new) 
