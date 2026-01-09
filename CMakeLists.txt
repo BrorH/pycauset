@@ -433,7 +433,9 @@ python_add_library(_pycauset MODULE
 target_include_directories(_pycauset PRIVATE include)
 
 # Link libraries
-target_link_libraries(_pycauset PRIVATE pybind11::module pycauset_core)
+# Note: pycauset_core links to Eigen privately, so we must re-link Eigen here 
+# if the bindings code includes Eigen headers (which it does).
+target_link_libraries(_pycauset PRIVATE pybind11::module pycauset_core Eigen3::Eigen)
 
 if(MSVC)
     target_compile_options(_pycauset PRIVATE /bigobj)
