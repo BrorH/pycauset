@@ -6,6 +6,11 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#include <mach/mach.h>
+#include <unistd.h>
 #else
 #include <sys/sysinfo.h>
 #include <unistd.h>
@@ -46,6 +51,30 @@ void MemoryGovernor::refresh_system_stats() const {
     } else {
         // Fallback if API fails (unlikely)
         cached_available_ram_ = 1024 * 1024 * 1024; // Assume 1GB free
+    }
+#elif defined(__APPLE__)
+    int mib[2];
+    int64_t physical_memory;
+    size_t length;
+
+    // Get Total RAM
+    mib[0] = CTL_HW;
+    mib[1] = HW_MEMSIZE;
+    length = sizeof(int64_t);
+    sysctl(mib, 2, &physical_memory, &length, NULL, 0);
+    cached_total_ram_ = physical_memory;
+
+    // Get Free/Available RAM
+    // macOS doesn't report "free" RAM simply like Linux.
+    // We can approximate by getting page size and free page count.
+    mach_msg_type_number_t count = HOST_VM_INFO_COUNT;
+    vm_statistics_data_t vm_stat;
+    if (host_statistics(mach_host_self(), HOST_VM_INFO, (host_info_t)&vm_stat, &count) == KERN_SUCCESS) {
+        // This is strictly "free" pages, not including file cache which is "available".
+        // For our safety purposes, strictly free is likely safer.
+        cached_available_ram_ = (uint64_t)vm_stat.free_count * sysconf(_SC_PAGESIZE);
+    } else {
+         cached_available_ram_ = 1024 * 1024 * 1024; // Assume 1GB
     }
 #else
     struct sysinfo info;
