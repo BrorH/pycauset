@@ -33,10 +33,16 @@ jobs:
           # Skip 32-bit builds (i686)
           CIBW_SKIP: "cp36-* cp37-* pp* *i686*"
           
-          # Linux: Use manylinux2014 which provides GCC 10 (via devtoolset-10) by default.
-          # This is required for C++20 support (char8_t, concepts, etc.) which GCC 8.5 (manylinux_2_28) lacks.
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
+          # Linux: Use manylinux_2_28 (AlmaLinux 8) and install GCC 12 via gcc-toolset.
+          # This ensures full C++20 support (including <bit>, char8_t, <filesystem>).
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+          
+          # Install GCC 12 on Linux before build
+          CIBW_BEFORE_ALL_LINUX: "yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic"
+          
+          # Point the build to use the new GCC 12
+          CIBW_ENVIRONMENT_LINUX: "CC=/opt/rh/gcc-toolset-12/root/usr/bin/gcc CXX=/opt/rh/gcc-toolset-12/root/usr/bin/g++"
           
           # macOS: Help CMake find OpenMP
           CIBW_BEFORE_BUILD_MACOS: "brew install libomp"
