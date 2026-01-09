@@ -77,7 +77,7 @@ endif()
 # --- Dependencies ---
 
 # 1. Python (Required for the extension)
-find_package(Python COMPONENTS Interpreter Development REQUIRED)
+find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 
 # 2. Pybind11 (Required)
 # If built via pip/scikit-build-core, pybind11 is provided.
