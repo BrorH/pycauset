@@ -12,29 +12,12 @@ permissions:
   id-token: write
 
 jobs:
-  # Define the build matrix dynamically.
-  # On standard push, we only run Linux as a smoke test.
-  # On release/dispatch, we run the full matrix.
-  compute_matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      os_matrix: ${{ steps.set-matrix.outputs.os_matrix }}
-    steps:
-      - id: set-matrix
-        run: |
-          if [[ "${{ github.event_name }}" == "release" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo 'os_matrix=["ubuntu-latest", "windows-latest", "macos-latest"]' >> $GITHUB_OUTPUT
-          else
-            echo 'os_matrix=["ubuntu-latest"]' >> $GITHUB_OUTPUT
-          fi
-
   build_wheels:
-    needs: compute_matrix
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ${{ fromJson(needs.compute_matrix.outputs.os_matrix) }}
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +37,10 @@ jobs:
           # Configure cibuildwheel to build for Python 3.8+
           # Skip 32-bit builds (Linux i686 is skipped by pattern, Windows 32-bit by ARCHS config)
           CIBW_SKIP: "cp36-* cp37-* pp* *i686* *-musllinux*"
+          
+          # Pass specific hints to CMake via environment variables to help FindPython
+          # scikit-build-core usually handles this, but explicit hints prevent "found 3.8 but wanted 3.11" errors
+          CIBW_ENVIRONMENT: "CMAKE_ARGS='-DPython_FIND_STRATEGY=LOCATION'"
           
           # Windows: Build only 64-bit wheels (avoids OpenBLAS 32/64 bit mismatch and speeds up CI)
           CIBW_ARCHS_WINDOWS: "auto64"

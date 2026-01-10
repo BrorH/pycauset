@@ -82,7 +82,11 @@ endif()
 # --- Dependencies ---
 
 # 1. Python (Required for the extension)
-find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+# scikit-build-core sets Python_EXECUTABLE and other variables.
+# We MUST use FindPython which is the modern module (not FindPythonLibs).
+# We only need the Development.Module component for extension modules, 
+# preventing GHA from failing when static libs (Development.Embed) are missing.
+find_package(Python 3.8 COMPONENTS Interpreter Development.Module REQUIRED)
 
 # 2. Pybind11 (Required)
 # If built via pip/scikit-build-core, pybind11 is provided.
