@@ -73,7 +73,7 @@ inline const char* dense_matrix_buffer_format() {
 }
 
 template <>
-inline const char* dense_matrix_buffer_format<float16_t>() {
+inline const char* dense_matrix_buffer_format<pycauset::float16_t>() {
     return "e"; // PEP 3118: float16
 }
 
@@ -714,10 +714,10 @@ inline std::shared_ptr<MatrixBase> matrix_from_numpy(const py::array& array) {
 
         uint64_t rows = static_cast<uint64_t>(buf.shape[0]);
         uint64_t cols = static_cast<uint64_t>(buf.shape[1]);
-        auto result = std::make_shared<DenseMatrix<float16_t>>(rows, cols);
+        auto result = std::make_shared<DenseMatrix<pycauset::float16_t>>(rows, cols);
 
         const uint16_t* src_ptr = static_cast<const uint16_t*>(buf.ptr);
-        float16_t* dst_ptr = result->data();
+        pycauset::float16_t* dst_ptr = result->data();
 
         if (buf.strides[1] == static_cast<py::ssize_t>(sizeof(uint16_t)) &&
             buf.strides[0] == static_cast<py::ssize_t>(cols * sizeof(uint16_t))) {
@@ -728,7 +728,7 @@ inline std::shared_ptr<MatrixBase> matrix_from_numpy(const py::array& array) {
             for (uint64_t i = 0; i < rows; ++i) {
                 for (uint64_t j = 0; j < cols; ++j) {
                     const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0 + static_cast<ptrdiff_t>(j) * stride1;
-                    dst_ptr[i * cols + j] = float16_t(static_cast<uint16_t>(src_ptr[idx]));
+                    dst_ptr[i * cols + j] = pycauset::float16_t(static_cast<uint16_t>(src_ptr[idx]));
                 }
             }
         }
@@ -804,10 +804,10 @@ inline std::shared_ptr<MatrixBase> elementwise_operand_matrix_from_numpy(const p
     // broadcasting rules when combining with (m, n) matrices.
     if (is_numpy_float16(array)) {
         uint64_t cols = static_cast<uint64_t>(buf.shape[0]);
-        auto result = std::make_shared<DenseMatrix<float16_t>>(1, cols);
+        auto result = std::make_shared<DenseMatrix<pycauset::float16_t>>(1, cols);
 
         const uint16_t* src_ptr = static_cast<const uint16_t*>(buf.ptr);
-        float16_t* dst_ptr = result->data();
+        pycauset::float16_t* dst_ptr = result->data();
 
         if (buf.strides[0] == static_cast<py::ssize_t>(sizeof(uint16_t))) {
             std::memcpy(dst_ptr, src_ptr, cols * sizeof(uint16_t));
@@ -815,7 +815,7 @@ inline std::shared_ptr<MatrixBase> elementwise_operand_matrix_from_numpy(const p
             const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
             for (uint64_t j = 0; j < cols; ++j) {
                 const ptrdiff_t idx = static_cast<ptrdiff_t>(j) * stride0;
-                dst_ptr[j] = float16_t(static_cast<uint16_t>(src_ptr[idx]));
+                dst_ptr[j] = pycauset::float16_t(static_cast<uint16_t>(src_ptr[idx]));
             }
         }
         return result;
@@ -1397,7 +1397,7 @@ inline py::object matrixbase_getitem_dispatch(const MatrixBase& mat, const py::o
     if (auto* mf = dynamic_cast<const DenseMatrix<float>*>(&mat)) {
         return dense_getitem(*mf, key);
     }
-    if (auto* mf16 = dynamic_cast<const DenseMatrix<float16_t>*>(&mat)) {
+    if (auto* mf16 = dynamic_cast<const DenseMatrix<pycauset::float16_t>*>(&mat)) {
         return dense_getitem(*mf16, key);
     }
     if (auto* mi32 = dynamic_cast<const DenseMatrix<int32_t>*>(&mat)) {
@@ -1745,7 +1745,7 @@ void bind_matrix_classes(py::module_& m) {
                     return out;
                 }
 
-                if (auto* mf16 = dynamic_cast<const DenseMatrix<float16_t>*>(&mat)) {
+                if (auto* mf16 = dynamic_cast<const DenseMatrix<pycauset::float16_t>*>(&mat)) {
                     py::array out(
                         py::dtype("float16"),
                         py::array::ShapeContainer{static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
@@ -2496,13 +2496,13 @@ void bind_matrix_classes(py::module_& m) {
     install_dense_matrix_buffer<float>(float32_matrix);
 
     // --- Float16 Support ---
-    auto float16_matrix = py::class_<DenseMatrix<float16_t>, MatrixBase, std::shared_ptr<DenseMatrix<float16_t>>>(m, "Float16Matrix");
+    auto float16_matrix = py::class_<DenseMatrix<pycauset::float16_t>, MatrixBase, std::shared_ptr<DenseMatrix<pycauset::float16_t>>>(m, "Float16Matrix");
     float16_matrix
         .def(
-            py::init([](int n) { return std::make_shared<DenseMatrix<float16_t>>(n); }),
+            py::init([](int n) { return std::make_shared<DenseMatrix<pycauset::float16_t>>(n); }),
             py::arg("n"))
         .def(
-            py::init([](uint64_t rows, uint64_t cols) { return std::make_shared<DenseMatrix<float16_t>>(rows, cols); }),
+            py::init([](uint64_t rows, uint64_t cols) { return std::make_shared<DenseMatrix<pycauset::float16_t>>(rows, cols); }),
             py::arg("rows"),
             py::arg("cols"))
         .def(
@@ -2514,16 +2514,16 @@ void bind_matrix_classes(py::module_& m) {
                 require_2d(buf);
                 const uint64_t rows = static_cast<uint64_t>(buf.shape[0]);
                 const uint64_t cols = static_cast<uint64_t>(buf.shape[1]);
-                auto result = std::make_shared<DenseMatrix<float16_t>>(rows, cols);
+                auto result = std::make_shared<DenseMatrix<pycauset::float16_t>>(rows, cols);
 
                 const uint16_t* src_ptr = static_cast<const uint16_t*>(buf.ptr);
-                float16_t* dst_ptr = result->data();
+                pycauset::float16_t* dst_ptr = result->data();
 
                 const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
                 const auto stride1 = static_cast<uint64_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(uint16_t)));
                 for (uint64_t i = 0; i < rows; ++i) {
                     for (uint64_t j = 0; j < cols; ++j) {
-                        dst_ptr[i * cols + j] = float16_t(static_cast<uint16_t>(src_ptr[i * stride0 + j * stride1]));
+                        dst_ptr[i * cols + j] = pycauset::float16_t(static_cast<uint16_t>(src_ptr[i * stride0 + j * stride1]));
                     }
                 }
                 return result;
@@ -2537,7 +2537,7 @@ void bind_matrix_classes(py::module_& m) {
                uint64_t seed,
                std::complex<double> scalar,
                bool is_transposed) {
-                return std::make_shared<DenseMatrix<float16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_shared<DenseMatrix<pycauset::float16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
             },
             py::arg("n"),
             py::arg("backing_file"),
@@ -2554,7 +2554,7 @@ void bind_matrix_classes(py::module_& m) {
                uint64_t seed,
                std::complex<double> scalar,
                bool is_transposed) {
-                return std::make_shared<DenseMatrix<float16_t>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_shared<DenseMatrix<pycauset::float16_t>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             },
             py::arg("rows"),
             py::arg("cols"),
@@ -2565,31 +2565,31 @@ void bind_matrix_classes(py::module_& m) {
             py::arg("is_transposed"))
         .def(
             "get",
-            [](const DenseMatrix<float16_t>& mat, uint64_t i, uint64_t j) {
+            [](const DenseMatrix<pycauset::float16_t>& mat, uint64_t i, uint64_t j) {
                 return static_cast<float>(mat.get(i, j));
             })
         .def(
             "set",
-            [](DenseMatrix<float16_t>& mat, uint64_t i, uint64_t j, double value) {
-                mat.set(i, j, float16_t(value));
+            [](DenseMatrix<pycauset::float16_t>& mat, uint64_t i, uint64_t j, double value) {
+                mat.set(i, j, pycauset::float16_t(value));
             })
-        .def("__setitem__", [](DenseMatrix<float16_t>& mat, const py::object& key, const py::object& value) {
+        .def("__setitem__", [](DenseMatrix<pycauset::float16_t>& mat, const py::object& key, const py::object& value) {
             dense_setitem(mat, key, value);
         })
-        .def("set_identity", &DenseMatrix<float16_t>::set_identity)
+        .def("set_identity", &DenseMatrix<pycauset::float16_t>::set_identity)
         .def(
             "fill",
-            [](DenseMatrix<float16_t>& mat, double v) { mat.fill(float16_t(v)); },
+            [](DenseMatrix<pycauset::float16_t>& mat, double v) { mat.fill(pycauset::float16_t(v)); },
             py::arg("value"))
         .def(
             "matmul",
-            [](const DenseMatrix<float16_t>& m,
-               const DenseMatrix<float16_t>& other) {
-                return std::shared_ptr<DenseMatrix<float16_t>>(m.multiply(other, ""));
+            [](const DenseMatrix<pycauset::float16_t>& m,
+               const DenseMatrix<pycauset::float16_t>& other) {
+                return std::shared_ptr<DenseMatrix<pycauset::float16_t>>(m.multiply(other, ""));
             },
             py::arg("other"));
 
-    install_dense_matrix_buffer<float16_t>(float16_matrix);
+    install_dense_matrix_buffer<pycauset::float16_t>(float16_matrix);
 
     // --- Complex Float16 Support (two-plane storage) ---
     py::class_<ComplexFloat16Matrix, MatrixBase, std::shared_ptr<ComplexFloat16Matrix>>(
@@ -2620,8 +2620,8 @@ void bind_matrix_classes(py::module_& m) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             const std::complex<float> z = src[i * stride0 + j * stride1];
                             const uint64_t idx = i * cols + j;
-                            rdst[idx] = float16_t(static_cast<double>(z.real()));
-                            idst[idx] = float16_t(static_cast<double>(z.imag()));
+                            rdst[idx] = pycauset::float16_t(static_cast<double>(z.real()));
+                            idst[idx] = pycauset::float16_t(static_cast<double>(z.imag()));
                         }
                     }
                     return out;
@@ -2635,8 +2635,8 @@ void bind_matrix_classes(py::module_& m) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             const std::complex<double> z = src[i * stride0 + j * stride1];
                             const uint64_t idx = i * cols + j;
-                            rdst[idx] = float16_t(z.real());
-                            idst[idx] = float16_t(z.imag());
+                            rdst[idx] = pycauset::float16_t(z.real());
+                            idst[idx] = pycauset::float16_t(z.imag());
                         }
                     }
                     return out;
@@ -4064,16 +4064,16 @@ void bind_matrix_classes(py::module_& m) {
                 auto b = array.request();
                 require_1d(b);
                 uint64_t n = static_cast<uint64_t>(b.shape[0]);
-                auto result = std::make_shared<DenseVector<float16_t>>(n);
+                auto result = std::make_shared<DenseVector<pycauset::float16_t>>(n);
                 const uint16_t* src_ptr = static_cast<const uint16_t*>(b.ptr);
-                float16_t* dst_ptr = result->data();
+                pycauset::float16_t* dst_ptr = result->data();
                 if (b.strides[0] == static_cast<py::ssize_t>(sizeof(uint16_t))) {
                     std::memcpy(dst_ptr, src_ptr, n * sizeof(uint16_t));
                 } else {
                     const ptrdiff_t stride0 = static_cast<ptrdiff_t>(b.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
                     for (uint64_t i = 0; i < n; ++i) {
                         const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0;
-                        dst_ptr[i] = float16_t(static_cast<uint16_t>(src_ptr[idx]));
+                        dst_ptr[i] = pycauset::float16_t(static_cast<uint16_t>(src_ptr[idx]));
                     }
                 }
                 return py::cast(result);

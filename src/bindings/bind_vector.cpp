@@ -46,7 +46,7 @@ inline const char* dense_vector_buffer_format() {
 }
 
 template <>
-inline const char* dense_vector_buffer_format<float16_t>() {
+inline const char* dense_vector_buffer_format<pycauset::float16_t>() {
     return "e"; // PEP 3118: float16
 }
 
@@ -214,12 +214,12 @@ std::shared_ptr<VectorBase> vector_from_numpy(const py::array& array) {
         auto buf = array.request();
         require_1d(buf);
         uint64_t n = static_cast<uint64_t>(buf.shape[0]);
-        auto result = std::make_shared<DenseVector<float16_t>>(n);
+        auto result = std::make_shared<DenseVector<pycauset::float16_t>>(n);
         const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
         const uint16_t* src_ptr = static_cast<const uint16_t*>(buf.ptr);
-        float16_t* dst_ptr = result->data();
+        pycauset::float16_t* dst_ptr = result->data();
         for (uint64_t i = 0; i < n; ++i) {
-            dst_ptr[i] = float16_t(static_cast<uint16_t>(src_ptr[i * stride0]));
+            dst_ptr[i] = pycauset::float16_t(static_cast<uint16_t>(src_ptr[i * stride0]));
         }
         return result;
     }
@@ -405,7 +405,7 @@ void bind_vector_classes(py::module_& m) {
                     return out;
                 }
 
-                if (auto* vf16 = dynamic_cast<const DenseVector<float16_t>*>(&v)) {
+                if (auto* vf16 = dynamic_cast<const DenseVector<pycauset::float16_t>*>(&v)) {
                     if (as_row) {
                         py::array out(
                             py::dtype("float16"),
@@ -876,7 +876,7 @@ void bind_vector_classes(py::module_& m) {
 
     install_dense_vector_buffer<float>(m.attr("Float32Vector"));
 
-    py::class_<DenseVector<float16_t>, VectorBase, std::shared_ptr<DenseVector<float16_t>>>(m, "Float16Vector")
+    py::class_<DenseVector<pycauset::float16_t>, VectorBase, std::shared_ptr<DenseVector<pycauset::float16_t>>>(m, "Float16Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
         .def(
             py::init([](const py::array& array) {
@@ -886,12 +886,12 @@ void bind_vector_classes(py::module_& m) {
                 auto buf = array.request();
                 require_1d(buf);
                 const uint64_t n = static_cast<uint64_t>(buf.shape[0]);
-                auto result = std::make_shared<DenseVector<float16_t>>(n);
+                auto result = std::make_shared<DenseVector<pycauset::float16_t>>(n);
                 const uint16_t* src_ptr = static_cast<const uint16_t*>(buf.ptr);
-                float16_t* dst_ptr = result->data();
+                pycauset::float16_t* dst_ptr = result->data();
                 const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
                 for (uint64_t i = 0; i < n; ++i) {
-                    dst_ptr[i] = float16_t(static_cast<uint16_t>(src_ptr[i * stride0]));
+                    dst_ptr[i] = pycauset::float16_t(static_cast<uint16_t>(src_ptr[i * stride0]));
                 }
                 return result;
             }),
@@ -904,7 +904,7 @@ void bind_vector_classes(py::module_& m) {
                uint64_t seed,
                std::complex<double> scalar,
                bool is_transposed) {
-                return std::make_shared<DenseVector<float16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_shared<DenseVector<pycauset::float16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
             },
             py::arg("n"),
             py::arg("backing_file"),
@@ -914,14 +914,14 @@ void bind_vector_classes(py::module_& m) {
             py::arg("is_transposed"))
         .def(
             "get",
-            [](const DenseVector<float16_t>& v, uint64_t i) { return static_cast<float>(v.get(i)); })
+            [](const DenseVector<pycauset::float16_t>& v, uint64_t i) { return static_cast<float>(v.get(i)); })
         .def(
             "set",
-            [](DenseVector<float16_t>& v, uint64_t i, double val) { v.set(i, float16_t(val)); })
-        .def("__getitem__", [](const DenseVector<float16_t>& v, uint64_t i) { return static_cast<float>(v.get(i)); })
-        .def("__setitem__", [](DenseVector<float16_t>& v, uint64_t i, double val) { v.set(i, float16_t(val)); });
+            [](DenseVector<pycauset::float16_t>& v, uint64_t i, double val) { v.set(i, pycauset::float16_t(val)); })
+        .def("__getitem__", [](const DenseVector<pycauset::float16_t>& v, uint64_t i) { return static_cast<float>(v.get(i)); })
+        .def("__setitem__", [](DenseVector<pycauset::float16_t>& v, uint64_t i, double val) { v.set(i, pycauset::float16_t(val)); });
 
-    install_dense_vector_buffer<float16_t>(m.attr("Float16Vector"));
+    install_dense_vector_buffer<pycauset::float16_t>(m.attr("Float16Vector"));
 
     py::class_<ComplexFloat16Vector, VectorBase, std::shared_ptr<ComplexFloat16Vector>>(m, "ComplexFloat16Vector")
         .def(py::init<uint64_t>(), py::arg("n"))
@@ -939,8 +939,8 @@ void bind_vector_classes(py::module_& m) {
                     const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(std::complex<float>)));
                     for (uint64_t i = 0; i < n; ++i) {
                         const std::complex<float> z = src[i * stride0];
-                        rdst[i] = float16_t(static_cast<double>(z.real()));
-                        idst[i] = float16_t(static_cast<double>(z.imag()));
+                        rdst[i] = pycauset::float16_t(static_cast<double>(z.real()));
+                        idst[i] = pycauset::float16_t(static_cast<double>(z.imag()));
                     }
                     return out;
                 }
@@ -950,8 +950,8 @@ void bind_vector_classes(py::module_& m) {
                     const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(std::complex<double>)));
                     for (uint64_t i = 0; i < n; ++i) {
                         const std::complex<double> z = src[i * stride0];
-                        rdst[i] = float16_t(z.real());
-                        idst[i] = float16_t(z.imag());
+                        rdst[i] = pycauset::float16_t(z.real());
+                        idst[i] = pycauset::float16_t(z.imag());
                     }
                     return out;
                 }
