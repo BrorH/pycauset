@@ -12,15 +12,29 @@ permissions:
   id-token: write
 
 jobs:
+  # Define the build matrix dynamically.
+  # On standard push, we only run Linux as a smoke test.
+  # On release/dispatch, we run the full matrix.
+  compute_matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      os_matrix: ${{ steps.set-matrix.outputs.os_matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          if [[ "${{ github.event_name }}" == "release" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo 'os_matrix=["ubuntu-latest", "windows-latest", "macos-latest"]' >> $GITHUB_OUTPUT
+          else
+            echo 'os_matrix=["ubuntu-latest"]' >> $GITHUB_OUTPUT
+          fi
+
   build_wheels:
+    needs: compute_matrix
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    # Optimization: Only run full matrix on release or manual dispatch.
-    # On standard push, we only run Linux/Python 3.11 as a smoke test.
-    if: ${{ github.event_name == 'release' || github.event_name == 'workflow_dispatch' || matrix.os == 'ubuntu-latest' }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ fromJson(needs.compute_matrix.outputs.os_matrix) }}
 
     steps:
       - uses: actions/checkout@v4
