@@ -11,30 +11,30 @@ permissions:
   contents: write
   id-token: write
 
-    jobs:
-      build_wheels:
-        name: Build wheels on ${{ matrix.os }}
-        runs-on: ${{ matrix.os }}
-        # Optimization: Only run full matrix on release or manual dispatch.
-        # On standard push, we only run Linux/Python 3.11 as a smoke test.
-        if: github.event_name == 'release' || github.event_name == 'workflow_dispatch' || (matrix.os == 'ubuntu-latest')
-        strategy:
-          matrix:
-            os: [ubuntu-latest, windows-latest, macos-latest]
-    
-        steps:
-          - uses: actions/checkout@v4
-            with:
-              fetch-depth: 0  # Required for setuptools_scm to find tags
-    
-          # Setup ccache to speed up re-compilation
-          - name: Setup ccache
-            uses: hendrikmuhs/ccache-action@v1.2
-            with:
-              key: ${{ matrix.os }}-ccache
-    
-          - name: Install dependencies (macOS)
-            if: runner.os == 'macOS'
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    # Optimization: Only run full matrix on release or manual dispatch.
+    # On standard push, we only run Linux/Python 3.11 as a smoke test.
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch' || (matrix.os == 'ubuntu-latest')
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for setuptools_scm to find tags
+
+      # Setup ccache to speed up re-compilation
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.os }}-ccache
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
         run: |
           brew install libomp
           brew install openblas
