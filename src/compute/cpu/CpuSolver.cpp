@@ -198,8 +198,8 @@ namespace {
 
         const bool t_c = out.is_transposed();
         const uint64_t storage_cols = out.base_cols();
-        float16_t* rdst = out.real_data();
-        float16_t* idst = out.imag_data();
+        pycauset::float16_t* rdst = out.real_data();
+        pycauset::float16_t* idst = out.imag_data();
 
         ParallelFor(0, rows, [&](size_t i) {
             for (size_t j = 0; j < cols; ++j) {
@@ -212,8 +212,8 @@ namespace {
                 const std::complex<double> vc = op(va, vb);
                 const uint64_t idx = t_c ? (static_cast<uint64_t>(j) * storage_cols + static_cast<uint64_t>(i))
                                         : (static_cast<uint64_t>(i) * storage_cols + static_cast<uint64_t>(j));
-                rdst[idx] = float16_t(vc.real());
-                idst[idx] = float16_t(vc.imag());
+                rdst[idx] = pycauset::float16_t(vc.real());
+                idst[idx] = pycauset::float16_t(vc.imag());
             }
         });
 
@@ -889,7 +889,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     }
 
     // 2a. Half Precision (Float16) -> Float16 (compute in float32, store float16)
-    auto* c_f16 = dynamic_cast<DenseMatrix<float16_t>*>(&result);
+    auto* c_f16 = dynamic_cast<DenseMatrix<pycauset::float16_t>*>(&result);
     if (c_f16 &&
         (a.get_data_type() == DataType::FLOAT16 || a.get_data_type() == DataType::FLOAT32 ||
          a.get_data_type() == DataType::FLOAT64) &&
@@ -905,7 +905,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
 
         const bool t_c = c_f16->is_transposed();
         const uint64_t storage_cols = c_f16->base_cols();
-        float16_t* c_data = c_f16->data();
+        pycauset::float16_t* c_data = c_f16->data();
         ParallelFor(0, m, [&](size_t i) {
             for (size_t j = 0; j < n; ++j) {
                 float sum = 0.0f;
@@ -913,7 +913,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
                     sum += static_cast<float>(a.get_element_as_double(static_cast<uint64_t>(i), static_cast<uint64_t>(kk))) *
                            static_cast<float>(b.get_element_as_double(static_cast<uint64_t>(kk), static_cast<uint64_t>(j)));
                 }
-                const float16_t out(sum);
+                const pycauset::float16_t out(sum);
                 if (t_c) {
                     c_data[static_cast<uint64_t>(j) * storage_cols + static_cast<uint64_t>(i)] = out;
                 } else {
@@ -967,8 +967,8 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
 
         const bool t_c = c_cf16->is_transposed();
         const uint64_t storage_cols = c_cf16->base_cols();
-        float16_t* rdst = c_cf16->real_data();
-        float16_t* idst = c_cf16->imag_data();
+        pycauset::float16_t* rdst = c_cf16->real_data();
+        pycauset::float16_t* idst = c_cf16->imag_data();
 
         ParallelFor(0, m, [&](size_t i) {
             for (size_t j = 0; j < n; ++j) {
@@ -979,8 +979,8 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
                 }
                 const uint64_t idx = t_c ? (static_cast<uint64_t>(j) * storage_cols + static_cast<uint64_t>(i))
                                         : (static_cast<uint64_t>(i) * storage_cols + static_cast<uint64_t>(j));
-                rdst[idx] = float16_t(sum.real());
-                idst[idx] = float16_t(sum.imag());
+                rdst[idx] = pycauset::float16_t(sum.real());
+                idst[idx] = pycauset::float16_t(sum.imag());
             }
         });
 
@@ -2061,7 +2061,7 @@ void CpuSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result
         binary_op_impl<double>(a, b, result, std::plus<>());
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.add.f16");
-        binary_op_impl<float16_t>(a, b, result, std::plus<>());
+        binary_op_impl<pycauset::float16_t>(a, b, result, std::plus<>());
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.add.f32");
         binary_op_impl<float>(a, b, result, std::plus<>());
@@ -2120,7 +2120,7 @@ void CpuSolver::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& r
         binary_op_impl<double>(a, b, result, std::minus<>());
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.subtract.f16");
-        binary_op_impl<float16_t>(a, b, result, std::minus<>());
+        binary_op_impl<pycauset::float16_t>(a, b, result, std::minus<>());
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.subtract.f32");
         binary_op_impl<float>(a, b, result, std::minus<>());
@@ -2208,7 +2208,7 @@ void CpuSolver::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, M
         binary_op_impl<double>(a, b, result, std::multiplies<>());
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.mul.f16");
-        binary_op_impl<float16_t>(a, b, result, std::multiplies<>());
+        binary_op_impl<pycauset::float16_t>(a, b, result, std::multiplies<>());
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.mul.f32");
         binary_op_impl<float>(a, b, result, std::multiplies<>());
@@ -2271,7 +2271,7 @@ void CpuSolver::elementwise_divide(const MatrixBase& a, const MatrixBase& b, Mat
         binary_op_impl<double>(a, b, result, [](auto x, auto y) { return x / y; });
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.div.f16");
-        binary_op_impl<float16_t>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<pycauset::float16_t>(a, b, result, [](auto x, auto y) { return x / y; });
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.div.f32");
         binary_op_impl<float>(a, b, result, [](auto x, auto y) { return x / y; });
@@ -2339,7 +2339,7 @@ void CpuSolver::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& 
         scalar_op_impl(a, scalar, r);
     } else if (auto* r = dynamic_cast<DenseMatrix<float>*>(&result)) {
         scalar_op_impl(a, scalar, r);
-    } else if (auto* r = dynamic_cast<DenseMatrix<float16_t>*>(&result)) {
+    } else if (auto* r = dynamic_cast<DenseMatrix<pycauset::float16_t>*>(&result)) {
         scalar_op_impl(a, scalar, r);
     } else {
         throw std::runtime_error("CpuSolver::multiply_scalar result type not supported");
@@ -2499,8 +2499,8 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
                 auto* idst = out16->imag_data();
                 ParallelFor(0, rows, [&](size_t i) {
                     const std::complex<double> z = v.get_element_as_complex(i) * scalar;
-                    rdst[i] = float16_t(z.real());
-                    idst[i] = float16_t(z.imag());
+                    rdst[i] = pycauset::float16_t(z.real());
+                    idst[i] = pycauset::float16_t(z.imag());
                 });
                 out16->set_scalar(1.0);
                 return;
@@ -2556,9 +2556,9 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             ParallelFor(0, rows, [&](size_t i) {
                 res_u64->set(i, static_cast<uint64_t>(v.get_element_as_double(i) * scalar));
             });
-        } else if (auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result)) {
+        } else if (auto* res_f16 = dynamic_cast<DenseVector<pycauset::float16_t>*>(&result)) {
             ParallelFor(0, rows, [&](size_t i) {
-                res_f16->set(i, float16_t(static_cast<float>(v.get_element_as_double(i) * scalar)));
+                res_f16->set(i, pycauset::float16_t(static_cast<float>(v.get_element_as_double(i) * scalar)));
             });
         } else if (auto* res_f32 = dynamic_cast<DenseVector<float>*>(&result)) {
             ParallelFor(0, rows, [&](size_t i) {
@@ -2584,8 +2584,8 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
                 for (uint64_t j = 0; j < cols; ++j) {
                     sum += m.get_element_as_complex(i, j) * v.get_element_as_complex(j);
                 }
-                rdst[i] = float16_t(sum.real());
-                idst[i] = float16_t(sum.imag());
+                rdst[i] = pycauset::float16_t(sum.real());
+                idst[i] = pycauset::float16_t(sum.imag());
             });
             out16->set_scalar(1.0);
             return;
@@ -2863,13 +2863,13 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             }
             res_f32->set(i, sum);
         });
-    } else if (auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result)) {
+    } else if (auto* res_f16 = dynamic_cast<DenseVector<pycauset::float16_t>*>(&result)) {
         ParallelFor(0, rows, [&](size_t i) {
             float sum = 0.0f;
             for (uint64_t j = 0; j < cols; ++j) {
                 sum += static_cast<float>(m.get_element_as_double(i, j) * v.get_element_as_double(j));
             }
-            res_f16->set(i, float16_t(sum));
+            res_f16->set(i, pycauset::float16_t(sum));
         });
     } else {
         throw std::runtime_error("Unsupported result type for matrix_vector_multiply");
@@ -2894,8 +2894,8 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
                 auto* idst = out16->imag_data();
                 ParallelFor(0, cols, [&](size_t i) {
                     const std::complex<double> z = v.get_element_as_complex(i) * scalar;
-                    rdst[i] = float16_t(z.real());
-                    idst[i] = float16_t(z.imag());
+                    rdst[i] = pycauset::float16_t(z.real());
+                    idst[i] = pycauset::float16_t(z.imag());
                 });
                 out16->set_scalar(1.0);
                 result.set_transposed(true);
@@ -2954,9 +2954,9 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
             ParallelFor(0, cols, [&](size_t i) {
                 res_u64->set(i, static_cast<uint64_t>(v.get_element_as_double(i) * scalar));
             });
-        } else if (auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result)) {
+        } else if (auto* res_f16 = dynamic_cast<DenseVector<pycauset::float16_t>*>(&result)) {
             ParallelFor(0, cols, [&](size_t i) {
-                res_f16->set(i, float16_t(static_cast<float>(v.get_element_as_double(i) * scalar)));
+                res_f16->set(i, pycauset::float16_t(static_cast<float>(v.get_element_as_double(i) * scalar)));
             });
         } else if (auto* res_f32 = dynamic_cast<DenseVector<float>*>(&result)) {
             ParallelFor(0, cols, [&](size_t i) {
@@ -2983,8 +2983,8 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
                 for (uint64_t i = 0; i < rows; ++i) {
                     sum += v.get_element_as_complex(i) * m.get_element_as_complex(i, j);
                 }
-                rdst[j] = float16_t(sum.real());
-                idst[j] = float16_t(sum.imag());
+                rdst[j] = pycauset::float16_t(sum.real());
+                idst[j] = pycauset::float16_t(sum.imag());
             });
             out16->set_scalar(1.0);
             result.set_transposed(true);
@@ -3100,13 +3100,13 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
             }
             res_f32->set(j, sum);
         });
-    } else if (auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result)) {
+    } else if (auto* res_f16 = dynamic_cast<DenseVector<pycauset::float16_t>*>(&result)) {
         ParallelFor(0, cols, [&](size_t j) {
             float sum = 0.0f;
             for (uint64_t i = 0; i < rows; ++i) {
                 sum += static_cast<float>(v.get_element_as_double(i) * m.get_element_as_double(i, j));
             }
-            res_f16->set(j, float16_t(sum));
+            res_f16->set(j, pycauset::float16_t(sum));
         });
     } else {
         throw std::runtime_error("Unsupported result type for vector_matrix_multiply");
@@ -3135,8 +3135,8 @@ void CpuSolver::outer_product(const VectorBase& a, const VectorBase& b, MatrixBa
                 const std::complex<double> vb = b.get_element_as_complex(j);
                 const std::complex<double> vc = va * vb;
                 const uint64_t idx = t ? (j * n + i) : (i * n + j);
-                rdst[idx] = float16_t(vc.real());
-                idst[idx] = float16_t(vc.imag());
+                rdst[idx] = pycauset::float16_t(vc.real());
+                idst[idx] = pycauset::float16_t(vc.imag());
             }
         });
         out->set_scalar(1.0);
@@ -3250,12 +3250,12 @@ void CpuSolver::outer_product(const VectorBase& a, const VectorBase& b, MatrixBa
             }
         });
         m->set_scalar(1.0);
-    } else if (auto* m = dynamic_cast<DenseMatrix<float16_t>*>(&result)) {
+    } else if (auto* m = dynamic_cast<DenseMatrix<pycauset::float16_t>*>(&result)) {
         ParallelFor(0, n, [&](size_t i) {
             const float val_a = static_cast<float>(a.get_element_as_double(i));
             for (uint64_t j = 0; j < n; ++j) {
                 const float v = val_a * static_cast<float>(b.get_element_as_double(j));
-                m->set(i, j, float16_t(v));
+                m->set(i, j, pycauset::float16_t(v));
             }
         });
         m->set_scalar(1.0);
@@ -3285,8 +3285,8 @@ void CpuSolver::add_vector(const VectorBase& a, const VectorBase& b, VectorBase&
         auto* idst = out->imag_data();
         ParallelFor(0, n, [&](size_t i) {
             const std::complex<double> v = a.get_element_as_complex(i) + b.get_element_as_complex(i);
-            rdst[i] = float16_t(v.real());
-            idst[i] = float16_t(v.imag());
+            rdst[i] = pycauset::float16_t(v.real());
+            idst[i] = pycauset::float16_t(v.imag());
         });
         out->set_scalar(1.0);
         return;
@@ -3320,14 +3320,14 @@ void CpuSolver::add_vector(const VectorBase& a, const VectorBase& b, VectorBase&
     }
 
     if (dtype == DataType::FLOAT16) {
-        auto* out = dynamic_cast<DenseVector<float16_t>*>(&result);
+        auto* out = dynamic_cast<DenseVector<pycauset::float16_t>*>(&result);
         if (!out) {
             throw std::runtime_error("CpuSolver::add_vector float16 result type mismatch");
         }
         debug_trace::set_last("cpu.add_vector.f16");
         auto* dst = out->data();
         ParallelFor(0, n, [&](size_t i) {
-            dst[i] = float16_t(a.get_element_as_double(i) + b.get_element_as_double(i));
+            dst[i] = pycauset::float16_t(a.get_element_as_double(i) + b.get_element_as_double(i));
         });
         out->set_scalar(1.0);
         return;
@@ -3542,8 +3542,8 @@ void CpuSolver::subtract_vector(const VectorBase& a, const VectorBase& b, Vector
         auto* idst = out->imag_data();
         ParallelFor(0, n, [&](size_t i) {
             const std::complex<double> v = a.get_element_as_complex(i) - b.get_element_as_complex(i);
-            rdst[i] = float16_t(v.real());
-            idst[i] = float16_t(v.imag());
+            rdst[i] = pycauset::float16_t(v.real());
+            idst[i] = pycauset::float16_t(v.imag());
         });
         out->set_scalar(1.0);
         return;
@@ -3577,14 +3577,14 @@ void CpuSolver::subtract_vector(const VectorBase& a, const VectorBase& b, Vector
     }
 
     if (dtype == DataType::FLOAT16) {
-        auto* out = dynamic_cast<DenseVector<float16_t>*>(&result);
+        auto* out = dynamic_cast<DenseVector<pycauset::float16_t>*>(&result);
         if (!out) {
             throw std::runtime_error("CpuSolver::subtract_vector float16 result type mismatch");
         }
         debug_trace::set_last("cpu.subtract_vector.f16");
         auto* dst = out->data();
         ParallelFor(0, n, [&](size_t i) {
-            dst[i] = float16_t(a.get_element_as_double(i) - b.get_element_as_double(i));
+            dst[i] = pycauset::float16_t(a.get_element_as_double(i) - b.get_element_as_double(i));
         });
         out->set_scalar(1.0);
         return;
@@ -3793,20 +3793,20 @@ void CpuSolver::scalar_multiply_vector(const VectorBase& a, double scalar, Vecto
     auto* a_cf16 = dynamic_cast<const ComplexFloat16Vector*>(&a);
     auto* res_cf16 = dynamic_cast<ComplexFloat16Vector*>(&result);
     if (a_cf16 && res_cf16) {
-        float16_t* r_re = res_cf16->real_data();
-        float16_t* r_im = res_cf16->imag_data();
+        pycauset::float16_t* r_re = res_cf16->real_data();
+        pycauset::float16_t* r_im = res_cf16->imag_data();
         if (needs_metadata_path) {
             ParallelFor(0, n, [&](size_t i) {
                 const std::complex<double> z = a.get_element_as_complex(i) * scalar;
-                r_re[i] = float16_t(z.real());
-                r_im[i] = float16_t(z.imag());
+                r_re[i] = pycauset::float16_t(z.real());
+                r_im[i] = pycauset::float16_t(z.imag());
             });
         } else {
-            const float16_t* a_re = a_cf16->real_data();
-            const float16_t* a_im = a_cf16->imag_data();
+            const pycauset::float16_t* a_re = a_cf16->real_data();
+            const pycauset::float16_t* a_im = a_cf16->imag_data();
             ParallelFor(0, n, [&](size_t i) {
-                r_re[i] = float16_t(static_cast<double>(a_re[i]) * scalar);
-                r_im[i] = float16_t(static_cast<double>(a_im[i]) * scalar);
+                r_re[i] = pycauset::float16_t(static_cast<double>(a_re[i]) * scalar);
+                r_im[i] = pycauset::float16_t(static_cast<double>(a_im[i]) * scalar);
             });
         }
         return;
@@ -3872,13 +3872,13 @@ void CpuSolver::scalar_multiply_vector(const VectorBase& a, double scalar, Vecto
         return;
     }
 
-    auto* a_f16 = dynamic_cast<const DenseVector<float16_t>*>(&a);
-    auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result);
+    auto* a_f16 = dynamic_cast<const DenseVector<pycauset::float16_t>*>(&a);
+    auto* res_f16 = dynamic_cast<DenseVector<pycauset::float16_t>*>(&result);
     if (a_f16 && res_f16) {
-        const float16_t* a_data = a_f16->data();
-        float16_t* res_data = res_f16->data();
+        const pycauset::float16_t* a_data = a_f16->data();
+        pycauset::float16_t* res_data = res_f16->data();
         ParallelFor(0, n, [&](size_t i) {
-            res_data[i] = float16_t(static_cast<double>(a_data[i]) * scalar);
+            res_data[i] = pycauset::float16_t(static_cast<double>(a_data[i]) * scalar);
         });
         return;
     }
@@ -3923,22 +3923,22 @@ void CpuSolver::scalar_multiply_vector_complex(const VectorBase& a, std::complex
     auto* a_cf16 = dynamic_cast<const ComplexFloat16Vector*>(&a);
     auto* res_cf16 = dynamic_cast<ComplexFloat16Vector*>(&result);
     if (a_cf16 && res_cf16) {
-        float16_t* r_re = res_cf16->real_data();
-        float16_t* r_im = res_cf16->imag_data();
+        pycauset::float16_t* r_re = res_cf16->real_data();
+        pycauset::float16_t* r_im = res_cf16->imag_data();
         if (needs_metadata_path) {
             ParallelFor(0, n, [&](size_t i) {
                 const std::complex<double> p = a.get_element_as_complex(i) * scalar;
-                r_re[i] = float16_t(p.real());
-                r_im[i] = float16_t(p.imag());
+                r_re[i] = pycauset::float16_t(p.real());
+                r_im[i] = pycauset::float16_t(p.imag());
             });
         } else {
-            const float16_t* a_re = a_cf16->real_data();
-            const float16_t* a_im = a_cf16->imag_data();
+            const pycauset::float16_t* a_re = a_cf16->real_data();
+            const pycauset::float16_t* a_im = a_cf16->imag_data();
             ParallelFor(0, n, [&](size_t i) {
                 const std::complex<double> z(static_cast<double>(a_re[i]), static_cast<double>(a_im[i]));
                 const std::complex<double> p = z * scalar;
-                r_re[i] = float16_t(p.real());
-                r_im[i] = float16_t(p.imag());
+                r_re[i] = pycauset::float16_t(p.real());
+                r_im[i] = pycauset::float16_t(p.imag());
             });
         }
         return;
@@ -3995,15 +3995,15 @@ void CpuSolver::scalar_add_vector(const VectorBase& a, double scalar, VectorBase
     auto* a_cf16 = dynamic_cast<const ComplexFloat16Vector*>(&a);
     auto* res_cf16 = dynamic_cast<ComplexFloat16Vector*>(&result);
     if (a_cf16 && res_cf16) {
-        const float16_t* a_re = a_cf16->real_data();
-        const float16_t* a_im = a_cf16->imag_data();
-        float16_t* r_re = res_cf16->real_data();
-        float16_t* r_im = res_cf16->imag_data();
+        const pycauset::float16_t* a_re = a_cf16->real_data();
+        const pycauset::float16_t* a_im = a_cf16->imag_data();
+        pycauset::float16_t* r_re = res_cf16->real_data();
+        pycauset::float16_t* r_im = res_cf16->imag_data();
         ParallelFor(0, n, [&](size_t i) {
             const std::complex<double> z(static_cast<double>(a_re[i]), static_cast<double>(a_im[i]));
             const std::complex<double> out = z * s_self + add;
-            r_re[i] = float16_t(out.real());
-            r_im[i] = float16_t(out.imag());
+            r_re[i] = pycauset::float16_t(out.real());
+            r_im[i] = pycauset::float16_t(out.imag());
         });
         return;
     }
@@ -4056,13 +4056,13 @@ void CpuSolver::scalar_add_vector(const VectorBase& a, double scalar, VectorBase
         return;
     }
 
-    auto* a_f16 = dynamic_cast<const DenseVector<float16_t>*>(&a);
-    auto* res_f16 = dynamic_cast<DenseVector<float16_t>*>(&result);
+    auto* a_f16 = dynamic_cast<const DenseVector<pycauset::float16_t>*>(&a);
+    auto* res_f16 = dynamic_cast<DenseVector<pycauset::float16_t>*>(&result);
     if (a_f16 && res_f16) {
-        const float16_t* a_data = a_f16->data();
-        float16_t* res_data = res_f16->data();
+        const pycauset::float16_t* a_data = a_f16->data();
+        pycauset::float16_t* res_data = res_f16->data();
         ParallelFor(0, n, [&](size_t i) {
-            res_data[i] = float16_t(static_cast<double>(a_data[i]) + scalar);
+            res_data[i] = pycauset::float16_t(static_cast<double>(a_data[i]) + scalar);
         });
         return;
     }

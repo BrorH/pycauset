@@ -28,7 +28,7 @@ namespace pycauset {
 using IntegerMatrix = DenseMatrix<int32_t>;
 using FloatMatrix = DenseMatrix<double>;
 using Int16Matrix = DenseMatrix<int16_t>;
-using Float16Matrix = DenseMatrix<float16_t>;
+using Float16Matrix = DenseMatrix<pycauset::float16_t>;
 
 // --- Helpers ---
 
@@ -224,7 +224,7 @@ std::unique_ptr<VectorBase> add_vectors(const VectorBase& a, const VectorBase& b
     } else if (res_dtype == DataType::UINT64) {
         result = std::make_unique<DenseVector<uint64_t>>(n, result_file);
     } else if (res_dtype == DataType::FLOAT16) {
-        result = std::make_unique<DenseVector<float16_t>>(n, result_file);
+        result = std::make_unique<DenseVector<pycauset::float16_t>>(n, result_file);
     } else if (res_dtype == DataType::FLOAT32) {
         result = std::make_unique<DenseVector<float>>(n, result_file);
     } else if (res_dtype == DataType::COMPLEX_FLOAT16) {
@@ -272,7 +272,7 @@ std::unique_ptr<VectorBase> subtract_vectors(const VectorBase& a, const VectorBa
     } else if (res_dtype == DataType::UINT64) {
         result = std::make_unique<DenseVector<uint64_t>>(n, result_file);
     } else if (res_dtype == DataType::FLOAT16) {
-        result = std::make_unique<DenseVector<float16_t>>(n, result_file);
+        result = std::make_unique<DenseVector<pycauset::float16_t>>(n, result_file);
     } else if (res_dtype == DataType::FLOAT32) {
         result = std::make_unique<DenseVector<float>>(n, result_file);
     } else if (res_dtype == DataType::COMPLEX_FLOAT16) {
@@ -348,7 +348,7 @@ std::unique_ptr<VectorBase> scalar_multiply_vector(const VectorBase& v, double s
             result = std::make_unique<DenseVector<std::complex<double>>>(n, result_file);
             break;
         case DataType::FLOAT16:
-            result = std::make_unique<DenseVector<float16_t>>(n, result_file);
+            result = std::make_unique<DenseVector<pycauset::float16_t>>(n, result_file);
             break;
         case DataType::FLOAT32:
             result = std::make_unique<DenseVector<float>>(n, result_file);
@@ -407,7 +407,7 @@ std::unique_ptr<VectorBase> scalar_multiply_vector(const VectorBase& v, int64_t 
         ComputeContext::instance().get_device()->scalar_multiply_vector(v, static_cast<double>(scalar), *result);
         return result;
     } else if (v.get_data_type() == DataType::FLOAT16) {
-        auto result = std::make_unique<DenseVector<float16_t>>(n, result_file);
+        auto result = std::make_unique<DenseVector<pycauset::float16_t>>(n, result_file);
         ComputeContext::instance().get_device()->scalar_multiply_vector(v, static_cast<double>(scalar), *result);
         return result;
     } else if (v.get_data_type() == DataType::FLOAT32) {
@@ -436,7 +436,7 @@ std::unique_ptr<VectorBase> scalar_add_vector(const VectorBase& v, double scalar
             result = std::make_unique<DenseVector<std::complex<double>>>(n, result_file);
             break;
         case DataType::FLOAT16:
-            result = std::make_unique<DenseVector<float16_t>>(n, result_file);
+            result = std::make_unique<DenseVector<pycauset::float16_t>>(n, result_file);
             break;
         case DataType::FLOAT32:
             result = std::make_unique<DenseVector<float>>(n, result_file);
@@ -469,7 +469,7 @@ std::unique_ptr<VectorBase> scalar_add_vector(const VectorBase& v, int64_t scala
         ComputeContext::instance().get_device()->scalar_add_vector(v, static_cast<double>(scalar), *result);
         return result;
     } else if (v.get_data_type() == DataType::FLOAT16) {
-        auto result = std::make_unique<DenseVector<float16_t>>(n, result_file);
+        auto result = std::make_unique<DenseVector<pycauset::float16_t>>(n, result_file);
         ComputeContext::instance().get_device()->scalar_add_vector(v, static_cast<double>(scalar), *result);
         return result;
     } else if (v.get_data_type() == DataType::FLOAT32) {
@@ -532,7 +532,7 @@ std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const Ve
     } else if (res_dtype == DataType::UINT64) {
         result = std::make_unique<DenseVector<uint64_t>>(n, result_file);
     } else if (res_dtype == DataType::FLOAT16) {
-        result = std::make_unique<DenseVector<float16_t>>(n, result_file);
+        result = std::make_unique<DenseVector<pycauset::float16_t>>(n, result_file);
     } else if (res_dtype == DataType::FLOAT32) {
         result = std::make_unique<DenseVector<float>>(n, result_file);
     } else if (res_dtype == DataType::COMPLEX_FLOAT16) {
@@ -581,7 +581,7 @@ std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const Ma
     } else if (res_dtype == DataType::UINT64) {
         result = std::make_unique<DenseVector<uint64_t>>(n, result_file);
     } else if (res_dtype == DataType::FLOAT16) {
-        result = std::make_unique<DenseVector<float16_t>>(n, result_file);
+        result = std::make_unique<DenseVector<pycauset::float16_t>>(n, result_file);
     } else if (res_dtype == DataType::FLOAT32) {
         result = std::make_unique<DenseVector<float>>(n, result_file);
     } else if (res_dtype == DataType::COMPLEX_FLOAT16) {
@@ -603,7 +603,7 @@ std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const Ma
 }
 
 using Float32Matrix = DenseMatrix<float>;
-using Float16Matrix2 = DenseMatrix<float16_t>;
+using Float16Matrix2 = DenseMatrix<pycauset::float16_t>;
 using TriangularBitMatrix = TriangularMatrix<bool>;
 using DenseBitMatrix = DenseMatrix<bool>;
 using TriangularFloat64Matrix = pycauset::TriangularMatrix<double>;

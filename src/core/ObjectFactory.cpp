@@ -123,7 +123,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
             case DataType::FLOAT64:
                 return std::make_unique<SymmetricMatrix<double>>(n, backing_file, is_anti);
             case DataType::FLOAT16:
-                return std::make_unique<SymmetricMatrix<float16_t>>(n, backing_file, is_anti);
+                return std::make_unique<SymmetricMatrix<pycauset::float16_t>>(n, backing_file, is_anti);
             case DataType::FLOAT32:
                 return std::make_unique<SymmetricMatrix<float>>(n, backing_file, is_anti);
             default:
@@ -156,7 +156,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
             case DataType::FLOAT64:
                 return std::make_unique<TriangularMatrix<double>>(n, backing_file);
             case DataType::FLOAT16:
-                return std::make_unique<TriangularMatrix<float16_t>>(n, backing_file);
+                return std::make_unique<TriangularMatrix<pycauset::float16_t>>(n, backing_file);
             case DataType::FLOAT32:
                 return std::make_unique<TriangularMatrix<float>>(n, backing_file);
             default:
@@ -187,7 +187,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
         case DataType::FLOAT64:
             return std::make_unique<DenseMatrix<double>>(rows, cols, backing_file);
         case DataType::FLOAT16:
-            return std::make_unique<DenseMatrix<float16_t>>(rows, cols, backing_file);
+            return std::make_unique<DenseMatrix<pycauset::float16_t>>(rows, cols, backing_file);
         case DataType::FLOAT32:
             return std::make_unique<DenseMatrix<float>>(rows, cols, backing_file);
         case DataType::COMPLEX_FLOAT16:
@@ -264,7 +264,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::load_matrix(
             case DataType::FLOAT64:
                 return std::make_unique<SymmetricMatrix<double>>(n, backing_file, offset, seed, scalar, is_transposed, is_anti);
             case DataType::FLOAT16:
-                return std::make_unique<SymmetricMatrix<float16_t>>(n, backing_file, offset, seed, scalar, is_transposed, is_anti);
+                return std::make_unique<SymmetricMatrix<pycauset::float16_t>>(n, backing_file, offset, seed, scalar, is_transposed, is_anti);
             case DataType::FLOAT32:
                 return std::make_unique<SymmetricMatrix<float>>(n, backing_file, offset, seed, scalar, is_transposed, is_anti);
             default:
@@ -285,7 +285,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::load_matrix(
             case DataType::FLOAT64:
                 return std::make_unique<TriangularMatrix<double>>(n, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT16:
-                return std::make_unique<TriangularMatrix<float16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<TriangularMatrix<pycauset::float16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT32:
                 return std::make_unique<TriangularMatrix<float>>(n, backing_file, offset, seed, scalar, is_transposed);
             default:
@@ -302,7 +302,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::load_matrix(
             case DataType::FLOAT64:
                 return std::make_unique<DenseMatrix<double>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT16:
-                return std::make_unique<DenseMatrix<float16_t>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<DenseMatrix<pycauset::float16_t>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT32:
                 return std::make_unique<DenseMatrix<float>>(rows, cols, backing_file, offset, seed, scalar, is_transposed);
 
@@ -348,7 +348,7 @@ std::unique_ptr<VectorBase> ObjectFactory::create_vector(
             case DataType::UINT64:
                 return std::make_unique<DenseVector<uint64_t>>(n, backing_file);
             case DataType::FLOAT16:
-                return std::make_unique<DenseVector<float16_t>>(n, backing_file);
+                return std::make_unique<DenseVector<pycauset::float16_t>>(n, backing_file);
             case DataType::FLOAT32:
                 return std::make_unique<DenseVector<float>>(n, backing_file);
             case DataType::FLOAT64:
@@ -405,7 +405,7 @@ std::unique_ptr<VectorBase> ObjectFactory::load_vector(
             case DataType::UINT64:
                 return std::make_unique<DenseVector<uint64_t>>(n, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT16:
-                return std::make_unique<DenseVector<float16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
+                return std::make_unique<DenseVector<pycauset::float16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT32:
                 return std::make_unique<DenseVector<float>>(n, backing_file, offset, seed, scalar, is_transposed);
             case DataType::FLOAT64:
@@ -489,7 +489,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
             case DataType::UINT32: mat = std::make_unique<TriangularMatrix<uint32_t>>(n, mapper); break;
             case DataType::UINT64: mat = std::make_unique<TriangularMatrix<uint64_t>>(n, mapper); break;
             case DataType::FLOAT64: mat = std::make_unique<TriangularMatrix<double>>(n, mapper); break;
-            case DataType::FLOAT16: mat = std::make_unique<TriangularMatrix<float16_t>>(n, mapper); break;
+            case DataType::FLOAT16: mat = std::make_unique<TriangularMatrix<pycauset::float16_t>>(n, mapper); break;
             case DataType::FLOAT32: mat = std::make_unique<TriangularMatrix<float>>(n, mapper); break;
             default: throw std::runtime_error("Unsupported DataType for TriangularMatrix clone");
         }
@@ -506,7 +506,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
             case DataType::UINT32: mat = std::make_unique<SymmetricMatrix<uint32_t>>(n, mapper, is_anti); break;
             case DataType::UINT64: mat = std::make_unique<SymmetricMatrix<uint64_t>>(n, mapper, is_anti); break;
             case DataType::FLOAT64: mat = std::make_unique<SymmetricMatrix<double>>(n, mapper, is_anti); break;
-            case DataType::FLOAT16: mat = std::make_unique<SymmetricMatrix<float16_t>>(n, mapper, is_anti); break;
+            case DataType::FLOAT16: mat = std::make_unique<SymmetricMatrix<pycauset::float16_t>>(n, mapper, is_anti); break;
             case DataType::FLOAT32: mat = std::make_unique<SymmetricMatrix<float>>(n, mapper, is_anti); break;
             default: throw std::runtime_error("Unsupported DataType for SymmetricMatrix clone");
         }
@@ -522,7 +522,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
             case DataType::UINT32: mat = std::make_unique<DenseMatrix<uint32_t>>(rows, cols, mapper); break;
             case DataType::UINT64: mat = std::make_unique<DenseMatrix<uint64_t>>(rows, cols, mapper); break;
             case DataType::FLOAT64: mat = std::make_unique<DenseMatrix<double>>(rows, cols, mapper); break;
-            case DataType::FLOAT16: mat = std::make_unique<DenseMatrix<float16_t>>(rows, cols, mapper); break;
+            case DataType::FLOAT16: mat = std::make_unique<DenseMatrix<pycauset::float16_t>>(rows, cols, mapper); break;
             case DataType::FLOAT32: mat = std::make_unique<DenseMatrix<float>>(rows, cols, mapper); break;
             case DataType::COMPLEX_FLOAT16: mat = std::make_unique<ComplexFloat16Matrix>(rows, cols, mapper); break;
             case DataType::COMPLEX_FLOAT32: mat = std::make_unique<DenseMatrix<std::complex<float>>>(rows, cols, mapper); break;
@@ -565,7 +565,7 @@ std::unique_ptr<VectorBase> ObjectFactory::clone_vector(
             case DataType::UINT16: vec = std::make_unique<DenseVector<uint16_t>>(n, mapper); break;
             case DataType::UINT32: vec = std::make_unique<DenseVector<uint32_t>>(n, mapper); break;
             case DataType::UINT64: vec = std::make_unique<DenseVector<uint64_t>>(n, mapper); break;
-            case DataType::FLOAT16: vec = std::make_unique<DenseVector<float16_t>>(n, mapper); break;
+            case DataType::FLOAT16: vec = std::make_unique<DenseVector<pycauset::float16_t>>(n, mapper); break;
             case DataType::FLOAT64: vec = std::make_unique<DenseVector<double>>(n, mapper); break;
             case DataType::FLOAT32: vec = std::make_unique<DenseVector<float>>(n, mapper); break;
             case DataType::COMPLEX_FLOAT16: vec = std::make_unique<ComplexFloat16Vector>(n, mapper); break;
