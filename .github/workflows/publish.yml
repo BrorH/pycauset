@@ -74,7 +74,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: "yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic openblas-devel ccache"
           
           # Point the build to use GCC 12
-          CIBW_ENVIRONMENT_LINUX: "CC='/opt/rh/gcc-toolset-12/root/usr/bin/gcc' CXX='/opt/rh/gcc-toolset-12/root/usr/bin/g++' PATH='/usr/lib64/ccache:$PATH'"
+          CIBW_ENVIRONMENT_LINUX: "CC='/opt/rh/gcc-toolset-12/root/usr/bin/gcc' CXX='/opt/rh/gcc-toolset-12/root/usr/bin/g++' PATH=\"/usr/lib64/ccache:$PATH\""
           
           # macOS: Help CMake find OpenMP
           CIBW_BEFORE_BUILD_MACOS: "brew install libomp ccache"
