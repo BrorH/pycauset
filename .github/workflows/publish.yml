@@ -35,7 +35,7 @@ jobs:
         env:
           # Configure cibuildwheel to build for Python 3.8+
           # Skip 32-bit builds (Linux i686 is skipped by pattern, Windows 32-bit by ARCHS config)
-          CIBW_SKIP: "cp36-* cp37-* pp* *i686*"
+          CIBW_SKIP: "cp36-* cp37-* pp* *i686* *-musllinux*"
           
           # Windows: Build only 64-bit wheels (avoids OpenBLAS 32/64 bit mismatch and speeds up CI)
           CIBW_ARCHS_WINDOWS: "auto64"
