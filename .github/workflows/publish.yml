@@ -24,18 +24,11 @@ jobs:
         with:
           fetch-depth: 0  # Required for setuptools_scm to find tags
 
-      # Optimize: Use ccache to speed up C++ builds
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ github.job }}-${{ matrix.os }}
-
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install libomp
           brew install openblas
-          brew install ccache
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.16.5
@@ -49,26 +42,20 @@ jobs:
 
           # Linux: Use manylinux_2_28 (AlmaLinux 8) and install GCC 12 via gcc-toolset.
           # This ensures full C++20 support (including <bit>, char8_t, <filesystem>).
-          # Also install openblas-devel to skip building it from source
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
           
-          # Install GCC 12 & OpenBLAS on Linux before build.
-          # We also symlink GCC 12 to /usr/local/bin so it takes precedence over system GCC,
-          # avoiding the need to modify PATH (which breaks the container environment if done via list override).
-          CIBW_BEFORE_ALL_LINUX: >
-            yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic openblas-devel ccache &&
-            ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/gcc /usr/local/bin/gcc &&
-            ln -sf /opt/rh/gcc-toolset-12/root/usr/bin/g++ /usr/local/bin/g++
+          # Install GCC 12 on Linux before build
+          CIBW_BEFORE_ALL_LINUX: "yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic"
           
-          # Point the build to use ccache wrapping the (now default) GCC 12
-          CIBW_ENVIRONMENT_LINUX: "CC='ccache gcc' CXX='ccache g++'"
+          # Point the build to use GCC 12
+          CIBW_ENVIRONMENT_LINUX: "CC='/opt/rh/gcc-toolset-12/root/usr/bin/gcc' CXX='/opt/rh/gcc-toolset-12/root/usr/bin/g++'"
           
-          # macOS: Help CMake find OpenMP and use ccache
+          # macOS: Help CMake find OpenMP
           CIBW_BEFORE_BUILD_MACOS: "brew install libomp"
           CIBW_ENVIRONMENT_MACOS: >
-            CC="ccache clang"
-            CXX="ccache clang++"
+            CC="clang"
+            CXX="clang++"
             CFLAGS="-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include"
             CXXFLAGS="-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include"
             LDFLAGS="-L/opt/homebrew/opt/libomp/lib -L/usr/local/opt/libomp/lib -lomp"
