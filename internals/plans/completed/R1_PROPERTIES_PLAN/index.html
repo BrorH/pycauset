@@ -1,0 +1,7862 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance causal set simulation library (CPU/GPU, disk-backed matrices).">
+      
+      
+      
+        <link rel="canonical" href="https://brorh.github.io/pycauset/internals/plans/completed/R1_PROPERTIES_PLAN/">
+      
+      
+        <link rel="prev" href="../R1_LINALG_PLAN/">
+      
+      
+        <link rel="next" href="../R1_SHAPES_PLAN/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>R1_PROPERTIES — Semantic Properties + Property-Aware Algebra (Release 1) - PyCauset</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+
+  <style>
+    /*
+      PyCauset docs skin
+      - stays within Material theme variables
+      - “physics notebook / cosmic grid” vibe without sacrificing readability
+    */
+
+    /* Slightly narrower, more readable measure on wide screens */
+    .md-grid {
+      max-width: 72rem;
+    }
+
+    /* Subtle grid background using theme colors */
+    .md-main {
+      /* Fallback if color-mix isn't supported */
+      background-image: radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+      background-image:
+        radial-gradient(
+          color-mix(in srgb, var(--md-default-fg-color) 10%, transparent) 1px,
+          transparent 1px
+        );
+      background-size: 18px 18px;
+      background-position: 0 0;
+    }
+
+    /* Branded header gradient */
+    .md-header {
+      /* Fallback gradient */
+      background: linear-gradient(90deg, var(--md-primary-fg-color), var(--md-accent-fg-color));
+      background:
+        linear-gradient(
+          90deg,
+          color-mix(in srgb, var(--md-primary-fg-color) 92%, black),
+          color-mix(in srgb, var(--md-accent-fg-color) 60%, var(--md-primary-fg-color))
+        );
+    }
+
+    .md-header__title {
+      letter-spacing: 0.02em;
+    }
+
+    /* Distinctive h1/h2 underline, still theme-driven */
+    .md-typeset h1,
+    .md-typeset h2 {
+      position: relative;
+    }
+
+    .md-typeset h1::after,
+    .md-typeset h2::after {
+      content: "";
+      display: block;
+      height: 2px;
+      width: min(18rem, 60%);
+      margin-top: 0.35rem;
+      background: linear-gradient(90deg, var(--md-accent-fg-color), transparent);
+      opacity: 0.9;
+    }
+
+    /* Links: gentle underline-on-hover */
+    .md-typeset a {
+      text-underline-offset: 0.18em;
+      text-decoration-thickness: 0.08em;
+    }
+
+    .md-typeset a:hover {
+      text-decoration-thickness: 0.14em;
+    }
+
+    /* Code blocks: subtle border for separation */
+    .md-typeset pre {
+      border: 1px solid rgba(127, 127, 127, 0.22);
+      border: 1px solid color-mix(in srgb, var(--md-default-fg-color) 14%, transparent);
+      border-radius: 0.35rem;
+    }
+
+    /* Mermaid: keep diagrams crisp */
+    .mermaid {
+      overflow-x: auto;
+    }
+  </style>
+
+  <script>
+    // MathJax configuration must run before the MathJax script loads.
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        processEnvironments: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script defer src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="teal">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#r1_properties-semantic-properties-property-aware-algebra-release-1" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="PyCauset" class="md-header__button md-logo" aria-label="PyCauset" data-md-component="logo">
+      
+  <img src="../../../../material/atom" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            PyCauset
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              R1_PROPERTIES — Semantic Properties + Property-Aware Algebra (Release 1)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="teal"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="cyan"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/BrorH/pycauset" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    BrorH/pycauset
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../guides/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../docs/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../" class="md-tabs__link">
+          
+  
+  
+  Internals
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../dev/" class="md-tabs__link">
+          
+  
+  
+  Dev Handbook
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../project/" class="md-tabs__link">
+          
+  
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="PyCauset" class="md-nav__button md-logo" aria-label="PyCauset" data-md-component="logo">
+      
+  <img src="../../../../material/atom" alt="logo">
+
+    </a>
+    PyCauset
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/BrorH/pycauset" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    BrorH/pycauset
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/User%20Guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release 1
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Release 1
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/shapes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shapes (NxM Matrices)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/storage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage (Persistence Container)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/properties/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Properties (Semantic Metadata)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/dtypes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DTypes (Integers, Float16, Complex)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/linalg/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linear Algebra (Core Ops)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Causal%20Sets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Causal Sets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Spacetime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spacetime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Field%20Theory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Field Theory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Matrix%20Guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Vector%20Guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vector Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Linear%20Algebra%20Operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linear Algebra Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/NxM%20Support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NxM Support
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Storage%20and%20Memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage and Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Performance%20Guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Numpy%20Integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NumPy Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Classes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_2" id="__nav_3_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Matrix
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.MatrixBase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.MatrixBase
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.FloatMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.FloatMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.Float16Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Float16Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.Float32Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Float32Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.IntegerMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.IntegerMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.Int8Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int8Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.Int16Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int16Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.Int64Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int64Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.UInt8Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt8Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.UInt16Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt16Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.UInt32Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt32Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.UInt64Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt64Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.DenseBitMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.DenseBitMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.ComplexFloat16Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat16Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.ComplexFloat32Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat32Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.ComplexFloat64Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat64Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.IdentityMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.IdentityMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.TriangularMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.TriangularMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.TriangularFloatMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.TriangularFloatMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.TriangularIntegerMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.TriangularIntegerMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.TriangularBitMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.TriangularBitMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.SymmetricMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.SymmetricMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/AntiSymmetricMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AntiSymmetricMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/SymmetricMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SymmetricMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_3" id="__nav_3_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vector
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Vector
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.VectorBase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.VectorBase
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.FloatVector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.FloatVector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.Float16Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Float16Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.Float32Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Float32Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.Int8Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int8Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.Int16Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int16Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.Int64Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int64Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.UInt8Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt8Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.UInt16Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt16Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.UInt32Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt32Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.UInt64Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt64Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.IntegerVector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.IntegerVector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.UnitVector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UnitVector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.BitVector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.BitVector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.ComplexFloat16Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat16Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.ComplexFloat32Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat32Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.ComplexFloat64Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat64Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_4" id="__nav_3_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spacetime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Spacetime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spacetime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.CausalSet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.CausalSet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.spacetime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.spacetime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.spacetime.CausalSpacetime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.spacetime.CausalSpacetime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.spacetime.MinkowskiBox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.spacetime.MinkowskiBox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.spacetime.MinkowskiCylinder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.spacetime.MinkowskiCylinder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.spacetime.MinkowskiDiamond/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.spacetime.MinkowskiDiamond
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_5" id="__nav_3_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Field
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Field
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/field/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Field
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/field/pycauset.field.Field/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.field.Field
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/field/pycauset.field.ScalarField/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.field.ScalarField
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_6" id="__nav_3_2_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/core/pycauset.PersistentObject/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistent objects (base behavior)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Functions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Functions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.zeros/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.zeros
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.ones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.empty/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.empty
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.identity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.I/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.I
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.asarray.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    None
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.bitwise_not/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.bitwise_not
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.causal_matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.causal_matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.causet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.causet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.cholesky/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.cholesky
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.compute_k/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.compute_k
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.compute_k_matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.compute_k_matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.cond/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.cond
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.divide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.divide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.dot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.dot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eig/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eig
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eigh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eigh
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eigvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eigvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eigvals_arnoldi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eigvals_arnoldi
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eigvals_skew/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eigvals_skew
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eigvalsh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eigvalsh
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.get_memory_threshold/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.get_memory_threshold
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.get_num_threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.get_num_threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.get_precision_mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.get_precision_mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.invert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Inversion (Linear Algebra)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.lstsq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.lstsq
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.lu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.lu
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.matmul/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.matmul
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.norm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.norm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.pinv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.pinv
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.precision_mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.precision_mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.save/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.save
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.set_backing_dir/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pycauset.set backing dir
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.set_memory_threshold/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.set_memory_threshold
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.set_num_threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.set_num_threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.set_precision_mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.set_precision_mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.slogdet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.slogdet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.solve/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.solve
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.solve_triangular/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.solve_triangular
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.sum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.sum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.svd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.svd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.load/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.load
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameters
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Parameters
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/parameters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/parameters/pycauset.keep_temp_files/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.keep_temp_files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/parameters/pycauset.seed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.seed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization (pycauset.vis)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Visualization (pycauset.vis)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/pycauset.vis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.vis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/pycauset.vis/plot_causal_matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.vis.plot_causal_matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/pycauset.vis/plot_embedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.vis.plot_embedding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/pycauset.vis/plot_hasse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.vis.plot_hasse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Internals
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../CooperativeArchitecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cooperative Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../DType%20System/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DType System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../DTYPE_COMPLEX_OVERFLOW_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DTYPE Complex Overflow Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Compute%20Architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compute Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Block%20Matrices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Block Matrices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../MemoryArchitecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Memory%20and%20Data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory and Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Streaming%20Manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Algorithms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Algorithms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plans
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Plans
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../SUPPORT_READINESS_FRAMEWORK/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Support Readiness Framework (DTypes × Ops × Devices)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../BLAS_INTEGRATION_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenBLAS Integration Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../R1_BLOCKMATRIX_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_BLOCKMATRIX Plan — Block Matrices + Heterogeneous Dtypes (Storage-First)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../R1_LINALG_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_LINALG — Linear Algebra Foundation (Release 1)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_PROPERTIES — Semantic Properties + Property-Aware Algebra (Release 1)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_PROPERTIES — Semantic Properties + Property-Aware Algebra (Release 1)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#purpose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Purpose
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#at-a-glance-the-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        At a glance (the contract)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-status-as-of-2025-12-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation status (as of 2025-12-21)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key references
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constraints-non-negotiable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constraints (non-negotiable)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#design-anchors-agreed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design anchors (agreed)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Definitions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Definitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#terminology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Terminology
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#canonical-representation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Canonical representation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#value-model-release-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Value model (Release 1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metadata-taxonomy-aligns-with-r1_storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata taxonomy (aligns with R1_STORAGE)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#caching-system-release-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caching system (Release 1)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Caching system (Release 1)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#post-operation-property-health-check-required" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-operation property health check (required)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#effect-summaries-enabler-for-parallel-kernels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Effect summaries (enabler for parallel kernels)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Effect summaries (enabler for parallel kernels)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-cached-derived-propagation-table-initial-must-be-completed-in-phase-a" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core cached-derived propagation table (initial; must be completed in Phase A)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-populated-caches-power-user-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User-populated caches (power-user feature)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#robust-general-cache-system-required-makes-future-cached-quantities-easy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Robust general cache system (required; makes future cached quantities easy)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#properties-included-in-r1_properties-initial-set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Properties included in R1_PROPERTIES (initial set)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compatibility-model-minimal-sanity-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compatibility model (minimal sanity checks)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compatibility model (minimal sanity checks)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#shape-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shape constraints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#latticeimplication-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lattice/implication constraints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-explicitly-not-validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is explicitly not validated
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#priority-tree-effective-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Priority tree (effective structure)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#propagation-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Propagation rules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Propagation rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#transpose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transpose
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#conjugation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conjugation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adjoint-conjugate-transpose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adjoint (conjugate-transpose)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scalar-multiply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scalar multiply
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#views-clones" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Views / clones
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-properties-affect-algorithms-release-1-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where properties affect algorithms (Release 1 scope)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-a-lock-schema-compatibility-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase A — Lock schema + compatibility rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-b-public-api-surface-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase B — Public API surface contract
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-c-persistence-metadata-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase C — Persistence + metadata schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-d-propagation-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase D — Propagation integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-e-property-aware-operator-wiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase E — Property-aware operator wiring
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-f-tests-documentation-final" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase F — Tests + documentation (FINAL)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-questions-must-be-resolved-before-phase-b" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open questions (must be resolved before Phase B)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../R1_SHAPES_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_SHAPES Plan — NxM Matrices Across The System (End-to-End)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../R1_STORAGE_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_STORAGE — Single-File Persistence Container + Typed Metadata (Release 1)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../DTYPE_COMPLEX_OVERFLOW_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DType / Complex / Overflow Plan (Implementation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Restructure%20Plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Codebase Restructure Plan (Proposal + Execution Record)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dev Handbook
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Dev Handbook
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dev Handbook (Start Here)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Agent Bootstrap.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Bootstrap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Restructure%20Plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Restructure Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/PyCauset%20Container%20Format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyCauset Container Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Storage%20Semantics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage Semantics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Codebase%20Structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Codebase Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Python%20Internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Build%20System/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Bindings%20%26%20Dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bindings & Dispatch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Testing%20%26%20Benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing & Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Warnings%20%26%20Exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Warnings & Exceptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Repository%20Hygiene/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Repository Hygiene
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Square-only%20Assumptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Square-only Assumptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/Philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Philosophy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/Public%20API%20Contract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public API Contract
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocols
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Protocols
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocols
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Pre-alpha%20Policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pre-alpha Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Documentation%20Protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Adding%20Operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Adding%20Types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/NumPy%20Alignment%20Protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NumPy Alignment Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Release%20Process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Testing%20and%20Bug%20Tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing and Bug Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/Contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TODO/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/BrorH/pycauset/edit/main/documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/BrorH/pycauset/raw/main/documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<h1 id="r1_properties-semantic-properties-property-aware-algebra-release-1">R1_PROPERTIES — Semantic Properties + Property-Aware Algebra (Release 1)</h1>
+<p><strong>Status:</strong> Phase A–F implemented (Phase E expanded: property-aware matmul/solve/eigvalsh; O(1) mutation effect summaries integrated)</p>
+<p><strong>Last updated:</strong> 2025-12-21</p>
+<blockquote>
+<p>Documentation note:</p>
+<p>This file is a planning/spec artifact. User-visible R1 behavior is documented in:</p>
+<ul>
+<li><a href="../../../../guides/release1/properties/">Release 1: Properties (what shipped)</a></li>
+<li><a href="../../../../guides/Storage%20and%20Memory/">Storage and Memory</a> (how properties/caches persist)</li>
+<li>API footprint: <a href="../../../../docs/classes/matrix/pycauset.MatrixBase/">MatrixBase</a> and <a href="../../../../docs/classes/vector/pycauset.VectorBase/">VectorBase</a></li>
+</ul>
+</blockquote>
+<h2 id="purpose">Purpose</h2>
+<p>Release 1 needs a <strong>semantic properties system</strong> that algorithms can rely on to select fast paths, specialized behavior, and stable dispatch.</p>
+<p>This is a deliberate shift from “structure-by-type” (e.g. selecting triangular behavior by checking whether an object is a triangular <em>class</em>) to <strong>structure-by-properties</strong>. In R1_PROPERTIES, algorithms treat the relevant properties as the authoritative source of truth.</p>
+<p>These properties are <strong>authoritative (“gospel”)</strong>:</p>
+<ul>
+<li>The system does <strong>not</strong> validate that asserted semantic properties are mathematically true.</li>
+<li>Implementations are allowed to behave <em>as if the property is true</em>.</li>
+<li>The only checks performed are <strong>minimal compatibility/sanity checks</strong> that prevent self-contradictory property states or structurally impossible states (e.g., <code>is_unitary</code> on a non-square matrix).</li>
+</ul>
+<p>This plan defines:</p>
+<ul>
+<li>the canonical properties schema,</li>
+<li>compatibility rules,</li>
+<li>propagation rules across metadata-only transforms,</li>
+<li>the derived-cache correctness/invalidation model,</li>
+<li>and where/how properties affect operator implementations and dispatch.</li>
+</ul>
+<h2 id="at-a-glance-the-contract">At a glance (the contract)</h2>
+<ul>
+<li><strong>Properties:</strong> <code>obj.properties</code> is a typed mapping exposed to users.</li>
+<li><strong>Hard errors on incompatibility:</strong> structurally impossible / internally contradictory asserted states raise immediately.</li>
+<li><strong>No scans:</strong> neither property rules nor cache validation require scanning payload.</li>
+<li><strong>Cached derived values:</strong> some entries in <code>obj.properties</code> are cached derived values (e.g., <code>trace</code>) with strict validity rules; they are never treated as semantic structure properties.</li>
+<li><strong>Health check is <span class="arithmatex">\(O(1)\)</span>:</strong> no additional payload passes; parallel kernels may emit a constant-size effect summary.</li>
+<li><strong>Storage integration:</strong> see <a href="../../../../guides/Storage%20and%20Memory/">guides/Storage and Memory</a> (format + semantics). The container mechanics were tracked under the R1_STORAGE plan during implementation.</li>
+</ul>
+<h2 id="implementation-status-as-of-2025-12-21">Implementation status (as of 2025-12-21)</h2>
+<p>This plan is implemented end-to-end for Release 1 scope.</p>
+<ul>
+<li><strong>Properties mapping exposed:</strong> <code>obj.properties</code> exists on native objects via Python patching (<code>python/pycauset/_internal/properties.py</code>, installed in <code>python/pycauset/__init__.py</code>).</li>
+<li><strong>Phase A compatibility enforced:</strong> <code>obj.properties</code> is a validating mapping; structurally impossible / contradictory asserted states raise immediately (no payload scans). Compatibility now includes square-only structure flags (triangular/atomic), ordering constraints (strictly-sorted ⇒ sorted), and the “upper+lower ⇒ not diagonal-false” constraint.</li>
+<li><strong>Persistence bridging present:</strong> <code>meta["properties"]</code> round-trips; cached-derived values persist under <code>cached.*</code> and are surfaced only when signatures match (<code>python/pycauset/_internal/persistence.py</code>).</li>
+<li><strong>Metadata-only view propagation present:</strong> <code>transpose</code>, <code>conj</code>, <code>.H</code> propagate properties in O(1) (<code>python/pycauset/_internal/properties.py</code>).</li>
+<li><strong>Cached-derived propagation improved:</strong> scalar multiply and add/sub apply the Phase-A propagation rules for cached-derived values where safe (O(1)), including <code>sum</code>.</li>
+<li><strong>Priority tree implemented:</strong> an internal helper computes an effective structure category from properties (zero/identity/diagonal/triangular/general) without scanning payload.</li>
+<li><strong>Operator wiring (Phase E expanded):</strong> property-aware routing exists for <code>matmul</code>, <code>solve</code>/<code>solve_triangular</code>, and <code>eigvalsh</code> (cached eigenvalues). <code>trace()</code>/<code>determinant()</code> and scalar-returning <code>pycauset.norm()</code>/<code>pycauset.sum()</code> continue to consult/seed cached-derived values.</li>
+<li><strong>Tests + docs exist:</strong> see <code>tests/python/test_properties_persistence.py</code> and <code>tests/python/test_properties_operator_wiring.py</code>; docs updated in the storage/semantics guides.</li>
+</ul>
+<p>Open gaps relative to the plan:</p>
+<ul>
+<li>None for R1. Kernel-style effect summaries are applied via the properties shim (<code>_apply_effect_summary_inplace</code>) and are exercised by mutation patches; device kernels can emit the same constant-size summaries later without changing semantics.</li>
+</ul>
+<h2 id="key-references">Key references</h2>
+<ul>
+<li>Roadmap node: <code>documentation/internals/plans/TODO.md</code> → <strong>R1_PROPERTIES</strong></li>
+<li>Compute model: <code>documentation/internals/Compute Architecture.md</code></li>
+<li>Storage semantics + format (canonical docs): <code>documentation/guides/Storage and Memory.md</code></li>
+<li>Current persistence implementation: <code>python/pycauset/_internal/persistence.py</code></li>
+<li>Support readiness tracking: <code>documentation/internals/plans/SUPPORT_READINESS_FRAMEWORK.md</code></li>
+</ul>
+<h2 id="constraints-non-negotiable">Constraints (non-negotiable)</h2>
+<ul>
+<li><strong>No truth validation:</strong> never scan matrix/vector data to “confirm” a property.</li>
+<li><strong>No backwards-compat aliases:</strong> the public name is <code>properties</code> (not <code>flags</code>, not <code>user_flags</code>), and the persistence schema must not accept legacy names.</li>
+<li><strong>Deterministic behavior:</strong> given the same properties and operation sequence, results and chosen algorithmic paths must be deterministic.</li>
+<li><strong>Minimal incompatibility checks only:</strong> only reject property combinations that are structurally impossible or internally contradictory for the property lattice.</li>
+<li><strong>Propagation is mandatory:</strong> metadata-only transforms must update properties predictably.</li>
+<li><strong>Testing + documentation phase at the end:</strong> the final phase is an explicit “tests + docs” closure phase.</li>
+</ul>
+<h2 id="design-anchors-agreed">Design anchors (agreed)</h2>
+<p>These are design principles specific to R1_PROPERTIES (in addition to the project-wide mantras).</p>
+<ul>
+<li><strong>Properties-as-gospel (power-user feature):</strong> properties are authoritative claims. If a matrix is marked as triangular, triangular-aware algorithms are allowed to behave as if entries outside the relevant triangle are zero, even if the underlying payload is not triangular.</li>
+<li><strong>No truth validation:</strong> the system must never scan matrix/vector data to “confirm” a property.</li>
+<li><strong>Lazy-evaluation invariant (metadata scaling):</strong> property compatibility checks, property propagation, and effective-structure selection must be <span class="arithmatex">\(O(1)\)</span> and must depend only on existing metadata (shape, dtype, existing properties) plus the transform parameters (e.g. the scalar value).</li>
+<li><strong>Bedrock scope:</strong> every <code>PersistentObject</code> must have properties support. R1 includes matrices and vectors.</li>
+<li><strong>Documentation is part of the feature:</strong> user-facing docs must explicitly teach the “power user” semantics and the fact that properties can change algorithm choices.</li>
+<li><strong>Hybrid caching (agreed):</strong> some expensive derived quantities should be preserved under certain transforms using only <span class="arithmatex">\(O(1)\)</span> rules; otherwise they must be unset. No cache exists if it forces recomputation.</li>
+</ul>
+<h2 id="definitions">Definitions</h2>
+<h3 id="terminology">Terminology</h3>
+<ul>
+<li>“Property” means a typed metadata item attached to a <code>PersistentObject</code>.</li>
+<li><code>obj.properties</code> is the single user-facing mapping, but it contains two semantic classes of entries:</li>
+<li><strong>Gospel assertions:</strong> structural/special-case intent (triangular/diagonal/unitary/etc). Never truth-validated.</li>
+<li><strong>Cached-derived values:</strong> <code>trace</code>/<code>determinant</code>/<code>rank</code>/<code>norm</code> and similar. Validity-checked and may be cleared.</li>
+<li>Some keys are boolean-like; for those, we use a tri-state convention via key presence.</li>
+</ul>
+<h3 id="canonical-representation">Canonical representation</h3>
+<p>Public API concept: <code>obj.properties</code> is a mapping from stable string keys to <strong>typed values</strong>.</p>
+<ul>
+<li>Keys are stable, snake_case strings.</li>
+<li>Values are typed and may be <strong>unset</strong>.</li>
+<li>Properties are persisted in <code>.pycauset</code> metadata (see “Persistence + metadata schema”).</li>
+</ul>
+<h3 id="value-model-release-1">Value model (Release 1)</h3>
+<p><code>obj.properties</code> is a typed mapping (string keys → typed values). For boolean-like keys we use tri-state semantics:</p>
+<ul>
+<li><code>True</code>: asserted; algorithms may exploit it.</li>
+<li><code>False</code>: explicitly negated.</li>
+<li>Unset: no claim.</li>
+</ul>
+<p>Public API decision (agreed):</p>
+<ul>
+<li>Unset means the key is <strong>absent</strong> from <code>obj.properties</code>.</li>
+<li>Explicit <code>False</code> is represented by the key being present with value <code>False</code>.</li>
+</ul>
+<p>Persistence and internal representations must preserve “missing vs explicit False”.</p>
+<h3 id="metadata-taxonomy-aligns-with-r1_storage">Metadata taxonomy (aligns with R1_STORAGE)</h3>
+<p>R1_STORAGE defines three kinds of metadata on disk (identity/header vs view-state vs user-facing properties/caches). R1_PROPERTIES defines the <strong>user-facing semantics</strong> and how operators interpret and propagate them.</p>
+<p>In practice:</p>
+<p>1) <strong>Identity/header metadata</strong> (system-managed)
+  - Shape/dtype and any payload layout descriptor needed to interpret bytes.
+  - Not user-facing.</p>
+<p>2) <strong>View-state metadata</strong> (system-managed)
+  - Examples: transpose/conjugation/adjoint state, scalar factors.
+  - Must be metadata-only and <span class="arithmatex">\(O(1)\)</span>.
+  - Participates in cached-derived validity signatures.</p>
+<p>3) <strong>User-facing <code>properties</code></strong> (single mapping; two semantic classes)
+  - Exposed as <code>obj.properties</code>.
+  - Gospel assertions are authoritative and never truth-validated.
+  - Cached-derived values are user-facing via clean keys, but are persisted as caches with validity metadata (see Phase C).</p>
+<h3 id="caching-system-release-1">Caching system (Release 1)</h3>
+<p>R1 introduces a more rigorous caching model so that derived metadata remains correct under mutation and metadata-only transforms.</p>
+<p>Principles:</p>
+<ul>
+<li><strong>Correctness first:</strong> cached values must never be used if they might be stale.</li>
+<li><strong>No scans for validation:</strong> cache validity checks must be <span class="arithmatex">\(O(1)\)</span> and based on metadata/versioning only.</li>
+<li><strong>Deterministic:</strong> given the same history of operations, caches must be filled/cleared deterministically.</li>
+</ul>
+<h4 id="post-operation-property-health-check-required">Post-operation property health check (required)</h4>
+<p>Every operation that returns a new <code>PersistentObject</code> and every in-place mutation must run a cheap, deterministic <strong>post-operation health check</strong> step that:</p>
+<ul>
+<li>applies property propagation rules for metadata-only transforms,</li>
+<li>updates/propagates cached derived values where safe (<span class="arithmatex">\(O(1)\)</span> rules only),</li>
+<li>clears any cached derived values that are no longer guaranteed to match the object’s semantics,</li>
+<li>performs minimal compatibility checks (no scans).</li>
+</ul>
+<p>This “health check” must not require <strong>any payload scan</strong> or <strong>any additional payload pass</strong>.</p>
+<p>Clarification (parallelization-friendly contract):</p>
+<ul>
+<li>Compute kernels (CPU/GPU/streaming) are always allowed to read/write payload as required to produce correct results.</li>
+<li>The health check is a <strong>metadata normalization</strong> step, not a compute step.</li>
+<li>The health check may use:</li>
+<li>existing metadata (shape, dtype, view-state, existing properties), and</li>
+<li>the operation parameters (e.g., transpose, scalar value, indices for <code>M[i, j] = ...</code>), and</li>
+<li>an optional constant-size <strong>effect summary</strong> produced by the operation while it runs.</li>
+</ul>
+<p>The key rule is: property/caching correctness must not force a second pass over payload.</p>
+<p>Complexity requirement (agreed):</p>
+<ul>
+<li>The health check must be strictly <strong><span class="arithmatex">\(O(1)\)</span></strong>.</li>
+<li>No <span class="arithmatex">\(O(\log N)\)</span> work is allowed here (even for “small” metadata updates), because this check must also run after very frequent primitives such as element <code>set()</code>.</li>
+</ul>
+<h3 id="effect-summaries-enabler-for-parallel-kernels">Effect summaries (enabler for parallel kernels)</h3>
+<p>To make future parallelization plug in cleanly (via <code>AutoSolver</code> / <code>ComputeDevice</code>) without special integration work, operations may emit an <strong>effect summary</strong>:</p>
+<ul>
+<li>A small fixed-size struct (conceptually) that answers a few yes/no questions about what the op <em>definitely</em> did.</li>
+<li>It is computed “for free” during the operation (e.g., via an OR-reduction of per-thread booleans), without extra passes.</li>
+<li>If an op cannot cheaply provide a fact, it reports “unknown” and the health check conservatively unsets affected properties/caches.</li>
+</ul>
+<p>Examples of useful effect bits:</p>
+<ul>
+<li>“payload mutated” (increments content epoch)</li>
+<li>“wrote any off-diagonal element”</li>
+<li>“wrote any diagonal element”</li>
+<li>“result is known-all-zero” (only for ops like explicit zero-fill; not for general matmul)</li>
+</ul>
+<p>This keeps the health check deterministic and <span class="arithmatex">\(O(1)\)</span>, while letting highly-parallel kernels remain unconstrained.</p>
+<p>Where the health check is required (non-exhaustive; must be completed in Phase A):</p>
+<ul>
+<li>After any <strong>payload mutation</strong> method (e.g., element <code>set</code>, bulk fill, random fill).</li>
+<li>After any <strong>metadata-only transform</strong> that changes view-state (transpose/conjugate/adjoint, scalar changes).</li>
+<li>After any operation that <strong>constructs a view</strong> (clones, slices/views, transpose views).</li>
+<li>After <strong>load/deserialize</strong> (properties and caches must be normalized).</li>
+<li>After any API that lets users set properties explicitly (power-user setter).</li>
+</ul>
+<p>Minimum design requirements:</p>
+<ul>
+<li>Every <code>PersistentObject</code> maintains a cheap-to-check <strong>content version</strong> (e.g., a monotonically increasing epoch) that changes whenever payload data is mutated.</li>
+<li>Every cached-derived entry records the version/signature it depends on (payload version + relevant view-state signature).</li>
+<li>On lookup, the system uses a cached-derived value only if the dependency signature matches; otherwise it is ignored/cleared.</li>
+</ul>
+<p>Cached-derived propagation under metadata-only transforms:</p>
+<ul>
+<li>Some caches can be preserved or transformed without scanning (e.g., trace and determinant under transpose; trace scales linearly with scalar; determinant scales by <span class="arithmatex">\(scalar^n\)</span> for <span class="arithmatex">\(n\times n\)</span>).</li>
+<li>If a cache does not have a safe propagation rule, it must be cleared to avoid stale answers.</li>
+</ul>
+<h4 id="core-cached-derived-propagation-table-initial-must-be-completed-in-phase-a">Core cached-derived propagation table (initial; must be completed in Phase A)</h4>
+<p>This is the minimum expected “cheap propagation” set for R1.</p>
+<p>Definitions:</p>
+<ul>
+<li>“Unset” means the entry is removed from the cached-derived store.</li>
+<li>If a rule says “requires X known”, it means the input cache entry must be present.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Operation / transform</th>
+<th><code>trace</code></th>
+<th><code>determinant</code></th>
+<th><code>rank</code></th>
+<th><code>norm</code> (vector)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>transpose</td>
+<td>preserve (if known)</td>
+<td>preserve (if known)</td>
+<td>preserve (if known)</td>
+<td>preserve (if known)</td>
+</tr>
+<tr>
+<td>conjugation</td>
+<td>conjugate (if known)</td>
+<td>conjugate (if known)</td>
+<td>preserve (if known)</td>
+<td>preserve (if known)</td>
+</tr>
+<tr>
+<td>adjoint</td>
+<td>conjugate (if known)</td>
+<td>conjugate (if known)</td>
+<td>preserve (if known)</td>
+<td>preserve (if known)</td>
+</tr>
+<tr>
+<td>scalar multiply by <span class="arithmatex">\(s\)</span></td>
+<td>if known: <code>trace *= s</code></td>
+<td>if known and square: <code>det *= s^n</code></td>
+<td>if known: if <span class="arithmatex">\(s=0\)</span> then <code>rank=0</code> else preserve</td>
+<td>if known: <code>norm *= |s|</code></td>
+</tr>
+<tr>
+<td>add/subtract</td>
+<td>if both known: add/sub</td>
+<td>unset</td>
+<td>unset</td>
+<td>unset</td>
+</tr>
+<tr>
+<td>any payload mutation (e.g. set element)</td>
+<td>unset</td>
+<td>unset</td>
+<td>unset</td>
+<td>unset</td>
+</tr>
+<tr>
+<td>any other op without an explicit cheap rule</td>
+<td>unset</td>
+<td>unset</td>
+<td>unset</td>
+<td>unset</td>
+</tr>
+</tbody>
+</table>
+<p>Notes:</p>
+<ul>
+<li>“payload mutation” means modifying stored data, not changing metadata-only view state.</li>
+<li>This table applies to cached-derived values (regardless of whether the value was produced by computation or set by a power user).</li>
+</ul>
+<p>R1 decision (updated):</p>
+<ul>
+<li><code>trace</code>, <code>determinant</code>, <code>rank</code>, and vector <code>norm</code> are cached-derived values, not semantic structure properties.</li>
+<li>There is <strong>no semantic distinction</strong> between “user-set” and “computed” cache values. If a user sets <code>trace=231.2</code>, that is simply the cached trace value.</li>
+<li>Public methods/endpoints (e.g., <code>trace()</code>) may use a cached value if present and valid; otherwise they compute and then populate the cache.</li>
+</ul>
+<h4 id="user-populated-caches-power-user-feature">User-populated caches (power-user feature)</h4>
+<p>Power users may set derived cache values directly to avoid expensive computation.</p>
+<p>Semantics (agreed by direction):</p>
+<ul>
+<li>A user-populated cache entry is treated exactly like a computed cache entry.</li>
+<li>Cache validity is still enforced: a cache entry is used only when its dependency signature matches (payload content epoch + relevant view-state signature).</li>
+<li>If the payload is mutated, the dependency signature changes and the cached value is ignored/cleared.</li>
+<li>If a metadata-only transform occurs and there is no explicit <span class="arithmatex">\(O(1)\)</span> propagation rule for that cache key, the cache entry is cleared.</li>
+</ul>
+<p>This preserves the correctness bar (“never stale”) while still allowing power users to seed expensive derived quantities.</p>
+<p>Provenance note:</p>
+<ul>
+<li>The system does not expose a user-visible distinction between “user-set” and “computed” cache values.</li>
+<li>Internal provenance tracking is optional (debug/telemetry only) and must not change semantics.</li>
+</ul>
+<h4 id="robust-general-cache-system-required-makes-future-cached-quantities-easy">Robust general cache system (required; makes future cached quantities easy)</h4>
+<p>R1 must define a general cache system that supports adding cached quantities later without redesign.</p>
+<p>Contract:</p>
+<ul>
+<li>Cached-derived values have a <strong>cache store</strong> (internal backing) with validity metadata.</li>
+<li>Cache keys are stable identifiers (e.g., <code>trace</code>, <code>determinant</code>, <code>rank</code>, <code>norm</code>).</li>
+<li>Each cache entry records:</li>
+<li>a typed value, and</li>
+<li>a dependency signature (at minimum: payload content epoch + view-state signature).</li>
+<li>Cache lookup is deterministic and <span class="arithmatex">\(O(1)\)</span>.</li>
+<li>Cache validity checks and propagation never require scanning payload.</li>
+</ul>
+<p>Registration/extension model:</p>
+<ul>
+<li>Each cache key must define:</li>
+<li>its value type,</li>
+<li>what it depends on (payload epoch + which view-state components matter), and</li>
+<li>explicit <span class="arithmatex">\(O(1)\)</span> propagation rules for the supported metadata-only transforms.</li>
+<li>If a cache key has no rule for a given transform, the default behavior is to clear it.</li>
+</ul>
+<p>Practical outcome:</p>
+<ul>
+<li>Adding a new cached quantity later is a matter of defining the key and its propagation/invalidation rules, not inventing a new ad-hoc persistence path or special-case logic inside operators.</li>
+</ul>
+<h3 id="properties-included-in-r1_properties-initial-set">Properties included in R1_PROPERTIES (initial set)</h3>
+<p>This plan covers properties for <strong>matrices and vectors</strong>.</p>
+<p>Matrix properties:</p>
+<p>Special-case algebra (short-circuits):</p>
+<ul>
+<li><code>is_zero</code>: treat every entry as <span class="arithmatex">\(0\)</span> (a “zero matrix” property; not a shape claim).</li>
+<li><code>is_identity</code>: treat as an identity-like matrix <span class="arithmatex">\(I\)</span>.</li>
+<li>Important: PyCauset allows <strong>rectangular identity</strong> (see <code>pycauset.identity()</code>), so <code>is_identity=True</code> is allowed for non-square matrices.</li>
+<li><code>is_permutation</code>: treat as a permutation matrix <span class="arithmatex">\(P\)</span> (re-indexing / row/col permutation).</li>
+</ul>
+<p>Structure properties (index skipping / structured algorithms):</p>
+<ul>
+<li><code>is_diagonal</code></li>
+<li><code>diagonal_value</code> (typed; if present, asserts every diagonal element equals this value)</li>
+<li><code>has_unit_diagonal</code> (shorthand; equivalent to <code>diagonal_value = 1</code> when meaningful)</li>
+<li><code>is_upper_triangular</code></li>
+<li><code>is_lower_triangular</code></li>
+<li><code>has_zero_diagonal</code> (shorthand; equivalent to <code>diagonal_value = 0</code> when meaningful)</li>
+</ul>
+<p>Symmetry family:</p>
+<ul>
+<li><code>is_symmetric</code></li>
+<li><code>is_anti_symmetric</code> (a.k.a. “skew-symmetric”)</li>
+<li><code>is_hermitian</code></li>
+<li><code>is_skew_hermitian</code></li>
+</ul>
+<p>Norm-preserving / spectral hints:</p>
+<ul>
+<li><code>is_unitary</code></li>
+</ul>
+<p>Matrix-function hint:</p>
+<ul>
+<li><code>is_atomic</code>: treat as an “atomic” triangular matrix in the sense used by common matrix-function algorithms (e.g. clustered diagonal values). This is gospel and is not validated.</li>
+</ul>
+<p>Cached-derived matrix properties (cache semantics; validity-checked; may be cleared):</p>
+<ul>
+<li><code>trace</code></li>
+<li><code>determinant</code></li>
+<li><code>rank</code></li>
+<li><code>sum</code></li>
+</ul>
+<p>Vector properties:</p>
+<ul>
+<li><code>is_zero</code>: treat every entry as <span class="arithmatex">\(0\)</span> (a “zero vector” property; not a shape claim).</li>
+<li><code>is_unit_norm</code>: treat <span class="arithmatex">\(\|v\|_2 = 1\)</span>.</li>
+<li><code>is_sorted</code></li>
+<li><code>is_strictly_sorted</code></li>
+</ul>
+<p>Cached-derived vector properties (cache semantics; validity-checked; may be cleared):</p>
+<ul>
+<li><code>norm</code> (e.g. cached <span class="arithmatex">\(\|v\|_2\)</span>)</li>
+<li><code>sum</code></li>
+</ul>
+<p>Notes:</p>
+<ul>
+<li>Strict triangular is represented as <code>diagonal_value=0</code> + triangular (no separate strict-triangular booleans).</li>
+<li>We do <strong>not</strong> add a broad zoo (SPD/PSD/normal/etc) in R1_PROPERTIES; those can be R2+.</li>
+</ul>
+<p>Important: the public/user-facing concept is <strong>properties</strong>, and the system must be ready for non-boolean properties (e.g., numeric metadata like <code>rank</code>) without redesigning the plumbing.</p>
+<h2 id="compatibility-model-minimal-sanity-checks">Compatibility model (minimal sanity checks)</h2>
+<p>These checks are allowed because they protect the internal semantics of the property lattice and avoid impossible propagation states. They are <strong>not</strong> truth validation.</p>
+<p>Hard error policy (agreed):</p>
+<ul>
+<li>If a caller (user or internal) attempts to assert an <strong>incompatible</strong> property state (e.g. <code>is_unitary=True</code> on a non-square matrix), this must raise a <strong>hard error immediately</strong>.</li>
+<li>This is not “validation”; it is enforcing internal semantic consistency.</li>
+</ul>
+<p>Tri-state scope rule:</p>
+<ul>
+<li>Compatibility checks primarily constrain <strong>asserted structural truths</strong> (keys with value <code>True</code>).</li>
+<li>Unset (missing) means “no claim” and does not create contradictions by itself.</li>
+<li>Explicit <code>False</code> must be preserved, but does not introduce additional obligations unless it directly contradicts a required implication of an asserted <code>True</code>.</li>
+</ul>
+<h3 id="shape-constraints">Shape constraints</h3>
+<ul>
+<li><code>is_unitary=True</code> requires a square matrix.</li>
+<li>
+<p><code>is_hermitian=True</code> requires a square matrix.</p>
+</li>
+<li>
+<p><code>is_identity=True</code> is allowed for rectangular matrices (rectangular identity semantics).</p>
+</li>
+<li><code>is_permutation=True</code> requires a square matrix.</li>
+<li><code>is_symmetric=True</code> requires a square matrix.</li>
+<li><code>is_anti_symmetric=True</code> requires a square matrix.</li>
+<li><code>is_skew_hermitian=True</code> requires a square matrix.</li>
+</ul>
+<p>Diagonal note (agreed):</p>
+<ul>
+<li><code>is_diagonal=True</code> is allowed for rectangular matrices. Semantics: all off-diagonal entries are treated as zero, with the diagonal defined for indices <span class="arithmatex">\(i=i\)</span> up to <span class="arithmatex">\(\min(m,n)\)</span>.</li>
+</ul>
+<p>For triangular-only properties:</p>
+<ul>
+<li><code>is_upper_triangular=True</code> and/or <code>is_lower_triangular=True</code> requires a square matrix.</li>
+<li><code>is_atomic=True</code> requires a square matrix.</li>
+</ul>
+<p>Shape constraints apply only when the relevant property value is <code>True</code>.</p>
+<h3 id="latticeimplication-constraints">Lattice/implication constraints</h3>
+<p>Strict triangular note:</p>
+<ul>
+<li>R1 avoids a dedicated strict-triangular boolean zoo.</li>
+<li>Instead, “strictly upper/lower triangular” is represented as:</li>
+<li><code>is_upper_triangular=True</code> (or <code>is_lower_triangular=True</code>) <strong>and</strong></li>
+<li><code>diagonal_value = 0</code> (or <code>has_zero_diagonal=True</code>).</li>
+</ul>
+<p>Diagonal consistency:</p>
+<p>If <code>is_diagonal=True</code> then it may still be compatible with <code>diagonal_value=0</code> (zero diagonal) or <code>diagonal_value=1</code> (unit diagonal).</p>
+<p>Diagonal-value consistency (agreed):</p>
+<ul>
+<li><code>diagonal_value</code> does not imply <code>is_diagonal</code>.</li>
+<li>If <code>has_unit_diagonal=True</code>, then <code>diagonal_value</code> (if present) must equal <span class="arithmatex">\(1\)</span>.</li>
+<li>If <code>has_zero_diagonal=True</code>, then <code>diagonal_value</code> (if present) must equal <span class="arithmatex">\(0\)</span>.</li>
+</ul>
+<p>Identity consistency (agreed):</p>
+<ul>
+<li><code>is_identity=True</code> requires:</li>
+<li><code>is_zero</code> is not <code>True</code>.</li>
+<li><code>is_diagonal</code> is not <code>False</code>.</li>
+<li><code>has_unit_diagonal</code> is not <code>False</code>.</li>
+<li><code>has_zero_diagonal</code> is not <code>True</code>.</li>
+<li><code>diagonal_value</code> (if present) must equal <span class="arithmatex">\(1\)</span>.</li>
+</ul>
+<p>Contradictions that must be rejected:</p>
+<ul>
+<li><code>is_upper_triangular=True</code> together with <code>is_lower_triangular=True</code> is only meaningful as “diagonal-like” behavior; if the user also asserts <code>is_diagonal=False</code>, that must be rejected.</li>
+</ul>
+<p>Symmetry-family sanity checks (minimal):</p>
+<ul>
+<li><code>is_symmetric=True</code> and <code>is_anti_symmetric=True</code> is rejected unless <code>is_zero=True</code>.</li>
+<li><code>is_hermitian=True</code> and <code>is_skew_hermitian=True</code> is rejected unless <code>is_zero=True</code>.</li>
+</ul>
+<p>Ordering constraints:</p>
+<ul>
+<li>If <code>is_strictly_sorted=True</code> then <code>is_sorted</code> must be True.</li>
+</ul>
+<p>Tri-state refinement:</p>
+<ul>
+<li>If <code>is_strictly_sorted=True</code> then <code>is_sorted</code> must not be <code>False</code> (it may be <code>True</code> or <code>None</code>).</li>
+</ul>
+<h3 id="what-is-explicitly-not-validated">What is explicitly <em>not</em> validated</h3>
+<ul>
+<li>Hermitian/unitary truth is never checked.</li>
+<li>“Hermitian implies diagonal implies triangular” is <strong>not</strong> auto-enforced.</li>
+<li>Setting properties that are mathematically inconsistent but not structurally contradictory is allowed.</li>
+</ul>
+<h2 id="priority-tree-effective-structure">Priority tree (effective structure)</h2>
+<p>Operators that can exploit structure compute an <strong>effective structure category</strong> from properties without mutating stored properties.</p>
+<p>Terminology note: this is computed from properties.</p>
+<p>Implementation note (performance): the effective structure category must be computed once per operation and passed downward (do not repeatedly query the properties container inside inner loops).</p>
+<p>Priority (highest first):</p>
+<p>0) Zero: if <code>is_zero=True</code>.
+1) Identity: if <code>is_identity=True</code>.
+2) Diagonal: treat as diagonal if <code>is_diagonal=True</code> OR if both <code>is_upper_triangular=True</code> and <code>is_lower_triangular=True</code>.
+3) Upper triangular: if <code>is_upper_triangular=True</code>.
+4) Lower triangular: if <code>is_lower_triangular=True</code>.
+5) General.</p>
+<p>Rationale:</p>
+<ul>
+<li>Diagonal dominates triangular for index skipping.</li>
+<li>“Both upper and lower” implies diagonal behavior for algorithms (even if the user did not set <code>is_diagonal</code>).</li>
+</ul>
+<h2 id="propagation-rules">Propagation rules</h2>
+<p>Properties must be transformed by metadata-only operations deterministically.</p>
+<p>Tri-state propagation rule:</p>
+<ul>
+<li>Propagation must preserve the distinction between <code>False</code> and <code>None</code>.</li>
+<li>When a transform does not preserve a property in general, the propagated value should become <code>None</code> (unset), not <code>False</code>.</li>
+</ul>
+<h3 id="transpose">Transpose</h3>
+<p>On transpose:</p>
+<ul>
+<li><code>is_upper_triangular</code> ⇄ <code>is_lower_triangular</code></li>
+<li>strictness is represented via <code>diagonal_value=0</code>, which is preserved under transpose.</li>
+<li><code>is_diagonal</code> stays the same</li>
+<li><code>has_unit_diagonal</code> stays the same</li>
+<li><code>has_zero_diagonal</code> stays the same</li>
+<li>
+<p><code>diagonal_value</code> stays the same</p>
+</li>
+<li>
+<p><code>is_zero</code> stays the same</p>
+</li>
+<li><code>is_identity</code> stays the same</li>
+<li>
+<p><code>is_permutation</code> stays the same</p>
+</li>
+<li>
+<p><code>is_symmetric</code> stays the same</p>
+</li>
+<li><code>is_anti_symmetric</code> stays the same</li>
+<li><code>is_hermitian</code> becomes None unless the dtype is real (transpose does not preserve Hermitian-ness in general)</li>
+<li>
+<p><code>is_skew_hermitian</code> becomes None unless the dtype is real (transpose does not preserve skew-Hermitian-ness in general)</p>
+</li>
+<li>
+<p><code>is_atomic</code> stays the same</p>
+</li>
+</ul>
+<p>For <code>is_unitary</code>:</p>
+<ul>
+<li><code>is_unitary</code> becomes None (transpose does not preserve unitarity in general)</li>
+</ul>
+<p>Note: the final line is intentional: we do not attempt to “correct” user-set properties via propagation.</p>
+<h3 id="conjugation">Conjugation</h3>
+<p>On elementwise conjugation:</p>
+<ul>
+<li>Triangular/diagonal properties unchanged</li>
+<li><code>is_hermitian</code> becomes None unless the dtype is real (conjugation does not preserve Hermitian-ness in general)</li>
+<li>
+<p><code>is_skew_hermitian</code> becomes None unless the dtype is real (conjugation does not preserve skew-Hermitian-ness in general)</p>
+</li>
+<li>
+<p><code>diagonal_value</code> is conjugated (if present)</p>
+</li>
+<li>
+<p><code>is_zero</code> stays the same</p>
+</li>
+<li><code>is_identity</code> stays the same</li>
+<li>
+<p><code>is_permutation</code> stays the same</p>
+</li>
+<li>
+<p><code>is_symmetric</code> stays the same</p>
+</li>
+<li>
+<p><code>is_anti_symmetric</code> stays the same</p>
+</li>
+<li>
+<p><code>is_atomic</code> stays the same</p>
+</li>
+</ul>
+<p>For <code>is_unitary</code>:</p>
+<ul>
+<li><code>is_unitary</code> becomes None (conjugation does not preserve unitarity in general)</li>
+</ul>
+<h3 id="adjoint-conjugate-transpose">Adjoint (conjugate-transpose)</h3>
+<p>If an adjoint operation exists as a single transform:</p>
+<ul>
+<li>apply transpose rules plus conjugation rules, except:</li>
+<li><code>is_unitary</code> stays the same (adjoint preserves unitarity)</li>
+<li><code>is_hermitian</code> stays the same (adjoint preserves Hermitian-ness)</li>
+<li><code>is_skew_hermitian</code> stays the same (adjoint preserves skew-Hermitian-ness)</li>
+</ul>
+<h3 id="scalar-multiply">Scalar multiply</h3>
+<p>On multiply-by-scalar:</p>
+<ul>
+<li>
+<p>Triangular/diagonal structural properties unchanged</p>
+</li>
+<li>
+<p><code>diagonal_value</code> scales by the scalar (if present)</p>
+</li>
+<li>
+<p><code>is_zero</code> stays the same</p>
+</li>
+</ul>
+<p>For <code>is_identity</code> and <code>is_permutation</code>:</p>
+<ul>
+<li>if the scalar is exactly <span class="arithmatex">\(1\)</span>, keep the property</li>
+<li>otherwise, the property becomes False</li>
+</ul>
+<p>For <code>is_hermitian</code>:</p>
+<ul>
+<li>if the scalar is real, <code>is_hermitian</code> stays the same</li>
+<li>otherwise, <code>is_hermitian</code> becomes None</li>
+</ul>
+<p>For <code>is_skew_hermitian</code>:</p>
+<ul>
+<li>if the scalar is real, <code>is_skew_hermitian</code> stays the same</li>
+<li>otherwise, <code>is_skew_hermitian</code> becomes None</li>
+</ul>
+<p>For <code>is_unitary</code>:</p>
+<ul>
+<li>if <span class="arithmatex">\(|scalar| = 1\)</span>, <code>is_unitary</code> stays the same</li>
+<li>otherwise, <code>is_unitary</code> becomes None</li>
+</ul>
+<p>We allow propagation rules to invalidate properties (set to <code>None</code> or <code>False</code>) when the operation semantics make that deterministic, but we do not infer <em>new</em> <code>True</code> claims from the scalar (e.g., <code>scalar == 0</code> does not cause us to set additional properties to True).</p>
+<h3 id="views-clones">Views / clones</h3>
+<ul>
+<li>Pure metadata-only views must copy properties into the new object (independent ownership), and then apply the propagation rules for the view transform.</li>
+<li>Clones/materializations preserve properties by value.</li>
+</ul>
+<h2 id="where-properties-affect-algorithms-release-1-scope">Where properties affect algorithms (Release 1 scope)</h2>
+<p>Properties can legally change algorithm behavior. In R1_PROPERTIES we focus on the cases that create immediate leverage without broad rewrites.</p>
+<p>Target operator families:</p>
+<ul>
+<li>Index skipping for structural loops (diagonal/triangular).</li>
+<li>Specialized solve paths:</li>
+<li>triangular solve shortcuts when triangular properties are set.</li>
+<li>Specialized multiplications:</li>
+<li>diagonal @ matrix and matrix @ diagonal.</li>
+<li>Spectral shortcuts:</li>
+<li><code>is_hermitian</code> chooses Hermitian eigen routines when available.</li>
+<li><code>is_unitary</code> allows using unitary identities where implemented.</li>
+</ul>
+<p>The exact list of operators to update is tracked in SRP (op × dtype × device × structure table).</p>
+<p>In particular, type-based structural dispatch (e.g., “triangular-by-class”) must be replaced (or gated) so that properties are the authoritative source of structural intent. Typed storage formats remain important for performance, but they are not the semantic authority.</p>
+<h2 id="phases">Phases</h2>
+<h3 id="phase-a-lock-schema-compatibility-rules">Phase A — Lock schema + compatibility rules</h3>
+<p><strong>Status (R1): Implemented</strong></p>
+<p>Implementation + coverage:</p>
+<ul>
+<li>Compatibility enforcement: <code>python/pycauset/_internal/properties.py</code> (<code>obj.properties</code> validating mapping)</li>
+<li>Tests: <code>tests/python/test_properties_compatibility.py</code></li>
+</ul>
+<p>Deliverables:</p>
+<ul>
+<li>Canonical key set (initial properties) is finalized.</li>
+<li>Compatibility rules are finalized (shape constraints + lattice contradictions).</li>
+<li>Priority tree is finalized.</li>
+<li>Tri-state semantics (<code>True</code>/<code>False</code>/<code>None</code>) and its propagation rules are finalized.</li>
+<li>Lazy-evaluation invariant is explicitly enforced (no propagation/compatibility rule may require scanning data).</li>
+<li>Caching model requirements are locked (content-versioning + safe propagation vs clear rules).</li>
+</ul>
+<h3 id="phase-b-public-api-surface-contract">Phase B — Public API surface contract</h3>
+<p><strong>Status (R1): Implemented</strong></p>
+<p>Implementation + coverage:</p>
+<ul>
+<li>Public surface: <code>obj.properties</code> mapping with tri-state booleans via key presence</li>
+<li>Assignment + per-key updates: <code>python/pycauset/_internal/properties.py</code></li>
+</ul>
+<p>Deliverables:</p>
+<ul>
+<li>Define <code>properties</code> exposure shape in Python (mapping of stable keys to typed values; boolean-like keys use tri-state semantics via presence).</li>
+<li>Define mutation contract (set whole mapping vs per-key updates) and error behavior for invalid combinations.</li>
+</ul>
+<h3 id="phase-c-persistence-metadata-schema">Phase C — Persistence + metadata schema</h3>
+<p><strong>Status (R1): Implemented</strong></p>
+<p>Implementation + coverage:</p>
+<ul>
+<li>Persistence bridge: <code>python/pycauset/_internal/persistence.py</code></li>
+<li>Tests: <code>tests/python/test_properties_persistence.py</code></li>
+</ul>
+<p>Deliverables:</p>
+<ul>
+<li>Define the <code>.pycauset</code> metadata schema required to store:</li>
+<li>gospel <code>properties</code> (including missing-vs-explicit semantics), and</li>
+<li>cached-derived values (validated by version/signature).</li>
+<li>Define the rule: persisted objects must preserve property values <em>and</em> whether each boolean-like property is explicitly set vs unset.</li>
+</ul>
+<p>Naming/encoding note (must be decided in Phase C):</p>
+<ul>
+<li>User-facing keys are clean (e.g., <code>trace</code>), but persistence must also encode “this is cached-derived” + dependency signatures.</li>
+<li>Decision (agreed): store cached-derived values under a dedicated <code>cached</code> / <code>caches</code> section keyed by clean names (e.g., <code>cached.trace</code>).</li>
+</ul>
+<p>Implications:</p>
+<ul>
+<li>In memory: users read/write <code>obj.properties["trace"]</code>.</li>
+<li>On disk: <code>metadata</code> stores cached-derived values under <code>cached.trace</code> (and friends), alongside the dependency signature.</li>
+<li>On load: if a cached-derived value is present and its dependency signature matches the restored object state, it is surfaced as <code>obj.properties["trace"]</code>.</li>
+<li>On save: cached-derived values are written under <code>cached.*</code> (never as top-level keys like <code>cached_trace</code>).</li>
+</ul>
+<p>Storage-format note:</p>
+<ul>
+<li>The single-file container format and typed metadata encoding are tracked under <code>documentation/internals/plans/R1_STORAGE_PLAN.md</code>.</li>
+<li>R1_PROPERTIES must remain storage-format agnostic: the <code>properties</code> and derived-cache semantics must plug into the storage layer without changing frontend save/load call sites.</li>
+</ul>
+<h3 id="phase-d-propagation-integration">Phase D — Propagation integration</h3>
+<p><strong>Status (R1): Implemented</strong></p>
+<p>Implementation + coverage:</p>
+<ul>
+<li>View propagation: transpose/conj/adjoint in <code>python/pycauset/_internal/properties.py</code></li>
+<li>Scalar + add/sub cached-derived propagation in <code>python/pycauset/_internal/properties.py</code></li>
+<li>Tests: <code>tests/python/test_properties_propagation.py</code> and <code>tests/python/test_properties_compatibility.py</code></li>
+</ul>
+<p>Deliverables:</p>
+<ul>
+<li>Ensure metadata-only transforms update properties per the propagation rules.</li>
+<li>Ensure clones/materializations preserve properties.</li>
+<li>Ensure derived caches are invalidated or safely propagated under metadata-only transforms.</li>
+</ul>
+<h3 id="phase-e-property-aware-operator-wiring">Phase E — Property-aware operator wiring</h3>
+<p><strong>Status (R1): Implemented</strong></p>
+<p>Implemented in R1:</p>
+<ul>
+<li>Priority tree helper for effective structure selection (no scans)</li>
+<li>Scalar operator wiring: <code>trace()</code>, <code>determinant()</code>, <code>pycauset.norm()</code>, <code>pycauset.sum()</code></li>
+<li>Structured routing:</li>
+<li><code>matmul</code> routes diagonal/triangular cases based on effective structure.</li>
+<li><code>solve</code> routes diagonal/triangular cases via <code>solve_triangular</code>.</li>
+<li><code>eigvalsh</code> consults/seeds cached-derived <code>eigenvalues</code>.</li>
+</ul>
+<p>Deliverables:</p>
+<ul>
+<li>Identify the minimal operator set that must become property-aware in R1 (tracked via SRP inventory).</li>
+<li>Implement algorithm selection using the priority tree (effective structure), without mutating stored properties.</li>
+</ul>
+<h3 id="phase-f-tests-documentation-final">Phase F — Tests + documentation (FINAL)</h3>
+<p><strong>Status (R1): Implemented for current surface; ongoing as operator coverage expands</strong></p>
+<p>Artifacts:</p>
+<ul>
+<li>Tests: <code>tests/python/test_properties_*.py</code></li>
+<li>Canonical storage/caching docs: <code>documentation/guides/Storage and Memory.md</code></li>
+</ul>
+<p>Deliverables:</p>
+<ul>
+<li>Tests:</li>
+<li>compatibility checks (invalid combinations reject deterministically),</li>
+<li>propagation checks (transpose/conjugate/scalar multiply),</li>
+<li>persistence round-trip preserves properties.</li>
+<li>Docs:</li>
+<li>user-facing docs for <code>properties</code> (semantics: gospel, not validated),</li>
+<li>operator docs where properties change behavior.</li>
+<li>a dedicated “Power users” section explaining that properties can override data truth and force structured algorithms.</li>
+</ul>
+<p>Additionally:</p>
+<ul>
+<li>
+<p>The “Adding Operations” protocol must be updated to include a properties checklist (how an op reads properties, whether it propagates/changes properties, and where that logic lives so it is not scattered).</p>
+</li>
+<li>
+<p>The caching model (derived caches) must be documented: how caches are validated, when they are cleared, and which metadata-only transforms preserve/transform which caches.</p>
+</li>
+</ul>
+<h2 id="open-questions-must-be-resolved-before-phase-b">Open questions (must be resolved before Phase B)</h2>
+<ul>
+<li>Do we want to keep <code>is_unitary</code> propagation rules as written (transpose/conjugate clear; adjoint preserves), or should <code>is_unitary</code> be preserved more aggressively?</li>
+<li>Should <code>has_unit_diagonal</code> and <code>has_zero_diagonal</code> remain as stored boolean properties, or should <code>diagonal_value</code> be the only canonical representation (with shorthands computed on-demand)?</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../R1_LINALG_PLAN/" class="md-footer__link md-footer__link--prev" aria-label="Previous: R1_LINALG — Linear Algebra Foundation (Release 1)">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                R1_LINALG — Linear Algebra Foundation (Release 1)
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../R1_SHAPES_PLAN/" class="md-footer__link md-footer__link--next" aria-label="Next: R1_SHAPES Plan — NxM Matrices Across The System (End-to-End)">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                R1_SHAPES Plan — NxM Matrices Across The System (End-to-End)
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.expand", "navigation.tabs", "navigation.sections", "navigation.top", "navigation.tracking", "navigation.footer", "toc.integrate", "search.suggest", "search.highlight", "search.share", "content.action.edit", "content.action.view", "content.code.copy", "content.code.select", "content.code.annotate", "content.tabs.link"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+  
+      <script src="../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+
+  <script defer src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    // Initialize Mermaid in a way that plays nicely with MkDocs Material.
+    // If the user toggles light/dark mode, we re-render Mermaid with the new theme.
+    (function () {
+      function currentMermaidTheme() {
+        const scheme = document.body.getAttribute('data-md-color-scheme');
+        return scheme === 'slate' ? 'dark' : 'default';
+      }
+
+      function renderMermaid() {
+        if (!window.mermaid) return;
+
+        const theme = currentMermaidTheme();
+
+        window.mermaid.initialize({
+          startOnLoad: false,
+          theme: theme,
+          securityLevel: 'strict'
+        });
+
+        document.querySelectorAll('.mermaid').forEach((el) => {
+          const source = el.textContent;
+          el.removeAttribute('data-processed');
+          el.innerHTML = source;
+        });
+
+        window.mermaid.run({ querySelector: '.mermaid' });
+      }
+
+      document.addEventListener('DOMContentLoaded', renderMermaid);
+
+      const obs = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.type === 'attributes' && m.attributeName === 'data-md-color-scheme') {
+            renderMermaid();
+            break;
+          }
+        }
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        obs.observe(document.body, { attributes: true });
+      });
+    })();
+  </script>
+
+  </body>
+</html>
