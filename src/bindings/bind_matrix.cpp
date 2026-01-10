@@ -1,4 +1,5 @@
 #include "bindings_common.hpp"
+#include <vector>
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #include <immintrin.h>
 #endif
@@ -2758,8 +2759,8 @@ void bind_matrix_classes(py::module_& m) {
                 sizeof(std::complex<float>),
                 py::format_descriptor<std::complex<float>>::format(),
                 2,
-                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
-                { sizeof(std::complex<float>) * m.cols(), sizeof(std::complex<float>) }
+                std::vector<py::ssize_t>{ (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                std::vector<py::ssize_t>{ sizeof(std::complex<float>) * m.cols(), sizeof(std::complex<float>) }
             );
         });
 
@@ -2830,8 +2831,8 @@ void bind_matrix_classes(py::module_& m) {
                 sizeof(std::complex<double>),
                 py::format_descriptor<std::complex<double>>::format(),
                 2,
-                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
-                { sizeof(std::complex<double>) * m.cols(), sizeof(std::complex<double>) }
+                std::vector<py::ssize_t>{ (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                std::vector<py::ssize_t>{ sizeof(std::complex<double>) * m.cols(), sizeof(std::complex<double>) }
             );
         });
 
@@ -3058,8 +3059,8 @@ void bind_matrix_classes(py::module_& m) {
                 sizeof(int32_t),
                 py::format_descriptor<int32_t>::format(),
                 2,
-                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
-                { sizeof(int32_t) * m.cols(), sizeof(int32_t) }
+                std::vector<py::ssize_t>{ (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                std::vector<py::ssize_t>{ sizeof(int32_t) * m.cols(), sizeof(int32_t) }
             );
         });
 
@@ -3138,8 +3139,8 @@ void bind_matrix_classes(py::module_& m) {
                 sizeof(int16_t),
                 py::format_descriptor<int16_t>::format(),
                 2,
-                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
-                { sizeof(int16_t) * m.cols(), sizeof(int16_t) }
+                std::vector<py::ssize_t>{ (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                std::vector<py::ssize_t>{ sizeof(int16_t) * m.cols(), sizeof(int16_t) }
             );
         });
 
@@ -3218,8 +3219,8 @@ void bind_matrix_classes(py::module_& m) {
                 sizeof(int8_t),
                 py::format_descriptor<int8_t>::format(),
                 2,
-                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
-                { sizeof(int8_t) * m.cols(), sizeof(int8_t) }
+                std::vector<py::ssize_t>{ (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                std::vector<py::ssize_t>{ sizeof(int8_t) * m.cols(), sizeof(int8_t) }
             );
         });
 
@@ -3298,8 +3299,8 @@ void bind_matrix_classes(py::module_& m) {
                 sizeof(int64_t),
                 py::format_descriptor<int64_t>::format(),
                 2,
-                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
-                { sizeof(int64_t) * m.cols(), sizeof(int64_t) }
+                std::vector<py::ssize_t>{ (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                std::vector<py::ssize_t>{ sizeof(int64_t) * m.cols(), sizeof(int64_t) }
             );
         });
 
@@ -3378,8 +3379,8 @@ void bind_matrix_classes(py::module_& m) {
                 sizeof(uint8_t),
                 py::format_descriptor<uint8_t>::format(),
                 2,
-                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
-                { sizeof(uint8_t) * m.cols(), sizeof(uint8_t) }
+                std::vector<py::ssize_t>{ (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                std::vector<py::ssize_t>{ sizeof(uint8_t) * m.cols(), sizeof(uint8_t) }
             );
         });
 
@@ -3458,8 +3459,8 @@ void bind_matrix_classes(py::module_& m) {
                 sizeof(uint16_t),
                 py::format_descriptor<uint16_t>::format(),
                 2,
-                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
-                { sizeof(uint16_t) * m.cols(), sizeof(uint16_t) }
+                std::vector<py::ssize_t>{ (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                std::vector<py::ssize_t>{ sizeof(uint16_t) * m.cols(), sizeof(uint16_t) }
             );
         });
 
@@ -3538,8 +3539,8 @@ void bind_matrix_classes(py::module_& m) {
                 sizeof(uint32_t),
                 py::format_descriptor<uint32_t>::format(),
                 2,
-                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
-                { sizeof(uint32_t) * m.cols(), sizeof(uint32_t) }
+                std::vector<py::ssize_t>{ (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                std::vector<py::ssize_t>{ sizeof(uint32_t) * m.cols(), sizeof(uint32_t) }
             );
         });
 
@@ -3618,8 +3619,8 @@ void bind_matrix_classes(py::module_& m) {
                 sizeof(uint64_t),
                 py::format_descriptor<uint64_t>::format(),
                 2,
-                { (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
-                { sizeof(uint64_t) * m.cols(), sizeof(uint64_t) }
+                std::vector<py::ssize_t>{ (py::ssize_t)m.rows(), (py::ssize_t)m.cols() },
+                std::vector<py::ssize_t>{ sizeof(uint64_t) * m.cols(), sizeof(uint64_t) }
             );
         });
 
