@@ -11,21 +11,30 @@ permissions:
   contents: write
   id-token: write
 
-jobs:
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Required for setuptools_scm to find tags
-
-      - name: Install dependencies (macOS)
-        if: runner.os == 'macOS'
+    jobs:
+      build_wheels:
+        name: Build wheels on ${{ matrix.os }}
+        runs-on: ${{ matrix.os }}
+        # Optimization: Only run full matrix on release or manual dispatch.
+        # On standard push, we only run Linux/Python 3.11 as a smoke test.
+        if: github.event_name == 'release' || github.event_name == 'workflow_dispatch' || (matrix.os == 'ubuntu-latest')
+        strategy:
+          matrix:
+            os: [ubuntu-latest, windows-latest, macos-latest]
+    
+        steps:
+          - uses: actions/checkout@v4
+            with:
+              fetch-depth: 0  # Required for setuptools_scm to find tags
+    
+          # Setup ccache to speed up re-compilation
+          - name: Setup ccache
+            uses: hendrikmuhs/ccache-action@v1.2
+            with:
+              key: ${{ matrix.os }}-ccache
+    
+          - name: Install dependencies (macOS)
+            if: runner.os == 'macOS'
         run: |
           brew install libomp
           brew install openblas
@@ -48,19 +57,24 @@ jobs:
           # Install GCC 12 on Linux before build
           # We also install openblas-devel to avoid building it from source (which fails and is slow)
           # The wheels will bundle the library via auditwheel
-          CIBW_BEFORE_ALL_LINUX: "yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic openblas-devel"
+          CIBW_BEFORE_ALL_LINUX: "yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic openblas-devel ccache"
           
           # Point the build to use GCC 12
-          CIBW_ENVIRONMENT_LINUX: "CC='/opt/rh/gcc-toolset-12/root/usr/bin/gcc' CXX='/opt/rh/gcc-toolset-12/root/usr/bin/g++'"
+          CIBW_ENVIRONMENT_LINUX: "CC='/opt/rh/gcc-toolset-12/root/usr/bin/gcc' CXX='/opt/rh/gcc-toolset-12/root/usr/bin/g++' PATH='/usr/lib64/ccache:$PATH'"
           
           # macOS: Help CMake find OpenMP
-          CIBW_BEFORE_BUILD_MACOS: "brew install libomp"
+          CIBW_BEFORE_BUILD_MACOS: "brew install libomp ccache"
           CIBW_ENVIRONMENT_MACOS: >
             CC="clang"
             CXX="clang++"
             CFLAGS="-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include"
             CXXFLAGS="-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include"
             LDFLAGS="-L/opt/homebrew/opt/libomp/lib -L/usr/local/opt/libomp/lib -lomp"
+            PATH="/usr/local/opt/ccache/libexec:$PATH"
+
+          # Use a single CIBW_BUILD filter for Push events to save time (Smoke Test)
+          # On full runs (workflow_dispatch/release), this variable is empty and ignored (building everything)
+          CIBW_BUILD: "${{ (github.event_name == 'push') && 'cp311-manylinux_x86_64' || '*' }}"
 
       - uses: actions/upload-artifact@v4
         with:
