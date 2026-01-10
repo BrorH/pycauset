@@ -17,7 +17,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Optimization: Only run full matrix on release or manual dispatch.
     # On standard push, we only run Linux/Python 3.11 as a smoke test.
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch' || (matrix.os == 'ubuntu-latest')
+    if: ${{ github.event_name == 'release' || github.event_name == 'workflow_dispatch' || matrix.os == 'ubuntu-latest' }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
