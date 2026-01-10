@@ -46,7 +46,9 @@ jobs:
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
           
           # Install GCC 12 on Linux before build
-          CIBW_BEFORE_ALL_LINUX: "yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic"
+          # We also install openblas-devel to avoid building it from source (which fails and is slow)
+          # The wheels will bundle the library via auditwheel
+          CIBW_BEFORE_ALL_LINUX: "yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic openblas-devel"
           
           # Point the build to use GCC 12
           CIBW_ENVIRONMENT_LINUX: "CC='/opt/rh/gcc-toolset-12/root/usr/bin/gcc' CXX='/opt/rh/gcc-toolset-12/root/usr/bin/g++'"
