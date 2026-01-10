@@ -101,3 +101,11 @@ documentation/dev/Agent Bootstrap.md
 documentation/.obsidian/
 documentation/internals/CURRENT_MISSION.md
 4_Build wheels.txt
+
+# --- Local Build Artifacts ---
+.ccache/
+wheelhouse/
+tools/bin/
+event.json
+bin/
+tools/test_release_locally.sh

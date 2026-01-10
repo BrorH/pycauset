@@ -46,12 +46,7 @@ jobs:
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: ${{ matrix.os }}-ccache
-
-      - name: Install dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install libomp
-          brew install openblas
+          update-package-index: true
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.16.5
@@ -71,26 +66,32 @@ jobs:
           # Install GCC 12 on Linux before build
           # We also install openblas-devel to avoid building it from source (which fails and is slow)
           # The wheels will bundle the library via auditwheel
-          CIBW_BEFORE_ALL_LINUX: "yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic openblas-devel ccache"
+          CIBW_BEFORE_ALL_LINUX: "yum install -y epel-release && yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic openblas-devel ccache"
           
           # Point the build to use GCC 12
           CIBW_ENVIRONMENT_LINUX: "CC='/opt/rh/gcc-toolset-12/root/usr/bin/gcc' CXX='/opt/rh/gcc-toolset-12/root/usr/bin/g++' PATH=\"/usr/lib64/ccache:$PATH\""
           
-          # macOS: Help CMake find OpenMP
-          CIBW_BEFORE_BUILD_MACOS: "brew install libomp ccache"
+          # macOS: Install build dependencies.
+          # OpenBLAS and libomp are needed for the C++ extension.
+          CIBW_BEFORE_ALL_MACOS: "brew install libomp openblas ccache"
+          
+          # macOS: Env Setup
+          # 1. Point to Homebrew locations for headers/libs (Apple Silicon uses /opt/homebrew, Intel uses /usr/local)
+          # 2. Add ccache to PATH (checking both potential locations)
           CIBW_ENVIRONMENT_MACOS: >
             CC="clang"
             CXX="clang++"
             CFLAGS="-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include"
             CXXFLAGS="-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include"
             LDFLAGS="-L/opt/homebrew/opt/libomp/lib -L/usr/local/opt/libomp/lib -lomp"
-            PATH="/usr/local/opt/ccache/libexec:$PATH"
+            PATH="/opt/homebrew/opt/ccache/libexec:/usr/local/opt/ccache/libexec:$PATH"
 
           # Use a single CIBW_BUILD filter for Push events to save time (Smoke Test)
           # On full runs (workflow_dispatch/release), this variable is empty and ignored (building everything)
           CIBW_BUILD: "${{ (github.event_name == 'push') && 'cp311-manylinux_x86_64' || '*' }}"
 
       - uses: actions/upload-artifact@v4
+        if: ${{ !env.ACT }}
         with:
           name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
