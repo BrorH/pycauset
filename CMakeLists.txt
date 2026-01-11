@@ -505,6 +505,14 @@ if(ENABLE_CUDA)
             $<$<COMPILE_LANGUAGE:CUDA>:--diag_suppress=177>
         )
         
+        # --- Python Bindings for CUDA (Internal) ---
+        # Only meaningful if CUDA is enabled. This module provides discovery functions.
+        python_add_library(_pycauset_cuda MODULE src/bindings/bind_cuda.cpp)
+        target_include_directories(_pycauset_cuda PRIVATE include)
+        target_link_libraries(_pycauset_cuda PRIVATE pycauset_cuda pybind11::module pycauset_core)
+        set_target_properties(_pycauset_cuda PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+        install(TARGETS _pycauset_cuda DESTINATION pycauset)
+
         install(TARGETS pycauset_cuda DESTINATION pycauset)
     else()
         message(STATUS "CUDA not found. Skipping pycauset_cuda accelerator.")

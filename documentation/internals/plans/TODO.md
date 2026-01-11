@@ -364,41 +364,66 @@ Deliverables:
 
 Status: - [ ]
 
-Goal: GPU behavior is predictable and correct.
+Goal: GPU behavior is predictable, correct, and **cooperative**.
+
+Authoritative plan: `documentation/internals/plans/R1_GPU_PLAN.md`.
 
 Deliverables:
-- AutoSolver routing is explicit and testable.
-- For unsupported GPU cases: either CPU route or clear error.
-- Benchmark-based thresholds are documented.
-- Routing policy must account for **semantic properties** (effective structure categories) deterministically when GPU/CPU support differs by structure.
-- Default UX is seamless/automatic, but power users can override:
-    - a supported way to disable GPU globally (force CPU),
-    - a supported way to tweak thresholds/heuristics and precision policy,
-    - a supported way to inspect/verify what routing decision was taken.
+- **Phase 1: Robust Discovery & "Just Works" Dispatch:**
+    - AutoSolver routing is explicit, testable, and uses a cost model (transfer overhead vs dispatch gain).
+    - Hard fallback to CPU if GPU is missing capabilities or memory.
+    - Python API control surface (`pycauset.cuda.*`) for overrides and inspection.
+- **Phase 2: Streaming Algorithm Drivers (The "Cooperative" Core):**
+    - Implement **Algorithm-Specific Drivers** (Host-Side Orchestration) for complex ops (Cholesky, Arnoldi) that utilize the existing `AsyncStreamer` pipeline.
+    - CPU orchestrates dependencies; `AsyncStreamer` handles the heavy I/O and compute overlapping.
+    - *Note:* These drivers are critical for GPU VRAM limits but will also power the future R1_CPU engine.
+- **Phase 3: Integration:**
+    - Routing uses **Tag Dispatch** (`MatrixTraits`) to map Properties to optimized kernels (e.g., `cublasSyrk`).
 
-### R1_SRP — Support Readiness Program (SRP)
+### R1_CPU — Modern Tiled CPU Engine (No More Legacy Loops)
 
 Status: - [ ]
 
-This is the long “painstaking” program.
+Goal: The CPU is not a fallback; it is a **First-Class Worker** for the Streaming Architecture.
+
+Deliverables:
+- **Unified Worker Interface:**
+    - Implement `CpuWorker` that implements the same standard interface as `CudaWorker` (e.g., `compute_tile(A, B, C)`).
+    - Allows the `AsyncStreamer` and Algorithm Drivers (from R1_GPU) to run on CPU without code changes.
+- **Core Kernel Modernization:**
+    - Delete legacy simple loops.
+    - Implement Tiled / Blocked Matmul (OpenMP) to match the tile sizes used by the streamer (L2 Cache fitting).
+    - Implement Vectorized (AVX2/AVX-512) kernels for Elementwise ops.
+- **Standardization:**
+    - Ensure CPU kernels respect the same `MatrixTraits` tag dispatch system as GPU kernels.
+
+### R1_SRP — Support Readiness Program (SRP) & Optimization Catalog
+
+Status: - [ ]
+
+This is the long “painstaking” program. Only when this is done can we claim to be "PyCauset".
 
 Authoritative checklist: `documentation/internals/plans/SUPPORT_READINESS_FRAMEWORK.md`.
 
 SRP phases:
 - SRP-0: Canonical inventories locked (dtypes + ops + structures + devices).
 - SRP-1: CPU correctness across the inventory (Gate A + Gate B).
-- SRP-2: CPU optimization to ≥0.90× NumPy for declared benchmark regimes (Gate E).
+- SRP-2: **Causal Math Optimization Catalog** (The "Monster"):
+    - Identify the specific operator combinations used in Causal Set Theory (Propagators, Action, etc.).
+    - Map these to numerical shortcuts (e.g., triangularity, Neumann series, property-abuse).
+    - Ensure these shortcuts are implemented and routed correctly.
 - SRP-3: GPU coverage implemented OR explicitly routed/blocked (Gate C).
 - SRP-4: CCA lookahead hints + out-of-core performance validation (Gate D + Gate E).
 
 Definition of Done (Release 1 gate):
 - Every op in the canonical inventory has an explicit support status for every public dtype/structure/device case.
+- **Physics-Aware Optimizations** are verified: specific causal structures trigger their optimized paths (not just generic fallback).
 - No “silent wrong answers” and no “mysterious slow paths”.
 - Benchmarks exist and failures are actionable.
 
 Notes:
-- SRP correctness/coverage must include **property-aware variants** of operators once R1_PROPERTIES lands (because properties change semantics and algorithmic work).
-- Streaming manager: every op in the canonical inventory must either (a) have a per-op streaming descriptor with memory-optimized defaults for CPU and GPU (when GPU is in-scope) or (b) be explicitly routed/blocked with rationale. Close SRP only after this inventory is covered using the final CPU/GPU profiling data. This should be done through the "streaming manager".
+- SRP correctness/coverage must include **property-aware variants** of operators once R1_PROPERTIES lands.
+- Streaming manager coverage is verified here.
 ### R1_QA — Bench + Correctness Gates Enforced
 
 Status: - [ ]

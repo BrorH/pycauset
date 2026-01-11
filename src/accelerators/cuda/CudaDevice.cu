@@ -57,6 +57,40 @@ void CudaDevice::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
 
 namespace pycauset {
 
+// --- Discovery API ---
+
+int CudaDevice::get_device_count() {
+    int count = 0;
+    cudaError_t err = cudaGetDeviceCount(&count);
+    if (err == cudaSuccess) {
+        return count;
+    } else {
+        // If we can't get the count, assume 0 (no driver, or no gpu).
+        // Clear error to avoid polluting subsequent calls?
+        cudaGetLastError(); 
+        return 0;
+    }
+}
+
+std::string CudaDevice::get_device_name(int device_id) {
+    cudaDeviceProp prop;
+    cudaError_t err = cudaGetDeviceProperties(&prop, device_id);
+    if (err == cudaSuccess) {
+        return std::string(prop.name);
+    } else {
+        return "Unknown Device (Error: " + std::string(cudaGetErrorString(err)) + ")"; 
+    }
+}
+
+bool CudaDevice::is_available() {
+    int count = 0;
+    if (cudaGetDeviceCount(&count) != cudaSuccess) {
+        cudaGetLastError();
+        return false;
+    }
+    return count > 0;
+}
+
 CudaDevice::CudaDevice(const AcceleratorConfig& config) : config_(config) {
     // Initialize CUDA context
     cudaError_t err = cudaSetDevice(config_.device_id);

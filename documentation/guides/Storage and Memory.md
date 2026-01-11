@@ -61,9 +61,36 @@ This specific format enables two user-facing behaviors:
 1) **Gigantic matrices actually work:** the payload lives on disk and is paged in as needed.
 2) **Some operations are instant:** things like transpose or scaling can be represented by changing metadata (no rewrite of the large payload).
 
-Also, even if you *haven’t manually saved anything yet*, PyCauset still needs a place to put the payload bytes for big matrices.
+## Semantic Properties (Metadata)
 
-So most large matrices you create during a session are backed by files under the storage root directory (by default, `.pycauset/`). Your OS then treats those files like disk-backed working memory: it keeps “hot” pages in RAM automatically and reloads them on demand.
+In addition to physical metadata (shape/dtype), Release 1 allows attaching **Semantic Properties**. These are asserted facts about the matrix that are "gospel" (authoritative) and can drastically speed up computations.
+
+### What `properties` is
+
+- `obj.properties` is a mapping (`str` keys → typed values) exposed on every matrix/vector.
+- It stores **gospel assertions** (e.g., `is_upper_triangular=True`) which the system accepts without truth-validation.
+- It also stores **cached-derived values** (e.g., `determinant`) which are invalidated on mutation.
+
+### Common keys (Release 1)
+
+These keys are treated as **semantic structure claims** (no truth validation):
+- **Structure:** `is_symmetric`, `is_hermitian`, `is_upper_triangular`, `is_lower_triangular`, `is_diagonal`
+- **Identity:** `is_identity` (implies diagonal, symmetric, etc.)
+- **Vector hints:** `is_sorted`, `is_unit_norm`
+
+Example:
+```python
+A = pc.identity(3)
+# Gospel assertion: solver is allowed to treat off-triangle entries as zero.
+A.properties["is_upper_triangular"] = True
+```
+
+### Technical Implementation (Python-Managed)
+
+Currently, the property system is implemented primarily in the **Python layer**:
+- The `properties` dictionary is injected into the native object at runtime (via `python/pycauset/_internal/properties.py`).
+- C++ kernels currently see physical metadata (shape/dtype) but not these semantic properties directly.
+- **Future Integration:** A mechanism to mirror these high-impact flags to C++ (e.g., via a bitmask) is planned so that backend drivers (like the GPU engine) can inspect them without crossing the Python boundary.
 
 ## Where backing files go (temporary storage)
 

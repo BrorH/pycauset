@@ -70,6 +70,11 @@ public:
     int get_compute_capability_major() const { return cc_major_; }
     int get_compute_capability_minor() const { return cc_minor_; }
 
+    // Discovery API (Static)
+    static int get_device_count();
+    static std::string get_device_name(int device_id);
+    static bool is_available();
+
     // Accessors for Solver
     cublasHandle_t get_cublas_handle() const { return cublas_handle_; }
     cusolverDnHandle_t get_cusolver_handle() const { return cusolver_handle_; }
