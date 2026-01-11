@@ -1,0 +1,7966 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance causal set simulation library (CPU/GPU, disk-backed matrices).">
+      
+      
+      
+        <link rel="canonical" href="https://brorh.github.io/pycauset/internals/plans/completed/R1_BLOCKMATRIX_PLAN/">
+      
+      
+        <link rel="prev" href="../../BLAS_INTEGRATION_PLAN/">
+      
+      
+        <link rel="next" href="../R1_LINALG_PLAN/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>R1_BLOCKMATRIX Plan — Block Matrices + Heterogeneous Dtypes (Storage-First) - PyCauset</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+
+  <style>
+    /*
+      PyCauset docs skin
+      - stays within Material theme variables
+      - “physics notebook / cosmic grid” vibe without sacrificing readability
+    */
+
+    /* Slightly narrower, more readable measure on wide screens */
+    .md-grid {
+      max-width: 72rem;
+    }
+
+    /* Subtle grid background using theme colors */
+    .md-main {
+      /* Fallback if color-mix isn't supported */
+      background-image: radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+      background-image:
+        radial-gradient(
+          color-mix(in srgb, var(--md-default-fg-color) 10%, transparent) 1px,
+          transparent 1px
+        );
+      background-size: 18px 18px;
+      background-position: 0 0;
+    }
+
+    /* Branded header gradient */
+    .md-header {
+      /* Fallback gradient */
+      background: linear-gradient(90deg, var(--md-primary-fg-color), var(--md-accent-fg-color));
+      background:
+        linear-gradient(
+          90deg,
+          color-mix(in srgb, var(--md-primary-fg-color) 92%, black),
+          color-mix(in srgb, var(--md-accent-fg-color) 60%, var(--md-primary-fg-color))
+        );
+    }
+
+    .md-header__title {
+      letter-spacing: 0.02em;
+    }
+
+    /* Distinctive h1/h2 underline, still theme-driven */
+    .md-typeset h1,
+    .md-typeset h2 {
+      position: relative;
+    }
+
+    .md-typeset h1::after,
+    .md-typeset h2::after {
+      content: "";
+      display: block;
+      height: 2px;
+      width: min(18rem, 60%);
+      margin-top: 0.35rem;
+      background: linear-gradient(90deg, var(--md-accent-fg-color), transparent);
+      opacity: 0.9;
+    }
+
+    /* Links: gentle underline-on-hover */
+    .md-typeset a {
+      text-underline-offset: 0.18em;
+      text-decoration-thickness: 0.08em;
+    }
+
+    .md-typeset a:hover {
+      text-decoration-thickness: 0.14em;
+    }
+
+    /* Code blocks: subtle border for separation */
+    .md-typeset pre {
+      border: 1px solid rgba(127, 127, 127, 0.22);
+      border: 1px solid color-mix(in srgb, var(--md-default-fg-color) 14%, transparent);
+      border-radius: 0.35rem;
+    }
+
+    /* Mermaid: keep diagrams crisp */
+    .mermaid {
+      overflow-x: auto;
+    }
+  </style>
+
+  <script>
+    // MathJax configuration must run before the MathJax script loads.
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        processEnvironments: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script defer src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="teal">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#r1_blockmatrix-plan-block-matrices-heterogeneous-dtypes-storage-first" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="PyCauset" class="md-header__button md-logo" aria-label="PyCauset" data-md-component="logo">
+      
+  <img src="../../../../material/atom" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            PyCauset
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              R1_BLOCKMATRIX Plan — Block Matrices + Heterogeneous Dtypes (Storage-First)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="teal"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="cyan"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/BrorH/pycauset" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    BrorH/pycauset
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../guides/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../docs/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../" class="md-tabs__link">
+          
+  
+  
+  Internals
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../dev/" class="md-tabs__link">
+          
+  
+  
+  Dev Handbook
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../project/" class="md-tabs__link">
+          
+  
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="PyCauset" class="md-nav__button md-logo" aria-label="PyCauset" data-md-component="logo">
+      
+  <img src="../../../../material/atom" alt="logo">
+
+    </a>
+    PyCauset
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/BrorH/pycauset" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    BrorH/pycauset
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/User%20Guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release 1
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Release 1
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/shapes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shapes (NxM Matrices)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/storage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage (Persistence Container)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/properties/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Properties (Semantic Metadata)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/dtypes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DTypes (Integers, Float16, Complex)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/release1/linalg/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linear Algebra (Core Ops)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Causal%20Sets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Causal Sets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Spacetime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spacetime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Field%20Theory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Field Theory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Matrix%20Guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Vector%20Guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vector Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Linear%20Algebra%20Operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linear Algebra Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/NxM%20Support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NxM Support
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Storage%20and%20Memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage and Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Performance%20Guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../guides/Numpy%20Integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NumPy Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Classes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_2" id="__nav_3_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Matrix
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.MatrixBase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.MatrixBase
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.FloatMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.FloatMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.Float16Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Float16Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.Float32Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Float32Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.IntegerMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.IntegerMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.Int8Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int8Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.Int16Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int16Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.Int64Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int64Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.UInt8Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt8Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.UInt16Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt16Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.UInt32Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt32Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.UInt64Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt64Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.DenseBitMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.DenseBitMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.ComplexFloat16Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat16Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.ComplexFloat32Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat32Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.ComplexFloat64Matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat64Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.IdentityMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.IdentityMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.TriangularMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.TriangularMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.TriangularFloatMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.TriangularFloatMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.TriangularIntegerMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.TriangularIntegerMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.TriangularBitMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.TriangularBitMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/matrix/pycauset.SymmetricMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.SymmetricMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/AntiSymmetricMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AntiSymmetricMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/SymmetricMatrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SymmetricMatrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_3" id="__nav_3_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vector
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Vector
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.VectorBase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.VectorBase
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.FloatVector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.FloatVector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.Float16Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Float16Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.Float32Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Float32Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.Int8Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int8Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.Int16Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int16Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.Int64Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.Int64Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.UInt8Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt8Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.UInt16Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt16Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.UInt32Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt32Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.UInt64Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UInt64Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.IntegerVector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.IntegerVector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.UnitVector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.UnitVector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.BitVector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.BitVector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.ComplexFloat16Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat16Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.ComplexFloat32Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat32Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/vector/pycauset.ComplexFloat64Vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ComplexFloat64Vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_4" id="__nav_3_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spacetime
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Spacetime
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spacetime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.CausalSet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.CausalSet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.spacetime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.spacetime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.spacetime.CausalSpacetime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.spacetime.CausalSpacetime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.spacetime.MinkowskiBox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.spacetime.MinkowskiBox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.spacetime.MinkowskiCylinder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.spacetime.MinkowskiCylinder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/spacetime/pycauset.spacetime.MinkowskiDiamond/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.spacetime.MinkowskiDiamond
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_5" id="__nav_3_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Field
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Field
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/field/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Field
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/field/pycauset.field.Field/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.field.Field
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/field/pycauset.field.ScalarField/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.field.ScalarField
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2_6" id="__nav_3_2_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/classes/core/pycauset.PersistentObject/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistent objects (base behavior)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Functions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Functions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.vector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.vector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.zeros/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.zeros
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.ones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.ones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.empty/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.empty
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.identity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.I/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.I
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.asarray.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    None
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.bitwise_not/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.bitwise_not
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.causal_matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.causal_matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.causet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.causet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.cholesky/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.cholesky
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.compute_k/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.compute_k
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.compute_k_matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.compute_k_matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.cond/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.cond
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.divide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.divide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.dot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.dot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eig/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eig
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eigh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eigh
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eigvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eigvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eigvals_arnoldi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eigvals_arnoldi
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eigvals_skew/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eigvals_skew
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.eigvalsh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.eigvalsh
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.get_memory_threshold/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.get_memory_threshold
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.get_num_threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.get_num_threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.get_precision_mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.get_precision_mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.invert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Inversion (Linear Algebra)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.lstsq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.lstsq
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.lu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.lu
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.matmul/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.matmul
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.norm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.norm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.pinv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.pinv
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.precision_mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.precision_mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.save/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.save
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.set_backing_dir/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pycauset.set backing dir
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.set_memory_threshold/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.set_memory_threshold
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.set_num_threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.set_num_threads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.set_precision_mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.set_precision_mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.slogdet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.slogdet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.solve/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.solve
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.solve_triangular/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.solve_triangular
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.sum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.sum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.svd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.svd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/functions/pycauset.load/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.load
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameters
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Parameters
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/parameters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/parameters/pycauset.keep_temp_files/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.keep_temp_files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/parameters/pycauset.seed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.seed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization (pycauset.vis)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Visualization (pycauset.vis)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/pycauset.vis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.vis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/pycauset.vis/plot_causal_matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.vis.plot_causal_matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/pycauset.vis/plot_embedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.vis.plot_embedding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../docs/pycauset.vis/plot_hasse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pycauset.vis.plot_hasse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Internals
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../CooperativeArchitecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cooperative Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../DType%20System/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DType System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../DTYPE_COMPLEX_OVERFLOW_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DTYPE Complex Overflow Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Compute%20Architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compute Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Block%20Matrices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Block Matrices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../MemoryArchitecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Memory%20and%20Data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory and Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Streaming%20Manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Algorithms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Algorithms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plans
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Plans
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../SUPPORT_READINESS_FRAMEWORK/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Support Readiness Framework (DTypes × Ops × Devices)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../BLAS_INTEGRATION_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenBLAS Integration Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_BLOCKMATRIX Plan — Block Matrices + Heterogeneous Dtypes (Storage-First)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_BLOCKMATRIX Plan — Block Matrices + Heterogeneous Dtypes (Storage-First)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#canonical-dependencies-read-before-implementing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Canonical dependencies (read before implementing)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#progress-snapshot-must-keep-updated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Progress snapshot (MUST keep updated)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phased-execution-plan-docstesting-baked-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phased execution plan (docs/testing baked in)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-a-contract-lock-completed-2025-12-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase A — Contract lock (COMPLETED 2025-12-21)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase A — Contract lock (COMPLETED 2025-12-21)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a1-locked-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A.1 Locked decisions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a2-acceptance-criteria-phase-a-exit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A.2 Acceptance criteria (Phase A exit)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0-purpose-and-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0) Purpose and scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-user-facing-construction-and-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1) User-facing construction and behavior
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1) User-facing construction and behavior">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-construction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 Construction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-indexing-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 Indexing semantics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-block-replacement-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 Block replacement API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-visualization-printing-must-not-trigger-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4 Visualization / printing (must not trigger evaluation)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-core-internal-representation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2) Core internal representation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2) Core internal representation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-internal-node-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Internal node types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-dtype-model-heterogeneous-containers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Dtype model (heterogeneous containers)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-operation-contracts-on-block-matrices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3) Operation contracts on block matrices
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3) Operation contracts on block matrices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-once-block-always-block-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 “Once block, always block” (default)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-elementwise-ops-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 Elementwise ops (+, -, *, /)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-matmul" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Matmul (@)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.3 Matmul (@)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#semi-lazy-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Semi-lazy evaluation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Semi-lazy evaluation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#evaluation-triggers-exactly-when-thunks-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluation triggers (exactly when thunks run)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deterministic-dtype-accumulation-rule-for-sum_k-inside-one-output-block" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deterministic dtype accumulation rule for \(\sum_k\) inside one output block
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#partition-mismatch-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Partition mismatch handling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Partition mismatch handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#partition-mismatch-refinement-via-submatrixview-no-silent-densify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Partition mismatch refinement via SubmatrixView (no silent densify)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-mutationversioning-and-caching-rules-critical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4) Mutation/versioning and caching rules (critical)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4) Mutation/versioning and caching rules (critical)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-default-semantics-snapshot-for-thunks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Default semantics: snapshot for thunks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-caching-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Caching policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-mutation-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Mutation semantics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.3 Mutation semantics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#set_blockr-c-block" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        set_block(r, c, block)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edits-to-referenced-child-matrices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edits to referenced child matrices
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-persistence-reference-save-manifests-infinitely-nestable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5) Persistence: reference-save manifests (infinitely nestable)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5) Persistence: reference-save manifests (infinitely nestable)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-runtime-assumption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 Runtime assumption
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-save-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 Save semantics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-load-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 Load semantics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-integration-points-single-dispatch-boundary-preserved" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6) Integration points (single dispatch boundary preserved)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6) Integration points (single dispatch boundary preserved)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-alignment-with-compute-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 Alignment with Compute Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6.1 Alignment with Compute Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#device-capability-reality-important" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Device capability reality (important)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-io-accelerator-compatibility-prefetchdiscard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 IO Accelerator compatibility (prefetch/discard)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-views-and-blasgpu-friendliness-without-copying" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 Views and BLAS/GPU friendliness (without copying)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-testing-strategy-minimum" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7) Testing strategy (minimum)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-risk-register" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8) Risk register
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-open-questions-to-decide-early" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9) Open questions (to decide early)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-documentation-requirements-must-be-thorough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10) Documentation requirements (must be thorough)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10) Documentation requirements (must be thorough)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#101-publicapi-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.1 Public/API documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#102-internals-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.2 Internals documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-agent-handoff-implementation-checklist-for-the-next-ai-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11) Agent handoff: implementation checklist (for the next AI agent)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11) Agent handoff: implementation checklist (for the next AI agent)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#111-core-correctness-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.1 Core correctness checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#112-compute-boundary-checklist-must-match-compute-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.2 Compute boundary checklist (must match Compute Architecture)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#113-determinism-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.3 Determinism checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#114-persistence-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.4 Persistence checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#115-debugvisualization-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.5 Debug/visualization checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#116-dont-get-trapped-pitfalls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.6 “Don’t get trapped” pitfalls
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../R1_LINALG_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_LINALG — Linear Algebra Foundation (Release 1)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../R1_PROPERTIES_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_PROPERTIES — Semantic Properties + Property-Aware Algebra (Release 1)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../R1_SHAPES_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_SHAPES Plan — NxM Matrices Across The System (End-to-End)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../R1_STORAGE_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    R1_STORAGE — Single-File Persistence Container + Typed Metadata (Release 1)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../DTYPE_COMPLEX_OVERFLOW_PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DType / Complex / Overflow Plan (Implementation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Restructure%20Plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Codebase Restructure Plan (Proposal + Execution Record)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dev Handbook
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Dev Handbook
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dev Handbook (Start Here)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Agent Bootstrap.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Bootstrap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Restructure%20Plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Restructure Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/PyCauset%20Container%20Format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PyCauset Container Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Storage%20Semantics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage Semantics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Codebase%20Structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Codebase Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Python%20Internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Build%20System/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Bindings%20%26%20Dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bindings & Dispatch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Testing%20%26%20Benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing & Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Warnings%20%26%20Exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Warnings & Exceptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Repository%20Hygiene/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Repository Hygiene
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../dev/Square-only%20Assumptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Square-only Assumptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/Philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Philosophy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/Public%20API%20Contract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Public API Contract
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocols
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Protocols
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocols
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Pre-alpha%20Policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pre-alpha Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Documentation%20Protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Adding%20Operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Adding%20Types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/NumPy%20Alignment%20Protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NumPy Alignment Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Release%20Process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/protocols/Testing%20and%20Bug%20Tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing and Bug Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../project/Contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TODO/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/BrorH/pycauset/edit/main/documentation/internals/plans/completed/R1_BLOCKMATRIX_PLAN.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/BrorH/pycauset/raw/main/documentation/internals/plans/completed/R1_BLOCKMATRIX_PLAN.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<h1 id="r1_blockmatrix-plan-block-matrices-heterogeneous-dtypes-storage-first">R1_BLOCKMATRIX Plan — Block Matrices + Heterogeneous Dtypes (Storage-First)</h1>
+<p><strong>Status:</strong> Active (drafted 2025-12-17)</p>
+<p>This plan is the canonical source of truth for block matrices in Release 1.</p>
+<div class="admonition warning">
+<p class="admonition-title">Active plan (not shipped)</p>
+<p>The behavior in this document is not guaranteed to exist in the current codebase.
+Do not add user-facing Guides or API Reference that implies this feature is available until implementation lands (Phase G).</p>
+</div>
+<h2 id="canonical-dependencies-read-before-implementing">Canonical dependencies (read before implementing)</h2>
+<ul>
+<li>Roadmap node: <a href="../../TODO/">PyCauset Roadmap</a></li>
+<li>Foundations:</li>
+<li><a href="../../../Compute%20Architecture/">Compute Architecture</a></li>
+<li><a href="../../../DType%20System/">DType System</a></li>
+<li>Release 1 foundations (implemented behavior elsewhere in the system):</li>
+<li><a href="../../../../guides/release1/storage/">Storage</a></li>
+<li><a href="../../../../guides/release1/properties/">Properties</a></li>
+<li><a href="../../../../guides/release1/dtypes/">DTypes</a></li>
+<li><a href="../../../../guides/release1/linalg/">Linear Algebra</a></li>
+</ul>
+<h2 id="progress-snapshot-must-keep-updated">Progress snapshot (MUST keep updated)</h2>
+<p><strong>Last updated:</strong> 2025-12-22</p>
+<p><strong>Current phase step:</strong> Phase H — Testing &amp; hardening (completed 2025-12-22)</p>
+<p><strong>What is done (DONE):</strong></p>
+<ul>
+<li>Phase A contract lock completed (interfaces, invariants, determinism, persistence shape, and staleness semantics).</li>
+<li>Phase B completed: internal <code>BlockMatrix</code> container implemented (Python layer) with construction validation, element reads, and structure-only <code>repr</code>/<code>str</code>.</li>
+<li>Phase B tests added for construction/indexing/printing validation.</li>
+<li>Phase C started: internal <code>SubmatrixView</code> container implemented (Python layer) with view composition, dense + block sources, and structure-only printing.</li>
+<li>Phase C tests added for dense + block view element reads, cross-block views, and repr/str non-trigger behavior.</li>
+<li>Phase C refinement implemented (Python layer): <code>BlockMatrix.refine_partitions(...)</code> produces a refined block grid using <code>SubmatrixView</code> without densification; deterministic validation errors are enforced.</li>
+<li>Phase C refinement tests added (correctness + error cases).</li>
+<li>Phase D started (Python layer): <code>ThunkBlock</code> implemented with structure-only printing, lazy evaluation on element access, caching, and snapshot-at-creation staleness checks based on <code>version</code> pins.</li>
+<li>Phase D started (Python layer): internal <code>block_matmul(A,B)</code> orchestrator produces a BlockMatrix of thunk blocks and refines inner partitions deterministically.</li>
+<li>Phase D tests added for trigger/non-trigger behavior, deterministic k-order accumulation, and stale-thunk errors.</li>
+<li>Phase D elementwise started (Python layer): internal <code>block_add(A,B)</code> aligns partitions by refinement-union and returns a BlockMatrix of thunk blocks.</li>
+<li>Phase D note: when refinement produces Python <code>SubmatrixView</code> blocks, view-local <code>+</code>/<code>@</code> fall back to small dense evaluation (block-local only) to keep orchestration correct without global densification.</li>
+<li>Phase E completed: <code>.pycauset</code> save/load supports internal <code>BlockMatrix</code> via a manifest (<code>matrix_type=BLOCK</code>) that references child <code>.pycauset</code> files stored in a sibling directory (<code>&lt;file&gt;.blocks/</code>).</li>
+<li>Phase E behavior: saving a BlockMatrix evaluates <code>ThunkBlock</code> blocks blockwise (no global densify), persists realized results, and raises on stale thunks.</li>
+<li>Phase E hardening: thunk staleness pins include leaf blocks (and view sources) so in-place leaf mutation with a <code>version</code> bumps stale deterministically; concurrency test ensures single-eval caching under threads.</li>
+<li>Phase E hardening: child references are validated deterministically (path safety + pinned child <code>payload_uuid</code>), and multi-file saves use staging/commit to reduce partial-update risk.</li>
+<li>
+<p>Phase E coverage: nested, mixed-dtype, and view-block (SubmatrixView) persistence paths have round-trip tests.</p>
+</li>
+<li>
+<p>Phase F started: public constructor disambiguation and “once block, always block” routing are wired.</p>
+</li>
+<li>Phase F started: mixed-operand operator behavior (<code>dense + block</code>, <code>dense @ block</code>) defers to BlockMatrix via NotImplemented fallback in native operator bindings.</li>
+<li>Phase F started: leaf <code>matmul</code> inside thunk evaluation routes through the public compute boundary for native matrices, preserving property-aware dispatch.</li>
+<li>Phase F started: IO accelerator hooks are exposed (best-effort prefetch/discard) with trace validation support.</li>
+<li>Phase F started: integration tests cover operator fallback and device routing for block addition when CUDA is active (with CPU fallback for unsupported dtypes).</li>
+<li>Phase F completed: elementwise block ops (<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>) are thunked and partition-aligned, with IO prefetch/discard hooks.</li>
+<li>Phase F completed: integration tests cover mixed-operand fallbacks (<code>dense op block</code>) and device routing expectations for <code>+</code>/<code>-</code> (GPU when supported, CPU otherwise) plus CPU-only guarantees for <code>*</code>/<code>/</code> under CUDA.</li>
+<li>Phase G completed: documentation footprint added per Documentation Protocol — public guides (Matrix Guide, R1 linalg/storage), API reference (<code>pycauset.matrix</code>, <code>pycauset.matmul</code>, <code>pycauset.save</code>, <code>pycauset.load</code>), and internals (Block Matrices) now cover construction rules, slicing, triggers/non-triggers, refinement, staleness, persistence sidecars, and device routing expectations.</li>
+<li>Phase H completed: hardening tests added for complex matmul vs dense (CPU fallback with guarded skip when complex matmul/persistence unsupported), float16 matmul vs dense, many-small-block matmul vs dense, mixed-dtype add vs dense, nested complex matmul+persistence (guarded skip), thunk concurrency single-eval locking, and <code>set_block</code> staleness invalidation; suite is green with expected skips only.</li>
+</ul>
+<p>Phase E policy choices (locked for this implementation pass):</p>
+<ul>
+<li>Sidecar directory naming: use <code>str(path) + ".blocks"</code> (example: <code>bm.pycauset</code> → <code>bm.pycauset.blocks/</code>).</li>
+<li>Overwrite cleanup: best-effort delete only deterministic child block files matching <code>block_r*_c*.pycauset</code> in the sidecar directory; do not wipe unrelated files.</li>
+<li>Stale thunk on save: saving must raise a deterministic stale-thunk error (no silent recompute).</li>
+<li>Persisted snapshot integrity: each manifest child entry pins the child file's <code>payload_uuid</code>; load validates this and errors if a child file was replaced/rewritten (prevents silent mixed-snapshot loads).</li>
+<li>Container-level cached-derived: no block-matrix-level <code>trace/determinant/norm/sum/...</code> caching is defined for R1 internal <code>BlockMatrix</code>; cached-derived persistence remains per-child (leaf matrices) under the existing signature rules.</li>
+<li>View persistence (R1 internal policy): if a BlockMatrix contains <code>SubmatrixView</code> blocks (e.g., from <code>refine_partitions</code>), saving materializes each view <strong>block-locally</strong> by copying elements into a small NumPy array (with dtype inferred from the view’s source type) and then converting it via <code>native.asarray</code>; there is no multi-file "view reference" format in R1.</li>
+<li>Multi-file save hardening (best-effort): BlockMatrix saves stage managed child files (and nested child <code>.blocks/</code> trees) in a temporary staging directory and then commit via replace/rename. This reduces partial updates; if a crash still occurs mid-commit, <code>payload_uuid</code> pinning ensures loads fail deterministically rather than silently mixing snapshots.</li>
+</ul>
+<p><strong>What is next (NEXT):</strong></p>
+<ul>
+<li>Optional follow-ups: perf guardrails or stress/block-count overhead checks, plus CLI/bench hooks if product asks; otherwise plan is complete for R1 scope.</li>
+</ul>
+<p><strong>Blocked / deferred:</strong></p>
+<ul>
+<li>Full symbolic lazy evaluation / fusion across arbitrary expression graphs is deferred.</li>
+<li>GPU kernels for block-aware ops are deferred; leaf ops must still route via AutoSolver/ComputeDevice.
+*** Block-matrix-aware slicing completed (integrated into guides/API/internals); no longer deferred.</li>
+</ul>
+<hr />
+<h2 id="phased-execution-plan-docstesting-baked-in">Phased execution plan (docs/testing baked in)</h2>
+<ul>
+<li><strong>Phase A — Contract lock (planning):</strong> finalize semantics for evaluation triggers, caching/versioning, dtype accumulation, partition refinement, mutation, and manifest shape. Exit: written acceptance criteria + updated risk/open questions if any. Docs: update this plan + roadmap status.</li>
+<li><strong>Phase B — Core types &amp; validation:</strong> implement <code>BlockMatrix</code> container (partitions, lookup, mixed dtype metadata), construction validation, structural <code>repr</code>/<code>str</code>. Exit: construction/indexing unit tests + structure-only printing tests.</li>
+<li><strong>Phase C — Views &amp; partition refinement:</strong> deliver <code>SubmatrixView</code> (no-copy), block-grid refinement for mismatched partitions, tiled views across blocks, scalar/transpose propagation. Exit: view composition tests (dense + block), refinement correctness tests, deterministic error cases for unsupported views.</li>
+<li><strong>Phase D — Ops orchestration &amp; thunks:</strong> elementwise ops and block matmul orchestration with deterministic per-block accumulator dtype, thunk creation, evaluation triggers, and snapshot/version checks. Exit: lazy-eval tests (triggers/non-triggers), dtype accumulator tests, stale-thunk error tests, and CPU routing for complex blocks; add trace tags for observability.</li>
+<li><strong>Phase E — Persistence &amp; caching:</strong> manifest save/load for nested blocks, temp handling for thunks, cache invalidation on <code>set_block</code>/child mutation, single-eval locking. Exit: save/load round-trip tests (nested, mixed dtype), cache invalidation tests, concurrent thunk evaluation test.</li>
+<li><strong>Phase F — Integration (properties/device/IO):</strong> ensure “once block, always block” behavior with AutoSolver boundary, property metadata pass-through, IO accelerator prefetch/discard hooks, and CPU fallback for CUDA gaps. Exit: integration tests covering property propagation, device routing expectations, and IO prefetch/discard trace validation.</li>
+<li><strong>Phase G — Documentation:</strong> publish API + internals per Documentation Protocol (construction rules, triggers, manifest schema, versioning/staleness, device routing expectations, printing). Exit: docs merged + updated roadmap status.</li>
+<li><strong>Phase H — Testing &amp; hardening:</strong> expand coverage (complex blocks, float16, deep nesting), stress/block-count overhead checks, and CLI/bench hooks if needed. Exit: test suite green, known gaps documented; optional perf guardrails noted.</li>
+</ul>
+<hr />
+<h2 id="phase-a-contract-lock-completed-2025-12-21">Phase A — Contract lock (COMPLETED 2025-12-21)</h2>
+<p>This section freezes the semantics and interfaces so Phase B+ can implement without re-litigating contracts.</p>
+<h3 id="a1-locked-decisions">A.1 Locked decisions</h3>
+<p>1) <strong>User entrypoint (constructor) is <code>pycauset.matrix(...)</code> (extended, not replaced).</strong></p>
+<p>The current <code>pycauset.matrix(source, dtype=None, **kwargs)</code> is a numeric data constructor (1D→vector, 2D→dense matrix).</p>
+<p>Block-matrix construction will be added without breaking existing behavior:</p>
+<ul>
+<li>If <code>source</code> is 2D and <strong>every element is a <code>MatrixBase</code>-like object</strong>, treat <code>source</code> as a block grid and construct a <code>BlockMatrix</code>.</li>
+<li>If <code>source</code> is 2D and <strong>no elements are matrices</strong> (numeric scalars / NumPy scalars), keep current dense behavior.</li>
+<li>If <code>source</code> is 2D and <strong>mixes matrices and scalars</strong>, raise a deterministic <code>TypeError</code> (no implicit lifting / no implicit densification).</li>
+</ul>
+<p>Rationale: avoids ambiguity with the existing numeric constructor while enabling the target syntax.</p>
+<p>2) <strong>Block-level access is explicit, element access remains elementwise.</strong></p>
+<ul>
+<li><code>M[i, j]</code> returns an element.</li>
+<li>Block access is via <code>get_block(r, c)</code> / <code>set_block(r, c, block)</code> with <code>r,c</code> as block-grid indices.</li>
+</ul>
+<p>3) <strong>No silent densification.</strong></p>
+<ul>
+<li>Any unsupported view/refinement case must raise a deterministic error.</li>
+<li>There is no fallback that materializes a whole dense matrix “just to make it work”.</li>
+</ul>
+<p>4) <strong>Semi-lazy matmul outputs thunk per output block, with fixed determinism rules.</strong></p>
+<ul>
+<li>Thunks are evaluated only on triggers (element access, dense export, persistence, or leaf-compute boundary).</li>
+<li>Per-block accumulation dtype follows the deterministic metadata-only rule already defined in this plan.</li>
+<li>Summation order over <code>k</code> is fixed.</li>
+</ul>
+<p>5) <strong>Staleness semantics are snapshot-at-creation (default).</strong></p>
+<ul>
+<li>Thunks capture input references + versions.</li>
+<li>If any input version differs on evaluation/cache hit, raise a deterministic “stale thunk” error (do not silently recompute).</li>
+</ul>
+<p>6) <strong>Persistence shape is manifest + referenced children (nestable).</strong></p>
+<ul>
+<li>A saved block matrix stores a manifest in <code>.pycauset</code> metadata that describes the grid topology and references child matrices.</li>
+<li>Thunk blocks are evaluated <strong>blockwise</strong> for save (no global densify).</li>
+<li>If a referenced child is temporary, saving persists it to a stable child file first and then references it.</li>
+</ul>
+<h3 id="a2-acceptance-criteria-phase-a-exit">A.2 Acceptance criteria (Phase A exit)</h3>
+<ul>
+<li>The constructor disambiguation rules for <code>pycauset.matrix(...)</code> are explicit (numeric vs block-grid vs mixed error).</li>
+<li>Minimum public-facing block API is frozen: <code>get_block</code>, <code>set_block</code>, <code>block_rows</code>, <code>block_cols</code>, <code>row_partitions</code>, <code>col_partitions</code>.</li>
+<li>Evaluation triggers and non-triggers are frozen (especially: <code>repr/str</code> and metadata queries must never evaluate thunks).</li>
+<li>“No silent densify” rule is frozen (unsupported views/refinements error deterministically).</li>
+<li>Staleness semantics are frozen (snapshot-at-creation; stale access errors).</li>
+<li>Persistence intent is frozen (manifest + referenced child matrices; thunk save is blockwise).</li>
+</ul>
+<hr />
+<h2 id="0-purpose-and-scope">0) Purpose and scope</h2>
+<p>Block matrices are a core storage format in PyCauset.</p>
+<p>Primary goals:</p>
+<ul>
+<li><strong>Storage-first:</strong> constructing/saving a block matrix must not write an expanded dense buffer.</li>
+<li><strong>Heterogeneous dtype:</strong> a block matrix may contain blocks of different dtypes (including nested block matrices).</li>
+<li><strong>Infinitely nestable:</strong> blocks may themselves be block matrices, recursively.</li>
+<li><strong>Frontend transparency:</strong> a block matrix behaves like a matrix from the public API:</li>
+<li>element indexing yields elements, not blocks,</li>
+<li>matmul/elementwise ops “just work” under correct dimension rules.</li>
+<li><strong>Single dispatch boundary:</strong> leaf computations route via AutoSolver/ComputeDevice.</li>
+</ul>
+<p>Non-goals (for now):</p>
+<ul>
+<li>General-purpose lazy expression graphs across all operations.</li>
+<li>Implicit densification as a fallback for unsupported block/view cases.</li>
+<li>Perfect performance for deeply nested blocks (correctness first; inefficiency is acceptable).</li>
+</ul>
+<hr />
+<h2 id="1-user-facing-construction-and-behavior">1) User-facing construction and behavior</h2>
+<h3 id="11-construction">1.1 Construction</h3>
+<p>Target syntax:</p>
+<ul>
+<li>Example:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">M</span> <span class="o">=</span> <span class="n">pycauset</span><span class="o">.</span><span class="n">matrix</span><span class="p">([</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  <span class="p">[</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">],</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  <span class="p">[</span><span class="n">C</span><span class="p">,</span> <span class="n">D</span><span class="p">],</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">])</span>
+</code></pre></div>
+<p>where <code>A,B,C,D</code> are matrices (including block matrices).</p>
+<p>Validation:</p>
+<ul>
+<li>All blocks in a <strong>block-row</strong> must have the same number of rows.</li>
+<li>All blocks in a <strong>block-col</strong> must have the same number of cols.</li>
+<li>Total shape is <code>(sum block-row heights, sum block-col widths)</code>.</li>
+</ul>
+<h3 id="12-indexing-semantics">1.2 Indexing semantics</h3>
+<ul>
+<li><code>M[i, j]</code> returns a scalar element.</li>
+<li><code>M[i0:i1, j0:j1]</code> slicing is deferred to the broader indexing plan in the <a href="../R1_LINALG_PLAN/">R1_LINALG plan</a>; block work requires an internal view node.</li>
+</ul>
+<h3 id="13-block-replacement-api">1.3 Block replacement API</h3>
+<p>Block-level access is explicit (not via <code>__getitem__</code>).</p>
+<p>Minimum API:</p>
+<ul>
+<li><code>get_block(r, c) -&gt; MatrixBase</code></li>
+<li><code>set_block(r, c, block: MatrixBase) -&gt; None</code></li>
+</ul>
+<p><code>r,c</code> are <strong>block indices</strong> into the current block grid (not element indices):</p>
+<ul>
+<li><code>r</code> is the block-row index in <code>[0, block_rows)</code></li>
+<li><code>c</code> is the block-col index in <code>[0, block_cols)</code></li>
+</ul>
+<p>Required introspection API (minimal):</p>
+<ul>
+<li><code>block_rows</code> and <code>block_cols</code> (or equivalent methods)</li>
+<li><code>row_partitions</code> and <code>col_partitions</code> returning the boundary arrays (prefix sums) used by the block grid</li>
+<li>Example: <code>row_partitions == [0, r1, r2, ..., rows]</code></li>
+<li>Example: <code>col_partitions == [0, c1, c2, ..., cols]</code></li>
+</ul>
+<p><code>set_block</code> must validate that the replacement block matches the existing block-row height and block-col width.</p>
+<p>Optional (nice-to-have) helpers for debugging:</p>
+<ul>
+<li><code>block_shape(r, c) -&gt; (rows, cols)</code></li>
+<li><code>block_dtype(r, c) -&gt; DataType</code></li>
+</ul>
+<h3 id="14-visualization-printing-must-not-trigger-evaluation">1.4 Visualization / printing (must not trigger evaluation)</h3>
+<p>Block matrices are primarily about structure. Default printing must emphasize structure without forcing computation.</p>
+<p>Required behavior:</p>
+<ul>
+<li><code>repr(M)</code> / <code>str(M)</code> prints a <strong>structure summary</strong> and never evaluates thunks.</li>
+<li>The summary includes:</li>
+<li>overall shape,</li>
+<li>block grid size (block_rows × block_cols),</li>
+<li>row/col partitions,</li>
+<li>per-block descriptors: shape, dtype, and kind (<code>leaf</code>, <code>view</code>, <code>thunk</code>, <code>block</code>).</li>
+</ul>
+<p>Recommended formatting (human-scannable):</p>
+<ul>
+<li>1-line header: <code>BlockMatrix(shape=(...), grid=RxC, dtype=MIXED)</code></li>
+<li>Then an ASCII grid of block descriptors, truncated by <code>max_depth</code> and <code>max_blocks</code>.</li>
+</ul>
+<p>Explicitly opt-in value printing (may evaluate):</p>
+<ul>
+<li>If we add a helper like <code>M.to_dense_string(...)</code> or <code>M.materialize()</code> later, it must be clearly named and documented as a trigger.</li>
+</ul>
+<hr />
+<h2 id="2-core-internal-representation">2) Core internal representation</h2>
+<h3 id="21-internal-node-types">2.1 Internal node types</h3>
+<p><code>BlockMatrix : MatrixBase</code> (internal; not necessarily public as <code>pc.BlockMatrix</code>):</p>
+<ul>
+<li>stores <code>blocks[r][c]</code> as references (shared ownership),</li>
+<li>stores <code>row_offsets[]</code> and <code>col_offsets[]</code> prefix sums,</li>
+<li>supports nesting (a block can be another <code>BlockMatrix</code>).</li>
+</ul>
+<p><code>SubmatrixView : MatrixBase</code> (required):</p>
+<ul>
+<li>represents a rectangular view into an existing matrix without copying,</li>
+<li>supports views into dense matrices and block matrices (views can compose).</li>
+</ul>
+<p><code>ThunkBlock</code> / <code>DeferredBlock</code> (internal helper; may be a MatrixBase subclass or a block wrapper):</p>
+<ul>
+<li>represents a deferred computation that produces a concrete MatrixBase on evaluation,</li>
+<li>caches evaluated result.</li>
+</ul>
+<h3 id="22-dtype-model-heterogeneous-containers">2.2 Dtype model (heterogeneous containers)</h3>
+<p>Block matrices do <strong>not</strong> have a single dtype.</p>
+<ul>
+<li>Introduce <code>DataType::MIXED</code> (or equivalent) for heterogeneous containers.</li>
+<li>Each child block retains its own dtype.</li>
+</ul>
+<p>Element reads:</p>
+<ul>
+<li><code>get_element_as_double(i,j)</code> / <code>get_element_as_complex(i,j)</code> are defined by delegating into the appropriate block.</li>
+</ul>
+<p>Structured view scope (initial):</p>
+<ul>
+<li><code>SubmatrixView</code> supports dense matrices and block matrices first; other structured types must raise a deterministic “view not supported yet” error until explicitly added.</li>
+</ul>
+<hr />
+<h2 id="3-operation-contracts-on-block-matrices">3) Operation contracts on block matrices</h2>
+<h3 id="31-once-block-always-block-default">3.1 “Once block, always block” (default)</h3>
+<p>If any operand is a block matrix, the default result is a block matrix (unless explicitly materialized).</p>
+<p>Rationale:</p>
+<ul>
+<li>preserves storage wins (identity/zero/diagonal blocks remain cheap),</li>
+<li>avoids global promotion/densification.</li>
+</ul>
+<h3 id="32-elementwise-ops-">3.2 Elementwise ops (<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>)</h3>
+<p>Contract:</p>
+<ul>
+<li>Operate blockwise.</li>
+<li>If mixing <code>BlockMatrix</code> with a non-block matrix, partition the non-block operand into matching <code>SubmatrixView</code> tiles.</li>
+<li>Output block dtypes are computed per-block using the promotion rules for that specific op on the specific operand dtypes.</li>
+</ul>
+<p>No silent densification:</p>
+<ul>
+<li>If a required view cannot be represented (e.g., unsupported structure), raise a deterministic error.</li>
+</ul>
+<h3 id="33-matmul">3.3 Matmul (<code>@</code>)</h3>
+<p>Contract:</p>
+<ul>
+<li>Block matmul follows standard block multiplication:</li>
+</ul>
+<p>For block grids <code>A[i,k]</code> and <code>B[k,j]</code>:</p>
+<p>$<span class="arithmatex">\(C_{ij} = \sum_k A_{ik} @ B_{kj}\)</span>$</p>
+<ul>
+<li>Result is a <code>BlockMatrix</code> of output blocks.</li>
+</ul>
+<h4 id="semi-lazy-evaluation">Semi-lazy evaluation</h4>
+<p>We use <strong>semi-lazy</strong> evaluation for block matmul outputs:</p>
+<ul>
+<li><code>C</code> is returned immediately as a <code>BlockMatrix</code> of thunks.</li>
+<li>Each thunk represents one <code>C_ij</code> block.</li>
+<li>The thunk is evaluated on-demand and then cached.</li>
+</ul>
+<h5 id="evaluation-triggers-exactly-when-thunks-run">Evaluation triggers (exactly when thunks run)</h5>
+<p>A thunk for an output block <code>C_ij</code> <strong>must not</strong> run “in the background”. It only runs when an API call requires numeric contents of that block.</p>
+<p><strong>Triggers (must evaluate the minimal required blocks):</strong></p>
+<ul>
+<li>Element access (<code>C[i, j]</code>) evaluates the unique block that contains <code>(i, j)</code>.</li>
+<li>Any operation that requires dense contents of <code>C</code> evaluates all blocks:</li>
+<li>conversion/export (<code>np.asarray(C)</code>, <code>pycauset.to_numpy(C)</code>),</li>
+<li>any future <code>materialize()</code> API.</li>
+<li>Persistence (<code>C.save(path)</code>) evaluates all thunk blocks, but must do so <strong>blockwise</strong> (materialize each block into a child matrix file; never densify the full matrix into one giant buffer).</li>
+<li>Passing a thunk block across the leaf compute boundary (AutoSolver/ComputeDevice) evaluates it first.</li>
+</ul>
+<p><strong>Non-triggers (must not evaluate):</strong></p>
+<ul>
+<li><code>C.shape</code>, <code>C.rows</code>, <code>C.cols</code>, and any partition metadata queries.</li>
+<li><code>C.dtype</code> / “container dtype” queries for a mixed container.</li>
+<li><code>repr(C)</code> / <code>str(C)</code> / debug printing (may report “thunked” status).</li>
+<li><code>C.get_block(r,c)</code> (returns a handle that may still be thunked; evaluation is triggered only when numeric contents are required).</li>
+</ul>
+<p>Determinism:</p>
+<ul>
+<li>Reduction order over <code>k</code> is fixed.</li>
+<li>Dtype decisions for accumulation are deterministic.</li>
+</ul>
+<p>Local promotion (unavoidable):</p>
+<ul>
+<li>Even with heterogeneous container dtypes, a single output block <code>C_ij</code> may need local promotion while accumulating <code>Σ_k</code>.</li>
+<li>This is local to that block; it does not force a global result dtype.</li>
+</ul>
+<h5 id="deterministic-dtype-accumulation-rule-for-sum_k-inside-one-output-block">Deterministic dtype accumulation rule for <span class="arithmatex">\(\sum_k\)</span> inside one output block</h5>
+<p>Each output block <code>C_ij</code> is computed as a deterministic fold over terms <code>T_k = A_ik @ B_kj</code>.</p>
+<p><strong>Rule (deterministic, metadata-only):</strong></p>
+<p>1) For each <code>k</code>, compute the <strong>term dtype</strong> <code>dtype(T_k)</code> using the existing matmul dtype rules (the same rules used by the non-block <code>@</code>). This is determined from operand dtypes/structures and does not require evaluation.</p>
+<p>2) Compute the <strong>accumulator dtype</strong> <code>dtype_acc</code> by folding the existing addition dtype rule over the sequence of term dtypes in increasing <code>k</code>:</p>
+<div class="arithmatex">\[dtype\_acc = fold\_k\big( add\_result\_dtype,\ dtype(T_0), dtype(T_1), \ldots \big)\]</div>
+<p>3) During numeric evaluation, each term <code>T_k</code> is accumulated into an accumulator buffer of type <code>dtype_acc</code> (casting each <code>T_k</code> to <code>dtype_acc</code> if needed) using a fixed <code>k</code> order.</p>
+<p><strong>Notes:</strong></p>
+<ul>
+<li>This keeps the container heterogeneous: <code>dtype_acc</code> is per-output-block.</li>
+<li>If term dtypes include both real and complex, <code>dtype_acc</code> is complex (per existing promotion rules).</li>
+<li>If term dtypes include multiple float widths, <code>dtype_acc</code> is the widest among them (per existing promotion rules).</li>
+<li>Integer-only accumulation follows the existing integer promotion behavior for <code>+</code> (we are not adding a new “safe integer accumulator” mode in R1).</li>
+</ul>
+<h4 id="partition-mismatch-handling">Partition mismatch handling</h4>
+<p>If block partitions are not aligned:</p>
+<ul>
+<li>Compute the common refinement of boundaries and use <code>SubmatrixView</code> to split blocks without copying.</li>
+<li>If refinement cannot be represented without copying, raise an error (do not silently densify).</li>
+</ul>
+<h5 id="partition-mismatch-refinement-via-submatrixview-no-silent-densify">Partition mismatch refinement via <code>SubmatrixView</code> (no silent densify)</h5>
+<p>We must support the common case where <code>A</code> and <code>B</code> have different block boundaries, while still guaranteeing no implicit densification.</p>
+<p><strong>Matmul refinement (core requirement):</strong></p>
+<ul>
+<li>Let <code>A</code> have row boundaries <code>RA</code> and col boundaries <code>CA</code>.</li>
+<li>Let <code>B</code> have row boundaries <code>RB</code> and col boundaries <code>CB</code>.</li>
+</ul>
+<p>For <code>C = A @ B</code>, the shared dimension boundaries must align in the refined view. We compute:</p>
+<ul>
+<li><code>K = sort(unique(CA ∪ RB))</code> as the refinement boundaries for the shared axis.</li>
+</ul>
+<p>Then, for each output block <code>(i, j)</code> defined by row interval <code>RA[i..i+1]</code> and col interval <code>CB[j..j+1]</code>, the sum is taken over <code>k</code> intervals defined by <code>K</code>:</p>
+<ul>
+<li><code>A_ik_view = SubmatrixView(A, rows=RA_i, cols=K_k)</code></li>
+<li><code>B_kj_view = SubmatrixView(B, rows=K_k, cols=CB_j)</code></li>
+</ul>
+<p>These views must be representable without copying for all participating blocks.</p>
+<p><strong>Elementwise refinement (for completeness):</strong></p>
+<ul>
+<li>For <code>A ⊙ B</code> (⊙ ∈ {+,-,*,/}), compute refinement boundaries on both axes:</li>
+<li><code>R = sort(unique(RA ∪ RB))</code></li>
+<li><code>C = sort(unique(CA ∪ CB))</code></li>
+<li>Tile both operands into matching <code>SubmatrixView</code> blocks.</li>
+</ul>
+<p><strong>Hard rule:</strong></p>
+<ul>
+<li>If any required <code>SubmatrixView</code> is not representable under a matrix’s structure constraints (e.g., a square-only structured type that cannot form an arbitrary rectangular view), the operation must raise a deterministic error.</li>
+<li>There is no “fallback densify” behavior.</li>
+</ul>
+<hr />
+<h2 id="4-mutationversioning-and-caching-rules-critical">4) Mutation/versioning and caching rules (critical)</h2>
+<p>Lazy thunks + mutation can produce silent wrong answers unless we define this explicitly.</p>
+<h3 id="41-default-semantics-snapshot-for-thunks">4.1 Default semantics: snapshot for thunks</h3>
+<p>R1 default (locked in):</p>
+<ul>
+<li>Thunks capture a snapshot of inputs (by reference + versioning).</li>
+<li>If any input block changes after thunk creation, cached results are invalidated or evaluation is forbidden until re-derived.</li>
+</ul>
+<p>Recomputation policy:</p>
+<ul>
+<li>If serving a request would require more than O(1) work relative to cached state, do not auto-recompute; stale accesses raise a deterministic error. In R1, all stale thunk/cache hits fall under this rule and must error.</li>
+</ul>
+<p>Implementation direction:</p>
+<ul>
+<li>Add per-object monotonic <code>version</code> counters that increment on mutation.</li>
+<li>Thunks store the input versions they were derived from.</li>
+<li>On evaluation/cache hit, verify versions match.</li>
+</ul>
+<p>Clarification (R1 choice — explicit):</p>
+<ul>
+<li>This is <strong>snapshot-at-creation semantics</strong> for lazy results: a thunk is only valid for the specific versions of its inputs that existed when the thunk was created.</li>
+<li>If an input’s version differs, the thunk must raise a deterministic “stale thunk” error rather than silently recomputing with new values.</li>
+</ul>
+<p>This avoids time-dependent results and mixed-snapshot matrices.</p>
+<p>Future (explicit opt-in, not default):</p>
+<ul>
+<li>We may add a “live” policy where stale thunks automatically recompute against current inputs, but it must be user-controlled (never implicit) because it changes determinism and interacts badly with partial caching.</li>
+</ul>
+<h3 id="42-caching-policy">4.2 Caching policy</h3>
+<p>Pitfall: unbounded caching can explode disk/memory.</p>
+<p>Minimum viable policy:</p>
+<p><strong>What is cached:</strong></p>
+<ul>
+<li>The evaluated numeric result of each thunk block (<code>C_ij</code>) as a concrete <code>MatrixBase</code> instance.</li>
+</ul>
+<p><strong>Where it is cached:</strong></p>
+<ul>
+<li>Cached blocks are stored in-memory as references, and their backing storage is a normal matrix backing (typically a temp <code>.pycauset</code> file) managed by the existing temp lifecycle.</li>
+</ul>
+<p><strong>Invalidation:</strong></p>
+<ul>
+<li>Any <code>set_block</code> on a <code>BlockMatrix</code> invalidates all cached/thunked blocks owned by that <code>BlockMatrix</code> (increment the parent version; cached blocks become inaccessible).</li>
+<li>Any mutation of a referenced child matrix invalidates any thunk (and any cached block) that depends on it via version mismatch checks.</li>
+</ul>
+<p><strong>Eviction:</strong></p>
+<ul>
+<li>No eviction policy is required for R1 beyond the existing temp cleanup. (We avoid introducing new user-facing cache knobs in R1.)</li>
+</ul>
+<p>Later enhancements (SRP/IO):</p>
+<ul>
+<li>LRU eviction, memory thresholds, explicit <code>cache_policy</code> knobs.</li>
+</ul>
+<h3 id="43-mutation-semantics">4.3 Mutation semantics</h3>
+<p>We need explicit semantics for both (a) replacing blocks and (b) mutating matrices that are referenced as blocks.</p>
+<h4 id="set_blockr-c-block"><code>set_block(r, c, block)</code></h4>
+<ul>
+<li><code>set_block</code> is a mutation of the <code>BlockMatrix</code> container.</li>
+<li>It must validate the replacement block’s shape against the existing block-row and block-col sizes.</li>
+<li>It increments the container’s <code>version</code> and invalidates any cached/thunked blocks owned by the container.</li>
+<li>It does not mutate the old or new child blocks.</li>
+</ul>
+<h4 id="edits-to-referenced-child-matrices">Edits to referenced child matrices</h4>
+<p>If a child matrix <code>A</code> is referenced by one or more <code>BlockMatrix</code> containers and the user mutates <code>A</code> (element edits, in-place ops, etc.):</p>
+<ul>
+<li><code>A.version</code> increments.</li>
+<li>Any thunk that captured <code>A</code> at an older version becomes <strong>stale</strong>.</li>
+<li>Accessing a stale thunk (or a cached block derived from a stale thunk) must raise a deterministic error (not recompute). This is the R1 default.</li>
+</ul>
+<p>Rationale:</p>
+<ul>
+<li>Prevents partially materialized results that mix old and new input states.</li>
+<li>Keeps “lazy” behavior from becoming time-dependent.</li>
+</ul>
+<hr />
+<h2 id="5-persistence-reference-save-manifests-infinitely-nestable">5) Persistence: reference-save manifests (infinitely nestable)</h2>
+<h3 id="51-runtime-assumption">5.1 Runtime assumption</h3>
+<p>During a run, backing <code>.pycauset</code> files do not move or disappear.</p>
+<h3 id="52-save-semantics">5.2 Save semantics</h3>
+<p>When a user calls <code>.save(path)</code> on a block matrix:</p>
+<ul>
+<li>Write a <strong>manifest</strong> that records:</li>
+<li>block grid topology,</li>
+<li>row/col partition sizes,</li>
+<li>for each block: reference to the child’s backing file + block metadata (transpose/conjugate/scalar/etc),</li>
+<li>recursion for nested blocks.</li>
+</ul>
+<p>Format requirement:</p>
+<ul>
+<li>Manifest is a binary header + records inside the <code>.pycauset</code> file; JSON/zip formats are removed and must not be referenced in code or docs.</li>
+</ul>
+<p>The manifest does <strong>not</strong> store expanded dense elements.</p>
+<p>Handling temporaries:</p>
+<ul>
+<li>If a referenced child is temporary, saving must first persist it to a stable child file (copy storage) and then reference that.</li>
+</ul>
+<h3 id="53-load-semantics">5.3 Load semantics</h3>
+<ul>
+<li>Load reads the manifest, reconstructs the <code>BlockMatrix</code> structure, and recursively loads child blocks.</li>
+</ul>
+<hr />
+<h2 id="6-integration-points-single-dispatch-boundary-preserved">6) Integration points (single dispatch boundary preserved)</h2>
+<ul>
+<li><code>BlockMatrix</code> orchestration decomposes operations into leaf ops on non-block matrices.</li>
+<li>Leaf ops always route via AutoSolver/ComputeDevice.</li>
+</ul>
+<p>This keeps OpenBLAS/CUDA integration straightforward:</p>
+<ul>
+<li>They accelerate the leaf <code>matmul/add/...</code> kernels.</li>
+<li>Block orchestration decides <em>which</em> leaf ops to run and <em>when</em> (via thunks).</li>
+</ul>
+<h3 id="61-alignment-with-compute-architecture">6.1 Alignment with Compute Architecture</h3>
+<p>This plan is designed to remain compatible with <code>documentation/internals/Compute Architecture.md</code>:</p>
+<ul>
+<li>All heavy numerical work still goes through <code>ComputeContext::instance().get_device()</code>.</li>
+<li>AutoSolver remains the routing point that decides CPU vs GPU based on size and capabilities.</li>
+</ul>
+<h4 id="device-capability-reality-important">Device capability reality (important)</h4>
+<p>CUDA matmul is not a universal backend today:</p>
+<ul>
+<li><code>CudaDevice::matmul</code> supports dense <code>float32</code>/<code>float64</code> matrices.</li>
+<li>Complex matmul is supported on CPU (<code>cpu.matmul.c32</code>, <code>cpu.matmul.c64</code>, plus <code>cpu.matmul.cf16_fallback</code>) but is not supported on CUDA today.</li>
+</ul>
+<p>Therefore:</p>
+<ul>
+<li>Block matrices containing complex blocks must still work, but AutoSolver must route those leaf ops to CPU.</li>
+<li>Mixed-dtype block containers are fine because routing happens per leaf op, not per container.</li>
+</ul>
+<h3 id="62-io-accelerator-compatibility-prefetchdiscard">6.2 IO Accelerator compatibility (prefetch/discard)</h3>
+<p>To stay compatible with the IO acceleration layer:</p>
+<ul>
+<li>Before evaluating a thunk block, the orchestrator should prefetch the required input blocks/views (where available) via each matrix’s accelerator interface.</li>
+<li>After a thunk block is evaluated and its intermediate temporaries are no longer needed, the orchestrator should allow (or request) discard of those temporaries.</li>
+</ul>
+<p>This preserves the existing “minimize page faults” strategy for out-of-core workloads.</p>
+<h3 id="63-views-and-blasgpu-friendliness-without-copying">6.3 Views and BLAS/GPU friendliness (without copying)</h3>
+<p><code>SubmatrixView</code> must not force a copy. For performance (later), it should expose an optional “dense window” representation when possible:</p>
+<ul>
+<li>pointer/offset/leading-dimension view into a dense backing,</li>
+<li>otherwise fall back to the generic <code>get_element_as_*</code> path on CPU.</li>
+</ul>
+<p>GPU support for views can be added later if/when CUDA kernels accept strides/offsets.</p>
+<hr />
+<h2 id="7-testing-strategy-minimum">7) Testing strategy (minimum)</h2>
+<ul>
+<li>Construction:</li>
+<li>valid block grids build without densification.</li>
+<li>invalid grids raise deterministic errors.</li>
+<li>Indexing:</li>
+<li>element reads match dense equivalent.</li>
+<li>Mixed dtype:</li>
+<li>block containers can hold multiple dtypes.</li>
+<li>elementwise ops produce per-block dtype results.</li>
+<li>Semi-lazy matmul:</li>
+<li>no compute until triggered (verify via kernel trace tags),</li>
+<li>deterministic results,</li>
+<li>cache hit behavior.</li>
+<li>Persistence:</li>
+<li>save/load round-trip for nested manifests.</li>
+</ul>
+<p>Additions (to catch subtle bugs early):</p>
+<ul>
+<li>Complex blocks (CPU fallback): ensure complex32/complex64/complex-f16 blocks round-trip through elementwise ops and matmul without densifying the whole matrix.</li>
+<li>Printing: <code>repr</code>/<code>str</code> must not evaluate thunks (verify via trace tags).</li>
+</ul>
+<hr />
+<h2 id="8-risk-register">8) Risk register</h2>
+<ul>
+<li>Snapshot/versioning complexity: must avoid silent stale caches.</li>
+<li>Excessive overhead for many small blocks: mitigated by later scheduling/materialization knobs.</li>
+<li>Deep nesting inefficiency: accepted for completeness.</li>
+<li>CUDA capability gaps: complex blocks and some view/shape cases will route to CPU until CUDA support expands.</li>
+<li>Thread-safety: concurrent evaluation of the same thunk block must not corrupt caches (R1 uses single-eval locking; see below).</li>
+<li>View correctness: views over nested blocks that cross block boundaries are subtle; ensure we represent them as structured compositions of smaller views, not as copies.</li>
+<li>Scalar/transpose flags: ensure <code>SubmatrixView</code> and manifest metadata preserve scalar multipliers and transpose status without changing numeric meaning.</li>
+</ul>
+<hr />
+<h2 id="9-open-questions-to-decide-early">9) Open questions (to decide early)</h2>
+<p>1) Exact API surface for block operations (<code>get_block</code>/<code>set_block</code>, <code>materialize</code>, cache controls).
+2) Whether <code>SubmatrixView</code> supports all structured matrices or only dense initially.
+3) Manifest format is locked to the binary header + records inside <code>.pycauset</code>; JSON/zip are deprecated and removed.</p>
+<p>R1 decisions (locked in):</p>
+<p>4) Concurrency semantics for thunks: use single-eval locking per thunk (e.g., <code>std::mutex</code> + double-checked caching or <code>std::once_flag</code>). If multiple threads request the same thunked block, only one computes and installs the cached result; other threads wait and then reuse the cached block.</p>
+<p>5) <code>SubmatrixView</code> spanning multiple blocks is allowed: represent it as a <code>BlockMatrix</code> of <code>SubmatrixView</code> tiles (a “tiled view”), with no copying and no densification.
+  - Note: such a tiled view may be <code>DataType::MIXED</code> if it spans blocks with different dtypes. Element access remains well-defined; dense materialization chooses a target dtype using the existing dtype promotion rules.</p>
+<hr />
+<h2 id="10-documentation-requirements-must-be-thorough">10) Documentation requirements (must be thorough)</h2>
+<p>We need both API docs and internals docs so future work (I/O, CPU, GPU) can safely optimize without breaking semantics.</p>
+<h3 id="101-publicapi-documentation">10.1 Public/API documentation</h3>
+<ul>
+<li><code>pycauset.matrix(...)</code> block-grid construction rules and validation errors.</li>
+<li>Block matrix behavior expectations:</li>
+<li>element indexing returns elements,</li>
+<li>block replacement only via explicit API (<code>get_block</code>/<code>set_block</code>),</li>
+<li>“once block, always block” default.</li>
+<li>Evaluation triggers (what forces computation) and non-triggers.</li>
+<li>Save/load semantics for manifests (what is stored, what is not).</li>
+<li>Device routing expectations (AutoSolver may run different blocks on CPU vs GPU depending on dtype/shape/capability).</li>
+<li>Printing/visualization behavior (structure summary by default; no implicit evaluation).</li>
+</ul>
+<h3 id="102-internals-documentation">10.2 Internals documentation</h3>
+<ul>
+<li>Data model: <code>BlockMatrix</code>, <code>SubmatrixView</code>, <code>ThunkBlock</code>.</li>
+<li>Versioning + staleness semantics (snapshot-at-creation; stale thunks error).</li>
+<li>Caching rules + lifecycle of temp files.</li>
+<li>Partition refinement algorithm and “no silent densify” rule.</li>
+<li>Manifest format: schema, examples, and compatibility rules for future extensions.</li>
+<li>Complex-number storage notes:</li>
+<li>complex32/complex64 dense matrices store <code>std::complex&lt;T&gt;</code> values,</li>
+<li>ComplexFloat16 matrices may store real/imag planes; views and thunks must treat them consistently.</li>
+</ul>
+<hr />
+<h2 id="11-agent-handoff-implementation-checklist-for-the-next-ai-agent">11) Agent handoff: implementation checklist (for the next AI agent)</h2>
+<p>This section is intentionally explicit to reduce the chance of subtle bugs.</p>
+<h3 id="111-core-correctness-checklist">11.1 Core correctness checklist</h3>
+<ul>
+<li>Implement <code>BlockMatrix</code> shape, partitions, and fast element-to-block lookup (binary search on <code>row_partitions</code>/<code>col_partitions</code>).</li>
+<li>Implement <code>SubmatrixView</code> with strict no-copy semantics and correct composition over:</li>
+<li>transpose flags,</li>
+<li>scalar multipliers,</li>
+<li>nested block matrices.</li>
+<li>Implement <code>ThunkBlock</code> evaluation + caching with version checks:</li>
+<li>snapshot input versions at creation,</li>
+<li>error on stale access.</li>
+</ul>
+<h3 id="112-compute-boundary-checklist-must-match-compute-architecture">11.2 Compute boundary checklist (must match Compute Architecture)</h3>
+<ul>
+<li>Orchestrator decomposes ops into leaf ops and calls AutoSolver/ComputeDevice.</li>
+<li>Respect device capability gating:</li>
+<li>complex blocks must route to CPU today,</li>
+<li>CUDA paths are limited to supported dtypes/shapes.</li>
+</ul>
+<h3 id="113-determinism-checklist">11.3 Determinism checklist</h3>
+<ul>
+<li>Block matmul thunk evaluation must use a fixed <code>k</code> order.</li>
+<li>Accumulator dtype for each output block must be determined from dtype metadata only (no data-dependent decisions).</li>
+<li>Avoid parallel reductions that change summation order unless explicitly documented.</li>
+</ul>
+<h3 id="114-persistence-checklist">11.4 Persistence checklist</h3>
+<ul>
+<li>Manifest save/load must preserve nesting and references.</li>
+<li>Saving must not write a single expanded dense buffer for the whole block matrix.</li>
+<li>Thunk blocks must be saved as stable child matrices (evaluate per-block), then referenced.</li>
+</ul>
+<h3 id="115-debugvisualization-checklist">11.5 Debug/visualization checklist</h3>
+<ul>
+<li><code>repr</code>/<code>str</code> must never evaluate thunks.</li>
+<li>Provide readable structural summaries (shape, partitions, per-block metadata).</li>
+</ul>
+<h3 id="116-dont-get-trapped-pitfalls">11.6 “Don’t get trapped” pitfalls</h3>
+<ul>
+<li>Do not accidentally materialize views to make BLAS happy (violates storage-first).</li>
+<li>Be explicit about complex behavior:</li>
+<li>CPU supports complex matmul; CUDA does not today.</li>
+<li>ComplexFloat16 uses split planes; views must handle both planes consistently.</li>
+<li>Ensure partial caching cannot produce mixed-snapshot results (stale access must error).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../BLAS_INTEGRATION_PLAN/" class="md-footer__link md-footer__link--prev" aria-label="Previous: OpenBLAS Integration Plan">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                OpenBLAS Integration Plan
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../R1_LINALG_PLAN/" class="md-footer__link md-footer__link--next" aria-label="Next: R1_LINALG — Linear Algebra Foundation (Release 1)">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                R1_LINALG — Linear Algebra Foundation (Release 1)
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.expand", "navigation.tabs", "navigation.sections", "navigation.top", "navigation.tracking", "navigation.footer", "toc.integrate", "search.suggest", "search.highlight", "search.share", "content.action.edit", "content.action.view", "content.code.copy", "content.code.select", "content.code.annotate", "content.tabs.link"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+  
+      <script src="../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+
+  <script defer src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    // Initialize Mermaid in a way that plays nicely with MkDocs Material.
+    // If the user toggles light/dark mode, we re-render Mermaid with the new theme.
+    (function () {
+      function currentMermaidTheme() {
+        const scheme = document.body.getAttribute('data-md-color-scheme');
+        return scheme === 'slate' ? 'dark' : 'default';
+      }
+
+      function renderMermaid() {
+        if (!window.mermaid) return;
+
+        const theme = currentMermaidTheme();
+
+        window.mermaid.initialize({
+          startOnLoad: false,
+          theme: theme,
+          securityLevel: 'strict'
+        });
+
+        document.querySelectorAll('.mermaid').forEach((el) => {
+          const source = el.textContent;
+          el.removeAttribute('data-processed');
+          el.innerHTML = source;
+        });
+
+        window.mermaid.run({ querySelector: '.mermaid' });
+      }
+
+      document.addEventListener('DOMContentLoaded', renderMermaid);
+
+      const obs = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.type === 'attributes' && m.attributeName === 'data-md-color-scheme') {
+            renderMermaid();
+            break;
+          }
+        }
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        obs.observe(document.body, { attributes: true });
+      });
+    })();
+  </script>
+
+  </body>
+</html>
