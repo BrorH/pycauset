@@ -177,6 +177,64 @@ Eigenvalues and eigenvectors are expensive to compute, so they are cached:
 *   **Load-miss**: Warns and recomputes if cache missing (no implicit retry)
 *   **Persistence**: Cache survives save/reload cycles when matrix has backing file
 
+### 2.6 Additional Linear Algebra Operations (Phase 7: R1_CPU)
+
+The CPU backend provides a comprehensive suite of linear algebra operations beyond eigensolvers:
+
+#### Streaming-Safe Operations (Disk-Friendly)
+*   **`trace(A)`**: Computes sum of diagonal elements
+    *   **Streaming**: **Supported** - only accesses diagonal (O(n) memory)
+    *   **Implementation**: Direct diagonal sum with optimizations for Identity/Diagonal matrices
+    *   **Block-matrix**: Supported - can sum block diagonals
+    *   **Non-square**: Works on rectangular matrices (trace of min(m,n) diagonal)
+*   **`frobenius_norm(A)`**: Computes √(Σ|aᵢⱼ|²)
+    *   **Streaming**: **Supported** - sum of squares across tiles
+    *   **Implementation**: Parallelized sum using ParallelFor
+    *   **Block-matrix**: Supported - can sum block norms
+    *   **Memory**: O(tile_size) for out-of-core matrices
+
+#### LAPACK Factorizations (In-Memory)
+All factorizations use LAPACK and require the full matrix in contiguous memory:
+
+*   **`qr(A)`**: QR decomposition (A = Q×R)
+    *   **Backend**: LAPACK `geqrf` + `orgqr`/`ungqr`
+    *   **Returns**: Q (orthogonal), R (upper triangular)
+    *   **Reduced QR**: Q is m×k, R is k×n where k=min(m,n)
+    *   **Streaming**: Not supported (LAPACK constraint)
+    *   **Use case**: Least squares, orthogonalization
+*   **`lu(A)`**: LU decomposition with partial pivoting (PA = LU)
+    *   **Backend**: LAPACK `getrf`
+    *   **Returns**: P (permutation), L (lower triangular), U (upper triangular)
+    *   **Streaming**: Not supported (LAPACK constraint)
+    *   **Requirements**: Square matrix
+*   **`svd(A)`**: Singular Value Decomposition (A = U×Σ×Vᵀ)
+    *   **Backend**: LAPACK `gesdd` (default), fallback to `gesvd`
+    *   **Returns**: U, S (singular values), Vᵀ
+    *   **Streaming**: Not supported (LAPACK constraint)
+    *   **Full vs Reduced**: Supports both full and reduced SVD
+*   **`solve(A, b)`**: Solves linear system Ax = b
+    *   **Backend**: LAPACK `getrf` + `getrs` (LU-based)
+    *   **Streaming**: Not supported (LAPACK constraint)
+    *   **Requirements**: A must be square and invertible
+
+#### Determinant
+*   **`determinant(A)`**: Computes determinant of square matrix
+    *   **Method**: LU decomposition + diagonal product for dense matrices
+    *   **Optimizations**: 
+        *   Identity: det = scalar^n
+        *   Diagonal: det = product of diagonal
+        *   Triangular: det = product of diagonal (if has_diagonal)
+    *   **Streaming**: Not supported (uses LU for general case)
+    *   **Block-matrix**: Supported via block determinant formula
+    *   **Requirements**: Square matrix
+
+#### Op Contract Declarations
+Phase 7 operations declare their capabilities:
+*   **Streaming-safe**: `trace`, `frobenius_norm` (can process tiles)
+*   **LAPACK-constrained**: `qr`, `lu`, `svd`, `solve` (require full matrix)
+*   **Block-matrix support**: `trace`, `determinant`, `frobenius_norm`
+*   **Square requirement**: `lu`, `solve`, `determinant`
+
 ## 3. GPU Backend (CUDA)
 
 The GPU backend leverages NVIDIA CUDA for massive parallelism, particularly for $O(N^3)$ operations like matrix multiplication and inversion.
