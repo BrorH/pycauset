@@ -38,7 +38,7 @@ struct OpRegistration {
         // --- Eigh (Eigenvalues/Vectors for Hermitian) ---
         OpContract eigh;
         eigh.name = "eigh";
-        eigh.supports_streaming = false;       // Not yet streaming (Phase 6: full matrix required in memory)
+        eigh.supports_streaming = false;       // LAPACK architectural constraint: requires full contiguous matrix
         eigh.supports_block_matrix = false;    // Dense only - LAPACK requires contiguous full matrix
         eigh.requires_square = true;
         registry.register_op(eigh);
@@ -46,7 +46,7 @@ struct OpRegistration {
         // --- Eigvalsh (Eigenvalues only for Hermitian) ---
         OpContract eigvalsh;
         eigvalsh.name = "eigvalsh";
-        eigvalsh.supports_streaming = false;   // LAPACK dsyev/cheev requires full matrix
+        eigvalsh.supports_streaming = false;   // LAPACK dsyev/cheev architectural constraint
         eigvalsh.supports_block_matrix = false; // Dense only - no block decomposition for eigenvalues
         eigvalsh.requires_square = true;
         registry.register_op(eigvalsh);
@@ -54,7 +54,7 @@ struct OpRegistration {
         // --- Eig (General Eigenvalues/Vectors) ---
         OpContract eig;
         eig.name = "eig";
-        eig.supports_streaming = false;        // LAPACK dgeev requires full matrix
+        eig.supports_streaming = false;        // LAPACK dgeev architectural constraint
         eig.supports_block_matrix = false;     // Dense only - no block support for general eigen
         eig.requires_square = true;
         registry.register_op(eig);
@@ -62,7 +62,7 @@ struct OpRegistration {
         // --- Eigvals (General Eigenvalues only) ---
         OpContract eigvals;
         eigvals.name = "eigvals";
-        eigvals.supports_streaming = false;    // LAPACK dgeev requires full matrix
+        eigvals.supports_streaming = false;    // LAPACK dgeev architectural constraint
         eigvals.supports_block_matrix = false; // Dense only
         eigvals.requires_square = true;
         registry.register_op(eigvals);

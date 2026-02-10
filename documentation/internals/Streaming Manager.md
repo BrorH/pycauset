@@ -94,7 +94,10 @@ For GPU acceleration, PyCauset uses **Algorithm Drivers**: host-side control loo
 - **Reason**: Only requires matrix-vector products (no full matrix access needed)
 - **Routing**: Can use `streaming` path for large matrices
 - **Out-of-core**: Matrix A can be disk-backed as long as matvec products are computable
-- **Memory constraint**: Only Krylov basis vectors (size m×n where m is subspace dimension) need to fit in RAM
+- **Memory constraint**: Only Krylov basis vectors need to fit in RAM
+    - Basis consists of m vectors (Krylov subspace dimension), each of length n (matrix dimension)
+    - Total memory: m×n elements, where m is typically 2k to 3k (k = number of eigenvalues desired)
+    - Example: For 10,000×10,000 matrix seeking top 10 eigenvalues, m≈30, memory≈30×10,000 = 300K elements ≈2.4MB
 - **Use case**: Large matrices where only top-k eigenvalues are needed
 - **Trade-off**: Iterative algorithm - slower convergence but enables out-of-core execution
 
