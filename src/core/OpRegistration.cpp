@@ -75,6 +75,59 @@ struct OpRegistration {
         eigvals_arnoldi.requires_square = true;
         registry.register_op(eigvals_arnoldi);
 
+        // --- Trace ---
+        OpContract trace;
+        trace.name = "trace";
+        trace.supports_streaming = true;   // Streaming-safe: only diagonal access
+        trace.supports_block_matrix = true; // Can sum diagonals from blocks
+        trace.requires_square = false;     // Works on non-square (trace of min(m,n) diagonal)
+        registry.register_op(trace);
+
+        // --- Determinant ---
+        OpContract determinant;
+        determinant.name = "determinant";
+        determinant.supports_streaming = false; // Uses LU decomposition (requires full matrix)
+        determinant.supports_block_matrix = true; // Can use block determinant formula
+        determinant.requires_square = true;
+        registry.register_op(determinant);
+
+        // --- Norm Operations ---
+        OpContract frobenius_norm;
+        frobenius_norm.name = "frobenius_norm";
+        frobenius_norm.supports_streaming = true;  // Sum of squares - streaming-safe
+        frobenius_norm.supports_block_matrix = true; // Can sum block norms
+        frobenius_norm.requires_square = false;
+        registry.register_op(frobenius_norm);
+
+        // --- Linear Algebra Factorizations ---
+        OpContract qr;
+        qr.name = "qr";
+        qr.supports_streaming = false;  // LAPACK geqrf requires full matrix
+        qr.supports_block_matrix = false; // Dense only
+        qr.requires_square = false;
+        registry.register_op(qr);
+
+        OpContract lu;
+        lu.name = "lu";
+        lu.supports_streaming = false;  // LAPACK getrf requires full matrix
+        lu.supports_block_matrix = false; // Dense only
+        lu.requires_square = true;  // LU decomposition requires square
+        registry.register_op(lu);
+
+        OpContract svd;
+        svd.name = "svd";
+        svd.supports_streaming = false;  // LAPACK gesdd requires full matrix
+        svd.supports_block_matrix = false; // Dense only
+        svd.requires_square = false;
+        registry.register_op(svd);
+
+        OpContract solve;
+        solve.name = "solve";
+        solve.supports_streaming = false;  // LAPACK getrf/getrs requires full matrix
+        solve.supports_block_matrix = false; // Dense only (A must be dense)
+        solve.requires_square = true;  // A must be square to solve Ax=b
+        registry.register_op(solve);
+
         // --- Elementwise ---
         OpContract add;
         add.name = "add";
