@@ -16,6 +16,18 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
 std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
 std::unique_ptr<MatrixBase> elementwise_divide(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
 std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBase& b, std::string saveas = "");
+std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& result_file = "");
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a, const std::string& result_file = "");
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const MatrixBase& a, const std::string& result_file = "");
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(const MatrixBase& a, const std::string& result_file = "");
+std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
+
+std::unique_ptr<VectorBase> eigvals_arnoldi(const MatrixBase& a, int k, int m, double tol, const std::string& result_file = "");
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in, const std::string& result_file = "");
+std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string& result_file = "");
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in, const std::string& result_file = "");
+std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string& result_file = "");
+
 
 // --- Vector Operations ---
 

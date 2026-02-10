@@ -32,6 +32,7 @@ _MAGIC = b"PYCAUSET"  # 8 bytes
 _FORMAT_VERSION = 1
 _ENDIAN_LITTLE = 1
 _HEADER_BYTES = 4096
+_RAW_STORAGE_HEADER_BYTES = 64
 _SLOT_SIZE = 128
 _SLOT_A_OFFSET = 16
 _SLOT_B_OFFSET = _SLOT_A_OFFSET + _SLOT_SIZE
@@ -68,6 +69,36 @@ def _align_up(value: int, alignment: int) -> int:
     if alignment <= 0 or (alignment & (alignment - 1)) != 0:
         raise ValueError("alignment must be a power of two")
     return (value + alignment - 1) & ~(alignment - 1)
+
+
+def _raw_storage_header_bytes(path: Path) -> int:
+    """Return header size for raw storage files created by MemoryMapper.
+
+    copy_storage writes a 64-byte header (magic/version + zeroed reserved bytes)
+    followed by raw payload bytes. Detect that header so we can persist only
+    the data payload in the container.
+    """
+
+    try:
+        with path.open("rb") as f:
+            header = f.read(_RAW_STORAGE_HEADER_BYTES)
+    except OSError:
+        return 0
+
+    if len(header) != _RAW_STORAGE_HEADER_BYTES:
+        return 0
+    if header[:8] != _MAGIC:
+        return 0
+
+    version = struct.unpack("<I", header[8:12])[0]
+    if version != 1:
+        return 0
+
+    # MemoryMapper uses a "simple" header (reserved bytes all zero).
+    if any(b != 0 for b in header[12:]):
+        return 0
+
+    return _RAW_STORAGE_HEADER_BYTES
 
 
 class _Cursor:
@@ -924,12 +955,18 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
 
         # Write file: header placeholder, then payload, then metadata block, then header slots.
         payload_offset = _HEADER_BYTES
-        payload_length = temp_raw.stat().st_size
+        raw_header = _raw_storage_header_bytes(temp_raw)
+        raw_size = temp_raw.stat().st_size
+        payload_length = raw_size - raw_header
+        if payload_length < 0:
+            raise ValueError("invalid raw payload size")
+
         with path.open("wb") as out_f:
             out_f.write(b"\x00" * _HEADER_BYTES)
             with temp_raw.open("rb") as in_f:
-                # Skip the 64-byte FileHeader written by copy_storage
-                in_f.read(64)
+                if raw_header:
+                    in_f.seek(raw_header)
+                # copy_storage writes a small raw header; persist only the payload bytes.
                 while True:
                     chunk = in_f.read(1024 * 1024)
                     if not chunk:
@@ -1259,6 +1296,8 @@ def _save_blockmatrix(
     except Exception:  # pragma: no cover
         SubmatrixView = None  # type: ignore[assignment]
 
+    LazyMatrix = getattr(deps.native, "LazyMatrix", None)
+
     def _numpy_dtype_hint_for(obj: Any) -> Any | None:
         name = type(obj).__name__
         if name == "Float16Matrix":
@@ -1381,6 +1420,12 @@ def _save_blockmatrix(
             # Evaluate thunks blockwise on save.
             if ThunkBlock is not None and isinstance(blk, ThunkBlock):
                 blk = blk.materialize()
+
+            # Materialize lazy expressions so payload storage exists.
+            if LazyMatrix is not None and isinstance(blk, LazyMatrix):
+                eval_fn = getattr(blk, "eval", None)
+                if callable(eval_fn):
+                    blk = eval_fn()
 
             # Persisting a view requires writing stable storage. In Phase E we
             # materialize the view block-locally (no global densification).

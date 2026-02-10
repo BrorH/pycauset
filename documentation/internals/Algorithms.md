@@ -57,6 +57,15 @@ Matrix multiplication uses a dynamic dispatch system:
         *   **GPU**: Uses a custom "Transpose-then-Popcount" kernel that packs 32x32 bit tiles into registers, achieving massive throughput for path counting and transitive closure.
     *   **Triangular Matrices:** Optimized block-based algorithms for inversion and multiplication.
 
+### Property-aware shortcuts (R1_PROPERTIES)
+
+PyCauset treats certain properties as **gospel**. When set, they enable lower-complexity kernels without scanning payloads. A C++ property-flag mirror makes these decisions fast and deterministic.
+
+Examples:
+* **Diagonal / identity**: multiplication and inversion can reduce to $O(N)$ or $O(N^2)$.
+* **Triangular**: solve/inversion can use triangular kernels with $O(N^2)$ updates.
+* **Symmetric / Hermitian**: eigen and factorization routines can use specialized solvers that halve FLOPs.
+
 ## 2. Stateless Sprinkling (Spacetime Generation)
 
 One of the key features of `pycauset` is its ability to handle extremely large causal sets—potentially billions of elements—without exhausting system RAM. This is achieved through a technique we call **Stateless Sprinkling**.

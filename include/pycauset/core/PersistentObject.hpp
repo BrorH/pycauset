@@ -6,6 +6,7 @@
 #include <complex>
 
 #include "pycauset/core/Types.hpp"
+#include "pycauset/core/PropertyFlags.hpp"
 #include "pycauset/core/MemoryHints.hpp"
 #include "pycauset/core/IOAccelerator.hpp"
 
@@ -97,6 +98,18 @@ public:
 
     pycauset::DataType get_data_type() const { return data_type_; }
     pycauset::MatrixType get_matrix_type() const { return matrix_type_; }
+
+    // --- Property flags (fast C++ mirror of Python properties) ---
+    uint64_t get_properties_flags() const { return properties_flags_; }
+    void set_properties_flags(uint64_t flags) { properties_flags_ = flags; }
+    void set_property_flag(uint64_t flag, bool value) {
+        if (value) {
+            properties_flags_ |= flag;
+        } else {
+            properties_flags_ &= ~flag;
+        }
+    }
+    void clear_properties_flags() { properties_flags_ = 0; }
     
     uint64_t get_rows() const { return rows_; }
     uint64_t get_cols() const { return cols_; }
@@ -146,6 +159,9 @@ protected:
     bool is_transposed_ = false;
     bool is_conjugated_ = false;
     bool is_temporary_ = false;
+
+    // Property flags mirror (Phase 3: fast traits)
+    uint64_t properties_flags_ = 0;
 
     // Tiered Storage State
     pycauset::core::StorageState storage_state_ = pycauset::core::StorageState::DISK_BACKED; // Default for legacy compatibility

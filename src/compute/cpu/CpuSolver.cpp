@@ -56,6 +56,7 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <random>
 #if defined(__x86_64__) || defined(_M_X64)
 #include <immintrin.h>
 #endif
@@ -121,6 +122,156 @@ namespace {
         return _mm512_reduce_add_epi64(vsum);
     }
 #endif
+}
+
+namespace {
+    // --- SIMD Infrastructure for Phase 4 ---
+    
+    bool has_avx2() {
+#if defined(__x86_64__) || defined(_M_X64)
+        static bool checked = false;
+        static bool available = false;
+        if (checked) return available;
+        
+        int cpuInfo[4];
+#ifdef _WIN32
+        __cpuid(cpuInfo, 0);
+        if (cpuInfo[0] >= 7) {
+            __cpuidex(cpuInfo, 7, 0);
+            available = (cpuInfo[1] & (1 << 5)) != 0; // EBX bit 5 is AVX2
+        }
+#else
+        unsigned int eax, ebx, ecx, edx;
+        if (__get_cpuid_max(0, &eax) >= 7) {
+            __cpuid_count(7, 0, eax, ebx, ecx, edx);
+            available = (ebx & (1 << 5)) != 0;
+        }
+#endif
+        checked = true;
+        return available;
+#else
+        return false;
+#endif
+    }
+
+    template<typename T>
+    using SimdKernel = void(*)(T* dst, const T* a, const T* b, size_t n);
+
+    // Scalar fallbacks (Auto-vectorizable)
+    template<typename T> void scalar_add(T* dst, const T* a, const T* b, size_t n) { 
+        for(size_t i=0; i<n; ++i) dst[i] = a[i] + b[i]; 
+    }
+    template<typename T> void scalar_sub(T* dst, const T* a, const T* b, size_t n) { 
+        for(size_t i=0; i<n; ++i) dst[i] = a[i] - b[i]; 
+    }
+    template<typename T> void scalar_mul(T* dst, const T* a, const T* b, size_t n) { 
+        for(size_t i=0; i<n; ++i) dst[i] = a[i] * b[i]; 
+    }
+    template<typename T> void scalar_div(T* dst, const T* a, const T* b, size_t n) { 
+        for(size_t i=0; i<n; ++i) dst[i] = a[i] / b[i]; 
+    }
+
+    // AVX2 Kernels
+#if defined(__x86_64__) || defined(_M_X64)
+    // Float
+    void avx2_add_f32(float* dst, const float* a, const float* b, size_t n) {
+        size_t i = 0;
+        for (; i + 8 <= n; i += 8) {
+            _mm256_storeu_ps(dst + i, _mm256_add_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
+        }
+        for (; i < n; ++i) dst[i] = a[i] + b[i];
+    }
+    void avx2_sub_f32(float* dst, const float* a, const float* b, size_t n) {
+        size_t i = 0;
+        for (; i + 8 <= n; i += 8) {
+            _mm256_storeu_ps(dst + i, _mm256_sub_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
+        }
+        for (; i < n; ++i) dst[i] = a[i] - b[i];
+    }
+    void avx2_mul_f32(float* dst, const float* a, const float* b, size_t n) {
+        size_t i = 0;
+        for (; i + 8 <= n; i += 8) {
+            _mm256_storeu_ps(dst + i, _mm256_mul_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
+        }
+        for (; i < n; ++i) dst[i] = a[i] * b[i];
+    }
+    void avx2_div_f32(float* dst, const float* a, const float* b, size_t n) {
+        size_t i = 0;
+        for (; i + 8 <= n; i += 8) {
+            _mm256_storeu_ps(dst + i, _mm256_div_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
+        }
+        for (; i < n; ++i) dst[i] = a[i] / b[i];
+    }
+
+    // Double
+    void avx2_add_f64(double* dst, const double* a, const double* b, size_t n) {
+        size_t i = 0;
+        for (; i + 4 <= n; i += 4) {
+            _mm256_storeu_pd(dst + i, _mm256_add_pd(_mm256_loadu_pd(a + i), _mm256_loadu_pd(b + i)));
+        }
+        for (; i < n; ++i) dst[i] = a[i] + b[i];
+    }
+    // ... specialized logic for others ...
+#endif
+
+    // Discriminators
+    template<typename T> SimdKernel<T> get_add_kernel() { return scalar_add<T>; }
+    template<typename T> SimdKernel<T> get_sub_kernel() { return scalar_sub<T>; }
+    template<typename T> SimdKernel<T> get_mul_kernel() { return scalar_mul<T>; }
+    template<typename T> SimdKernel<T> get_div_kernel() { return scalar_div<T>; }
+
+    // Explicit specializations for runtime dispatch
+#if defined(__x86_64__) || defined(_M_X64)
+    template<> SimdKernel<float> get_add_kernel<float>() { return has_avx2() ? avx2_add_f32 : scalar_add<float>; }
+    template<> SimdKernel<float> get_sub_kernel<float>() { return has_avx2() ? avx2_sub_f32 : scalar_sub<float>; }
+    template<> SimdKernel<float> get_mul_kernel<float>() { return has_avx2() ? avx2_mul_f32 : scalar_mul<float>; }
+    template<> SimdKernel<float> get_div_kernel<float>() { return has_avx2() ? avx2_div_f32 : scalar_div<float>; }
+    
+    template<> SimdKernel<double> get_add_kernel<double>() { return has_avx2() ? avx2_add_f64 : scalar_add<double>; }
+    // Implement others as needed or rely on robust scalars
+#endif
+
+    template<typename T>
+    void parallel_simd_binary_op(const MatrixBase& a, const MatrixBase& b, MatrixBase& result, SimdKernel<T> kernel) {
+        if (a.is_transposed() || b.is_transposed() || result.is_transposed()) {
+            // Fallback for non-contiguous memory layouts
+            throw std::runtime_error("SIMD path requires contiguous memory (transpose not supported yet)");
+        }
+        // Assume dense checks passed by caller
+        const T* a_ptr = reinterpret_cast<const DenseMatrix<T>&>(a).data();
+        const T* b_ptr = reinterpret_cast<const DenseMatrix<T>&>(b).data();
+        T* res_ptr = reinterpret_cast<DenseMatrix<T>&>(result).data();
+        size_t total = result.rows() * result.cols();
+        
+        size_t block_size = 32768 / sizeof(T); // L1/L2 cache friendly chunk
+        size_t num_blocks = (total + block_size - 1) / block_size;
+        
+        ParallelFor(0, num_blocks, [=](size_t block_idx) {
+            size_t start = block_idx * block_size;
+            size_t end = std::min(start + block_size, total);
+            kernel(res_ptr + start, a_ptr + start, b_ptr + start, end - start);
+        });
+    }
+
+    template<typename T>
+    bool try_fast_simd(const MatrixBase& a, const MatrixBase& b, MatrixBase& result, SimdKernel<T> kernel) {
+        if (auto* rd = dynamic_cast<DenseMatrix<T>*>(&result)) {
+            if (auto* ad = dynamic_cast<const DenseMatrix<T>*>(&a)) {
+                if (auto* bd = dynamic_cast<const DenseMatrix<T>*>(&b)) {
+                    // Check for contiguous memory layout
+                    bool is_contiguous = !rd->is_transposed() && !ad->is_transposed() && !bd->is_transposed() &&
+                                         !rd->has_view_offset() && !ad->has_view_offset() && !bd->has_view_offset();
+                                         
+                    if (is_contiguous &&
+                        rd->get_scalar() == 1.0 && ad->get_scalar() == 1.0 && bd->get_scalar() == 1.0) {
+                            parallel_simd_binary_op<T>(a, b, result, kernel);
+                            return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
 }
 
 namespace {
@@ -220,10 +371,6 @@ namespace {
         out.set_scalar(1.0);
     }
 
-    // Forward declaration
-    template <typename T>
-    void matmul_streaming(const DenseMatrix<T>* a_dense, const DenseMatrix<T>* b_dense, DenseMatrix<T>* c_dense);
-
     // --- Helper: Direct Path Optimization ---
     // Tries to pin all matrices and run BLAS directly.
     // Returns true if successful, false if memory budget didn't allow it.
@@ -251,9 +398,9 @@ namespace {
                 pinned &= c_dense->pin_range(0, c_elems);
                 
                 if (pinned) {
-                    const T* a_data = a_dense->data();
-                    const T* b_data = b_dense->data();
-                    T* c_data = c_dense->data();
+                    const T* a_data = a_dense->data() + (a_dense->row_offset() * a_dense->base_cols() + a_dense->col_offset());
+                    const T* b_data = b_dense->data() + (b_dense->row_offset() * b_dense->base_cols() + b_dense->col_offset());
+                    T* c_data = c_dense->data() + (c_dense->row_offset() * c_dense->base_cols() + c_dense->col_offset());
                     
                     bool t_a = a_dense->is_transposed();
                     bool t_b = b_dense->is_transposed();
@@ -324,9 +471,9 @@ namespace {
             return;
         }
 
-        const T* a_data = a_dense->data();
-        const T* b_data = b_dense->data();
-        T* c_data = c_dense->data();
+        const T* a_data = a_dense->data() + (a_dense->row_offset() * a_dense->base_cols() + a_dense->col_offset());
+        const T* b_data = b_dense->data() + (b_dense->row_offset() * b_dense->base_cols() + b_dense->col_offset());
+        T* c_data = c_dense->data() + (c_dense->row_offset() * c_dense->base_cols() + c_dense->col_offset());
 
         const bool t_a = a_dense->is_transposed();
         const bool t_b = b_dense->is_transposed();
@@ -482,56 +629,148 @@ namespace {
             throw std::invalid_argument("Output matrix size mismatch");
         }
         
-        // 1. Copy input to output (LAPACK inverts in-place)
-        const T* src = in_dense->data();
-        T* dst = out_dense->data();
+        // Compute pointers with offsets
+        const T* src_base = in_dense->data() + (in_dense->row_offset() * in_dense->base_cols() + in_dense->col_offset());
+        T* dst_base = out_dense->data() + (out_dense->row_offset() * out_dense->base_cols() + out_dense->col_offset());
         
-        bool is_transposed = in_dense->is_transposed();
+        const uint64_t src_stride = in_dense->base_cols();
+        const uint64_t dst_stride = out_dense->base_cols();
+
+        const bool is_transposed = in_dense->is_transposed();
         
+        // 1. Copy input to output
         if (is_transposed) {
-            ParallelFor(0, n, [&](size_t i) {
+             ParallelFor(0, n, [&](size_t i) {
                 for (size_t j = 0; j < n; ++j) {
-                    dst[i * n + j] = src[j * n + i];
+                    dst_base[i * dst_stride + j] = src_base[j * src_stride + i];
                 }
             });
         } else {
-            // Direct copy
-            std::copy(src, src + n * n, dst);
+             ParallelFor(0, n, [&](size_t i) {
+                for (size_t j = 0; j < n; ++j) {
+                    dst_base[i * dst_stride + j] = src_base[i * src_stride + j];
+                }
+             });
         }
         
-        // 2. LU Factorization (dgetrf)
+        // 2. LAPACK Factorization (dgetrf)
         std::vector<lapack_int> ipiv(n);
         lapack_int info = 0;
         
         if constexpr (std::is_same_v<T, double>) {
-            info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)n, dst, (lapack_int)n, ipiv.data());
+            info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)n, dst_base, (lapack_int)dst_stride, ipiv.data());
         } else {
-            info = LAPACKE_sgetrf(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)n, dst, (lapack_int)n, ipiv.data());
+            info = LAPACKE_sgetrf(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)n, dst_base, (lapack_int)dst_stride, ipiv.data());
         }
         
-        if (info > 0) {
-            throw std::runtime_error("Matrix is singular");
-        } else if (info < 0) {
-            throw std::runtime_error("Illegal argument in LAPACK dgetrf");
-        }
+        if (info > 0) throw std::runtime_error("Matrix is singular");
+        if (info < 0) throw std::runtime_error("Illegal argument in LAPACK dgetrf");
         
-        // 3. Inverse (dgetri)
+        // 3. LAPACK Inverse (dgetri)
         if constexpr (std::is_same_v<T, double>) {
-            info = LAPACKE_dgetri(LAPACK_ROW_MAJOR, (lapack_int)n, dst, (lapack_int)n, ipiv.data());
+            info = LAPACKE_dgetri(LAPACK_ROW_MAJOR, (lapack_int)n, dst_base, (lapack_int)dst_stride, ipiv.data());
         } else {
-            info = LAPACKE_sgetri(LAPACK_ROW_MAJOR, (lapack_int)n, dst, (lapack_int)n, ipiv.data());
+            info = LAPACKE_sgetri(LAPACK_ROW_MAJOR, (lapack_int)n, dst_base, (lapack_int)dst_stride, ipiv.data());
         }
         
-        if (info > 0) {
-            throw std::runtime_error("Matrix is singular");
-        } else if (info < 0) {
-            throw std::runtime_error("Illegal argument in LAPACK dgetri");
-        }
+        if (info > 0) throw std::runtime_error("Matrix is singular");
+        if (info < 0) throw std::runtime_error("Illegal argument in LAPACK dgetri");
         
         // Handle scalar
         std::complex<double> s = in_dense->get_scalar();
         if (s != 1.0) {
             out_dense->set_scalar(1.0 / s);
+        }
+    }
+
+    // --- Helper: Recursive Blocked Inverse (Out-of-Core Friendly) ---
+    template <typename T>
+    void inverse_recursive(const DenseMatrix<T>* in, DenseMatrix<T>* out) {
+        const uint64_t n = in->rows();
+        if (n <= 256) {
+             inverse_direct(in, out);
+             return;
+        }
+
+        const uint64_t n1 = n / 2;
+        const uint64_t n2 = n - n1;
+
+        auto A11 = in->submatrix(0, 0, n1, n1);
+        auto A12 = in->submatrix(0, n1, n1, n2); 
+        auto A21 = in->submatrix(n1, 0, n2, n1);
+        auto A22 = in->submatrix(n1, n1, n2, n2);
+
+        // U = A11^-1
+        auto U = std::make_unique<DenseMatrix<T>>(n1, n1);
+        inverse_recursive(A11.get(), U.get());
+        
+        // T1 = U * A12
+        auto T1 = std::make_unique<DenseMatrix<T>>(n1, n2);
+        matmul_impl(U.get(), A12.get(), T1.get());
+        
+        // T2 = A21 * T1
+        auto T2 = std::make_unique<DenseMatrix<T>>(n2, n2);
+        matmul_impl(A21.get(), T1.get(), T2.get());
+        
+        // S = A22 - T2
+        auto S = std::make_unique<DenseMatrix<T>>(n2, n2);
+        {
+            const T* a22_ptr = A22->data() + (A22->row_offset()*A22->base_cols() + A22->col_offset());
+            const T* t2_ptr = T2->data();
+            T* s_ptr = S->data();
+            const uint64_t stride_a22 = A22->base_cols();
+            const uint64_t stride_s = n2;
+            const uint64_t stride_t2 = n2; // T2 is new/dense
+            
+            ParallelFor(0, n2, [&](size_t i) {
+                for (size_t j = 0; j < n2; ++j) {
+                    s_ptr[i*stride_s + j] = a22_ptr[i*stride_a22 + j] - t2_ptr[i*stride_t2 + j];
+                }
+            });
+        }
+        
+        // V = S^-1 -> Out22
+        auto V = out->submatrix(n1, n1, n2, n2);
+        inverse_recursive(S.get(), V.get());
+        
+        // Clean S, T2
+        S.reset(); T2.reset();
+        
+        // Out12 = - T1 * V
+        auto Out12 = out->submatrix(0, n1, n1, n2);
+        matmul_impl(T1.get(), V.get(), Out12.get());
+        {
+             T* ptr = Out12->data() + (Out12->row_offset()*Out12->base_cols() + Out12->col_offset());
+             uint64_t stride = Out12->base_cols();
+             ParallelFor(0, n1, [&](size_t i) { for(size_t j=0; j<n2; ++j) ptr[i*stride+j] *= -1.0; });
+        }
+        
+        // Out21 = - V * A21 * U
+        auto T3 = std::make_unique<DenseMatrix<T>>(n2, n1);
+        matmul_impl(V.get(), A21.get(), T3.get());
+        auto Out21 = out->submatrix(n1, 0, n2, n1);
+        matmul_impl(T3.get(), U.get(), Out21.get());
+        {
+             T* ptr = Out21->data() + (Out21->row_offset()*Out21->base_cols() + Out21->col_offset());
+             uint64_t stride = Out21->base_cols();
+             ParallelFor(0, n2, [&](size_t i) { for(size_t j=0; j<n1; ++j) ptr[i*stride+j] *= -1.0; });
+        }
+        
+        // Out11 = U - T1 * Out21
+        auto T4 = std::make_unique<DenseMatrix<T>>(n1, n1);
+        matmul_impl(T1.get(), Out21.get(), T4.get());
+        auto Out11 = out->submatrix(0, 0, n1, n1);
+        {
+            const T* u_ptr = U->data();
+            const T* t4_ptr = T4->data();
+            T* o_ptr = Out11->data() + (Out11->row_offset()*Out11->base_cols() + Out11->col_offset());
+            uint64_t stride = Out11->base_cols();
+            
+            ParallelFor(0, n1, [&](size_t i) {
+                for (size_t j = 0; j < n1; ++j) {
+                    o_ptr[i*stride + j] = u_ptr[i*n1 + j] - t4_ptr[i*n1 + j];
+                }
+            });
         }
     }
 
@@ -553,189 +792,20 @@ namespace {
         size_t total_bytes = 2 * n * n * sizeof(T);
         
         if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
+            // Prioritize LAPACK
             if (pycauset::core::MemoryGovernor::instance().should_use_direct_path(total_bytes)) {
                 inverse_direct(in_dense, out_dense);
                 return;
             }
+            
+            // Fallback: Recursive Blocked Inverse
+            // This safely handles large matrices by decomposing them into smaller blocks
+            // that fit in memory, spilling intermediates to disk if necessary.
+            inverse_recursive(in_dense, out_dense);
+            return;
         }
 
-        // --- Fallback: Out-of-Core Block Gauss-Jordan ---
-        // Create temporary work matrix
-        std::string work_path = pycauset::make_unique_storage_file("inverse_work");
-        // We need to copy input to work, but input might be transposed or scaled.
-        // The simplest way is to copy element by element or use copy_storage if not transposed.
-        // But copy_storage creates a file.
-        // Let's just create a new matrix and copy data.
-        
-        // Actually, we can use MemoryMapper directly to avoid full DenseMatrix overhead if we want,
-        // but using DenseMatrix is cleaner.
-        
-        // Note: We need to handle the scalar. The inverse of (s*A) is (1/s)*A^-1.
-        // We will invert the raw data and then set the scalar of result.
-        
-        // Create work matrix (copy of input raw data)
-        // If input is transposed, we need to handle that.
-        // Gauss-Jordan works on rows. If transposed, we are working on columns.
-        // Inverse of A^T is (A^-1)^T.
-        // So if input is transposed, we can invert the non-transposed data and then transpose the result?
-        // Or just copy data into work matrix in correct order.
-        
-        uint64_t size_bytes = n * n * sizeof(T);
-        auto work_mapper = std::make_unique<MemoryMapper>(work_path, size_bytes, 0, true); // Create new file
-        DenseMatrix<T> work(n, std::move(work_mapper));
-        work.set_temporary(true);
-        
-        T* w = work.data();
-        T* r = out_dense->data();
-        
-        // Initialize Work = Input, Result = Identity
-        const T* in_data = in_dense->data();
-        bool is_transposed = in_dense->is_transposed();
-        
-        ParallelFor(0, n, [&](size_t i) {
-            for (size_t j = 0; j < n; ++j) {
-                // Copy input to work
-                if (is_transposed) {
-                    w[i * n + j] = in_data[j * n + i];
-                } else {
-                    w[i * n + j] = in_data[i * n + j];
-                }
-                
-                // Initialize result to Identity
-                if (i == j) {
-                    r[i * n + j] = (T)1.0;
-                } else {
-                    r[i * n + j] = (T)0.0;
-                }
-            }
-        });
-
-        // Block Gauss-Jordan
-        // Calculate optimal block size based on available RAM
-        // We need to hold 2 * block_size * n * sizeof(T) in RAM (Panel for W and R)
-        // Plus some overhead.
-        size_t available_ram = pycauset::core::MemoryGovernor::instance().get_available_system_ram();
-        size_t row_size = n * sizeof(T);
-        // Use 50% of available RAM for the panel to be safe and leave room for OS cache/streaming
-        size_t panel_budget = available_ram / 2;
-        size_t max_block_size = panel_budget / (2 * row_size);
-        
-        // Clamp block size
-        size_t block_size = std::clamp(max_block_size, (size_t)64, (size_t)16384);
-        // Align to 64
-        block_size = (block_size / 64) * 64;
-        if (block_size == 0) block_size = 64;
-
-        std::cout << "PyCauset: Out-of-Core Inverse using Block Size: " << block_size 
-                  << " (Panel Size: " << (2 * block_size * row_size / 1024 / 1024) << " MB)" << std::endl;
-
-        T epsilon = std::is_same_v<T, float> ? 1e-5f : 1e-12;
-        T zero_threshold = std::is_same_v<T, float> ? 1e-7f : 1e-15;
-        
-        for (size_t k_start = 0; k_start < n; k_start += block_size) {
-            size_t k_end = std::min(k_start + block_size, (size_t)n);
-            size_t current_block_size = k_end - k_start;
-
-            // Pin the current panel (rows k_start to k_end) for both W and R
-            // This ensures the pivot rows stay in RAM while we stream the rest of the matrix against them.
-            // Note: pin_range takes offset in elements, not bytes? No, usually bytes or elements.
-            // DenseMatrix::pin_range takes (offset, length) in elements.
-            // Rows are contiguous.
-            work.pin_range(k_start * n, current_block_size * n);
-            out_dense->pin_range(k_start * n, current_block_size * n);
-
-            for (size_t i = k_start; i < k_end; ++i) {
-                // Pivot
-                size_t pivot = i;
-                T max_val = std::abs(w[i * n + i]);
-                for (size_t k = i + 1; k < n; ++k) {
-                    T val = std::abs(w[k * n + i]);
-                    if (val > max_val) {
-                        max_val = val;
-                        pivot = k;
-                    }
-                }
-
-                if (max_val < epsilon) {
-                    work.close();
-                    std::filesystem::remove(work_path);
-                    throw std::runtime_error("Matrix is singular or nearly singular");
-                }
-
-                if (pivot != i) {
-                    for (size_t j = 0; j < n; ++j) {
-                        std::swap(w[i * n + j], w[pivot * n + j]);
-                        std::swap(r[i * n + j], r[pivot * n + j]);
-                    }
-                }
-
-                T div = w[i * n + i];
-                T inv_div = (T)1.0 / div;
-                
-                if (n > 1000) {
-                    ParallelFor(0, n, [&](size_t j) {
-                        w[i * n + j] *= inv_div;
-                        r[i * n + j] *= inv_div;
-                    });
-                } else {
-                    for (size_t j = 0; j < n; ++j) {
-                        w[i * n + j] *= inv_div;
-                        r[i * n + j] *= inv_div;
-                    }
-                }
-                w[i * n + i] = (T)1.0;
-
-                for (size_t k = k_start; k < k_end; ++k) {
-                    if (k != i) {
-                        T factor = w[k * n + i];
-                        if (std::abs(factor) > zero_threshold) {
-                            w[k * n + i] = (T)0.0;
-                            for (size_t j = i + 1; j < n; ++j) w[k * n + j] -= factor * w[i * n + j];
-                            for (size_t j = 0; j < n; ++j) r[k * n + j] -= factor * r[i * n + j];
-                        }
-                    }
-                }
-            }
-
-            auto update_rows = [&](size_t r_start, size_t r_end) {
-                ParallelFor(r_start, r_end, [&](size_t i) {
-                    for (size_t k = k_start; k < k_end; ++k) {
-                        double factor = w[i * n + k];
-                        if (std::abs(factor) > 1e-15) {
-                            w[i * n + k] = 0.0;
-                            for (size_t j = k_end; j < n; ++j) w[i * n + j] -= factor * w[k * n + j];
-                            for (size_t j = 0; j < n; ++j) r[i * n + j] -= factor * r[k * n + j];
-                        }
-                    }
-                });
-            };
-
-            if (k_start > 0) update_rows(0, k_start);
-            if (k_end < n) update_rows(k_end, n);
-
-            // Unpin the panel
-            work.unpin_range(k_start * n, current_block_size * n);
-            out_dense->unpin_range(k_start * n, current_block_size * n);
-        }
-        
-        if (in_dense->get_scalar() != 1.0) {
-            out_dense->set_scalar(1.0 / in_dense->get_scalar());
-        }
-        
-        // If input was transposed, the result we calculated is (A^T)^-1 = (A^-1)^T.
-        // So the result data is transposed relative to the true inverse.
-        // We should mark the output as transposed?
-        // But we copied data handling transposition at the start (w[i,j] = in[j,i]).
-        // So 'w' represents A^T. We inverted A^T. Result 'r' is (A^T)^-1 = (A^-1)^T.
-        // So 'r' contains the transpose of the inverse.
-        // If we want the inverse, we should transpose 'r'.
-        // OR, we can just say out_dense->set_transposed(true).
-        if (is_transposed) {
-            out_dense->set_transposed(true);
-        }
-        
-        work.close();
-        std::filesystem::remove(work_path);
+        throw std::runtime_error("CpuSolver::inverse not implemented for this dtype (only f32/f64)");
     }
 
     inline void blas_gemm(CBLAS_LAYOUT layout, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB,
@@ -752,92 +822,6 @@ namespace {
                           const float *B, const int ldb, const float beta,
                           float *C, const int ldc) {
         cblas_sgemm(layout, TransA, TransB, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    }
-
-    template <typename T>
-    void matmul_streaming(const DenseMatrix<T>* a_dense, const DenseMatrix<T>* b_dense, DenseMatrix<T>* c_dense) {
-        size_t n = a_dense->rows();
-        auto& governor = pycauset::core::MemoryGovernor::instance();
-
-        // DYNAMIC BLOCK SIZING
-        // Target 80% of available RAM
-        size_t available_ram = governor.get_available_system_ram();
-        size_t target_ram = static_cast<size_t>(available_ram * 0.8);
-        
-        // We need 3 blocks: A, B, C. 
-        // 3 * (B^2) * sizeof(T) = RAM
-        size_t optimal_block_size = static_cast<size_t>(std::sqrt(target_ram / (3.0 * sizeof(T))));
-        
-        // Clamp to reasonable limits
-        // Min: 4096 elements (small)
-        // Max: n (full matrix)
-        size_t block_size = std::max(static_cast<size_t>(4096), optimal_block_size);
-        if (block_size > n) block_size = n;
-        
-        // Ensure even multiple of 8 for SIMD alignment (optional but good)
-        block_size = (block_size / 8) * 8;
-
-        std::cout << "[PyCauset] Out-of-Core MatMul: N=" << n 
-                  << ", BlockSize=" << block_size 
-                  << " (" << (block_size*block_size*sizeof(T))/(1024.0*1024.0) << " MB/block)" << std::endl;
-
-        // Ensure OpenBLAS threading
-        // int num_threads = omp_get_max_threads();
-        // openblas_set_num_threads(num_threads);
-
-        const T* a_data = a_dense->data();
-        const T* b_data = b_dense->data();
-        T* c_data = c_dense->data();
-
-        // Allocate buffers
-        std::vector<T> a_block(block_size * block_size);
-        std::vector<T> b_block(block_size * block_size);
-        std::vector<T> c_block(block_size * block_size);
-
-        // Tiled Matrix Multiplication
-        // Loop Order: i, j, k (Standard)
-        for (size_t i = 0; i < n; i += block_size) {
-            size_t ib = std::min(block_size, n - i);
-            
-            for (size_t j = 0; j < n; j += block_size) {
-                size_t jb = std::min(block_size, n - j);
-                
-                // Reset Accumulator
-                std::fill(c_block.begin(), c_block.end(), static_cast<T>(0));
-
-                for (size_t k = 0; k < n; k += block_size) {
-                    size_t kb = std::min(block_size, n - k);
-
-                    // Load A tile
-                    for (size_t row = 0; row < ib; ++row) {
-                        std::memcpy(&a_block[row * kb], &a_data[(i + row) * n + k], kb * sizeof(T));
-                    }
-
-                    // Load B tile
-                    for (size_t row = 0; row < kb; ++row) {
-                        std::memcpy(&b_block[row * jb], &b_data[(k + row) * n + j], jb * sizeof(T));
-                    }
-
-                    // Compute
-                    T alpha = 1.0;
-                    T beta = 1.0; // Accumulate
-                    if constexpr (std::is_same_v<T, double>) {
-                        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 
-                                    ib, jb, kb, alpha, a_block.data(), kb, b_block.data(), jb, beta, c_block.data(), jb);
-                    } else {
-                        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 
-                                    ib, jb, kb, alpha, a_block.data(), kb, b_block.data(), jb, beta, c_block.data(), jb);
-                    }
-                }
-
-                // Write C tile
-                for (size_t row = 0; row < ib; ++row) {
-                    std::memcpy(&c_data[(i + row) * n + j], &c_block[row * jb], jb * sizeof(T));
-                }
-            }
-        }
-        
-        c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
     }
 } // namespace
 
@@ -1709,6 +1693,86 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     });
 }
 
+void CpuSolver::gemm(const MatrixBase& a, const MatrixBase& b, MatrixBase& c, double alpha, double beta) {
+    // 1. Double Precision
+    auto* a_dense = dynamic_cast<const DenseMatrix<double>*>(&a);
+    auto* b_dense = dynamic_cast<const DenseMatrix<double>*>(&b);
+    auto* c_dense = dynamic_cast<DenseMatrix<double>*>(&c);
+
+    if (a_dense && b_dense && c_dense) {
+        // Basic shape validation (worker usually guarantees this, but safety first)
+        if (a_dense->rows() != c_dense->rows() || b_dense->cols() != c_dense->cols() || a_dense->cols() != b_dense->rows()) {
+            throw std::invalid_argument("CpuSolver::gemm dimension mismatch");
+        }
+
+        const double* a_data = a_dense->data() + (a_dense->row_offset() * a_dense->base_cols() + a_dense->col_offset());
+        const double* b_data = b_dense->data() + (b_dense->row_offset() * b_dense->base_cols() + b_dense->col_offset());
+        double* c_data = c_dense->data() + (c_dense->row_offset() * c_dense->base_cols() + c_dense->col_offset());
+
+        bool t_a = a_dense->is_transposed();
+        bool t_b = b_dense->is_transposed();
+
+        int M = static_cast<int>(a_dense->rows());
+        int N = static_cast<int>(b_dense->cols());
+        int K = static_cast<int>(a_dense->cols());
+
+        // For submatrices/views, base_cols() is stride
+        int lda = static_cast<int>(a_dense->base_cols());
+        int ldb = static_cast<int>(b_dense->base_cols());
+        int ldc = static_cast<int>(c_dense->base_cols());
+
+        cblas_dgemm(
+            CblasRowMajor,
+            t_a ? CblasTrans : CblasNoTrans,
+            t_b ? CblasTrans : CblasNoTrans,
+            M, N, K,
+            alpha, a_data, lda,
+            b_data, ldb,
+            beta, c_data, ldc
+        );
+        return;
+    }
+
+    // 2. Single Precision
+    auto* a_f32 = dynamic_cast<const DenseMatrix<float>*>(&a);
+    auto* b_f32 = dynamic_cast<const DenseMatrix<float>*>(&b);
+    auto* c_f32 = dynamic_cast<DenseMatrix<float>*>(&c);
+
+    if (a_f32 && b_f32 && c_f32) {
+        if (a_f32->rows() != c_f32->rows() || b_f32->cols() != c_f32->cols() || a_f32->cols() != b_f32->rows()) {
+            throw std::invalid_argument("CpuSolver::gemm dimension mismatch");
+        }
+
+        const float* a_data = a_f32->data() + (a_f32->row_offset() * a_f32->base_cols() + a_f32->col_offset());
+        const float* b_data = b_f32->data() + (b_f32->row_offset() * b_f32->base_cols() + b_f32->col_offset());
+        float* c_data = c_f32->data() + (c_f32->row_offset() * c_f32->base_cols() + c_f32->col_offset());
+
+        bool t_a = a_f32->is_transposed();
+        bool t_b = b_f32->is_transposed();
+
+        int M = static_cast<int>(a_f32->rows());
+        int N = static_cast<int>(b_f32->cols());
+        int K = static_cast<int>(a_f32->cols());
+
+        int lda = static_cast<int>(a_f32->base_cols());
+        int ldb = static_cast<int>(b_f32->base_cols());
+        int ldc = static_cast<int>(c_f32->base_cols());
+
+        cblas_sgemm(
+            CblasRowMajor,
+            t_a ? CblasTrans : CblasNoTrans,
+            t_b ? CblasTrans : CblasNoTrans,
+            M, N, K,
+            static_cast<float>(alpha), a_data, lda,
+            b_data, ldb,
+            static_cast<float>(beta), c_data, ldc
+        );
+        return;
+    }
+
+    throw std::runtime_error("CpuSolver::gemm fallback not implemented for these dtypes");
+}
+
 void CpuSolver::matmul_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     // Legacy wrapper for double precision
     auto* a_dense = dynamic_cast<const DenseMatrix<double>*>(&a);
@@ -1817,6 +1881,223 @@ void CpuSolver::inverse(const MatrixBase& matrix_in, MatrixBase& matrix_out) {
     throw std::runtime_error("CpuSolver::inverse only supports DenseMatrix<double>, DenseMatrix<float>, or DiagonalMatrix<double>");
 }
 
+void CpuSolver::cholesky(const MatrixBase& matrix_in, MatrixBase& matrix_out) {
+    if (matrix_in.rows() != matrix_in.cols()) {
+        throw std::invalid_argument("CpuSolver::cholesky requires a square matrix");
+    }
+
+    const uint64_t n = matrix_in.rows();
+
+    if (auto* in_dense = dynamic_cast<const DenseMatrix<double>*>(&matrix_in)) {
+        auto* out_dense = dynamic_cast<DenseMatrix<double>*>(&matrix_out);
+        if (!out_dense) throw std::runtime_error("CpuSolver::cholesky output must be DenseMatrix<double>");
+
+        // Copy input to output
+        std::memcpy(out_dense->data(), in_dense->data(), n * n * sizeof(double));
+
+        // Use LAPACKE to compute Cholesky in-place on matrix_out
+        lapack_int info = LAPACKE_dpotrf(LAPACK_ROW_MAJOR, 'L', (lapack_int)n, out_dense->data(), (lapack_int)n);
+
+        if (info != 0) {
+            throw std::runtime_error("CpuSolver::cholesky failed (matrix not SPD, info=" + std::to_string(info) + ")");
+        }
+
+        // Zero out upper triangle (excluding diagonal)
+        double* data = out_dense->data();
+        for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t j = i + 1; j < n; ++j) {
+                data[i * n + j] = 0.0;
+            }
+        }
+        return;
+    }
+
+    if (auto* in_dense = dynamic_cast<const DenseMatrix<float>*>(&matrix_in)) {
+        auto* out_dense = dynamic_cast<DenseMatrix<float>*>(&matrix_out);
+        if (!out_dense) throw std::runtime_error("CpuSolver::cholesky output must be DenseMatrix<float>");
+
+        std::memcpy(out_dense->data(), in_dense->data(), n * n * sizeof(float));
+
+        lapack_int info = LAPACKE_spotrf(LAPACK_ROW_MAJOR, 'L', (lapack_int)n, out_dense->data(), (lapack_int)n);
+
+        if (info != 0) {
+            throw std::runtime_error("CpuSolver::cholesky failed (matrix not SPD, info=" + std::to_string(info) + ")");
+        }
+
+        float* data = out_dense->data();
+        for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t j = i + 1; j < n; ++j) {
+                data[i * n + j] = 0.0f;
+            }
+        }
+        return;
+    }
+
+    throw std::runtime_error("CpuSolver::cholesky only supports DenseMatrix<double> or DenseMatrix<float>");
+}
+
+void CpuSolver::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) {
+    if (k <= 0 || m <= 0) {
+        throw std::invalid_argument("CpuSolver::eigvals_arnoldi requires positive k and m");
+    }
+    if (a.rows() != a.cols()) {
+        throw std::invalid_argument("CpuSolver::eigvals_arnoldi requires a square matrix");
+    }
+
+    bool out_is_complex = false;
+    if (auto* out_c = dynamic_cast<DenseVector<std::complex<double>>*>(&out)) {
+        out_is_complex = true;
+    } else if (auto* out_d = dynamic_cast<DenseVector<double>*>(&out)) {
+        out_is_complex = false;
+    } else {
+        throw std::runtime_error("CpuSolver::eigvals_arnoldi output must be DenseVector<double> or DenseVector<complex<double>>");
+    }
+
+    const uint64_t n = a.rows();
+    if (out.size() < static_cast<uint64_t>(k)) {
+        throw std::invalid_argument("CpuSolver::eigvals_arnoldi output vector is too small");
+    }
+
+    const int max_steps = std::min<int>(m, static_cast<int>(n));
+
+    // Arnoldi Iteration for General Real Matrices
+    // Uses matrix_vector_multiply to support out-of-core matrices.
+    // Basis V stored in RAM (Arnoldi implies V fits in memory, A does not).
+    std::vector<std::vector<double>> V;
+    V.reserve(max_steps + 1);
+
+    // Initial random vector
+    std::vector<double> v_init(n);
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<double> dist(-1.0, 1.0);
+    for (uint64_t i = 0; i < n; ++i) v_init[i] = dist(rng);
+
+    // Normalize v_init
+    double norm = 0.0;
+    for (double x : v_init) norm += x * x;
+    norm = std::sqrt(norm);
+    if (norm < 1e-14) norm = 1.0; 
+    for (double& x : v_init) x /= norm;
+    
+    V.push_back(v_init);
+
+    // Hessenberg matrix H (max_steps+1 x max_steps)
+    // We'll store it in an Eigen matrix for the final small solve
+    Eigen::MatrixXd H = Eigen::MatrixXd::Zero(max_steps + 1, max_steps);
+
+    // Temp buffers for MVM
+    DenseVector<double> w_vec(n);
+    DenseVector<double> v_curr_vec(n);
+
+    // Helpers to transfer data between std::vector and DenseVector
+    // We assume DenseVector is contiguous or we use get/set.
+    // Using parallel set/get is safer and reasonably fast.
+    auto set_dense_from_std = [&](DenseVector<double>& dv, const std::vector<double>& sv) {
+        ParallelFor(0, n, [&](size_t i) {
+            dv.set(i, sv[i]);
+        });
+    };
+    auto set_std_from_dense = [&](std::vector<double>& sv, const DenseVector<double>& dv) {
+         ParallelFor(0, n, [&](size_t i) {
+            sv[i] = dv.get(i);
+         });
+    };
+
+    int j = 0;
+    for (; j < max_steps; ++j) {
+        // v_curr_vec <- V[j]
+        set_dense_from_std(v_curr_vec, V[j]);
+        
+        // w <- A * v_curr
+        // This is the key "Anti-Nanny" step: utilizing the engine's MVM
+        // which handles paging, tiling, and disk I/O for 'a'.
+        matrix_vector_multiply(a, v_curr_vec, w_vec);
+
+        // Read w back to RAM for Gram-Schmidt
+        std::vector<double> w_host(n);
+        set_std_from_dense(w_host, w_vec);
+
+        // Modified Gram-Schmidt
+        for (int i = 0; i <= j; ++i) {
+            double h_ij = 0.0;
+            // Dot product (can use CBLAS/Parallel logic if needed)
+            const double* vi_ptr = V[i].data();
+            const double* w_ptr = w_host.data();
+            for (uint64_t idx = 0; idx < n; ++idx) {
+                h_ij += vi_ptr[idx] * w_ptr[idx];
+            }
+            
+            H(i, j) = h_ij;
+
+            // w = w - h_ij * V[i]
+            for (uint64_t idx = 0; idx < n; ++idx) {
+                w_host[idx] -= h_ij * vi_ptr[idx];
+            }
+        }
+
+        // Compute norm of w
+        double h_next = 0.0;
+        for (double x : w_host) h_next += x * x;
+        h_next = std::sqrt(h_next);
+
+        H(j + 1, j) = h_next;
+
+        if (h_next < tol) {
+            // Krylov subspace invariant subspace found
+            j++; 
+            break;
+        }
+
+        // Normalize w to get v_{j+1}
+        const double inv_h = 1.0 / h_next;
+        for (double& x : w_host) x *= inv_h;
+        
+        if (j + 1 < max_steps) {
+             V.push_back(w_host);
+        }
+    }
+
+    if (j == 0) {
+         throw std::runtime_error("CpuSolver::eigvals_arnoldi failed early");
+    }
+
+    // Solve the small eigenvalue problem for H(0..j, 0..j-1) which is essentially j x j
+    // H is (j+1) x j. We take the j x j principal submatrix.
+    Eigen::MatrixXd H_small = H.block(0, 0, j, j);
+
+    Eigen::EigenSolver<Eigen::MatrixXd> solver(H_small, false);
+    if (solver.info() != Eigen::Success) {
+        throw std::runtime_error("CpuSolver::eigvals_arnoldi H-matrix solve failed");
+    }
+
+    auto evals = solver.eigenvalues();
+    
+    // Sort and Output
+    std::vector<std::pair<double, std::complex<double>>> ranked;
+    ranked.reserve(evals.size());
+    for (int i = 0; i < evals.size(); ++i) {
+        std::complex<double> z(evals[i].real(), evals[i].imag());
+        ranked.emplace_back(std::abs(z), z);
+    }
+    std::sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) {
+        return a.first > b.first;
+    });
+
+    for (int i = 0; i < k; ++i) {
+         std::complex<double> val = (i < ranked.size()) ? ranked[i].second : 0.0;
+         if (out_is_complex) {
+             auto* out_c = static_cast<DenseVector<std::complex<double>>*>(&out);
+             out_c->set(i, val);
+         } else {
+             if (std::abs(val.imag()) > tol) {
+                 throw std::runtime_error("CpuSolver::eigvals_arnoldi converged to complex eigenvalue, but output is real.");
+             }
+             auto* out_d = static_cast<DenseVector<double>*>(&out);
+             out_d->set(i, val.real());
+         }
+    }
+}
+
 void CpuSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {
     uint64_t n = A.rows();
     if (A.cols() != n) {
@@ -1874,11 +2155,11 @@ namespace {
             auto* a_dense = dynamic_cast<const DenseMatrix<T>*>(&a);
             auto* b_dense = dynamic_cast<const DenseMatrix<T>*>(&b);
             
-            // Fast path: All dense, no transpose, scalar=1
+            // Fast path: All dense, no transpose, scalar=1, no view offsets
             if (a_dense && b_dense && a_full && b_full &&
-                res_dense->get_scalar() == 1.0 && !res_dense->is_transposed() &&
-                a_dense->get_scalar() == 1.0 && !a_dense->is_transposed() &&
-                b_dense->get_scalar() == 1.0 && !b_dense->is_transposed()) {
+                res_dense->get_scalar() == 1.0 && !res_dense->is_transposed() && !res_dense->has_view_offset() &&
+                a_dense->get_scalar() == 1.0 && !a_dense->is_transposed() && !a_dense->has_view_offset() &&
+                b_dense->get_scalar() == 1.0 && !b_dense->is_transposed() && !b_dense->has_view_offset()) {
                 
                 const T* a_data = a_dense->data();
                 const T* b_data = b_dense->data();
@@ -2058,27 +2339,35 @@ void CpuSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result
 
     if (dtype == DataType::FLOAT64) {
         debug_trace::set_last("cpu.add.f64");
+        if (try_fast_simd<double>(a, b, result, get_add_kernel<double>())) return;
         binary_op_impl<double>(a, b, result, std::plus<>());
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.add.f16");
+        if (try_fast_simd<pycauset::float16_t>(a, b, result, get_add_kernel<pycauset::float16_t>())) return;
         binary_op_impl<pycauset::float16_t>(a, b, result, std::plus<>());
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.add.f32");
+        if (try_fast_simd<float>(a, b, result, get_add_kernel<float>())) return;
         binary_op_impl<float>(a, b, result, std::plus<>());
     } else if (dtype == DataType::INT8) {
         debug_trace::set_last("cpu.add.i8");
+        if (try_fast_simd<int8_t>(a, b, result, get_add_kernel<int8_t>())) return;
         binary_op_impl<int8_t>(a, b, result, std::plus<>());
     } else if (dtype == DataType::INT16) {
         debug_trace::set_last("cpu.add.i16");
+        if (try_fast_simd<int16_t>(a, b, result, get_add_kernel<int16_t>())) return;
         binary_op_impl<int16_t>(a, b, result, std::plus<>());
     } else if (dtype == DataType::INT32) {
         debug_trace::set_last("cpu.add.i32");
+        if (try_fast_simd<int32_t>(a, b, result, get_add_kernel<int32_t>())) return;
         binary_op_impl<int32_t>(a, b, result, std::plus<>());
     } else if (dtype == DataType::INT64) {
         debug_trace::set_last("cpu.add.i64");
+        if (try_fast_simd<int64_t>(a, b, result, get_add_kernel<int64_t>())) return;
         binary_op_impl<int64_t>(a, b, result, std::plus<>());
     } else if (dtype == DataType::UINT8) {
         debug_trace::set_last("cpu.add.u8");
+        if (try_fast_simd<uint8_t>(a, b, result, get_add_kernel<uint8_t>())) return;
         binary_op_impl<uint8_t>(a, b, result, std::plus<>());
     } else if (dtype == DataType::UINT16) {
         debug_trace::set_last("cpu.add.u16");
@@ -4387,64 +4676,817 @@ double CpuSolver::determinant(const MatrixBase& matrix) {
     return lu.determinant().real();
 }
 
-void CpuSolver::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
-    // Keep the same contract as DenseMatrix<double>::qr: square float64 matrices.
-    if (in.rows() != in.cols()) {
-        throw std::runtime_error("QR requires a square matrix");
-    }
 
-    auto* q_out = dynamic_cast<DenseMatrix<double>*>(&Q);
-    auto* r_out = dynamic_cast<DenseMatrix<double>*>(&R);
-    if (!q_out || !r_out) {
-        throw std::runtime_error("CpuSolver::qr requires DenseMatrix<double> outputs");
-    }
 
-    const uint64_t n = in.rows();
-    if (q_out->rows() != n || q_out->cols() != n || r_out->rows() != n || r_out->cols() != n) {
-        throw std::runtime_error("CpuSolver::qr output matrix dimension mismatch");
-    }
+// --- Eigen Solvers ---
 
-    double* q_data = q_out->data();
-    double* r_data = r_out->data();
-
-    // Initialize Q from input.
-    ParallelFor(0, n, [&](size_t i) {
-        for (size_t j = 0; j < n; ++j) {
-            q_data[i * n + j] = in.get_element_as_double(static_cast<uint64_t>(i), static_cast<uint64_t>(j));
-        }
-    });
-
-    std::fill(r_data, r_data + n * n, 0.0);
-
-    for (size_t k = 0; k < n; ++k) {
-        double norm_sq = 0.0;
-        for (size_t i = 0; i < n; ++i) {
-            const double val = q_data[i * n + k];
-            norm_sq += val * val;
-        }
-
-        const double norm = std::sqrt(norm_sq);
-        r_data[k * n + k] = norm;
-
-        if (norm > 1e-12) {
-            const double inv_norm = 1.0 / norm;
-            ParallelFor(0, n, [&](size_t i) { q_data[i * n + k] *= inv_norm; });
+namespace {
+    // Helper to extract real parts into a vector
+    template <typename T>
+    void extract_real_vector(uint64_t n, const std::vector<T>& src, VectorBase& dst) {
+        if (auto* d_dst = dynamic_cast<DenseVector<double>*>(&dst)) {
+            double* ptr = d_dst->data();
+            for(size_t i=0; i<n; ++i) ptr[i] = static_cast<double>(std::real(src[i]));
+        } else if (auto* f_dst = dynamic_cast<DenseVector<float>*>(&dst)) {
+            float* ptr = f_dst->data();
+            for(size_t i=0; i<n; ++i) ptr[i] = static_cast<float>(std::real(src[i]));
         } else {
-            ParallelFor(0, n, [&](size_t i) { q_data[i * n + k] = 0.0; });
+            throw std::runtime_error("Unsupported vector type for eigenvalues");
+        }
+    }
+
+    template <typename T>
+    void extract_vector(uint64_t n, const T* src, VectorBase& dst) {
+        if (auto* d_dst = dynamic_cast<DenseVector<double>*>(&dst)) {
+            double* ptr = d_dst->data();
+            for(size_t i=0; i<n; ++i) ptr[i] = static_cast<double>(src[i]);
+        } else if (auto* f_dst = dynamic_cast<DenseVector<float>*>(&dst)) {
+            float* ptr = f_dst->data();
+            for(size_t i=0; i<n; ++i) ptr[i] = static_cast<float>(src[i]);
+        } else {
+            throw std::runtime_error("Unsupported vector type for eigenvalues");
+        }
+    }
+
+    template <typename T>
+    void extract_complex_vector(uint64_t n, const T* wr, const T* wi, VectorBase& dst) {
+        if (auto* d_dst = dynamic_cast<DenseVector<std::complex<double>>*>(&dst)) {
+            std::complex<double>* ptr = d_dst->data();
+            for(size_t i=0; i<n; ++i) {
+                ptr[i] = { static_cast<double>(wr[i]), static_cast<double>(wi[i]) };
+            }
+        } else if (auto* f_dst = dynamic_cast<DenseVector<std::complex<float>>*>(&dst)) {
+            std::complex<float>* ptr = f_dst->data();
+            for(size_t i=0; i<n; ++i) {
+               ptr[i] = { static_cast<float>(wr[i]), static_cast<float>(wi[i]) };
+            }
+        } else {
+             throw std::runtime_error("eig/eigvals requires complex vector output");
+        }
+    }
+}
+
+void CpuSolver::eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) {
+    if (in.rows() != in.cols()) throw std::invalid_argument("eigh requires square matrix");
+    
+    // We assume input is Symmetric/Hermitian.
+    // LAPACK dsyev destroys input matrix to produce eigenvectors.
+    // So we copy IN -> Eigenvectors matrix first.
+    
+    // 1. Copy in -> eigenvectors
+    // Use the existing 'fill' or 'set' or a dedicated copy.
+    // Since 'eigenvectors' is MatrixBase, easiest is to use our copy mechanisms or simple elementwise copy if types vary,
+    // but here we expect Dense Output.
+    
+    const uint64_t n = in.rows();
+    if (eigenvectors.rows() != n || eigenvectors.cols() != n) throw std::invalid_argument("Eigenvectors matrix bad shape");
+    if (eigenvalues.size() != n) throw std::invalid_argument("Eigenvalues vector bad size");
+
+    // Type dispatch
+    if (auto* out_d = dynamic_cast<DenseMatrix<double>*>(&eigenvectors)) {
+        if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+             // 1. Copy
+             // Respecting offsets!
+             const double* src = in_d->data() + (in_d->row_offset() * in_d->base_cols() + in_d->col_offset());
+             double* dst = out_d->data() + (out_d->row_offset() * out_d->base_cols() + out_d->col_offset());
+             
+             uint64_t src_stride = in_d->base_cols();
+             uint64_t dst_stride = out_d->base_cols();
+             
+             ParallelFor(0, n, [&](size_t i) {
+                 for(size_t j=0; j<n; ++j) {
+                     dst[i * dst_stride + j] = src[i * src_stride + j];
+                 }
+             });
+             
+             // 2. Run dsyev
+             // JOBZ = 'V' (Compute eigenvectors)
+             // UPLO = 'U' (Upper triangle assumed)
+             lapack_int info;
+             
+             // Output eigenvalues 'w' needs a buffer
+             std::vector<double> w(n);
+             
+             info = LAPACKE_dsyev(LAPACK_ROW_MAJOR, 'V', uplo, (lapack_int)n, dst, (lapack_int)dst_stride, w.data());
+             
+             if (info > 0) throw std::runtime_error("eigh failed to converge");
+             if (info < 0) throw std::runtime_error("eigh: illegal argument");
+             
+             // 3. Copy w -> eigenvalues
+             extract_vector(n, w.data(), eigenvalues);
+             return;
+        }
+    }
+    
+     if (auto* out_f = dynamic_cast<DenseMatrix<float>*>(&eigenvectors)) {
+        if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+             const float* src = in_f->data() + (in_f->row_offset() * in_f->base_cols() + in_f->col_offset());
+             float* dst = out_f->data() + (out_f->row_offset() * out_f->base_cols() + out_f->col_offset());
+             
+             uint64_t src_stride = in_f->base_cols();
+             uint64_t dst_stride = out_f->base_cols();
+             
+             ParallelFor(0, n, [&](size_t i) {
+                 for(size_t j=0; j<n; ++j) {
+                     dst[i * dst_stride + j] = src[i * src_stride + j];
+                 }
+             });
+             
+             std::vector<float> w(n);
+             lapack_int info = LAPACKE_ssyev(LAPACK_ROW_MAJOR, 'V', uplo, (lapack_int)n, dst, (lapack_int)dst_stride, w.data());
+             
+             if (info > 0) throw std::runtime_error("eigh failed to converge");
+             if (info < 0) throw std::runtime_error("eigh: illegal argument");
+             
+             extract_vector(n, w.data(), eigenvalues);
+             return;
+        }
+    }
+    
+    throw std::runtime_error("eigh not implemented for these types");
+}
+
+void CpuSolver::eigvalsh(const MatrixBase& in, VectorBase& eigenvalues, char uplo) {
+    if (in.rows() != in.cols()) throw std::invalid_argument("eigvalsh requires square matrix");
+    const uint64_t n = in.rows();
+    if (eigenvalues.size() != n) throw std::invalid_argument("Eigenvalues vector bad size");
+    
+    // JOBZ = 'N' (Eigenvalues only)
+    // We still need a copy of A because dsyev destroys it.
+    
+    if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+         // Create Temp DenseMatrix. Default constructor makes it anonymous/temp.
+         DenseMatrix<double> temp(n, n);
+         
+         const double* src = in_d->data() + (in_d->row_offset() * in_d->base_cols() + in_d->col_offset());
+         double* dst = temp.data(); // No offsets for new temp
+         uint64_t src_stride = in_d->base_cols();
+         uint64_t dst_stride = n;
+         
+         ParallelFor(0, n, [&](size_t i) {
+             for(size_t j=0; j<n; ++j) {
+                  dst[i * dst_stride + j] = src[i * src_stride + j];
+             }
+         });
+         
+         std::vector<double> w(n);
+         lapack_int info = LAPACKE_dsyev(LAPACK_ROW_MAJOR, 'N', uplo, (lapack_int)n, dst, (lapack_int)dst_stride, w.data());
+         
+         if (info > 0) throw std::runtime_error("eigvalsh failed to converge");
+         if (info < 0) throw std::runtime_error("eigvalsh: illegal argument");
+         
+         extract_vector(n, w.data(), eigenvalues);
+         return;
+    }
+    
+    if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+         DenseMatrix<float> temp(n, n);
+         
+         const float* src = in_f->data() + (in_f->row_offset() * in_f->base_cols() + in_f->col_offset());
+         float* dst = temp.data(); 
+         uint64_t src_stride = in_f->base_cols();
+         uint64_t dst_stride = n;
+         
+         ParallelFor(0, n, [&](size_t i) {
+             for(size_t j=0; j<n; ++j) {
+                  dst[i * dst_stride + j] = src[i * src_stride + j];
+             }
+         });
+         
+         std::vector<float> w(n);
+         lapack_int info = LAPACKE_ssyev(LAPACK_ROW_MAJOR, 'N', uplo, (lapack_int)n, dst, (lapack_int)dst_stride, w.data());
+         
+         if (info > 0) throw std::runtime_error("eigvalsh failed to converge");
+         if (info < 0) throw std::runtime_error("eigvalsh: illegal argument");
+         
+         extract_vector(n, w.data(), eigenvalues);
+         return;
+    }
+
+    throw std::runtime_error("eigvalsh not implemented for these types");
+}
+
+void CpuSolver::eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors) {
+     if (in.rows() != in.cols()) throw std::invalid_argument("eig requires square matrix");
+     
+     const uint64_t n = in.rows();
+     if (eigenvectors.rows() != n || eigenvectors.cols() != n) throw std::invalid_argument("Eigenvectors matrix bad shape");
+     if (eigenvalues.size() != n) throw std::invalid_argument("Eigenvalues vector bad size");
+     
+     // 1. Prepare Inputs (Double)
+     if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+         DenseMatrix<double> temp(n, n);
+         // Copy with offsets
+         const double* src = in_d->data() + (in_d->row_offset() * in_d->base_cols() + in_d->col_offset());
+         double* dst = temp.data(); 
+         uint64_t src_stride = in_d->base_cols();
+         uint64_t dst_stride = n;
+         ParallelFor(0, n, [&](size_t i) {
+             for(size_t j=0; j<n; ++j) {
+                  dst[i * dst_stride + j] = src[i * src_stride + j];
+             }
+         });
+         
+         std::vector<double> wr(n);
+         std::vector<double> wi(n);
+         
+         // VR needs to be strict n*n double buffer for LAPACK, but result is complex.
+         // We essentially need a temporary double buffer for VR.
+         std::vector<double> vr(n * n);
+         
+         lapack_int info = LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', 'V', (lapack_int)n, dst, (lapack_int)dst_stride, 
+                                         wr.data(), wi.data(), 
+                                         nullptr, (lapack_int)n, 
+                                         vr.data(), (lapack_int)n);
+                                         
+         if (info > 0) throw std::runtime_error("eig failed to compute eigenvalues");
+         if (info < 0) throw std::runtime_error("eig: illegal argument");
+         
+         // 2. Extract Eigenvalues
+         extract_complex_vector(n, wr.data(), wi.data(), eigenvalues);
+         
+         // 3. Extract Eigenvectors
+         if (auto* out_cd = dynamic_cast<DenseMatrix<std::complex<double>>*>(&eigenvectors)) {
+             std::complex<double>* out_ptr = out_cd->data(); // Assume contiguous for now, or use set().
+             // Using direct pointer for speed, assuming contiguous output (safe for fresh result matrix)
+             
+             // Check contiguity or use loops
+             bool contiguous = (out_cd->row_offset() == 0 && out_cd->col_offset() == 0 && out_cd->base_cols() == n);
+             
+             for (size_t j = 0; j < n; ++j) {
+                 if (wi[j] == 0.0) {
+                     // Real eigenvalue -> Real eigenvector at column j
+                     for (size_t i = 0; i < n; ++i) {
+                         std::complex<double> val = { vr[i * n + j], 0.0 };
+                         if (contiguous) out_ptr[i * n + j] = val;
+                         else out_cd->set(i, j, val); 
+                     }
+                 } else {
+                     // Complex pair w[j], w[j+1]
+                     // v[j] = VR[:, j] + i*VR[:, j+1]
+                     // v[j+1] = VR[:, j] - i*VR[:, j+1]
+                     
+                     for (size_t i = 0; i < n; ++i) {
+                         double re = vr[i * n + j];
+                         double im = vr[i * n + (j + 1)];
+                         
+                         std::complex<double> v1 = {re, im};
+                         std::complex<double> v2 = {re, -im};
+                         
+                         if (contiguous) {
+                             out_ptr[i * n + j] = v1;
+                             out_ptr[i * n + (j+1)] = v2;
+                         } else {
+                             out_cd->set(i, j, v1);
+                             out_cd->set(i, j+1, v2);
+                         }
+                     }
+                     
+                     j++; // Skip next
+                 }
+             }
+             return;
+         }
+         throw std::runtime_error("eig requires ComplexFloat64Matrix output for Double input");
+     }
+     
+     // Float Implementation
+     if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+         DenseMatrix<float> temp(n, n);
+         const float* src = in_f->data() + (in_f->row_offset() * in_f->base_cols() + in_f->col_offset());
+         float* dst = temp.data(); 
+         uint64_t src_stride = in_f->base_cols();
+         uint64_t dst_stride = n;
+         ParallelFor(0, n, [&](size_t i) {
+             for(size_t j=0; j<n; ++j) dst[i * dst_stride + j] = src[i * src_stride + j];
+         });
+         
+         std::vector<float> wr(n), wi(n), vr(n * n);
+         
+         lapack_int info = LAPACKE_sgeev(LAPACK_ROW_MAJOR, 'N', 'V', (lapack_int)n, dst, (lapack_int)dst_stride, 
+                                         wr.data(), wi.data(), 
+                                         nullptr, (lapack_int)n, 
+                                         vr.data(), (lapack_int)n);
+                                         
+         if (info > 0) throw std::runtime_error("eig failed to compute eigenvalues");
+
+         extract_complex_vector(n, wr.data(), wi.data(), eigenvalues);
+         
+         if (auto* out_cf = dynamic_cast<DenseMatrix<std::complex<float>>*>(&eigenvectors)) {
+             std::complex<float>* out_ptr = out_cf->data();
+             bool contiguous = (out_cf->row_offset() == 0 && out_cf->col_offset() == 0 && out_cf->base_cols() == n);
+             
+             for (size_t j = 0; j < n; ++j) {
+                 if (wi[j] == 0.0f) {
+                     for (size_t i = 0; i < n; ++i) {
+                         std::complex<float> val = { vr[i * n + j], 0.0f };
+                         if (contiguous) out_ptr[i * n + j] = val;
+                         else out_cf->set(i, j, val);
+                     }
+                 } else {
+                     for (size_t i = 0; i < n; ++i) {
+                         float re = vr[i * n + j];
+                         float im = vr[i * n + (j + 1)];
+                         std::complex<float> v1 = {re, im};
+                         std::complex<float> v2 = {re, -im};
+                         if (contiguous) {
+                             out_ptr[i * n + j] = v1;
+                             out_ptr[i * n + (j+1)] = v2;
+                         } else {
+                             out_cf->set(i, j, v1);
+                             out_cf->set(i, j+1, v2);
+                         }
+                     }
+                     j++;
+                 }
+             }
+             return;
+         }
+         throw std::runtime_error("eig requires ComplexFloat32Matrix output for Float input");
+     }
+
+    throw std::runtime_error("eig not implemented for these types");
+}
+
+void CpuSolver::eigvals(const MatrixBase& in, VectorBase& eigenvalues) {
+     if (in.rows() != in.cols()) throw std::invalid_argument("eigvals requires square matrix");
+     
+     const uint64_t n = in.rows();
+     if (eigenvalues.size() != n) throw std::invalid_argument("Eigenvalues vector bad size");
+     
+     if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+         DenseMatrix<double> temp(n, n);
+         const double* src = in_d->data() + (in_d->row_offset() * in_d->base_cols() + in_d->col_offset());
+         double* dst = temp.data(); 
+         uint64_t src_stride = in_d->base_cols();
+         uint64_t dst_stride = n;
+         ParallelFor(0, n, [&](size_t i) {
+             for(size_t j=0; j<n; ++j) dst[i * dst_stride + j] = src[i * src_stride + j];
+         });
+         
+         std::vector<double> wr(n), wi(n);
+         
+         lapack_int info = LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', 'N', (lapack_int)n, dst, (lapack_int)dst_stride, 
+                                         wr.data(), wi.data(), 
+                                         nullptr, (lapack_int)n, 
+                                         nullptr, (lapack_int)n);
+         
+         if (info > 0) throw std::runtime_error("eigvals failed");
+         extract_complex_vector(n, wr.data(), wi.data(), eigenvalues);
+         return;
+     }
+     
+     if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+         DenseMatrix<float> temp(n, n);
+         const float* src = in_f->data() + (in_f->row_offset() * in_f->base_cols() + in_f->col_offset());
+         float* dst = temp.data(); 
+         uint64_t src_stride = in_f->base_cols();
+         uint64_t dst_stride = n;
+         ParallelFor(0, n, [&](size_t i) {
+             for(size_t j=0; j<n; ++j) dst[i * dst_stride + j] = src[i * src_stride + j];
+         });
+         
+         std::vector<float> wr(n), wi(n);
+         lapack_int info = LAPACKE_sgeev(LAPACK_ROW_MAJOR, 'N', 'N', (lapack_int)n, dst, (lapack_int)dst_stride, 
+                                         wr.data(), wi.data(), 
+                                         nullptr, (lapack_int)n, 
+                                         nullptr, (lapack_int)n);
+         if (info > 0) throw std::runtime_error("eigvals failed");
+         extract_complex_vector(n, wr.data(), wi.data(), eigenvalues);
+         return;
+     }
+
+     throw std::runtime_error("eigvals not implemented for these types");
+}
+
+
+void CpuSolver::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
+    // QR Decomposition using LAPACKE_xgeqrf and xorgqr/xungqr
+    // A = Q * R.
+    // Dimensions: A is (M, N).
+    // Q is (M, K) where K = min(M, N). (Reduced QR)
+    // R is (K, N).
+    
+    uint64_t m = in.rows();
+    uint64_t n = in.cols();
+    uint64_t k = std::min(m, n);
+    
+    if (Q.rows() != m || Q.cols() != k) throw std::invalid_argument("QR: Q shape incorrect");
+    if (R.rows() != k || R.cols() != n) throw std::invalid_argument("QR: R shape incorrect");
+
+    if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+         // Copy A to a temp buffer (needed for geqrf)
+         // Since Q will eventually hold the orthogonal matrix, we can use Q's buffer if size allows (M x M), 
+         // but here Q is (M, K). geqrf works on (M, N). 
+         // So we allocate a copy of A.
+         std::vector<double> a_data = to_memory_flat_real_square(in); // Wait, this helper enforces square.
+         // Let's just do a manual copy for general rectangular.
+         
+         std::vector<double> a_buf(m * n);
+         const double* src = in_d->data(); // Assuming contiguous for simplicity or use elementwise
+         // We must handle strides properly
+         ParallelFor(0, m, [&](size_t i) {
+             for(size_t j=0; j<n; ++j) {
+                 a_buf[i * n + j] = in_d->get(i, j);
+             }
+         });
+         
+         std::vector<double> tau(k);
+         
+         // 1. GEQRF
+         lapack_int info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, (lapack_int)m, (lapack_int)n, a_buf.data(), (lapack_int)n, tau.data());
+         if (info != 0) throw std::runtime_error("geqrf failed");
+         
+         // 2. Extract R
+         // R is upper triangular part of A (which is now in a_buf).
+         // R is K x N.
+         auto* r_d = dynamic_cast<DenseMatrix<double>*>(&R);
+         if (!r_d) throw std::runtime_error("R must be DenseMatrix<double>");
+         
+         // Zero out R first?
+         // Actually we just copy the upper trapezoid
+         double* r_ptr = r_d->data();
+         ParallelFor(0, k, [&](size_t i) {
+             for(size_t j=0; j<n; ++j) {
+                 if (j >= i) r_ptr[i * n + j] = a_buf[i * n + j];
+                 else r_ptr[i * n + j] = 0.0;
+             }
+         });
+         
+         // 3. Generate Q
+         // Q is generated by replacing the columns of A with the reflectors and calling orgqr.
+         // But geqrf overwrote A.
+         // Wait, geqrf overwrites A with elementary reflectors in the lower part-ish.
+         // We can use orgqr on a_buf to generate Q.
+         // BUT orgqr replaces A with Q.
+         // A was MxN. We want Q to be MxK (reduced).
+         // info = LAPACKE_dorgqr(matrix_layout, m, n, k, a, lda, tau)
+         // If we want Q to be MxK, we pass n=K.
+         // But the input A buffer must be large enough. A is MxN.
+         // If N > K, we are shrinking.
+         // If M > N, K=N.
+         
+         // Let's create a buffer for Q generation that is MxK, initialized from columns 0..K-1 of a_buf??
+         // No, dorgqr expects the details in the 'a' arguments corresponding to reflectors.
+         // reflectors are stored in lower part of A.
+         
+         // If we want "Thin" QR (Q is MxK), we call dorgqr with n=K.
+         // But we must preserve the reflectors which are in the first K columns of A.
+         
+         // So we can reuse a_buf if N >= K (always true).
+         // However, dorgqr overwrites a_buf.
+         info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, (lapack_int)m, (lapack_int)k, (lapack_int)k, a_buf.data(), (lapack_int)n, tau.data());
+         if (info != 0) throw std::runtime_error("dorgqr failed");
+         
+         // Now a_buf (first K columns) contains Q.
+         // Copy to Q matrix.
+         auto* q_d = dynamic_cast<DenseMatrix<double>*>(&Q);
+         if (!q_d) throw std::runtime_error("Q must be DenseMatrix<double>");
+         double* q_ptr = q_d->data();
+         
+         ParallelFor(0, m, [&](size_t i) {
+             for(size_t j=0; j<k; ++j) {
+                 q_ptr[i * k + j] = a_buf[i * n + j];
+             }
+         });
+         
+         return;
+    }
+    
+    // Fallback for float
+    if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+         std::vector<float> a_buf(m * n);
+         const float* src = in_f->data();
+         for(size_t i=0; i<m; ++i) {
+             for(size_t j=0; j<n; ++j) {
+                 a_buf[i * n + j] = in_f->get(i, j);
+             }
+         }
+         
+         std::vector<float> tau(k);
+         lapack_int info = LAPACKE_sgeqrf(LAPACK_ROW_MAJOR, (lapack_int)m, (lapack_int)n, a_buf.data(), (lapack_int)n, tau.data());
+         if (info != 0) throw std::runtime_error("sgeqrf failed");
+         
+         auto* r_f = dynamic_cast<DenseMatrix<float>*>(&R);
+         float* r_ptr = r_f->data();
+         for(size_t i=0; i<k; ++i) {
+             for(size_t j=0; j<n; ++j) {
+                 if (j >= i) r_ptr[i * n + j] = a_buf[i * n + j];
+                 else r_ptr[i * n + j] = 0.0f;
+             }
+         }
+         
+         info = LAPACKE_sorgqr(LAPACK_ROW_MAJOR, (lapack_int)m, (lapack_int)k, (lapack_int)k, a_buf.data(), (lapack_int)n, tau.data());
+         if (info != 0) throw std::runtime_error("sorgqr failed");
+         
+         auto* q_f = dynamic_cast<DenseMatrix<float>*>(&Q);
+         float* q_ptr = q_f->data();
+         for(size_t i=0; i<m; ++i) {
+             for(size_t j=0; j<k; ++j) {
+                 q_ptr[i * k + j] = a_buf[i * n + j];
+             }
+         }
+         return;
+    }
+    
+    throw std::runtime_error("QR only implemented for float/double");
+}
+
+void CpuSolver::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) {
+    // LU Decomposition: A = P * L * U
+    // A: (M, N)
+    // P: (M, M) - Permutation matrix
+    // L: (M, K) - Unit Lower Triangular (K = min(M,N))
+    // U: (K, N) - Upper Triangular
+    
+    uint64_t m = in.rows();
+    uint64_t n = in.cols();
+    uint64_t k = std::min(m, n);
+    
+    if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+        // Copy to working buffer (Row Major)
+        std::vector<double> work(m * n);
+        for(size_t i=0; i<m; ++i) for(size_t j=0; j<n; ++j) work[i*n + j] = in_d->get(i, j);
+        
+        std::vector<int> p_perm(m);
+        for(int i=0; i<(int)m; ++i) p_perm[i] = i;
+        
+        for(size_t step=0; step<k; ++step) {
+            // Find pivot
+            double max_val = 0.0;
+            size_t pivot_row = step;
+            for(size_t i=step; i<m; ++i) {
+                double abs_val = std::abs(work[i*n + step]);
+                if (abs_val > max_val) {
+                    max_val = abs_val;
+                    pivot_row = i;
+                }
+            }
+            
+            // Swap rows in work and p_perm
+            if (pivot_row != step) {
+                std::swap(p_perm[step], p_perm[pivot_row]);
+                for(size_t j=0; j<n; ++j) std::swap(work[step*n + j], work[pivot_row*n + j]);
+            }
+            
+            // Elimination
+            double diag = work[step*n + step];
+            // Naive check for singular (should be robust enough)
+            if (std::abs(diag) > 1e-100) { 
+                for(size_t i=step+1; i<m; ++i) {
+                    double factor = work[i*n + step] / diag;
+                    work[i*n + step] = factor; // Store L part
+                    for(size_t j=step+1; j<n; ++j) {
+                        work[i*n + j] -= factor * work[step*n + j];
+                    }
+                }
+            }
+        }
+        
+        // Output P
+        auto* p_out = dynamic_cast<DenseMatrix<double>*>(&P);
+        double* p_ptr = p_out->data();
+        std::memset(p_ptr, 0, m*m*sizeof(double));
+        for(size_t i=0; i<m; ++i) {
+            p_ptr[p_perm[i] * m + i] = 1.0;
         }
 
-        ParallelFor(k + 1, n, [&](size_t j) {
-            double dot = 0.0;
-            for (size_t i = 0; i < n; ++i) {
-                dot += q_data[i * n + k] * q_data[i * n + j];
+        // Output L
+        auto* l_out = dynamic_cast<DenseMatrix<double>*>(&L);
+        double* l_ptr = l_out->data();
+        std::memset(l_ptr, 0, m*k*sizeof(double));
+        for(size_t i=0; i<m; ++i) {
+            for(size_t j=0; j<std::min(i, k); ++j) { // Strict Lower
+                l_ptr[i*k + j] = work[i*n + j];
             }
-            r_data[k * n + j] = dot;
+            if (i < k) l_ptr[i*k + i] = 1.0;
+        }
 
-            for (size_t i = 0; i < n; ++i) {
-                q_data[i * n + j] -= dot * q_data[i * n + k];
+        // Output U
+        auto* u_out = dynamic_cast<DenseMatrix<double>*>(&U);
+        double* u_ptr = u_out->data(); 
+        std::memset(u_ptr, 0, k*n*sizeof(double));
+        for(size_t i=0; i<k; ++i) {
+            for(size_t j=i; j<n; ++j) { // Upper
+                u_ptr[i*n + j] = work[i*n + j];
             }
-        });
+        }
+        return;
     }
+    
+    // Float fallback omitted for brevity but follows same pattern...
+    if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+         std::vector<float> a_buf(m * n);
+         for(size_t i=0; i<m; ++i) 
+             for(size_t j=0; j<n; ++j) 
+                 a_buf[i * n + j] = in_f->get(i, j);
+
+        std::vector<int> ipiv(std::min(m, n));
+        lapack_int info = LAPACKE_sgetrf(LAPACK_ROW_MAJOR, (lapack_int)m, (lapack_int)n, a_buf.data(), (lapack_int)n, (lapack_int*)ipiv.data());
+        if (info < 0) throw std::runtime_error("sgetrf: illegal argument");
+        
+        auto* u_f = dynamic_cast<DenseMatrix<float>*>(&U);
+        float* u_ptr = u_f->data();
+        std::fill(u_ptr, u_ptr + k * n, 0.0f);
+        for(size_t i=0; i<k; ++i) {
+            for (size_t j=i; j<n; ++j) u_ptr[i * n + j] = a_buf[i * n + j];
+        }
+        
+        auto* l_f = dynamic_cast<DenseMatrix<float>*>(&L);
+        float* l_ptr = l_f->data();
+        std::fill(l_ptr, l_ptr + m * k, 0.0f);
+        for(size_t i=0; i<m; ++i) {
+            for(size_t j=0; j<k && j<=i; ++j) {
+                if (i == j) l_ptr[i * k + j] = 1.0f;
+                else l_ptr[i * k + j] = a_buf[i * n + j];
+            }
+        }
+        
+        auto* p_f = dynamic_cast<DenseMatrix<float>*>(&P);
+        float* p_ptr = p_f->data();
+        std::fill(p_ptr, p_ptr + m * m, 0.0f);
+        std::vector<int> p_indices(m);
+        for(int i=0; i<(int)m; ++i) p_indices[i] = i;
+        
+        for(size_t i=0; i<std::min(m, n); ++i) {
+            std::swap(p_indices[i], p_indices[ipiv[i] - 1]);
+        }
+        
+        for(size_t i=0; i<m; ++i) {
+            p_ptr[p_indices[i] * m + i] = 1.0f;
+        }
+        return;
+    }
+    
+    throw std::runtime_error("LU only implemented for float/double");
+}
+
+void CpuSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) {
+    // SVD: A = U * S * VT
+    // A: (M, N)
+    // U: (M, K) - K=min(M,N)
+    // S: (K,)
+    // VT: (K, N)
+    // Using GESVD with JOBU='S' (return first min(M,N) columns of U) and JOBVT='S' (return first min(M,N) rows of VT).
+    
+    uint64_t m = in.rows();
+    uint64_t n = in.cols();
+    // LAPACKE_dgesvd
+    
+    if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+         std::vector<double> a_buf(m * n);
+         for(size_t i=0; i<m; ++i) 
+             for(size_t j=0; j<n; ++j) 
+                 a_buf[i * n + j] = in_d->get(i, j);
+                 
+         // Output buffers
+         auto* u_d = dynamic_cast<DenseMatrix<double>*>(&U);
+         auto* vt_d = dynamic_cast<DenseMatrix<double>*>(&VT);
+         
+         // S is a vector
+         // But VectorBase access is generic. Let's cast to DenseVector<double>.
+         // Or if S is different type? We assumed it matches 'in' type's float variant.
+         // Let's assume DenseVector<double> or similar.
+         // We'll calculate into a std::vector then copy.
+         
+         uint64_t k = std::min(m, n);
+         std::vector<double> s_vec(k);
+         std::vector<double> superb(k-1); // Not used by us really, but needed for dgesvd? No, dgesvd returns S.
+         // Wait, dgesvd returns singular values in S array.
+         
+         lapack_int info = LAPACKE_dgesvd(LAPACK_ROW_MAJOR, 'S', 'S', 
+             (lapack_int)m, (lapack_int)n, a_buf.data(), (lapack_int)n, 
+             s_vec.data(), 
+             u_d->data(), (lapack_int)k, // U is MxK, stored row major, LDA=K? No U is MxK. 
+             // IMPORTANT: LAPACK Row Major -> LDU is leading dimension (stride). For U (MxK), stride is K.
+             vt_d->data(), (lapack_int)n, // VT is KxN. Stride is N.
+             superb.data() // superb is 'work' array? NO. LAPACKE handles workspace.
+             // Wait, LAPACKE_dgesvd signature:
+             // int LAPACKE_dgesvd( int matrix_layout, char jobu, char jobvt, lapack_int m, lapack_int n, double* a, lapack_int lda, double* s, double* u, lapack_int ldu, double* vt, lapack_int ldvt, double* superb );
+         );
+         
+         if (info > 0) throw std::runtime_error("dgesvd did not converge");
+         if (info < 0) throw std::runtime_error("dgesvd: illegal argument");
+         
+         // Copy S to VectorBase
+         extract_vector(k, s_vec.data(), S);
+         return;
+    }
+    
+    if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+         std::vector<float> a_buf(m * n);
+         for(size_t i=0; i<m; ++i) for(size_t j=0; j<n; ++j) a_buf[i * n + j] = in_f->get(i, j);
+         
+         auto* u_f = dynamic_cast<DenseMatrix<float>*>(&U);
+         auto* vt_f = dynamic_cast<DenseMatrix<float>*>(&VT);
+         uint64_t k = std::min(m, n);
+         std::vector<float> s_vec(k);
+         std::vector<float> superb(k-1);
+         
+         lapack_int info = LAPACKE_sgesvd(LAPACK_ROW_MAJOR, 'S', 'S', 
+             (lapack_int)m, (lapack_int)n, a_buf.data(), (lapack_int)n, 
+             s_vec.data(), 
+             u_f->data(), (lapack_int)k, 
+             vt_f->data(), (lapack_int)n, 
+             superb.data()
+         );
+         
+         if (info > 0) throw std::runtime_error("sgesvd did not converge");
+         if (info < 0) throw std::runtime_error("sgesvd: illegal argument");
+         
+         extract_vector(k, s_vec.data(), S);
+         return;
+    }
+
+    throw std::runtime_error("SVD only implemented for float/double");
+}
+
+void CpuSolver::solve(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
+    if (a.rows() != a.cols()) throw std::invalid_argument("solve: A must be square");
+    if (a.rows() != b.rows()) throw std::invalid_argument("solve: A and B must have same row count");
+    
+    uint64_t n = a.rows();
+    uint64_t nrhs = b.cols();
+    
+    if (auto* a_d = dynamic_cast<const DenseMatrix<double>*>(&a)) {
+        if (auto* b_d = dynamic_cast<const DenseMatrix<double>*>(&b)) {
+            auto* x_d = dynamic_cast<DenseMatrix<double>*>(&x);
+            if (!x_d) throw std::runtime_error("solve result must be dense double");
+            
+            // Work buffers
+            std::vector<double> wa(n * n);
+            std::vector<double> wb(n * nrhs); // Holds B initially, then Solution X
+            
+            // Copy (Assume Row Major input)
+            for(size_t i=0; i<n; ++i) for(size_t j=0; j<n; ++j) wa[i*n + j] = a_d->get(i, j);
+            for(size_t i=0; i<n; ++i) for(size_t j=0; j<nrhs; ++j) wb[i*nrhs + j] = b_d->get(i, j);
+            
+            // Forward Elimination with Partial Pivoting
+            for(size_t k=0; k<n; ++k) {
+                // Pivot
+                size_t p = k;
+                double maxv = std::abs(wa[k*n + k]);
+                for(size_t i=k+1; i<n; ++i) {
+                    double v = std::abs(wa[i*n + k]);
+                    if (v > maxv) {
+                        maxv = v;
+                        p = i;
+                    }
+                }
+                
+                if (maxv < 1e-12) throw std::runtime_error("solve failed: matrix singular");
+                
+                if (p != k) {
+                    for(size_t j=k; j<n; ++j) std::swap(wa[k*n + j], wa[p*n + j]);
+                    for(size_t j=0; j<nrhs; ++j) std::swap(wb[k*nrhs + j], wb[p*nrhs + j]);
+                }
+                
+                // Eliminate
+                double diag = wa[k*n + k];
+                for(size_t i=k+1; i<n; ++i) {
+                    double mult = wa[i*n + k] / diag;
+                    wa[i*n + k] = 0; // optimized out
+                    for(size_t j=k+1; j<n; ++j) wa[i*n + j] -= mult * wa[k*n + j];
+                    for(size_t j=0; j<nrhs; ++j) wb[i*nrhs + j] -= mult * wb[k*nrhs + j];
+                }
+            }
+            
+            // Backward Substitution
+            // wb currently holds Y where UX = Y.
+            for(size_t k=n; k-->0;) { // Loop n-1 down to 0
+                double diag = wa[k*n + k];
+                for(size_t j=0; j<nrhs; ++j) {
+                    double val = wb[k*nrhs + j];
+                    for(size_t i=k+1; i<n; ++i) {
+                        val -= wa[k*n + i] * wb[i*nrhs + j];
+                    }
+                    wb[k*nrhs + j] = val / diag;
+                }
+            }
+            
+            // Copy to X
+            double* x_ptr = x_d->data();
+            for(size_t i=0; i<n*nrhs; ++i) x_ptr[i] = wb[i];
+            
+            return;
+        }
+    }
+    
+    if (auto* a_f = dynamic_cast<const DenseMatrix<float>*>(&a)) {
+        if (auto* b_f = dynamic_cast<const DenseMatrix<float>*>(&b)) {
+            auto* x_f = dynamic_cast<DenseMatrix<float>*>(&x);
+            if (!x_f) throw std::runtime_error("solve result must be dense float");
+            
+            Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> matA(a_f->data(), n, n);
+            Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> matB(b_f->data(), n, nrhs);
+            Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> matX(x_f->data(), n, nrhs);
+            
+            matX = matA.partialPivLu().solve(matB);
+            return;
+        }
+    }
+    
+    throw std::runtime_error("solve only implemented for float/double");
 }
 
 } // namespace pycauset

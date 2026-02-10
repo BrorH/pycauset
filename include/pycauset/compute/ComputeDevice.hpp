@@ -10,6 +10,7 @@ namespace pycauset {
 
 template <typename T>
 class TriangularMatrix;
+struct HardwareProfile;
 
 class ComputeDevice {
 public:
@@ -20,6 +21,7 @@ public:
     
     // Inversion
     virtual void inverse(const MatrixBase& in, MatrixBase& out) = 0;
+
 
     // Batch Matrix-Vector Multiplication (A * X -> Y)
     // A is N x N
@@ -73,12 +75,49 @@ public:
     // Contract: in is square float64; Q and R are pre-allocated square float64 dense matrices.
     virtual void qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) = 0;
 
+    // Computes Cholesky factorization of `in` into `out`.
+    // Contract: in is SPD. out is lower triangular (if supported) or full with zeros.
+    virtual void cholesky(const MatrixBase& in, MatrixBase& out) = 0;
+
+    // Computes LU factorization of `in`.
+    // Contract: P (permutation), L (lower unit), U (upper). P is permutation vector or matrix?
+    // For now, let's just output P, L, U as matrices.
+    virtual void lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) = 0;
+
+    // Computes SVD
+    virtual void svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) = 0;
+    
+    // Solves linear system AX = B
+    virtual void solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) = 0;
+
+    // Eigenvalues (Arnoldi/Lanczos-style top-k)
+    // Contract: out is a pre-allocated real vector of length k.
+    virtual void eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) = 0;
+
+    // Real Symmetric / Complex Hermitian Eigenvalue Decomposition
+    // Contract: `in` is symmetric/hermitian. `eigenvalues` is vector of length N. `eigenvectors` is NxN matrix.
+    // 'uplo' = 'L' or 'U' (default 'L').
+    virtual void eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo = 'L') = 0;
+
+    // Eigenvalues only
+    virtual void eigvalsh(const MatrixBase& in, VectorBase& eigenvalues, char uplo = 'L') = 0;
+
+    // General Non-Symmetric Eigenvalue Decomposition
+    // Contract: `in` is square. `eigenvalues` and `eigenvectors` should handle complex types.
+    virtual void eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors) = 0;
+    
+    // General Non-Symmetric Eigenvalues only
+    virtual void eigvals(const MatrixBase& in, VectorBase& eigenvalues) = 0;
+
     // Device Info
     virtual std::string name() const = 0;
     virtual bool is_gpu() const = 0;
     
     // 0 = Unknown, 1 = Float32, 2 = Float64
     virtual int preferred_precision() const { return 1; } // Default to Float32
+
+    // Hardware profiling (GPU implementations may populate this)
+    virtual bool fill_hardware_profile(HardwareProfile& profile, bool run_benchmarks) { return false; }
 
     // Memory Management
     virtual void* allocate_pinned(size_t size) { return nullptr; }

@@ -1,12 +1,20 @@
 #include "CudaDevice.hpp"
 #include "CudaSolver.hpp"
 #include "AsyncStreamer.hpp"
+#include "MatmulDriver.hpp"
+#include "CholeskyDriver.hpp"
+#include "ArnoldiDriver.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/math/Eigen.hpp"
+#include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include <iostream>
 #include <stdexcept>
+#include <optional>
+#include <sstream>
+#include <cctype>
+#include <cstdlib>
 
 namespace pycauset {
 
@@ -57,9 +65,90 @@ void CudaDevice::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
 
 namespace pycauset {
 
+namespace {
+
+std::string trim_copy(const std::string& s) {
+    size_t start = 0;
+    while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start]))) {
+        ++start;
+    }
+    size_t end = s.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(s[end - 1]))) {
+        --end;
+    }
+    return s.substr(start, end - start);
+}
+
+void strip_quotes(std::string& s) {
+    if (s.size() >= 2) {
+        char first = s.front();
+        char last = s.back();
+        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+            s = s.substr(1, s.size() - 2);
+        }
+    }
+}
+
+std::optional<HardwareProfile> parse_mock_profile_env() {
+    const char* env = std::getenv("PYCAUSET_TEST_CUDA_PROFILE");
+    if (!env || !*env) {
+        return std::nullopt;
+    }
+
+    HardwareProfile profile;
+    profile.version = 1;
+    profile.device_id = 0;
+    profile.device_name = "Mock CUDA Device";
+
+    std::string raw(env);
+    for (char& ch : raw) {
+        if (ch == ';') {
+            ch = ',';
+        }
+    }
+
+    std::stringstream ss(raw);
+    std::string token;
+    while (std::getline(ss, token, ',')) {
+        token = trim_copy(token);
+        if (token.empty()) continue;
+        auto eq = token.find('=');
+        if (eq == std::string::npos) continue;
+        std::string key = trim_copy(token.substr(0, eq));
+        std::string value = trim_copy(token.substr(eq + 1));
+        strip_quotes(value);
+        if (key == "version") {
+            try { profile.version = std::stoi(value); } catch (...) {}
+        } else if (key == "device_id") {
+            try { profile.device_id = std::stoi(value); } catch (...) {}
+        } else if (key == "device_name") {
+            if (!value.empty()) profile.device_name = value;
+        } else if (key == "cc_major") {
+            try { profile.cc_major = std::stoi(value); } catch (...) {}
+        } else if (key == "cc_minor") {
+            try { profile.cc_minor = std::stoi(value); } catch (...) {}
+        } else if (key == "pci_bandwidth_gbps") {
+            try { profile.pci_bandwidth_gbps = std::stod(value); } catch (...) {}
+        } else if (key == "sgemm_gflops") {
+            try { profile.sgemm_gflops = std::stod(value); } catch (...) {}
+        } else if (key == "dgemm_gflops") {
+            try { profile.dgemm_gflops = std::stod(value); } catch (...) {}
+        } else if (key == "timestamp_unix") {
+            try { profile.timestamp_unix = static_cast<uint64_t>(std::stoull(value)); } catch (...) {}
+        }
+    }
+
+    return profile;
+}
+
+} // namespace
+
 // --- Discovery API ---
 
 int CudaDevice::get_device_count() {
+    if (parse_mock_profile_env().has_value()) {
+        return 1;
+    }
     int count = 0;
     cudaError_t err = cudaGetDeviceCount(&count);
     if (err == cudaSuccess) {
@@ -73,6 +162,10 @@ int CudaDevice::get_device_count() {
 }
 
 std::string CudaDevice::get_device_name(int device_id) {
+    if (auto mock = parse_mock_profile_env()) {
+        (void)device_id;
+        return mock->device_name;
+    }
     cudaDeviceProp prop;
     cudaError_t err = cudaGetDeviceProperties(&prop, device_id);
     if (err == cudaSuccess) {
@@ -83,12 +176,46 @@ std::string CudaDevice::get_device_name(int device_id) {
 }
 
 bool CudaDevice::is_available() {
+    if (parse_mock_profile_env().has_value()) {
+        return true;
+    }
     int count = 0;
     if (cudaGetDeviceCount(&count) != cudaSuccess) {
         cudaGetLastError();
         return false;
     }
     return count > 0;
+}
+
+bool CudaDevice::fill_hardware_profile(HardwareProfile& profile, bool run_benchmarks) {
+    if (auto mock = parse_mock_profile_env()) {
+        profile = *mock;
+        if (run_benchmarks) {
+            // If the mock does not include benchmark values, leave them as-is.
+            // Tests can supply sgemm/dgemm/pci_bandwidth_gbps in the env string.
+        }
+        return true;
+    }
+    cudaError_t err = cudaSetDevice(config_.device_id);
+    if (err != cudaSuccess) return false;
+
+    cudaDeviceProp prop;
+    err = cudaGetDeviceProperties(&prop, config_.device_id);
+    if (err != cudaSuccess) return false;
+
+    profile.version = 1;
+    profile.device_id = config_.device_id;
+    profile.device_name = std::string(prop.name);
+    profile.cc_major = prop.major;
+    profile.cc_minor = prop.minor;
+
+    if (run_benchmarks) {
+        profile.pci_bandwidth_gbps = benchmark_pci_bandwidth_gbps();
+        profile.sgemm_gflops = benchmark_gemm_gflops(true);
+        profile.dgemm_gflops = benchmark_gemm_gflops(false);
+    }
+
+    return true;
 }
 
 CudaDevice::CudaDevice(const AcceleratorConfig& config) : config_(config) {
@@ -128,22 +255,41 @@ CudaDevice::~CudaDevice() {
 }
 
 void* CudaDevice::allocate_pinned(size_t size) {
+    if (!core::MemoryGovernor::instance().try_pin_memory(size)) {
+        return nullptr;
+    }
+
     void* ptr = nullptr;
-    // cudaHostAllocPortable: memory is portable to all CUDA contexts
-    // cudaHostAllocMapped: maps allocation into device address space (Zero Copy) - Optional, but good for integrated GPUs
-    // For discrete GPUs, we just want pinned memory for faster transfer.
     cudaError_t err = cudaHostAlloc(&ptr, size, cudaHostAllocDefault);
     if (err != cudaSuccess) {
-        // Fallback or return null?
-        // std::cerr << "cudaHostAlloc failed: " << cudaGetErrorString(err) << std::endl;
+        core::MemoryGovernor::instance().unpin_memory(size);
         return nullptr;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(pinned_allocations_mutex_);
+        pinned_allocations_[ptr] = size;
     }
     return ptr;
 }
 
 void CudaDevice::free_pinned(void* ptr) {
-    if (ptr) {
-        cudaFreeHost(ptr);
+    if (!ptr) return;
+
+    cudaFreeHost(ptr);
+
+    size_t size = 0;
+    {
+        std::lock_guard<std::mutex> lock(pinned_allocations_mutex_);
+        auto it = pinned_allocations_.find(ptr);
+        if (it != pinned_allocations_.end()) {
+            size = it->second;
+            pinned_allocations_.erase(it);
+        }
+    }
+
+    if (size > 0) {
+        core::MemoryGovernor::instance().unpin_memory(size);
     }
 }
 
@@ -243,6 +389,184 @@ void CudaDevice::check_cusolver(cusolverStatus_t result, const char* func) {
     }
 }
 
+double CudaDevice::benchmark_pci_bandwidth_gbps() {
+    size_t free_byte = 0;
+    size_t total_byte = 0;
+    if (cudaMemGetInfo(&free_byte, &total_byte) != cudaSuccess) {
+        cudaGetLastError();
+        return 0.0;
+    }
+
+    size_t bytes = 256ULL * 1024 * 1024;
+    if (free_byte / 4 < bytes) {
+        bytes = free_byte / 4;
+    }
+    if (bytes < 8ULL * 1024 * 1024) {
+        return 0.0;
+    }
+
+    if (!core::MemoryGovernor::instance().try_pin_memory(bytes)) {
+        return 0.0;
+    }
+
+    void* h_ptr = nullptr;
+    void* d_ptr = nullptr;
+    cudaError_t err = cudaHostAlloc(&h_ptr, bytes, cudaHostAllocDefault);
+    if (err != cudaSuccess) {
+        core::MemoryGovernor::instance().unpin_memory(bytes);
+        return 0.0;
+    }
+    err = cudaMalloc(&d_ptr, bytes);
+    if (err != cudaSuccess) {
+        cudaFreeHost(h_ptr);
+        core::MemoryGovernor::instance().unpin_memory(bytes);
+        return 0.0;
+    }
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    double total_gbps = 0.0;
+    const int iters = 2;
+    for (int i = 0; i < iters; ++i) {
+        cudaEventRecord(start, 0);
+        cudaMemcpyAsync(d_ptr, h_ptr, bytes, cudaMemcpyHostToDevice, 0);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float ms = 0.0f;
+        cudaEventElapsedTime(&ms, start, stop);
+        if (ms > 0.0f) {
+            total_gbps += (static_cast<double>(bytes) / 1e9) / (ms / 1000.0);
+        }
+
+        cudaEventRecord(start, 0);
+        cudaMemcpyAsync(h_ptr, d_ptr, bytes, cudaMemcpyDeviceToHost, 0);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        ms = 0.0f;
+        cudaEventElapsedTime(&ms, start, stop);
+        if (ms > 0.0f) {
+            total_gbps += (static_cast<double>(bytes) / 1e9) / (ms / 1000.0);
+        }
+    }
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    cudaFree(d_ptr);
+    cudaFreeHost(h_ptr);
+    core::MemoryGovernor::instance().unpin_memory(bytes);
+
+    const int samples = iters * 2;
+    return samples > 0 ? (total_gbps / samples) : 0.0;
+}
+
+double CudaDevice::benchmark_gemm_gflops(bool use_float32) {
+    size_t free_byte = 0;
+    size_t total_byte = 0;
+    if (cudaMemGetInfo(&free_byte, &total_byte) != cudaSuccess) {
+        cudaGetLastError();
+        return 0.0;
+    }
+
+    int n = use_float32 ? 2048 : 1024;
+    size_t elem_size = use_float32 ? sizeof(float) : sizeof(double);
+    while (n > 256) {
+        size_t required = static_cast<size_t>(n) * n * elem_size * 3;
+        if (required < free_byte / 2) break;
+        n /= 2;
+    }
+    if (n < 256) return 0.0;
+
+    void* d_A = nullptr;
+    void* d_B = nullptr;
+    void* d_C = nullptr;
+    size_t bytes = static_cast<size_t>(n) * n * elem_size;
+    if (cudaMalloc(&d_A, bytes) != cudaSuccess) return 0.0;
+    if (cudaMalloc(&d_B, bytes) != cudaSuccess) { cudaFree(d_A); return 0.0; }
+    if (cudaMalloc(&d_C, bytes) != cudaSuccess) { cudaFree(d_A); cudaFree(d_B); return 0.0; }
+
+    cudaMemset(d_A, 0, bytes);
+    cudaMemset(d_B, 0, bytes);
+    cudaMemset(d_C, 0, bytes);
+
+    const int iters = 3;
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    if (use_float32) {
+        float alpha = 1.0f;
+        float beta = 0.0f;
+        if (cublasSgemm(cublas_handle_, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &alpha,
+                        static_cast<float*>(d_A), n, static_cast<float*>(d_B), n, &beta,
+                        static_cast<float*>(d_C), n) != CUBLAS_STATUS_SUCCESS) {
+            cudaFree(d_A);
+            cudaFree(d_B);
+            cudaFree(d_C);
+            return 0.0;
+        }
+        cudaDeviceSynchronize();
+
+        cudaEventRecord(start, 0);
+        for (int i = 0; i < iters; ++i) {
+            if (cublasSgemm(cublas_handle_, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &alpha,
+                            static_cast<float*>(d_A), n, static_cast<float*>(d_B), n, &beta,
+                            static_cast<float*>(d_C), n) != CUBLAS_STATUS_SUCCESS) {
+                cudaEventDestroy(start);
+                cudaEventDestroy(stop);
+                cudaFree(d_A);
+                cudaFree(d_B);
+                cudaFree(d_C);
+                return 0.0;
+            }
+        }
+        cudaEventRecord(stop, 0);
+    } else {
+        double alpha = 1.0;
+        double beta = 0.0;
+        if (cublasDgemm(cublas_handle_, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &alpha,
+                        static_cast<double*>(d_A), n, static_cast<double*>(d_B), n, &beta,
+                        static_cast<double*>(d_C), n) != CUBLAS_STATUS_SUCCESS) {
+            cudaFree(d_A);
+            cudaFree(d_B);
+            cudaFree(d_C);
+            return 0.0;
+        }
+        cudaDeviceSynchronize();
+
+        cudaEventRecord(start, 0);
+        for (int i = 0; i < iters; ++i) {
+            if (cublasDgemm(cublas_handle_, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &alpha,
+                            static_cast<double*>(d_A), n, static_cast<double*>(d_B), n, &beta,
+                            static_cast<double*>(d_C), n) != CUBLAS_STATUS_SUCCESS) {
+                cudaEventDestroy(start);
+                cudaEventDestroy(stop);
+                cudaFree(d_A);
+                cudaFree(d_B);
+                cudaFree(d_C);
+                return 0.0;
+            }
+        }
+        cudaEventRecord(stop, 0);
+    }
+
+    cudaEventSynchronize(stop);
+    float ms = 0.0f;
+    cudaEventElapsedTime(&ms, start, stop);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+
+    if (ms <= 0.0f) return 0.0;
+    double seconds = (ms / 1000.0) / iters;
+    double ops = 2.0 * static_cast<double>(n) * n * n;
+    return (ops / seconds) / 1e9;
+}
+
 void CudaDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     // Try BitMatrix
     auto* a_bit = dynamic_cast<const DenseBitMatrix*>(&a);
@@ -270,10 +594,10 @@ void CudaDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
         size_t size_bytes = n * n * sizeof(float);
         
         if (n * n > buffer_size_float_) {
-            if (3 * size_bytes > free_mem + (buffer_size_float_ * sizeof(float) * 3)) {
-                 matmul_streaming(a_float, b_float, c_float, free_mem);
-                 return;
-            }
+              if (3 * size_bytes > free_mem + (buffer_size_float_ * sizeof(float) * 3)) {
+                  MatmulDriver::run(*this, *a_float, *b_float, *c_float, free_mem);
+                  return;
+              }
             ensure_float_buffers(n * n);
         }
 
@@ -315,10 +639,10 @@ void CudaDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
     size_t size_bytes = n * n * sizeof(double);
     
     if (n * n > buffer_size_) {
-        if (3 * size_bytes > free_mem + (buffer_size_ * sizeof(double) * 3)) {
-             matmul_streaming(a_dense, b_dense, c_dense, free_mem);
-             return;
-        }
+           if (3 * size_bytes > free_mem + (buffer_size_ * sizeof(double) * 3)) {
+               MatmulDriver::run(*this, *a_dense, *b_dense, *c_dense, free_mem);
+               return;
+           }
         ensure_buffers(n * n);
     }
 
@@ -349,6 +673,10 @@ void CudaDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
 void CudaDevice::inverse(const MatrixBase& in, MatrixBase& out) {
     CudaSolver solver(this);
     solver.invert(in, out);
+}
+
+void CudaDevice::cholesky(const MatrixBase& in, MatrixBase& out) {
+    CholeskyDriver::run(*this, in, out);
 }
 
 void CudaDevice::inverse_incore(const MatrixBase& in, MatrixBase& out) {
@@ -575,6 +903,26 @@ void CudaDevice::batch_gemv(const MatrixBase& A, const double* x_data, double* y
     cudaFree(d_A);
     cudaFree(d_X);
     cudaFree(d_Y);
+}
+
+void CudaDevice::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) {
+    ArnoldiDriver::run(*this, a, out, k, m, tol);
+}
+
+void CudaDevice::eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) {
+    throw std::runtime_error("CudaDevice::eigh not implemented (use CPU or wait for update)");
+}
+
+void CudaDevice::eigvalsh(const MatrixBase& in, VectorBase& eigenvalues, char uplo) {
+    throw std::runtime_error("CudaDevice::eigvalsh not implemented (use CPU or wait for update)");
+}
+
+void CudaDevice::eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors) {
+    throw std::runtime_error("CudaDevice::eig not implemented");
+}
+
+void CudaDevice::eigvals(const MatrixBase& in, VectorBase& eigenvalues) {
+    throw std::runtime_error("CudaDevice::eigvals not implemented");
 }
 
 void CudaDevice::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) {

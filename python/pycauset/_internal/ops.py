@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from typing import Any
+import os
 
 from . import properties as _props
 from . import export_guard
 from . import io_observability
+from . import big_blob_cache as _big_blob_cache
+from . import persistence as _persistence
+from . import linalg_cache as _linalg_cache
 
 
 def _track_and_mark_temporary_if_native(obj: Any, *, deps: OpsDeps) -> None:
@@ -261,6 +265,10 @@ def _streaming_eigvals_arnoldi(matrix: Any, k: int, m: int, tol: float, *, deps:
 
     try:
         eigs = np_module.linalg.eigvals(data)
+        if np_module.iscomplexobj(eigs):
+            if not np_module.allclose(eigs.imag, 0.0, atol=tol):
+                return None
+            eigs = eigs.real
         eigs_sorted = sorted(eigs, key=lambda x: abs(x), reverse=True)
         top = np_module.array(eigs_sorted[:k])
     except Exception:
@@ -740,25 +748,63 @@ def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
 
 
 def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
+    """Eigen-decomposition for real symmetric / complex Hermitian matrices (native preferred)."""
     rec = _record_io_trace("eigh", [a], deps=deps)
     _prefetch_if_streaming(rec, [a], deps=deps)
+    
+    # Check Cache
+    ctx_w = _try_load_eigen_cache(a, "eigenvalues", getattr(deps.native, "FloatVector", None), deps)
+    
+    # Eigenvectors: Real -> FloatMatrix, Complex -> ComplexFloat64Matrix
+    vec_cls = getattr(deps.native, "FloatMatrix", None)
+    complex_types = (
+        getattr(deps.native, "ComplexFloat64Matrix", type(None)),
+        getattr(deps.native, "ComplexFloat32Matrix", type(None)),
+    )
+    if isinstance(a, complex_types):
+        vec_cls = getattr(deps.native, "ComplexFloat64Matrix", None)
+
+    ctx_v = _try_load_eigen_cache(a, "eigenvectors", vec_cls, deps)
+    
+    if ctx_w is not None and ctx_v is not None:
+        _discard_if_streaming(rec, [a], None, deps=deps)
+        return ctx_w, ctx_v
+
+    result_w = None
+    result_v = None
+
+    # Native
+    fn = getattr(deps.native, "eigh", None)
+    if callable(fn):
+        try:
+            w, v_right = fn(a)
+            _track_and_mark_temporary_if_native(w, deps=deps)
+            _track_and_mark_temporary_if_native(v_right, deps=deps)
+            result_w = w
+            result_v = v_right
+        except Exception:
+            pass
+
+    # NumPy Fallback
+    if result_w is None:
+        np_module = deps.np_module
+        if np_module is None:
+            raise RuntimeError("NumPy is required for eigh")
+        w, v = np_module.linalg.eigh(_to_numpy_matrix(a, deps=deps))
+        result_w = _as_pycauset_array(w, deps=deps)
+        result_v = _as_pycauset_array(v, deps=deps)
+
+    # Save to Cache
     try:
-        if isinstance(rec, dict) and rec.get("route") == "streaming":
-            streaming_res = _streaming_eigh(a, deps=deps, rec=rec)
-            if streaming_res is not None:
-                _discard_if_streaming(rec, [a], None, deps=deps)
-                return streaming_res
+        if getattr(a, "get_backing_file", lambda: None)() and _linalg_cache._is_new_container(a.get_backing_file()): # Reuse helper
+             view_sig = _big_blob_cache.compute_view_signature(a)
+             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvalues", obj=result_w, view_signature=view_sig)
+             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvectors", obj=result_v, view_signature=view_sig)
     except Exception:
         pass
-    """Eigen-decomposition for real symmetric / complex Hermitian matrices (NumPy fallback)."""
-    np_module = deps.np_module
-    if np_module is None:
-        raise RuntimeError("NumPy is required for eigh")
-    w, v = np_module.linalg.eigh(_to_numpy_matrix(a, deps=deps))
-    w_out = _as_pycauset_array(w, deps=deps)
-    v_out = _as_pycauset_array(v, deps=deps)
+
     _discard_if_streaming(rec, [a], None, deps=deps)
-    return w_out, v_out
+    return result_w, result_v
 
 
 def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
@@ -789,26 +835,187 @@ def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
         if props.get("is_hermitian") is False:
             raise ValueError("eigvalsh requires is_hermitian != False")
 
+        # Preferred: Big Blob Cache (supports full vectors)
+        # We try this first before the small property list
+        ctx_w = _try_load_eigen_cache(a, "eigenvalues", getattr(deps.native, "FloatVector", None), deps)
+        if ctx_w is not None:
+             _discard_if_streaming(rec, [a], ctx_w, deps=deps)
+             return ctx_w
+
         if "eigenvalues" in props:
             try:
                 return _as_pycauset_array(props["eigenvalues"], deps=deps)
             except Exception:
                 pass
 
-    np_module = deps.np_module
-    if np_module is None:
-        raise RuntimeError("NumPy is required for eigvalsh")
-    w = np_module.linalg.eigvalsh(_to_numpy_matrix(a, deps=deps))
-    out = _as_pycauset_array(w, deps=deps)
+    result_w = None
 
-    if props is not None:
+    # Native
+    fn = getattr(deps.native, "eigvalsh", None)
+    if callable(fn):
         try:
-            props["eigenvalues"] = [complex(x).real if complex(x).imag == 0 else complex(x) for x in w.tolist()]
+            w = fn(a)
+            _track_and_mark_temporary_if_native(w, deps=deps)
+            result_w = w
         except Exception:
             pass
 
-            _discard_if_streaming(rec, [a], out, deps=deps)
-    return out
+    if result_w is None:
+        np_module = deps.np_module
+        if np_module is None:
+            raise RuntimeError("NumPy is required for eigvalsh")
+        w = np_module.linalg.eigvalsh(_to_numpy_matrix(a, deps=deps))
+        result_w = _as_pycauset_array(w, deps=deps)
+
+    # Save to Cache
+    try:
+        if getattr(a, "get_backing_file", lambda: None)() and _linalg_cache._is_new_container(a.get_backing_file()): # Reuse helper
+             view_sig = _big_blob_cache.compute_view_signature(a)
+             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvalues", obj=result_w, view_signature=view_sig)
+    except Exception:
+        pass
+
+    if props is not None:
+        try:
+            # Also populate legacy small cache if possible/reasonable? 
+            # Actually, let's keep it for compatibility if it's small enough, but maybe not worth specific logic here.
+            # We skip writing to props["eigenvalues"] to encourage big blob usage.
+            pass
+        except Exception:
+            pass
+
+    _discard_if_streaming(rec, [a], result_w, deps=deps)
+    return result_w
+
+
+
+def _try_load_eigen_cache(a: Any, name: str, cls: Any, deps: OpsDeps) -> Any | None:
+    try:
+        backing = getattr(a, "get_backing_file", lambda: None)()
+        if not backing:
+            return None
+        
+        # Must be a .pycauset container to support big_blob_cache
+        if not backing.endswith(".pycauset") or not os.path.exists(backing):
+            return None
+
+        view_sig = _big_blob_cache.compute_view_signature(a)
+        
+        if cls is None: 
+             return None
+
+        res = _big_blob_cache.try_load_cached_matrix(
+            backing,
+            name=name,
+            view_signature=view_sig,
+            MatrixClass=cls
+        )
+        if res is not None:
+             _track_and_mark_temporary_if_native(res, deps=deps)
+        return res
+    except Exception:
+        return None
+
+
+def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
+    """Eigen-decomposition for general matrices (native preferred, NumPy fallback)."""
+    rec = _record_io_trace("eig", [a], deps=deps)
+    _prefetch_if_streaming(rec, [a], deps=deps)
+    
+    # Check Cache
+    ctx_w = _try_load_eigen_cache(a, "eigenvalues", getattr(deps.native, "ComplexFloat64Vector", None), deps)
+    ctx_v = _try_load_eigen_cache(a, "eigenvectors", getattr(deps.native, "ComplexFloat64Matrix", None), deps)
+    
+    if ctx_w is not None and ctx_v is not None:
+        _discard_if_streaming(rec, [a], None, deps=deps)
+        return ctx_w, ctx_v
+
+    result_w = None
+    result_v = None
+
+    # Native
+    fn = getattr(deps.native, "eig", None)
+    if callable(fn):
+        try:
+            w, v_right = fn(a)
+            _track_and_mark_temporary_if_native(w, deps=deps)
+            _track_and_mark_temporary_if_native(v_right, deps=deps)
+            
+            result_w = w
+            result_v = v_right
+        except Exception:
+            pass
+
+    # NumPy Fallback
+    if result_w is None:
+        np_module = deps.np_module
+        if np_module is None:
+            raise RuntimeError("NumPy is required for eig")
+
+        w, v = np_module.linalg.eig(_to_numpy_matrix(a, deps=deps))
+        result_w = _as_pycauset_array(w, deps=deps)
+        result_v = _as_pycauset_array(v, deps=deps)
+
+    # Save to Cache
+    try:
+        if getattr(a, "get_backing_file", lambda: None)() and _linalg_cache._is_new_container(a.get_backing_file()): # Reuse helper
+             view_sig = _big_blob_cache.compute_view_signature(a)
+             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvalues", obj=result_w, view_signature=view_sig)
+             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvectors", obj=result_v, view_signature=view_sig)
+    except Exception:
+        pass
+
+    _discard_if_streaming(rec, [a], None, deps=deps)
+    return result_w, result_v
+
+
+def eigvals(a: Any, *, deps: OpsDeps) -> Any:
+    """Eigenvalues for general matrices (native preferred, NumPy fallback)."""
+    rec = _record_io_trace("eigvals", [a], deps=deps)
+    _prefetch_if_streaming(rec, [a], deps=deps)
+
+    # Check Cache
+    ctx_w = _try_load_eigen_cache(a, "eigenvalues", getattr(deps.native, "ComplexFloat64Vector", None), deps)
+    if ctx_w is not None:
+         _discard_if_streaming(rec, [a], ctx_w, deps=deps)
+         return ctx_w
+
+    result_w = None
+
+    # Native
+    fn = getattr(deps.native, "eigvals", None)
+    if callable(fn):
+        try:
+            w = fn(a)
+            _track_and_mark_temporary_if_native(w, deps=deps)
+            result_w = w
+        except Exception:
+            pass
+
+    # NumPy Fallback
+    if result_w is None:
+        np_module = deps.np_module
+        if np_module is None:
+            raise RuntimeError("NumPy is required for eigvals")
+
+        w = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
+        result_w = _as_pycauset_array(w, deps=deps)
+
+    # Save to Cache
+    try:
+         if getattr(a, "get_backing_file", lambda: None)() and _linalg_cache._is_new_container(a.get_backing_file()):
+             view_sig = _big_blob_cache.compute_view_signature(a)
+             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvalues", obj=result_w, view_signature=view_sig)
+    except Exception:
+        pass
+
+    _discard_if_streaming(rec, [a], result_w, deps=deps)
+    return result_w
+
+    w = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
+    w_out = _as_pycauset_array(w, deps=deps)
+    _discard_if_streaming(rec, [a], w_out, deps=deps)
+    return w_out
 
 
 def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any:
@@ -846,6 +1053,10 @@ def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any
         raise NotImplementedError("eigvals_arnoldi is not available (no native/NumPy fallback)")
 
     eigs = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
+    if np_module.iscomplexobj(eigs):
+        if not np_module.allclose(eigs.imag, 0.0, atol=tol):
+            raise NotImplementedError("eigvals_arnoldi does not support complex eigenvalues in this build")
+        eigs = eigs.real
     eigs_sorted = sorted(eigs, key=lambda x: abs(x), reverse=True)
     top = np_module.array(eigs_sorted[:k])
     out = _as_pycauset_array(top, deps=deps)
@@ -921,7 +1132,26 @@ def lu(*_args: Any, **_kwargs: Any) -> Any:
 
 
 def cholesky(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError("cholesky is not available yet")
+    if len(_args) < 1:
+        raise TypeError("cholesky(a) requires a matrix argument")
+
+    a = _args[0]
+    deps = _kwargs.get("deps")
+    if deps is None:
+        raise TypeError("cholesky requires deps")
+
+    fn = getattr(deps.native, "cholesky", None)
+    if callable(fn):
+        result = fn(a)
+        _track_and_mark_temporary_if_native(result, deps=deps)
+        return result
+
+    np_module = deps.np_module
+    if np_module is None:
+        raise NotImplementedError("cholesky is not available (no native/NumPy fallback)")
+
+    L = np_module.linalg.cholesky(_to_numpy_matrix(a, deps=deps))
+    return _as_pycauset_array(L, deps=deps)
 
 
 def svd(*_args: Any, **_kwargs: Any) -> Any:
@@ -930,3 +1160,180 @@ def svd(*_args: Any, **_kwargs: Any) -> Any:
 
 def pinv(*_args: Any, **_kwargs: Any) -> Any:
     raise NotImplementedError("pinv is not available yet")
+
+
+def trace(a: Any, *, deps: OpsDeps) -> Any:
+    """Return the sum of the diagonal elements."""
+    rec = _record_io_trace("trace", [a], deps=deps)
+    _prefetch_if_streaming(rec, [a], deps=deps)
+
+    # Native method or property
+    fn = getattr(a, "trace", None)
+    if callable(fn):
+        try:
+            return fn()
+        except Exception:
+            pass
+
+    # NumPy Fallback
+    np_module = deps.np_module
+    if np_module:
+        return np_module.trace(_to_numpy_matrix(a, deps=deps))
+    return 0.0
+
+
+def determinant(a: Any, *, deps: OpsDeps) -> Any:
+    """Return the determinant of a square matrix."""
+    rec = _record_io_trace("determinant", [a], deps=deps)
+    _prefetch_if_streaming(rec, [a], deps=deps)
+
+    # Native method
+    fn = getattr(a, "determinant", None)
+    if callable(fn):
+        try:
+            return fn()
+        except Exception:
+            pass
+
+    # NumPy Fallback
+    np_module = deps.np_module
+    if np_module:
+        return np_module.linalg.det(_to_numpy_matrix(a, deps=deps))
+    return 0.0
+
+
+def norm(x: Any, ord: Any = None, *, deps: OpsDeps) -> float:
+    """Matrix or vector norm (Frobenius / L2 default)."""
+    rec = _record_io_trace("norm", [x], deps=deps)
+    _prefetch_if_streaming(rec, [x], deps=deps)
+
+    if ord is None or ord == 'fro' or ord == 2:
+        # Native function
+        fn = getattr(deps.native, "norm", None)
+        if callable(fn):
+            try:
+                # We try passing x directly. If it's a native object, it works.
+                return float(fn(x))
+            except Exception:
+                pass
+
+    # NumPy Fallback
+    np_module = deps.np_module
+    if np_module:
+        return float(np_module.linalg.norm(_to_numpy_matrix(x, deps=deps), ord=ord))
+    return 0.0
+
+
+def cholesky(a: Any, *, deps: OpsDeps) -> Any:
+    """Return the Cholesky decomposition."""
+    rec = _record_io_trace("cholesky", [a], deps=deps)
+    _prefetch_if_streaming(rec, [a], deps=deps)
+
+    fn = getattr(deps.native, "cholesky", None)
+    if callable(fn):
+        try:
+            out = fn(a)
+            _track_and_mark_temporary_if_native(out, deps=deps)
+            return out
+        except Exception:
+            pass
+            
+    # NumPy Fallback
+    np_module = deps.np_module
+    if np_module:
+        val = np_module.linalg.cholesky(_to_numpy_matrix(a, deps=deps))
+        return _as_pycauset_array(val, deps=deps)
+    raise RuntimeError("cholesky failed")
+
+
+def qr(a: Any, mode: str = 'reduced', *, deps: OpsDeps) -> Any:
+    """Return QR decomposition."""
+    rec = _record_io_trace("qr", [a], deps=deps)
+    _prefetch_if_streaming(rec, [a], deps=deps)
+    
+    # Native default is reduced
+    if mode == 'reduced':
+        fn = getattr(deps.native, "qr", None)
+        if callable(fn):
+            try:
+                q, r = fn(a)
+                _track_and_mark_temporary_if_native(q, deps=deps)
+                _track_and_mark_temporary_if_native(r, deps=deps)
+                return q, r
+            except Exception:
+                pass
+
+    np_module = deps.np_module
+    if np_module:
+        q_np, r_np = np_module.linalg.qr(_to_numpy_matrix(a, deps=deps), mode=mode)
+        q = _as_pycauset_array(q_np, deps=deps)
+        r = _as_pycauset_array(r_np, deps=deps)
+        return q, r
+    raise RuntimeError("qr failed")
+
+
+def svd(a: Any, full_matrices: bool = True, compute_uv: bool = True, *, deps: OpsDeps) -> Any:
+    """Return SVD decomposition."""
+    rec = _record_io_trace("svd", [a], deps=deps)
+    
+    # Native only supports reduced/compact where U is MxK, VT is KxN (approx full_matrices=False)
+    if not full_matrices and compute_uv:
+        fn = getattr(deps.native, "svd", None)
+        if callable(fn):
+            try:
+                u, s, vt = fn(a)
+                _track_and_mark_temporary_if_native(u, deps=deps)
+                _track_and_mark_temporary_if_native(s, deps=deps)
+                _track_and_mark_temporary_if_native(vt, deps=deps)
+                return u, s, vt
+            except Exception:
+                pass
+
+    np_module = deps.np_module
+    if np_module:
+        res = np_module.linalg.svd(_to_numpy_matrix(a, deps=deps), full_matrices=full_matrices, compute_uv=compute_uv)
+        if compute_uv:
+             u_np, s_np, vt_np = res
+             return (_as_pycauset_array(u_np, deps=deps), _as_pycauset_array(s_np, deps=deps), _as_pycauset_array(vt_np, deps=deps))
+        else:
+             s_np = res
+             return _as_pycauset_array(s_np, deps=deps)
+        
+    raise RuntimeError("svd failed")
+
+
+def lu(a: Any, *, deps: OpsDeps) -> Any:
+    """Return LU decomposition (P, L, U)."""
+    rec = _record_io_trace("lu", [a], deps=deps)
+    
+    fn = getattr(deps.native, "lu", None)
+    if callable(fn):
+        p, l, u = fn(a)
+        _track_and_mark_temporary_if_native(p, deps=deps)
+        _track_and_mark_temporary_if_native(l, deps=deps)
+        _track_and_mark_temporary_if_native(u, deps=deps)
+        return p, l, u
+
+    # Scipy Fallback is not standard here as scipy is not in standard deps
+    raise NotImplementedError("lu requires native implementation")
+
+
+def solve(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Solve AX = B."""
+    rec = _record_io_trace("solve", [a, b], deps=deps)
+    
+    fn = getattr(deps.native, "solve", None)
+    if callable(fn):
+        try:
+            x = fn(a, b)
+            _track_and_mark_temporary_if_native(x, deps=deps)
+            return x
+        except Exception:
+            pass
+            
+    np_module = deps.np_module
+    if np_module:
+        val = np_module.linalg.solve(_to_numpy_matrix(a, deps=deps), _to_numpy_matrix(b, deps=deps))
+        return _as_pycauset_array(val, deps=deps)
+        
+    raise RuntimeError("solve failed")

@@ -31,11 +31,9 @@ MemoryGovernor::MemoryGovernor() {
     uint64_t two_gb = 2ULL * 1024 * 1024 * 1024;
     safety_margin_ = std::min(ten_percent, two_gb);
 
-    // Default pinned memory limit: 20% of total RAM or 4GB, whichever is smaller
-    // We are conservative here because pinning too much RAM can crash the OS.
-    uint64_t twenty_percent = cached_total_ram_ / 5;
-    uint64_t four_gb = 4ULL * 1024 * 1024 * 1024;
-    max_pinned_memory_ = std::min(twenty_percent, four_gb);
+    // Default pinned memory limit (R1_GPU):
+    // min(SystemRAM * 0.5, FreeRAM * 0.8, 8GB)
+    max_pinned_memory_ = compute_dynamic_pinning_budget();
 }
 
 MemoryGovernor::~MemoryGovernor() {
@@ -117,6 +115,7 @@ void MemoryGovernor::reset_for_testing() {
     object_sizes_.clear();
     tracked_ram_usage_ = 0;
     pinned_memory_usage_ = 0;
+    pinning_budget_override_ = false;
     // Don't reset safety margin or cached stats as they are system dependent
 }
 
@@ -173,6 +172,38 @@ uint64_t MemoryGovernor::get_max_pinned_memory() const {
 
 void MemoryGovernor::set_max_pinned_memory(uint64_t bytes) {
     max_pinned_memory_ = bytes;
+}
+
+void MemoryGovernor::set_pinning_budget_override(uint64_t bytes) {
+    max_pinned_memory_ = bytes;
+    pinning_budget_override_ = true;
+}
+
+void MemoryGovernor::clear_pinning_budget_override() {
+    pinning_budget_override_ = false;
+}
+
+bool MemoryGovernor::has_pinning_budget_override() const {
+    return pinning_budget_override_.load();
+}
+
+uint64_t MemoryGovernor::compute_dynamic_pinning_budget() const {
+    refresh_system_stats();
+
+    uint64_t total = cached_total_ram_.load();
+    uint64_t available = cached_available_ram_.load();
+    if (total == 0 || available == 0) return 0;
+
+    uint64_t half_total = total / 2;
+    uint64_t eighty_percent_free = (available * 8) / 10;
+    uint64_t eight_gb = 8ULL * 1024 * 1024 * 1024;
+
+    return std::min({half_total, eighty_percent_free, eight_gb});
+}
+
+void MemoryGovernor::apply_dynamic_pinning_budget() {
+    if (pinning_budget_override_.load()) return;
+    max_pinned_memory_ = compute_dynamic_pinning_budget();
 }
 
 void MemoryGovernor::register_object(PersistentObject* obj, size_t size_bytes) {

@@ -182,7 +182,7 @@ class TestGPUAcceleration(unittest.TestCase):
             if i < N-1: A.set(i, i+1, 0.1)
             
         # Largest eigenvalues should be near N-1
-        evals = pycauset.eigvals_arnoldi(A, k, max_iter=50)
+        evals = pycauset.eigvals_arnoldi(A, k, m=50, tol=1e-6)
         
         # Check that we got k values
         self.assertEqual(evals.size(), k)

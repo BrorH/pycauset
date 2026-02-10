@@ -121,6 +121,31 @@ public:
      */
     void set_max_pinned_memory(uint64_t bytes);
 
+    /**
+     * @brief Sets a manual pinning budget override (disables dynamic budget updates).
+     */
+    void set_pinning_budget_override(uint64_t bytes);
+
+    /**
+     * @brief Clears the manual pinning budget override (re-enables dynamic budget updates).
+     */
+    void clear_pinning_budget_override();
+
+    /**
+     * @brief Returns true if a manual pinning budget override is active.
+     */
+    bool has_pinning_budget_override() const;
+
+    /**
+     * @brief Computes the dynamic pinning budget using the R1_GPU heuristic.
+     */
+    uint64_t compute_dynamic_pinning_budget() const;
+
+    /**
+     * @brief Applies the dynamic pinning budget unless overridden.
+     */
+    void apply_dynamic_pinning_budget();
+
     // --- Statistics & Diagnostics ---
 
     /**
@@ -183,6 +208,7 @@ private:
     // Pinned Memory Stats
     std::atomic<uint64_t> pinned_memory_usage_{0};
     std::atomic<uint64_t> max_pinned_memory_{0};
+    std::atomic<bool> pinning_budget_override_{false};
 
     // Cached system stats
     mutable std::atomic<uint64_t> cached_total_ram_{0};

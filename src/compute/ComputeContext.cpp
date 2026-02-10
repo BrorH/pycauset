@@ -81,6 +81,22 @@ bool ComputeContext::is_gpu_active() const {
     return auto_solver_.is_gpu_active();
 }
 
+void ComputeContext::force_backend(BackendPreference pref) {
+    auto_solver_.set_backend_preference(pref);
+}
+
+BackendPreference ComputeContext::get_backend_preference() const {
+    return auto_solver_.get_backend_preference();
+}
+
+bool ComputeContext::benchmark_gpu(bool force, HardwareProfile& out) {
+    return auto_solver_.benchmark(force, out);
+}
+
+bool ComputeContext::get_hardware_profile(HardwareProfile& out) const {
+    return auto_solver_.get_hardware_profile(out);
+}
+
 void ComputeContext::enable_gpu(const AcceleratorConfig& config) {
     // Always try to load if requested, even if already active (to change config)
     try_load_cuda(config);

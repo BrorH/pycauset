@@ -60,6 +60,11 @@ When adding a new operation, you must decide and/or implement support in each of
     - If the op is a metadata-only transform, decide which cached-derived values can be **propagated** via explicit $O(1)$ rules (otherwise clear).
     - If the op is parallelized, decide whether it should emit a constant-size **effect summary** to help the post-op health check update metadata without a second payload pass.
 
+9. **Traits/Tags (Phase 3: property mirroring)**
+    - If the op depends on properties for routing, consult the C++ property flags (`include/pycauset/core/PropertyFlags.hpp`).
+    - Use `MatrixPropertyTraits` in `AutoSolver` or routing helpers to make decisions without scanning payloads.
+    - When adding new boolean properties, update both the Python property map and the C++ flag map.
+
 ## Step-by-step (what to edit, in order)
 
 ### 1) Add the device-interface method
@@ -122,15 +127,124 @@ Every new op must explicitly state its dtype behavior. In particular:
 
 These rules are defined in [[internals/DType System|internals/DType System]] and summarized in [[project/Philosophy|project/Philosophy]].
 
+### 8) Register the Op Contract
+
+Every numerical operation must declare its capabilities in the **Op Contract Registry**. This ensures that the system knows which operations support streaming, block matrices, or have special requirements (like square inputs).
+
+**The Contract Struct** (defined in `include/pycauset/core/OpRegistry.hpp`):
+
+```cpp
+struct OpContract {
+    std::string name;
+    bool supports_streaming;     // Can delegate to StreamingManager?
+    bool supports_streaming;     // Does it delegate to StreamingManager?
+    bool supports_block_matrix;  // Does it natively handle BlockMatrix recursion?
+    bool requires_square;        // Does it enforce square inputs?
+    // Future: SIMD Tier, Property propagation rules
+};
+```
+
+### Usage (C++)
+
+```cpp
+// On module load / static init
+OpContract matmul_contract;
+matmul_contract.name = "matmul";
+matmul_contract.supports_streaming = true;
+matmul_contract.supports_block_matrix = true;
+
+OpRegistry::instance().register_op(matmul_contract);
+```
+
+### Usage (Python)
+
+The registry is mirrored to Python for inspection and AI-guided development.
+
+```python
+import _pycauset as internal  # or pycauset.internals depending on binding layout
+
+contract = internal.OpRegistry.instance().get_contract("matmul")
+print(contract.supports_streaming) # True
+```
+
+### Integrating a New Op
+
+1. Define the C++ implementation.
+2. In the initialization static block, register the `OpContract`.
+
 ## Streaming manager wiring (per-op template)
 
 Use this when deciding whether an op should stream and how to express it.
 
 1. **Decide streamability and invariants.** Specify when streaming is allowed (e.g., associative/commutative reductions, block-separable transforms) and when to fall back to single-shot (e.g., global normalization constants, shape-dependent fusion that would regress correctness). Capture the rationale so AutoSolver can gate.
 2. **Define the streaming descriptor.** Choose chunk shape (rows/tiles/blocks), prefetch distance, double-buffering vs single-buffer, and whether pinned host staging is required. Provide CPU defaults and GPU defaults separately; GPU defaults should include host<->device staging policy and max in-flight buffers.
-3. **Route through AutoSolver.** Add a routing path that prefers the streaming plan when the device supports it and the op’s streamability predicates are satisfied; otherwise route to the non-streaming implementation or raise a clear “streaming not supported for this configuration” error.
+3. **Route through AutoSolver.** Add a routing path that prefers the streaming plan when the device supports it and the op's streamability predicates are satisfied; otherwise route to the non-streaming implementation or raise a clear "streaming not supported for this configuration" error.
 4. **Budgeting with the memory governor.** Set per-op limits: max residency for staging buffers, spill/evict behavior, and what to do when budgets are tight (e.g., shrink chunk size, drop to CPU-only, or disable streaming). Avoid hidden allocations outside the governor.
-5. **Telemetry and tests.** Add a minimal streaming test that asserts the op uses the streaming path (e.g., via a debug hook or perf counter) and a fallback test that confirms graceful degradation when streaming is blocked. Document the defaults and any known non-streamable cases in the op’s docstring/API doc.
+5. **Telemetry and tests.** Add a minimal streaming test that asserts the op uses the streaming path (e.g., via a debug hook or perf counter) and a fallback test that confirms graceful degradation when streaming is blocked. Document the defaults and any known non-streamable cases in the op's docstring/API doc.
+
+## GPU routine authoring checklist (Phase 2, R1_GPU)
+
+Use this checklist when you add a **GPU acceleration routine** (host-orchestrated driver) for a new op. This is the plug-and-play contract that keeps GPU work predictable and future R1_CPU-compatible.
+
+1. **Define the Driver contract** (host-side orchestration).
+    - Inputs: operand shapes, dtype, memory layout, and streaming tile constraints.
+    - Outputs: explicit success/failure codes and error messages (no silent fallbacks).
+    - Dependencies: the driver may call `AsyncStreamer` and device kernels, but **must not** embed device-specific logic in the orchestration loop.
+
+2. **Declare capability surface (routing gate).**
+    - Enumerate supported dtypes and matrix structures.
+    - State any property preconditions (e.g., symmetric/triangular).
+    - Provide a “no” reason string for unsupported cases (for routing traces).
+
+3. **Use the MemoryGovernor budget.**
+    - All pinned allocations must request a ticket from the governor.
+    - If denied, degrade to pageable host buffers (or CPU fallback) and record a trace reason.
+
+4. **Provide CPU compatibility.**
+    - The driver contract must remain backend-agnostic so R1_CPU can reuse the same orchestration loop.
+    - Device-specific kernels should sit behind a worker interface; do not bake CUDA into the driver.
+
+5. **Instrument routing and execution.**
+    - Emit trace tags for routing choice, streaming decisions, and kernel/driver stages.
+    - Ensure observability is deterministic and does not depend on timing.
+
+6. **Register the driver in AutoSolver.**
+    - Add the routing decision (cost model + capability checks) in `AutoSolver`.
+    - Fall back to CPU with a clear reason if the driver cannot run.
+
+7. **Document & test.**
+    - Update the API reference and guides with the new acceleration path.
+    - Add correctness tests and at least one routing test (GPU chosen / GPU rejected).
+
+## GPU kernel checklist (Phase 5, R1_GPU)
+
+Use this when adding or modifying **low-level CUDA kernels** (beyond the host driver):
+
+1. **Declare kernel coverage.**
+    - Supported dtypes, structures, and any layout assumptions (row-major/col-major, contiguous, stride rules).
+    - Explicitly document unsupported permutations and how routing rejects them.
+
+2. **Validate inputs.**
+    - Bounds/shape checks must happen before launching kernels.
+    - Fast-fail with a clear error on invalid sizes or unsupported structure flags.
+
+3. **Precision and determinism.**
+    - Declare math mode (e.g., TF32 allowed vs disabled).
+    - Document any non-deterministic reductions or race-sensitive paths.
+
+4. **Memory and stream discipline.**
+    - Honor the MemoryGovernor pinning budget for host staging.
+    - Use the caller’s stream (no implicit default-stream races).
+    - Avoid hidden device allocations in hot loops.
+
+5. **Error handling and traceability.**
+    - Check CUDA errors (`cudaGetLastError`, `cublasStatus`, `cusolverStatus`).
+    - Emit deterministic trace tags for routing and kernel stages.
+
+6. **Tests.**
+    - Add correctness tests for representative shapes/dtypes.
+    - Add a routing test that confirms GPU selection for supported inputs.
+    - Add a failure test for a known unsupported permutation.
 
 ## Minimal “Definition of Done” for a new op
 
@@ -163,3 +277,5 @@ For `bit` specifically, always state whether the new op is:
 - [[project/protocols/Documentation Protocol.md|Documentation Protocol]]
 - [[internals/plans/completed/R1_PROPERTIES_PLAN.md|R1_PROPERTIES plan (properties + caches)]]
 - [[internals/DType System|internals/DType System]]
+- [[internals/Compute Architecture.md|Compute Architecture]]
+- [[internals/Streaming Manager.md|Streaming Manager]]

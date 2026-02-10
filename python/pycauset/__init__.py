@@ -137,6 +137,7 @@ _ComplexFloat64Matrix = _safe_get("ComplexFloat64Matrix")
 _TriangularFloatMatrix = _safe_get("TriangularFloatMatrix")
 _TriangularIntegerMatrix = _safe_get("TriangularIntegerMatrix")
 _DenseBitMatrix = _safe_get("DenseBitMatrix")
+_LazyMatrix = _safe_get("LazyMatrix")
 _UnitVector = _safe_get("UnitVector")
 _SymmetricMatrix = getattr(_native, "SymmetricMatrix", None)
 _AntiSymmetricMatrix = getattr(_native, "AntiSymmetricMatrix", None)
@@ -421,6 +422,16 @@ _VectorBaseType = getattr(_native, "VectorBase", None)
 def _guarded_array_export(self: Any, dtype: Any = None, copy: Any = None) -> Any:
     # NumPy 2.x may pass copy=... to __array__; honor when provided.
     copy_flag = True if copy is None else copy
+    if not copy_flag:
+        return _export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype, copy=copy_flag)
+    try:
+        arr = _export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype, copy=False)
+    except Exception:
+        arr = None
+    if arr is not None:
+        import numpy as _np_local  # type: ignore
+
+        return _np_local.array(arr, dtype=dtype, copy=True)
     return _export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype, copy=copy_flag)
 
 
@@ -475,7 +486,13 @@ def _wrap_setitem_for_scalars(base_type: Any) -> None:
             except Exception:
                 # Fall back to the original setter on any failure (e.g., slicing).
                 pass
-        return _orig(self, key, coerced)
+        try:
+            return _orig(self, key, coerced)
+        except RuntimeError as exc:
+            msg = str(exc)
+            if "Unable to cast" in msg:
+                raise TypeError(msg) from exc
+            raise
 
     base_type.__setitem__ = _wrapped  # type: ignore[attr-defined]
     setattr(base_type, "__pycauset_setitem_wrapped__", True)
@@ -847,6 +864,7 @@ _patching.apply_native_storage_patches(
 
 _properties.apply_properties_patches(
     classes=[
+        _LazyMatrix,
         _IntegerMatrix,
         _Int8Matrix,
         _Int16Matrix,
@@ -1677,6 +1695,9 @@ def lu(*args: Any, **kwargs: Any) -> Any:
 
 
 def cholesky(*args: Any, **kwargs: Any) -> Any:
+    if "deps" in kwargs:
+        raise TypeError("cholesky: deps is internal")
+    kwargs["deps"] = _OPS_DEPS
     return _ops.cholesky(*args, **kwargs)
 
 
@@ -1688,16 +1709,53 @@ def pinv(*args: Any, **kwargs: Any) -> Any:
     return _ops.pinv(*args, **kwargs)
 
 
-def eig(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError("pycauset.eig is not available yet (pre-alpha).")
+def eig(a: Any) -> tuple[Any, Any]:
+    """Eigen-decomposition for general matrices (NumPy fallback)."""
+    return _ops.eig(a, deps=_OPS_DEPS)
 
 
-def eigvals(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError("pycauset.eigvals is not available yet (pre-alpha).")
+def eigvals(a: Any) -> Any:
+    """Eigenvalues for general matrices (NumPy fallback)."""
+    return _ops.eigvals(a, deps=_OPS_DEPS)
 
 
 def eigvals_skew(*_args: Any, **_kwargs: Any) -> Any:
     raise NotImplementedError("pycauset.eigvals_skew is not available yet (pre-alpha).")
+
+
+def trace(a: Any) -> Any:
+    """Return the sum of the diagonal elements."""
+    return _ops.trace(a, deps=_OPS_DEPS)
+
+
+def cholesky(a: Any) -> Any:
+    """Return the Cholesky decomposition."""
+    return _ops.cholesky(a, deps=_OPS_DEPS)
+
+
+def qr(a: Any, mode: str = 'reduced') -> Any:
+    """Return QR decomposition."""
+    return _ops.qr(a, mode=mode, deps=_OPS_DEPS)
+
+
+def svd(a: Any, full_matrices: bool = True, compute_uv: bool = True) -> Any:
+    """Return SVD decomposition."""
+    return _ops.svd(a, full_matrices=full_matrices, compute_uv=compute_uv, deps=_OPS_DEPS)
+
+
+def lu(a: Any) -> Any:
+    """Return LU decomposition (P, L, U)."""
+    return _ops.lu(a, deps=_OPS_DEPS)
+
+
+def solve(a: Any, b: Any) -> Any:
+    """Solve linear system AX = B."""
+    return _ops.solve(a, b, deps=_OPS_DEPS)
+
+
+def determinant(a: Any) -> Any:
+    """Return the determinant of a square matrix."""
+    return _ops.determinant(a, deps=_OPS_DEPS)
 
 
 def identity(x: Any) -> Any:
@@ -1799,6 +1857,8 @@ _extra_exports = [
     "cholesky",
     "svd",
     "pinv",
+    "trace",
+    "determinant",
     "eig",
     "eigvals",
     "eigvals_skew",

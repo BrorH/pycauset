@@ -2,6 +2,7 @@
 
 #include "pycauset/compute/ComputeDevice.hpp"
 #include "pycauset/compute/AcceleratorConfig.hpp"
+#include "pycauset/compute/HardwareProfile.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include <complex>
 #include <cublas_v2.h>
@@ -9,11 +10,14 @@
 #include <cuda_runtime.h>
 #include <string>
 #include <vector>
+#include <unordered_map>
+#include <mutex>
 
 namespace pycauset {
 
 class CudaDevice : public ComputeDevice {
     friend class CudaSolver;
+    friend class MatmulDriver;
 public:
     CudaDevice(const AcceleratorConfig& config);
     ~CudaDevice();
@@ -21,6 +25,7 @@ public:
     // Core Operations
     void matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void inverse(const MatrixBase& in, MatrixBase& out) override;
+    void cholesky(const MatrixBase& in, MatrixBase& out) override;
     
     // Internal helper for in-core inversion (called by CudaSolver)
     void inverse_incore(const MatrixBase& in, MatrixBase& out);
@@ -62,6 +67,11 @@ public:
     double trace(const MatrixBase& m) override;
     double determinant(const MatrixBase& m) override;
     void qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) override;
+    void eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) override;
+    void eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) override;
+    void eigvalsh(const MatrixBase& in, VectorBase& eigenvalues, char uplo) override;
+    void eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors) override;
+    void eigvals(const MatrixBase& in, VectorBase& eigenvalues) override;
 
     std::string name() const override { return "CUDA (NVIDIA GPU)"; }
     bool is_gpu() const override { return true; }
@@ -94,6 +104,9 @@ public:
         return 1; // Float32
     }
 
+    // Hardware profiling
+    bool fill_hardware_profile(HardwareProfile& profile, bool run_benchmarks) override;
+
     // Memory Management
     void* allocate_pinned(size_t size) override;
     void free_pinned(void* ptr) override;
@@ -107,10 +120,18 @@ private:
     int cc_minor_ = 0;
     AcceleratorConfig config_;
 
+    // Track pinned allocations for budget accounting
+    std::unordered_map<void*, size_t> pinned_allocations_;
+    std::mutex pinned_allocations_mutex_;
+
     // Helper to check CUDA errors
     void check_cuda(cudaError_t result, const char* func);
     void check_cublas(cublasStatus_t result, const char* func);
     void check_cusolver(cusolverStatus_t result, const char* func);
+
+    // Hardware benchmarking
+    double benchmark_pci_bandwidth_gbps();
+    double benchmark_gemm_gflops(bool use_float32);
 
     // Memory Management
     size_t get_available_memory();

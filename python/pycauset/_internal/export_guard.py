@@ -252,14 +252,23 @@ def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool
 
     rows, cols = shape
     get_fn = getattr(obj, "get", None)
+    get_double = getattr(obj, "get_element_as_double", None)
+    get_complex = getattr(obj, "get_element_as_complex", None)
+    use_complex = np.issubdtype(target_dtype, np.complexfloating)
+
+    getter = get_fn
+    if use_complex and callable(get_complex):
+        getter = get_complex
+    elif callable(get_double):
+        getter = get_double
 
     is_vector_like = False
-    if callable(get_fn) and not hasattr(obj, "cols"):
+    if callable(getter) and not hasattr(obj, "cols"):
         # Vector types may present a 2D shape when transposed (e.g. (1, N)), but their
         # get(...) accessor still accepts a single index. Detect that and export correctly.
         if rows > 0 and cols > 0:
             try:
-                get_fn(0, 0)
+                getter(0, 0)
             except TypeError:
                 is_vector_like = True
             except Exception:
@@ -268,29 +277,29 @@ def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool
         else:
             is_vector_like = True
 
-    if callable(get_fn) and is_vector_like:
+    if callable(getter) and is_vector_like:
         if cols == 1:
             out = np.empty((rows,), dtype=target_dtype)
             for i in range(rows):
-                out[i] = get_fn(i)
+                out[i] = getter(i)
             return out
         if rows == 1:
             out = np.empty((1, cols), dtype=target_dtype)
             for j in range(cols):
-                out[0, j] = get_fn(j)
+                out[0, j] = getter(j)
             return out
 
     is_vector = cols == 1 and not hasattr(obj, "cols")
     out_shape = (rows,) if is_vector else (rows, cols)
     out = np.empty(out_shape, dtype=target_dtype)
 
-    if callable(get_fn):
+    if callable(getter):
         for i in range(rows):
             if is_vector:
-                out[i] = get_fn(i)
+                out[i] = getter(i)
             else:
                 for j in range(cols):
-                    out[i, j] = get_fn(i, j)
+                    out[i, j] = getter(i, j)
         return out
 
     if is_vector:

@@ -147,6 +147,16 @@ public:
     }
 
     std::unique_ptr<VectorBase> transpose(const std::string& result_file = "") const override {
+        if (result_file.empty()) {
+            auto out = std::make_unique<ComplexFloat16Vector>(n_, mapper_);
+            out->set_transposed(!is_transposed());
+            out->set_scalar(scalar_);
+            out->set_seed(seed_);
+            out->set_conjugated(is_conjugated());
+            out->set_temporary(is_temporary());
+            return out;
+        }
+
         std::string new_path = copy_storage(result_file);
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
         auto out = std::make_unique<ComplexFloat16Vector>(n_, std::move(mapper));
@@ -154,9 +164,6 @@ public:
         out->set_scalar(scalar_);
         out->set_seed(seed_);
         out->set_conjugated(is_conjugated());
-        if (result_file.empty()) {
-            out->set_temporary(true);
-        }
         return out;
     }
 };

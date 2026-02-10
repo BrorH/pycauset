@@ -3,6 +3,7 @@
 #include "pycauset/compute/ComputeDevice.hpp"
 #include "pycauset/compute/AcceleratorConfig.hpp"
 #include "pycauset/compute/AutoSolver.hpp"
+#include "pycauset/compute/HardwareProfile.hpp"
 #include <memory>
 
 namespace pycauset {
@@ -20,6 +21,14 @@ public:
     // Manual control
     void enable_gpu(const AcceleratorConfig& config = AcceleratorConfig());
     void disable_gpu();
+
+    // Routing control
+    void force_backend(BackendPreference pref);
+    BackendPreference get_backend_preference() const;
+
+    // Hardware profiling
+    bool benchmark_gpu(bool force, HardwareProfile& out);
+    bool get_hardware_profile(HardwareProfile& out) const;
 
     const AcceleratorConfig& get_config() const { return current_config; }
 

@@ -317,6 +317,9 @@ void bind_vector_classes(py::module_& m) {
         .def("set_transposed", &VectorBase::set_transposed)
         .def("is_conjugated", &VectorBase::is_conjugated)
         .def("set_conjugated", &VectorBase::set_conjugated)
+        .def("_get_properties_flags", &VectorBase::get_properties_flags)
+        .def("_set_properties_flags", &VectorBase::set_properties_flags)
+        .def("_set_property_flag", &VectorBase::set_property_flag, py::arg("flag"), py::arg("value"))
         .def("get_element_as_double", &VectorBase::get_element_as_double)
         .def("get_element_as_complex", &VectorBase::get_element_as_complex)
         .def(

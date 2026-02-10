@@ -31,6 +31,7 @@
 * **[[docs/functions/pycauset.cond.md|cond]]**
 * **[[docs/functions/pycauset.eigh.md|eigh]]**
 * **[[docs/functions/pycauset.eigvalsh.md|eigvalsh]]**
+* **[[docs/functions/pycauset.eigvals_arnoldi.md|eigvals_arnoldi]]**
 * **[[docs/functions/pycauset.load.md|load]]**
 * **[[docs/functions/pycauset.convert_file.md|convert_file]]**
 * **[[docs/functions/pycauset.to_numpy.md|to_numpy]]**
@@ -41,3 +42,10 @@
 * **[[docs/functions/pycauset.set_precision_mode.md|set_precision_mode]]**
 * **[[docs/functions/pycauset.set_num_threads.md|set_num_threads]]**
 * **[[docs/functions/pycauset.precision_mode.md|precision_mode]]**
+* **[[docs/functions/pycauset.cuda.is_available.md|pycauset.cuda.is_available]]**
+* **[[docs/functions/pycauset.cuda.enable.md|pycauset.cuda.enable]]**
+* **[[docs/functions/pycauset.cuda.disable.md|pycauset.cuda.disable]]**
+* **[[docs/functions/pycauset.cuda.current_device.md|pycauset.cuda.current_device]]**
+* **[[docs/functions/pycauset.cuda.force_backend.md|pycauset.cuda.force_backend]]**
+* **[[docs/functions/pycauset.cuda.set_pinning_budget.md|pycauset.cuda.set_pinning_budget]]**
+* **[[docs/functions/pycauset.cuda.benchmark.md|pycauset.cuda.benchmark]]**

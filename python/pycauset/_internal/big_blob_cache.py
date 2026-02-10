@@ -96,6 +96,10 @@ def try_load_cached_matrix(
         is_transposed = bool(view.get("is_transposed", False))
 
         return MatrixClass._from_storage(rows, cols, str(obj_path), int(payload_offset), seed, scalar, is_transposed)
+    except TypeError:
+        # Fallback for Vector classes which expect (n, backing, offset, seed, scalar, transposed)
+        # We assume rows holds the size 'n' for vectors.
+        return MatrixClass._from_storage(rows, str(obj_path), int(payload_offset), seed, scalar, is_transposed)
     except Exception:
         # Treat as cache miss: warn and let caller decide what to do.
         # Policy: do not implicitly recompute missing/unreadable cached objects.
