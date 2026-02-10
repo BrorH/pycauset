@@ -62,9 +62,11 @@ For GPU acceleration, PyCauset uses **Algorithm Drivers**: host-side control loo
 | --- | --- | --- | --- | --- | --- |
 | matmul | blocked_rowcol | shape mismatch → direct | budgeted square tiles clamped to shapes | 3 when streaming | Python tiling fallback annotates `impl=streaming_python` |
 | invert | invert_dense | non-square → direct | default square tile | 1 when streaming | Fallback annotates `impl=streaming_python` |
-| eigvalsh | symmetric_eigvals | non-square → direct | default square tile | 1 when streaming | Fallback annotates `impl=streaming_python` |
-| eigh | symmetric_eigh | non-square → direct | default square tile | 1 when streaming | Fallback annotates `impl=streaming_python` |
-| eigvals_arnoldi | arnoldi_topk | non-square → direct | default square tile | 1 when streaming | Fallback annotates `impl=streaming_python` |
+| eigvalsh | symmetric_eigvals | non-square → direct | **N/A** (LAPACK full matrix) | **0** (no streaming) | LAPACK requires full contiguous matrix; always routes direct |
+| eigh | symmetric_eigh | non-square → direct | **N/A** (LAPACK full matrix) | **0** (no streaming) | LAPACK requires full contiguous matrix; always routes direct |
+| eig | general_eig | non-square → direct | **N/A** (LAPACK full matrix) | **0** (no streaming) | LAPACK `dgeev` requires full matrix; always routes direct |
+| eigvals | general_eigvals | non-square → direct | **N/A** (LAPACK full matrix) | **0** (no streaming) | LAPACK requires full matrix; always routes direct |
+| eigvals_arnoldi | arnoldi_topk | non-square → direct | **matrix-vector only** | **1 when streaming** | **Streaming supported** - only needs matvec products, A can be disk-backed |
 
 ## Hooks and defaults
 - `tile_budget_fn(threshold_bytes, snapshots)`: derives tiles from the memory threshold and itemsize; matmul halves budget across A/B and clamps to shapes; square ops reuse the default derivation.
@@ -78,6 +80,25 @@ For GPU acceleration, PyCauset uses **Algorithm Drivers**: host-side control loo
 - Tile shapes always finite and clamped to operand extents; failures fall back to conservative defaults.
 - Guards run before tiling so invalid shapes revert to direct routes instead of crashing in streaming codepaths.
 - IO observability storage summaries remain intact for spill/backing-file diagnostics.
+
+## Eigen Operations: Streaming Support Matrix
+
+**LAPACK-based eigensolvers** (`eigh`, `eigvalsh`, `eig`, `eigvals`) do **not support streaming**:
+- **Reason**: LAPACK routines (`dsyev`, `dgeev`, etc.) require the full matrix in contiguous memory
+- **Routing**: Always `direct` path regardless of threshold
+- **Block matrices**: Not supported (LAPACK requires dense contiguous layout)
+- **Memory constraint**: Matrix must fit entirely in RAM
+- **Use case**: Small to medium matrices where full eigen decomposition is needed
+
+**Arnoldi iteration** (`eigvals_arnoldi`) **supports streaming**:
+- **Reason**: Only requires matrix-vector products (no full matrix access needed)
+- **Routing**: Can use `streaming` path for large matrices
+- **Out-of-core**: Matrix A can be disk-backed as long as matvec products are computable
+- **Memory constraint**: Only Krylov basis vectors (size m×n where m is subspace dimension) need to fit in RAM
+- **Use case**: Large matrices where only top-k eigenvalues are needed
+- **Trade-off**: Iterative algorithm - slower convergence but enables out-of-core execution
+
+**Recommendation**: For large matrices (>1GB) where only a few eigenvalues are needed, use `eigvals_arnoldi` to enable streaming. For full eigendecomposition, ensure the matrix fits in RAM and use `eigh`/`eig`.
 
 ## Debugging and tests
 - `pc.last_io_trace()` shows the latest plan; `pc.last_io_trace("matmul")` fetches by op.

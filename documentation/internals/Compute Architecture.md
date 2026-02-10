@@ -124,6 +124,59 @@ PyCauset uses a custom thread pool (`ThreadPool`) to manage parallelism with a *
 *   **Load Balancing**: This ensures that if one thread is blocked by I/O or OS paging, other threads continue processing the remaining work, maximizing CPU utilization.
 *   **Granularity**: The grain size is tuned (heuristic: `range / (threads * 4)`) to balance load distribution against atomic contention overhead.
 
+### 2.5 Eigensolvers (Phase 6: R1_CPU)
+
+The CPU backend provides comprehensive eigensolver support via LAPACK, with specialized handling for different matrix types:
+
+#### Hermitian/Symmetric Eigensolvers
+*   **`eigh(A)`**: Computes eigenvalues and eigenvectors for Hermitian (complex) or symmetric (real) matrices
+    *   **Backend**: LAPACK `dsyev` (double), `ssyev` (float), `zheev` (complex double), `cheev` (complex float)
+    *   **Requirements**: Square, contiguous dense matrix (no block-matrix support)
+    *   **Streaming**: Not supported (LAPACK requires full matrix in memory)
+    *   **Caching**: Eigenvalues and eigenvectors cached as derived metadata using big-blob persistence
+*   **`eigvalsh(A)`**: Computes eigenvalues only (faster when eigenvectors not needed)
+    *   Uses same LAPACK routines but skips eigenvector computation
+
+#### General Eigensolvers
+*   **`eig(A)`**: Computes eigenvalues and eigenvectors for general (non-symmetric) matrices
+    *   **Backend**: LAPACK `dgeev` (double), `sgeev` (float)
+    *   **Returns**: Complex eigenvalues/eigenvectors even for real matrices (general eigenvalues can be complex)
+    *   **Requirements**: Square, dense only
+    *   **Streaming**: Not supported
+*   **`eigvals(A)`**: Eigenvalues only for general matrices
+
+#### Arnoldi Iteration (Large/Sparse Eigenproblems)
+*   **`eigvals_arnoldi(A, k, m, tol)`**: Computes top-k eigenvalues using Arnoldi iteration
+    *   **Method**: Iterative Arnoldi algorithm - only requires matrix-vector products
+    *   **Advantage**: Can work with disk-backed matrices (A doesn't need to fit in RAM)
+    *   **Streaming**: **Supported** - operates via matrix-vector products, enabling out-of-core execution
+    *   **Use cases**: Large matrices where only a few eigenvalues are needed
+    *   **Parameters**:
+        *   `k`: Number of eigenvalues to compute
+        *   `m`: Krylov subspace dimension (typically `m = 2*k` to `3*k`)
+        *   `tol`: Convergence tolerance
+    *   **Requirements**: Square matrix (can be disk-backed)
+    *   **Block-matrix**: Not currently supported (but underlying A can be out-of-core dense)
+
+#### Op Contract Declarations
+All eigen operations declare their capabilities in `OpRegistry`:
+*   **Block-matrix support**: `false` for all (LAPACK requires contiguous dense)
+*   **Streaming support**: `false` except `eigvals_arnoldi` (`true` - uses matrix-vector products)
+*   **Square requirement**: `true` for all eigen operations
+
+#### Routing and Deterministic Rejection
+*   **Non-square matrices**: Rejected with clear error message mentioning "square matrix required"
+*   **Block matrices**: Rejected with error indicating LAPACK requires dense contiguous layout
+*   **IO Trace**: All eigen operations record routing decisions (`direct` for LAPACK ops, `streaming` potential for Arnoldi)
+
+#### Cached-Derived Metadata
+Eigenvalues and eigenvectors are expensive to compute, so they are cached:
+*   **Storage**: Big-blob cache when large, attached to matrix backing file
+*   **Signature**: View signature ensures cache matches current matrix state
+*   **Invalidation**: Cache cleared on matrix modification
+*   **Load-miss**: Warns and recomputes if cache missing (no implicit retry)
+*   **Persistence**: Cache survives save/reload cycles when matrix has backing file
+
 ## 3. GPU Backend (CUDA)
 
 The GPU backend leverages NVIDIA CUDA for massive parallelism, particularly for $O(N^3)$ operations like matrix multiplication and inversion.
