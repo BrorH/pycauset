@@ -29,7 +29,7 @@ class TestPhase7OpContract(unittest.TestCase):
         self.assertEqual(contract.name, "trace")
         self.assertTrue(contract.supports_streaming, "trace should support streaming (diagonal access only)")
         self.assertTrue(contract.supports_block_matrix, "trace can sum block diagonals")
-        self.assertFalse(contract.requires_square, "trace works on non-square (min(m,n) diagonal)")
+        self.assertFalse(contract.requires_square, "trace works on non-square")
         
     def test_determinant_contract(self):
         """Test determinant operation contract"""

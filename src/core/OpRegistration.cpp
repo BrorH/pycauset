@@ -111,7 +111,7 @@ struct OpRegistration {
         lu.name = "lu";
         lu.supports_streaming = false;  // LAPACK getrf requires full matrix
         lu.supports_block_matrix = false; // Dense only
-        lu.requires_square = true;  // LU decomposition requires square
+        lu.requires_square = true;  // Current implementation requires square (PA=LU)
         registry.register_op(lu);
 
         OpContract svd;
