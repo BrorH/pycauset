@@ -5211,12 +5211,12 @@ void CpuSolver::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBas
         std::vector<int> p_perm(m);
         for(int i=0; i<(int)m; ++i) p_perm[i] = i;
         
-        for(size_t k=0; k<k; ++k) {
+        for(size_t step=0; step<k; ++step) {
             // Find pivot
             double max_val = 0.0;
-            size_t pivot_row = k;
-            for(size_t i=k; i<m; ++i) {
-                double abs_val = std::abs(work[i*n + k]);
+            size_t pivot_row = step;
+            for(size_t i=step; i<m; ++i) {
+                double abs_val = std::abs(work[i*n + step]);
                 if (abs_val > max_val) {
                     max_val = abs_val;
                     pivot_row = i;
@@ -5224,20 +5224,20 @@ void CpuSolver::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBas
             }
             
             // Swap rows in work and p_perm
-            if (pivot_row != k) {
-                std::swap(p_perm[k], p_perm[pivot_row]);
-                for(size_t j=0; j<n; ++j) std::swap(work[k*n + j], work[pivot_row*n + j]);
+            if (pivot_row != step) {
+                std::swap(p_perm[step], p_perm[pivot_row]);
+                for(size_t j=0; j<n; ++j) std::swap(work[step*n + j], work[pivot_row*n + j]);
             }
             
             // Elimination
-            double diag = work[k*n + k];
+            double diag = work[step*n + step];
             // Naive check for singular (should be robust enough)
             if (std::abs(diag) > 1e-100) { 
-                for(size_t i=k+1; i<m; ++i) {
-                    double factor = work[i*n + k] / diag;
-                    work[i*n + k] = factor; // Store L part
-                    for(size_t j=k+1; j<n; ++j) {
-                        work[i*n + j] -= factor * work[k*n + j];
+                for(size_t i=step+1; i<m; ++i) {
+                    double factor = work[i*n + step] / diag;
+                    work[i*n + step] = factor; // Store L part
+                    for(size_t j=step+1; j<n; ++j) {
+                        work[i*n + j] -= factor * work[step*n + j];
                     }
                 }
             }
