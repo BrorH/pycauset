@@ -4,6 +4,7 @@ import os
 # import pytest
 
 def test_ram_backed_small_object():
+    orig_threshold = pycauset.get_memory_threshold()
     # Set threshold to 1MB (10^6 bytes)
     pycauset.set_memory_threshold(1000000)
     
@@ -26,11 +27,16 @@ def test_ram_backed_small_object():
     assert m.get(0, 2) == False
     
     # Verify numpy interop
-    arr = np.array(m)
-    assert arr[0, 1] == 1
-    assert arr.shape == (100, 100)
+    try:
+        arr = np.array(m)
+        assert arr[0, 1] == 1
+        assert arr.shape == (100, 100)
+    finally:
+        if orig_threshold is not None:
+            pycauset.set_memory_threshold(orig_threshold)
 
 def test_disk_backed_large_object():
+    orig_threshold = pycauset.get_memory_threshold()
     # Set threshold to very small (1 byte)
     pycauset.set_memory_threshold(1)
     
@@ -38,10 +44,15 @@ def test_disk_backed_large_object():
     m = pycauset.TriangularBitMatrix(100)
     
     print(f"Backing file: {m.get_backing_file()}")
-    assert m.get_backing_file() != ":memory:"
-    assert os.path.exists(m.get_backing_file())
+    try:
+        assert m.get_backing_file() != ":memory:"
+        assert os.path.exists(m.get_backing_file())
+    finally:
+        if orig_threshold is not None:
+            pycauset.set_memory_threshold(orig_threshold)
 
 def test_save_ram_object():
+    orig_threshold = pycauset.get_memory_threshold()
     pycauset.set_memory_threshold(1000000)
     m = pycauset.TriangularBitMatrix(100)
     m.set(0, 1, True)
@@ -69,6 +80,8 @@ def test_save_ram_object():
                 os.remove(save_path)
             except PermissionError:
                 print("Could not remove file, likely still open.")
+        if orig_threshold is not None:
+            pycauset.set_memory_threshold(orig_threshold)
 
 if __name__ == "__main__":
     # Manual run if pytest not available

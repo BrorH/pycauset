@@ -21,6 +21,14 @@ pc.set_backing_dir(_STORAGE_TMP.name)
 class TestPhaseGLinalgEndpoints(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
+        try:
+            pc._runtime.release_tracked_matrices()
+        except Exception:
+            pass
+        try:
+            pc.cleanup_storage(Path(_STORAGE_TMP.name))
+        except Exception:
+            pass
         _STORAGE_TMP.cleanup()
 
     def test_solve_vector(self):
@@ -75,18 +83,35 @@ class TestPhaseGLinalgEndpoints(unittest.TestCase):
         A_rec = v_np @ np.diag(w2_np) @ v_np.T
         np.testing.assert_allclose(A_rec, np.asarray(A), rtol=1e-8, atol=1e-10)
 
+    def test_cholesky_factorization(self):
+        A = pc.matrix(((4.0, 1.0), (1.0, 3.0)))
+
+        L = pc.cholesky(A)
+
+        L_np = np.asarray(L)
+        np.testing.assert_allclose(L_np @ L_np.T, np.asarray(A), rtol=1e-8, atol=1e-10)
+        np.testing.assert_allclose(L_np, np.tril(L_np), rtol=1e-8, atol=1e-10)
+
     def test_unimplemented_factorizations_raise(self):
         A = pc.matrix(((1.0, 0.0), (0.0, 1.0)))
-        with self.assertRaises(NotImplementedError):
+        with self.assertRaises(ValueError):
             pc.solve_triangular(A, pc.vector((1.0, 2.0)))
         with self.assertRaises(NotImplementedError):
             pc.lu(A)
         with self.assertRaises(NotImplementedError):
-            pc.cholesky(A)
-        with self.assertRaises(NotImplementedError):
             pc.svd(A)
         with self.assertRaises(NotImplementedError):
             pc.pinv(A)
+
+    def test_eigvals_arnoldi_real(self):
+        A = pc.matrix(((2.0, 1.0), (1.0, 2.0)))
+
+        vals = pc.eigvals_arnoldi(A, k=2, m=2, tol=1e-10)
+
+        vals_np = np.asarray(vals)
+        expected = np.linalg.eigvals(np.asarray(A))
+        expected_sorted = np.array(sorted(expected, key=lambda x: abs(x), reverse=True))
+        np.testing.assert_allclose(vals_np, expected_sorted, rtol=1e-6, atol=1e-8)
 
     def test_removed_eig_apis_are_deterministic(self):
         A = pc.matrix(((1.0, 0.0), (0.0, 1.0)))
@@ -96,5 +121,3 @@ class TestPhaseGLinalgEndpoints(unittest.TestCase):
             pc.eigvals(A)
         with self.assertRaises(NotImplementedError):
             pc.eigvals_skew(A)
-        with self.assertRaises(NotImplementedError):
-            pc.eigvals_arnoldi(A)

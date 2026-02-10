@@ -4,6 +4,7 @@
 #include "pycauset/compute/cpu/CpuSolver.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/vector/VectorBase.hpp"
+#include "pycauset/compute/HardwareProfile.hpp"
 #include <complex>
 
 namespace pycauset {
@@ -48,9 +49,23 @@ public:
     double trace(const MatrixBase& m) override;
     double determinant(const MatrixBase& m) override;
     void qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) override;
+    void cholesky(const MatrixBase& in, MatrixBase& out) override;
+    void lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) override;
+    void svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) override;
+    void solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) override;
+
+    void eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) override;
+
+    void eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) override;
+    void eigvalsh(const MatrixBase& in, VectorBase& eigenvalues, char uplo) override;
+
+    void eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors) override;
+    void eigvals(const MatrixBase& in, VectorBase& eigenvalues) override;
 
     std::string name() const override { return "CPU"; }
     bool is_gpu() const override { return false; }
+
+    bool fill_hardware_profile(HardwareProfile& profile, bool run_benchmarks) override;
 
 private:
     CpuSolver solver_;

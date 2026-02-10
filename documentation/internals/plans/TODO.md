@@ -73,7 +73,7 @@ Release 1 nodes:
 - [x] R1_NUMPY
 - [x] R1_LINALG
 - [x] R1_BLOCKMATRIX
-- [ ] R1_GPU
+- [x] R1_GPU
 - [ ] R1_SRP
 - [ ] R1_QA
 - [ ] R1_POLISH
@@ -105,7 +105,8 @@ flowchart TD
         R1_NUMPY["R1_NUMPY<br/>Fast NumPy Interop<br/>(import/export must be competitive)<br/>[x]"]
         R1_LINALG["R1_LINALG<br/>Core Linalg Surface Completeness<br/>(norms/division/init-from-array/etc)<br/>[x]"]
         R1_BLOCKMATRIX["R1_BLOCKMATRIX<br/>Block Matrices + Heterogeneous Dtypes<br/>(nesting + manifests + semi-lazy ops)<br/>[x]"]
-        R1_GPU["R1_GPU<br/>GPU Parity + Routing Policy<br/>(CPU-only vs GPU-enabled is explicit)"]
+        R1_GPU["R1_GPU<br/>GPU Parity + Routing Policy<br/>(CPU-only vs GPU-enabled is explicit)<br/>[x]"]
+        R1_CPU["R1_CPU<br/>Modern Tiled CPU Engine<br/>(CPU is a first-class worker)"]
         R1_QA["R1_QA<br/>Bench + Correctness Gates Enforced<br/>(CI + thresholds)"]
         R1_POLISH["R1_POLISH<br/>Professionalism & Polish<br/>(Linting, Docs, Packaging, Namespace)<br/>[ ]"]
         R1_REL["R1_REL<br/>Release Mechanics<br/>(packaging + release checklist)"]
@@ -120,6 +121,7 @@ flowchart TD
     R1_LINALG --> R1_SRP
     R1_BLOCKMATRIX --> R1_SRP
     R1_GPU --> R1_SRP
+    R1_CPU --> R1_SRP
 
     %% Storage also feeds IO directly
     R1_STORAGE --> R1_IO
@@ -362,11 +364,11 @@ Deliverables:
 
 ### R1_GPU — GPU Parity + Routing Policy
 
-Status: - [ ]
+Status: - [x]
 
 Goal: GPU behavior is predictable, correct, and **cooperative**.
 
-Authoritative plan: `documentation/internals/plans/R1_GPU_PLAN.md`.
+Authoritative plan: `documentation/internals/plans/completed/R1_GPU_PLAN.md`.
 
 Deliverables:
 - **Phase 1: Robust Discovery & "Just Works" Dispatch:**

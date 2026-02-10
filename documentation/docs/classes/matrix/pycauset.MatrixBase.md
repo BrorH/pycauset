@@ -60,6 +60,8 @@ Views that include storage offsets are rejected by `matmul`, `qr`, `lu`, and `in
 
 	See [[guides/release1/properties.md|R1 Properties]] and [[guides/Storage and Memory.md|Storage and Memory]].
 
+    **Internal routing note**: PyCauset mirrors boolean properties into a compact C++ bitmask for fast dispatch decisions. The mirror is updated whenever `properties` is mutated, but the bitmask is not part of the public API.
+
 ## Methods
 
 ### `rows()` / `cols()` / `size()`

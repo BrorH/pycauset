@@ -1,4 +1,7 @@
 #include "pycauset/compute/cpu/CpuDevice.hpp"
+#include "pycauset/compute/cpu/CpuComputeWorker.hpp"
+#include "pycauset/compute/StreamingManager.hpp"
+#include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
@@ -10,11 +13,34 @@
 namespace pycauset {
 
 void CpuDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    solver_.matmul(a, b, result);
+    auto& governor = core::MemoryGovernor::instance();
+    // Check if we should stream
+    
+    // Calculate required bytes (approx)
+    DataType dt = result.get_data_type();
+    size_t bytes_per_elem = 8; // Default double
+    if (dt == DataType::FLOAT32) bytes_per_elem = 4;
+    else if (dt == DataType::BIT) bytes_per_elem = 1; // Approx
+    
+    size_t required = (a.size() + b.size() + result.size()) * bytes_per_elem;
+    
+    if (!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) {
+        // Use Streaming Manager
+        CpuComputeWorker worker(solver_);
+        StreamingManager manager(worker);
+        manager.matmul(a, b, result);
+    } else {
+        // Direct Path
+        solver_.matmul(a, b, result);
+    }
 }
 
 void CpuDevice::inverse(const MatrixBase& in, MatrixBase& out) {
     solver_.inverse(in, out);
+}
+
+void CpuDevice::cholesky(const MatrixBase& in, MatrixBase& out) {
+    solver_.cholesky(in, out);
 }
 
 void CpuDevice::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {
@@ -34,19 +60,51 @@ void CpuDevice::outer_product(const VectorBase& a, const VectorBase& b, MatrixBa
 }
 
 void CpuDevice::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    solver_.add(a, b, result);
+    auto& governor = core::MemoryGovernor::instance();
+    size_t required = (a.size() + b.size() + result.size()) * 8; 
+    if (!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) {
+         CpuComputeWorker worker(solver_);
+         StreamingManager manager(worker);
+         manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::ADD);
+    } else {
+        solver_.add(a, b, result);
+    }
 }
 
 void CpuDevice::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    solver_.subtract(a, b, result);
+    auto& governor = core::MemoryGovernor::instance();
+    size_t required = (a.size() + b.size() + result.size()) * 8;
+    if (!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) {
+         CpuComputeWorker worker(solver_);
+         StreamingManager manager(worker);
+         manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::SUBTRACT);
+    } else {
+        solver_.subtract(a, b, result);
+    }
 }
 
 void CpuDevice::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    solver_.elementwise_multiply(a, b, result);
+    auto& governor = core::MemoryGovernor::instance();
+    size_t required = (a.size() + b.size() + result.size()) * 8;
+    if (!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) {
+         CpuComputeWorker worker(solver_);
+         StreamingManager manager(worker);
+         manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::MULTIPLY);
+    } else {
+        solver_.elementwise_multiply(a, b, result);
+    }
 }
 
 void CpuDevice::elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    solver_.elementwise_divide(a, b, result);
+    auto& governor = core::MemoryGovernor::instance();
+    size_t required = (a.size() + b.size() + result.size()) * 8;
+    if (!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) {
+         CpuComputeWorker worker(solver_);
+         StreamingManager manager(worker);
+         manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::DIVIDE);
+    } else {
+        solver_.elementwise_divide(a, b, result);
+    }
 }
 
 void CpuDevice::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {
@@ -120,6 +178,44 @@ double CpuDevice::determinant(const MatrixBase& m) {
 
 void CpuDevice::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
     solver_.qr(in, Q, R);
+}
+
+void CpuDevice::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) {
+    solver_.lu(in, P, L, U);
+}
+
+void CpuDevice::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) {
+    solver_.svd(in, U, S, VT);
+}
+
+void CpuDevice::solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) {
+    solver_.solve(A, B, X);
+}
+
+void CpuDevice::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) {
+    solver_.eigvals_arnoldi(a, out, k, m, tol);
+}
+
+bool CpuDevice::fill_hardware_profile(HardwareProfile& profile, bool run_benchmarks) {
+    (void)profile;
+    (void)run_benchmarks;
+    return false;
+}
+
+void CpuDevice::eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) {
+    solver_.eigh(in, eigenvalues, eigenvectors, uplo);
+}
+
+void CpuDevice::eigvalsh(const MatrixBase& in, VectorBase& eigenvalues, char uplo) {
+    solver_.eigvalsh(in, eigenvalues, uplo);
+}
+
+void CpuDevice::eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors) {
+    solver_.eig(in, eigenvalues, eigenvectors);
+}
+
+void CpuDevice::eigvals(const MatrixBase& in, VectorBase& eigenvalues) {
+    solver_.eigvals(in, eigenvalues);
 }
 
 } // namespace pycauset

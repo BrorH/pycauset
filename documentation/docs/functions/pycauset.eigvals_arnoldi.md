@@ -1,5 +1,24 @@
 # pycauset.eigvals_arnoldi
 
-This function is currently not available in pre-alpha builds.
+~~~python
+pycauset.eigvals_arnoldi(a, k, m, tol=1e-6)
+~~~
 
-It is present as a stub API and will raise `NotImplementedError`.
+Compute the top-$k$ eigenvalues (by magnitude) using an Arnoldi/Lanczos-style iteration.
+
+## Parameters
+
+* **a**: Input square matrix.
+* **k**: Number of eigenvalues to return.
+* **m**: Arnoldi subspace dimension.
+* **tol**: Convergence tolerance used by the fallback path.
+
+## Returns
+
+* **VectorBase**: Eigenvalues sorted by descending magnitude.
+
+## Notes
+
+Uses the native backend when available, otherwise falls back to NumPy.
+Only real eigenvalues are supported in the current implementation; complex eigenvalues
+raise `NotImplementedError`.

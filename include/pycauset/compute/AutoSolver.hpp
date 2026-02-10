@@ -3,6 +3,7 @@
 #include "pycauset/compute/ComputeDevice.hpp"
 #include "pycauset/compute/cpu/CpuDevice.hpp"
 #include "pycauset/compute/AcceleratorConfig.hpp"
+#include "pycauset/compute/HardwareProfile.hpp"
 #include <complex>
 #include <memory>
 #include <string>
@@ -15,6 +16,12 @@ namespace pycauset {
 // of CUDA dependencies if we want, but we need to know it's a CudaDevice to construct it.
 class CudaDevice;
 
+enum class BackendPreference {
+    Auto = 0,
+    CPU = 1,
+    GPU = 2
+};
+
 class AutoSolver : public ComputeDevice {
 public:
     AutoSolver();
@@ -26,10 +33,19 @@ public:
     void disable_gpu();
     bool is_gpu_active() const;
 
+    // Routing control
+    void set_backend_preference(BackendPreference pref);
+    BackendPreference get_backend_preference() const;
+
+    // Hardware profiling
+    bool benchmark(bool force, HardwareProfile& out);
+    bool get_hardware_profile(HardwareProfile& out) const;
+
     // --- ComputeDevice Interface ---
 
     void matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void inverse(const MatrixBase& in, MatrixBase& out) override;
+    void cholesky(const MatrixBase& in, MatrixBase& out) override;
     void batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) override;
 
     void matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) override;
@@ -65,6 +81,14 @@ public:
     double trace(const MatrixBase& m) override;
     double determinant(const MatrixBase& m) override;
     void qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) override;
+    void lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) override;
+    void svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) override;
+    void solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) override;
+    void eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) override;
+    void eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) override;
+    void eigvalsh(const MatrixBase& in, VectorBase& eigenvalues, char uplo) override;
+    void eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors) override;
+    void eigvals(const MatrixBase& in, VectorBase& eigenvalues) override;
 
     std::string name() const override;
     bool is_gpu() const override; // Returns true if GPU is *enabled* and *active*
@@ -86,7 +110,19 @@ private:
     // Smart Dispatch
     double gpu_speedup_factor_ = 1.0;
     bool benchmark_done_ = false;
-    void run_benchmark();
+    bool hardware_profile_valid_ = false;
+    double cpu_sgemm_gflops_ = 0.0;
+    double cpu_dgemm_gflops_ = 0.0;
+    double gpu_dispatch_latency_seconds_ = 0.0002;
+    BackendPreference backend_preference_ = BackendPreference::Auto;
+    HardwareProfile hardware_profile_;
+
+    bool run_benchmark(bool force);
+    bool should_use_gpu(double ops, double bytes, DataType dtype) const;
+    double estimate_gpu_time(double ops, double bytes, DataType dtype) const;
+    double estimate_cpu_time(double ops, DataType dtype) const;
+    bool load_cached_profile(const HardwareProfile& device_profile);
+    void apply_dynamic_pinning_budget();
 
     // Helper to decide device
     ComputeDevice* select_device(uint64_t n_elements) const;

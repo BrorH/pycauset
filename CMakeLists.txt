@@ -366,6 +366,7 @@ set(PYCAUSET_SOURCES
     src/core/SystemUtils.cpp
     src/core/ParallelUtils.cpp
     src/core/PromotionResolver.cpp
+    src/core/OpRegistration.cpp
     src/matrix/MatrixBase.cpp
     src/matrix/MatrixOps.cpp
     src/matrix/DenseBitMatrix.cpp
@@ -376,8 +377,10 @@ set(PYCAUSET_SOURCES
     src/vector/DenseVector.cpp
     src/compute/ComputeContext.cpp
     src/compute/AutoSolver.cpp
+    src/compute/StreamingManager.cpp
     src/compute/cpu/CpuDevice.cpp
     src/compute/cpu/CpuSolver.cpp
+    src/compute/cpu/CpuComputeWorker.cpp
     src/math/Eigen.cpp
     src/math/LinearAlgebra.cpp
     src/causet/Sprinkler.cpp
@@ -431,11 +434,13 @@ endif()
 python_add_library(_pycauset MODULE
     src/bindings.cpp
     src/bindings/bind_core.cpp
+    src/bindings/bind_op_registry.cpp
     src/bindings/binding_warnings.cpp
     src/bindings/bind_matrix.cpp
     src/bindings/bind_expression.cpp
     src/bindings/bind_vector.cpp
     src/bindings/bind_causet.cpp
+    src/bindings/bind_math.cpp
 )
 
 # Include directories
@@ -475,6 +480,9 @@ if(ENABLE_CUDA)
         add_library(pycauset_cuda SHARED
             src/accelerators/cuda/CudaDevice.cu
             src/accelerators/cuda/CudaSolver.cu
+            src/accelerators/cuda/MatmulDriver.cu
+            src/accelerators/cuda/CholeskyDriver.cu
+            src/accelerators/cuda/ArnoldiDriver.cu
         )
         
         target_include_directories(pycauset_cuda PRIVATE include)

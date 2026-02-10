@@ -106,6 +106,10 @@ int dense_matrix_getbuffer(PyObject* obj, Py_buffer* view, int flags) {
         PyErr_SetString(PyExc_BufferError, "Buffer export requires scalar==1 and not conjugated");
         return -1;
     }
+    if (m->has_view_offset()) {
+        PyErr_SetString(PyExc_BufferError, "Buffer export requires a contiguous base view");
+        return -1;
+    }
 
     Py_ssize_t rows_ss = 0;
     Py_ssize_t cols_ss = 0;
@@ -388,6 +392,24 @@ py::array_t<T> parallel_export_to_numpy(const DenseMatrix<T>& mat) {
 
     uint64_t rows = mat.rows();
     uint64_t cols = mat.cols();
+    const bool needs_slow_path = mat.is_transposed() || mat.has_view_offset() ||
+        mat.is_conjugated() || mat.get_scalar() != std::complex<double>(1.0, 0.0);
+    if (needs_slow_path) {
+        py::array_t<T> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
+        auto r = out.mutable_unchecked<2>();
+        for (uint64_t i = 0; i < rows; ++i) {
+            for (uint64_t j = 0; j < cols; ++j) {
+                if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+                    const std::complex<double> v = mat.get_element_as_complex(i, j);
+                    r(i, j) = static_cast<T>(v);
+                } else {
+                    const double v = mat.get_element_as_double(i, j);
+                    r(i, j) = static_cast<T>(v);
+                }
+            }
+        }
+        return out;
+    }
     size_t total_bytes = rows * cols * sizeof(T);
 
     // 2. Allocate uninitialized NumPy array
@@ -1448,6 +1470,48 @@ inline auto translate_invalid_argument(Fn&& fn) {
     }
 }
 
+inline bool is_float_dtype(const DataType dt) {
+    return dt == DataType::FLOAT16 || dt == DataType::FLOAT32 || dt == DataType::FLOAT64;
+}
+
+inline bool allow_lazy_elementwise(const MatrixBase& a, const MatrixBase& b) {
+    return is_float_dtype(a.get_data_type()) && is_float_dtype(b.get_data_type());
+}
+
+inline bool allow_lazy_scalar(const MatrixBase& a) {
+    return is_float_dtype(a.get_data_type());
+}
+
+inline bool is_numpy_scalar(const py::handle& obj) {
+    try {
+        static py::object np_generic;
+        static bool initialized = false;
+        if (!initialized) {
+            auto np = py::module_::import("numpy");
+            np_generic = np.attr("generic");
+            initialized = true;
+        }
+        return py::isinstance(obj, np_generic);
+    } catch (...) {
+        return false;
+    }
+}
+
+inline bool is_numpy_complex_scalar(const py::handle& obj) {
+    try {
+        static py::object np_complex;
+        static bool initialized = false;
+        if (!initialized) {
+            auto np = py::module_::import("numpy");
+            np_complex = np.attr("complexfloating");
+            initialized = true;
+        }
+        return py::isinstance(obj, np_complex);
+    } catch (...) {
+        return false;
+    }
+}
+
 } // namespace
 
 void bind_matrix_classes(py::module_& m) {
@@ -1474,6 +1538,9 @@ void bind_matrix_classes(py::module_& m) {
         .def("set_transposed", &MatrixBase::set_transposed)
         .def("is_conjugated", &MatrixBase::is_conjugated)
         .def("set_conjugated", &MatrixBase::set_conjugated)
+        .def("_get_properties_flags", &MatrixBase::get_properties_flags)
+        .def("_set_properties_flags", &MatrixBase::set_properties_flags)
+        .def("_set_property_flag", &MatrixBase::set_property_flag, py::arg("flag"), py::arg("value"))
         .def_property_readonly(
             "T",
             [](const MatrixBase& mat) {
@@ -1977,6 +2044,10 @@ void bind_matrix_classes(py::module_& m) {
                     promotion::BinaryOp::Add,
                     a.get_data_type(),
                     b->get_data_type());
+                if (!allow_lazy_elementwise(a, *b)) {
+                    auto out = pycauset::add(a, *b, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation: Return an expression wrapper
                 auto ptr = pycauset::wrap_expression(a + *b);
                 // Explicitly cast to shared_ptr and then to python object to ensure proper ownership transfer
@@ -2001,22 +2072,38 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__add__",
             [](const MatrixBase& a, double s) {
+                if (!allow_lazy_scalar(a)) {
+                    auto out = a.add_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(a + s);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator(), py::keep_alive<0, 1>())
+            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
         .def(
             "__add__",
             [](const MatrixBase& a, int64_t s) {
+                if (!allow_lazy_scalar(a)) {
+                    auto out = a.add_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(a + static_cast<double>(s));
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator(), py::keep_alive<0, 1>())
+            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
         .def(
             "__add__",
-            [](const MatrixBase&, const py::object&) -> py::object {
+            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
+                if (is_numpy_scalar(b_obj)) {
+                    if (is_numpy_complex_scalar(b_obj)) {
+                        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+                    }
+                    const double s = b_obj.cast<double>();
+                    auto out = a.add_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Allow other operand types (e.g., internal BlockMatrix) to
                 // handle the operation via their __radd__.
                 return py::reinterpret_borrow<py::object>(Py_NotImplemented);
@@ -2025,22 +2112,38 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__radd__",
             [](const MatrixBase& a, double s) {
+                if (!allow_lazy_scalar(a)) {
+                    auto out = a.add_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(s + a);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator(), py::keep_alive<0, 1>())
+            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
         .def(
             "__radd__",
             [](const MatrixBase& a, int64_t s) {
+                if (!allow_lazy_scalar(a)) {
+                    auto out = a.add_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(static_cast<double>(s) + a);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator(), py::keep_alive<0, 1>())
+            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
         .def(
             "__radd__",
             [](const MatrixBase& a, py::object b_obj) -> py::object {
+                if (is_numpy_scalar(b_obj)) {
+                    if (is_numpy_complex_scalar(b_obj)) {
+                        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+                    }
+                    const double s = b_obj.cast<double>();
+                    auto out = a.add_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 if (py::isinstance<py::array>(b_obj)) {
                     // Eager Evaluation
                     auto b = b_obj.cast<py::array>();
@@ -2092,6 +2195,10 @@ void bind_matrix_classes(py::module_& m) {
                     promotion::BinaryOp::Subtract,
                     a.get_data_type(),
                     b->get_data_type());
+                if (!allow_lazy_elementwise(a, *b)) {
+                    auto out = pycauset::subtract(a, *b, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(a - *b);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
@@ -2114,7 +2221,15 @@ void bind_matrix_classes(py::module_& m) {
             py::is_operator())
         .def(
             "__sub__",
-            [](const MatrixBase&, const py::object&) -> py::object {
+            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
+                if (is_numpy_scalar(b_obj)) {
+                    if (is_numpy_complex_scalar(b_obj)) {
+                        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+                    }
+                    const double s = b_obj.cast<double>();
+                    auto out = a.add_scalar(-s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Allow other operand types (e.g., internal BlockMatrix) to
                 // handle the operation via their __rsub__.
                 return py::reinterpret_borrow<py::object>(Py_NotImplemented);
@@ -2123,35 +2238,53 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__sub__",
             [](const MatrixBase& a, double s) {
+                if (!allow_lazy_scalar(a)) {
+                    auto out = a.add_scalar(-s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(a - s);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator(), py::keep_alive<0, 1>())
+            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
         .def(
             "__sub__",
             [](const MatrixBase& a, int64_t s) {
+                if (!allow_lazy_scalar(a)) {
+                    auto out = a.add_scalar(-s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(a - static_cast<double>(s));
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator(), py::keep_alive<0, 1>())
+            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
         .def(
             "__rsub__",
             [](const MatrixBase& a, double s) {
+                if (!allow_lazy_scalar(a)) {
+                    auto neg = a.multiply_scalar(-1.0, "");
+                    auto out = neg->add_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(s - a);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator(), py::keep_alive<0, 1>())
+            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
         .def(
             "__rsub__",
             [](const MatrixBase& a, int64_t s) {
+                if (!allow_lazy_scalar(a)) {
+                    auto neg = a.multiply_scalar(-1.0, "");
+                    auto out = neg->add_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(static_cast<double>(s) - a);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator(), py::keep_alive<0, 1>())
+            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
         .def(
             "__rsub__",
             [](const MatrixBase& a, const py::array& b) {
@@ -2168,9 +2301,28 @@ void bind_matrix_classes(py::module_& m) {
             },
             py::is_operator())
         .def(
+            "__rsub__",
+            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
+                if (is_numpy_scalar(b_obj)) {
+                    if (is_numpy_complex_scalar(b_obj)) {
+                        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+                    }
+                    const double s = b_obj.cast<double>();
+                    auto neg = a.multiply_scalar(-1.0, "");
+                    auto out = neg->add_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
+                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+            },
+            py::is_operator())
+        .def(
             "__truediv__",
             [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) {
                 maybe_warn_float_underpromotion("elementwise_divide", promotion::BinaryOp::Divide, a, *b);
+                if (!allow_lazy_elementwise(a, *b)) {
+                    auto out = pycauset::elementwise_divide(a, *b, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(a / *b);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
@@ -2189,19 +2341,27 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__truediv__",
             [](const MatrixBase& a, double s) {
+                if (!allow_lazy_scalar(a)) {
+                    auto out = a.multiply_scalar(1.0 / s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(a / s);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator(), py::keep_alive<0, 1>())
+            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
         .def(
             "__truediv__",
             [](const MatrixBase& a, int64_t s) {
+                if (!allow_lazy_scalar(a)) {
+                    auto out = a.multiply_scalar(1.0 / static_cast<double>(s), "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
                 auto ptr = pycauset::wrap_expression(a / static_cast<double>(s));
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
-            py::is_operator(), py::keep_alive<0, 1>())
+            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
         .def(
             "__truediv__",
             [](const MatrixBase& a, std::complex<double> s) {
@@ -2221,7 +2381,17 @@ void bind_matrix_classes(py::module_& m) {
             py::is_operator())
         .def(
             "__truediv__",
-            [](const MatrixBase&, const py::object&) -> py::object {
+            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
+                if (is_numpy_scalar(b_obj)) {
+                    if (is_numpy_complex_scalar(b_obj)) {
+                        const std::complex<double> s = b_obj.cast<std::complex<double>>();
+                        auto out = a.multiply_scalar(1.0 / s, "");
+                        return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                    }
+                    const double s = b_obj.cast<double>();
+                    auto out = a.multiply_scalar(1.0 / s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Allow other operand types (e.g., internal BlockMatrix) to
                 // handle the operation via their __rtruediv__.
                 return py::reinterpret_borrow<py::object>(Py_NotImplemented);
@@ -2246,17 +2416,37 @@ void bind_matrix_classes(py::module_& m) {
             py::is_operator())
         .def(
             "__mul__",
-            [](const MatrixBase& a, double s) {
+            [](const MatrixBase& a, py::float_ s) {
+                const double sv = s.cast<double>();
+                const bool exact_float = PyFloat_CheckExact(s.ptr());
+                if (a.get_matrix_type() == pycauset::MatrixType::TRIANGULAR_FLOAT) {
+                    auto out = a.multiply_scalar(sv, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
+                if (!allow_lazy_scalar(a) || !exact_float) {
+                    auto out = a.multiply_scalar(sv, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
-                auto ptr = pycauset::wrap_expression(a * s);
+                auto ptr = pycauset::wrap_expression(a * sv);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
             py::is_operator(), py::keep_alive<0, 1>())
         .def(
             "__mul__",
-            [](const MatrixBase& a, int64_t s) {
+            [](const MatrixBase& a, py::int_ s) {
+                const int64_t sv = s.cast<int64_t>();
+                const bool exact_int = PyLong_CheckExact(s.ptr());
+                if (a.get_matrix_type() == pycauset::MatrixType::TRIANGULAR_FLOAT) {
+                    auto out = a.multiply_scalar(static_cast<double>(sv), "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
+                if (!allow_lazy_scalar(a) || !exact_int) {
+                    auto out = a.multiply_scalar(static_cast<double>(sv), "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
-                auto ptr = pycauset::wrap_expression(a * static_cast<double>(s));
+                auto ptr = pycauset::wrap_expression(a * static_cast<double>(sv));
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
             py::is_operator(), py::keep_alive<0, 1>())
@@ -2269,7 +2459,17 @@ void bind_matrix_classes(py::module_& m) {
             py::is_operator())
         .def(
             "__mul__",
-            [](const MatrixBase&, const py::object&) -> py::object {
+            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
+                if (is_numpy_scalar(b_obj)) {
+                    if (is_numpy_complex_scalar(b_obj)) {
+                        const std::complex<double> s = b_obj.cast<std::complex<double>>();
+                        auto out = a.multiply_scalar(s, "");
+                        return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                    }
+                    const double s = b_obj.cast<double>();
+                    auto out = a.multiply_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Allow other operand types (e.g., internal BlockMatrix) to
                 // handle the operation via their __rmul__.
                 return py::reinterpret_borrow<py::object>(Py_NotImplemented);
@@ -2277,9 +2477,19 @@ void bind_matrix_classes(py::module_& m) {
             py::is_operator())
         .def(
             "__rmul__",
-            [](const MatrixBase& a, double s) {
+            [](const MatrixBase& a, py::float_ s) {
+                const double sv = s.cast<double>();
+                const bool exact_float = PyFloat_CheckExact(s.ptr());
+                if (a.get_matrix_type() == pycauset::MatrixType::TRIANGULAR_FLOAT) {
+                    auto out = a.multiply_scalar(sv, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
+                if (!allow_lazy_scalar(a) || !exact_float) {
+                    auto out = a.multiply_scalar(sv, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
-                auto ptr = pycauset::wrap_expression(s * a);
+                auto ptr = pycauset::wrap_expression(sv * a);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
             py::is_operator(), py::keep_alive<0, 1>())
@@ -2294,9 +2504,40 @@ void bind_matrix_classes(py::module_& m) {
             py::is_operator())
         .def(
             "__rmul__",
-            [](const MatrixBase& a, int64_t s) {
+            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
+                if (PyComplex_Check(b_obj.ptr())) {
+                    const std::complex<double> s = b_obj.cast<std::complex<double>>();
+                    auto out = a.multiply_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
+                if (is_numpy_scalar(b_obj)) {
+                    if (is_numpy_complex_scalar(b_obj)) {
+                        const std::complex<double> s = b_obj.cast<std::complex<double>>();
+                        auto out = a.multiply_scalar(s, "");
+                        return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                    }
+                    const double s = b_obj.cast<double>();
+                    auto out = a.multiply_scalar(s, "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
+                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+            },
+            py::is_operator())
+        .def(
+            "__rmul__",
+            [](const MatrixBase& a, py::int_ s) {
+                const int64_t sv = s.cast<int64_t>();
+                const bool exact_int = PyLong_CheckExact(s.ptr());
+                if (a.get_matrix_type() == pycauset::MatrixType::TRIANGULAR_FLOAT) {
+                    auto out = a.multiply_scalar(static_cast<double>(sv), "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
+                if (!allow_lazy_scalar(a) || !exact_int) {
+                    auto out = a.multiply_scalar(static_cast<double>(sv), "");
+                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+                }
                 // Lazy Evaluation
-                auto ptr = pycauset::wrap_expression(static_cast<double>(s) * a);
+                auto ptr = pycauset::wrap_expression(static_cast<double>(sv) * a);
                 return py::cast(std::shared_ptr<pycauset::MatrixExpressionWrapper>(std::move(ptr)));
             },
             py::is_operator(), py::keep_alive<0, 1>())
@@ -2307,6 +2548,54 @@ void bind_matrix_classes(py::module_& m) {
                 return std::shared_ptr<MatrixBase>(out.release());
             },
             py::is_operator());
+
+    // Internal eager elementwise helpers (used by BlockMatrix thunk evaluation).
+    m.def(
+        "_elementwise_add",
+        [](const MatrixBase& a, const MatrixBase& b) {
+            maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, a, b);
+            maybe_warn_bit_promotes_to_int32(
+                "add",
+                promotion::BinaryOp::Add,
+                a.get_data_type(),
+                b.get_data_type());
+            auto out = pycauset::add(a, b, "");
+            return std::shared_ptr<MatrixBase>(out.release());
+        },
+        py::arg("a"),
+        py::arg("b"));
+    m.def(
+        "_elementwise_subtract",
+        [](const MatrixBase& a, const MatrixBase& b) {
+            maybe_warn_float_underpromotion("subtract", promotion::BinaryOp::Subtract, a, b);
+            maybe_warn_bit_promotes_to_int32(
+                "subtract",
+                promotion::BinaryOp::Subtract,
+                a.get_data_type(),
+                b.get_data_type());
+            auto out = pycauset::subtract(a, b, "");
+            return std::shared_ptr<MatrixBase>(out.release());
+        },
+        py::arg("a"),
+        py::arg("b"));
+    m.def(
+        "_elementwise_multiply",
+        [](const MatrixBase& a, const MatrixBase& b) {
+            maybe_warn_float_underpromotion("elementwise_multiply", promotion::BinaryOp::ElementwiseMultiply, a, b);
+            auto out = pycauset::elementwise_multiply(a, b, "");
+            return std::shared_ptr<MatrixBase>(out.release());
+        },
+        py::arg("a"),
+        py::arg("b"));
+    m.def(
+        "_elementwise_divide",
+        [](const MatrixBase& a, const MatrixBase& b) {
+            maybe_warn_float_underpromotion("elementwise_divide", promotion::BinaryOp::Divide, a, b);
+            auto out = pycauset::elementwise_divide(a, b, "");
+            return std::shared_ptr<MatrixBase>(out.release());
+        },
+        py::arg("a"),
+        py::arg("b"));
 
     // Encourage NumPy to prefer MatrixBase reverse ops over coercion.
     py::object mb_cls = m.attr("MatrixBase");
@@ -2399,6 +2688,28 @@ void bind_matrix_classes(py::module_& m) {
                 return std::shared_ptr<DenseMatrix<double>>(out.release());
             })
         .def("inverse_to", &DenseMatrix<double>::inverse_to)
+        .def("eigh", [](const DenseMatrix<double>& m) {
+            auto result = m.eigh();
+            return py::make_tuple(
+                std::shared_ptr<VectorBase>(result.first.release()),
+                std::shared_ptr<DenseMatrix<double>>(result.second.release())
+            );
+        })
+        .def("eigvalsh", [](const DenseMatrix<double>& m) {
+            auto result = m.eigvalsh();
+            return std::shared_ptr<VectorBase>(result.release());
+        })
+        .def("eig", [](const DenseMatrix<double>& m) {
+            auto result = m.eig();
+            return py::make_tuple(
+                std::shared_ptr<VectorBase>(result.first.release()),
+                std::shared_ptr<MatrixBase>(result.second.release())
+            );
+        })
+        .def("eigvals", [](const DenseMatrix<double>& m) {
+            auto result = m.eigvals();
+            return std::shared_ptr<VectorBase>(result.release());
+        })
         .def("set_identity", &DenseMatrix<double>::set_identity)
         .def("fill", &DenseMatrix<double>::fill)
         .def(
@@ -2481,6 +2792,32 @@ void bind_matrix_classes(py::module_& m) {
                 return std::shared_ptr<DenseMatrix<float>>(out.release());
             })
         .def("inverse_to", &DenseMatrix<float>::inverse_to)
+        .def("eigh", [](const DenseMatrix<float>& m) {
+            auto result = m.eigh();
+            return py::make_tuple(
+                std::shared_ptr<VectorBase>(result.first.release()),
+                std::shared_ptr<DenseMatrix<float>>(result.second.release())
+            );
+        })
+        .def("eigvalsh", [](const DenseMatrix<float>& m) {
+            auto result = m.eigvalsh();
+            return std::shared_ptr<VectorBase>(result.release());
+        })
+        .def("eig", [](const DenseMatrix<float>& m) {
+            auto result = m.eig();
+            return py::make_tuple(
+                std::shared_ptr<VectorBase>(result.first.release()),
+                std::shared_ptr<MatrixBase>(result.second.release())
+            );
+        })
+        .def("eigvals", [](const DenseMatrix<float>& m) {
+            auto result = m.eigvals();
+            return std::shared_ptr<VectorBase>(result.release());
+        })
+        .def("eigvalsh", [](const DenseMatrix<float>& m) {
+            auto result = m.eigvalsh();
+            return std::shared_ptr<VectorBase>(result.release());
+        })
         .def("set_identity", &DenseMatrix<float>::set_identity)
         .def("fill", &DenseMatrix<float>::fill)
         .def(
@@ -4237,6 +4574,18 @@ void bind_matrix_classes(py::module_& m) {
         throw py::value_error("asarray only supports 1D or 2D arrays");
     });
 
+    // Override dense matrix buffer exports to honor transpose/scale/conjugation guards.
+    install_dense_matrix_buffer<std::complex<float>>(m.attr("ComplexFloat32Matrix"));
+    install_dense_matrix_buffer<std::complex<double>>(m.attr("ComplexFloat64Matrix"));
+    install_dense_matrix_buffer<int8_t>(m.attr("Int8Matrix"));
+    install_dense_matrix_buffer<int16_t>(m.attr("Int16Matrix"));
+    install_dense_matrix_buffer<int32_t>(m.attr("IntegerMatrix"));
+    install_dense_matrix_buffer<int64_t>(m.attr("Int64Matrix"));
+    install_dense_matrix_buffer<uint8_t>(m.attr("UInt8Matrix"));
+    install_dense_matrix_buffer<uint16_t>(m.attr("UInt16Matrix"));
+    install_dense_matrix_buffer<uint32_t>(m.attr("UInt32Matrix"));
+    install_dense_matrix_buffer<uint64_t>(m.attr("UInt64Matrix"));
+
     m.def(
         "matmul",
         [](std::shared_ptr<MatrixBase> a, std::shared_ptr<MatrixBase> b) {
@@ -4255,6 +4604,75 @@ void bind_matrix_classes(py::module_& m) {
         },
         py::arg("a"),
         py::arg("b"));
+
+    m.def(
+        "cholesky",
+        [](std::shared_ptr<MatrixBase> a) {
+            return translate_invalid_argument([&]() {
+                auto out = pycauset::cholesky(*a);
+                return std::shared_ptr<MatrixBase>(out.release());
+            });
+        },
+        py::arg("a"));
+
+    m.def(
+        "eig",
+        [](std::shared_ptr<MatrixBase> a) {
+            return translate_invalid_argument([&]() {
+                auto out = pycauset::eig(*a);
+                return std::make_pair(
+                    std::shared_ptr<VectorBase>(out.first.release()),
+                    std::shared_ptr<MatrixBase>(out.second.release())
+                );
+            });
+        },
+        py::arg("a"));
+
+    m.def(
+        "eigvals",
+        [](std::shared_ptr<MatrixBase> a) {
+            return translate_invalid_argument([&]() {
+                auto out = pycauset::eigvals(*a);
+                return std::shared_ptr<VectorBase>(out.release());
+            });
+        },
+        py::arg("a"));
+
+    m.def(
+        "eigh",
+        [](std::shared_ptr<MatrixBase> a) {
+            return translate_invalid_argument([&]() {
+                auto out = pycauset::eigh(*a);
+                return std::make_pair(
+                    std::shared_ptr<VectorBase>(out.first.release()),
+                    std::shared_ptr<MatrixBase>(out.second.release())
+                );
+            });
+        },
+        py::arg("a"));
+
+    m.def(
+        "eigvalsh",
+        [](std::shared_ptr<MatrixBase> a) {
+            return translate_invalid_argument([&]() {
+                auto out = pycauset::eigvalsh(*a);
+                return std::shared_ptr<VectorBase>(out.release());
+            });
+        },
+        py::arg("a"));
+
+    m.def(
+        "eigvals_arnoldi",
+        [](std::shared_ptr<MatrixBase> a, int k, int m, double tol) {
+            return translate_invalid_argument([&]() {
+                auto out = pycauset::eigvals_arnoldi(*a, k, m, tol);
+                return std::shared_ptr<VectorBase>(out.release());
+            });
+        },
+        py::arg("a"),
+        py::arg("k"),
+        py::arg("m"),
+        py::arg("tol") = 1e-6);
 
     m.def(
         "compute_k_matrix",

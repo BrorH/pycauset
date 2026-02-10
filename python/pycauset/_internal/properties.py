@@ -19,8 +19,6 @@ _CACHED_DERIVED_KEYS: tuple[str, ...] = (
 
 
 def _ensure_store(obj: Any) -> dict[str, Any]:
-    if type(obj).__name__ == "LazyMatrix":
-        return {}
     store = getattr(obj, _PROPERTIES_ATTR, None)
     if store is None or not isinstance(store, dict):
         store = {}
@@ -39,8 +37,6 @@ def _get_store(obj: Any) -> dict[str, Any]:
 
 
 def _get_shape(obj: Any) -> tuple[int, int] | None:
-    if type(obj).__name__ == "LazyMatrix":
-        return None
     try:
         # print(f"DEBUG: _get_shape called for {type(obj)}")
         return int(obj.rows()), int(obj.cols())
@@ -75,6 +71,46 @@ _BOOL_LIKE_KEYS: frozenset[str] = frozenset(
         "is_unit_norm",
     }
 )
+
+# Property flag mapping (must match include/pycauset/core/PropertyFlags.hpp)
+_PROPERTY_FLAG_MAP: dict[str, int] = {
+    "is_zero": 1 << 0,
+    "is_identity": 1 << 1,
+    "is_permutation": 1 << 2,
+    "is_diagonal": 1 << 3,
+    "is_upper_triangular": 1 << 4,
+    "is_lower_triangular": 1 << 5,
+    "has_unit_diagonal": 1 << 6,
+    "has_zero_diagonal": 1 << 7,
+    "is_symmetric": 1 << 8,
+    "is_anti_symmetric": 1 << 9,
+    "is_hermitian": 1 << 10,
+    "is_skew_hermitian": 1 << 11,
+    "is_unitary": 1 << 12,
+    "is_atomic": 1 << 13,
+    "is_sorted": 1 << 14,
+    "is_strictly_sorted": 1 << 15,
+    "is_unit_norm": 1 << 16,
+}
+
+
+def _compute_property_flags(store: dict[str, Any]) -> int:
+    flags = 0
+    for key, bit in _PROPERTY_FLAG_MAP.items():
+        if store.get(key) is True:
+            flags |= bit
+    return flags
+
+
+def _sync_property_flags(obj: Any, store: dict[str, Any]) -> None:
+    setter = getattr(obj, "_set_properties_flags", None)
+    if not callable(setter):
+        return
+    try:
+        setter(_compute_property_flags(store))
+    except Exception:
+        # Best-effort sync; ignore failures for non-native or immutable objects.
+        return
 
 
 def _normalize_value(key: str, value: Any) -> Any:
@@ -201,6 +237,7 @@ class _PropertiesProxy(MutableMapping[str, Any]):
             else:
                 self._store[key] = value
             _validate_properties_compatibility(self._obj, self._store)
+            _sync_property_flags(self._obj, self._store)
         except Exception:
             # revert
             if prev is _MISSING:
@@ -216,6 +253,7 @@ class _PropertiesProxy(MutableMapping[str, Any]):
         del self._store[key]
         try:
             _validate_properties_compatibility(self._obj, self._store)
+            _sync_property_flags(self._obj, self._store)
         except Exception:
             self._store[key] = prev
             raise
@@ -278,6 +316,7 @@ def set_properties(obj: Any, mapping: Any) -> None:
 
     try:
         setattr(obj, _PROPERTIES_ATTR, cleaned)
+        _sync_property_flags(obj, cleaned)
     except Exception:
         pass
 
@@ -319,6 +358,7 @@ def _replace_properties_store(obj: Any, new_mapping: dict[str, Any]) -> None:
     store.clear()
     store.update(new_mapping)
     _validate_properties_compatibility(obj, store)
+    _sync_property_flags(obj, store)
 
 
 def _post_view_transform_inplace(obj: Any, *, op: str) -> None:
@@ -371,6 +411,7 @@ def _apply_scalar_ratio_inplace(obj: Any, *, ratio: Any) -> None:
             store.pop("is_unitary", None)
 
     _validate_properties_compatibility(obj, store)
+    _sync_property_flags(obj, store)
 
 
 def _apply_effect_summary_inplace(obj: Any, summary: dict[str, Any]) -> None:
@@ -472,6 +513,7 @@ def _apply_effect_summary_inplace(obj: Any, summary: dict[str, Any]) -> None:
         _validate_properties_compatibility(obj, store)
     except Exception:
         pass
+    _sync_property_flags(obj, store)
 
 
 def apply_properties_patches(*, classes: list[Any]) -> None:
@@ -772,8 +814,6 @@ def apply_properties_arithmetic_patches(*, classes: list[Any]) -> None:
 
     This is Phase A/D glue: scalar multiply and add/sub cached-derived propagation.
     """
-    return # DISABLE PATCHING FOR DEBUGGING
-
     for cls in classes:
         if cls is None:
             continue

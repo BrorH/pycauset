@@ -85,9 +85,9 @@ The refinement step creates `SubmatrixView` tiles when necessary.
 
 ### Leaf compute boundary
 
-When orchestration reaches “leaf × leaf” matmul between native matrices, it routes through the public dispatch boundary (`pycauset.matmul`) so property-aware conversions (diagonal/triangular) still apply.
+When orchestration reaches “leaf × leaf” matmul, it attempts to route through the public dispatch boundary (`pycauset.matmul`) for **any matrix-like operands** (not just native matrices) so property-aware conversions (diagonal/triangular) and streaming/IO routing still apply. If dispatch does not support the operands (e.g., a raw NumPy array), block orchestration falls back to the operands’ native `@` implementation.
 
-Device routing follows [[internals/Compute Architecture.md|Compute Architecture]] per leaf op: AutoSolver decides CPU vs GPU for each block. Complex matmul is CPU-only on CUDA builds today; mixed-dtype containers stay heterogeneous because routing is per leaf op.
+Device routing follows [[internals/Compute Architecture.md|Compute Architecture]] per leaf op: AutoSolver decides CPU vs GPU for each block independently. This means a single `BlockMatrix` can contain blocks routed to different backends. Complex matmul is CPU-only on CUDA builds today; mixed-dtype containers stay heterogeneous because routing is per leaf op.
 
 ### Evaluation triggers (semi-lazy)
 

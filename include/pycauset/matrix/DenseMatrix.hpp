@@ -7,6 +7,7 @@
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
+#include "pycauset/vector/DenseVector.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -182,6 +183,47 @@ public:
         T* ptr = const_cast<T*>(data()) + start_idx;
         size_t bytes = count * sizeof(T);
         require_mapper()->unpin_region(ptr, bytes);
+    }
+
+    std::unique_ptr<DenseMatrix<T>> submatrix(uint64_t r, uint64_t c, uint64_t h, uint64_t w) const {
+        if (r + h > rows() || c + w > cols()) {
+            throw std::out_of_range("Submatrix out of bounds");
+        }
+        // Calculate logic for standard view (no transpose logic here as slicing happens in logical space)
+        // However, checks for is_transposed usually affect how we CALCULATE the offsets.
+        // Base MatrixBase logic stores PHYSICAL row_offset and col_offset.
+        
+        uint64_t new_base_row_offset = row_offset();
+        uint64_t new_base_col_offset = col_offset();
+
+        if (is_transposed()) {
+            // Logical (r,c) maps to Physical (c, r)
+            // So we add 'c' to row_offset, and 'r' to col_offset ?
+            // No. Logical row 'r' comes from physical col 'r'.
+            // Logical col 'c' comes from physical row 'c'.
+            // Wait, Transpose means A_logical_ij = A_physical_ji.
+            // So logical A(r, c) refers to physical A(c, r).
+            // So row offset (physical) increases by c.
+            // Col offset (physical) increases by r.
+            new_base_row_offset += c;
+            new_base_col_offset += r;
+        } else {
+            new_base_row_offset += r;
+            new_base_col_offset += c;
+        }
+
+        return std::make_unique<DenseMatrix<T>>(
+             h, w,
+             mapper_,
+             base_rows(), base_cols(),
+             new_base_row_offset,
+             new_base_col_offset,
+             seed_,
+             scalar_,
+             is_transposed(),
+             is_conjugated(),
+             is_temporary()
+        );
     }
 
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
@@ -388,6 +430,71 @@ public:
 
             pycauset::ComputeContext::instance().get_device()->qr(*this, *Q, *R);
             return {std::move(Q), std::move(R)};
+        }
+    }
+
+    // Pair of (Eigenvalues, Eigenvectors)
+    // Eigenavlues: Vector of reals (if sym) or complex (if general). For eigh, it is real.
+    // Eigenvectors: Matrix.
+    std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<DenseMatrix<T>>> eigh(const std::string& vals_file = "",
+                                                                                 const std::string& vecs_file = "") const {
+        
+        if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
+             throw std::runtime_error("eigh only supported for FloatMatrix/Float32Matrix");
+        } else {
+             // For eigh, eigenvalues are real, so we use DenseVector<T>.
+             auto vals = std::make_unique<DenseVector<T>>(rows(), vals_file);
+             auto vecs = std::make_unique<DenseMatrix<T>>(rows(), cols(), vecs_file);
+             
+             pycauset::ComputeContext::instance().get_device()->eigh(*this, *vals, *vecs);
+             return {std::move(vals), std::move(vecs)};
+        }
+    }
+
+    std::unique_ptr<VectorBase> eigvalsh(const std::string& vals_file = "") const {
+        if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
+             throw std::runtime_error("eigvalsh only supported for FloatMatrix/Float32Matrix");
+        } else {
+             auto vals = std::make_unique<DenseVector<T>>(rows(), vals_file);
+             pycauset::ComputeContext::instance().get_device()->eigvalsh(*this, *vals);
+             return vals;
+        }
+    }
+
+    // General Non-Symmetric Eigenvalue Decomposition
+    // Returns (Eigenvalues, Eigenvectors)
+    // Eigenvalues are always complex. Eigenvectors are always complex.
+    std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const std::string& vals_file = "",
+                                                                            const std::string& vecs_file = "") const {
+        if constexpr (std::is_same_v<T, double>) {
+             auto vals = std::make_unique<DenseVector<std::complex<double>>>(rows(), vals_file);
+             auto vecs = std::make_unique<DenseMatrix<std::complex<double>>>(rows(), cols(), vecs_file);
+             pycauset::ComputeContext::instance().get_device()->eig(*this, *vals, *vecs);
+             return {std::move(vals), std::move(vecs)};
+        } 
+        else if constexpr (std::is_same_v<T, float>) {
+             auto vals = std::make_unique<DenseVector<std::complex<float>>>(rows(), vals_file);
+             auto vecs = std::make_unique<DenseMatrix<std::complex<float>>>(rows(), cols(), vecs_file);
+             pycauset::ComputeContext::instance().get_device()->eig(*this, *vals, *vecs);
+             return {std::move(vals), std::move(vecs)};
+        } else {
+             throw std::runtime_error("eig only supported for Real Float/Double matrices currently");
+        }
+    }
+
+    // General Non-Symmetric Eigenvalues only
+    std::unique_ptr<VectorBase> eigvals(const std::string& vals_file = "") const {
+        if constexpr (std::is_same_v<T, double>) {
+             auto vals = std::make_unique<DenseVector<std::complex<double>>>(rows(), vals_file);
+             pycauset::ComputeContext::instance().get_device()->eigvals(*this, *vals);
+             return vals;
+        } 
+        else if constexpr (std::is_same_v<T, float>) {
+             auto vals = std::make_unique<DenseVector<std::complex<float>>>(rows(), vals_file);
+             pycauset::ComputeContext::instance().get_device()->eigvals(*this, *vals);
+             return vals;
+        } else {
+             throw std::runtime_error("eigvals only supported for Real Float/Double matrices currently");
         }
     }
 

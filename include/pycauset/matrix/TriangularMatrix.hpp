@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <type_traits>
+#include <cstring>
 
 namespace pycauset {
 
@@ -161,16 +162,22 @@ public:
     const T* data() const { return static_cast<const T*>(require_mapper()->get_data()); }
 
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto new_matrix = std::make_unique<TriangularMatrix<T>>(base_rows(), std::move(mapper), has_diagonal_);
-        new_matrix->set_scalar(scalar_ * factor);
-        new_matrix->set_seed(seed_);
-        new_matrix->set_transposed(is_transposed());
         if (result_file.empty()) {
-            new_matrix->set_temporary(true);
+            auto out = std::make_unique<TriangularMatrix<T>>(rows(), mapper_, has_diagonal_);
+            out->set_scalar(scalar_ * factor);
+            out->set_seed(seed_);
+            out->set_transposed(is_transposed());
+            out->set_temporary(true);
+            return out;
         }
-        return new_matrix;
+
+        auto result = std::make_unique<TriangularMatrix<T>>(rows(), result_file, has_diagonal_);
+        const size_t bytes = require_mapper()->get_data_size();
+        std::memcpy(result->data(), data(), bytes);
+        result->set_scalar(scalar_ * factor);
+        result->set_seed(seed_);
+        result->set_transposed(is_transposed());
+        return result;
     }
 
     std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {

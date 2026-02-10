@@ -29,6 +29,75 @@ The following operations are currently accelerated via the AutoSolver:
 *   **Matrix Inversion** (`inverse`):
     *   Uses `cuSOLVER` LU factorization.
 
+### Streaming constraints
+
+GPU acceleration assumes **streaming-first** execution. Operations that exceed VRAM are tiled and pipelined so the CPU can prepare the next batch while the GPU computes.
+
+**Constraints to know:**
+- Routing may prefer CPU for medium sizes if PCIe transfer cost dominates.
+- Pinned memory is budgeted; if the pinning budget is exhausted, transfers degrade to pageable memory (slower but safe).
+- Some operations remain CPU-only until GPU kernels are implemented (routing is explicit and testable).
+
+#### Minimal example (force streaming decisions)
+
+```python
+import pycauset as pc
+
+# Lower the IO streaming threshold to force streaming routing.
+pc.set_io_streaming_threshold(64)  # bytes
+
+A = pc.Matrix(128, 128)
+B = pc.Matrix(128, 128)
+C = A @ B
+```
+
+#### Practical example (disk-backed matrices)
+
+```python
+import pycauset as pc
+from pathlib import Path
+
+pc.set_backing_dir(Path("./storage"))
+pc.set_memory_threshold(256 * 1024 * 1024)  # 256 MB
+
+# This forces a file-backed matrix on most machines.
+A = pc.FloatMatrix(50000)
+A.set_identity()
+
+B = pc.FloatMatrix(50000)
+B.fill(1.0)
+
+C = A @ B  # streaming route if thresholds are exceeded
+```
+
+### Routing policy and control
+
+PyCauset routes operations through a cost model that weighs PCIe transfer time against GPU compute throughput. The first time a GPU is used, PyCauset runs a small benchmark and caches it to `~/.pycauset/hardware_profile.json`.
+
+#### Minimal example
+
+```python
+import pycauset as pc
+
+pc.cuda.enable()
+pc.cuda.benchmark(force=False)  # warm the hardware profile cache
+```
+
+#### Practical example (deterministic routing)
+
+```python
+import pycauset as pc
+
+pc.cuda.enable()
+pc.cuda.force_backend("cpu")  # force CPU for validation
+C_cpu = pc.Matrix(2048, 2048) @ pc.Matrix(2048, 2048)
+
+pc.cuda.force_backend("gpu")  # prefer GPU for throughput
+C_gpu = pc.Matrix(2048, 2048) @ pc.Matrix(2048, 2048)
+
+pc.cuda.force_backend("auto")
+```
+
 ## 2. Precision and Types
 
 PyCauset respects the user's choice of type but employs smart defaults to maximize performance on consumer hardware.
@@ -94,7 +163,7 @@ PyCauset uses a **"RAM-First"** architecture to maximize speed.
         *   **CPU Parallelism**: The CPU uses multi-threading to pack data into pinned memory buffers.
         *   **GPU Overlap**: The GPU computes the current chunk while the CPU prepares the next one.
 
-## 4. Configuration
+## 5. GPU Configuration
 
 While PyCauset works out-of-the-box, power users can fine-tune the behavior through the ComputeContext (exposed via `pycauset.cuda` for backward compatibility):
 
@@ -107,9 +176,30 @@ pycauset.cuda.enable(
     memory_limit=4*1024**3,   # Limit VRAM usage to 4GB
     enable_async=True         # Enable/Disable Async Pipelining
 )
+
+# Optional: override the pinned-memory budget (bytes)
+pycauset.cuda.set_pinning_budget(2 * 1024**3)
 ```
 
-## 5. Troubleshooting
+Additional controls:
+
+```python
+import pycauset as pc
+
+pc.cuda.is_available()        # True/False
+pc.cuda.current_device()      # Human-readable device label
+pc.cuda.force_backend("gpu")  # Force GPU routing (or "cpu", "auto")
+pc.cuda.benchmark(force=True) # Recompute hardware profile + cache
+pc.cuda.disable()             # Disable GPU routing
+```
+
+Hardware profile cache:
+
+- Stored at `~/.pycauset/hardware_profile.json`.
+- Delete the file to force a clean re-benchmark.
+- `pc.cuda.benchmark(force=True)` always regenerates the profile.
+
+## 6. Troubleshooting
 
 If you believe you have a GPU but PyCauset is using the CPU:
 
@@ -117,7 +207,18 @@ If you believe you have a GPU but PyCauset is using the CPU:
 2.  Ensure `pycauset_cuda.dll` (Windows) or `libpycauset_cuda.so` (Linux) exists in the installation folder.
 3.  Verify your NVIDIA drivers are installed and working (run `nvidia-smi`).
 
-## 6. Lazy Evaluation
+## See also
+
+- [[docs/functions/pycauset.cuda.enable.md|pycauset.cuda.enable]]
+- [[docs/functions/pycauset.cuda.force_backend.md|pycauset.cuda.force_backend]]
+- [[docs/functions/pycauset.cuda.benchmark.md|pycauset.cuda.benchmark]]
+- [[docs/functions/pycauset.cuda.set_pinning_budget.md|pycauset.cuda.set_pinning_budget]]
+- [[docs/functions/pycauset.set_backing_dir.md|pycauset.set_backing_dir]]
+- [[docs/functions/pycauset.set_memory_threshold.md|pycauset.set_memory_threshold]]
+- [[internals/Compute Architecture.md|Compute Architecture]]
+- [[internals/Streaming Manager.md|Streaming Manager]]
+
+## 7. Lazy Evaluation
 
 PyCauset employs **Lazy Evaluation** to optimize complex mathematical expressions. When you perform operations like `C = A + B`, the result is not computed immediately. Instead, a lightweight "Expression" object is created.
 

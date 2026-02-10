@@ -1,4 +1,5 @@
 #include "pycauset/math/LinearAlgebra.hpp"
+#include <utility>
 #include "pycauset/matrix/TriangularMatrix.hpp"
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
@@ -610,7 +611,9 @@ using TriangularFloat64Matrix = pycauset::TriangularMatrix<double>;
 using DiagonalFloat64Matrix = pycauset::DiagonalMatrix<double>;
 
 std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBase& b, std::string saveas) {
-    if (saveas.empty()) saveas = make_unique_storage_file("matmul");
+    // Leave saveas empty by default so small outputs can stay in RAM.
+    // The storage initializer will spill to disk automatically if the
+    // result exceeds the configured memory threshold.
 
     if (a.cols() != b.rows()) {
         throw std::invalid_argument("Dimension mismatch");
@@ -855,6 +858,183 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     }
 
     throw std::runtime_error("Unsupported matrix multiplication types.");
+}
+
+std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& result_file) {
+    if (a.rows() != a.cols()) {
+        throw std::invalid_argument("cholesky: matrix must be square");
+    }
+
+    const DataType dtype = a.get_data_type();
+    if (dtype != DataType::FLOAT32 && dtype != DataType::FLOAT64) {
+        throw std::runtime_error("cholesky: only float32/float64 are supported");
+    }
+
+    auto out = ObjectFactory::create_matrix(a.rows(), a.cols(), dtype, MatrixType::DENSE_FLOAT, result_file);
+    ComputeContext::instance().get_device()->cholesky(a, *out);
+    return out;
+}
+
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a, const std::string& result_file)
+{
+    // LU decomposition: A = P * L * U
+    // For now we assume typical behavior where P, L, U are returned.
+    // Dimensions: A is (M, N). P is (M, M), L is (M, K), U is (K, N) where K = min(M, N).
+    // However, typical LAPACK getrf returns packed LU and permutation vector.
+    // The device implementation will likely handle the specifics, but here we allocate space.
+    // If wrapping standard LAPACK, we might return P as indices, but the python interface typically wants a matrix for P if requested, or just L, U.
+    // Let's stick to returning Matrices for P, L, U to match the signature.
+    
+    // For simplicity in this binding layer, we allocate same-sized or appropriately sized matrices.
+    // L and U are stored in 'a' usually for in-place, but here we want separate outputs.
+    // We'll let the device implementation handle the complexity of unpacking if needed, or we just allocate standard sizes.
+    // P: (M, M), L: (M, K), U: (K, N). K=min(M,N).
+    
+    uint64_t m = a.rows();
+    uint64_t n = a.cols();
+    uint64_t k = std::min(m, n);
+    
+    DataType dtype = a.get_data_type();
+    
+    auto p = ObjectFactory::create_matrix(m, m, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_p");
+    auto l = ObjectFactory::create_matrix(m, k, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_l");
+    auto u = ObjectFactory::create_matrix(k, n, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_u");
+
+    ComputeContext::instance().get_device()->lu(a, *p, *l, *u);
+    
+    return std::make_tuple(std::move(p), std::move(l), std::move(u));
+}
+
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const MatrixBase& a, const std::string& result_file)
+{
+    uint64_t m = a.rows();
+    uint64_t n = a.cols();
+    uint64_t k = std::min(m, n);
+    
+    DataType dtype = a.get_data_type();
+
+    // Mode 'reduced' is typical default. Q is (M, K), R is (K, N).
+    auto q = ObjectFactory::create_matrix(m, k, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_q");
+    auto r = ObjectFactory::create_matrix(k, n, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_r");
+
+    ComputeContext::instance().get_device()->qr(a, *q, *r);
+    
+    return std::make_tuple(std::move(q), std::move(r));
+}
+
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(const MatrixBase& a, const std::string& result_file)
+{
+    uint64_t m = a.rows();
+    uint64_t n = a.cols();
+    uint64_t k = std::min(m, n);
+    DataType dtype = a.get_data_type();
+
+    // U: (M, K)
+    auto u = ObjectFactory::create_matrix(m, k, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_u");
+    
+    // S: (K,) - Real values even if input is complex
+    DataType s_dtype = (dtype == DataType::COMPLEX_FLOAT32 || dtype == DataType::COMPLEX_FLOAT64) ? 
+                       (dtype == DataType::COMPLEX_FLOAT32 ? DataType::FLOAT32 : DataType::FLOAT64) : dtype;
+                       
+    // If input is int, we probably upgraded to float/double elsewhere or should throw. 
+    // Assuming float/double here.
+    
+    auto s = ObjectFactory::create_vector(k, s_dtype, MatrixType::VECTOR, result_file.empty() ? "" : result_file + "_s");
+    
+    // VT: (K, N)
+    auto vt = ObjectFactory::create_matrix(k, n, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_vt");
+
+    ComputeContext::instance().get_device()->svd(a, *u, *s, *vt);
+    
+    return std::make_tuple(std::move(u), std::move(s), std::move(vt));
+}
+
+std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, const std::string& result_file)
+{
+    if (a.rows() != a.cols()) {
+        throw std::invalid_argument("solve: coefficient matrix 'a' must be square");
+    }
+    if (a.rows() != b.rows()) {
+        throw std::invalid_argument("solve: 'b' must have the same number of rows as 'a'");
+    }
+
+    // X has same shape as B
+    auto x = ObjectFactory::create_matrix(b.rows(), b.cols(), a.get_data_type(), MatrixType::DENSE_FLOAT, result_file);
+    
+    // We assume A and B have compatible types or rely on device dispatch to handle/throw.
+    // Ideally we'd resolve types, but solve typically expects float/double.
+    
+    ComputeContext::instance().get_device()->solve(a, b, *x);
+    return x;
+}
+
+std::unique_ptr<VectorBase> eigvals_arnoldi(
+    const MatrixBase& a,
+    int k,
+    int m,
+    double tol,
+    const std::string& result_file
+) {
+    if (k <= 0 || m <= 0) {
+        throw std::invalid_argument("eigvals_arnoldi: k and m must be positive");
+    }
+    if (a.rows() != a.cols()) {
+        throw std::invalid_argument("eigvals_arnoldi: matrix must be square");
+    }
+
+    auto out = ObjectFactory::create_vector(static_cast<uint64_t>(k), DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file);
+    ComputeContext::instance().get_device()->eigvals_arnoldi(a, *out, k, m, tol);
+    return out;
+}
+
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in, const std::string& result_file) {
+    if (in.rows() != in.cols()) {
+        throw std::invalid_argument("eig: matrix must be square");
+    }
+    uint64_t n = in.rows();
+    auto w = ObjectFactory::create_vector(n, DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file + "_vals");
+    auto v = ObjectFactory::create_matrix(n, n, DataType::COMPLEX_FLOAT64, MatrixType::DENSE_FLOAT, result_file + "_vecs");
+    
+    ComputeContext::instance().get_device()->eig(in, *w, *v);
+    return std::make_pair(std::move(w), std::move(v));
+}
+
+std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string& result_file) {
+    if (in.rows() != in.cols()) {
+        throw std::invalid_argument("eigvals: matrix must be square");
+    }
+    uint64_t n = in.rows();
+    auto w = ObjectFactory::create_vector(n, DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file);
+    ComputeContext::instance().get_device()->eigvals(in, *w);
+    return w;
+}
+
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in, const std::string& result_file) {
+    if (in.rows() != in.cols()) {
+        throw std::invalid_argument("eigh: matrix must be square");
+    }
+    uint64_t n = in.rows();
+    // eigh returns real eigenvalues for Hermitian matrices
+    auto w = ObjectFactory::create_vector(n, DataType::FLOAT64, MatrixType::VECTOR, result_file + "_vals");
+    // Check if input is complex to determine eigenvector type
+    // If input is real/symmetric, eigenvectors are real. If complex/hermitian, complex.
+    DataType v_type = (in.get_data_type() == DataType::COMPLEX_FLOAT32 || in.get_data_type() == DataType::COMPLEX_FLOAT64) 
+                      ? DataType::COMPLEX_FLOAT64 : DataType::FLOAT64;
+
+    auto v = ObjectFactory::create_matrix(n, n, v_type, MatrixType::DENSE_FLOAT, result_file + "_vecs");
+    
+    ComputeContext::instance().get_device()->eigh(in, *w, *v, 'L');
+    return std::make_pair(std::move(w), std::move(v));
+}
+
+std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string& result_file) {
+    if (in.rows() != in.cols()) {
+        throw std::invalid_argument("eigvalsh: matrix must be square");
+    }
+    uint64_t n = in.rows();
+    auto w = ObjectFactory::create_vector(n, DataType::FLOAT64, MatrixType::VECTOR, result_file);
+    ComputeContext::instance().get_device()->eigvalsh(in, *w, 'L');
+    return w;
 }
 
 }
