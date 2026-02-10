@@ -38,10 +38,42 @@ struct OpRegistration {
         // --- Eigh (Eigenvalues/Vectors for Hermitian) ---
         OpContract eigh;
         eigh.name = "eigh";
-        eigh.supports_streaming = false;       // Not yet streaming
-        eigh.supports_block_matrix = false;    // Dense only usually
+        eigh.supports_streaming = false;       // Not yet streaming (Phase 6: full matrix required in memory)
+        eigh.supports_block_matrix = false;    // Dense only - LAPACK requires contiguous full matrix
         eigh.requires_square = true;
         registry.register_op(eigh);
+
+        // --- Eigvalsh (Eigenvalues only for Hermitian) ---
+        OpContract eigvalsh;
+        eigvalsh.name = "eigvalsh";
+        eigvalsh.supports_streaming = false;   // LAPACK dsyev/cheev requires full matrix
+        eigvalsh.supports_block_matrix = false; // Dense only - no block decomposition for eigenvalues
+        eigvalsh.requires_square = true;
+        registry.register_op(eigvalsh);
+
+        // --- Eig (General Eigenvalues/Vectors) ---
+        OpContract eig;
+        eig.name = "eig";
+        eig.supports_streaming = false;        // LAPACK dgeev requires full matrix
+        eig.supports_block_matrix = false;     // Dense only - no block support for general eigen
+        eig.requires_square = true;
+        registry.register_op(eig);
+
+        // --- Eigvals (General Eigenvalues only) ---
+        OpContract eigvals;
+        eigvals.name = "eigvals";
+        eigvals.supports_streaming = false;    // LAPACK dgeev requires full matrix
+        eigvals.supports_block_matrix = false; // Dense only
+        eigvals.requires_square = true;
+        registry.register_op(eigvals);
+
+        // --- Eigvals Arnoldi (Top-k Eigenvalues) ---
+        OpContract eigvals_arnoldi;
+        eigvals_arnoldi.name = "eigvals_arnoldi";
+        eigvals_arnoldi.supports_streaming = true;  // Arnoldi can work with matrix-vector products (out-of-core A)
+        eigvals_arnoldi.supports_block_matrix = false; // Currently dense only, but A can be disk-backed
+        eigvals_arnoldi.requires_square = true;
+        registry.register_op(eigvals_arnoldi);
 
         // --- Elementwise ---
         OpContract add;
