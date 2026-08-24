@@ -30,18 +30,19 @@ Full suite: **482 passed / 23 failed / 29 skipped / 3 xfailed**.
 
 Verified-correct primitives: `matmul` ✅, `inverse` ✅ (`A @ inv ≈ I`).
 
-**Silent wrong answers / crashes** (pinned in `tests/python/test_known_bugs.py`):
-- `pc.solve` **math is CORRECT** — `pc.to_numpy(solve(a,b))` matches `np.linalg.solve`.
-  The "wrong answer" is a **NumPy-conversion bug**: `np.array(result)` (the `__array__`
-  / buffer path) returns *uninitialized memory* (denormals `~1e-313`) or crashes with
-  access violation, because `DenseMatrix::data()` returns a stale/invalid pointer for
-  matrices produced by native ops. `pc.to_numpy()` works only because its native
-  `_to_numpy_fast` returns `None` and it falls back to element access.
-- `pc.lu` raises `MemoryError` (`get_backing_file()` returns a corrupted string on the
-  permutation matrix) — same underlying stale-pointer/lifecycle issue.
-- `TriangularBitMatrix.random(n)` reports the wrong `.size()`.
-- Teardown crash in `release_tracked_matrices()` (access violation on `close()`), i.e.
-  a use-after-free in the object-lifecycle / memory-mapper layer.
+**Fixed 2026-08-24** (commit `204573b`): `solve`, `lu`, `qr`, `svd`, `cholesky`
+returned `unique_ptr<MatrixBase>` from the native bindings, which pybind11 mishandled
+(dangling downcast → stale `data()` / corrupted `get_backing_file()`). Changed to
+`shared_ptr<MatrixBase>(out.release())` (the working matmul pattern). Verified:
+`solve`/`lu`/`qr`/`cholesky` now correct via `np.array`, and `lu`'s backing files are
+clean (`:memory:`).
+
+**Still open** (pinned in `tests/python/test_known_bugs.py`):
+- `TriangularBitMatrix.random(n)` reports the wrong `.size()` (25 vs 5).
+- `eigvals_arnoldi` crashes (native access violation) — part of R1_CPU Phase 6 eigen,
+  which is documented as incomplete (eigh/eigvalsh are NumPy fallbacks; Arnoldi is native).
+- Teardown crash in `release_tracked_matrices()` (access violation on `close()`),
+  likely a separate lifecycle bug.
 - `pc.lu` raises `MemoryError` in result bookkeeping after computing the
   factorization (`get_backing_file()` on the permutation matrix).
 - `TriangularBitMatrix.random(n)` reports the wrong `.size()`.
