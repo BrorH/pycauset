@@ -39,9 +39,14 @@ Verified-correct primitives: `matmul` ✅, `inverse` ✅ (`A @ inv ≈ I`).
   correct; fixed the drift check + test, commit `d8ae238`).
 
 **Still open** (native R1_CPU Phase 6/7 code; each fix reveals the next crash):
-- bit-matrix × float64 matmul fastpath crashes (`test_bit_mixed_fastpaths.py`).
-- Teardown crash/hang in `release_tracked_matrices()` (intermittent access violation
-  on `close()` / atexit).
+- bit-matrix × float64 matmul crashes in the full suite but **not in isolation** — a
+  **Heisenbug** indicating a heap-corruption root cause that manifests non-deterministically
+  (also seen in `invert` flakiness and the teardown crash below).
+- Teardown crash/hang in `release_tracked_matrices()` (intermittent access violation on
+  `close()` / atexit).
+- **Tooling gap:** ASan/UBSan are NOT available in the current MinGW (WinLibs) distro, so
+  the heap-corruption root cause cannot be pinpointed here. Recommendation: install MSVC
+  Build Tools (has ASan + native debuggers) for a systematic memory-safety pass.
 - `pc.lu` raises `MemoryError` in result bookkeeping after computing the
   factorization (`get_backing_file()` on the permutation matrix).
 - `TriangularBitMatrix.random(n)` reports the wrong `.size()`.
