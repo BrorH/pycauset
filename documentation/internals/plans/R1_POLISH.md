@@ -17,7 +17,7 @@
 - [x] **Configure Ruff:** `[tool.ruff]` + `[tool.ruff.lint]` added to `pyproject.toml` (selects `E/F/I/UP`; NumPy docstrings `D` deferred until docstring coverage is cleaned).
 - [x] **Configure MyPy:** `[tool.mypy]` added (py3.8, permissive `ignore_missing_imports` baseline). `ruff`+`mypy` added as a `dev` extra.
 - [x] **Baseline (F-class):** pyflakes `F` rules are clean (`ruff check --select F` passes) — removed unused imports and 5 dead duplicate function definitions (`solve`/`lu`/`cholesky`/`svd` in `__init__.py`, `solve` in `ops.py`).
-- [ ] **Full lint (E/I/UP):** ~367 style/modernization findings remain (`E501` line length, `UP006`/`UP007` PEP-585/604 annotations, `I001` import sorting). Deferred incremental cleanup.
+- [ ] **Full lint (E/I/UP):** ~260 manual style findings remain after auto-fix (`E501` line length, `UP006`/`UP007` PEP-585/604 annotations, `E701`/`E402`/`E741`). Deferred incremental cleanup.
 
 ## 4. Build System Cleanup
 - [ ] **Audit CMake:** Review `CMakeLists.txt` for aggressive warning suppressions (e.g., `/wd4251`, `/wd4996`).
