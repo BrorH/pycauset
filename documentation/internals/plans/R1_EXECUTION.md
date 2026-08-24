@@ -115,7 +115,9 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
   version (setuptools_scm) + changelog + `.pycauset` format migration path.
 - [ ] **CI test matrix** (3 OSes) + benchmark visibility; fix teardown hang.
 - [ ] **Docs**: wiki-links → markdown, API reference completeness, install/GPU requirements.
-- [ ] **License/attribution**: Eigen (MPL2), OpenBLAS (BSD), pybind11 (BSD), CUDA (proprietary).
+- [x] **License/attribution**: added `LICENSE` (MIT, matching `pyproject.toml`) and
+  `THIRD_PARTY_NOTICES.md` (Eigen MPL2, OpenBLAS BSD, pybind11 BSD, googletest BSD,
+  scikit-build-core, setuptools_scm, CUDA-not-bundled).
 
 **Phase 5 — release mechanics (R1_REL)**
 - [ ] Release checklist; cut release.
