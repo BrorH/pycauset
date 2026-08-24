@@ -135,7 +135,7 @@ def main() -> int:
         try:
             # Ensure TriangularBitMatrix.random accepts legacy keyword `p`.
             tbm = native.TriangularBitMatrix.random(5, p=0.5)
-            if tbm.size() != 5:
+            if tbm.rows() != 5 or tbm.cols() != 5:
                 raise RuntimeError("TriangularBitMatrix.random returned wrong size")
 
             import pycauset

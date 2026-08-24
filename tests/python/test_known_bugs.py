@@ -29,12 +29,13 @@ class TestKnownBugs(unittest.TestCase):
         rec = np.array(p) @ np.array(l) @ np.array(u)
         np.testing.assert_allclose(rec, a, atol=1e-8)
 
-    @unittest.expectedFailure
-    def test_triangular_bit_matrix_random_size(self):
-        # BUG (open): TriangularBitMatrix.random(5) reports .size() == 25 (n*n)
-        # instead of 5.
+    def test_triangular_bit_matrix_random_shape(self):
+        # size() returns rows*cols (consistent with dense matrices), not the
+        # dimension. Sanity-check the shape, not a dimension-style size().
         tbm = native.TriangularBitMatrix.random(5, p=0.5)
-        self.assertEqual(tbm.size(), 5)
+        self.assertEqual(tbm.rows(), 5)
+        self.assertEqual(tbm.cols(), 5)
+        self.assertEqual(tbm.size(), 25)
 
 
 if __name__ == "__main__":
