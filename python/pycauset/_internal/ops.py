@@ -773,18 +773,7 @@ def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     result_w = None
     result_v = None
 
-    # Native
-    fn = getattr(deps.native, "eigh", None)
-    if callable(fn):
-        try:
-            w, v_right = fn(a)
-            _track_and_mark_temporary_if_native(w, deps=deps)
-            _track_and_mark_temporary_if_native(v_right, deps=deps)
-            result_w = w
-            result_v = v_right
-        except Exception:
-            pass
-
+    # Correctness-first (2026-08-24): native eigh (R1_CPU Phase 6) crashes; use NumPy.
     # NumPy Fallback
     if result_w is None:
         np_module = deps.np_module
@@ -850,16 +839,7 @@ def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
 
     result_w = None
 
-    # Native
-    fn = getattr(deps.native, "eigvalsh", None)
-    if callable(fn):
-        try:
-            w = fn(a)
-            _track_and_mark_temporary_if_native(w, deps=deps)
-            result_w = w
-        except Exception:
-            pass
-
+    # Correctness-first (2026-08-24): native eigvalsh (R1_CPU Phase 6) crashes; use NumPy.
     if result_w is None:
         np_module = deps.np_module
         if np_module is None:
@@ -933,19 +913,7 @@ def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     result_w = None
     result_v = None
 
-    # Native
-    fn = getattr(deps.native, "eig", None)
-    if callable(fn):
-        try:
-            w, v_right = fn(a)
-            _track_and_mark_temporary_if_native(w, deps=deps)
-            _track_and_mark_temporary_if_native(v_right, deps=deps)
-            
-            result_w = w
-            result_v = v_right
-        except Exception:
-            pass
-
+    # Correctness-first (2026-08-24): native eig (R1_CPU Phase 6) crashes; use NumPy.
     # NumPy Fallback
     if result_w is None:
         np_module = deps.np_module
@@ -982,16 +950,7 @@ def eigvals(a: Any, *, deps: OpsDeps) -> Any:
 
     result_w = None
 
-    # Native
-    fn = getattr(deps.native, "eigvals", None)
-    if callable(fn):
-        try:
-            w = fn(a)
-            _track_and_mark_temporary_if_native(w, deps=deps)
-            result_w = w
-        except Exception:
-            pass
-
+    # Correctness-first (2026-08-24): native eigvals (R1_CPU Phase 6) crashes; use NumPy.
     # NumPy Fallback
     if result_w is None:
         np_module = deps.np_module
@@ -1038,16 +997,8 @@ def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any
     except Exception:
         pass
 
-    fn = getattr(deps.native, "eigvals_arnoldi", None)
-    if callable(fn):
-        try:
-            result = fn(a, k, m, tol)
-            _track_and_mark_temporary_if_native(result, deps=deps)
-            _discard_if_streaming(rec, [a], result, deps=deps)
-            return result
-        except Exception:
-            pass
-
+    # Correctness-first (2026-08-24): the native eigvals_arnoldi (R1_CPU Phase 6)
+    # crashes with an access violation, so use the NumPy fallback until fixed.
     np_module = deps.np_module
     if np_module is None:
         raise NotImplementedError("eigvals_arnoldi is not available (no native/NumPy fallback)")
