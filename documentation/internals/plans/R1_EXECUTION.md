@@ -92,7 +92,7 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
 - [ ] Teardown hang in `release_tracked_matrices()`.
 
 **Phase 2 — hygiene (R1_POLISH)**
-- [ ] DLLs → `libs/` + `os.add_dll_directory` hook.
+- [x] DLLs → `libs/` + `os.add_dll_directory` hook (verified: wheel installs + imports in a fresh venv).
 - [ ] wiki-links → markdown; ruff/mypy; slim `__init__.py`; remaining dead code.
 
 **Phase 3 — GPU + ship**

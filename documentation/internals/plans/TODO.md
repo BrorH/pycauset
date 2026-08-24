@@ -461,12 +461,12 @@ Status: - [ ]
 Goal: Ensure `pycauset` meets high professional standards (NumPy-like quality).
 
 Deliverables:
-- **Packaging:** Clean up loose DLLs, use `libs/` directory.
-- **Docs:** Standardize Markdown links (no more `[[wiki_links]]`).
-- **Linting:** Configure `ruff` and `mypy` in `pyproject.toml`.
-- **Build:** Audit and reduce CMake warning suppressions.
-- **Namespace:** Refactor `__init__.py` to be minimal.
-- **Cleanup:** Remove dead code, legacy "eager" evaluation paths, and unused temporary file logic.
+- [x] **Packaging:** Clean up loose DLLs — runtime DLLs now in `libs/`, import `.lib` and stray `bin/` removed.
+- [ ] **Docs:** Standardize Markdown links (no more `[[wiki_links]]`).
+- [ ] **Linting:** Configure `ruff` and `mypy` in `pyproject.toml`.
+- [ ] **Build:** Audit and reduce CMake warning suppressions.
+- [ ] **Namespace:** Refactor `__init__.py` to be minimal.
+- [ ] **Cleanup:** Remove dead code, legacy "eager" evaluation paths, and unused temporary file logic.
 
 ### R1_SHIP — Shipping Readiness (production release)
 

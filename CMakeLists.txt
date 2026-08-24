@@ -271,9 +271,9 @@ if(NOT OpenBLAS_FOUND)
             )
             message(STATUS "OpenBLAS configured from binaries at ${openblas_binaries_SOURCE_DIR}")
             
-            # Install the DLL so it ends up in the wheel/install directory
-            install(FILES "${openblas_binaries_SOURCE_DIR}/bin/libopenblas.dll" DESTINATION bin)
-            install(FILES "${openblas_binaries_SOURCE_DIR}/bin/libopenblas.dll" DESTINATION pycauset)
+            # Install the DLL into the bundled libs/ dir (loaded via
+            # os.add_dll_directory in native.configure_windows_dll_search_paths).
+            install(FILES "${openblas_binaries_SOURCE_DIR}/bin/libopenblas.dll" DESTINATION pycauset/libs)
         endif()
         
     else()
@@ -544,9 +544,10 @@ endif()
 # This installs the compiled extension into the python package directory
 install(
     TARGETS pycauset_core
-    RUNTIME DESTINATION pycauset
+    RUNTIME DESTINATION pycauset/libs
     LIBRARY DESTINATION pycauset
-    ARCHIVE DESTINATION pycauset
+    # ARCHIVE intentionally omitted: the Windows import .lib is a build-time
+    # artifact and must not be shipped in the wheel.
 )
 install(TARGETS _pycauset DESTINATION pycauset)
 

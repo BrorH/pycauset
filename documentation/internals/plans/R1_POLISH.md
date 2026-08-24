@@ -3,10 +3,10 @@
 **Goal:** Ensure `pycauset` meets high professional standards (NumPy-like quality) before Release 1. This involves cleaning up packaging, enforcing code style, and standardizing documentation.
 
 ## 1. Packaging Hygiene ("DLL Hell" Prevention)
-- [ ] **Move DLLs:** Stop dumping loose DLLs (`cublas64_12.dll`, etc.) in the root `python/pycauset` folder.
-- [ ] **Create `libs` directory:** Move runtime binaries to `python/pycauset/libs`.
-- [ ] **Runtime Hook:** Update `__init__.py` to call `os.add_dll_directory()` for the `libs` folder on Windows startup.
-- [ ] **Wheel Audit:** Ensure wheels are self-contained and don't conflict with other CUDA-using libraries.
+- [x] **Move DLLs:** runtime binaries (`pycauset_core.dll`, `libopenblas.dll`) no longer live in `python/pycauset/`; the stray `bin/` install and the Windows import `.lib` were also removed.
+- [x] **Create `libs` directory:** CMake installs runtime DLLs to `python/pycauset/libs`.
+- [x] **Runtime Hook:** `configure_windows_dll_search_paths()` (in `_internal/native.py`) adds `pycauset/libs` via `os.add_dll_directory()`, with the package dir as a backwards-compatible fallback for source checkouts.
+- [x] **Wheel Audit:** `python -m build --wheel` verified — wheel installs into a fresh venv and `import pycauset` + `matmul` work (DLLs resolved from `libs/`).
 
 ## 2. Documentation Standards
 - [ ] **Fix Links:** Convert all Obsidian-style `[[wiki_links]]` to standard Markdown `[Link](path.md)` syntax.
