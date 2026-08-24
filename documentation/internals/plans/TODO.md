@@ -22,6 +22,12 @@ This is how we keep the roadmap “tasteful”: each layer becomes stable before
 
 “Physics features” are intentionally downstream of Release 1.
 
+> **Re-scoped R1 gate (2026 decision — authoritative).** R1 ships on **correctness + no
+> silent wrong answers + explicit support status everywhere**. Optimization is deferred to
+> a continuous post-R1 program: `≥ 0.90× NumPy` parity, GPU parity, streaming-everything,
+> and the SRP-2 "Causal Math Optimization Catalog". The deferred work is marked **post-R1**
+> in the node details below, and overrides the "optimized" bullet above.
+
 ### What “optimized” means
 
 Ideal target (C): “as close to theoretical optimal as possible”, including (examples):
@@ -73,11 +79,11 @@ Release 1 nodes:
 - [x] R1_NUMPY
 - [x] R1_LINALG
 - [x] R1_BLOCKMATRIX
-- [x] R1_GPU
-- [ ] R1_SRP
-- [ ] R1_QA
+- [x] R1_GPU (routing/CPU-fallback only; GPU parity is post-R1)
+- [ ] R1_SRP (correctness + support-status done; optimization sub-phases post-R1)
+- [ ] R1_QA (correctness CI scaffolded; benchmark gates post-R1)
 - [ ] R1_POLISH
-- [ ] R1_SHIP
+- [ ] R1_SHIP (license/CI/wheel/changelog done; Linux/macOS verify + release remain)
 - [ ] R1_REL
 
 Parked (now detailed in `documentation/project/plans/R2_ROADMAP.md`):
@@ -365,7 +371,11 @@ Deliverables:
 
 ### R1_GPU — GPU Parity + Routing Policy
 
-Status: - [x]
+Status: - [x] (routing/CPU-fallback only; GPU parity is **post-R1**)
+
+> **R1 decision:** ship CPU-only. `cuda.is_available()` returns `False` when
+> `ENABLE_CUDA=OFF` and everything falls back to CPU cleanly. Full GPU parity requires
+> VS 2022 + CUDA 12.6 (GTX 1060 / Pascal; CUDA 13 dropped it) and is deferred to post-R1.
 
 Goal: GPU behavior is predictable, correct, and **cooperative**.
 
@@ -385,7 +395,7 @@ Deliverables:
 
 ### R1_CPU — Modern Tiled CPU Engine (No More Legacy Loops)
 
-Status: - [ ]
+Status: - [ ] (**post-R1** — optimization, deferred under the re-scoped gate)
 
 Goal: The CPU is not a fallback; it is a **First-Class Worker** for the Streaming Architecture.
 
@@ -409,20 +419,21 @@ This is the long “painstaking” program. Only when this is done can we claim 
 Authoritative checklist: `documentation/internals/plans/SUPPORT_READINESS_FRAMEWORK.md`.
 
 SRP phases:
-- SRP-0: Canonical inventories locked (dtypes + ops + structures + devices).
-- SRP-1: CPU correctness across the inventory (Gate A + Gate B).
-- SRP-2: **Causal Math Optimization Catalog** (The "Monster"):
+- SRP-0: Canonical inventories locked (dtypes + ops + structures + devices). — **done**
+- SRP-1: CPU correctness across the inventory (Gate A + Gate B). — **done** (suite green)
+- SRP-2: **Causal Math Optimization Catalog** (The "Monster") — **post-R1** (deferred):
     - Identify the specific operator combinations used in Causal Set Theory (Propagators, Action, etc.).
     - Map these to numerical shortcuts (e.g., triangularity, Neumann series, property-abuse).
     - Ensure these shortcuts are implemented and routed correctly.
-- SRP-3: GPU coverage implemented OR explicitly routed/blocked (Gate C).
-- SRP-4: CCA lookahead hints + out-of-core performance validation (Gate D + Gate E).
+- SRP-3: GPU coverage implemented OR explicitly routed/blocked (Gate C). — **post-R1** (R1 ships CPU-only)
+- SRP-4: CCA lookahead hints + out-of-core performance validation (Gate D + Gate E). — **post-R1**
 
-Definition of Done (Release 1 gate):
-- Every op in the canonical inventory has an explicit support status for every public dtype/structure/device case.
-- **Physics-Aware Optimizations** are verified: specific causal structures trigger their optimized paths (not just generic fallback).
-- No “silent wrong answers” and no “mysterious slow paths”.
-- Benchmarks exist and failures are actionable.
+Definition of Done (Re-scoped R1 gate — authoritative over the original below):
+- Every op in the canonical inventory has an explicit support status for every public dtype/structure/device case. — **done**
+- No "silent wrong answers". — **done**
+- ~~Physics-Aware Optimizations verified~~ — **post-R1** (SRP-2)
+- ~~No "mysterious slow paths"~~ — **post-R1** (optimization)
+- ~~Benchmarks exist and failures are actionable~~ — **post-R1** (R1_QA benchmarks)
 
 Notes:
 - SRP correctness/coverage must include **property-aware variants** of operators once R1_PROPERTIES lands.
@@ -432,6 +443,11 @@ Notes:
 Status: - [ ]
 
 Goal: prevent regressions (correctness and performance).
+
+Progress:
+- Correctness CI scaffolded (`.github/workflows/ci.yml`, 3-OS × py3.12, `pytest`) — done.
+- Benchmark suite + perf-regression visibility — **post-R1** (deferred with optimization).
+- Dead-code / deprecated-feature sweep — **post-R1** (with R1_POLISH cleanup).
 
 Deliverables:
 - Gate-style CI checks: correctness + persistence + a small benchmark suite.
@@ -454,27 +470,29 @@ Deliverables:
 
 ### R1_SHIP — Shipping Readiness (production release)
 
-Status: - [ ]
+Status: - [ ] (most done; Linux/macOS verify + release remain)
 
 Goal: the first public release runs correctly on *other people's* machines, not just the dev box.
 
 Deliverables (full checklist in `R1_EXECUTION.md` §Phase 4):
-- CPU baseline: AVX-512 kernels are used unconditionally → runtime dispatch or baseline build (avoid illegal-instruction crashes).
-- CUDA: compile for target compute capabilities (GTX 1060 = CC 6.1); clean CPU fallback; decide NVIDIA DLL bundling vs require-user-install (EULA).
-- Wheel portability: verify Linux/macOS builds (GCC/Clang are stricter than MSVC).
-- API lock + versioning + changelog + `.pycauset` format migration path.
-- CI test matrix (3 OSes) + benchmark visibility; fix teardown hang.
-- Docs + license/attribution (Eigen MPL2, OpenBLAS BSD, pybind11 BSD, CUDA proprietary).
+- [x] CPU baseline: SIMD is runtime-dispatched (cpuid) + per-fn `target`; `-march=native` removed.
+- [x] CUDA decision: skipped for R1 (CPU-only); clean CPU fallback verified.
+- [x] Windows wheel builds + installs (pybind11 pinned 2.12.0).
+- [ ] Wheel portability: verify Linux/macOS builds (GCC/Clang stricter than MSVC) — first CI run.
+- [x] API lock + versioning (setuptools_scm 0.5.1.dev) + changelog; `.pycauset` migration path N/A (format new).
+- [x] CI test matrix (3 OSes) scaffolded; benchmark visibility post-R1; teardown hang still open.
+- [x] Docs + license/attribution (`LICENSE` MIT, `THIRD_PARTY_NOTICES.md`).
 
 ### R1_REL — Release Mechanics
 
-Status: - [ ]
+Status: - [ ] (checklist written; tag + PyPI publish remain — maintainer action)
 
 Goal: releasing is routine and reproducible.
 
 Deliverables:
-- Release checklist referencing SRP gates.
-- Packaging sanity checks.
+- [x] Release checklist (in `R1_EXECUTION.md` §Phase 5), referencing the re-scoped SRP gates.
+- [x] Packaging sanity check: wheel builds + installs in a fresh venv.
+- [ ] Tag `v0.5.1` + publish to PyPI (maintainer action).
 
 ---
 
