@@ -4,11 +4,11 @@ All notable changes to PyCauset are documented in this file. The project follows
 [Semantic Versioning](https://semver.org/). The documentation's **"Release 1 (R1)"**
 milestone corresponds to **v0.5.1**.
 
-## [Unreleased] — R1 (target v0.5.1)
+## [Unreleased]: R1 (target v0.5.1)
 
 ### Added
-- `pinv` — Moore–Penrose pseudoinverse (normal-equations baseline + NumPy SVD fallback).
-- `load_matrix(path)` — alias of `load`.
+- `pinv`: Moore-Penrose pseudoinverse (normal-equations baseline + NumPy SVD fallback).
+- `load_matrix(path)`: alias of `load`.
 - Complete per-operation support-status registry (`OpRegistry`) now covering the vector
   and vector-scalar ops (`dot`, `add_vector`, `subtract_vector`, `outer`, `add_scalar`,
   `mul_scalar`) in addition to the matrix ops.

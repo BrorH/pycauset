@@ -312,26 +312,26 @@ Future direction (not implemented yet): cooperative CPU+GPU *tandem execution* f
 
 Treat each gate as a checklist you can apply to either “a new dtype” or “a new op”.
 
-### Gate A — Correctness
+### Gate A: Correctness
 - Small deterministic cases (hand-checkable)
 - Randomized cases (property-style)
 - Cross-dtype cases (promotion/overflow/underpromotion)
 - Complex-variant coverage for public complex dtypes (and “error-by-design” assertions where complex closure is planned)
 - “Error-by-design” cases are explicit and tested
 
-### Gate B — Storage + persistence
+### Gate B: Storage + persistence
 - Round-trip save/load for dense + triangular + vector variants that are public
 - Out-of-core path is exercised (memory-mapped load + compute)
 
-### Gate C — Routing + device policy
+### Gate C: Routing + device policy
 - CPU path exists
 - GPU path is implemented or explicitly blocked/routed
 - Behavior is consistent across frontend (LinearAlgebra) and Python surface
 
-### Gate D — CCA lookahead hints
+### Gate D: CCA lookahead hints
 - Operation emits hints for persistent operands when it has a predictable access pattern
 
-### Gate E — Benchmarks (vs NumPy)
+### Gate E: Benchmarks (vs NumPy)
 - In-memory benchmarks vs NumPy for at least one representative shape regime
 - Disk-backed benchmark that exercises paging behavior (large mmap-backed payload)
 
@@ -364,7 +364,7 @@ For each canonical operation group (Section 2):
 - [ ] GPU policy (supported or blocked)
 
 ### 7.5 Tests + benchmarks
-- [ ] Gate A–E satisfied
+- [ ] Gate A-E satisfied
 
 ---
 
@@ -396,6 +396,6 @@ Fill this template for each new operation you add.
 - [ ] Emit memory hints for persistent operands when applicable
 
 ### 8.5 Tests + benchmarks
-- [ ] Gate A–E satisfied
+- [ ] Gate A-E satisfied
 
 

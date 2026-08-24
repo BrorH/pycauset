@@ -22,7 +22,7 @@ This is how we keep the roadmap “tasteful”: each layer becomes stable before
 
 “Physics features” are intentionally downstream of Release 1.
 
-> **Re-scoped R1 gate (2026 decision — authoritative).** R1 ships on **correctness + no
+> **Re-scoped R1 gate (2026 decision: authoritative).** R1 ships on **correctness + no
 > silent wrong answers + explicit support status everywhere**. Optimization is deferred to
 > a continuous post-R1 program: `≥ 0.90× NumPy` parity, GPU parity, streaming-everything,
 > and the SRP-2 "Causal Math Optimization Catalog". The deferred work is marked **post-R1**
@@ -147,7 +147,7 @@ flowchart TD
 
 ## Node details (keyed by ID)
 
-### R1_DOCS — Docs System That Scales (Diátaxis + MkDocs IA)
+### R1_DOCS: Docs System That Scales (Diátaxis + MkDocs IA)
 
 Status: - [x]
 
@@ -165,7 +165,7 @@ Deliverables:
     - **one canonical source of truth** per concept, and
     - required cross-links from guides/reference/dev.
 
-### R1_API — Public API + Naming + Contracts
+### R1_API: Public API + Naming + Contracts
 
 Status: - [x]
 
@@ -179,7 +179,7 @@ Deliverables:
 - Public vs internal boundaries explicit.
 - Deprecation policy: Any feature asked to be deprecated should be completely removed. There is no existing user base to respect. It is confusing for future work when deprecated features aren't completely removed, because their lingering functions, namespaces, parameters etc still linger in the codebase, causing confusion. Regarding documentation, never write "this has been deprecated" - just REMOVE IT. "Deprecation" = "Purge" in this workflow.
 
-### R1_SHAPES — NxM Matrices Across The System
+### R1_SHAPES: NxM Matrices Across The System
 
 Status: - [x]
 
@@ -193,7 +193,7 @@ Phased approach:
     - how they interact with NxM operands,
     - and what gets blocked vs implemented.
 
-### R1_STORAGE — Single-File Persistence Container
+### R1_STORAGE: Single-File Persistence Container
 
 Status: - [x]
 
@@ -213,7 +213,7 @@ Definition of Done:
 - Metadata round-trips preserve tri-state property semantics (missing vs explicit `False`).
 - Frontend save/load APIs are unchanged; only storage plumbing changes.
 
-### R1_PROPERTIES — Semantic Properties + Property-Aware Algebra
+### R1_PROPERTIES: Semantic Properties + Property-Aware Algebra
 
 Status: - [x]
 
@@ -242,7 +242,7 @@ Persistence format note:
 - R1_PROPERTIES depends on the storage layer for encoding, but the container format change itself is tracked under **R1_STORAGE**.
 - The metadata schema must not block moving to a single-file binary `.pycauset` container with a sparse, forward-compatible typed metadata block (see `documentation/internals/plans/completed/R1_STORAGE_PLAN.md`).
 
-### R1_LAZY — Lazy Evaluation & Persistence
+### R1_LAZY: Lazy Evaluation & Persistence
 
 Status: - [x]
 
@@ -264,7 +264,7 @@ Deliverables:
     - Ensures "It feels like NumPy" without crashing RAM.
 - **Safety:** Ensure `discard()` works correctly on Windows (VirtualUnlock) to prevent "Ghost RAM" usage.
 
-### R1_PERF — Performance Optimization & Verification
+### R1_PERF: Performance Optimization & Verification
 
 Status: - [x]
 
@@ -276,7 +276,7 @@ Deliverables:
 - **Robust Threading:** Implement Dynamic Scheduling in `ParallelUtils` to avoid static partitioning stalls.
 - **Pipeline Verification:** Instrument `AsyncStreamer` with NVTX to prove compute/transfer overlap.
 
-### R1_SAFETY — Robustness & Safety (The Shield)
+### R1_SAFETY: Robustness & Safety (The Shield)
 
 Status: - [x]
 
@@ -288,7 +288,7 @@ Deliverables:
 - **Crash Consistency:** Verify `FlushFileBuffers`/`msync` behavior.
 - **Windows I/O Leak:** Implement `discard()` using `VirtualUnlock`.
 
-### R1_IO — Out-of-core I/O + Persistence Performance
+### R1_IO: Out-of-core I/O + Persistence Performance
 
 Status: - [x]
 
@@ -313,7 +313,7 @@ Deliverables:
 Authoritative plan: `documentation/internals/plans/R1_IO_PLAN.md`.
 
 
-### R1_LINALG — Core Linalg Surface Completeness
+### R1_LINALG: Core Linalg Surface Completeness
 
 Status: - [x]
 
@@ -328,7 +328,7 @@ Seed items (from prior TODO):
 - Random matrix/vector generation
 - Matrix properties (expressed via **properties** and consumed by operators; see `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md`)
 
-### R1_BLOCKMATRIX — Block Matrices + Heterogeneous Dtypes
+### R1_BLOCKMATRIX: Block Matrices + Heterogeneous Dtypes
 
 Status: - [x]
 
@@ -355,7 +355,7 @@ Deliverables:
 - Elementwise ops + matmul decompose into leaf ops that route via AutoSolver/ComputeDevice.
 - Save/load uses a reference-manifest (no expanded dense write) and is nestable.
 
-### R1_NUMPY — Fast NumPy Interop
+### R1_NUMPY: Fast NumPy Interop
 
 Status: - [x]
 
@@ -369,7 +369,7 @@ Deliverables:
 - Make sure np arrays and pc matrices are interchangeable
 - make pycasuet api and experience "as close to numpy" as possible
 
-### R1_GPU — GPU Parity + Routing Policy
+### R1_GPU: GPU Parity + Routing Policy
 
 Status: - [x] (routing/CPU-fallback only; GPU parity is **post-R1**)
 
@@ -393,9 +393,9 @@ Deliverables:
 - **Phase 3: Integration:**
     - Routing uses **Tag Dispatch** (`MatrixTraits`) to map Properties to optimized kernels (e.g., `cublasSyrk`).
 
-### R1_CPU — Modern Tiled CPU Engine (No More Legacy Loops)
+### R1_CPU: Modern Tiled CPU Engine (No More Legacy Loops)
 
-Status: - [ ] (**post-R1** — optimization, deferred under the re-scoped gate)
+Status: - [ ] (**post-R1**: optimization, deferred under the re-scoped gate)
 
 Goal: The CPU is not a fallback; it is a **First-Class Worker** for the Streaming Architecture.
 
@@ -410,7 +410,7 @@ Deliverables:
 - **Standardization:**
     - Ensure CPU kernels respect the same `MatrixTraits` tag dispatch system as GPU kernels.
 
-### R1_SRP — Support Readiness Program (SRP) & Optimization Catalog
+### R1_SRP: Support Readiness Program (SRP) & Optimization Catalog
 
 Status: - [ ]
 
@@ -419,56 +419,56 @@ This is the long “painstaking” program. Only when this is done can we claim 
 Authoritative checklist: `documentation/internals/plans/SUPPORT_READINESS_FRAMEWORK.md`.
 
 SRP phases:
-- SRP-0: Canonical inventories locked (dtypes + ops + structures + devices). — **done**
-- SRP-1: CPU correctness across the inventory (Gate A + Gate B). — **done** (suite green)
-- SRP-2: **Causal Math Optimization Catalog** (The "Monster") — **post-R1** (deferred):
+- SRP-0: Canonical inventories locked (dtypes + ops + structures + devices).: **done**
+- SRP-1: CPU correctness across the inventory (Gate A + Gate B).: **done** (suite green)
+- SRP-2: **Causal Math Optimization Catalog** (The "Monster"): **post-R1** (deferred):
     - Identify the specific operator combinations used in Causal Set Theory (Propagators, Action, etc.).
     - Map these to numerical shortcuts (e.g., triangularity, Neumann series, property-abuse).
     - Ensure these shortcuts are implemented and routed correctly.
-- SRP-3: GPU coverage implemented OR explicitly routed/blocked (Gate C). — **post-R1** (R1 ships CPU-only)
-- SRP-4: CCA lookahead hints + out-of-core performance validation (Gate D + Gate E). — **post-R1**
+- SRP-3: GPU coverage implemented OR explicitly routed/blocked (Gate C).: **post-R1** (R1 ships CPU-only)
+- SRP-4: CCA lookahead hints + out-of-core performance validation (Gate D + Gate E).: **post-R1**
 
-Definition of Done (Re-scoped R1 gate — authoritative over the original below):
-- Every op in the canonical inventory has an explicit support status for every public dtype/structure/device case. — **done**
-- No "silent wrong answers". — **done**
-- ~~Physics-Aware Optimizations verified~~ — **post-R1** (SRP-2)
-- ~~No "mysterious slow paths"~~ — **post-R1** (optimization)
-- ~~Benchmarks exist and failures are actionable~~ — **post-R1** (R1_QA benchmarks)
+Definition of Done (Re-scoped R1 gate: authoritative over the original below):
+- Every op in the canonical inventory has an explicit support status for every public dtype/structure/device case.: **done**
+- No "silent wrong answers".: **done**
+- ~~Physics-Aware Optimizations verified~~: **post-R1** (SRP-2)
+- ~~No "mysterious slow paths"~~: **post-R1** (optimization)
+- ~~Benchmarks exist and failures are actionable~~: **post-R1** (R1_QA benchmarks)
 
 Notes:
 - SRP correctness/coverage must include **property-aware variants** of operators once R1_PROPERTIES lands.
 - Streaming manager coverage is verified here.
-### R1_QA — Bench + Correctness Gates Enforced
+### R1_QA: Bench + Correctness Gates Enforced
 
 Status: - [ ]
 
 Goal: prevent regressions (correctness and performance).
 
 Progress:
-- Correctness CI scaffolded (`.github/workflows/ci.yml`, 3-OS × py3.12, `pytest`) — done.
-- Benchmark **harness + results** now live (`benchmarks/bench.py`, `BENCHMARKS.md`, linked from README) for the conference/showcase. Hard benchmark *gates* (≥0.90x NumPy, CI-enforced thresholds) — **post-R1**.
-- Dead-code / deprecated-feature sweep — **post-R1** (with R1_POLISH cleanup).
+- Correctness CI scaffolded (`.github/workflows/ci.yml`, 3-OS × py3.12, `pytest`): done.
+- Benchmark **harness + results** now live (`benchmarks/bench.py`, `BENCHMARKS.md`, linked from README) for the conference/showcase. Hard benchmark *gates* (≥0.90x NumPy, CI-enforced thresholds): **post-R1**.
+- Dead-code / deprecated-feature sweep: **post-R1** (with R1_POLISH cleanup).
 
 Deliverables:
 - Gate-style CI checks: correctness + persistence + a small benchmark suite.
 - Performance regressions are visible (even if not hard-failed at first).
 -  Sniff out deprecated features and dead code to clean up codebase
 
-### R1_POLISH — Professionalism & Polish
+### R1_POLISH: Professionalism & Polish
 
 Status: - [ ]
 
 Goal: Ensure `pycauset` meets high professional standards (NumPy-like quality).
 
 Deliverables:
-- [x] **Packaging:** Clean up loose DLLs — runtime DLLs now in `libs/`, import `.lib` and stray `bin/` removed.
+- [x] **Packaging:** Clean up loose DLLs: runtime DLLs now in `libs/`, import `.lib` and stray `bin/` removed.
 - [ ] **Docs:** Standardize Markdown links (no more `[[wiki_links]]`).
 - [x] **Linting:** `ruff` + `mypy` configured in `pyproject.toml` (and a `dev` extra). pyflakes `F` baseline is clean; `E`/`I`/`UP` style rules remain for incremental cleanup.
 - [ ] **Build:** Audit and reduce CMake warning suppressions.
 - [ ] **Namespace:** Refactor `__init__.py` to be minimal.
 - [ ] **Cleanup:** Remove dead code, legacy "eager" evaluation paths, and unused temporary file logic.
 
-### R1_SHIP — Shipping Readiness (production release)
+### R1_SHIP: Shipping Readiness (production release)
 
 Status: - [ ] (most done; Linux/macOS verify + release remain)
 
@@ -478,14 +478,14 @@ Deliverables (full checklist in `R1_EXECUTION.md` §Phase 4):
 - [x] CPU baseline: SIMD is runtime-dispatched (cpuid) + per-fn `target`; `-march=native` removed.
 - [x] CUDA decision: skipped for R1 (CPU-only); clean CPU fallback verified.
 - [x] Windows wheel builds + installs (pybind11 pinned 2.12.0).
-- [ ] Wheel portability: verify Linux/macOS builds (GCC/Clang stricter than MSVC) — first CI run.
+- [ ] Wheel portability: verify Linux/macOS builds (GCC/Clang stricter than MSVC): first CI run.
 - [x] API lock + versioning (setuptools_scm 0.5.1.dev) + changelog; `.pycauset` migration path N/A (format new).
 - [x] CI test matrix (3 OSes) scaffolded; benchmark visibility post-R1; teardown hang still open.
 - [x] Docs + license/attribution (`LICENSE` MIT, `THIRD_PARTY_NOTICES.md`).
 
-### R1_REL — Release Mechanics
+### R1_REL: Release Mechanics
 
-Status: - [ ] (checklist written; tag + PyPI publish remain — maintainer action)
+Status: - [ ] (checklist written; tag + PyPI publish remain: maintainer action)
 
 Goal: releasing is routine and reproducible.
 
@@ -501,7 +501,7 @@ Deliverables:
 These are intentionally downstream of the foundation release:
 
 - 100GB propagator matrix $K$ (capstone large-scale experiment)
-- Pauli–Jordan function $i\Delta$
+- Pauli-Jordan function $i\Delta$
 - Curved spacetimes (Schwarzschild / de Sitter)
 - User-defined spacetimes
 - A more robust user profiler tool - collect info on ram, gpu, cpu etc, so that pycauset can easily optimize performance based on user hardware

@@ -1,6 +1,6 @@
 # R1 Execution Status (canonical)
 
-**Status:** Active — single source of truth for Release-1 (backend) progress.
+**Status:** Active: single source of truth for Release-1 (backend) progress.
 **Last verified:** 2026-08-24
 **Roadmap graph:** `TODO.md` · **SRP gates:** `SUPPORT_READINESS_FRAMEWORK.md`
 
@@ -13,7 +13,7 @@
 R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 
 **Ship gate**
-- Correct across the public surface — no silent wrong answers.
+- Correct across the public surface: no silent wrong answers.
 - Every op has an explicit support status (CPU/GPU/out-of-core), even if that
   status is "CPU-only, naive out-of-core".
 - Known-broken things are documented as regression tests, not hidden.
@@ -36,15 +36,15 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 - `matrix([[1+2j, …]])` (complex **list** input) now produces a `ComplexFloat64Matrix`;
   it previously fell through the float branch and returned a broken abstract `Matrix`
   (no dtype, `to_numpy` raised `data type '' not understood`).
-- `pinv` implemented (normal-equations baseline + NumPy SVD fallback) — was `NotImplementedError`;
+- `pinv` implemented (normal-equations baseline + NumPy SVD fallback): was `NotImplementedError`;
   guarded by `TestPinv`.
 
-**Correctness — fixed and verified:**
-- `solve`/`lu`/`qr`/`svd`/`cholesky` — was the flagship silent-wrong-answer; root cause
+**Correctness: fixed and verified:**
+- `solve`/`lu`/`qr`/`svd`/`cholesky`: was the flagship silent-wrong-answer; root cause
   `unique_ptr<MatrixBase>` → `shared_ptr` (commit `204573b`).
 - `eigh`/`eigvalsh`/`eig`/`eigvals`/`eigvals_arnoldi` → NumPy fallback, incl. complex
   eigenvalues (`dabb9a2`, `ca15aae`); square-shape rejection (`90cee4c`).
-- `TriangularBitMatrix.random(n).size()` — false positive (`d8ae238`).
+- `TriangularBitMatrix.random(n).size()`: false positive (`d8ae238`).
 - OpRegistry shared across DLLs (out-of-line `instance()`, `1841382`).
 - `solve` property-as-gospel shortcuts restored (identity/zero/triangular, `09561e4`).
 - NumPy 1-D broadcast (SIMD fast-path ignored shape → guarded, `90cee4c`).
@@ -57,16 +57,16 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
   Per decision, elementwise integer arithmetic is now *documented* as C/NumPy wraparound
   (Philosophy.md, DType System.md §5.1, release1/dtypes.md); only `matmul` reductions throw
   `OverflowError`. Pinned by `TestIntegerOverflowPolicy`.
-- **"Heap-corruption Heisenbug" was MinGW-specific** — MSVC (with/without ASan) runs the
+- **"Heap-corruption Heisenbug" was MinGW-specific**: MSVC (with/without ASan) runs the
   full suite cleanly with zero ASan errors.
 
-**Remaining (no failures — deferred features, not correctness):**
+**Remaining (no failures: deferred features, not correctness):**
 - Eigen-*cache* persistence to the `.pycauset` container (avoid recompute on reload) is a
-  Phase 6 caching feature — still deferred. The roundtrip *correctness* of eigen is now
+  Phase 6 caching feature: still deferred. The roundtrip *correctness* of eigen is now
   pinned by the passing `test_cache_persistence_across_load` (recompute path).
 - `matrix(ndarray, backing_file=...)` now raises a clear `TypeError` instead of silently
   returning an in-memory matrix (the NumPy fast-path can't honour file backing).
-- Intermittent **teardown hang** in `release_tracked_matrices()` (at exit) — **mitigated**:
+- Intermittent **teardown hang** in `release_tracked_matrices()` (at exit): **mitigated**:
   `release_tracked_matrices()` now skips native `close()` during interpreter finalization
   (the OS reclaims mappings and `_cleanup_storage` handles temp files); the underlying
   root cause of the native close hang is tracked for a post-R1 fix.
@@ -79,41 +79,41 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
 
 ## 3. Ordered backlog
 
-**Phase 0 — environment + test scaffold**
+**Phase 0: environment + test scaffold**
 - [x] Pivot to `main`; hygiene; editable fix; edge-case tests + bug pins.
 - [x] MSVC toolchain installed; build working.
 
-**Phase 1 — correctness sprint**
+**Phase 1: correctness sprint**
 - [x] `solve`/`lu`/`qr`/`svd`/`cholesky`; eigen ops; `random` false-positive; OpRegistry; broadcast; property shortcuts.
-- [x] Heap-corruption Heisenbug — resolved (was MinGW-specific; MSVC build is clean).
+- [x] Heap-corruption Heisenbug: resolved (was MinGW-specific; MSVC build is clean).
 - [ ] Eigen-cache *persistence* (avoid recompute on reload) to `.pycauset` (Phase 6, deferred); roundtrip correctness is now pinned and green.
 - [x] `vector_scalar` (and vector) OpRegistry registration: `add_scalar`/`mul_scalar`/`dot`/
   `add_vector`/`subtract_vector`/`outer` now have contracts (`supports_streaming=true`).
 - [ ] Remaining int+complex error-by-design edge cases (lower priority). (Complex *list*
   construction fixed; complex scalar × real vector already errors-by-design.)
-- [x] Teardown hang in `release_tracked_matrices()` — mitigated (skip native `close()` during finalization).
+- [x] Teardown hang in `release_tracked_matrices()`: mitigated (skip native `close()` during finalization).
 
-**Phase 2 — hygiene (R1_POLISH)**
+**Phase 2: hygiene (R1_POLISH)**
 - [x] DLLs → `libs/` + `os.add_dll_directory` hook (verified: wheel installs + imports in a fresh venv).
 - [ ] wiki-links → markdown; ruff/mypy; slim `__init__.py`; remaining dead code.
 
-**Phase 3 — GPU + ship**
+**Phase 3: GPU + ship**
 - [x] **GPU skipped for R1** (decision: ship CPU-only). `ENABLE_CUDA=ON` + GPU routing/parity
-  (R1_GPU / SRP-3) deferred to the post-R1 continuous program — needs VS 2022 + CUDA 12.6
+  (R1_GPU / SRP-3) deferred to the post-R1 continuous program: needs VS 2022 + CUDA 12.6
   for the GTX 1060 (CUDA 13 dropped Pascal).
 - [ ] R1_QA gates: CI correctness scaffolded; persistence covered by the suite; benchmark
   visibility deferred.
 
-**Phase 4 — Shipping readiness (R1_SHIP, production-release checklist)**
+**Phase 4: Shipping readiness (R1_SHIP, production-release checklist)**
 - [x] **CPU baseline / SIMD runtime dispatch**: AVX-512 (`dot_product_avx512`) and AVX2
   elementwise kernels are runtime-dispatched via cpuid (`has_avx512_vpopcntdq()` /
   `has_avx2()`) with scalar fallbacks. Removed `-march=native` (it emitted native-ISA
-  instructions throughout the TU — the MinGW crash mode) and added per-function
+  instructions throughout the TU: the MinGW crash mode) and added per-function
   `__attribute__((target("avx2")))` to the AVX2 kernels so GCC/Clang build baseline-safe
   binaries with gated fast paths.
-- [x] **CUDA decision**: **skipped for R1** — shipping CPU-only. `cuda.is_available()` returns
+- [x] **CUDA decision**: **skipped for R1**: shipping CPU-only. `cuda.is_available()` returns
   `False` when `ENABLE_CUDA=OFF` (clean CPU fallback already works). GPU support (target
-  CC 6.1, no bundled NVIDIA DLLs — user-installed CUDA + dynamic load) is deferred.
+  CC 6.1, no bundled NVIDIA DLLs: user-installed CUDA + dynamic load) is deferred.
 - [x] **Windows wheel builds + installs**: `python -m build --wheel` now succeeds after
   pinning `pybind11==2.12.0` in `pyproject.toml` (the source is not yet pybind11-3.x
   compatible: `typing::Tuple` return-type deduction breaks in `bind_vector.cpp`). The wheel
@@ -131,7 +131,7 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
   `THIRD_PARTY_NOTICES.md` (Eigen MPL2, OpenBLAS BSD, pybind11 BSD, googletest BSD,
   scikit-build-core, setuptools_scm, CUDA-not-bundled).
 
-**Phase 5 — release mechanics (R1_REL)**
+**Phase 5: release mechanics (R1_REL)**
 - [x] `CHANGELOG.md` written (R1 → v0.5.1 section).
 - [x] **GPU-in-R1 decision: ship CPU-only** (skipped for R1; deferred to post-R1).
 - [ ] CI green on the 3-OS matrix (first GitHub run; exercises Linux/macOS wheels).
@@ -139,7 +139,7 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
 - [ ] Tag `v0.5.1` and cut the release (setuptools_scm will pick up the tag as the version).
 
 **R1 CPU-only is ready to ship.** The only remaining steps are maintainer release actions
-below (tag, CI/Linux verification, PyPI publish) — no further code changes required.
+below (tag, CI/Linux verification, PyPI publish): no further code changes required.
 
 Release checklist (run at tag time):
 1. `git tag v0.5.1 && git push --tags`.

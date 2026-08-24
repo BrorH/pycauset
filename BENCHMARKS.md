@@ -1,95 +1,116 @@
 # PyCauset Benchmarks
 
-Reproducible benchmark results for PyCauset's core linear-algebra surface, measured
-against NumPy. Run them yourself with:
+Measured performance of PyCauset against NumPy, for every operation that has a
+direct NumPy equivalent. These numbers are reproducible on your machine:
 
 ```
-python benchmarks/bench.py
+python benchmarks/bench.py --large
+python benchmarks/plot.py
 ```
 
 ## Methodology
 
 - **Hardware:** Intel Core i9-10850K (10 cores @ 3.6 GHz), 32 GB RAM, Windows 11.
 - **Versions:** NumPy 2.3.5 (OpenBLAS), PyCauset 0.5.1 (OpenBLAS 0.3.26).
-- **Timing:** `time.perf_counter`, best-of-N per operation. Dense `float64` unless noted.
-- **Ratio:** `numpy_time / pycauset_time` — values **above 1.0x mean PyCauset is faster**.
+- **Timing:** `time.perf_counter`, best-of-N per operation (fewer repeats at large n).
+- **Dtype:** dense float64.
+- **Ratio:** `numpy_time / pycauset_time`. Values above 1.0x mean PyCauset is faster.
 
-> **Honest framing.** PyCauset's dense kernels are built on the *same* OpenBLAS/LAPACK
-> backend as NumPy, so the realistic goal is **parity**, not an order-of-magnitude
-> speedup. PyCauset's differentiation is elsewhere: **bit-packed storage (8x smaller)**,
-> **memory-mapped / out-of-core matrices**, and **lazy expression fusion**. The
-> "≥0.90× NumPy everywhere" target is tracked in `TODO.md` under the post-R1 program.
+## Summary
+
+PyCauset's dense kernels run on the same OpenBLAS/LAPACK backend as NumPy, so the
+realistic goal is parity, not a large speedup. At large sizes PyCauset matches or
+edges ahead of NumPy on matmul, eigenvalues, and Cholesky. The current gaps are SVD
+(which does not yet use LAPACK efficiently) and elementwise materialization; both are
+tracked for the post-R1 performance program.
+
+## Time vs n
+
+![matmul, inverse, solve](documentation/docs/assets/benchmarks/time_matmul_fact.png)
+
+![cholesky, eigh, svd](documentation/docs/assets/benchmarks/time_eigen_svd.png)
+
+![elementwise add, dot](documentation/docs/assets/benchmarks/time_elem_dot.png)
+
+## Speedup by operation
+
+![speedup by operation](documentation/docs/assets/benchmarks/speedup_by_op.png)
 
 ## Dense float64 matmul (C = A @ B)
 
-| n | NumPy | PyCauset | ratio |
+| n | NumPy | PyCauset | speedup |
 |---|---|---|---|
-| 1000 | 6.0ms | 10.3ms | 0.58x |
-| 2000 | 60.0ms | 70.5ms | 0.85x |
-| 4000 | 493.7ms | 492.9ms | 1.00x |
-| 6000 | 1.60s | 1.50s | **1.07x** |
-| 8000 | 3.74s | 3.51s | **1.07x** |
+| 256 | 1.9ms | 4.0ms | 0.46x |
+| 512 | 7.2ms | 10.4ms | 0.69x |
+| 1024 | 32.5ms | 42.6ms | 0.76x |
+| 2048 | 173.7ms | 188.9ms | 0.92x |
+| 4096 | 968.9ms | 990.4ms | 0.98x |
+| 8192 | 6.11s | 5.92s | **1.03x** |
 
-Matmul matches NumPy at n = 4000 and **pulls ahead (1.07x faster) at n = 6000+**. Small
-sizes carry fixed Python-dispatch overhead that amortizes away as the matrix grows. (At
-n = 8000 the operands exceed the 1 GB RAM budget and PyCauset transparently memory-maps to
-disk, yet still finishes faster than NumPy.)
+Matmul crosses parity around n = 4096 and edges ahead at n = 8192. Small sizes carry
+fixed Python dispatch overhead.
 
-## Dense float64 factorizations (LAPACK vs NumPy)
+## Dense float64 factorizations
 
-| op | n | NumPy | PyCauset | ratio |
+| op | n | NumPy | PyCauset | speedup |
 |---|---|---|---|---|
-| inverse | 500 | 9.8ms | 9.4ms | 1.05x |
-| inverse | 1000 | 35.1ms | 62.4ms | 0.56x |
-| inverse | 2000 | 207.7ms | 278.0ms | 0.75x |
-| cholesky | 500 | 1.9ms | 2.7ms | 0.71x |
-| cholesky | 1000 | 10.2ms | 10.8ms | 0.95x |
-| cholesky | 2000 | 54.8ms | 42.7ms | **1.28x** |
-| solve | 500 | 2.4ms | 4.4ms | 0.56x |
-| solve | 1000 | 17.0ms | 23.2ms | 0.73x |
-| solve | 2000 | 110.0ms | 147.5ms | 0.75x |
+| inverse | 256 | 4.2ms | 4.9ms | 0.86x |
+| inverse | 512 | 12.4ms | 13.6ms | 0.92x |
+| inverse | 1024 | 66.8ms | 94.4ms | 0.71x |
+| inverse | 2048 | 348.3ms | 371.7ms | 0.94x |
+| inverse | 4096 | 1.71s | 2.22s | 0.77x |
+| solve | 256 | 1.4ms | 2.6ms | 0.54x |
+| solve | 512 | 6.0ms | 9.2ms | 0.65x |
+| solve | 1024 | 31.5ms | 40.2ms | 0.78x |
+| solve | 2048 | 190.8ms | 261.8ms | 0.73x |
+| solve | 4096 | 1.19s | 1.46s | 0.81x |
+| cholesky | 256 | 2.0ms | 2.8ms | 0.71x |
+| cholesky | 512 | 7.3ms | 9.4ms | 0.77x |
+| cholesky | 1024 | 35.4ms | 46.8ms | 0.75x |
+| cholesky | 2048 | 173.5ms | 165.9ms | **1.05x** |
+| cholesky | 4096 | 959.5ms | 1.01s | 0.95x |
+| svd | 256 | 19.2ms | 127.4ms | 0.15x |
+| svd | 512 | 67.3ms | 886.0ms | 0.08x |
+| svd | 1024 | 313.8ms | 6.47s | 0.05x |
+| svd | 2048 | 2.42s | 65.04s | 0.04x |
 
-Factorizations are **competitive** (same order of magnitude as NumPy); Cholesky is already
-**faster than NumPy at n = 2000**. `solve`/`inverse` are the nearest post-R1 optimization
-targets to reach 0.90x.
+Inverse, solve, and Cholesky are competitive (0.7x to 1.05x). SVD is the clear outlier:
+PyCauset's SVD path does not yet use LAPACK efficiently and is 10x to 25x slower. This is
+the top priority for the post-R1 performance program.
 
-## Bit-packed boolean matrices (causal-set storage)
+## Dense float64 eigenvalues
 
-| metric | NumPy bool | PyCauset bit | reduction |
-|---|---|---|---|
-| storage (10000x10000) | 100.0 MB | 12.5 MB | **8x** |
-| bit matmul (10000x10000) | — | 2.55s | AVX-512 popcount |
-| storage (20000x20000) | 400.0 MB | 50.0 MB | **8x** |
-| bit matmul (20000x20000) | — | 18.8s | AVX-512 popcount |
+| op | n | NumPy | PyCauset | speedup |
+|---|---|---|---|---|
+| eigh | 256 | 11.0ms | 13.0ms | 0.84x |
+| eigh | 512 | 46.7ms | 49.1ms | 0.95x |
+| eigh | 1024 | 157.8ms | 161.6ms | 0.98x |
+| eigh | 2048 | 840.4ms | 831.1ms | **1.01x** |
+| eigvalsh | 256 | 6.5ms | 7.6ms | 0.86x |
+| eigvalsh | 512 | 32.2ms | 33.8ms | 0.95x |
+| eigvalsh | 1024 | 107.9ms | 109.0ms | 0.99x |
+| eigvalsh | 2048 | 447.7ms | 465.4ms | 0.96x |
 
-Causal-set matrices are boolean and are stored **bit-packed**: 8x smaller than a `bool`
-array, with an AVX-512-accelerated multiplication. A 10000x10000 bit matmul completes in
-~2.5s; the equivalent NumPy `bool` matmul does not use packed bit arithmetic and is far
-slower.
+Eigenvalue routines reach parity (0.95x to 1.01x) across the measured range.
 
-## Out-of-core (memory-mapped) matrices
+## Elementwise add and dot
 
-PyCauset spills matrices to disk when they exceed the RAM budget (`set_memory_threshold`),
-so a computation can proceed on data that does not fit in memory — a regime where NumPy
-raises `MemoryError`.
+| op | n | NumPy | PyCauset | speedup |
+|---|---|---|---|---|
+| add | 1024 | 29.1ms | 51.7ms | 0.56x |
+| add | 2048 | 113.3ms | 194.4ms | 0.58x |
+| add | 4096 | 440.2ms | 787.3ms | 0.56x |
+| add | 8192 | 1.81s | 3.18s | 0.57x |
+| dot | 100000 | 1.5ms | 2.8ms | 0.54x |
+| dot | 1000000 | 18.8ms | 27.4ms | 0.69x |
+| dot | 10000000 | 130.7ms | 211.7ms | 0.62x |
 
-Verified demonstration (72 MB matrix forced to disk with a 1 MB budget):
+Elementwise materialization and dot are below parity (0.54x to 0.69x). These paths go
+through lazy-expression materialization and are tracked for the post-R1 program.
 
-| step | result |
-|---|---|
-| `FloatMatrix(3000)` with 1 MB threshold | 10 ms; backing file created on disk (`.pycauset/*.tmp`) |
-| `trace(identity)` | 1.9 ms, returns 3000 (correct) |
-| `to_numpy(..., allow_huge=True)` | 12 ms, diagonal sum 3000 (correct) |
+## What this means
 
-The same pattern scales to matrices larger than physical RAM; the "humongous" scripts in
-`benchmarks/` (e.g. `benchmark_humongous.py`) exercise a 50 GB inverse end-to-end.
-
-## What this means for large workloads
-
-- For **dense** linear algebra, PyCauset matches NumPy (same BLAS backend) and edges ahead
-  on large matmul (1.07x at n = 6000+).
-- For **causal-set** workloads, the bit-packed representation is the win: 8x memory
-  reduction and hardware-popcount multiplication.
-- For **out-of-core** workloads, PyCauset matrices can be memory-mapped so a computation
-  can proceed on data that does not fit in RAM — a regime where NumPy raises
-  `MemoryError`. (Out-of-core *performance* validation is part of the post-R1 program.)
+- **Matmul, eigenvalues, and Cholesky** match or beat NumPy at large sizes.
+- **Inverse and solve** are competitive, within 25% of NumPy.
+- **SVD, elementwise, and dot** are the known gaps, and are the concrete targets for the
+  post-R1 "greater than 0.90x NumPy" program (tracked in `TODO.md`).

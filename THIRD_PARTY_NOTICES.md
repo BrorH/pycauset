@@ -26,15 +26,15 @@ by those licenses. For PyCauset's own license, see `LICENSE` (MIT).
 - **Attribution:** © 2016 Wenzel Jakob <wenzel.jakob@epfl.ch> and contributors.
 - Source: fetched via CMake FetchContent (v2.12.0).
 
-### GoogleTest (1.14.0) — test-only
+### GoogleTest (1.14.0): test-only
 - **License:** BSD-3-Clause.
 - **Attribution:** © Google Inc. and contributors.
 - Not shipped in the runtime package; used only by the C++ test targets.
 
 ## Build-time dependencies (not bundled in the runtime package)
 
-- **scikit-build-core** — Apache-2.0 / BSD-style (see project metadata).
-- **setuptools_scm** — MIT.
+- **scikit-build-core**: Apache-2.0 / BSD-style (see project metadata).
+- **setuptools_scm**: MIT.
 
 ## Optional accelerator
 

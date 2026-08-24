@@ -23,9 +23,9 @@
 When adding a new operation, you must decide and/or implement support in each of these axes:
 
 1. **Operand rank**
-    - Matrix–Matrix
-    - Vector–Vector
-    - Matrix–Vector and Vector–Matrix (if applicable)
+    - Matrix-Matrix
+    - Vector-Vector
+    - Matrix-Vector and Vector-Matrix (if applicable)
 
 2. **Scalar kind + flags**
     - Fundamental kinds: `bit`, `int`, `float`

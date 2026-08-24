@@ -49,7 +49,7 @@ Originally, PyCauset was built solely for scale ("If it fits in RAM, use numpy")
 *   **Implementation**: We aggressively resist type promotion.
     *   **Underpromotion**: Operations execute in the smallest selected dtype, and results are stored in that same dtype. We do *not* silently widen intermediates.
     *   **Mixed Types**: If a float participates, the result is float. Otherwise, we prefer the smallest dtype.
-    *   **Overflow**: Integer *elementwise* arithmetic (add/sub/mul/div and scalar variants) follows C/NumPy two's-complement wraparound semantics — overflow wraps silently, by design. Integer *reductions* (`matmul`) use a wider internal accumulator and raise `OverflowError` on overflow; `dot` returns a Python `float` (exact). Float overflow follows IEEE-754 (`inf`/`nan`).
+    *   **Overflow**: Integer *elementwise* arithmetic (add/sub/mul/div and scalar variants) follows C/NumPy two's-complement wraparound semantics: overflow wraps silently, by design. Integer *reductions* (`matmul`) use a wider internal accumulator and raise `OverflowError` on overflow; `dot` returns a Python `float` (exact). Float overflow follows IEEE-754 (`inf`/`nan`).
 *   **Example**: Multiplying an `IntegerMatrix` by a float scalar (`3.5`) produces an `IntegerMatrix` with a metadata scalar factor. The data on disk remains integers.
 
 ### 7. Efficient Storage & Persistence

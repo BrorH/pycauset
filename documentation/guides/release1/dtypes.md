@@ -35,7 +35,7 @@ This is a semantics choice (not an overflow workaround) and may emit a dtype-pol
 
 Overflow behavior depends on the operation class:
 
-- **Elementwise** (`add`, `sub`, `mul`, `div`, scalar variants): integer overflow **wraps silently** (C/NumPy two's-complement semantics). This is the documented behavior — no error, no auto-promotion.
+- **Elementwise** (`add`, `sub`, `mul`, `div`, scalar variants): integer overflow **wraps silently** (C/NumPy two's-complement semantics). This is the documented behavior: no error, no auto-promotion.
 - **Reductions** (`matmul`): uses a wider internal accumulator and **throws `OverflowError`** when the result doesn't fit the output dtype. `dot` returns a Python `float` (exact for results within float64 precision).
 
 ### Overflow-risk warning for large integer matmul

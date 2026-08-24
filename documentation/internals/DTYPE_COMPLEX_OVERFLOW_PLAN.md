@@ -14,11 +14,11 @@ As a result:
 
 ## Phase completion status
 
-- **Phase 0 — Documentation & policy grounding:** Complete
-- **Phase 1 — Centralize promotion + overflow policies:** Complete
-- **Phase 2 — Scalar system expansion:** Complete (int8/int16/int32/int64, uint8/uint16/uint32/uint64, float16 end-to-end through factories/promotion/CPU dispatch/persistence/bindings/NumPy for the core op surface)
-- **Phase 3 — Complex system integration:** Complete (**complex_float16/32/64 are first-class dtypes** through factories/promotion/CPU dispatch/persistence/bindings/NumPy for core ops)
-- **Phase 4 — Coverage enforcement:** Complete (support matrix declared + enforced in tests/tools)
+- **Phase 0: Documentation & policy grounding:** Complete
+- **Phase 1: Centralize promotion + overflow policies:** Complete
+- **Phase 2: Scalar system expansion:** Complete (int8/int16/int32/int64, uint8/uint16/uint32/uint64, float16 end-to-end through factories/promotion/CPU dispatch/persistence/bindings/NumPy for the core op surface)
+- **Phase 3: Complex system integration:** Complete (**complex_float16/32/64 are first-class dtypes** through factories/promotion/CPU dispatch/persistence/bindings/NumPy for core ops)
+- **Phase 4: Coverage enforcement:** Complete (support matrix declared + enforced in tests/tools)
 
 This file is an implementation plan. The authoritative dtype behavior documentation lives in:
 
@@ -155,7 +155,7 @@ This strikes a balance:
 
 ### 5.2 Bit is special (scale-first exceptions)
 
-Bit matrices/vectors are used to represent large binary structures (e.g., spacetime relations) where the storage is often 10s–100s of GB.
+Bit matrices/vectors are used to represent large binary structures (e.g., spacetime relations) where the storage is often 10s-100s of GB.
 
 As a result:
 
@@ -190,7 +190,7 @@ Warning controls (exact API TBD, but must exist):
 
 ### 6.1 Runtime behavior
 
-- ~~Overflow is a hard error.~~ (superseded — see note above)
+- ~~Overflow is a hard error.~~ (superseded: see note above)
 - PyCauset does not auto-promote storage to avoid overflow.
 
 ### 6.1.1 Why this focuses on integer overflow (and not float overflow)
@@ -295,29 +295,29 @@ Goal:
 
 ## 8) Implementation sequence (phased)
 
-### Phase 0 — Documentation & policy grounding (Complete)
+### Phase 0: Documentation & policy grounding (Complete)
 - Update project philosophy to explicitly define underpromotion and overflow behavior.
 - Add roadmap entry for multi-int widths + unsigned.
 - Add this plan doc.
 
-### Phase 1 — Centralize promotion + overflow policies (Complete)
+### Phase 1: Centralize promotion + overflow policies (Complete)
 - Single promotion resolver per op.
 - Central overflow policy + preflight warning for integer matmul.
 - Reduction-aware accumulator width for integer `dot`/`matmul` + required user warning when accumulator widens.
 - Add mandatory tests for resolver correctness, warning emission, and reduction accumulator selection (see “Mandatory tests”).
 
-### Phase 2 — Scalar system expansion (Complete)
+### Phase 2: Scalar system expansion (Complete)
 - Add integer widths + unsigned.
 - Ensure constructors, IO, numpy interop, and basic ops exist.
 
-### Phase 3 — Complex system integration (Complete)
+### Phase 3: Complex system integration (Complete)
 - Core complex-float dtype integration is implemented (CPU + persistence + Python/NumPy for key ops).
-- See “Phase 3 — Complex system integration (Detailed)” in Section 8.1.
+- See “Phase 3: Complex system integration (Detailed)” in Section 8.1.
 
-### Phase 4 — Coverage enforcement (Complete)
+### Phase 4: Coverage enforcement (Complete)
 - Support matrix exists and is executed by unit tests and a dev checker tool, so declared support can’t silently regress.
 
-## 8.1) Phase 3 — Complex system integration (Detailed)
+## 8.1) Phase 3: Complex system integration (Detailed)
 
 **Objective:** Make complex **float** dtypes first-class and integrate them into the same end-to-end pipeline as real dtypes (frontend allocation → promotion resolver → CPU/GPU dispatch → persistence → Python).
 

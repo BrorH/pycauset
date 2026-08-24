@@ -75,6 +75,23 @@ PyCauset has an optimized C++ core with Python bindings, which is built specific
 - **Fields**: scalar fields with [propagator](https://en.wikipedia.org/wiki/Propagator) and Pauli-Jordan functions.
 - **Visualization**: interactive 2D/3D embeddings and [Hasse diagrams](https://en.wikipedia.org/wiki/Hasse_diagram).
 
+## Performance
+
+PyCauset's dense kernels use the same OpenBLAS/LAPACK backend as NumPy, so the goal is parity rather than a large speedup. Measured against NumPy 2.3.5 on a 10-core i9 (speedup = numpy time / pycauset time, above 1.0 means faster):
+
+| operation | small n | large n | status |
+|---|---|---|---|
+| matmul | 0.46x (n=256) | 1.03x (n=8192) | parity at scale |
+| eigh | 0.84x (n=256) | 1.01x (n=2048) | parity |
+| eigvalsh | 0.86x (n=256) | 0.96x (n=2048) | parity |
+| cholesky | 0.71x (n=256) | 0.95x (n=4096) | parity |
+| inverse | 0.86x (n=256) | 0.77x (n=4096) | competitive |
+| solve | 0.54x (n=256) | 0.81x (n=4096) | competitive |
+| elementwise add | 0.56x (n=1024) | 0.57x (n=8192) | known gap |
+| svd | 0.15x (n=256) | 0.04x (n=2048) | known gap |
+
+Small n carries fixed Python dispatch overhead that amortizes as the matrix grows. SVD and elementwise are the top targets for the post-R1 ">= 0.90x NumPy" program. Full reproducible numbers and graphs: [BENCHMARKS.md](BENCHMARKS.md).
+
 ## Gallery
 
 Both images come straight from the public API. Reproduce them with `scripts/make_r1_gallery.py`.
