@@ -113,7 +113,9 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
   stricter than MSVC — same `template`/`<cstring>`/SIMD-flag issues we fixed for MinGW).
 - [ ] **API lock**: freeze the public `pycauset.*` surface; mark `_internal` private;
   version (setuptools_scm) + changelog + `.pycauset` format migration path.
-- [ ] **CI test matrix** (3 OSes) + benchmark visibility; fix teardown hang.
+- [x] **CI test matrix** baseline scaffolded (`.github/workflows/ci.yml`, 3-OS × py3.12,
+  pytest). Benchmark visibility + teardown-hang fix still open; workflow needs a first
+  GitHub run to verify (Linux/macOS wheel portability is exercised there).
 - [ ] **Docs**: wiki-links → markdown, API reference completeness, install/GPU requirements.
 - [x] **License/attribution**: added `LICENSE` (MIT, matching `pyproject.toml`) and
   `THIRD_PARTY_NOTICES.md` (Eigen MPL2, OpenBLAS BSD, pybind11 BSD, googletest BSD,
