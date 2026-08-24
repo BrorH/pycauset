@@ -2,6 +2,23 @@
 
 namespace pycauset {
 
+OpRegistry& OpRegistry::instance() {
+    static OpRegistry reg;
+    return reg;
+}
+
+void OpRegistry::register_op(const OpContract& contract) {
+    contracts_[contract.name] = contract;
+}
+
+const OpContract* OpRegistry::get_contract(const std::string& name) const {
+    auto it = contracts_.find(name);
+    if (it != contracts_.end()) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
 // This file registers the standard operations with the OpRegistry.
 // It is linked into the core library and runs at static initialization time.
 

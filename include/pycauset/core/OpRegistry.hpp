@@ -18,22 +18,13 @@ struct OpContract {
 
 class OpRegistry {
 public:
-    static OpRegistry& instance() {
-        static OpRegistry reg;
-        return reg;
-    }
-
-    void register_op(const OpContract& contract) {
-        contracts_[contract.name] = contract;
-    }
-
-    const OpContract* get_contract(const std::string& name) const {
-        auto it = contracts_.find(name);
-        if (it != contracts_.end()) {
-            return &it->second;
-        }
-        return nullptr;
-    }
+    // NOTE: defined out-of-line in src/core/OpRegistration.cpp so that the
+    // function-local static registry is a SINGLE object shared across DLLs
+    // (pycauset_core.dll registers; _pycauset.pyd reads). An inline definition
+    // here would give every DLL its own (empty) registry.
+    static OpRegistry& instance();
+    void register_op(const OpContract& contract);
+    const OpContract* get_contract(const std::string& name) const;
 
 private:
     OpRegistry() = default;
