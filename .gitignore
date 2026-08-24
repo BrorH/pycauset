@@ -109,3 +109,12 @@ tools/bin/
 event.json
 bin/
 tools/test_release_locally.sh
+
+# --- Stray artifacts (de-AI-ification) ---
+/_vals
+/_vecs
+/_codeql_detected_source_root
+/tmp_debug_cache/
+/.pycauset_stability/
+/tmp_verification_phase3_4/
+build_*/
