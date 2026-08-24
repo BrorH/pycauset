@@ -1090,37 +1090,6 @@ def solve_triangular(*_args: Any, **_kwargs: Any) -> Any:
     return result
 
 
-def lu(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError("lu is not available yet")
-
-
-def cholesky(*_args: Any, **_kwargs: Any) -> Any:
-    if len(_args) < 1:
-        raise TypeError("cholesky(a) requires a matrix argument")
-
-    a = _args[0]
-    deps = _kwargs.get("deps")
-    if deps is None:
-        raise TypeError("cholesky requires deps")
-
-    fn = getattr(deps.native, "cholesky", None)
-    if callable(fn):
-        result = fn(a)
-        _track_and_mark_temporary_if_native(result, deps=deps)
-        return result
-
-    np_module = deps.np_module
-    if np_module is None:
-        raise NotImplementedError("cholesky is not available (no native/NumPy fallback)")
-
-    L = np_module.linalg.cholesky(_to_numpy_matrix(a, deps=deps))
-    return _as_pycauset_array(L, deps=deps)
-
-
-def svd(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError("svd is not available yet")
-
-
 def pinv(*_args: Any, **_kwargs: Any) -> Any:
     raise NotImplementedError("pinv is not available yet")
 
