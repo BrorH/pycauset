@@ -18,22 +18,35 @@ void bind_math_ops(py::module_& m) {
     }, py::arg("x"), "Compute the L2 norm of a vector");
 
     m.def("cholesky", [](const pycauset::MatrixBase& a) {
-        return pycauset::cholesky(a); 
+        auto out = pycauset::cholesky(a);
+        return std::shared_ptr<pycauset::MatrixBase>(out.release());
     }, py::arg("a"), "Compute Cholesky decomposition");
 
     m.def("qr", [](const pycauset::MatrixBase& a) {
-        return pycauset::qr(a);
+        auto [q, r] = pycauset::qr(a);
+        return py::make_tuple(
+            std::shared_ptr<pycauset::MatrixBase>(q.release()),
+            std::shared_ptr<pycauset::MatrixBase>(r.release()));
     }, py::arg("a"), "Compute QR decomposition");
 
     m.def("lu", [](const pycauset::MatrixBase& a) {
-        return pycauset::lu(a);
+        auto [p, l, u] = pycauset::lu(a);
+        return py::make_tuple(
+            std::shared_ptr<pycauset::MatrixBase>(p.release()),
+            std::shared_ptr<pycauset::MatrixBase>(l.release()),
+            std::shared_ptr<pycauset::MatrixBase>(u.release()));
     }, py::arg("a"), "Compute LU decomposition");
 
     m.def("svd", [](const pycauset::MatrixBase& a) {
-        return pycauset::svd(a); // returns tuple(U, S, VT)
+        auto [u, s, vt] = pycauset::svd(a);
+        return py::make_tuple(
+            std::shared_ptr<pycauset::MatrixBase>(u.release()),
+            std::shared_ptr<pycauset::VectorBase>(s.release()),
+            std::shared_ptr<pycauset::MatrixBase>(vt.release()));
     }, py::arg("a"), "Compute SVD decomposition");
 
     m.def("solve", [](const pycauset::MatrixBase& a, const pycauset::MatrixBase& b) {
-        return pycauset::solve(a, b);
+        auto out = pycauset::solve(a, b);
+        return std::shared_ptr<pycauset::MatrixBase>(out.release());
     }, py::arg("a"), py::arg("b"), "Solve linear system AX=B");
 }

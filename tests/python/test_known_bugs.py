@@ -1,60 +1,38 @@
 """Regression pins for known correctness bugs.
 
-Each test runs the buggy path in an *isolated subprocess* (because some of
-these trigger native heap corruption / access violations that would kill the
-whole test process) and asserts the CORRECT behaviour.
-
-Marked ``unittest.expectedFailure``: while broken they read as xfail; the
-moment the underlying bug is fixed they report as an *unexpected success*,
-which is the signal to remove the marker. Do NOT convert to ``skip``.
+Each still-broken path is marked ``unittest.expectedFailure``; when fixed it
+reports as an *unexpected success*, signalling the marker can be removed.
 """
 
-import subprocess
-import sys
 import unittest
 
+import numpy as np
+
+import pycauset as pc
 import pycauset._pycauset as native
 
 
-def _run_py(code):
-    return subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True
-    )
-
-
 class TestKnownBugs(unittest.TestCase):
-    @unittest.expectedFailure
     def test_solve_returns_correct_solution(self):
-        # BUG: solve() returns a result that does NOT satisfy A @ x = b,
-        # even though invert() and matmul are individually correct.
-        code = (
-            "import pycauset as pc, numpy as np\n"
-            "rng = np.random.default_rng(0)\n"
-            "a = rng.random((5, 5)); a += np.eye(5) * 5\n"
-            "b = rng.random((5, 2))\n"
-            "x = np.array(pc.solve(pc.matrix(a), pc.matrix(b)))\n"
-            "print('OK' if np.allclose(a @ x, b, atol=1e-8) else 'WRONG')\n"
-        )
-        r = _run_py(code)
-        self.assertIn("OK", r.stdout)
+        # FIXED 2026-08-24: native solve/lu returned unique_ptr<MatrixBase>,
+        # which pybind11 mishandled (dangling downcast). Now returned as shared_ptr.
+        rng = np.random.default_rng(0)
+        a = rng.random((5, 5))
+        a += np.eye(5) * 5
+        b = rng.random((5, 2))
+        x = np.array(pc.solve(pc.matrix(a), pc.matrix(b)))
+        np.testing.assert_allclose(a @ x, b, atol=1e-8)
 
-    @unittest.expectedFailure
     def test_lu_completes_and_reconstructs(self):
-        # BUG: lu() raises MemoryError in result bookkeeping after computing
-        # the factorization (get_backing_file() on the permutation matrix).
-        code = (
-            "import pycauset as pc, numpy as np\n"
-            "a = np.random.default_rng(0).random((5, 5))\n"
-            "p, l, u = pc.lu(pc.matrix(a))\n"
-            "rec = np.array(p) @ np.array(l) @ np.array(u)\n"
-            "print('OK' if np.allclose(rec, a, atol=1e-8) else 'WRONG')\n"
-        )
-        r = _run_py(code)
-        self.assertIn("OK", r.stdout)
+        a = np.random.default_rng(0).random((5, 5))
+        p, l, u = pc.lu(pc.matrix(a))
+        rec = np.array(p) @ np.array(l) @ np.array(u)
+        np.testing.assert_allclose(rec, a, atol=1e-8)
 
     @unittest.expectedFailure
     def test_triangular_bit_matrix_random_size(self):
-        # BUG: TriangularBitMatrix.random(5) reports the wrong .size().
+        # BUG (open): TriangularBitMatrix.random(5) reports .size() == 25 (n*n)
+        # instead of 5.
         tbm = native.TriangularBitMatrix.random(5, p=0.5)
         self.assertEqual(tbm.size(), 5)
 
