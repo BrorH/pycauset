@@ -624,6 +624,11 @@ def load(path: str | Path) -> Any:
     return _persistence.load(path, deps=_PERSISTENCE_DEPS)
 
 
+def load_matrix(path: str | Path) -> Any:
+    """Load a matrix/vector from a .pycauset backing file (alias of load)."""
+    return _persistence.load(path, deps=_PERSISTENCE_DEPS)
+
+
 def _array_to_pycauset(arr: Any) -> Any:
     if _np is None:
         raise RuntimeError("NumPy is required for NumPy-based imports")

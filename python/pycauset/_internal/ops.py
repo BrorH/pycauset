@@ -765,6 +765,9 @@ def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
 
 def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     """Eigen-decomposition for real symmetric / complex Hermitian matrices (native preferred)."""
+    shape = _safe_rows_cols(a)
+    if shape is not None and shape[0] != shape[1]:
+        raise ValueError("eigh requires a square matrix")
     rec = _record_io_trace("eigh", [a], deps=deps)
     _prefetch_if_streaming(rec, [a], deps=deps)
     
@@ -813,6 +816,9 @@ def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
 
 
 def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
+    shape = _safe_rows_cols(a)
+    if shape is not None and shape[0] != shape[1]:
+        raise ValueError("eigvalsh requires a square matrix")
     rec = _record_io_trace("eigvalsh", [a], deps=deps)
     _prefetch_if_streaming(rec, [a], deps=deps)
     try:
@@ -915,6 +921,9 @@ def _try_load_eigen_cache(a: Any, name: str, cls: Any, deps: OpsDeps) -> Any | N
 
 def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     """Eigen-decomposition for general matrices (native preferred, NumPy fallback)."""
+    shape = _safe_rows_cols(a)
+    if shape is not None and shape[0] != shape[1]:
+        raise ValueError("eig requires a square matrix")
     rec = _record_io_trace("eig", [a], deps=deps)
     _prefetch_if_streaming(rec, [a], deps=deps)
     
@@ -955,6 +964,9 @@ def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
 
 def eigvals(a: Any, *, deps: OpsDeps) -> Any:
     """Eigenvalues for general matrices (native preferred, NumPy fallback)."""
+    shape = _safe_rows_cols(a)
+    if shape is not None and shape[0] != shape[1]:
+        raise ValueError("eigvals requires a square matrix")
     rec = _record_io_trace("eigvals", [a], deps=deps)
     _prefetch_if_streaming(rec, [a], deps=deps)
 

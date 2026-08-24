@@ -263,6 +263,8 @@ namespace {
                                          !rd->has_view_offset() && !ad->has_view_offset() && !bd->has_view_offset();
                                          
                     if (is_contiguous &&
+                        ad->rows() == bd->rows() && ad->cols() == bd->cols() &&
+                        rd->rows() == ad->rows() && rd->cols() == ad->cols() &&
                         rd->get_scalar() == 1.0 && ad->get_scalar() == 1.0 && bd->get_scalar() == 1.0) {
                             parallel_simd_binary_op<T>(a, b, result, kernel);
                             return true;
