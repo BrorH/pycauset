@@ -26,32 +26,31 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 
 ## 2. Measured state (2026-08-24)
 
-**Full suite (MSVC build, no crash): 487 passed / 21 failed / 29 skipped.**
+**Full suite (MSVC build, no crash): 507 passed / 1 failed / 29 skipped.**
 
 **Correctness — fixed and verified:**
 - `solve`/`lu`/`qr`/`svd`/`cholesky` — was the flagship silent-wrong-answer; root cause
   `unique_ptr<MatrixBase>` → `shared_ptr` (commit `204573b`).
 - `eigh`/`eigvalsh`/`eig`/`eigvals`/`eigvals_arnoldi` → NumPy fallback, incl. complex
-  eigenvalues (`dabb9a2`, `ca15aae`).
+  eigenvalues (`dabb9a2`, `ca15aae`); square-shape rejection (`90cee4c`).
 - `TriangularBitMatrix.random(n).size()` — false positive (`d8ae238`).
+- OpRegistry shared across DLLs (out-of-line `instance()`, `1841382`).
+- `solve` property-as-gospel shortcuts restored (identity/zero/triangular, `09561e4`).
+- NumPy 1-D broadcast (SIMD fast-path ignored shape → guarded, `90cee4c`).
+- `load_matrix` alias; `eigh`/`eig` marked non-streaming routing (`cdb14eb`).
 - Dead overridden stubs removed (`17ab757`).
-- **"Heap-corruption Heisenbug" was MinGW-specific** — the MinGW build crashed on the
-  bit-matrix matmul / `invert` / teardown, but the MSVC build (with and without ASan)
-  runs the full suite cleanly with zero ASan errors. Root cause of the MinGW crashes is
-  likely the `-march=native` SIMD codegen; the MSVC toolchain is the fix.
+- **"Heap-corruption Heisenbug" was MinGW-specific** — MSVC (with/without ASan) runs the
+  full suite cleanly with zero ASan errors.
 
-**Remaining (21 failures — R1_CPU Phase 6/7 *feature completeness*, not crashes):**
-- ~13 "op not registered in OpRegistry" (trace/determinant/frobenius_norm/lu/qr/solve/svd
-  op-contracts, eigen op-contracts).
-- `load_matrix` missing (eigen caching test).
-- `vector_scalar` op family unregistered; int64/uint+complex raw `TypeError`.
-- NumPy 1-D broadcast gap; solve-identity property shortcut.
+**Remaining (1 failure — Phase 6 *feature completeness*, not correctness):**
+- `test_eigen_caching::test_cache_persistence_across_load`: eigen cache is not persisted
+  to the `.pycauset` backing file (`matrix(backing_file=...)` + `sync()` doesn't write
+  the file). Eigen-cache persistence is a Phase 6 caching feature — deferred.
 - Intermittent **teardown hang** in `release_tracked_matrices()` (at exit; doesn't affect
-  test results).
+  results).
 
-**Environment:** MSVC Build Tools 2026 installed → **canonical build works**
-(`build_msvc`). GPU present: GTX 1060 6GB + CUDA 12.6 toolkit; CUDA not yet compiled in
-(`ENABLE_CUDA=OFF`) — to enable + verify R1_GPU.
+**Environment:** MSVC Build Tools 2026 → canonical build works (`build_msvc`). GPU present
+(GTX 1060 6GB + CUDA 12.6); CUDA not yet compiled in (`ENABLE_CUDA=OFF`).
 
 ## 3. Ordered backlog
 
@@ -60,10 +59,10 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 - [x] MSVC toolchain installed; build working.
 
 **Phase 1 — correctness sprint**
-- [x] `solve`/`lu`/`qr`/`svd`/`cholesky`; eigen ops; `random` false-positive.
+- [x] `solve`/`lu`/`qr`/`svd`/`cholesky`; eigen ops; `random` false-positive; OpRegistry; broadcast; property shortcuts.
 - [x] Heap-corruption Heisenbug — resolved (was MinGW-specific; MSVC build is clean).
-- [ ] Register Phase 7 ops in OpRegistry (trace/determinant/frobenius_norm/lu/qr/solve/svd).
-- [ ] `load_matrix`; `vector_scalar` registration; int+complex error-by-design; NumPy 1-D broadcast.
+- [ ] Eigen-cache persistence to `.pycauset` (Phase 6, deferred).
+- [ ] `vector_scalar` registration; int+complex error-by-design (lower priority).
 - [ ] Teardown hang in `release_tracked_matrices()`.
 
 **Phase 2 — hygiene (R1_POLISH)**
