@@ -463,7 +463,7 @@ Goal: Ensure `pycauset` meets high professional standards (NumPy-like quality).
 Deliverables:
 - [x] **Packaging:** Clean up loose DLLs — runtime DLLs now in `libs/`, import `.lib` and stray `bin/` removed.
 - [ ] **Docs:** Standardize Markdown links (no more `[[wiki_links]]`).
-- [x] **Linting:** `ruff` + `mypy` configured in `pyproject.toml` (and a `dev` extra). Baseline run + fixes remain.
+- [x] **Linting:** `ruff` + `mypy` configured in `pyproject.toml` (and a `dev` extra). pyflakes `F` baseline is clean; `E`/`I`/`UP` style rules remain for incremental cleanup.
 - [ ] **Build:** Audit and reduce CMake warning suppressions.
 - [ ] **Namespace:** Refactor `__init__.py` to be minimal.
 - [ ] **Cleanup:** Remove dead code, legacy "eager" evaluation paths, and unused temporary file logic.
