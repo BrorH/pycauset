@@ -56,9 +56,18 @@ Verified-correct primitives: `matmul` ✅, `inverse` ✅ (`A @ inv ≈ I`).
 - No MSVC (`cl.exe`) is installed on this machine — VS 18 is an empty leftover dir and
   the old `build*/` dirs reference a toolchain that no longer exists. The only C++
   compiler present is MinGW `g++` 15.2 (WinLibs POSIX-UCRT).
-- MinGW rebuild is viable: `cmake -S . -B build_mingw -G Ninja -DCMAKE_C_COMPILER=gcc
-  -DCMAKE_CXX_COMPILER=g++ -DPython_EXECUTABLE=.venv/Scripts/python.exe` configures OK.
+- MinGW rebuild is **DONE and working** (committed `b25f1c1`): `cmake -S . -B build_mingw
+  -G Ninja -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DPython_EXECUTABLE=.venv/Scripts/python.exe`.
+  Requires the MinGW runtime DLLs (`libstdc++`, `libgcc_s_seh`, `libwinpthread`, `libgomp`,
+  `libdl`) next to the `.pyd` (or static-linking them).
 - `pip install -e .` is not usable until a toolchain is on PATH (or use the MinGW path).
+
+**Root-cause lead (2026-08-24, unconfirmed):** the bugs survive a fresh rebuild, so they
+are real source bugs, not stale binaries. `get_backing_file()` returns a corrupted string
+for matrices produced by native ops (e.g. `lu`'s permutation matrix → `Path()` →
+`std::bad_alloc`), pointing at an uninitialized backing-file member in
+`PersistentObject`/`MemoryMapper`. This likely underlies the `invert` crash too, since the
+caching layer (`python/pycauset/_internal/linalg_cache.py`) also calls `get_backing_file`.
 
 ## 3. Ordered backlog
 
