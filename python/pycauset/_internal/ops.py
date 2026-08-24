@@ -105,21 +105,29 @@ def _effective_structure_for(obj: Any) -> str:
         return "general"
 
 
-def _record_io_trace(op_name: str, operands: list[Any], *, deps: OpsDeps, allow_huge: bool = False) -> None:
+def _record_io_trace(op_name: str, operands: list[Any], *, deps: OpsDeps, allow_huge: bool = False, supports_streaming: bool = True) -> None:
     manager = getattr(deps, "streaming_manager", None)
+    record = None
     if manager is not None:
         try:
-            return manager.plan(op_name, operands, allow_huge=allow_huge)
+            record = manager.plan(op_name, operands, allow_huge=allow_huge)
         except Exception:
-            pass
+            record = None
 
-    observer = getattr(deps, "io_observer", None)
-    if observer is None:
-        return None
-    try:
-        return observer.plan_and_record(op_name, operands, allow_huge=allow_huge)
-    except Exception:
-        return None
+    if record is None:
+        observer = getattr(deps, "io_observer", None)
+        if observer is None:
+            return None
+        try:
+            record = observer.plan_and_record(op_name, operands, allow_huge=allow_huge)
+        except Exception:
+            return None
+
+    # Ops that cannot stream (e.g. LAPACK eigen/factorizations) are always "direct".
+    if not supports_streaming and isinstance(record, dict):
+        record["route"] = "direct"
+        record["reason"] = "op does not support streaming"
+    return record
 
 
 def _prefetch_if_streaming(record: Any, operands: list[Any], *, deps: OpsDeps | None = None) -> None:
@@ -768,7 +776,7 @@ def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     shape = _safe_rows_cols(a)
     if shape is not None and shape[0] != shape[1]:
         raise ValueError("eigh requires a square matrix")
-    rec = _record_io_trace("eigh", [a], deps=deps)
+    rec = _record_io_trace("eigh", [a], deps=deps, supports_streaming=False)
     _prefetch_if_streaming(rec, [a], deps=deps)
     
     # Check Cache
@@ -924,7 +932,7 @@ def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     shape = _safe_rows_cols(a)
     if shape is not None and shape[0] != shape[1]:
         raise ValueError("eig requires a square matrix")
-    rec = _record_io_trace("eig", [a], deps=deps)
+    rec = _record_io_trace("eig", [a], deps=deps, supports_streaming=False)
     _prefetch_if_streaming(rec, [a], deps=deps)
     
     # Check Cache
