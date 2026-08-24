@@ -58,8 +58,12 @@ if(MSVC)
 endif()
 
 if(NOT MSVC)
-    # Avoid -march=native for distribution wheels to ensure compatibility
-    # add_compile_options(-march=native)
+    # Local-dev SIMD enablement: kernels use AVX/AVX2/AVX-512 intrinsics
+    # unconditionally (MSVC allows this without flags; GCC/Clang need -march).
+    # -march=native is LOCAL-DEV ONLY; distribution wheels must use explicit
+    # target flags instead (see R1_PERF).
+    add_compile_options(-march=native -Wa,-mbig-obj)
+    add_compile_definitions(_WIN32_WINNT=0x0A00)
 endif()
 
 # --- CUDA Compiler Options ---
@@ -250,12 +254,18 @@ if(NOT OpenBLAS_FOUND)
         endif()
         
         # Define the target manually
+        if(MSVC)
+            set(OPENBLAS_IMPLIB "${openblas_binaries_SOURCE_DIR}/lib/libopenblas.lib")
+        else()
+            # MinGW/clang use the GNU-format import library.
+            set(OPENBLAS_IMPLIB "${openblas_binaries_SOURCE_DIR}/lib/libopenblas.dll.a")
+        endif()
         if(NOT TARGET OpenBLAS::OpenBLAS)
             add_library(OpenBLAS::OpenBLAS SHARED IMPORTED)
             set(PYCAUSET_OPENBLAS_DLL "${openblas_binaries_SOURCE_DIR}/bin/libopenblas.dll")
             set_target_properties(OpenBLAS::OpenBLAS PROPERTIES
                 INTERFACE_INCLUDE_DIRECTORIES "${openblas_binaries_SOURCE_DIR}/include"
-                IMPORTED_IMPLIB "${openblas_binaries_SOURCE_DIR}/lib/libopenblas.lib"
+                IMPORTED_IMPLIB "${OPENBLAS_IMPLIB}"
                 IMPORTED_LOCATION "${PYCAUSET_OPENBLAS_DLL}"
             )
             message(STATUS "OpenBLAS configured from binaries at ${openblas_binaries_SOURCE_DIR}")

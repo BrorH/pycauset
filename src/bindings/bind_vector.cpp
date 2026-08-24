@@ -1,4 +1,4 @@
-#include "bindings_common.hpp"
+﻿#include "bindings_common.hpp"
 
 #include "binding_warnings.hpp"
 
@@ -430,120 +430,120 @@ void bind_vector_classes(py::module_& m) {
                 if (auto* vf32 = dynamic_cast<const DenseVector<float>*>(&v)) {
                     if (as_row) {
                         py::array_t<float> out({static_cast<py::ssize_t>(1), n});
-                        auto r = out.mutable_unchecked<2>();
+                        auto r = out.template mutable_unchecked<2>();
                         for (uint64_t i = 0; i < n_u; ++i) r(0, i) = vf32->get(i);
                         return out;
                     }
                     py::array_t<float> out({n});
-                    auto r = out.mutable_unchecked<1>();
+                    auto r = out.template mutable_unchecked<1>();
                     for (uint64_t i = 0; i < n_u; ++i) r(i) = vf32->get(i);
                     return out;
                 }
                 if (auto* vi = dynamic_cast<const DenseVector<int32_t>*>(&v)) {
                     if (as_row) {
                         py::array_t<int32_t> out({static_cast<py::ssize_t>(1), n});
-                        auto r = out.mutable_unchecked<2>();
+                        auto r = out.template mutable_unchecked<2>();
                         for (uint64_t i = 0; i < n_u; ++i) r(0, i) = vi->get(i);
                         return out;
                     }
                     py::array_t<int32_t> out({n});
-                    auto r = out.mutable_unchecked<1>();
+                    auto r = out.template mutable_unchecked<1>();
                     for (uint64_t i = 0; i < n_u; ++i) r(i) = vi->get(i);
                     return out;
                 }
                 if (auto* vi64 = dynamic_cast<const DenseVector<int64_t>*>(&v)) {
                     if (as_row) {
                         py::array_t<int64_t> out({static_cast<py::ssize_t>(1), n});
-                        auto r = out.mutable_unchecked<2>();
+                        auto r = out.template mutable_unchecked<2>();
                         for (uint64_t i = 0; i < n_u; ++i) r(0, i) = vi64->get(i);
                         return out;
                     }
                     py::array_t<int64_t> out({n});
-                    auto r = out.mutable_unchecked<1>();
+                    auto r = out.template mutable_unchecked<1>();
                     for (uint64_t i = 0; i < n_u; ++i) r(i) = vi64->get(i);
                     return out;
                 }
                 if (auto* vi8 = dynamic_cast<const DenseVector<int8_t>*>(&v)) {
                     if (as_row) {
                         py::array_t<int8_t> out({static_cast<py::ssize_t>(1), n});
-                        auto r = out.mutable_unchecked<2>();
+                        auto r = out.template mutable_unchecked<2>();
                         for (uint64_t i = 0; i < n_u; ++i) r(0, i) = vi8->get(i);
                         return out;
                     }
                     py::array_t<int8_t> out({n});
-                    auto r = out.mutable_unchecked<1>();
+                    auto r = out.template mutable_unchecked<1>();
                     for (uint64_t i = 0; i < n_u; ++i) r(i) = vi8->get(i);
                     return out;
                 }
                 if (auto* vi16 = dynamic_cast<const DenseVector<int16_t>*>(&v)) {
                     if (as_row) {
                         py::array_t<int16_t> out({static_cast<py::ssize_t>(1), n});
-                        auto r = out.mutable_unchecked<2>();
+                        auto r = out.template mutable_unchecked<2>();
                         for (uint64_t i = 0; i < n_u; ++i) r(0, i) = vi16->get(i);
                         return out;
                     }
                     py::array_t<int16_t> out({n});
-                    auto r = out.mutable_unchecked<1>();
+                    auto r = out.template mutable_unchecked<1>();
                     for (uint64_t i = 0; i < n_u; ++i) r(i) = vi16->get(i);
                     return out;
                 }
                 if (auto* vu8 = dynamic_cast<const DenseVector<uint8_t>*>(&v)) {
                     if (as_row) {
                         py::array_t<uint8_t> out({static_cast<py::ssize_t>(1), n});
-                        auto r = out.mutable_unchecked<2>();
+                        auto r = out.template mutable_unchecked<2>();
                         for (uint64_t i = 0; i < n_u; ++i) r(0, i) = vu8->get(i);
                         return out;
                     }
                     py::array_t<uint8_t> out({n});
-                    auto r = out.mutable_unchecked<1>();
+                    auto r = out.template mutable_unchecked<1>();
                     for (uint64_t i = 0; i < n_u; ++i) r(i) = vu8->get(i);
                     return out;
                 }
                 if (auto* vu16 = dynamic_cast<const DenseVector<uint16_t>*>(&v)) {
                     if (as_row) {
                         py::array_t<uint16_t> out({static_cast<py::ssize_t>(1), n});
-                        auto r = out.mutable_unchecked<2>();
+                        auto r = out.template mutable_unchecked<2>();
                         for (uint64_t i = 0; i < n_u; ++i) r(0, i) = vu16->get(i);
                         return out;
                     }
                     py::array_t<uint16_t> out({n});
-                    auto r = out.mutable_unchecked<1>();
+                    auto r = out.template mutable_unchecked<1>();
                     for (uint64_t i = 0; i < n_u; ++i) r(i) = vu16->get(i);
                     return out;
                 }
                 if (auto* vu32 = dynamic_cast<const DenseVector<uint32_t>*>(&v)) {
                     if (as_row) {
                         py::array_t<uint32_t> out({static_cast<py::ssize_t>(1), n});
-                        auto r = out.mutable_unchecked<2>();
+                        auto r = out.template mutable_unchecked<2>();
                         for (uint64_t i = 0; i < n_u; ++i) r(0, i) = vu32->get(i);
                         return out;
                     }
                     py::array_t<uint32_t> out({n});
-                    auto r = out.mutable_unchecked<1>();
+                    auto r = out.template mutable_unchecked<1>();
                     for (uint64_t i = 0; i < n_u; ++i) r(i) = vu32->get(i);
                     return out;
                 }
                 if (auto* vu64 = dynamic_cast<const DenseVector<uint64_t>*>(&v)) {
                     if (as_row) {
                         py::array_t<uint64_t> out({static_cast<py::ssize_t>(1), n});
-                        auto r = out.mutable_unchecked<2>();
+                        auto r = out.template mutable_unchecked<2>();
                         for (uint64_t i = 0; i < n_u; ++i) r(0, i) = vu64->get(i);
                         return out;
                     }
                     py::array_t<uint64_t> out({n});
-                    auto r = out.mutable_unchecked<1>();
+                    auto r = out.template mutable_unchecked<1>();
                     for (uint64_t i = 0; i < n_u; ++i) r(i) = vu64->get(i);
                     return out;
                 }
                 if (auto* vb = dynamic_cast<const DenseVector<bool>*>(&v)) {
                     if (as_row) {
                         py::array_t<bool> out({static_cast<py::ssize_t>(1), n});
-                        auto r = out.mutable_unchecked<2>();
+                        auto r = out.template mutable_unchecked<2>();
                         for (uint64_t i = 0; i < n_u; ++i) r(0, i) = vb->get(i);
                         return out;
                     }
                     py::array_t<bool> out({n});
-                    auto r = out.mutable_unchecked<1>();
+                    auto r = out.template mutable_unchecked<1>();
                     for (uint64_t i = 0; i < n_u; ++i) r(i) = vb->get(i);
                     return out;
                 }
@@ -551,12 +551,12 @@ void bind_vector_classes(py::module_& m) {
                 // Default: float64
                 if (as_row) {
                     py::array_t<double> out({static_cast<py::ssize_t>(1), n});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < n_u; ++i) r(0, i) = v.get_element_as_double(i);
                     return out;
                 }
                 py::array_t<double> out({n});
-                auto r = out.mutable_unchecked<1>();
+                auto r = out.template mutable_unchecked<1>();
                 for (uint64_t i = 0; i < n_u; ++i) r(i) = v.get_element_as_double(i);
                 return out;
             },

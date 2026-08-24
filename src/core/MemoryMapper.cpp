@@ -4,6 +4,7 @@
 #include "pycauset/compute/ComputeContext.hpp"
 #include <iostream>
 #include <filesystem>
+#include <cstring>
 
 #ifdef _WIN32
 #include <windows.h>

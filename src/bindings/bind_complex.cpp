@@ -1,4 +1,4 @@
-#include "bindings_common.hpp"
+﻿#include "bindings_common.hpp"
 
 #include "pycauset/matrix/ComplexMatrix.hpp"
 #include "pycauset/vector/ComplexVector.hpp"
@@ -33,7 +33,7 @@ void bind_complex_classes(py::module_& m) {
             [](const pycauset::ComplexVector& v, py::object /*dtype*/, py::object /*copy*/) {
                 uint64_t n_u = v.size();
                 py::array_t<std::complex<double>> out(static_cast<py::ssize_t>(n_u));
-                auto r = out.mutable_unchecked<1>();
+                auto r = out.template mutable_unchecked<1>();
                 for (uint64_t i = 0; i < n_u; ++i) {
                     r(i) = v.get(i);
                 }
@@ -119,7 +119,7 @@ void bind_complex_classes(py::module_& m) {
                 uint64_t n_u = mtx.size();
                 py::ssize_t n = static_cast<py::ssize_t>(n_u);
                 py::array_t<std::complex<double>> out({n, n});
-                auto r = out.mutable_unchecked<2>();
+                auto r = out.template mutable_unchecked<2>();
                 for (uint64_t i = 0; i < n_u; ++i) {
                     for (uint64_t j = 0; j < n_u; ++j) {
                         r(i, j) = mtx.get(i, j);

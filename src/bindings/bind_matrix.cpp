@@ -1,4 +1,4 @@
-#include "bindings_common.hpp"
+﻿#include "bindings_common.hpp"
 #include <vector>
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #include <immintrin.h>
@@ -297,7 +297,7 @@ inline void maybe_warn_integer_matmul_overflow_risk_preflight(const MatrixBase& 
     message += ", n=" + std::to_string(n);
     message += ", sampled max|A|=" + std::to_string(max_abs_a);
     message += ", sampled max|B|=" + std::to_string(max_abs_b);
-    message += ", bound≈" + std::to_string(bound);
+    message += ", boundâ‰ˆ" + std::to_string(bound);
     message += ". PyCauset will raise on overflow.";
     bindings_warn::warn_once_with_category(
         "pycauset.matmul.overflow_risk_preflight.int32",
@@ -396,7 +396,7 @@ py::array_t<T> parallel_export_to_numpy(const DenseMatrix<T>& mat) {
         mat.is_conjugated() || mat.get_scalar() != std::complex<double>(1.0, 0.0);
     if (needs_slow_path) {
         py::array_t<T> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-        auto r = out.mutable_unchecked<2>();
+        auto r = out.template mutable_unchecked<2>();
         for (uint64_t i = 0; i < rows; ++i) {
             for (uint64_t j = 0; j < cols; ++j) {
                 if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
@@ -1634,7 +1634,7 @@ void bind_matrix_classes(py::module_& m) {
                             return out;
                         }
                     }
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = m->get_element_as_double(i, j);
@@ -1654,7 +1654,7 @@ void bind_matrix_classes(py::module_& m) {
                             return out;
                         }
                     }
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = m->get(i, j);
@@ -1759,7 +1759,7 @@ void bind_matrix_classes(py::module_& m) {
                         return out;
                     }
                     
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = m->get(i, j);
@@ -1830,7 +1830,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
                 if (auto* mf32 = dynamic_cast<const DenseMatrix<float>*>(&mat)) {
                     py::array_t<float> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             (void)mf32;
@@ -1841,7 +1841,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
                 if (auto* mi32 = dynamic_cast<const DenseMatrix<int32_t>*>(&mat)) {
                     py::array_t<int32_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = mi32->get(i, j);
@@ -1851,7 +1851,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
                 if (auto* mi64 = dynamic_cast<const DenseMatrix<int64_t>*>(&mat)) {
                     py::array_t<int64_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = mi64->get(i, j);
@@ -1861,7 +1861,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
                 if (auto* mi8 = dynamic_cast<const DenseMatrix<int8_t>*>(&mat)) {
                     py::array_t<int8_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = mi8->get(i, j);
@@ -1871,7 +1871,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
                 if (auto* mi16 = dynamic_cast<const DenseMatrix<int16_t>*>(&mat)) {
                     py::array_t<int16_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = mi16->get(i, j);
@@ -1881,7 +1881,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
                 if (auto* mu8 = dynamic_cast<const DenseMatrix<uint8_t>*>(&mat)) {
                     py::array_t<uint8_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = mu8->get(i, j);
@@ -1891,7 +1891,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
                 if (auto* mu16 = dynamic_cast<const DenseMatrix<uint16_t>*>(&mat)) {
                     py::array_t<uint16_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = mu16->get(i, j);
@@ -1901,7 +1901,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
                 if (auto* mu32 = dynamic_cast<const DenseMatrix<uint32_t>*>(&mat)) {
                     py::array_t<uint32_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = mu32->get(i, j);
@@ -1911,7 +1911,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
                 if (auto* mu64 = dynamic_cast<const DenseMatrix<uint64_t>*>(&mat)) {
                     py::array_t<uint64_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = mu64->get(i, j);
@@ -1921,7 +1921,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
                 if (auto* mb = dynamic_cast<const DenseBitMatrix*>(&mat)) {
                     py::array_t<bool> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = mb->get(i, j);
@@ -1931,7 +1931,7 @@ void bind_matrix_classes(py::module_& m) {
                 }
                 if (auto* mtb = dynamic_cast<const TriangularBitMatrix*>(&mat)) {
                     py::array_t<bool> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.mutable_unchecked<2>();
+                    auto r = out.template mutable_unchecked<2>();
                     for (uint64_t i = 0; i < rows; ++i) {
                         for (uint64_t j = 0; j < cols; ++j) {
                             r(i, j) = mtb->get(i, j);
@@ -1942,7 +1942,7 @@ void bind_matrix_classes(py::module_& m) {
 
                 // Default: float64
                 py::array_t<double> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                auto r = out.mutable_unchecked<2>();
+                auto r = out.template mutable_unchecked<2>();
                 for (uint64_t i = 0; i < rows; ++i) {
                     for (uint64_t j = 0; j < cols; ++j) {
                         r(i, j) = mat.get_element_as_double(i, j);
