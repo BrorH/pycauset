@@ -1,7 +1,9 @@
 import abc
 import math
-from typing import Tuple, Optional
+from typing import Optional, Tuple
+
 from .causet import CausalSet
+
 # from . import compute_k # Circular import
 
 class Field(abc.ABC):

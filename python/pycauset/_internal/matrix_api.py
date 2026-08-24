@@ -3,11 +3,10 @@ from __future__ import annotations
 import abc
 from typing import Any, Callable
 
+from . import export_guard
 from . import formatting as _formatting
 from .dtypes import normalize_dtype as _normalize_dtype
-from . import export_guard
 from .native_threshold import temporary_native_memory_threshold
-
 
 _np: Any | None = None
 _warnings: Any | None = None
@@ -124,53 +123,53 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
             n = int(size_or_data)
             if target_dtype == "complex_float16":
                 if _ComplexFloat16Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _ComplexFloat16Matrix(n, **kwargs)
             if target_dtype == "complex_float32":
                 if _ComplexFloat32Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _ComplexFloat32Matrix(n, **kwargs)
             if target_dtype == "complex_float64":
                 if _ComplexFloat64Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _ComplexFloat64Matrix(n, **kwargs)
             if target_dtype == "int8":
                 if _Int8Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _Int8Matrix(n, **kwargs)
             if target_dtype == "int16":
                 if _Int16Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _Int16Matrix(n, **kwargs)
             if target_dtype == "int32":
                 if _IntegerMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _IntegerMatrix(n, **kwargs)
             if target_dtype == "int64":
                 if _Int64Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _Int64Matrix(n, **kwargs)
             if target_dtype == "uint8":
                 if _UInt8Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _UInt8Matrix(n, **kwargs)
             if target_dtype == "uint16":
                 if _UInt16Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _UInt16Matrix(n, **kwargs)
             if target_dtype == "uint32":
                 if _UInt32Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _UInt32Matrix(n, **kwargs)
             if target_dtype == "uint64":
                 if _UInt64Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _UInt64Matrix(n, **kwargs)
             if target_dtype == "bool":
                 if _DenseBitMatrix is not None:
                     return _DenseBitMatrix(n, **kwargs)
                 if _IntegerMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _IntegerMatrix(n, **kwargs)
             if target_dtype == "float16":
                 if _Float16Matrix is not None:
@@ -178,25 +177,25 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                 if _Float32Matrix is not None:
                     return _Float32Matrix(n, **kwargs)
                 if _FloatMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _FloatMatrix(n, **kwargs)
             if target_dtype == "float32":
                 if _Float32Matrix is not None:
                     return _Float32Matrix(n, **kwargs)
                 if _FloatMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _FloatMatrix(n, **kwargs)
 
             if target_dtype == "float64":
                 if _FloatMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _FloatMatrix(n, **kwargs)
 
             force = kwargs.pop("force_precision", None)
 
             if force == "double" or force == "float64":
                 if _FloatMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _FloatMatrix(n, **kwargs)
             if force == "single" or force == "float32":
                 if _Float32Matrix is not None:
@@ -210,7 +209,7 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                 return _Float32Matrix(n, **kwargs)
 
             if _FloatMatrix is None:
-                return super(Matrix, cls).__new__(cls)
+                return super().__new__(cls)
             return _FloatMatrix(n, **kwargs)
 
         data: Any = size_or_data
@@ -269,7 +268,7 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
 
             if rows == 0:
                 if _FloatMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 return _FloatMatrix(0, **kwargs)
 
             cols: int | None = None
@@ -277,10 +276,10 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                 if cols is None:
                     cols = len(row)
                 elif len(row) != cols:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
 
             if cols is None:
-                return super(Matrix, cls).__new__(cls)
+                return super().__new__(cls)
 
             is_square = rows == cols
             if not is_square:
@@ -327,7 +326,7 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
 
             if target_dtype == "int8":
                 if _Int8Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_Int8Matrix, data, r=rows, c=cols)
                 return create_and_fill(_Int8Matrix, data)
@@ -336,49 +335,49 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                 if is_triangular and _TriangularIntegerMatrix is not None:
                     return create_and_fill(_TriangularIntegerMatrix, data)
                 if _IntegerMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_IntegerMatrix, data, r=rows, c=cols)
                 return create_and_fill(_IntegerMatrix, data)
 
             if target_dtype == "int64":
                 if _Int64Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_Int64Matrix, data, r=rows, c=cols)
                 return create_and_fill(_Int64Matrix, data)
 
             if target_dtype == "uint8":
                 if _UInt8Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_UInt8Matrix, data, r=rows, c=cols)
                 return create_and_fill(_UInt8Matrix, data)
 
             if target_dtype == "uint16":
                 if _UInt16Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_UInt16Matrix, data, r=rows, c=cols)
                 return create_and_fill(_UInt16Matrix, data)
 
             if target_dtype == "uint32":
                 if _UInt32Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_UInt32Matrix, data, r=rows, c=cols)
                 return create_and_fill(_UInt32Matrix, data)
 
             if target_dtype == "uint64":
                 if _UInt64Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_UInt64Matrix, data, r=rows, c=cols)
                 return create_and_fill(_UInt64Matrix, data)
 
             if target_dtype == "int16":
                 if _Int16Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_Int16Matrix, data, r=rows, c=cols)
                 return create_and_fill(_Int16Matrix, data)
@@ -391,7 +390,7 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                         return create_and_fill_rectangular(_DenseBitMatrix, data, r=rows, c=cols)
                     return create_and_fill(_DenseBitMatrix, data)
                 if _IntegerMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_IntegerMatrix, data, r=rows, c=cols)
                 return create_and_fill(_IntegerMatrix, data)
@@ -402,7 +401,7 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                         return create_and_fill_rectangular(_Float32Matrix, data, r=rows, c=cols)
                     return create_and_fill(_Float32Matrix, data)
                 if _FloatMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_FloatMatrix, data, r=rows, c=cols)
                 return create_and_fill(_FloatMatrix, data)
@@ -411,28 +410,28 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                 if is_triangular and _TriangularFloatMatrix is not None:
                     return create_and_fill(_TriangularFloatMatrix, data)
                 if _FloatMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_FloatMatrix, data, r=rows, c=cols)
                 return create_and_fill(_FloatMatrix, data)
 
             if target_dtype == "complex_float64":
                 if _ComplexFloat64Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_ComplexFloat64Matrix, data, r=rows, c=cols)
                 return create_and_fill(_ComplexFloat64Matrix, data)
 
             if target_dtype == "complex_float32":
                 if _ComplexFloat32Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_ComplexFloat32Matrix, data, r=rows, c=cols)
                 return create_and_fill(_ComplexFloat32Matrix, data)
 
             if target_dtype == "complex_float16":
                 if _ComplexFloat16Matrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_ComplexFloat16Matrix, data, r=rows, c=cols)
                 return create_and_fill(_ComplexFloat16Matrix, data)
@@ -441,7 +440,7 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                 if is_triangular and _TriangularIntegerMatrix is not None:
                     return create_and_fill(_TriangularIntegerMatrix, data)
                 if _IntegerMatrix is None:
-                    return super(Matrix, cls).__new__(cls)
+                    return super().__new__(cls)
                 if not is_square:
                     return create_and_fill_rectangular(_IntegerMatrix, data, r=rows, c=cols)
                 return create_and_fill(_IntegerMatrix, data)
@@ -449,13 +448,13 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
             if is_triangular and _TriangularFloatMatrix is not None:
                 return create_and_fill(_TriangularFloatMatrix, data)
             if _FloatMatrix is None:
-                return super(Matrix, cls).__new__(cls)
+                return super().__new__(cls)
             if not is_square:
                 return create_and_fill_rectangular(_FloatMatrix, data, r=rows, c=cols)
             return create_and_fill(_FloatMatrix, data)
 
         except Exception:
-            return super(Matrix, cls).__new__(cls)
+            return super().__new__(cls)
 
     def __init__(self, size_or_data: Any):
         if _warnings is None or _track_matrix is None or _coerce_general_matrix is None:

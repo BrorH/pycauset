@@ -4,8 +4,8 @@ import warnings
 from typing import Any, Callable
 
 from . import export_guard as _export_guard
-from .native_threshold import temporary_native_memory_threshold
 from .dtypes import normalize_dtype as _normalize_dtype
+from .native_threshold import temporary_native_memory_threshold
 
 
 def vector_factory(

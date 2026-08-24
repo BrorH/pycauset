@@ -8,31 +8,40 @@ except ImportError:
 
 import os
 import warnings
-from pathlib import Path
 from contextlib import contextmanager
+from pathlib import Path
 from types import SimpleNamespace as _SimpleNamespace
 from typing import Any
-from ._internal import persistence as _persistence
-from ._internal import linalg_cache as _linalg_cache
-from ._internal import runtime as _runtime_mod
-from ._internal import formatting as _formatting
-from ._internal import patching as _patching
-from ._internal import properties as _properties
+
 from ._internal import coercion as _coercion
-from ._internal import factories as _factories
-from ._internal.dtypes import normalize_dtype as _normalize_dtype
-from ._internal import ops as _ops
-from ._internal import io_observability as _io_observability
-from ._internal import streaming_manager as _streaming_manager
 from ._internal import export_guard as _export_guard
-from ._internal import native as _native_mod
+from ._internal import factories as _factories
+from ._internal import formatting as _formatting
+from ._internal import io_observability as _io_observability
+from ._internal import linalg_cache as _linalg_cache
 from ._internal import matrix_api as _matrix_api
+from ._internal import native as _native_mod
+from ._internal import ops as _ops
+from ._internal import patching as _patching
+from ._internal import persistence as _persistence
+from ._internal import properties as _properties
+from ._internal import runtime as _runtime_mod
+from ._internal import streaming_manager as _streaming_manager
+from ._internal.dtypes import normalize_dtype as _normalize_dtype
+from ._internal.warnings import (
+    PyCausetDTypeWarning as PyCausetDTypeWarning,
+)
+from ._internal.warnings import (
+    PyCausetOverflowRiskWarning as PyCausetOverflowRiskWarning,
+)
+from ._internal.warnings import (
+    PyCausetPerformanceWarning as PyCausetPerformanceWarning,
+)
+from ._internal.warnings import (
+    PyCausetStorageWarning as PyCausetStorageWarning,
+)
 from ._internal.warnings import (
     PyCausetWarning as PyCausetWarning,
-    PyCausetDTypeWarning as PyCausetDTypeWarning,
-    PyCausetOverflowRiskWarning as PyCausetOverflowRiskWarning,
-    PyCausetPerformanceWarning as PyCausetPerformanceWarning,
-    PyCausetStorageWarning as PyCausetStorageWarning,
 )
 
 try:  # NumPy is optional at runtime
@@ -70,10 +79,10 @@ _native_mod.configure_windows_dll_search_paths(package_dir=os.path.dirname(__fil
 _native = _native_mod.import_native_extension(package=__name__)
 
 # Import modules that depend on the native extension after it is loaded.
+from . import field as field
+from . import spacetime as spacetime
 from ._storage import cleanup_storage, set_temporary_file
 from .causet import CausalSet
-from . import spacetime as spacetime
-from . import field as field
 
 
 def _debug_resolve_promotion(

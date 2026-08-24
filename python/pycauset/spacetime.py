@@ -1,5 +1,5 @@
 try:
-    from ._pycauset import MinkowskiDiamond, MinkowskiCylinder, MinkowskiBox
+    from ._pycauset import MinkowskiBox, MinkowskiCylinder, MinkowskiDiamond
 except ImportError:
     # Fallback for when bindings are incomplete (e.g. during optimization work)
     class MinkowskiDiamond: pass

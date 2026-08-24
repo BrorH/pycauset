@@ -8,7 +8,6 @@ from typing import Any
 from . import persistence as _persistence
 from .warnings import PyCausetStorageWarning
 
-
 _WARNED_CACHE_KEYS: set[tuple[str, str]] = set()
 
 

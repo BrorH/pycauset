@@ -1,6 +1,6 @@
-from importlib import import_module
-import random
 import os
+import random
+from importlib import import_module
 from pathlib import Path
 from typing import Optional, Sequence, Union
 

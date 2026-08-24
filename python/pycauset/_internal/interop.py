@@ -1,6 +1,9 @@
 from __future__ import annotations
+
 from typing import Any
+
 import numpy as np
+
 
 def _array_ufunc(self: Any, ufunc: Any, method: str, *inputs: Any, **kwargs: Any) -> Any:
     """

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from bisect import bisect_right
 import os
+from bisect import bisect_right
 from typing import Any, Iterable
 
 from .submatrix_view import SubmatrixView
 from .thunks import ThunkBlock
-
 
 _PYCAUSET_MODULE: Any | None = None
 
@@ -333,39 +332,39 @@ class BlockMatrix:
     # --- integration helpers (Phase F) ---
 
     @staticmethod
-    def _as_blockmatrix(obj: Any) -> "BlockMatrix":
+    def _as_blockmatrix(obj: Any) -> BlockMatrix:
         if isinstance(obj, BlockMatrix):
             return obj
         return BlockMatrix([[obj]])
 
-    def __matmul__(self, other: Any) -> "BlockMatrix":
+    def __matmul__(self, other: Any) -> BlockMatrix:
         return block_matmul(self, BlockMatrix._as_blockmatrix(other))
 
-    def __rmatmul__(self, other: Any) -> "BlockMatrix":
+    def __rmatmul__(self, other: Any) -> BlockMatrix:
         return block_matmul(BlockMatrix._as_blockmatrix(other), self)
 
-    def __add__(self, other: Any) -> "BlockMatrix":
+    def __add__(self, other: Any) -> BlockMatrix:
         return block_add(self, BlockMatrix._as_blockmatrix(other))
 
-    def __radd__(self, other: Any) -> "BlockMatrix":
+    def __radd__(self, other: Any) -> BlockMatrix:
         return block_add(BlockMatrix._as_blockmatrix(other), self)
 
-    def __sub__(self, other: Any) -> "BlockMatrix":
+    def __sub__(self, other: Any) -> BlockMatrix:
         return block_sub(self, BlockMatrix._as_blockmatrix(other))
 
-    def __rsub__(self, other: Any) -> "BlockMatrix":
+    def __rsub__(self, other: Any) -> BlockMatrix:
         return block_sub(BlockMatrix._as_blockmatrix(other), self)
 
-    def __mul__(self, other: Any) -> "BlockMatrix":
+    def __mul__(self, other: Any) -> BlockMatrix:
         return block_mul(self, BlockMatrix._as_blockmatrix(other))
 
-    def __rmul__(self, other: Any) -> "BlockMatrix":
+    def __rmul__(self, other: Any) -> BlockMatrix:
         return block_mul(BlockMatrix._as_blockmatrix(other), self)
 
-    def __truediv__(self, other: Any) -> "BlockMatrix":
+    def __truediv__(self, other: Any) -> BlockMatrix:
         return block_div(self, BlockMatrix._as_blockmatrix(other))
 
-    def __rtruediv__(self, other: Any) -> "BlockMatrix":
+    def __rtruediv__(self, other: Any) -> BlockMatrix:
         return block_div(BlockMatrix._as_blockmatrix(other), self)
 
     # --- block introspection ---
@@ -419,7 +418,7 @@ class BlockMatrix:
         *,
         row_partitions: list[int] | None = None,
         col_partitions: list[int] | None = None,
-    ) -> "BlockMatrix":
+    ) -> BlockMatrix:
         """Return a refined BlockMatrix whose grid is defined by partitions.
 
         The target partitions must be a refinement (superset) of the current

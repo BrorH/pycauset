@@ -57,7 +57,7 @@ class DensePythonMatrix:
         i, j = key
         return self.get(int(i), int(j))
 
-    def __add__(self, other: Any) -> "DensePythonMatrix":
+    def __add__(self, other: Any) -> DensePythonMatrix:
         shape = _safe_rows_cols(other)
         if shape is None or shape != self.shape:
             raise TypeError("add expects a matrix-like operand with matching shape")
@@ -66,7 +66,7 @@ class DensePythonMatrix:
             out.append([self.get(i, j) + _safe_get(other, i, j) for j in range(self.cols())])
         return DensePythonMatrix(out)
 
-    def __matmul__(self, other: Any) -> "DensePythonMatrix":
+    def __matmul__(self, other: Any) -> DensePythonMatrix:
         shape = _safe_rows_cols(other)
         if shape is None:
             raise TypeError("matmul expects a matrix-like operand")

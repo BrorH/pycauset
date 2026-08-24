@@ -1,14 +1,17 @@
 try:
-    import plotly.graph_objects as go
     import plotly.express as px
+    import plotly.graph_objects as go
 except ImportError:
     go = None
     px = None
 
 import random
-import numpy as np
 from typing import Optional
+
+import numpy as np
+
 from .causet import CausalSet
+
 
 def _check_plotly():
     if go is None:

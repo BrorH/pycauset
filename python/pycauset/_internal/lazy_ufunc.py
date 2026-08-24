@@ -2,7 +2,9 @@
 Internal module for handling NumPy ufuncs via Lazy Evaluation.
 """
 import numpy as np
+
 from .. import _native
+
 
 def handle_array_ufunc(self, ufunc, method, *inputs, **kwargs):
     """

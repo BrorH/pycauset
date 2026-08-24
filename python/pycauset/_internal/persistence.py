@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import os
-import struct
 import shutil
+import struct
+import uuid
 import zlib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Protocol
-
-import uuid
 
 
 def _compute_view_signature(*, is_transposed: bool, is_conjugated: bool, scalar: object) -> str:

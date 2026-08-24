@@ -7,8 +7,8 @@ import numpy as np
 
 _PYCAUSET_MAGIC = b"PYCAUSET"
 
-from . import persistence as _persistence
 from . import big_blob_cache as _big_blob_cache
+from . import persistence as _persistence
 
 
 def _is_new_container(backing: str) -> bool:
