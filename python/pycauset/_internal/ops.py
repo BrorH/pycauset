@@ -31,6 +31,22 @@ def _as_pycauset_array(obj: Any, *, deps: OpsDeps) -> Any:
     return out
 
 
+def _as_pycauset_vector(obj: Any, *, deps: OpsDeps) -> Any:
+    """Convert a 1-D NumPy array to a native vector, handling complex dtypes.
+
+    native.asarray only supports real dtypes for 1-D arrays; complex 1-D
+    (e.g. general eigenvalues) must go through the ComplexFloat64Vector ctor.
+    """
+    np_module = deps.np_module
+    if np_module is not None and np_module.iscomplexobj(obj):
+        cls = getattr(deps.native, "ComplexFloat64Vector", None)
+        if cls is not None:
+            out = cls(obj)
+            _track_and_mark_temporary_if_native(out, deps=deps)
+            return out
+    return _as_pycauset_array(obj, deps=deps)
+
+
 def _to_numpy_matrix(obj: Any, *, deps: OpsDeps, allow_huge: bool = False) -> Any:
     np_module = deps.np_module
     if np_module is None:
@@ -921,7 +937,7 @@ def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
             raise RuntimeError("NumPy is required for eig")
 
         w, v = np_module.linalg.eig(_to_numpy_matrix(a, deps=deps))
-        result_w = _as_pycauset_array(w, deps=deps)
+        result_w = _as_pycauset_vector(w, deps=deps)
         result_v = _as_pycauset_array(v, deps=deps)
 
     # Save to Cache
@@ -958,7 +974,7 @@ def eigvals(a: Any, *, deps: OpsDeps) -> Any:
             raise RuntimeError("NumPy is required for eigvals")
 
         w = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
-        result_w = _as_pycauset_array(w, deps=deps)
+        result_w = _as_pycauset_vector(w, deps=deps)
 
     # Save to Cache
     try:
@@ -1004,13 +1020,9 @@ def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any
         raise NotImplementedError("eigvals_arnoldi is not available (no native/NumPy fallback)")
 
     eigs = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
-    if np_module.iscomplexobj(eigs):
-        if not np_module.allclose(eigs.imag, 0.0, atol=tol):
-            raise NotImplementedError("eigvals_arnoldi does not support complex eigenvalues in this build")
-        eigs = eigs.real
     eigs_sorted = sorted(eigs, key=lambda x: abs(x), reverse=True)
     top = np_module.array(eigs_sorted[:k])
-    out = _as_pycauset_array(top, deps=deps)
+    out = _as_pycauset_vector(top, deps=deps)
     _discard_if_streaming(rec, [a], out, deps=deps)
     return out
 
