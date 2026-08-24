@@ -31,8 +31,12 @@ Full suite: **482 passed / 23 failed / 29 skipped / 3 xfailed**.
 Verified-correct primitives: `matmul` ✅, `inverse` ✅ (`A @ inv ≈ I`).
 
 **Silent wrong answers / crashes** (pinned in `tests/python/test_known_bugs.py`):
-- `pc.solve` returns a result that does NOT satisfy `A @ x = b`, even though
-  `invert` and `matmul` are individually correct. Also flaky native crashes.
+- `pc.solve` returns a result that does NOT satisfy `A @ x = b`. Root cause
+  traced 2026-08-24: `solve` is `matmul(invert(a), b)` (no native `.solve`),
+  and the native `invert` is **non-deterministic** — repeated calls return
+  different results and/or crash with access violation `0xC0000005` / heap
+  corruption `0xC0000374`. `matmul` is correct; the wrongness originates in
+  `invert`. This is a native (C++) memory bug.
 - `pc.lu` raises `MemoryError` in result bookkeeping after computing the
   factorization (`get_backing_file()` on the permutation matrix).
 - `TriangularBitMatrix.random(n)` reports the wrong `.size()`.
@@ -47,9 +51,14 @@ Verified-correct primitives: `matmul` ✅, `inverse` ✅ (`A @ inv ≈ I`).
 - int64/uint vector + complex value → raw `TypeError` (should be error-by-design).
 - GPU untestable locally (`cuda.is_available()` is `False`).
 
-**Environment**
+**Environment / build toolchain**
 - `import pycauset` was broken by a stale editable path (folder move); fixed 2026-08-24.
-- `pip install -e .` requires the MSVC toolchain (fails with NMake in a plain shell).
+- No MSVC (`cl.exe`) is installed on this machine — VS 18 is an empty leftover dir and
+  the old `build*/` dirs reference a toolchain that no longer exists. The only C++
+  compiler present is MinGW `g++` 15.2 (WinLibs POSIX-UCRT).
+- MinGW rebuild is viable: `cmake -S . -B build_mingw -G Ninja -DCMAKE_C_COMPILER=gcc
+  -DCMAKE_CXX_COMPILER=g++ -DPython_EXECUTABLE=.venv/Scripts/python.exe` configures OK.
+- `pip install -e .` is not usable until a toolchain is on PATH (or use the MinGW path).
 
 ## 3. Ordered backlog
 
