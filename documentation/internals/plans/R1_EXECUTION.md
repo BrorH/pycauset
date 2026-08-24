@@ -31,12 +31,17 @@ Full suite: **482 passed / 23 failed / 29 skipped / 3 xfailed**.
 Verified-correct primitives: `matmul` ✅, `inverse` ✅ (`A @ inv ≈ I`).
 
 **Silent wrong answers / crashes** (pinned in `tests/python/test_known_bugs.py`):
-- `pc.solve` returns a result that does NOT satisfy `A @ x = b`. Root cause
-  traced 2026-08-24: `solve` is `matmul(invert(a), b)` (no native `.solve`),
-  and the native `invert` is **non-deterministic** — repeated calls return
-  different results and/or crash with access violation `0xC0000005` / heap
-  corruption `0xC0000374`. `matmul` is correct; the wrongness originates in
-  `invert`. This is a native (C++) memory bug.
+- `pc.solve` **math is CORRECT** — `pc.to_numpy(solve(a,b))` matches `np.linalg.solve`.
+  The "wrong answer" is a **NumPy-conversion bug**: `np.array(result)` (the `__array__`
+  / buffer path) returns *uninitialized memory* (denormals `~1e-313`) or crashes with
+  access violation, because `DenseMatrix::data()` returns a stale/invalid pointer for
+  matrices produced by native ops. `pc.to_numpy()` works only because its native
+  `_to_numpy_fast` returns `None` and it falls back to element access.
+- `pc.lu` raises `MemoryError` (`get_backing_file()` returns a corrupted string on the
+  permutation matrix) — same underlying stale-pointer/lifecycle issue.
+- `TriangularBitMatrix.random(n)` reports the wrong `.size()`.
+- Teardown crash in `release_tracked_matrices()` (access violation on `close()`), i.e.
+  a use-after-free in the object-lifecycle / memory-mapper layer.
 - `pc.lu` raises `MemoryError` in result bookkeeping after computing the
   factorization (`get_backing_file()` on the permutation matrix).
 - `TriangularBitMatrix.random(n)` reports the wrong `.size()`.
