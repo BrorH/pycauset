@@ -63,7 +63,7 @@ Python-level linalg endpoints (`solve`, `lstsq`, `slogdet`, `cond`, `eigh`, `eig
 | **OpenBLAS** (`cblas_dgemm`/`sgemm`) | `CpuSolver::matmul`, `matmul_dense`, bit→int accumulation | Multithreaded; the workhorse for dense GEMM. |
 | **LAPACK** (`dgetrf`/`dgetri`, `dpotrf`, `dgeqrf`/`dorgqr`, `dgesvd`, `dsyev`) | inverse, cholesky, qr, svd, eigh | Real float/double only in most paths; complex routed to NumPy fallback at Python level. |
 | **AVX2 elementwise** (runtime-dispatched via `has_avx2()` cpuid, scalar fallback) | `avx2_add/sub/mul/div_f32`, `avx2_add_f64` | f32 fully covered; f64 only `add`. |
-| **AVX-512 popcount** (cpuid `has_avx512` + `vpopcntdq`) | bit-matmul `dot_product_avx512` | See §6 risk on `/arch` leakage. |
+| **AVX-512 popcount** (cpuid `has_avx512_vpopcntdq` + `vpopcntdq`; `target` attr on GCC/Clang) | bit-matmul `dot_product_avx512` | Runtime-dispatched; baseline-safe. |
 | **`ParallelFor` thread pool** | every `CpuSolver::*` elementwise/vector loop | Custom global ThreadPool. |
 | **OpenMP reductions** | `sum`, `dot`, `dot_complex`, `frobenius_norm` | `#pragma omp parallel for reduction`. |
 | **Eigen** | determinant (PartialPivLU), float solve, Arnoldi small Hessenberg | Single-threaded; fine for small/structured, not for huge dense. |
@@ -100,8 +100,8 @@ Python-level linalg endpoints (`solve`, `lstsq`, `slogdet`, `cond`, `eigh`, `eig
 ## 5. Correctness / scale risks (must-fix before "disgustingly large" claims)
 
 1. **LAPACK/BLAS int32 indexing is a non-issue for dense matrices.** `lapack_int`/`blasint` are int32 but are used for *single dimensions* (`n`, `lda`, `M/N/K`), which overflow only near n ≈ 2.1e9 — unreachable for dense (RAM-bound first). **Verified:** bundled OpenBLAS is LP64 and ABI-consistent with the code. The real scale limit is RAM/VRAM → out-of-core (§6 items 6–7). Guard against it by keeping all *flattened element* loops on `size_t`/`uint64_t` (already the case) and never casting a total-element count to `int`.
-2. **`solve`/`lu` double naive kernels** (§3.1) — not just slow; they do *not* share the LAPACK pivoting/conditioning guarantees and the `solve` pivot threshold (`maxv < 1e-12`) is a hard-coded singularity heuristic that can differ from LAPACK's.
-3. **AVX-512 `target` attribute only applied on GCC/Clang.** On MSVC the `_mm512_*` intrinsics require a global `/arch:AVX512` flag, which lets the compiler auto-vectorize *other* functions in the TU with AVX-512 — the exact class of bug that produced the MinGW `-march=native` crash. Confirm the AVX-512 kernel lives in an isolated TU and `/arch:AVX512` is scoped to it (or gate the whole path behind a runtime cpuid check at call sites, which already exists).
+2. ~~`solve`/`lu` double naive kernels~~ → **FIXED** (LAPACK `dgesv`/`dgetrf`, §3.1). Singularity now matches LAPACK/NumPy exactly-zero-pivot semantics.
+3. ~~AVX-512 `/arch` leakage~~ → **FIXED**. SIMD kernels are runtime-dispatched via cpuid (`has_avx512_vpopcntdq()` / `has_avx2()`) with scalar fallbacks; `-march=native` was removed and the AVX2 kernels now carry per-function `__attribute__((target("avx2")))` (MSVC emits intrinsics without `/arch`, so no flag is needed or leaked there). Distribution binaries are baseline-safe.
 4. **f64 elementwise is largely scalar** (`sub`/`mul`/`div` in double fall to `scalar_*`). Not wrong, just slower; low risk.
 5. **GPU `CMAKE_CUDA_ARCHITECTURES "native"`** — fine locally, wrong for distribution (would compile only for the build machine's arch). Replace with an explicit arch list (e.g., `50;60;61;70;75;80;86;90` + PTX) for wheels.
 
@@ -112,9 +112,9 @@ Python-level linalg endpoints (`solve`, `lstsq`, `slogdet`, `cond`, `eigh`, `eig
 Ordered by expected payoff for huge matrices:
 
 1. **Full cuBLAS/cuSOLVER wiring** for the missing factorizations: `qr` (`geqrf`+`orgqr`), `svd` (`gesvd`), `lu` (`getrf`), `eig` (`syevd`), plus batched `getri` for inverse-of-many. One shared `CudaLinalg` dispatch layer instead of ad-hoc kernels.
-2. **LAPACK `dgesv`/`dgetrf` for double `solve`/`lu`** on CPU (fix §3.1). Highest CPU payoff, lowest effort.
+2. ~~LAPACK `dgesv`/`dgetrf` for double `solve`/`lu`~~ → **DONE** (verified against NumPy).
 3. **64-bit indexing already holds where it matters.** Flattened element loops use `size_t`/`uint64_t`, and the memory-mapped containers use 64-bit offsets; LAPACK/BLAS int32 is per-dimension and safe for any dense size that fits in RAM. Keep this invariant (never cast element counts to `int`). ILP64 is only worth revisiting if we ever support single-dimension n > 2.1e9 (banded/sparse extremes) — not on the dense roadmap.
-4. **Runtime SIMD dispatch completion.** Extend the existing `has_avx2()` pattern to (a) f64 sub/mul/div, (b) AVX-512 for elementwise and reductions, (c) per-TU `target` isolation so no `-march`/`/arch` flag ever leaks across functions.
+4. **Runtime SIMD dispatch completion.** Baseline-safety is done (`-march=native` removed; AVX2/AVX-512 kernels carry per-function `target` attributes and are cpuid-gated). Remaining throughput work: (a) f64 sub/mul/div SIMD, (b) AVX-512 for elementwise and reductions.
 5. **BLAS batched ops** (`cblas_*_batch`, cuBLAS batched GEMM/GEMV) for ensembles of many small causal-set matrices — the causal-set workload that does not fit the single-huge-matrix pattern.
 6. **Tiled/blocked out-of-core executor.** Generalize the existing GPU VRAM chunking to a generic "tile + accumulator" loop keyed on the `MemoryGovernor` budget, so `add`/`subtract`/`inverse`/`qr`/`svd` can run on memory-mapped `.pycauset` containers without materializing the full result in RAM. Today only `matmul`/`batch_gemv` stream.
 7. **Mixed CPU+GPU tandem** (cooperative execution): split a tile loop across OpenBLAS (CPU) and cuBLAS (GPU) simultaneously. Already documented as a future direction in `SUPPORT_READINESS_FRAMEWORK.md` §2.2.1.
@@ -131,7 +131,7 @@ Ordered by expected payoff for huge matrices:
 | 1 | ~~Fix double solve + lu → LAPACK~~ → DONE (`dgesv`/`dgetrf`, verified) | Biggest CPU gap; silent-perf inconsistency | S |
 | 2 | ~~Verify OpenBLAS ILP64~~ → DONE: LP64, ABI-consistent; removed stale comment | Confirmed no index-ABI risk | S |
 | 3 | Unblock CUDA build (VS 2022) and re-enable `ENABLE_CUDA` | Gates all GPU work | User action + M |
-| 4 | Scope AVX-512 TU isolation / runtime dispatch | Top production crash risk | M |
+| 4 | ~~Scope AVX-512 TU isolation / runtime dispatch~~ → DONE (cpuid-gated + per-fn `target`, `-march=native` removed) | Top production crash risk | M |
 | 5 | cuBLAS/cuSOLVER for `qr`/`svd`/`lu`/`eig` | GPU parity | M–L |
 | 6 | f64 elementwise SIMD (sub/mul/div) | Cheap throughput win | S |
 | 7 | Generic tiled out-of-core executor | "Absurdly large" RAM ceiling | L |

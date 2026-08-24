@@ -58,11 +58,12 @@ if(MSVC)
 endif()
 
 if(NOT MSVC)
-    # Local-dev SIMD enablement: kernels use AVX/AVX2/AVX-512 intrinsics
-    # unconditionally (MSVC allows this without flags; GCC/Clang need -march).
-    # -march=native is LOCAL-DEV ONLY; distribution wheels must use explicit
-    # target flags instead (see R1_PERF).
-    add_compile_options(-march=native -Wa,-mbig-obj)
+    # SIMD is runtime-dispatched via cpuid and the AVX2/AVX-512 kernels carry
+    # per-function __attribute__((target(...))), so NO global -march is required
+    # (nor safe): -march=native emitted native-ISA instructions throughout the TU,
+    # producing binaries that crash (illegal instruction) on older CPUs — the
+    # exact MinGW failure mode. Keep the baseline ISA for distribution safety.
+    add_compile_options(-Wa,-mbig-obj)
     add_compile_definitions(_WIN32_WINNT=0x0A00)
 endif()
 

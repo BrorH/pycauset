@@ -85,9 +85,12 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
 - [ ] R1_QA gates (CI correctness + persistence + bench visibility).
 
 **Phase 4 — Shipping readiness (R1_SHIP, production-release checklist)**
-- [ ] **CPU baseline / AVX-512**: kernels use `_mm512_*` unconditionally → would crash
-  (illegal instruction) on CPUs without AVX-512. Add runtime dispatch or build a baseline
-  target + gated fast paths. (This is the same "silent crash" class we've been fixing.)
+- [x] **CPU baseline / SIMD runtime dispatch**: AVX-512 (`dot_product_avx512`) and AVX2
+  elementwise kernels are runtime-dispatched via cpuid (`has_avx512_vpopcntdq()` /
+  `has_avx2()`) with scalar fallbacks. Removed `-march=native` (it emitted native-ISA
+  instructions throughout the TU — the MinGW crash mode) and added per-function
+  `__attribute__((target("avx2")))` to the AVX2 kernels so GCC/Clang build baseline-safe
+  binaries with gated fast paths.
 - [ ] **CUDA**: compile for target compute capabilities (GTX 1060 = CC 6.1); ensure clean
   CPU fallback when CUDA is absent; decide whether to bundle NVIDIA DLLs (EULA limits
   redistribution — likely require user-installed CUDA + dynamic load instead of shipping ~1.75GB).

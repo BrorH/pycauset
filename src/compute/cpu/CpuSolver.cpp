@@ -174,31 +174,38 @@ namespace {
         for(size_t i=0; i<n; ++i) dst[i] = a[i] / b[i]; 
     }
 
-    // AVX2 Kernels
+    // AVX2 Kernels — per-function ISA target for GCC/Clang so these compile
+    // without a global -march (runtime-dispatched via has_avx2() below). MSVC
+    // emits intrinsics without /arch, so the attribute is a no-op there.
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(_M_X64))
+    #define PYCAUSET_AVX2_TARGET __attribute__((target("avx2")))
+#else
+    #define PYCAUSET_AVX2_TARGET
+#endif
 #if defined(__x86_64__) || defined(_M_X64)
     // Float
-    void avx2_add_f32(float* dst, const float* a, const float* b, size_t n) {
+    PYCAUSET_AVX2_TARGET void avx2_add_f32(float* dst, const float* a, const float* b, size_t n) {
         size_t i = 0;
         for (; i + 8 <= n; i += 8) {
             _mm256_storeu_ps(dst + i, _mm256_add_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
         }
         for (; i < n; ++i) dst[i] = a[i] + b[i];
     }
-    void avx2_sub_f32(float* dst, const float* a, const float* b, size_t n) {
+    PYCAUSET_AVX2_TARGET void avx2_sub_f32(float* dst, const float* a, const float* b, size_t n) {
         size_t i = 0;
         for (; i + 8 <= n; i += 8) {
             _mm256_storeu_ps(dst + i, _mm256_sub_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
         }
         for (; i < n; ++i) dst[i] = a[i] - b[i];
     }
-    void avx2_mul_f32(float* dst, const float* a, const float* b, size_t n) {
+    PYCAUSET_AVX2_TARGET void avx2_mul_f32(float* dst, const float* a, const float* b, size_t n) {
         size_t i = 0;
         for (; i + 8 <= n; i += 8) {
             _mm256_storeu_ps(dst + i, _mm256_mul_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
         }
         for (; i < n; ++i) dst[i] = a[i] * b[i];
     }
-    void avx2_div_f32(float* dst, const float* a, const float* b, size_t n) {
+    PYCAUSET_AVX2_TARGET void avx2_div_f32(float* dst, const float* a, const float* b, size_t n) {
         size_t i = 0;
         for (; i + 8 <= n; i += 8) {
             _mm256_storeu_ps(dst + i, _mm256_div_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
@@ -207,7 +214,7 @@ namespace {
     }
 
     // Double
-    void avx2_add_f64(double* dst, const double* a, const double* b, size_t n) {
+    PYCAUSET_AVX2_TARGET void avx2_add_f64(double* dst, const double* a, const double* b, size_t n) {
         size_t i = 0;
         for (; i + 4 <= n; i += 4) {
             _mm256_storeu_pd(dst + i, _mm256_add_pd(_mm256_loadu_pd(a + i), _mm256_loadu_pd(b + i)));
@@ -216,6 +223,7 @@ namespace {
     }
     // ... specialized logic for others ...
 #endif
+#undef PYCAUSET_AVX2_TARGET
 
     // Discriminators
     template<typename T> SimdKernel<T> get_add_kernel() { return scalar_add<T>; }
