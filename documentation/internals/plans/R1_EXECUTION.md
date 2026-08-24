@@ -122,7 +122,18 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
   scikit-build-core, setuptools_scm, CUDA-not-bundled).
 
 **Phase 5 — release mechanics (R1_REL)**
-- [ ] Release checklist; cut release.
+- [x] `CHANGELOG.md` written (R1 → v0.5.1 section).
+- [ ] CI green on the 3-OS matrix (first GitHub run; exercises Linux/macOS wheels).
+- [ ] Linux build verified by maintainer (in progress, not today).
+- [ ] Decide GPU-in-R1: ship CPU-only now (recommended) or install VS 2022 for CUDA.
+- [ ] Tag `v0.5.1` and cut the release (setuptools_scm will pick up the tag as the version).
+
+Release checklist (run at tag time):
+1. `git tag v0.5.1 && git push --tags`.
+2. Confirm `pycauset.__version__` == `0.5.1` in a clean build.
+3. Build wheels for the 3 OSes (CI artifacts) and `twine check` them.
+4. Publish to PyPI; sanity-check `pip install pycauset` in a fresh venv.
+5. Point the docs "latest" at the v0.5.1 tag.
 
 ## 4. Working agreements
 - Every code change ships with its test AND its doc line (same commit).
