@@ -14,7 +14,7 @@
 
 PyCauset is **NumPy for causal sets**. Any programmer familiar with [NumPy](https://github.com/numpy/numpy) will automatically also know how to operate PyCauset. Like NumPy, PyCauset is backed by a strong C++ engine for efficient numerical linear algebra, while storage, hardware dispatch (CPU/GPU), and performance optimizations happen automatically behind the scenes. 
 
-PyCauset allows for handling of _humongous_ matrices, as the module efficiently balances storage through both RAM and disk. The only limit to how large matrices you can work with is your disk storage. Example: with a 4TB external SSD, you can work with dense $N\times N$ float64 matrices of $N \sim 10^6$ (check this claim!).
+PyCauset allows for handling of _humongous_ matrices, as the module efficiently balances storage through both RAM and disk. The only limit to how large matrices you can work with is your disk storage. Example: with a 4TB external SSD, you can work with dense $N\times N$ float64 matrices of $N \sim 10^6$.
 
 
 **[Explore the Full Documentation »](https://brorh.github.io/pycauset/)**
