@@ -32,8 +32,8 @@ Legend:
 |---|---|---|---|---|
 | `matmul` | OpenBLAS `cblas_dgemm`/`sgemm` (multithreaded); bit×bit → AVX-512 popcount (cpuid-guarded) | ✅ cuBLAS (dense f32/f64; bit→int32) | ✅ VRAM chunking (`matmul_streaming`, `gemm_streaming`) | ✅ |
 | `inverse` | LAPACK `dgetrf`+`dgetri` | ✅ cuSOLVER `getrf`/`getri` (+ `inverse_incore`) | ❌ naive | ✅ |
-| `solve` | ⚠️ **double: naive scalar GE w/ pivot**; float: Eigen `PartialPivLU` | ✅ custom LU row-panel / forward / back-sub | ❌ naive | ⚠️ replace double w/ `dgesv` |
-| `lu` | ⚠️ **double: naive scalar GE**; float: LAPACK `sgetrf` | ❌ stub | ❌ naive | ⚠️ replace double w/ `dgetrf` |
+| `solve` | ✅ LAPACK `dgesv` (float: Eigen `PartialPivLU`) | ✅ custom LU row-panel / forward / back-sub | ❌ naive | ✅ (was naive double GE; fixed) |
+| `lu` | ✅ LAPACK `dgetrf` (float: `sgetrf`) | ❌ stub | ❌ naive | ✅ (was naive double GE; fixed) |
 | `cholesky` | LAPACK `dpotrf`/`spotrf` | ✅ custom kernel (cuSOLVER path) | ❌ naive | ✅ |
 | `qr` | LAPACK `dgeqrf`+`dorgqr` | ❌ stub | ❌ naive | ✅ (add cuSOLVER later) |
 | `svd` | LAPACK `dgesvd`/`sgesvd` (thin) | ❌ stub | ❌ naive | ✅ (add `gesvd` later) |
@@ -68,12 +68,9 @@ Python-level linalg endpoints (`solve`, `lstsq`, `slogdet`, `cond`, `eigh`, `eig
 | **OpenMP reductions** | `sum`, `dot`, `dot_complex`, `frobenius_norm` | `#pragma omp parallel for reduction`. |
 | **Eigen** | determinant (PartialPivLU), float solve, Arnoldi small Hessenberg | Single-threaded; fine for small/structured, not for huge dense. |
 
-### 3.1 The two CPU inconsistencies that must be fixed (silent-perf bugs)
+### 3.1 Dense float64 `solve`/`lu` now use LAPACK (fixed)
 
-1. **`CpuSolver::solve`**: the `double` branch is hand-written scalar Gaussian elimination (lines ~5406–5475); the `float` branch uses Eigen `PartialPivLU`. A dense double `solve` is **O(n³) scalar** — order-of-magnitude slower than it should be, and inconsistent.
-2. **`CpuSolver::lu`**: the `double` branch is hand-written scalar GE (lines ~5208–5277); the `float` branch uses LAPACK `sgetrf`. Same inconsistency.
-
-Both should go through LAPACK `dgesv`/`dgetrf` (or Eigen `PartialPivLU` for double, matching float). These are correctness-preserving replacements that drop straight into the existing property-shortcut layer in `python/pycauset/_internal/ops.py`.
+~~The two CPU inconsistencies~~ are resolved: both dense `float64` paths now go through LAPACK `dgesv`/`dgetrf`, matching the float paths (Eigen `PartialPivLU` / `sgetrf`). The `P@L@U` reconstruction convention (column-index P built from `ipiv`) was empirically verified against NumPy, and the paths are guarded by `tests/python/test_edge_cases_core.py::TestDenseFactorizationsLapack`.
 
 ---
 
@@ -131,7 +128,7 @@ Ordered by expected payoff for huge matrices:
 
 | # | Action | Why now | Effort |
 |---|---|---|---|
-| 1 | Fix double `solve` + `lu` → LAPACK `dgesv`/`dgetrf` | Biggest CPU gap; silent-perf inconsistency | S |
+| 1 | ~~Fix double solve + lu → LAPACK~~ → DONE (`dgesv`/`dgetrf`, verified) | Biggest CPU gap; silent-perf inconsistency | S |
 | 2 | ~~Verify OpenBLAS ILP64~~ → DONE: LP64, ABI-consistent; removed stale comment | Confirmed no index-ABI risk | S |
 | 3 | Unblock CUDA build (VS 2022) and re-enable `ENABLE_CUDA` | Gates all GPU work | User action + M |
 | 4 | Scope AVX-512 TU isolation / runtime dispatch | Top production crash risk | M |

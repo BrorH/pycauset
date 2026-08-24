@@ -5209,72 +5209,47 @@ void CpuSolver::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBas
     uint64_t k = std::min(m, n);
     
     if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
-        // Copy to working buffer (Row Major)
-        std::vector<double> work(m * n);
-        for(size_t i=0; i<m; ++i) for(size_t j=0; j<n; ++j) work[i*n + j] = in_d->get(i, j);
-        
-        std::vector<int> p_perm(m);
-        for(int i=0; i<(int)m; ++i) p_perm[i] = i;
-        
-        for(size_t step=0; step<k; ++step) {
-            // Find pivot
-            double max_val = 0.0;
-            size_t pivot_row = step;
-            for(size_t i=step; i<m; ++i) {
-                double abs_val = std::abs(work[i*n + step]);
-                if (abs_val > max_val) {
-                    max_val = abs_val;
-                    pivot_row = i;
-                }
-            }
-            
-            // Swap rows in work and p_perm
-            if (pivot_row != step) {
-                std::swap(p_perm[step], p_perm[pivot_row]);
-                for(size_t j=0; j<n; ++j) std::swap(work[step*n + j], work[pivot_row*n + j]);
-            }
-            
-            // Elimination
-            double diag = work[step*n + step];
-            // Naive check for singular (should be robust enough)
-            if (std::abs(diag) > 1e-100) { 
-                for(size_t i=step+1; i<m; ++i) {
-                    double factor = work[i*n + step] / diag;
-                    work[i*n + step] = factor; // Store L part
-                    for(size_t j=step+1; j<n; ++j) {
-                        work[i*n + j] -= factor * work[step*n + j];
-                    }
-                }
-            }
-        }
-        
-        // Output P
-        auto* p_out = dynamic_cast<DenseMatrix<double>*>(&P);
-        double* p_ptr = p_out->data();
-        std::memset(p_ptr, 0, m*m*sizeof(double));
-        for(size_t i=0; i<m; ++i) {
-            p_ptr[p_perm[i] * m + i] = 1.0;
+        // Copy to working buffer (row-major); dgetrf factorizes in place.
+        std::vector<double> a_buf(m * n);
+        for(size_t i=0; i<m; ++i) for(size_t j=0; j<n; ++j) a_buf[i*n + j] = in_d->get(i, j);
+
+        std::vector<lapack_int> ipiv(k);
+        lapack_int info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, (lapack_int)m, (lapack_int)n,
+                                         a_buf.data(), (lapack_int)n, ipiv.data());
+        if (info < 0) throw std::runtime_error("dgetrf: illegal argument");
+        // info > 0 => U(info,info) exactly zero (singular); the LU factorisation is
+        // still valid and returned (matches the float path's sgetrf behaviour).
+
+        // U = upper triangular part (K x N)
+        auto* u_out = dynamic_cast<DenseMatrix<double>*>(&U);
+        double* u_ptr = u_out->data();
+        std::fill(u_ptr, u_ptr + k * n, 0.0);
+        for(size_t i=0; i<k; ++i) {
+            for (size_t j=i; j<n; ++j) u_ptr[i*n + j] = a_buf[i*n + j];
         }
 
-        // Output L
+        // L = unit lower triangular (M x K)
         auto* l_out = dynamic_cast<DenseMatrix<double>*>(&L);
         double* l_ptr = l_out->data();
-        std::memset(l_ptr, 0, m*k*sizeof(double));
+        std::fill(l_ptr, l_ptr + m * k, 0.0);
         for(size_t i=0; i<m; ++i) {
-            for(size_t j=0; j<std::min(i, k); ++j) { // Strict Lower
-                l_ptr[i*k + j] = work[i*n + j];
+            for(size_t j=0; j<k && j<=i; ++j) {
+                if (i == j) l_ptr[i*k + j] = 1.0;
+                else l_ptr[i*k + j] = a_buf[i*n + j];
             }
-            if (i < k) l_ptr[i*k + i] = 1.0;
         }
 
-        // Output U
-        auto* u_out = dynamic_cast<DenseMatrix<double>*>(&U);
-        double* u_ptr = u_out->data(); 
-        std::memset(u_ptr, 0, k*n*sizeof(double));
+        // P = permutation matrix from ipiv (row-swap semantics)
+        auto* p_out = dynamic_cast<DenseMatrix<double>*>(&P);
+        double* p_ptr = p_out->data();
+        std::fill(p_ptr, p_ptr + m * m, 0.0);
+        std::vector<int> p_indices(m);
+        for(size_t i=0; i<m; ++i) p_indices[i] = (int)i;
         for(size_t i=0; i<k; ++i) {
-            for(size_t j=i; j<n; ++j) { // Upper
-                u_ptr[i*n + j] = work[i*n + j];
-            }
+            std::swap(p_indices[i], p_indices[ipiv[i] - 1]);
+        }
+        for(size_t i=0; i<m; ++i) {
+            p_ptr[p_indices[i] * m + i] = 1.0;
         }
         return;
     }
@@ -5418,58 +5393,25 @@ void CpuSolver::solve(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
             auto* x_d = dynamic_cast<DenseMatrix<double>*>(&x);
             if (!x_d) throw std::runtime_error("solve result must be dense double");
             
-            // Work buffers
+            // Work buffers (LAPACK dgesv solves A*X = B in place)
             std::vector<double> wa(n * n);
-            std::vector<double> wb(n * nrhs); // Holds B initially, then Solution X
-            
-            // Copy (Assume Row Major input)
+            std::vector<double> wb(n * nrhs); // B on input, X on output
+            std::vector<lapack_int> ipiv(n);
+
+            // Copy (row-major)
             for(size_t i=0; i<n; ++i) for(size_t j=0; j<n; ++j) wa[i*n + j] = a_d->get(i, j);
             for(size_t i=0; i<n; ++i) for(size_t j=0; j<nrhs; ++j) wb[i*nrhs + j] = b_d->get(i, j);
-            
-            // Forward Elimination with Partial Pivoting
-            for(size_t k=0; k<n; ++k) {
-                // Pivot
-                size_t p = k;
-                double maxv = std::abs(wa[k*n + k]);
-                for(size_t i=k+1; i<n; ++i) {
-                    double v = std::abs(wa[i*n + k]);
-                    if (v > maxv) {
-                        maxv = v;
-                        p = i;
-                    }
-                }
-                
-                if (maxv < 1e-12) throw std::runtime_error("solve failed: matrix singular");
-                
-                if (p != k) {
-                    for(size_t j=k; j<n; ++j) std::swap(wa[k*n + j], wa[p*n + j]);
-                    for(size_t j=0; j<nrhs; ++j) std::swap(wb[k*nrhs + j], wb[p*nrhs + j]);
-                }
-                
-                // Eliminate
-                double diag = wa[k*n + k];
-                for(size_t i=k+1; i<n; ++i) {
-                    double mult = wa[i*n + k] / diag;
-                    wa[i*n + k] = 0; // optimized out
-                    for(size_t j=k+1; j<n; ++j) wa[i*n + j] -= mult * wa[k*n + j];
-                    for(size_t j=0; j<nrhs; ++j) wb[i*nrhs + j] -= mult * wb[k*nrhs + j];
-                }
-            }
-            
-            // Backward Substitution
-            // wb currently holds Y where UX = Y.
-            for(size_t k=n; k-->0;) { // Loop n-1 down to 0
-                double diag = wa[k*n + k];
-                for(size_t j=0; j<nrhs; ++j) {
-                    double val = wb[k*nrhs + j];
-                    for(size_t i=k+1; i<n; ++i) {
-                        val -= wa[k*n + i] * wb[i*nrhs + j];
-                    }
-                    wb[k*nrhs + j] = val / diag;
-                }
-            }
-            
-            // Copy to X
+
+            // LAPACK LU with partial pivoting + forward/back substitution.
+            // info > 0 => U(i,i) is exactly zero => singular (matches NumPy's
+            // np.linalg.solve, which also uses dgesv).
+            lapack_int info = LAPACKE_dgesv(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)nrhs,
+                                            wa.data(), (lapack_int)n, ipiv.data(),
+                                            wb.data(), (lapack_int)nrhs);
+            if (info > 0) throw std::runtime_error("solve failed: matrix singular (zero pivot at " + std::to_string(info) + ")");
+            if (info < 0) throw std::runtime_error("solve: illegal argument to dgesv");
+
+            // Copy solution to X
             double* x_ptr = x_d->data();
             for(size_t i=0; i<n*nrhs; ++i) x_ptr[i] = wb[i];
             

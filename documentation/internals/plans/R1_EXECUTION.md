@@ -26,7 +26,8 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 
 ## 2. Measured state (2026-08-24)
 
-**Full suite (MSVC build, no crash): 507 passed / 1 failed / 29 skipped.**
+**Full suite (MSVC build, no crash): 510 passed / 1 failed / 29 skipped.**
+(Remaining failure: `test_eigen_caching.py::test_cache_persistence_across_load` — eigen cache not persisted to `.pycauset`; known, tracked in TODO.)
 
 **Correctness — fixed and verified:**
 - `solve`/`lu`/`qr`/`svd`/`cholesky` — was the flagship silent-wrong-answer; root cause

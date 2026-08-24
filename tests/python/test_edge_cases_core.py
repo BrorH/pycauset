@@ -114,5 +114,38 @@ class TestDTypeInvariants(unittest.TestCase):
         self.assertEqual(got[0, 0], 1 + 2j)
 
 
+class TestDenseFactorizationsLapack(unittest.TestCase):
+    """Regression coverage for the LAPACK-backed dense float64 solve/LU.
+
+    These guard against the previous naive scalar Gaussian-elimination
+    implementations (which were O(n^3) single-threaded and inconsistent with the
+    float paths) being reintroduced, and pin the P@L@U reconstruction convention.
+    """
+
+    def test_solve_dense_float64_matches_numpy(self):
+        rng = np.random.default_rng(20240824)
+        a_np = rng.standard_normal((30, 30))
+        a_np += np.eye(30) * 10.0  # well-conditioned
+        b_np = rng.standard_normal((30, 4))
+        x = pc.solve(pc.matrix(a_np), pc.matrix(b_np))
+        self.assertTrue(np.allclose(a_np @ _np(x), b_np, atol=1e-10))
+
+    def test_solve_dense_float64_singular_raises(self):
+        a_np = np.zeros((4, 4))
+        b_np = np.ones((4, 1))
+        with self.assertRaises(Exception):
+            pc.solve(pc.matrix(a_np), pc.matrix(b_np))
+
+    def test_lu_dense_float64_reconstructs(self):
+        rng = np.random.default_rng(7)
+        a_np = rng.standard_normal((25, 25))
+        p, l, u = pc.lu(pc.matrix(a_np))
+        P, L, U = _np(p), _np(l), _np(u)
+        self.assertTrue(np.allclose(P @ L @ U, a_np, atol=1e-10))
+        self.assertTrue(np.allclose(np.diag(L), 1.0))
+        self.assertTrue(np.allclose(np.tril(L), L))
+        self.assertTrue(np.allclose(np.triu(U), U))
+
+
 if __name__ == "__main__":
     unittest.main()
