@@ -1251,9 +1251,34 @@ def lu(a: Any, *, deps: OpsDeps) -> Any:
 
 
 def solve(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Solve AX = B."""
+    """Solve AX = B, honouring properties-as-gospel (identity/zero/triangular)."""
     rec = _record_io_trace("solve", [a, b], deps=deps)
-    
+
+    a_struct = _effective_structure_for(a)
+    shape = _safe_rows_cols(a)
+
+    if a_struct == "zero":
+        raise ValueError("solve: matrix marked is_zero; system is singular")
+
+    if a_struct == "identity":
+        # Treat as identity regardless of payload; check basic shape compatibility.
+        if shape is not None and shape[0] != shape[1]:
+            raise ValueError("solve: is_identity requires a square matrix for solve")
+        native_matrix_base = getattr(deps.native, "MatrixBase", None)
+        native_vector_base = getattr(deps.native, "VectorBase", None)
+        if (native_matrix_base and isinstance(b, native_matrix_base)) or (
+            native_vector_base and isinstance(b, native_vector_base)
+        ):
+            _track_and_mark_temporary_if_native(b, deps=deps)
+            return b
+        return _as_pycauset_array(b, deps=deps)
+
+    if a_struct in ("upper_triangular", "lower_triangular", "diagonal"):
+        try:
+            return solve_triangular(a, b, deps=deps)
+        except Exception:
+            pass
+
     fn = getattr(deps.native, "solve", None)
     if callable(fn):
         try:
@@ -1262,10 +1287,10 @@ def solve(a: Any, b: Any, *, deps: OpsDeps) -> Any:
             return x
         except Exception:
             pass
-            
+
     np_module = deps.np_module
     if np_module:
         val = np_module.linalg.solve(_to_numpy_matrix(a, deps=deps), _to_numpy_matrix(b, deps=deps))
         return _as_pycauset_array(val, deps=deps)
-        
+
     raise RuntimeError("solve failed")

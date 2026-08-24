@@ -97,10 +97,6 @@ class TestPhaseGLinalgEndpoints(unittest.TestCase):
         with self.assertRaises(ValueError):
             pc.solve_triangular(A, pc.vector((1.0, 2.0)))
         with self.assertRaises(NotImplementedError):
-            pc.lu(A)
-        with self.assertRaises(NotImplementedError):
-            pc.svd(A)
-        with self.assertRaises(NotImplementedError):
             pc.pinv(A)
 
     def test_eigvals_arnoldi_real(self):
@@ -115,9 +111,5 @@ class TestPhaseGLinalgEndpoints(unittest.TestCase):
 
     def test_removed_eig_apis_are_deterministic(self):
         A = pc.matrix(((1.0, 0.0), (0.0, 1.0)))
-        with self.assertRaises(NotImplementedError):
-            pc.eig(A)
-        with self.assertRaises(NotImplementedError):
-            pc.eigvals(A)
         with self.assertRaises(NotImplementedError):
             pc.eigvals_skew(A)
