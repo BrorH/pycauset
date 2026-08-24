@@ -446,7 +446,7 @@ Goal: prevent regressions (correctness and performance).
 
 Progress:
 - Correctness CI scaffolded (`.github/workflows/ci.yml`, 3-OS × py3.12, `pytest`) — done.
-- Benchmark suite + perf-regression visibility — **post-R1** (deferred with optimization).
+- Benchmark **harness + results** now live (`benchmarks/bench.py`, `BENCHMARKS.md`, linked from README) for the conference/showcase. Hard benchmark *gates* (≥0.90x NumPy, CI-enforced thresholds) — **post-R1**.
 - Dead-code / deprecated-feature sweep — **post-R1** (with R1_POLISH cleanup).
 
 Deliverables:
