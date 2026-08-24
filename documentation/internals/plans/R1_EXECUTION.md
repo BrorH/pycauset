@@ -26,49 +26,52 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 
 ## 2. Measured state (2026-08-24)
 
+**Full suite (MSVC build, no crash): 487 passed / 21 failed / 29 skipped.**
+
 **Correctness — fixed and verified:**
 - `solve`/`lu`/`qr`/`svd`/`cholesky` — was the flagship silent-wrong-answer; root cause
   `unique_ptr<MatrixBase>` → `shared_ptr` (commit `204573b`).
 - `eigh`/`eigvalsh`/`eig`/`eigvals`/`eigvals_arnoldi` → NumPy fallback, incl. complex
-  (non-symmetric) eigenvalues via `ComplexFloat64Vector` (`dabb9a2`, `ca15aae`).
-- `TriangularBitMatrix.random(n).size()` — false positive; `size()==rows*cols` is correct
-  (`d8ae238`).
-- Dead overridden `lu`/`cholesky`/`svd` stubs removed (`17ab757`).
+  eigenvalues (`dabb9a2`, `ca15aae`).
+- `TriangularBitMatrix.random(n).size()` — false positive (`d8ae238`).
+- Dead overridden stubs removed (`17ab757`).
+- **"Heap-corruption Heisenbug" was MinGW-specific** — the MinGW build crashed on the
+  bit-matrix matmul / `invert` / teardown, but the MSVC build (with and without ASan)
+  runs the full suite cleanly with zero ASan errors. Root cause of the MinGW crashes is
+  likely the `-march=native` SIMD codegen; the MSVC toolchain is the fix.
 
-**Correctness — still open:**
-- **Heap-corruption Heisenbug** (the main blocker): bit-matrix × float64 matmul crashes in
-  the full suite but not in isolation; also seen as `invert` flakiness and a teardown crash
-  in `release_tracked_matrices()`. Root cause is an out-of-bounds write — needs ASan.
-- `vector_scalar` op family unregistered ("Unknown kind" in support-matrix check).
-- int64/uint vector + complex value → raw `TypeError` (should be error-by-design).
-- NumPy 1-D broadcast gap (one test).
+**Remaining (21 failures — R1_CPU Phase 6/7 *feature completeness*, not crashes):**
+- ~13 "op not registered in OpRegistry" (trace/determinant/frobenius_norm/lu/qr/solve/svd
+  op-contracts, eigen op-contracts).
+- `load_matrix` missing (eigen caching test).
+- `vector_scalar` op family unregistered; int64/uint+complex raw `TypeError`.
+- NumPy 1-D broadcast gap; solve-identity property shortcut.
+- Intermittent **teardown hang** in `release_tracked_matrices()` (at exit; doesn't affect
+  test results).
 
-**Verification ceiling:** the full suite still crashes mid-run at the Heisenbug, so there
-is no clean full-suite count yet. Targeted suites (edge cases, factorizations, eigen) pass.
-
-**Environment:** MinGW build works (committed `b25f1c1`) but is **CPU-only** (`ENABLE_CUDA=OFF`
-— MinGW can't compile `.cu` kernels). The machine **does** have a GPU: GTX 1060 6GB, driver
-582.53, CUDA toolkit 12.6. MSVC Build Tools now installed → rebuild with `-DENABLE_CUDA=ON`
-to enable + verify the GPU path (R1_GPU / SRP-3).
+**Environment:** MSVC Build Tools 2026 installed → **canonical build works**
+(`build_msvc`). GPU present: GTX 1060 6GB + CUDA 12.6 toolkit; CUDA not yet compiled in
+(`ENABLE_CUDA=OFF`) — to enable + verify R1_GPU.
 
 ## 3. Ordered backlog
 
 **Phase 0 — environment + test scaffold**
-- [x] Pivot to `main`; hygiene commit; editable-path fix; edge-case tests + bug pins.
-- [ ] MSVC toolchain (in progress — user installing Build Tools).
+- [x] Pivot to `main`; hygiene; editable fix; edge-case tests + bug pins.
+- [x] MSVC toolchain installed; build working.
 
 **Phase 1 — correctness sprint**
-- [x] `solve`/`lu`/`qr`/`svd`/`cholesky` (unique_ptr → shared_ptr).
-- [x] eigen ops → NumPy fallback.
-- [x] `TriangularBitMatrix.random` (false positive).
-- [ ] Heap-corruption root cause (needs ASan) — bit-matmul / `invert` / teardown.
-- [ ] `vector_scalar` registration; int+complex error-by-design; NumPy 1-D broadcast.
+- [x] `solve`/`lu`/`qr`/`svd`/`cholesky`; eigen ops; `random` false-positive.
+- [x] Heap-corruption Heisenbug — resolved (was MinGW-specific; MSVC build is clean).
+- [ ] Register Phase 7 ops in OpRegistry (trace/determinant/frobenius_norm/lu/qr/solve/svd).
+- [ ] `load_matrix`; `vector_scalar` registration; int+complex error-by-design; NumPy 1-D broadcast.
+- [ ] Teardown hang in `release_tracked_matrices()`.
 
 **Phase 2 — hygiene (R1_POLISH)**
 - [ ] DLLs → `libs/` + `os.add_dll_directory` hook.
 - [ ] wiki-links → markdown; ruff/mypy; slim `__init__.py`; remaining dead code.
 
-**Phase 3 — ship**
+**Phase 3 — GPU + ship**
+- [ ] Enable `ENABLE_CUDA=ON`; verify GPU routing/parity (R1_GPU / SRP-3).
 - [ ] R1_QA gates (CI correctness + persistence + bench visibility).
 - [ ] R1_REL checklist; cut release.
 
