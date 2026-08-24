@@ -46,8 +46,10 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 **Verification ceiling:** the full suite still crashes mid-run at the Heisenbug, so there
 is no clean full-suite count yet. Targeted suites (edge cases, factorizations, eigen) pass.
 
-**Environment:** MinGW build works (committed `b25f1c1`). GPU untestable locally
-(`cuda.is_available()` False). MSVC Build Tools installing → will switch build + get ASan.
+**Environment:** MinGW build works (committed `b25f1c1`) but is **CPU-only** (`ENABLE_CUDA=OFF`
+— MinGW can't compile `.cu` kernels). The machine **does** have a GPU: GTX 1060 6GB, driver
+582.53, CUDA toolkit 12.6. MSVC Build Tools now installed → rebuild with `-DENABLE_CUDA=ON`
+to enable + verify the GPU path (R1_GPU / SRP-3).
 
 ## 3. Ordered backlog
 
