@@ -144,6 +144,8 @@ Authoritative source: `include/pycauset/compute/ComputeDevice.hpp`.
 
 ### 2.2.1 Current per-op device/out-of-core status (SRP handoff table)
 
+> **Companion:** `OPTIMIZATION_STATUS.md` explains the *why* behind each routing decision (actual CPU/GPU backend used, scale risks, forward catalog). Keep both in sync.
+
 This table is a **living** SRP handoff artifact. It records the *current routing policy*:
 
 - **CPU**: whether a correctness implementation exists (required)

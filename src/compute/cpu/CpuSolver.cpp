@@ -2,9 +2,12 @@
 #include <complex>
 #define lapack_complex_float std::complex<float>
 #define lapack_complex_double std::complex<double>
-// Force 64-bit integers for LAPACK to match the DLL expectation (likely ILP64)
-// or at least to prevent buffer overflow if the DLL writes 64-bit integers.
-// #define LAPACK_ILP64
+// NOTE: the bundled OpenBLAS is the standard LP64 (32-bit lapack_int) build
+// (verified: DLL exports dgemm_/dgesv_/dgetrf_, NOT the ILP64 *_64_ symbols).
+// Therefore `lapack_int` (int) matches the DLL ABI and LAPACK_ILP64 MUST stay
+// undefined. Switching to an ILP64 OpenBLAS would require defining LAPACK_ILP64
+// here AND rebuilding, otherwise every LAPACK call would read a 64-bit int
+// where a 32-bit one was written (silent corruption).
 
 #ifdef _WIN32
 #include <cblas.h>
