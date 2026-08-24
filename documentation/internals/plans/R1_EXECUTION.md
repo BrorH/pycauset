@@ -96,8 +96,11 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
 - [ ] wiki-links → markdown; ruff/mypy; slim `__init__.py`; remaining dead code.
 
 **Phase 3 — GPU + ship**
-- [ ] Enable `ENABLE_CUDA=ON`; verify GPU routing/parity (R1_GPU / SRP-3).
-- [ ] R1_QA gates (CI correctness + persistence + bench visibility).
+- [x] **GPU skipped for R1** (decision: ship CPU-only). `ENABLE_CUDA=ON` + GPU routing/parity
+  (R1_GPU / SRP-3) deferred to the post-R1 continuous program — needs VS 2022 + CUDA 12.6
+  for the GTX 1060 (CUDA 13 dropped Pascal).
+- [ ] R1_QA gates: CI correctness scaffolded; persistence covered by the suite; benchmark
+  visibility deferred.
 
 **Phase 4 — Shipping readiness (R1_SHIP, production-release checklist)**
 - [x] **CPU baseline / SIMD runtime dispatch**: AVX-512 (`dot_product_avx512`) and AVX2
@@ -106,9 +109,9 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
   instructions throughout the TU — the MinGW crash mode) and added per-function
   `__attribute__((target("avx2")))` to the AVX2 kernels so GCC/Clang build baseline-safe
   binaries with gated fast paths.
-- [ ] **CUDA**: compile for target compute capabilities (GTX 1060 = CC 6.1); ensure clean
-  CPU fallback when CUDA is absent; decide whether to bundle NVIDIA DLLs (EULA limits
-  redistribution — likely require user-installed CUDA + dynamic load instead of shipping ~1.75GB).
+- [x] **CUDA decision**: **skipped for R1** — shipping CPU-only. `cuda.is_available()` returns
+  `False` when `ENABLE_CUDA=OFF` (clean CPU fallback already works). GPU support (target
+  CC 6.1, no bundled NVIDIA DLLs — user-installed CUDA + dynamic load) is deferred.
 - [x] **Windows wheel builds + installs**: `python -m build --wheel` now succeeds after
   pinning `pybind11==2.12.0` in `pyproject.toml` (the source is not yet pybind11-3.x
   compatible: `typing::Tuple` return-type deduction breaks in `bind_vector.cpp`). The wheel
@@ -128,10 +131,13 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
 
 **Phase 5 — release mechanics (R1_REL)**
 - [x] `CHANGELOG.md` written (R1 → v0.5.1 section).
+- [x] **GPU-in-R1 decision: ship CPU-only** (skipped for R1; deferred to post-R1).
 - [ ] CI green on the 3-OS matrix (first GitHub run; exercises Linux/macOS wheels).
 - [ ] Linux build verified by maintainer (in progress, not today).
-- [ ] Decide GPU-in-R1: ship CPU-only now (recommended) or install VS 2022 for CUDA.
 - [ ] Tag `v0.5.1` and cut the release (setuptools_scm will pick up the tag as the version).
+
+**R1 CPU-only is ready to ship.** The only remaining steps are maintainer release actions
+below (tag, CI/Linux verification, PyPI publish) — no further code changes required.
 
 Release checklist (run at tag time):
 1. `git tag v0.5.1 && git push --tags`.
