@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import sys
 import weakref
 from pathlib import Path
 from typing import Any, Callable
@@ -65,6 +66,13 @@ class Runtime:
             pass
 
     def release_tracked_matrices(self) -> None:
+        # During interpreter finalization the native runtime is being torn down;
+        # calling native close() (file-mapping teardown + temp-file delete) can hang
+        # or crash. The OS reclaims mappings on process exit and _cleanup_storage
+        # handles temp files, so skip native close() when finalizing.
+        if getattr(sys, "is_finalizing", lambda: False)():
+            self._live_matrices.clear()
+            return
         for matrix in list(self._live_matrices):
             close = getattr(matrix, "close", None)
             if callable(close):

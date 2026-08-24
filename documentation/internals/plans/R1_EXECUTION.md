@@ -66,8 +66,10 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
   pinned by the passing `test_cache_persistence_across_load` (recompute path).
 - `matrix(ndarray, backing_file=...)` now raises a clear `TypeError` instead of silently
   returning an in-memory matrix (the NumPy fast-path can't honour file backing).
-- Intermittent **teardown hang** in `release_tracked_matrices()` (at exit; doesn't affect
-  results).
+- Intermittent **teardown hang** in `release_tracked_matrices()` (at exit) — **mitigated**:
+  `release_tracked_matrices()` now skips native `close()` during interpreter finalization
+  (the OS reclaims mappings and `_cleanup_storage` handles temp files); the underlying
+  root cause of the native close hang is tracked for a post-R1 fix.
 
 **Environment:** MSVC Build Tools 2026 → canonical CPU build works (`build_msvc`).
 **CUDA blocked by toolchain:** CUDA 13.0 (installed) has *dropped* Pascal (GTX 1060 = CC 6.1,
@@ -89,7 +91,7 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
   `add_vector`/`subtract_vector`/`outer` now have contracts (`supports_streaming=true`).
 - [ ] Remaining int+complex error-by-design edge cases (lower priority). (Complex *list*
   construction fixed; complex scalar × real vector already errors-by-design.)
-- [ ] Teardown hang in `release_tracked_matrices()`.
+- [x] Teardown hang in `release_tracked_matrices()` — mitigated (skip native `close()` during finalization).
 
 **Phase 2 — hygiene (R1_POLISH)**
 - [x] DLLs → `libs/` + `os.add_dll_directory` hook (verified: wheel installs + imports in a fresh venv).
