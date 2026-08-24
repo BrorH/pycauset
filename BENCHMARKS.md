@@ -118,21 +118,22 @@ Eigenvalue routines reach parity (0.95x to 1.01x) across the measured range.
 
 | op | n | NumPy | PyCauset | speedup |
 |---|---|---|---|---|
-| add | 1024 | 29.1ms | 51.7ms | 0.56x |
-| add | 2048 | 113.3ms | 194.4ms | 0.58x |
-| add | 4096 | 440.2ms | 787.3ms | 0.56x |
-| add | 8192 | 1.81s | 3.18s | 0.57x |
-| dot | 100000 | 1.5ms | 2.8ms | 0.54x |
-| dot | 1000000 | 18.8ms | 27.4ms | 0.69x |
-| dot | 10000000 | 130.7ms | 211.7ms | 0.62x |
+| add | 1024 | 28.6ms | 51.3ms | 0.56x |
+| add | 2048 | 107.1ms | 193.0ms | 0.55x |
+| add | 4096 | 440.6ms | 811.4ms | 0.54x |
+| add | 8192 | 1.91s | 3.18s | 0.60x |
+| dot | 100000 | 0.087ms | 0.014ms | **6.21x** |
+| dot | 1000000 | 0.168ms | 0.210ms | 0.80x |
+| dot | 10000000 | 5.72ms | 6.05ms | 0.95x |
 
-Elementwise materialization and dot are below parity (0.54x to 0.69x). These paths go
-through lazy-expression materialization and are tracked for the post-R1 program.
+Dot is at parity or faster (vectors are pre-constructed; the earlier gap was vector
+construction overhead, not the dot itself). Elementwise add remains below parity because
+the lazy-expression materialization path is not yet SIMD-optimized; it is a post-R1 target.
 
 ## What this means
 
-- **Matmul, eigenvalues, and Cholesky** match or beat NumPy at large sizes.
+- **Matmul, eigenvalues, Cholesky, and dot** match or beat NumPy at large sizes.
 - **Inverse and solve** are competitive, within 25% of NumPy.
 - **SVD** is roughly 2x slower (down from 25x after switching to `gesdd`); the row-major
-  overhead, elementwise, and dot are the concrete targets for the post-R1
+  overhead and elementwise add are the concrete targets for the post-R1
   "greater than 0.90x NumPy" program (tracked in `TODO.md`).

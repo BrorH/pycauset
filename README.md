@@ -81,16 +81,17 @@ PyCauset's dense kernels use the same OpenBLAS/LAPACK backend as NumPy, so the g
 
 | operation | small n | large n | status |
 |---|---|---|---|
-| matmul | 0.46x (n=256) | 1.03x (n=8192) | parity at scale |
-| eigh | 0.84x (n=256) | 1.01x (n=2048) | parity |
-| eigvalsh | 0.86x (n=256) | 0.96x (n=2048) | parity |
-| cholesky | 0.71x (n=256) | 0.95x (n=4096) | parity |
-| inverse | 0.86x (n=256) | 0.77x (n=4096) | competitive |
-| solve | 0.54x (n=256) | 0.81x (n=4096) | competitive |
-| elementwise add | 0.56x (n=1024) | 0.57x (n=8192) | known gap |
-| svd | 0.75x (n=256) | 0.51x (n=2048) | ~2x, row-major overhead |
+| matmul | 0.75x (n=256) | 1.01x (n=8192) | parity at scale |
+| eigh | 0.84x (n=256) | 1.00x (n=2048) | parity |
+| eigvalsh | 0.88x (n=256) | 1.03x (n=2048) | parity |
+| cholesky | 0.76x (n=256) | 1.06x (n=4096) | parity |
+| dot | 6.21x (n=100k) | 0.95x (n=10M) | parity or faster |
+| inverse | 0.59x (n=512) | 0.82x (n=4096) | competitive |
+| solve | 0.52x (n=256) | 0.81x (n=4096) | competitive |
+| elementwise add | 0.56x (n=1024) | 0.60x (n=8192) | known gap |
+| svd | 0.79x (n=512) | 0.46x (n=2048) | ~2x, improved from 25x |
 
-Small n carries fixed Python dispatch overhead that amortizes as the matrix grows. Elementwise, dot, and the remaining SVD row-major overhead are the top targets for the post-R1 ">= 0.90x NumPy" program. Full reproducible numbers and graphs: [BENCHMARKS.md](BENCHMARKS.md).
+Small n carries fixed Python dispatch overhead that amortizes as the matrix grows. Elementwise add and the remaining SVD row-major overhead are the top targets for the post-R1 ">= 0.90x NumPy" program. The bigger reason to use PyCauset is that it memory-maps past RAM, where NumPy raises MemoryError (see [BENCHMARKS.md](BENCHMARKS.md)).
 
 ## Gallery
 

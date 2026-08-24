@@ -151,12 +151,21 @@ def main() -> None:
         A = _general(n); B = _general(n); return np.asarray(pc.matrix(A) + pc.matrix(B))
     _measure("add", elem_sizes, np_add, pc_add, results)
 
-    # dot
-    def np_dot(n):
-        a = np.random.rand(n); b = np.random.rand(n); return np.dot(a, b)
-    def pc_dot(n):
-        a = np.random.rand(n); b = np.random.rand(n); return pc.vector(a).dot(pc.vector(b))
-    _measure("dot", dot_sizes, np_dot, pc_dot, results)
+    # dot (vectors pre-constructed to measure the operation, not construction)
+    print("\n## dot")
+    print("| n | NumPy | PyCauset | speedup |")
+    print("|---|---|---|---|")
+    dot_out = {"sizes": [], "numpy_ms": [], "pycauset_ms": []}
+    for n in dot_sizes:
+        a_np = np.random.rand(n); b_np = np.random.rand(n)
+        a_v = pc.vector(a_np); b_v = pc.vector(b_np)
+        t_np = _timeit(lambda: np.dot(a_np, b_np), 5)
+        t_pc = _timeit(lambda: a_v.dot(b_v), 5)
+        dot_out["sizes"].append(n)
+        dot_out["numpy_ms"].append(round(t_np * 1000, 3))
+        dot_out["pycauset_ms"].append(round(t_pc * 1000, 3))
+        print(f"| {n} | {_fmt(t_np * 1000)} | {_fmt(t_pc * 1000)} | {t_np / t_pc:.2f}x |")
+    results["dot"] = dot_out
 
     # Save results for plotting
     results["meta"] = {
