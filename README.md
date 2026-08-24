@@ -10,112 +10,107 @@
 
 </div>
 
-### **PyCauset** is a high-performance Python library for **Causal Set Theory**. 
+**Causal set theory in Python.**
 
-PyCauset is **NumPy for causal sets**. Any programmer familiar with [NumPy](https://github.com/numpy/numpy) will automatically also know how to operate PyCauset. Like NumPy, PyCauset is backed by a strong C++ engine for efficient numerical linear algebra, while storage, hardware dispatch (CPU/GPU), and performance optimizations happen automatically behind the scenes. 
+Causal set theory is a discrete proposal for quantum gravity. The causal order of events is fundamental, and continuous spacetime is an approximation that emerges from it. PyCauset is a toolkit for working with that idea. It has two parts.
 
-PyCauset allows for handling of _humongous_ matrices, as the module efficiently balances storage through both RAM and disk. The only limit to how large matrices you can work with is your disk storage. Example: with a 4TB external SSD, you can work with dense $N\times N$ float64 matrices of $N \sim 10^6$.
+The **PyCauset Engine** is built to be NumPy for causal sets. If you know NumPy, you already know the engine: the same shapes, dtypes, operators, and conventions, backed by a C++ core for speed. On top of that it adds what causal sets need: bit-packed causal matrices, metadata that lets the math skip unnecessary work, storage that spills to disk when RAM runs out, and CPU/GPU dispatch handled behind the scenes.
 
+The **physics suite** builds on it: spacetimes to sprinkle into, fields defined on a causal set, and the machinery of causal-set QFT (propagators, the Pauli-Jordan function, and, on the roadmap, the Sorkin-Johnston vacuum).
 
-**[Explore the Full Documentation »](https://brorh.github.io/pycauset/)**
+## Quick start
 
+Sprinkle a causal set into a 2D Minkowski diamond:
+
+```python
+import pycauset as pc
+from pycauset.vis import plot_embedding
+
+c = pc.CausalSet(n=3000, seed=42)   # 3000 points in a 2D diamond
+
+C = c.C                             # the causal matrix: one bit per relation
+fig = plot_embedding(c)             # interactive Plotly figure
+fig.show()
+```
+
+<img src="documentation/docs/assets/gallery/diamond_embedding.png" width="520" alt="3000 points in a 2D Minkowski diamond">
+
+*3000 points in a 2D Minkowski diamond, from the code above.*
+
+Define a field and compute a propagator:
+
+```python
+from pycauset.field import ScalarField
+
+field = ScalarField(c, mass=1.5)    # a massive scalar field on the same causet
+K = field.propagator()              # retarded propagator K_R = aC(I - baC)^-1
+```
+
+Or use the engine on its own:
+
+```python
+A = pc.causal_matrix(10000, populate=True)
+B = pc.causal_matrix(10000, populate=True)
+Paths = A @ B                       # bit-matrix product: path counts
+
+M = pc.zeros((2000, 2000), dtype=pc.float32)
+M_inv = ~M                          # inversion
+```
+
+## Features
+
+**Engine**
+PyCauset has an optimized C++ core with Python bindings, which is built specifically for work with causal sets:
+
+- **Work with matrices bigger than your RAM.** Large matrices stream to disk and back, so your drive — not your memory — is the limit. Calculations that exhaust NumPy still run.
+- **It speaks NumPy.** Same shapes, dtypes, operators, and conventions. It is also compatible with NumPy arrays, so you can mix and match.
+- **Bit-wise causal relations.** The causal matrix elements are individual bits, which allows for 8x more efficient storage than a byte-based representation.
+- **GPU and CPU optimized** _It just works._Operations dispatch to CPU or CUDA automatically.
+- **Storage and precision, handled.** Memory, precision, and hardware are automatically chosen.
+
+**Physics suite** — what you can do with all that:
+
+- Spacetimes: Minkowski diamond, cylinder, box. Arbitrary dimensions, signatures, and curved geometries (de Sitter, anti-de Sitter, FLRW) are on the R2 roadmap.
+- Sprinkling: fixed-N or Poisson density, seeded and reproducible.
+- Fields: scalar fields with the retarded propagator and the Pauli-Jordan function.
+- Visualization: interactive 2D/3D embeddings and Hasse diagrams.
+
+## Gallery
+
+Both images come straight from the public API. Reproduce them with `scripts/make_r1_gallery.py`.
+
+<img src="documentation/docs/assets/gallery/diamond_hasse.png" width="420" alt="Hasse diagram of an 80-point diamond">
+*The causal links of an 80-point diamond (Hasse diagram).*
+
+<img src="documentation/docs/assets/gallery/cylinder_embedding.png" width="420" alt="3000 points on a Minkowski cylinder">
+*3000 points sprinkled onto a Minkowski cylinder, rendered as a 3D tube.*
 
 ## Installation
 
-### From PyPI (Recommended)
 ```bash
 pip install pycauset
 ```
-We provide pre-compiled binary wheels for Windows, macOS, and Linux.
 
-### From Source
+Pre-compiled wheels for Windows, macOS, and Linux. From source:
+
 ```bash
 git clone https://github.com/BrorH/pycauset.git
 cd pycauset
 pip install .
 ```
 
-## Development Status and Roadmap
-PyCauset is currently in pre-alpha. Here is the three-step roadmap plan for the future version 1.0:
+## Status
 
-  1.  **(WIP) High-performance C++ backed numerical linear algebra library**. First focus is to build a _robust_, _reliable_ and _highly efficient_ linear algebra module that is designed with causal sets in mind. It is to behave like NumPy
-  2.  **(PLANNED) Physics enginge and causal sets**. With a robust linear algebra system in place, we will implement efficient methods for researchers to work with causal sets. Examples include: sprinkling methods, Pauli-Jordan eigenvalues, vev and propagator calculations, visualizations. Focus is on user experience and ease of use.
-  3.  **(PLANNED) Documentation, guides, tests and benchmarks**. Create an extensive suite of documentation and guides to help people use PyCauset and show its power and potential. Also perform extensive tests and squash bugs and perform benchmarks to illustrate proficiency.
+Pre-alpha. Release 1 (the Foundation Release) builds the numerical core: matrices, storage, linear algebra, GPU. Release 2 (the Physics Release) adds the physics suite: arbitrary-dimension and curved spacetimes, fields, and the Sorkin-Johnston vacuum. The current plan is tracked in the documentation.
 
-Version 1.0 will feature the above and more.
+## Documentation
 
-## Key Features
+Guides, API reference, and the roadmap: [brorh.github.io/pycauset](https://brorh.github.io/pycauset/)
 
-*   **Hybrid Storage Architecture**: PyCauset automatically manages memory. Small matrices live in RAM for speed, while massive datasets spill seamlessly to **memory-mapped disk storage** (single-file `.pycauset` containers).
-*   **GPU Acceleration**: Built-in NVIDIA CUDA backend for matrix multiplication, inversion, and eigenvalue problems. Includes custom kernels for **accelerated bit-matrix operations**.
-*   **Smart Precision**: Automatically selects `Float64` or `Float32` based on matrix size and hardware capabilities to maximize throughput.
-*   **Physics Engines**:
-    *   **Spacetimes**: Minkowski Diamond, Cylinder, and Box manifolds.
-    *   **Fields**: Scalar field propagators ($K_R$) and path integrals.
-*   **Visualization**: Interactive 3D visualization of embeddings and causal structures using Plotly.
-*   **Pausing Calculations**: A long-winded and tedious calculation may be paused at any time and continued later. The calculation may also be exported and continued on another machine (WIP).
+## License
 
+MIT. If you use PyCauset in your research, please cite [the repository](https://github.com/BrorH/pycauset).
 
+Questions and ideas: bror dot hjemgaard at gmail dot com
 
-
-## Quick Start
-
-### 1. Simulating Spacetime
-The `CausalSet` class is the main entry point for physics simulations.
-
-```python
-import pycauset as pc
-from pycauset.vis import plot_embedding
-
-# 1. Sprinkle 5000 points into a 2D Minkowski Diamond
-c = pc.CausalSet(n=5000, density=100, seed=42)
-
-# 2. Access the Causal Matrix (TriangularBitMatrix)
-# Stored efficiently (1 bit per element)
-C = c.C
-
-# 3. Visualize the embedding
-fig = plot_embedding(c)
-fig.show()
-```
-
-### 2. Quantum Field Theory
-Compute the Retarded Propagator ($K_R$) for a scalar field.
-
-```python
-from pycauset.field import ScalarField
-
-# Define a massive scalar field (m=1.5) on the causal set
-field = ScalarField(c, mass=1.5)
-
-# Compute the propagator K = aC(I - b aC)^-1
-# This uses GPU acceleration if available
-K = field.propagator()
-```
-
-### 3. Pure Linear Algebra
-You can use PyCauset as a high-performance sparse/dense matrix library.
-
-```python
-# Create random causal matrices (10k x 10k)
-A = pc.causal_matrix(10000, populate=True)
-B = pc.causal_matrix(10000, populate=True)
-
-# Fast GPU-accelerated BitMatrix multiplication
-# Returns an IntegerMatrix of path counts
-Paths = A @ B 
-
-# Invert a dense float matrix
-M = pc.zeros((2000, 2000), dtype=pc.float32)  # also accepts np.float32 or "float32" (case-insensitive)
-M_inv = ~M # or M.inverse()
-```
-
-## License information
-PyCauset is published under the MIT license. 
-
-If you use PyCauset in your research, please cite:
-[https://github.com/BrorH/pycauset](https://github.com/BrorH/pycauset)
-
-If you wish to contribute or have any questions, please contact me at _bror_\[dot\]_hjemgaard_[you can probably guess which symbol comes here]_gmail_(another dot)_com_
-
-This repo contains AI-genetated code
+This repository contains AI-generated code.
