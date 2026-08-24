@@ -49,8 +49,11 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 - Intermittent **teardown hang** in `release_tracked_matrices()` (at exit; doesn't affect
   results).
 
-**Environment:** MSVC Build Tools 2026 → canonical build works (`build_msvc`). GPU present
-(GTX 1060 6GB + CUDA 12.6); CUDA not yet compiled in (`ENABLE_CUDA=OFF`).
+**Environment:** MSVC Build Tools 2026 → canonical CPU build works (`build_msvc`).
+**CUDA blocked by toolchain:** CUDA 13.0 (installed) has *dropped* Pascal (GTX 1060 = CC 6.1,
+min is now CC 7.5). CUDA 12.6 still supports Pascal but does **not** support MSVC 2026
+(nvcc's `cudafe++` crashes with VS-2026 headers; `-allow-unsupported-compiler` doesn't
+help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing VS 2026.
 
 ## 3. Ordered backlog
 
