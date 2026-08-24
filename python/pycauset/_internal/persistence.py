@@ -6,7 +6,7 @@ import shutil
 import zlib
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 import uuid
 

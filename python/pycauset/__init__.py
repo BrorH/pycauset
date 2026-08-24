@@ -12,7 +12,6 @@ from pathlib import Path
 from contextlib import contextmanager
 from types import SimpleNamespace as _SimpleNamespace
 from typing import Any
-from importlib import import_module as _import_module
 from ._internal import persistence as _persistence
 from ._internal import linalg_cache as _linalg_cache
 from ._internal import runtime as _runtime_mod
@@ -29,11 +28,11 @@ from ._internal import export_guard as _export_guard
 from ._internal import native as _native_mod
 from ._internal import matrix_api as _matrix_api
 from ._internal.warnings import (
-    PyCausetWarning,
-    PyCausetDTypeWarning,
-    PyCausetOverflowRiskWarning,
-    PyCausetPerformanceWarning,
-    PyCausetStorageWarning,
+    PyCausetWarning as PyCausetWarning,
+    PyCausetDTypeWarning as PyCausetDTypeWarning,
+    PyCausetOverflowRiskWarning as PyCausetOverflowRiskWarning,
+    PyCausetPerformanceWarning as PyCausetPerformanceWarning,
+    PyCausetStorageWarning as PyCausetStorageWarning,
 )
 
 try:  # NumPy is optional at runtime
@@ -73,8 +72,8 @@ _native = _native_mod.import_native_extension(package=__name__)
 # Import modules that depend on the native extension after it is loaded.
 from ._storage import cleanup_storage, set_temporary_file
 from .causet import CausalSet
-from . import spacetime
-from . import field
+from . import spacetime as spacetime
+from . import field as field
 
 
 def _debug_resolve_promotion(
@@ -1649,11 +1648,6 @@ def invert(matrix: Any) -> Any:
     return _ops.invert(matrix, deps=_OPS_DEPS)
 
 
-def solve(a: Any, b: Any) -> Any:
-    """Solve the linear system $a x = b$ (endpoint-first baseline)."""
-    return _ops.solve(a, b, deps=_OPS_DEPS)
-
-
 def lstsq(a: Any, b: Any) -> Any:
     """Least-squares solve (endpoint-first baseline).
 
@@ -1693,21 +1687,6 @@ def solve_triangular(*args: Any, **kwargs: Any) -> Any:
         raise TypeError("solve_triangular: deps is internal")
     kwargs["deps"] = _OPS_DEPS
     return _ops.solve_triangular(*args, **kwargs)
-
-
-def lu(*args: Any, **kwargs: Any) -> Any:
-    return _ops.lu(*args, **kwargs)
-
-
-def cholesky(*args: Any, **kwargs: Any) -> Any:
-    if "deps" in kwargs:
-        raise TypeError("cholesky: deps is internal")
-    kwargs["deps"] = _OPS_DEPS
-    return _ops.cholesky(*args, **kwargs)
-
-
-def svd(*args: Any, **kwargs: Any) -> Any:
-    return _ops.svd(*args, **kwargs)
 
 
 def pinv(a: Any) -> Any:
@@ -1810,7 +1789,7 @@ def precision_mode(mode: str):
 I = getattr(_native, "IdentityMatrix", None)
 
 # Python-level field API
-from .field import ScalarField
+from .field import ScalarField as ScalarField
 
 
 def __getattr__(name):
@@ -1872,6 +1851,8 @@ _extra_exports = [
     "precision_mode",
     "I",
     "causet",
+    "spacetime",
+    "field",
     "MemoryHint",
     "AccessPattern",
     "ScalarField",
@@ -1883,17 +1864,6 @@ for _name in _extra_exports:
     if _name in globals() or getattr(_native, _name, None) is not None:
         __all__.append(_name)
 
-# --- Lazy Evaluation Setup ---
-from ._internal import lazy_ufunc as _lazy_ufunc
-
-_lazy_matrix_classes = [
-    IntegerMatrix, Int8Matrix, Int16Matrix, Int64Matrix,
-    UInt8Matrix, UInt16Matrix, UInt32Matrix, UInt64Matrix,
-    FloatMatrix, Float16Matrix, Float32Matrix,
-    ComplexFloat16Matrix, ComplexFloat32Matrix, ComplexFloat64Matrix,
-    TriangularFloatMatrix, TriangularIntegerMatrix,
-    DenseBitMatrix, SymmetricMatrix, AntiSymmetricMatrix,
-]
-# Disable lazy ufunc patching to allow C++ operator overloads to handle NumPy interoperability reliably.
-# _lazy_ufunc.patch_matrix_classes(_lazy_matrix_classes)
+# Lazy ufunc patching is intentionally disabled: the C++ operator overloads handle
+# NumPy interoperability directly (see R1_NUMPY_PLAN.md).
 

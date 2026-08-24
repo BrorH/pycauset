@@ -7,7 +7,6 @@ from . import properties as _props
 from . import export_guard
 from . import io_observability
 from . import big_blob_cache as _big_blob_cache
-from . import persistence as _persistence
 from . import linalg_cache as _linalg_cache
 
 
@@ -664,53 +663,6 @@ def invert(matrix: Any, *, deps: OpsDeps) -> Any:
     raise TypeError("Object does not support matrix inversion.")
 
 
-def solve(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Solve a linear system a @ x = b.
-
-    Baseline implementation:
-    - If the matrix provides `.solve(b)`, use it.
-    - Otherwise, compute `invert(a) @ b`.
-    """
-    fn = getattr(a, "solve", None)
-    if callable(fn):
-        result = fn(b)
-        _track_and_mark_temporary_if_native(result, deps=deps)
-        return result
-
-    a_struct = _effective_structure_for(a)
-    shape = _safe_rows_cols(a)
-
-    if a_struct == "zero":
-        raise ValueError("solve: matrix marked is_zero; system is singular")
-
-    if a_struct == "identity":
-        # Treat as identity regardless of payload; check basic shape compatibility when known.
-        if shape is not None and shape[0] != shape[1]:
-            raise ValueError("solve: is_identity requires a square matrix for solve")
-
-        # If RHS is native, return it directly; otherwise coerce to a native array.
-        native_matrix_base = getattr(deps.native, "MatrixBase", None)
-        native_vector_base = getattr(deps.native, "VectorBase", None)
-        if (native_matrix_base and isinstance(b, native_matrix_base)) or (
-            native_vector_base and isinstance(b, native_vector_base)
-        ):
-            _track_and_mark_temporary_if_native(b, deps=deps)
-            return b
-        return _as_pycauset_array(b, deps=deps)
-
-    if a_struct in ("upper_triangular", "lower_triangular", "diagonal"):
-        try:
-            return solve_triangular(a, b, deps=deps)
-        except Exception:
-            # Fallback to generic path.
-            pass
-
-    inv_a = invert(a, deps=deps)
-    result = matmul(inv_a, b, deps=deps)
-    _track_and_mark_temporary_if_native(result, deps=deps)
-    return result
-
-
 def lstsq(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Return a least-squares solution x minimizing ||a @ x - b||.
 
@@ -1121,7 +1073,7 @@ def pinv(a: Any, *, deps: OpsDeps) -> Any:
     stable than an SVD-based pinv. Falls back to NumPy's SVD-based `pinv` when the
     normal equations fail (e.g. rank-deficient) or for non-native inputs.
     """
-    rec = _record_io_trace("pinv", [a], deps=deps)
+    _record_io_trace("pinv", [a], deps=deps)
 
     shape = _safe_rows_cols(a)
     if shape is not None:
@@ -1267,7 +1219,7 @@ def qr(a: Any, mode: str = 'reduced', *, deps: OpsDeps) -> Any:
 
 def svd(a: Any, full_matrices: bool = True, compute_uv: bool = True, *, deps: OpsDeps) -> Any:
     """Return SVD decomposition."""
-    rec = _record_io_trace("svd", [a], deps=deps)
+    _record_io_trace("svd", [a], deps=deps)
     
     # Native only supports reduced/compact where U is MxK, VT is KxN (approx full_matrices=False)
     if not full_matrices and compute_uv:
@@ -1297,7 +1249,7 @@ def svd(a: Any, full_matrices: bool = True, compute_uv: bool = True, *, deps: Op
 
 def lu(a: Any, *, deps: OpsDeps) -> Any:
     """Return LU decomposition (P, L, U)."""
-    rec = _record_io_trace("lu", [a], deps=deps)
+    _record_io_trace("lu", [a], deps=deps)
     
     fn = getattr(deps.native, "lu", None)
     if callable(fn):
@@ -1313,7 +1265,7 @@ def lu(a: Any, *, deps: OpsDeps) -> Any:
 
 def solve(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Solve AX = B, honouring properties-as-gospel (identity/zero/triangular)."""
-    rec = _record_io_trace("solve", [a, b], deps=deps)
+    _record_io_trace("solve", [a, b], deps=deps)
 
     a_struct = _effective_structure_for(a)
     shape = _safe_rows_cols(a)

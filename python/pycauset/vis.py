@@ -7,7 +7,7 @@ except ImportError:
 
 import random
 import numpy as np
-from typing import Optional, Union, List
+from typing import Optional
 from .causet import CausalSet
 
 def _check_plotly():

@@ -7,7 +7,6 @@ except ImportError:
     class MinkowskiBox: pass
 
 import numpy as np
-import math
 
 __all__ = ["MinkowskiDiamond", "MinkowskiCylinder", "MinkowskiBox"]
 

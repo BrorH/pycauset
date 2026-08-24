@@ -2,7 +2,7 @@ from importlib import import_module
 import random
 import os
 from pathlib import Path
-from typing import Optional, Sequence, List, Union
+from typing import Optional, Sequence, Union
 
 # Import the native extension relative to this package
 try:
