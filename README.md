@@ -10,25 +10,24 @@
 
 </div>
 
-**Causal set theory in Python.**
+## **PyCauset is toolset forcausal set theory in Python.**
 
-Causal set theory is a discrete proposal for quantum gravity. The causal order of events is fundamental, and continuous spacetime is an approximation that emerges from it. PyCauset is a toolkit for working with that idea. It has two parts.
+[Causal set theory](https://en.wikipedia.org/wiki/Causal_sets) is a discrete proposal for [quantum gravity](https://en.wikipedia.org/wiki/Quantum_gravity). Within this framework, numerical calculations quickly grow in complexity, and there are few existing tools without compromises. PyCauset is a new low-compromise engine for causal sets, built from the ground up to be fast, flexible, and easy to use. 
 
-The **PyCauset Engine** is built to be NumPy for causal sets. If you know NumPy, you already know the engine: the same shapes, dtypes, operators, and conventions, backed by a C++ core for speed. On top of that it adds what causal sets need: bit-packed causal matrices, metadata that lets the math skip unnecessary work, storage that spills to disk when RAM runs out, and CPU/GPU dispatch handled behind the scenes.
+The **PyCauset Engine** is built to be [NumPy](https://numpy.org/) for causal sets. If you know NumPy, you already know the engine: the same shapes, dtypes, operators, and conventions, backed by a C++ core for speed. On top of that it adds what causal sets need: bit-packed causal matrices, metadata that lets the math skip unnecessary work, storage that spills to disk when RAM runs out, and CPU/GPU dispatch handled behind the scenes.
 
-The **physics suite** builds on it: spacetimes to sprinkle into, fields defined on a causal set, and the machinery of causal-set QFT (propagators, the Pauli-Jordan function, and, on the roadmap, the Sorkin-Johnston vacuum).
+The **physics suite** builds on it: spacetimes to sprinkle into, fields defined on a causal set, and the machinery of causal-set QFT ([propagators](https://en.wikipedia.org/wiki/Propagator), the Pauli-Jordan function, and, on the roadmap, the Sorkin-Johnston vacuum).
 
 ## Quick start
 
-Sprinkle a causal set into a 2D Minkowski diamond:
+Sprinkle a causal set into a 2D [Minkowski](https://en.wikipedia.org/wiki/Minkowski_space) diamond:
 
 ```python
 import pycauset as pc
 from pycauset.vis import plot_embedding
 
-c = pc.CausalSet(n=3000, seed=42)   # 3000 points in a 2D diamond
+c = pc.CausalSet(n=3000, seed=42)   # 3000 points in a 2D diamond (default geometry)
 
-C = c.C                             # the causal matrix: one bit per relation
 fig = plot_embedding(c)             # interactive Plotly figure
 fig.show()
 ```
@@ -59,21 +58,22 @@ M_inv = ~M                          # inversion
 
 ## Features
 
-**Engine**
+**Numerical Engine**
+
 PyCauset has an optimized C++ core with Python bindings, which is built specifically for work with causal sets:
 
-- **Work with matrices bigger than your RAM.** Large matrices stream to disk and back, so your drive — not your memory — is the limit. Calculations that exhaust NumPy still run.
-- **It speaks NumPy.** Same shapes, dtypes, operators, and conventions. It is also compatible with NumPy arrays, so you can mix and match.
+- **Work with matrices bigger than your RAM.** Large matrices stream to disk and back, so the only limit to computation is your storage and time.
+- **It speaks [NumPy](https://numpy.org/).** Same shapes, dtypes, operators, and conventions. It is also compatible with NumPy arrays, so you can mix and match.
 - **Bit-wise causal relations.** The causal matrix elements are individual bits, which allows for 8x more efficient storage than a byte-based representation.
-- **GPU and CPU optimized** _It just works._Operations dispatch to CPU or CUDA automatically.
+- **GPU and CPU optimized.** *It just works.* Operations dispatch to CPU or [CUDA](https://developer.nvidia.com/cuda-zone) automatically.
 - **Storage and precision, handled.** Memory, precision, and hardware are automatically chosen.
 
-**Physics suite** — what you can do with all that:
+**Physics Engine** 
 
-- Spacetimes: Minkowski diamond, cylinder, box. Arbitrary dimensions, signatures, and curved geometries (de Sitter, anti-de Sitter, FLRW) are on the R2 roadmap.
-- Sprinkling: fixed-N or Poisson density, seeded and reproducible.
-- Fields: scalar fields with the retarded propagator and the Pauli-Jordan function.
-- Visualization: interactive 2D/3D embeddings and Hasse diagrams.
+- **Spacetimes**: [Minkowski](https://en.wikipedia.org/wiki/Minkowski_space) diamond, cylinder, box. Arbitrary dimensions, signatures, and curved geometries ([de Sitter](https://en.wikipedia.org/wiki/De_Sitter_space), [anti-de Sitter](https://en.wikipedia.org/wiki/Anti-de_Sitter_space), [FLRW](https://en.wikipedia.org/wiki/Friedmann%E2%80%93Lema%C3%AEtre%E2%80%93Robertson%E2%80%93Walker_metric)) are on the R2 roadmap.
+- **Sprinkling**: fixed-N or Poisson density, seeded and reproducible.
+- **Fields**: scalar fields with [propagator](https://en.wikipedia.org/wiki/Propagator) and Pauli-Jordan functions.
+- **Visualization**: interactive 2D/3D embeddings and [Hasse diagrams](https://en.wikipedia.org/wiki/Hasse_diagram).
 
 ## Gallery
 
@@ -109,7 +109,7 @@ Guides, API reference, and the roadmap: [brorh.github.io/pycauset](https://brorh
 
 ## License
 
-MIT. If you use PyCauset in your research, please cite [the repository](https://github.com/BrorH/pycauset).
+[MIT](https://opensource.org/licenses/MIT). If you use PyCauset in your research, please cite [the repository](https://github.com/BrorH/pycauset).
 
 Questions and ideas: bror dot hjemgaard at gmail dot com
 
