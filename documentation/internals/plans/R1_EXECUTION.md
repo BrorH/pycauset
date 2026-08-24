@@ -26,7 +26,7 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 
 ## 2. Measured state (2026-08-24)
 
-**Full suite (MSVC build, no crash): 517 passed / 0 failed / 29 skipped.** 🟢
+**Full suite (MSVC build, no crash): 518 passed / 0 failed / 29 skipped.** 🟢
 
 - Dense float64 `solve`/`lu` now route through LAPACK `dgesv`/`dgetrf` (was naive scalar
   Gaussian elimination); guarded by `TestDenseFactorizationsLapack` (`daa4164`).
@@ -36,6 +36,8 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 - `matrix([[1+2j, …]])` (complex **list** input) now produces a `ComplexFloat64Matrix`;
   it previously fell through the float branch and returned a broken abstract `Matrix`
   (no dtype, `to_numpy` raised `data type '' not understood`).
+- `pinv` implemented (normal-equations baseline + NumPy SVD fallback) — was `NotImplementedError`;
+  guarded by `TestPinv`.
 
 **Correctness — fixed and verified:**
 - `solve`/`lu`/`qr`/`svd`/`cholesky` — was the flagship silent-wrong-answer; root cause

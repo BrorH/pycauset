@@ -1110,8 +1110,49 @@ def solve_triangular(*_args: Any, **_kwargs: Any) -> Any:
     return result
 
 
-def pinv(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError("pinv is not available yet")
+def pinv(a: Any, *, deps: OpsDeps) -> Any:
+    """Moore-Penrose pseudoinverse (baseline).
+
+    Uses the normal equations:
+    - tall/square (`rows >= cols`): (A^T A)^-1 A^T
+    - wide (`rows < cols`):          A^T (A A^T)^-1
+
+    This matches the `lstsq` baseline (normal equations) and is numerically less
+    stable than an SVD-based pinv. Falls back to NumPy's SVD-based `pinv` when the
+    normal equations fail (e.g. rank-deficient) or for non-native inputs.
+    """
+    rec = _record_io_trace("pinv", [a], deps=deps)
+
+    shape = _safe_rows_cols(a)
+    if shape is not None:
+        rows, cols = shape
+        a_t = getattr(a, "T", None)
+        if a_t is None:
+            a_t = getattr(a, "transpose", None)
+            if callable(a_t):
+                a_t = a_t()
+        if a_t is not None:
+            try:
+                if rows >= cols:
+                    ata = matmul(a_t, a, deps=deps)
+                    ata_inv = invert(ata, deps=deps)
+                    result = matmul(ata_inv, a_t, deps=deps)
+                else:
+                    aat = matmul(a, a_t, deps=deps)
+                    aat_inv = invert(aat, deps=deps)
+                    result = matmul(a_t, aat_inv, deps=deps)
+                _track_and_mark_temporary_if_native(result, deps=deps)
+                return result
+            except Exception:
+                pass
+
+    # NumPy fallback (SVD-based; also covers complex and non-native inputs).
+    np_module = deps.np_module
+    if np_module is not None:
+        val = np_module.linalg.pinv(_to_numpy_matrix(a, deps=deps))
+        return _as_pycauset_array(val, deps=deps)
+
+    raise RuntimeError("pinv failed")
 
 
 def trace(a: Any, *, deps: OpsDeps) -> Any:

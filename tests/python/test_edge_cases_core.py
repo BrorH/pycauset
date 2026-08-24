@@ -193,5 +193,18 @@ class TestIntegerOverflowPolicy(unittest.TestCase):
             big @ big
 
 
+class TestPinv(unittest.TestCase):
+    """Pseudoinverse baseline (normal equations) matches NumPy and satisfies A·P·A = A."""
+
+    def test_pinv_tall_wide_square(self):
+        rng = np.random.default_rng(0)
+        for shape in [(5, 3), (3, 5), (4, 4)]:
+            A = rng.standard_normal(shape)
+            P = _np(pc.pinv(pc.matrix(A)))
+            ref = np.linalg.pinv(A)
+            self.assertTrue(np.allclose(P, ref, atol=1e-10), f"shape {shape}")
+            self.assertTrue(np.allclose(A @ P @ A, A, atol=1e-10), f"shape {shape}")
+
+
 if __name__ == "__main__":
     unittest.main()

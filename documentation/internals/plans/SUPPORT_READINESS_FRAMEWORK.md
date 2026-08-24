@@ -202,7 +202,7 @@ They are allowed to be implemented initially via composition (calling existing o
 | `cholesky(...)` | ✅ native | LAPACK `dpotrf`/`spotrf` |
 | `svd(...)` | ✅ native | LAPACK `dgesvd`/`sgesvd` (thin) |
 | `qr(...)` | ✅ native | LAPACK `dgeqrf`/`dorgqr` |
-| `pinv(...)` | ❌ blocked | Raises `NotImplementedError` |
+| `pinv(...)` | ✅ baseline | Normal equations (`(AᵀA)⁻¹Aᵀ` tall / `Aᵀ(AAᵀ)⁻¹` wide); NumPy SVD fallback |
 
 ### 2.3 Object protocol (required for any public dtype)
 

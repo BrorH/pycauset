@@ -1710,8 +1710,8 @@ def svd(*args: Any, **kwargs: Any) -> Any:
     return _ops.svd(*args, **kwargs)
 
 
-def pinv(*args: Any, **kwargs: Any) -> Any:
-    return _ops.pinv(*args, **kwargs)
+def pinv(a: Any) -> Any:
+    return _ops.pinv(a, deps=_OPS_DEPS)
 
 
 def eig(a: Any) -> tuple[Any, Any]:

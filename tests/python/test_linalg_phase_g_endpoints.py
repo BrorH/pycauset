@@ -92,12 +92,12 @@ class TestPhaseGLinalgEndpoints(unittest.TestCase):
         np.testing.assert_allclose(L_np @ L_np.T, np.asarray(A), rtol=1e-8, atol=1e-10)
         np.testing.assert_allclose(L_np, np.tril(L_np), rtol=1e-8, atol=1e-10)
 
-    def test_unimplemented_factorizations_raise(self):
+    def test_solve_triangular_requires_triangular_mark(self):
+        # pinv is now implemented (normal-equations baseline + NumPy fallback);
+        # see test_edge_cases_core.py::TestPinv for correctness.
         A = pc.matrix(((1.0, 0.0), (0.0, 1.0)))
         with self.assertRaises(ValueError):
             pc.solve_triangular(A, pc.vector((1.0, 2.0)))
-        with self.assertRaises(NotImplementedError):
-            pc.pinv(A)
 
     def test_eigvals_arnoldi_real(self):
         A = pc.matrix(((2.0, 1.0), (1.0, 2.0)))
