@@ -35,6 +35,7 @@ Verified-correct primitives: `matmul` ✅, `inverse` ✅ (`A @ inv ≈ I`).
   dangling downcast) → now `shared_ptr<MatrixBase>(out.release())` (commit `204573b`).
 - `eigh`, `eigvalsh`, `eig`, `eigvals`, `eigvals_arnoldi` (native R1_CPU Phase 6 eigen
   crashed with access violations) → routed to NumPy fallback (commit `dabb9a2`).
+  Complex (non-symmetric) eigenvalues handled via `ComplexFloat64Vector` (commit `ca15aae`).
 - `TriangularBitMatrix.random(n).size()` was a false positive (size() == rows*cols is
   correct; fixed the drift check + test, commit `d8ae238`).
 
