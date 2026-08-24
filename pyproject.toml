@@ -30,6 +30,12 @@ dependencies = [
     "plotly>=5.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+]
+
 [project.urls]
 Homepage = "https://github.com/BrorH/pycauset"
 Repository = "https://github.com/BrorH/pycauset"
@@ -55,3 +61,21 @@ norecursedirs = [
   ".git",
   "site",
 ]
+
+[tool.ruff]
+target-version = "py38"
+line-length = 100
+
+[tool.ruff.lint]
+# Baseline: mechanical, low-risk rules first (pyflakes E/F, import sorting I,
+# pyupgrade UP). NumPy-style docstrings (D) are enabled once docstring coverage
+# is cleaned up, per R1_POLISH.md.
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.8"
+# The native extension (pycauset._pycauset) and optional deps have no stubs;
+# ignore missing imports for a permissive baseline.
+ignore_missing_imports = true
+warn_unused_ignores = false
+

@@ -14,11 +14,8 @@
 - [ ] **Render Check:** Ensure documentation builds correctly with `mkdocs` and renders correctly on GitHub/PyPI.
 
 ## 3. Code Quality & Linting
-- [ ] **Configure Ruff:** Add `[tool.ruff]` to `pyproject.toml`.
-    - Enforce NumPy-style docstrings (Rule `D`).
-    - Enforce modern Python idioms (Rule `UP`).
-    - Enforce import sorting (Rule `I`).
-- [ ] **Configure MyPy:** Add `[tool.mypy]` to `pyproject.toml` for static type checking.
+- [x] **Configure Ruff:** `[tool.ruff]` + `[tool.ruff.lint]` added to `pyproject.toml` (selects `E/F/I/UP`; NumPy docstrings `D` deferred until docstring coverage is cleaned).
+- [x] **Configure MyPy:** `[tool.mypy]` added (py3.8, permissive `ignore_missing_imports` baseline). `ruff`+`mypy` added as a `dev` extra.
 - [ ] **Baseline:** Run linters and fix immediate low-hanging fruit (unused imports, undefined variables).
 
 ## 4. Build System Cleanup
