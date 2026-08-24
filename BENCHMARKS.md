@@ -27,9 +27,13 @@ python benchmarks/bench.py
 | 1000 | 6.0ms | 10.3ms | 0.58x |
 | 2000 | 60.0ms | 70.5ms | 0.85x |
 | 4000 | 493.7ms | 492.9ms | 1.00x |
+| 6000 | 1.60s | 1.50s | **1.07x** |
+| 8000 | 3.74s | 3.51s | **1.07x** |
 
-Matmul reaches **NumPy parity (1.00x) at n = 4000**; small sizes carry fixed Python-dispatch
-overhead that amortizes away as the matrix grows.
+Matmul matches NumPy at n = 4000 and **pulls ahead (1.07x faster) at n = 6000+**. Small
+sizes carry fixed Python-dispatch overhead that amortizes away as the matrix grows. (At
+n = 8000 the operands exceed the 1 GB RAM budget and PyCauset transparently memory-maps to
+disk, yet still finishes faster than NumPy.)
 
 ## Dense float64 factorizations (LAPACK vs NumPy)
 
@@ -55,6 +59,8 @@ targets to reach 0.90x.
 |---|---|---|---|
 | storage (10000x10000) | 100.0 MB | 12.5 MB | **8x** |
 | bit matmul (10000x10000) | — | 2.55s | AVX-512 popcount |
+| storage (20000x20000) | 400.0 MB | 50.0 MB | **8x** |
+| bit matmul (20000x20000) | — | 18.8s | AVX-512 popcount |
 
 Causal-set matrices are boolean and are stored **bit-packed**: 8x smaller than a `bool`
 array, with an AVX-512-accelerated multiplication. A 10000x10000 bit matmul completes in
@@ -80,7 +86,8 @@ The same pattern scales to matrices larger than physical RAM; the "humongous" sc
 
 ## What this means for large workloads
 
-- For **dense** linear algebra, PyCauset keeps pace with NumPy (same BLAS backend).
+- For **dense** linear algebra, PyCauset matches NumPy (same BLAS backend) and edges ahead
+  on large matmul (1.07x at n = 6000+).
 - For **causal-set** workloads, the bit-packed representation is the win: 8x memory
   reduction and hardware-popcount multiplication.
 - For **out-of-core** workloads, PyCauset matrices can be memory-mapped so a computation
