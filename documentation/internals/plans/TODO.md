@@ -77,9 +77,10 @@ Release 1 nodes:
 - [ ] R1_SRP
 - [ ] R1_QA
 - [ ] R1_POLISH
+- [ ] R1_SHIP
 - [ ] R1_REL
 
-Parked:
+Parked (now detailed in `documentation/project/plans/R2_ROADMAP.md`):
 - [ ] R2_PHYS
 
 ---
@@ -450,6 +451,20 @@ Deliverables:
 - **Build:** Audit and reduce CMake warning suppressions.
 - **Namespace:** Refactor `__init__.py` to be minimal.
 - **Cleanup:** Remove dead code, legacy "eager" evaluation paths, and unused temporary file logic.
+
+### R1_SHIP — Shipping Readiness (production release)
+
+Status: - [ ]
+
+Goal: the first public release runs correctly on *other people's* machines, not just the dev box.
+
+Deliverables (full checklist in `R1_EXECUTION.md` §Phase 4):
+- CPU baseline: AVX-512 kernels are used unconditionally → runtime dispatch or baseline build (avoid illegal-instruction crashes).
+- CUDA: compile for target compute capabilities (GTX 1060 = CC 6.1); clean CPU fallback; decide NVIDIA DLL bundling vs require-user-install (EULA).
+- Wheel portability: verify Linux/macOS builds (GCC/Clang are stricter than MSVC).
+- API lock + versioning + changelog + `.pycauset` format migration path.
+- CI test matrix (3 OSes) + benchmark visibility; fix teardown hang.
+- Docs + license/attribution (Eigen MPL2, OpenBLAS BSD, pybind11 BSD, CUDA proprietary).
 
 ### R1_REL — Release Mechanics
 
