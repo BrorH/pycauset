@@ -33,10 +33,10 @@ This is a semantics choice (not an overflow workaround) and may emit a dtype-pol
 
 ## Overflow behavior (integers)
 
-Integer overflow is a **hard error**.
+Overflow behavior depends on the operation class:
 
-- PyCauset does not silently wrap.
-- PyCauset does not silently widen output storage to avoid overflow.
+- **Elementwise** (`add`, `sub`, `mul`, `div`, scalar variants): integer overflow **wraps silently** (C/NumPy two's-complement semantics). This is the documented behavior — no error, no auto-promotion.
+- **Reductions** (`matmul`): uses a wider internal accumulator and **throws `OverflowError`** when the result doesn't fit the output dtype. `dot` returns a Python `float` (exact for results within float64 precision).
 
 ### Overflow-risk warning for large integer matmul
 
@@ -48,10 +48,10 @@ This warning is advisory (it can over-warn), but it helps you catch “obviously
 
 ### Reduction-aware accumulator widening
 
-For integer reductions (`dot`/`matmul`), PyCauset may use a wider **internal accumulator** dtype to keep overflow behavior defined in the hot loop.
+For integer reductions (`matmul`), PyCauset uses a wider **internal accumulator** dtype to keep overflow behavior defined in the hot loop.
 
 - category: `PyCausetDTypeWarning`
-- important: output storage dtype does **not** automatically change; overflow still throws on the final cast to the requested output dtype.
+- output storage dtype does **not** automatically change; overflow throws on the final cast to the requested output dtype.
 
 ## Bit matrices are special
 

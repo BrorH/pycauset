@@ -26,7 +26,7 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 
 ## 2. Measured state (2026-08-24)
 
-**Full suite (MSVC build, no crash): 513 passed / 0 failed / 29 skipped.** 🟢
+**Full suite (MSVC build, no crash): 517 passed / 0 failed / 29 skipped.** 🟢
 
 - Dense float64 `solve`/`lu` now route through LAPACK `dgesv`/`dgetrf` (was naive scalar
   Gaussian elimination); guarded by `TestDenseFactorizationsLapack` (`daa4164`).
@@ -50,6 +50,11 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 - Dead overridden stubs removed (`17ab757`).
 - Complex list-input construction (missing complex dtype branches in `matrix_api.py`) →
   now routes to `ComplexFloat64/32/16Matrix` instead of a broken abstract `Matrix`.
+- **Integer-overflow policy resolved (doc/code contradiction):** docs previously promised
+  "overflow is a hard error" everywhere, but elementwise integer ops silently wrapped.
+  Per decision, elementwise integer arithmetic is now *documented* as C/NumPy wraparound
+  (Philosophy.md, DType System.md §5.1, release1/dtypes.md); only `matmul` reductions throw
+  `OverflowError`. Pinned by `TestIntegerOverflowPolicy`.
 - **"Heap-corruption Heisenbug" was MinGW-specific** — MSVC (with/without ASan) runs the
   full suite cleanly with zero ASan errors.
 

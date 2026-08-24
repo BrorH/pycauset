@@ -92,14 +92,14 @@ Complex permutations of non-float dtypes are a non-goal by design.
 
 ### 5.1 Integer overflow
 
-Integer overflow is a **hard error**.
+Overflow behavior depends on the operation class:
 
-- PyCauset does not silently wrap.
-- PyCauset does not silently widen storage to avoid overflow.
+- **Elementwise** (`add`, `sub`, `mul`, `div`, and their scalar variants): integer overflow **wraps silently** (C/NumPy two's-complement semantics). This is the documented, supported behavior — it is not an error and does not auto-promote.
+- **Reductions** (`matmul`): PyCauset uses a **wider internal accumulator** and **throws `OverflowError`** when the final result does not fit the output dtype. This keeps reductions free of silent wrap. (`dot` returns a Python `float` scalar, which is exact for results within float64 precision.)
 
 For high-risk ops such as large integer matmul, PyCauset may emit an **advisory risk warning** based on conservative bounds (see `PyCausetOverflowRiskWarning`).
 
-For integer reductions (e.g., `dot`/`matmul`), PyCauset may use a wider internal accumulator dtype to keep overflow behavior defined. This is a dtype-policy event (see `PyCausetDTypeWarning`), and overflow still throws when storing the final output.
+Reduction-aware accumulator widening is a dtype-policy event (see `PyCausetDTypeWarning`).
 
 ### 5.2 Float overflow
 

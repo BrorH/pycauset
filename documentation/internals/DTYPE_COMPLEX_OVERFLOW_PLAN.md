@@ -181,9 +181,16 @@ Warning controls (exact API TBD, but must exist):
 
 ## 6) Overflow policy
 
+> **Final R1 decision (supersedes §6.1 below):** elementwise integer arithmetic
+> (`add`/`sub`/`mul`/`div` + scalar variants) **wraps silently** (C/NumPy
+> two's-complement); only integer *reductions* (`matmul`) use a wider accumulator
+> and raise `OverflowError`. See `Philosophy.md`, `DType System.md` §5.1, and
+> `guides/release1/dtypes.md` for the canonical policy. The original "hard error
+> everywhere" plan below is retained as historical rationale.
+
 ### 6.1 Runtime behavior
 
-- Overflow is a hard error.
+- ~~Overflow is a hard error.~~ (superseded — see note above)
 - PyCauset does not auto-promote storage to avoid overflow.
 
 ### 6.1.1 Why this focuses on integer overflow (and not float overflow)

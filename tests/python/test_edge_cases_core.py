@@ -166,5 +166,32 @@ class TestDenseFactorizationsLapack(unittest.TestCase):
         self.assertTrue(np.allclose(np.triu(U), U))
 
 
+class TestIntegerOverflowPolicy(unittest.TestCase):
+    """Pin the documented integer-overflow policy.
+
+    Per Philosophy.md / DType System.md / guides/release1/dtypes.md:
+    - elementwise integer arithmetic wraps silently (C/NumPy two's-complement);
+    - integer matmul reductions use a wider accumulator and raise OverflowError.
+    """
+
+    def test_elementwise_int32_add_wraps(self):
+        r = pc.matrix([[2147483647]], dtype="int32") + pc.matrix([[1]], dtype="int32")
+        self.assertEqual(_np(r).tolist(), [[-2147483648]])
+
+    def test_elementwise_int32_mul_wraps(self):
+        # 46341 * 46341 = 2147488281 -> wraps to -2147479015 in int32.
+        r = pc.matrix([[46341]], dtype="int32") * pc.matrix([[46341]], dtype="int32")
+        self.assertEqual(_np(r).tolist(), [[-2147479015]])
+
+    def test_elementwise_uint8_add_wraps(self):
+        r = pc.matrix([[255]], dtype="uint8") + pc.matrix([[1]], dtype="uint8")
+        self.assertEqual(_np(r).tolist(), [[0]])
+
+    def test_int32_matmul_overflow_raises(self):
+        big = pc.matrix([[46341, 0], [0, 1]], dtype="int32")
+        with self.assertRaises(OverflowError):
+            big @ big
+
+
 if __name__ == "__main__":
     unittest.main()
