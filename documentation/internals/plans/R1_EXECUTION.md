@@ -72,7 +72,24 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 **Phase 3 — GPU + ship**
 - [ ] Enable `ENABLE_CUDA=ON`; verify GPU routing/parity (R1_GPU / SRP-3).
 - [ ] R1_QA gates (CI correctness + persistence + bench visibility).
-- [ ] R1_REL checklist; cut release.
+
+**Phase 4 — Shipping readiness (R1_SHIP, production-release checklist)**
+- [ ] **CPU baseline / AVX-512**: kernels use `_mm512_*` unconditionally → would crash
+  (illegal instruction) on CPUs without AVX-512. Add runtime dispatch or build a baseline
+  target + gated fast paths. (This is the same "silent crash" class we've been fixing.)
+- [ ] **CUDA**: compile for target compute capabilities (GTX 1060 = CC 6.1); ensure clean
+  CPU fallback when CUDA is absent; decide whether to bundle NVIDIA DLLs (EULA limits
+  redistribution — likely require user-installed CUDA + dynamic load instead of shipping ~1.75GB).
+- [ ] **Wheel portability**: verify Linux/macOS builds actually compile (GCC/Clang are
+  stricter than MSVC — same `template`/`<cstring>`/SIMD-flag issues we fixed for MinGW).
+- [ ] **API lock**: freeze the public `pycauset.*` surface; mark `_internal` private;
+  version (setuptools_scm) + changelog + `.pycauset` format migration path.
+- [ ] **CI test matrix** (3 OSes) + benchmark visibility; fix teardown hang.
+- [ ] **Docs**: wiki-links → markdown, API reference completeness, install/GPU requirements.
+- [ ] **License/attribution**: Eigen (MPL2), OpenBLAS (BSD), pybind11 (BSD), CUDA (proprietary).
+
+**Phase 5 — release mechanics (R1_REL)**
+- [ ] Release checklist; cut release.
 
 ## 4. Working agreements
 - Every code change ships with its test AND its doc line (same commit).
