@@ -262,6 +262,14 @@ nav:
     - project/index.md
     - Philosophy: project/Philosophy.md
     - Public API Contract: project/Public API Contract.md
+    - Plans:
+      - project/plans/index.md
+      - R2 Plan Map: project/plans/R2_PLAN_MAP.md
+      - R2 API Design: project/plans/R2_API_DESIGN.md
+      - R2 Spacetime Library: project/plans/R2_SPACETIME_LIBRARY.md
+      - R2 Spacetime Creation: project/plans/R2_SPACETIME_CREATION.md
+      - R2 Fields & Physics: project/plans/R2_FIELDS_PHYSICS.md
+      - R2 Roadmap: project/plans/R2_ROADMAP.md
     - Protocols:
       - project/protocols/index.md
       - Pre-alpha Policy: project/protocols/Pre-alpha Policy.md

@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PyCauset Spacetime Studio — mockup</title>
+<style>
+  :root {
+    --bg: #12121c;
+    --panel: #1a1a2a;
+    --panel2: #20203a;
+    --line: #2c2c4a;
+    --text: #e6e6f0;
+    --muted: #8a8ab0;
+    --accent: #7c4dff;
+    --accent2: #00bfa5;
+    --danger: #ff6e6e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #17172a, #12121c);
+  }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+  header .logo { color: var(--accent); font-weight: 700; }
+  header .tag {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--accent2); border: 1px solid var(--accent2);
+    border-radius: 999px; padding: 2px 9px;
+  }
+  header .hint { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 16px;
+    padding: 16px 20px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .panel h2 {
+    margin: 0 0 12px; font-size: 13px; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--muted);
+  }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 3px; }
+  label .req { color: var(--danger); }
+  select, input[type=text], input[type=number] {
+    width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px;
+    font: inherit;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--accent); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .checkrow { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .checkrow label { margin: 0; }
+  input[type=checkbox] { accent-color: var(--accent); }
+  .sig-note { font-size: 12px; margin-top: 6px; color: var(--muted); }
+  .sig-note.bad { color: var(--danger); }
+  .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+  .tab {
+    background: var(--panel2); border: 1px solid var(--line); color: var(--muted);
+    padding: 6px 12px; border-radius: 8px; cursor: pointer; font: inherit;
+  }
+  .tab.active { color: #fff; border-color: var(--accent); background: rgba(124,77,255,.18); }
+  pre {
+    background: #0d0d18; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px; overflow: auto; font: 12.5px/1.5 "SFMono-Regular", Consolas, monospace;
+    color: #c9e7d8; margin: 0;
+  }
+  .copy {
+    margin-top: 10px; background: var(--accent); color: #fff; border: 0;
+    border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit;
+  }
+  .copy:hover { filter: brightness(1.1); }
+  .right { display: grid; gap: 16px; }
+  canvas { width: 100%; height: auto; display: block; background: #0d0d18; border-radius: 10px; border: 1px solid var(--line); }
+  .preview-note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  footer { color: var(--muted); font-size: 12px; padding: 0 20px 20px; }
+  code { background: var(--panel2); padding: 1px 5px; border-radius: 5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="logo">PyCauset</span> Spacetime Studio</h1>
+  <span class="tag">mockup</span>
+  <span class="hint">generate · edit · preview — not wired to the engine</span>
+</header>
+
+<main class="layout">
+  <section class="panel">
+    <h2>1 · Define</h2>
+
+    <label>Start from a library spacetime</label>
+    <select id="lib">
+      <option value="blank" selected>— custom / blank —</option>
+      <optgroup label="Flat Minkowski">
+        <option value="minkowski_diamond">MinkowskiDiamond(2)</option>
+        <option value="minkowski_cylinder">MinkowskiCylinder(2)</option>
+        <option value="minkowski_box">MinkowskiBox(2)</option>
+      </optgroup>
+      <optgroup label="Curved / cosmological">
+        <option value="de_sitter">DeSitter(2)</option>
+        <option value="anti_de_sitter">AntiDeSitter(2)</option>
+        <option value="flrw">FLRW(2)</option>
+      </optgroup>
+      <optgroup label="Black holes">
+        <option value="schwarzschild">Schwarzschild(4)</option>
+        <option value="reissner_nordstrom">ReissnerNordstrom(4)</option>
+        <option value="kerr">Kerr(4)</option>
+        <option value="kerr_newman">KerrNewman(4)</option>
+      </optgroup>
+    </select>
+
+    <label>Name (registry key)</label>
+    <input type="text" id="name" value="my_spacetime">
+
+    <div class="row">
+      <div>
+        <label>Dimension <span class="req">*</span></label>
+        <input type="number" id="dimension" min="2" value="2">
+      </div>
+      <div>
+        <label>Signature (t, s)</label>
+        <div class="row" style="gap:6px">
+          <input type="number" id="t" min="0" value="1">
+          <input type="number" id="s" min="0" value="1">
+        </div>
+      </div>
+    </div>
+    <div class="sig-note" id="sig-note"></div>
+
+    <div class="row">
+      <div>
+        <label>Domain <span class="req">*</span></label>
+        <select id="domain">
+          <option value="diamond" selected>diamond</option>
+          <option value="box">box</option>
+          <option value="cylinder">cylinder</option>
+          <option value="ball">ball</option>
+          <option value="slab">slab</option>
+          <option value="none">none</option>
+        </select>
+      </div>
+      <div>
+        <label>Metric <span class="req">*</span></label>
+        <select id="metric">
+          <option value="flat" selected>flat</option>
+          <option value="de_sitter">de_sitter</option>
+          <option value="anti_de_sitter">anti_de_sitter</option>
+          <option value="flrw">flrw</option>
+          <option value="schwarzschild">schwarzschild</option>
+          <option value="reissner_nordstrom">reissner_nordstrom</option>
+          <option value="kerr">kerr</option>
+          <option value="kerr_newman">kerr_newman</option>
+        </select>
+      </div>
+    </div>
+
+    <label>Parameters</label>
+    <div class="row">
+      <div>
+        <label>time_extent</label>
+        <input type="number" id="time_extent" value="2">
+      </div>
+      <div>
+        <label>space_extent</label>
+        <input type="number" id="space_extent" value="1">
+      </div>
+      <div>
+        <label>height</label>
+        <input type="number" id="height" value="2">
+      </div>
+      <div>
+        <label>circumference</label>
+        <input type="number" id="circumference" value="3">
+      </div>
+      <div>
+        <label>curvature_radius</label>
+        <input type="number" id="curvature_radius" value="1">
+      </div>
+      <div>
+        <label>k (FLRW)</label>
+        <input type="number" id="k" value="0" min="-1" max="1">
+      </div>
+      <div>
+        <label>mass M</label>
+        <input type="number" id="mass" value="1">
+      </div>
+      <div>
+        <label>charge Q</label>
+        <input type="number" id="charge" value="0">
+      </div>
+      <div>
+        <label>spin a</label>
+        <input type="number" id="spin" value="0">
+      </div>
+    </div>
+
+    <div class="checkrow">
+      <input type="checkbox" id="periodic">
+      <label for="periodic">periodic (spatial wrap)</label>
+    </div>
+  </section>
+
+  <div class="right">
+    <section class="panel">
+      <h2>2 · Generate</h2>
+      <div class="tabs">
+        <button class="tab active" id="tab-recipe" onclick="setTab('recipe')">recipe</button>
+        <button class="tab" id="tab-python" onclick="setTab('python')">export_python</button>
+      </div>
+      <pre id="code"></pre>
+      <button class="copy" onclick="copyCode()">Copy</button>
+    </section>
+
+    <section class="panel">
+      <h2>3 · Preview (2D)</h2>
+      <div class="row" style="margin-bottom:10px">
+        <div>
+          <label>seed</label>
+          <input type="number" id="seed" value="42">
+        </div>
+        <div>
+          <label>points</label>
+          <input type="number" id="points" value="60" min="10" max="90">
+        </div>
+      </div>
+      <canvas id="preview" width="640" height="360"></canvas>
+      <div class="preview-note" id="preview-note"></div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  Mockup only — illustrative layout, not the shipped tool. The real studio renders curved &
+  higher-dimensional spacetimes (3D) and, in a later version, talks to the <code>pycauset</code>
+  engine for live sprinkling. See <code>documentation/project/plans/R2_SPACETIME_CREATION.md</code>.
+</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+const LIBRARY = {
+  blank: {},
+  minkowski_diamond: { name:'minkowski_diamond_2d', dimension:2, t:1, s:1, domain:'diamond', metric:'flat' },
+  minkowski_cylinder: { name:'minkowski_cylinder_2d', dimension:2, t:1, s:1, domain:'cylinder', metric:'flat', height:2, circumference:3 },
+  minkowski_box: { name:'minkowski_box_2d', dimension:2, t:1, s:1, domain:'box', metric:'flat', time_extent:2, space_extent:1 },
+  de_sitter: { name:'de_sitter_2d', dimension:2, t:1, s:1, domain:'none', metric:'de_sitter', curvature_radius:1 },
+  anti_de_sitter: { name:'anti_de_sitter_2d', dimension:2, t:1, s:1, domain:'none', metric:'anti_de_sitter', curvature_radius:1 },
+  flrw: { name:'flrw_2d', dimension:2, t:1, s:1, domain:'none', metric:'flrw', k:0 },
+  schwarzschild: { name:'schwarzschild_4d', dimension:4, t:1, s:3, domain:'none', metric:'schwarzschild', mass:1 },
+  reissner_nordstrom: { name:'reissner_nordstrom_4d', dimension:4, t:1, s:3, domain:'none', metric:'reissner_nordstrom', mass:1, charge:0.5 },
+  kerr: { name:'kerr_4d', dimension:4, t:1, s:3, domain:'none', metric:'kerr', mass:1, spin:0.5 },
+  kerr_newman: { name:'kerr_newman_4d', dimension:4, t:1, s:3, domain:'none', metric:'kerr_newman', mass:1, spin:0.5, charge:0.5 },
+};
+
+function applyPreset(key) {
+  const p = LIBRARY[key] || {};
+  const fields = ['name','dimension','t','s','domain','metric','time_extent','space_extent',
+                  'height','circumference','curvature_radius','mass','charge','spin','k','periodic'];
+  // reset to defaults first
+  const defaults = { name:'my_spacetime', dimension:2, t:1, s:1, domain:'diamond', metric:'flat',
+                     time_extent:2, space_extent:1, height:2, circumference:3, curvature_radius:1,
+                     mass:1, charge:0, spin:0, k:0, periodic:false };
+  for (const f of fields) {
+    const v = (f in p) ? p[f] : defaults[f];
+    if (f === 'periodic') $('periodic').checked = v;
+    else $(f).value = v;
+  }
+  recompute();
+}
+
+function readState() {
+  return {
+    name: $('name').value.trim() || 'my_spacetime',
+    dimension: +$('dimension').value || 2,
+    t: +$('t').value || 1,
+    s: +$('s').value || 1,
+    domain: $('domain').value,
+    metric: $('metric').value,
+    time_extent: +$('time_extent').value || 1,
+    space_extent: +$('space_extent').value || 1,
+    height: +$('height').value || 1,
+    circumference: +$('circumference').value || 1,
+    curvature_radius: +$('curvature_radius').value || 1,
+    mass: +$('mass').value || 1,
+    charge: +$('charge').value || 0,
+    spin: +$('spin').value || 0,
+    k: +$('k').value || 0,
+    periodic: $('periodic').checked,
+    seed: +$('seed').value || 42,
+    points: +$('points').value || 60,
+  };
+}
+
+function classify(name) {
+  const w = name.split('_').filter(Boolean).map(x => x[0].toUpperCase() + x.slice(1)).join('');
+  return w || 'MySpacetime';
+}
+
+function genRecipe(s) {
+  const L = ['from pycauset import spacetime', '', 'st = spacetime.create('];
+  L.push(`    name="${s.name}",`);
+  L.push(`    dimension=${s.dimension},`);
+  L.push(`    signature=(${s.t}, ${s.s}),`);
+  L.push(`    domain="${s.domain}",`);
+  L.push(`    metric="${s.metric}",`);
+  if (['box','slab'].includes(s.domain)) {
+    L.push(`    time_extent=${s.time_extent},`);
+    L.push(`    space_extent=${s.space_extent},`);
+  }
+  if (s.domain === 'cylinder') {
+    L.push(`    height=${s.height},`);
+    L.push(`    circumference=${s.circumference},`);
+  }
+  if (s.domain === 'ball') L.push(`    radius=${s.space_extent},`);
+  if (['de_sitter','anti_de_sitter'].includes(s.metric)) L.push(`    curvature_radius=${s.curvature_radius},`);
+  if (s.metric === 'flrw') L.push(`    k=${s.k},  # -1 open · 0 flat · +1 closed`);
+  if (['schwarzschild','reissner_nordstrom','kerr','kerr_newman'].includes(s.metric)) {
+    L.push(`    mass=${s.mass},`);
+    if (['reissner_nordstrom','kerr_newman'].includes(s.metric)) L.push(`    charge=${s.charge},`);
+    if (['kerr','kerr_newman'].includes(s.metric)) L.push(`    spin=${s.spin},`);
+  }
+  if (s.periodic) L.push(`    periodic=True,`);
+  L.push(')');
+  return L.join('\n');
+}
+
+function genClass(s) {
+  const d = s.dimension, T = s.time_extent, Lx = s.space_extent,
+        H = s.height, C = s.circumference, CR = s.curvature_radius;
+  const out = ['from pycauset import spacetime', '',
+    `@spacetime.register("${s.name}")`,
+    `class ${classify(s.name)}(spacetime.Spacetime):`,
+    `    dimension = ${d}`,
+    `    signature = (${s.t}, ${s.s})`,
+    '', '    def sample(self, rng, n):'];
+
+  const flat = s.metric === 'flat';
+  if (flat && s.domain === 'diamond' && d === 2) {
+    out.push('        import numpy as np',
+             '        return rng.uniform(0.0, 1.0, size=(n, 2))', '',
+             '    def is_causal(self, u, v):',
+             '        return u[0] < v[0] and u[1] < v[1]', '',
+             '    def volume(self):',
+             '        return 1.0');
+  } else if (flat && s.domain === 'diamond' && d > 2) {
+    out.push('        # True d-dimensional causal diamond = I+(p) ∩ I-(q).',
+             '        # Not the product-of-intervals placeholder. See R2_SPACETIME_LIBRARY.',
+             '        raise NotImplementedError', '',
+             '    def is_causal(self, u, v):',
+             '        raise NotImplementedError', '',
+             '    def volume(self):',
+             '        raise NotImplementedError');
+  } else if (flat && s.domain === 'cylinder') {
+    out.push('        import numpy as np',
+             `        pts = rng.uniform(0.0, 1.0, size=(n, 2))`,
+             `        pts[:, 0] *= ${H}`,
+             `        pts[:, 1] *= ${C}`,
+             '        return pts', '',
+             '    def is_causal(self, u, v):',
+             '        dt = v[0] - u[0]',
+             '        if dt <= 0.0:',
+             '            return False',
+             '        dx = abs(v[1] - u[1])',
+             `        dx = min(dx, ${C} - dx)`,
+             '        return dt > dx', '',
+             '    def volume(self):',
+             `        return ${H} * ${C}`);
+  } else if (flat && ['box','slab','ball'].includes(s.domain)) {
+    out.push('        import numpy as np',
+             `        pts = rng.uniform(0.0, 1.0, size=(n, ${d}))`,
+             `        pts[:, 0] *= ${T}`,
+             `        pts[:, 1:] *= ${Lx}`,
+             '        return pts', '',
+             '    def is_causal(self, u, v):',
+             '        dt = v[0] - u[0]',
+             '        if dt <= 0.0:',
+             '            return False',
+             '        return dt * dt > sum((v[k] - u[k]) ** 2 for k in range(1, len(u)))', '',
+             '    def volume(self):',
+             `        return ${T} * (${Lx} ** (${d} - 1))`);
+  } else {
+    out.push(`        raise NotImplementedError("uniform sampling on ${s.metric} — see R2_SPACETIME_LIBRARY")`, '',
+             '    def is_causal(self, u, v):',
+             `        raise NotImplementedError("causal order for ${s.metric} — see R2_SPACETIME_LIBRARY")`, '',
+             '    def volume(self):',
+             '        raise NotImplementedError');
+  }
+  return out.join('\n');
+}
+
+let activeTab = 'recipe';
+function setTab(t) { activeTab = t; recompute(); }
+function copyCode() {
+  const txt = activeTab === 'recipe' ? genRecipe(readState()) : genClass(readState());
+  navigator.clipboard.writeText(txt).then(() => {
+    const b = document.querySelector('.copy'); const old = b.textContent;
+    b.textContent = 'Copied ✓'; setTimeout(() => b.textContent = old, 1200);
+  });
+}
+
+/* ---------- preview ---------- */
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function samplePreview(s, n, seed) {
+  const rng = mulberry32(seed), pts = [];
+  for (let i = 0; i < n; i++) {
+    if (s.domain === 'diamond') {
+      const u = rng(), v = rng();
+      pts.push({ t: (u + v) / Math.SQRT2, x: (v - u) / Math.SQRT2, u, v });
+    } else if (s.domain === 'cylinder') {
+      pts.push({ t: rng() * s.height, x: rng() * s.circumference });
+    } else {
+      pts.push({ t: rng() * s.time_extent, x: rng() * s.space_extent });
+    }
+  }
+  return pts;
+}
+
+function isCausal(a, b, s) {
+  if (s.domain === 'diamond') return a.u < b.u && a.v < b.v;
+  if (s.domain === 'cylinder') {
+    const dt = b.t - a.t; if (dt <= 0) return false;
+    let dx = Math.abs(b.x - a.x); dx = Math.min(dx, s.circumference - dx);
+    return dt > dx;
+  }
+  const dt = b.t - a.t; if (dt <= 0) return false;
+  return dt * dt > (b.x - a.x) * (b.x - a.x);
+}
+
+function tColor(t, tmin, tmax) {
+  const stops = [[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
+  const f = tmax > tmin ? (t - tmin) / (tmax - tmin) : 0.5;
+  const x = Math.min(1, Math.max(0, f)) * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.floor(x));
+  const a = x - i;
+  const c = [0,1,2].map(k => Math.round(stops[i][k] * (1 - a) + stops[i+1][k] * a));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+function drawPreview(s) {
+  const cv = $('preview'), ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const note = $('preview-note');
+
+  const drawable = s.metric === 'flat' && ['box','diamond','cylinder'].includes(s.domain);
+  if (!drawable) {
+    note.textContent = '2D preview shown for flat Minkowski domains (box / diamond / cylinder). Curved & black-hole spacetimes render in the full 3D studio.';
+    ctx.fillStyle = '#5a5a7a'; ctx.font = '13px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('— 3D preview not shown in this 2D mockup —', cv.width/2, cv.height/2);
+    return;
+  }
+
+  const n = Math.max(10, Math.min(90, s.points | 0));
+  const pts = samplePreview(s, n, s.seed);
+
+  // bounds (points + boundary)
+  let tmin = Infinity, tmax = -Infinity, xmin = Infinity, xmax = -Infinity;
+  const extend = (t, x) => { tmin=Math.min(tmin,t); tmax=Math.max(tmax,t); xmin=Math.min(xmin,x); xmax=Math.max(xmax,x); };
+  if (s.domain === 'box') { extend(0,0); extend(s.time_extent, s.space_extent); }
+  if (s.domain === 'diamond') { extend(0,0); extend(Math.SQRT2,0); extend(Math.SQRT2/2,-Math.SQRT2/2); extend(Math.SQRT2/2,Math.SQRT2/2); }
+  if (s.domain === 'cylinder') { extend(0,0); extend(s.height, s.circumference); }
+  pts.forEach(p => extend(p.t, p.x));
+  const px = 14, py = 14;
+  const sx = t => px + (t - tmin) / (tmax - tmin) * (cv.width - 2*px);
+  const sy = x => cv.height - py - (x - xmin) / (xmax - xmin) * (cv.height - 2*py);
+
+  // links
+  const Cm = Array.from({length:n}, () => new Uint8Array(n));
+  for (let i=0;i<n;i++) for (let j=0;j<n;j++) Cm[i][j] = isCausal(pts[i], pts[j], s) ? 1 : 0;
+  const C2 = Array.from({length:n}, () => new Uint8Array(n));
+  for (let i=0;i<n;i++) for (let k=0;k<n;k++) if (Cm[i][k]) for (let j=0;j<n;j++) C2[i][j] |= Cm[k][j];
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+  for (let i=0;i<n;i++) for (let j=0;j<n;j++) {
+    if (Cm[i][j] && !C2[i][j]) {
+      ctx.beginPath();
+      ctx.moveTo(sx(pts[i].t), sy(pts[i].x));
+      ctx.lineTo(sx(pts[j].t), sy(pts[j].x));
+      ctx.stroke();
+    }
+  }
+
+  // boundary
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5; ctx.setLineDash([5,4]);
+  ctx.beginPath();
+  if (s.domain === 'box') {
+    ctx.moveTo(sx(0), sy(0)); ctx.lineTo(sx(s.time_extent), sy(0));
+    ctx.lineTo(sx(s.time_extent), sy(s.space_extent)); ctx.lineTo(sx(0), sy(s.space_extent)); ctx.closePath();
+  } else if (s.domain === 'diamond') {
+    ctx.moveTo(sx(0), sy(0)); ctx.lineTo(sx(Math.SQRT2/2), sy(-Math.SQRT2/2));
+    ctx.lineTo(sx(Math.SQRT2), sy(0)); ctx.lineTo(sx(Math.SQRT2/2), sy(Math.SQRT2/2)); ctx.closePath();
+  } else if (s.domain === 'cylinder') {
+    ctx.moveTo(sx(0), sy(0)); ctx.lineTo(sx(s.height), sy(0));
+    ctx.moveTo(sx(0), sy(s.circumference)); ctx.lineTo(sx(s.height), sy(s.circumference));
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // points
+  for (const p of pts) {
+    ctx.fillStyle = tColor(p.t, tmin, tmax);
+    ctx.beginPath(); ctx.arc(sx(p.t), sy(p.x), 2.4, 0, Math.PI*2); ctx.fill();
+  }
+  note.textContent = `${n} points · seed ${s.seed} · links shown (transitive reduction) · color = time`;
+}
+
+function recompute() {
+  const s = readState();
+  // signature note
+  const ok = (s.t + s.s) === s.dimension;
+  const note = $('sig-note');
+  note.textContent = `signature (${s.t}, ${s.s}) → total ${s.t + s.s}`;
+  note.className = 'sig-note' + (ok ? '' : ' bad');
+  if (!ok) note.textContent += ' — does not match dimension';
+  // code
+  $('code').textContent = activeTab === 'recipe' ? genRecipe(s) : genClass(s);
+  $('tab-recipe').className = 'tab' + (activeTab === 'recipe' ? ' active' : '');
+  $('tab-python').className = 'tab' + (activeTab === 'python' ? ' active' : '');
+  drawPreview(s);
+}
+
+// events
+$('lib').addEventListener('change', e => applyPreset(e.target.value));
+['name','dimension','t','s','domain','metric','time_extent','space_extent','height',
+ 'circumference','curvature_radius','mass','charge','spin','k','seed','points'].forEach(id =>
+  $(id).addEventListener('input', recompute));
+$('periodic').addEventListener('change', recompute);
+$('dimension').addEventListener('input', () => {
+  // Lorentzian default: keep 1 time dim, make the rest spatial
+  $('t').value = 1; $('s').value = Math.max(0, (+$('dimension').value || 2) - 1);
+  recompute();
+});
+
+recompute();
+</script>
+</body>
+</html>
