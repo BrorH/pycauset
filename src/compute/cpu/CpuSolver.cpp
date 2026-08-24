@@ -5323,9 +5323,13 @@ void CpuSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBa
     
     if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
          std::vector<double> a_buf(m * n);
-         for(size_t i=0; i<m; ++i) 
-             for(size_t j=0; j<n; ++j) 
-                 a_buf[i * n + j] = in_d->get(i, j);
+         if (!in_d->is_transposed() && !in_d->has_view_offset()) {
+             std::memcpy(a_buf.data(), in_d->data(), m * n * sizeof(double));
+         } else {
+             for(size_t i=0; i<m; ++i)
+                 for(size_t j=0; j<n; ++j)
+                     a_buf[i * n + j] = in_d->get(i, j);
+         }
                  
          // Output buffers
          auto* u_d = dynamic_cast<DenseMatrix<double>*>(&U);
@@ -5339,22 +5343,17 @@ void CpuSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBa
          
          uint64_t k = std::min(m, n);
          std::vector<double> s_vec(k);
-         std::vector<double> superb(k-1); // Not used by us really, but needed for dgesvd? No, dgesvd returns S.
-         // Wait, dgesvd returns singular values in S array.
          
-         lapack_int info = LAPACKE_dgesvd(LAPACK_ROW_MAJOR, 'S', 'S', 
-             (lapack_int)m, (lapack_int)n, a_buf.data(), (lapack_int)n, 
-             s_vec.data(), 
-             u_d->data(), (lapack_int)k, // U is MxK, stored row major, LDA=K? No U is MxK. 
-             // IMPORTANT: LAPACK Row Major -> LDU is leading dimension (stride). For U (MxK), stride is K.
-             vt_d->data(), (lapack_int)n, // VT is KxN. Stride is N.
-             superb.data() // superb is 'work' array? NO. LAPACKE handles workspace.
-             // Wait, LAPACKE_dgesvd signature:
-             // int LAPACKE_dgesvd( int matrix_layout, char jobu, char jobvt, lapack_int m, lapack_int n, double* a, lapack_int lda, double* s, double* u, lapack_int ldu, double* vt, lapack_int ldvt, double* superb );
-         );
+         // dgesdd (divide-and-conquer) is far faster than dgesvd (QR-based) and is
+         // what NumPy uses by default.
+         lapack_int info = LAPACKE_dgesdd(LAPACK_ROW_MAJOR, 'S',
+             (lapack_int)m, (lapack_int)n, a_buf.data(), (lapack_int)n,
+             s_vec.data(),
+             u_d->data(), (lapack_int)k,
+             vt_d->data(), (lapack_int)n);
          
-         if (info > 0) throw std::runtime_error("dgesvd did not converge");
-         if (info < 0) throw std::runtime_error("dgesvd: illegal argument");
+         if (info > 0) throw std::runtime_error("dgesdd did not converge");
+         if (info < 0) throw std::runtime_error("dgesdd: illegal argument");
          
          // Copy S to VectorBase
          extract_vector(k, s_vec.data(), S);
@@ -5363,24 +5362,25 @@ void CpuSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBa
     
     if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
          std::vector<float> a_buf(m * n);
-         for(size_t i=0; i<m; ++i) for(size_t j=0; j<n; ++j) a_buf[i * n + j] = in_f->get(i, j);
+         if (!in_f->is_transposed() && !in_f->has_view_offset()) {
+             std::memcpy(a_buf.data(), in_f->data(), m * n * sizeof(float));
+         } else {
+             for(size_t i=0; i<m; ++i) for(size_t j=0; j<n; ++j) a_buf[i * n + j] = in_f->get(i, j);
+         }
          
          auto* u_f = dynamic_cast<DenseMatrix<float>*>(&U);
          auto* vt_f = dynamic_cast<DenseMatrix<float>*>(&VT);
          uint64_t k = std::min(m, n);
          std::vector<float> s_vec(k);
-         std::vector<float> superb(k-1);
          
-         lapack_int info = LAPACKE_sgesvd(LAPACK_ROW_MAJOR, 'S', 'S', 
-             (lapack_int)m, (lapack_int)n, a_buf.data(), (lapack_int)n, 
-             s_vec.data(), 
-             u_f->data(), (lapack_int)k, 
-             vt_f->data(), (lapack_int)n, 
-             superb.data()
-         );
+         lapack_int info = LAPACKE_sgesdd(LAPACK_ROW_MAJOR, 'S',
+             (lapack_int)m, (lapack_int)n, a_buf.data(), (lapack_int)n,
+             s_vec.data(),
+             u_f->data(), (lapack_int)k,
+             vt_f->data(), (lapack_int)n);
          
-         if (info > 0) throw std::runtime_error("sgesvd did not converge");
-         if (info < 0) throw std::runtime_error("sgesvd: illegal argument");
+         if (info > 0) throw std::runtime_error("sgesdd did not converge");
+         if (info < 0) throw std::runtime_error("sgesdd: illegal argument");
          
          extract_vector(k, s_vec.data(), S);
          return;

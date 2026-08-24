@@ -88,9 +88,9 @@ PyCauset's dense kernels use the same OpenBLAS/LAPACK backend as NumPy, so the g
 | inverse | 0.86x (n=256) | 0.77x (n=4096) | competitive |
 | solve | 0.54x (n=256) | 0.81x (n=4096) | competitive |
 | elementwise add | 0.56x (n=1024) | 0.57x (n=8192) | known gap |
-| svd | 0.15x (n=256) | 0.04x (n=2048) | known gap |
+| svd | 0.75x (n=256) | 0.51x (n=2048) | ~2x, row-major overhead |
 
-Small n carries fixed Python dispatch overhead that amortizes as the matrix grows. SVD and elementwise are the top targets for the post-R1 ">= 0.90x NumPy" program. Full reproducible numbers and graphs: [BENCHMARKS.md](BENCHMARKS.md).
+Small n carries fixed Python dispatch overhead that amortizes as the matrix grows. Elementwise, dot, and the remaining SVD row-major overhead are the top targets for the post-R1 ">= 0.90x NumPy" program. Full reproducible numbers and graphs: [BENCHMARKS.md](BENCHMARKS.md).
 
 ## Gallery
 

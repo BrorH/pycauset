@@ -69,14 +69,14 @@ fixed Python dispatch overhead.
 | cholesky | 1024 | 35.4ms | 46.8ms | 0.75x |
 | cholesky | 2048 | 173.5ms | 165.9ms | **1.05x** |
 | cholesky | 4096 | 959.5ms | 1.01s | 0.95x |
-| svd | 256 | 19.2ms | 127.4ms | 0.15x |
-| svd | 512 | 67.3ms | 886.0ms | 0.08x |
-| svd | 1024 | 313.8ms | 6.47s | 0.05x |
-| svd | 2048 | 2.42s | 65.04s | 0.04x |
+| svd | 256 | 19.2ms | 25.7ms | 0.75x |
+| svd | 512 | 67.2ms | 193.3ms | 0.35x |
+| svd | 1024 | 315.6ms | 541.3ms | 0.58x |
+| svd | 2048 | 2.42s | 4.74s | 0.51x |
 
-Inverse, solve, and Cholesky are competitive (0.7x to 1.05x). SVD is the clear outlier:
-PyCauset's SVD path does not yet use LAPACK efficiently and is 10x to 25x slower. This is
-the top priority for the post-R1 performance program.
+Inverse, solve, and Cholesky are competitive (0.7x to 1.05x). SVD now uses the same
+divide-and-conquer LAPACK routine (`gesdd`) as NumPy; the remaining roughly 2x gap is the
+row-major transpose overhead and is tracked for the post-R1 program.
 
 ## Dense float64 eigenvalues
 
@@ -112,5 +112,6 @@ through lazy-expression materialization and are tracked for the post-R1 program.
 
 - **Matmul, eigenvalues, and Cholesky** match or beat NumPy at large sizes.
 - **Inverse and solve** are competitive, within 25% of NumPy.
-- **SVD, elementwise, and dot** are the known gaps, and are the concrete targets for the
-  post-R1 "greater than 0.90x NumPy" program (tracked in `TODO.md`).
+- **SVD** is roughly 2x slower (down from 25x after switching to `gesdd`); the row-major
+  overhead, elementwise, and dot are the concrete targets for the post-R1
+  "greater than 0.90x NumPy" program (tracked in `TODO.md`).
