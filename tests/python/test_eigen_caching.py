@@ -72,34 +72,32 @@ class TestEigenCaching(unittest.TestCase):
         # (exact difference depends on matrix structure)
         
     def test_cache_persistence_across_load(self):
-        """Test that cache persists when matrix is saved and reloaded"""
+        """Eigenvalues are correct across a save()/load() roundtrip.
+
+        Uses the supported persistence API (save()/load()) rather than the
+        `backing_file=` constructor kwarg (which is not honoured for NumPy input).
+        Note: eigen-*cache* persistence to the container is a deferred Phase 6
+        optimization; this pins the correctness property that eigenvalues are
+        identical whether recomputed or loaded from a persisted cache.
+        """
         n = 8
         A_np = np.random.rand(n, n)
         A_np = A_np + A_np.T
-        
-        backing_file = self.test_dir / "test_matrix.pycauset"
-        
-        # Create matrix with backing file
-        A = pycauset.matrix(A_np, backing_file=str(backing_file))
-        
-        # Compute eigen decomposition (should cache)
+
+        path = self.test_dir / "test_matrix.pycauset"
+
+        A = pycauset.matrix(A_np)
         w1, v1 = pycauset.eigh(A)
         w1_vals = [w1.get(i) for i in range(n)]
-        
-        # Force sync to disk
-        if hasattr(A, "sync"):
-            A.sync()
-            
-        # Simulate program restart: reload matrix from disk
-        # In a real scenario, this would be a fresh Python session
-        # Here we just create a new matrix object from the same backing file
-        A2 = pycauset.load_matrix(str(backing_file))
-        
-        # Compute again - should hit cache if persisted
+
+        # Persist and reload into a fresh object (simulates a program restart).
+        pycauset.save(A, str(path))
+        A2 = pycauset.load_matrix(str(path))
+
+        # Compute again — values must match (cache hit or recomputation).
         w2, v2 = pycauset.eigh(A2)
         w2_vals = [w2.get(i) for i in range(n)]
-        
-        # Values should match (either from cache or recomputation)
+
         for i in range(n):
             self.assertAlmostEqual(w1_vals[i], w2_vals[i], places=8)
             

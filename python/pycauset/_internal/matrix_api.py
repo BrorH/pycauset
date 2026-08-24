@@ -219,6 +219,17 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
             import numpy as np
 
             if isinstance(data, np.ndarray):
+                # `backing_file` cannot be honoured by the NumPy fast-path
+                # (native.asarray allocates RAM- or threshold-backed storage only).
+                # Reject it explicitly instead of silently returning an in-memory
+                # matrix while the caller believed it was file-backed — that silent
+                # drop is a wrong answer for persistence expectations.
+                if "backing_file" in kwargs:
+                    raise TypeError(
+                        "matrix() does not accept 'backing_file' for NumPy-array "
+                        "input. For persistent storage use save()/load(); for "
+                        "automatic spill-to-disk use set_memory_threshold()."
+                    )
                 if data.dtype in (
                     getattr(np, "int8", object()),
                     np.int16,

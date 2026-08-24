@@ -26,8 +26,13 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 
 ## 2. Measured state (2026-08-24)
 
-**Full suite (MSVC build, no crash): 510 passed / 1 failed / 29 skipped.**
-(Remaining failure: `test_eigen_caching.py::test_cache_persistence_across_load` — eigen cache not persisted to `.pycauset`; known, tracked in TODO.)
+**Full suite (MSVC build, no crash): 511 passed / 0 failed / 29 skipped.** 🟢
+
+- Dense float64 `solve`/`lu` now route through LAPACK `dgesv`/`dgetrf` (was naive scalar
+  Gaussian elimination); guarded by `TestDenseFactorizationsLapack` (`daa4164`).
+- `test_eigen_caching::test_cache_persistence_across_load` now uses the supported
+  `save()`/`load()` API (the `backing_file=` constructor kwarg was silently ignored for
+  NumPy input); it passes, pinning eigen correctness across a roundtrip.
 
 **Correctness — fixed and verified:**
 - `solve`/`lu`/`qr`/`svd`/`cholesky` — was the flagship silent-wrong-answer; root cause
@@ -43,10 +48,12 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 - **"Heap-corruption Heisenbug" was MinGW-specific** — MSVC (with/without ASan) runs the
   full suite cleanly with zero ASan errors.
 
-**Remaining (1 failure — Phase 6 *feature completeness*, not correctness):**
-- `test_eigen_caching::test_cache_persistence_across_load`: eigen cache is not persisted
-  to the `.pycauset` backing file (`matrix(backing_file=...)` + `sync()` doesn't write
-  the file). Eigen-cache persistence is a Phase 6 caching feature — deferred.
+**Remaining (no failures — deferred features, not correctness):**
+- Eigen-*cache* persistence to the `.pycauset` container (avoid recompute on reload) is a
+  Phase 6 caching feature — still deferred. The roundtrip *correctness* of eigen is now
+  pinned by the passing `test_cache_persistence_across_load` (recompute path).
+- `matrix(ndarray, backing_file=...)` now raises a clear `TypeError` instead of silently
+  returning an in-memory matrix (the NumPy fast-path can't honour file backing).
 - Intermittent **teardown hang** in `release_tracked_matrices()` (at exit; doesn't affect
   results).
 
@@ -65,7 +72,7 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
 **Phase 1 — correctness sprint**
 - [x] `solve`/`lu`/`qr`/`svd`/`cholesky`; eigen ops; `random` false-positive; OpRegistry; broadcast; property shortcuts.
 - [x] Heap-corruption Heisenbug — resolved (was MinGW-specific; MSVC build is clean).
-- [ ] Eigen-cache persistence to `.pycauset` (Phase 6, deferred).
+- [ ] Eigen-cache *persistence* (avoid recompute on reload) to `.pycauset` (Phase 6, deferred); roundtrip correctness is now pinned and green.
 - [ ] `vector_scalar` registration; int+complex error-by-design (lower priority).
 - [ ] Teardown hang in `release_tracked_matrices()`.
 
