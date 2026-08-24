@@ -10,11 +10,11 @@
 
 </div>
 
-## **PyCauset is toolset forcausal set theory in Python.**
+## **PyCauset is a toolset for causal set theory in Python.**
 
-[Causal set theory](https://en.wikipedia.org/wiki/Causal_sets) is a discrete proposal for [quantum gravity](https://en.wikipedia.org/wiki/Quantum_gravity). Within this framework, numerical calculations quickly grow in complexity, and there are few existing tools without compromises. PyCauset is a new low-compromise engine for causal sets, built from the ground up to be fast, flexible, and easy to use. 
+[Causal set theory](https://en.wikipedia.org/wiki/Causal_sets) is a discrete proposal for [quantum gravity](https://en.wikipedia.org/wiki/Quantum_gravity). PyCauset is a low-compromise numerical tool for causal sets ("causets"), built from the ground up to be fast, flexible, and easy to use. 
 
-The **PyCauset Engine** is built to be [NumPy](https://numpy.org/) for causal sets. If you know NumPy, you already know the engine: the same shapes, dtypes, operators, and conventions, backed by a C++ core for speed. On top of that it adds what causal sets need: bit-packed causal matrices, metadata that lets the math skip unnecessary work, storage that spills to disk when RAM runs out, and CPU/GPU dispatch handled behind the scenes.
+The **PyCauset Engine** is built to be [NumPy](https://numpy.org/) for causal sets. If you know NumPy, you already know the engine: the same shapes, dtypes, operators, and conventions, backed by a C++ core for speed. On top of that it adds what causal sets need: bit-packed causal matrices, metadata that lets the math skip unnecessary work, storage that spills to disk when RAM runs out, and CPU dispatch handled behind the scenes.
 
 The **physics suite** builds on it: spacetimes to sprinkle into, fields defined on a causal set, and the machinery of causal-set QFT ([propagators](https://en.wikipedia.org/wiki/Propagator), the Pauli-Jordan function, and, on the roadmap, the Sorkin-Johnston vacuum).
 
@@ -34,7 +34,7 @@ fig.show()
 
 <img src="documentation/docs/assets/gallery/diamond_embedding.png" width="520" alt="3000 points in a 2D Minkowski diamond">
 
-*3000 points in a 2D Minkowski diamond, from the code above.*
+
 
 Define a field and compute a propagator:
 
@@ -50,10 +50,10 @@ Or use the engine on its own:
 ```python
 A = pc.causal_matrix(10000, populate=True)
 B = pc.causal_matrix(10000, populate=True)
-Paths = A @ B                       # bit-matrix product: path counts
+Paths = pc.dot(A, B)                       # alternatively, use `A @ B` 
 
 M = pc.zeros((2000, 2000), dtype=pc.float32)
-M_inv = ~M                          # inversion
+M_inv = M.invert()                          # inversion
 ```
 
 ## Features
@@ -65,7 +65,7 @@ PyCauset has an optimized C++ core with Python bindings, which is built specific
 - **Work with matrices bigger than your RAM.** Large matrices stream to disk and back, so the only limit to computation is your storage and time.
 - **It speaks [NumPy](https://numpy.org/).** Same shapes, dtypes, operators, and conventions. It is also compatible with NumPy arrays, so you can mix and match.
 - **Bit-wise causal relations.** The causal matrix elements are individual bits, which allows for 8x more efficient storage than a byte-based representation.
-- **GPU and CPU optimized.** *It just works.* Operations dispatch to CPU or [CUDA](https://developer.nvidia.com/cuda-zone) automatically.
+- **CPU (and soon GPU) optimized.** *It just works.* 
 - **Storage and precision, handled.** Memory, precision, and hardware are automatically chosen.
 
 **Physics Engine** 
