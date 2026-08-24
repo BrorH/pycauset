@@ -286,14 +286,24 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
             if not is_square:
                 is_triangular = False
 
+            has_complex = False
             for i, row in enumerate(data):
                 for j, val in enumerate(row):
                     if target_dtype is None:
+                        if isinstance(val, complex):
+                            has_complex = True
                         if is_integer and not isinstance(val, (int, bool)):
                             is_integer = False
 
                     if is_triangular and is_square and j <= i and val != 0:
                         is_triangular = False
+
+            # Infer complex from list values (NumPy-array input is handled by the
+            # fast-path above; this branch covers plain Python/nested-sequence
+            # complex literals, which previously fell through to the float branch
+            # and silently produced a broken abstract Matrix).
+            if target_dtype is None and has_complex:
+                target_dtype = "complex_float64"
 
             def create_and_fill(cls_type: Any, data_source: Any):
                 size, rows2 = coerce_general_matrix(data_source)
@@ -405,6 +415,27 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                 if not is_square:
                     return create_and_fill_rectangular(_FloatMatrix, data, r=rows, c=cols)
                 return create_and_fill(_FloatMatrix, data)
+
+            if target_dtype == "complex_float64":
+                if _ComplexFloat64Matrix is None:
+                    return super(Matrix, cls).__new__(cls)
+                if not is_square:
+                    return create_and_fill_rectangular(_ComplexFloat64Matrix, data, r=rows, c=cols)
+                return create_and_fill(_ComplexFloat64Matrix, data)
+
+            if target_dtype == "complex_float32":
+                if _ComplexFloat32Matrix is None:
+                    return super(Matrix, cls).__new__(cls)
+                if not is_square:
+                    return create_and_fill_rectangular(_ComplexFloat32Matrix, data, r=rows, c=cols)
+                return create_and_fill(_ComplexFloat32Matrix, data)
+
+            if target_dtype == "complex_float16":
+                if _ComplexFloat16Matrix is None:
+                    return super(Matrix, cls).__new__(cls)
+                if not is_square:
+                    return create_and_fill_rectangular(_ComplexFloat16Matrix, data, r=rows, c=cols)
+                return create_and_fill(_ComplexFloat16Matrix, data)
 
             if is_integer:
                 if is_triangular and _TriangularIntegerMatrix is not None:

@@ -26,13 +26,16 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 
 ## 2. Measured state (2026-08-24)
 
-**Full suite (MSVC build, no crash): 511 passed / 0 failed / 29 skipped.** 🟢
+**Full suite (MSVC build, no crash): 513 passed / 0 failed / 29 skipped.** 🟢
 
 - Dense float64 `solve`/`lu` now route through LAPACK `dgesv`/`dgetrf` (was naive scalar
   Gaussian elimination); guarded by `TestDenseFactorizationsLapack` (`daa4164`).
 - `test_eigen_caching::test_cache_persistence_across_load` now uses the supported
   `save()`/`load()` API (the `backing_file=` constructor kwarg was silently ignored for
   NumPy input); it passes, pinning eigen correctness across a roundtrip.
+- `matrix([[1+2j, …]])` (complex **list** input) now produces a `ComplexFloat64Matrix`;
+  it previously fell through the float branch and returned a broken abstract `Matrix`
+  (no dtype, `to_numpy` raised `data type '' not understood`).
 
 **Correctness — fixed and verified:**
 - `solve`/`lu`/`qr`/`svd`/`cholesky` — was the flagship silent-wrong-answer; root cause
@@ -45,6 +48,8 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 - NumPy 1-D broadcast (SIMD fast-path ignored shape → guarded, `90cee4c`).
 - `load_matrix` alias; `eigh`/`eig` marked non-streaming routing (`cdb14eb`).
 - Dead overridden stubs removed (`17ab757`).
+- Complex list-input construction (missing complex dtype branches in `matrix_api.py`) →
+  now routes to `ComplexFloat64/32/16Matrix` instead of a broken abstract `Matrix`.
 - **"Heap-corruption Heisenbug" was MinGW-specific** — MSVC (with/without ASan) runs the
   full suite cleanly with zero ASan errors.
 
@@ -73,7 +78,8 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
 - [x] `solve`/`lu`/`qr`/`svd`/`cholesky`; eigen ops; `random` false-positive; OpRegistry; broadcast; property shortcuts.
 - [x] Heap-corruption Heisenbug — resolved (was MinGW-specific; MSVC build is clean).
 - [ ] Eigen-cache *persistence* (avoid recompute on reload) to `.pycauset` (Phase 6, deferred); roundtrip correctness is now pinned and green.
-- [ ] `vector_scalar` registration; int+complex error-by-design (lower priority).
+- [ ] `vector_scalar` registration; remaining int+complex error-by-design (lower priority).
+  (Complex *list* construction is now fixed; complex scalar × real vector already errors-by-design.)
 - [ ] Teardown hang in `release_tracked_matrices()`.
 
 **Phase 2 — hygiene (R1_POLISH)**

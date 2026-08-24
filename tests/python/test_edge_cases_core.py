@@ -113,6 +113,25 @@ class TestDTypeInvariants(unittest.TestCase):
         self.assertEqual(got.dtype, np.dtype(np.complex128))
         self.assertEqual(got[0, 0], 1 + 2j)
 
+    def test_complex_list_input_not_dropped(self):
+        # Regression: a plain Python nested list of complex literals used to fall
+        # through to the float branch and produce a broken abstract Matrix (with
+        # no dtype, so to_numpy raised "data type '' not understood").
+        z = pc.matrix([[1 + 2j, 0], [0, 1]])
+        self.assertEqual(type(z).__name__, "ComplexFloat64Matrix")
+        got = _np(z)
+        self.assertEqual(got.dtype, np.dtype(np.complex128))
+        self.assertEqual(got[0, 0], 1 + 2j)
+        self.assertEqual(got[1, 1], 1 + 0j)
+
+    def test_complex_list_rectangular_and_explicit_dtype(self):
+        rect = pc.matrix([[1 + 2j, 3], [4, 5 + 6j], [7, 8]])
+        self.assertEqual(type(rect).__name__, "ComplexFloat64Matrix")
+        self.assertEqual(_np(rect).dtype, np.dtype(np.complex128))
+
+        c32 = pc.matrix([[1 + 2j, 0], [0, 1]], dtype="complex_float32")
+        self.assertEqual(_np(c32).dtype, np.dtype(np.complex64))
+
 
 class TestDenseFactorizationsLapack(unittest.TestCase):
     """Regression coverage for the LAPACK-backed dense float64 solve/LU.
