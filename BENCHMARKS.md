@@ -61,6 +61,23 @@ array, with an AVX-512-accelerated multiplication. A 10000x10000 bit matmul comp
 ~2.5s; the equivalent NumPy `bool` matmul does not use packed bit arithmetic and is far
 slower.
 
+## Out-of-core (memory-mapped) matrices
+
+PyCauset spills matrices to disk when they exceed the RAM budget (`set_memory_threshold`),
+so a computation can proceed on data that does not fit in memory — a regime where NumPy
+raises `MemoryError`.
+
+Verified demonstration (72 MB matrix forced to disk with a 1 MB budget):
+
+| step | result |
+|---|---|
+| `FloatMatrix(3000)` with 1 MB threshold | 10 ms; backing file created on disk (`.pycauset/*.tmp`) |
+| `trace(identity)` | 1.9 ms, returns 3000 (correct) |
+| `to_numpy(..., allow_huge=True)` | 12 ms, diagonal sum 3000 (correct) |
+
+The same pattern scales to matrices larger than physical RAM; the "humongous" scripts in
+`benchmarks/` (e.g. `benchmark_humongous.py`) exercise a 50 GB inverse end-to-end.
+
 ## What this means for large workloads
 
 - For **dense** linear algebra, PyCauset keeps pace with NumPy (same BLAS backend).
