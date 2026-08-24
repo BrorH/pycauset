@@ -21,8 +21,29 @@ python benchmarks/plot.py
 PyCauset's dense kernels run on the same OpenBLAS/LAPACK backend as NumPy, so the
 realistic goal is parity, not a large speedup. At large sizes PyCauset matches or
 edges ahead of NumPy on matmul, eigenvalues, and Cholesky. The current gaps are SVD
-(which does not yet use LAPACK efficiently) and elementwise materialization; both are
-tracked for the post-R1 performance program.
+(about 2x, from the row-major transpose) and elementwise materialization, both tracked
+for the post-R1 program.
+
+## The reason to use PyCauset: it scales past RAM
+
+NumPy keeps every array in RAM, so a square float64 matrix is capped by memory: on a
+16 GB machine that is about 46340 x 46340 (16.2 GB), and beyond that NumPy raises
+`MemoryError`. PyCauset memory-maps to disk beyond a RAM budget, so its RAM usage is
+bounded by your threshold and the matrix can be far larger than RAM.
+
+| RAM budget | max n (NumPy) | PyCauset |
+|---|---|---|
+| 4 GB | 23170 x 23170 | unbounded (disk-backed) |
+| 8 GB | 32768 x 32768 | unbounded (disk-backed) |
+| 16 GB | 46340 x 46340 | unbounded (disk-backed) |
+| 32 GB | 65536 x 65536 | unbounded (disk-backed) |
+| 64 GB | 92681 x 92681 | unbounded (disk-backed) |
+
+Demonstration (run `python benchmarks/bench_ram.py`): a 12000 x 12000 float64 matrix is
+1.07 GB; NumPy holds all of it in RAM, while PyCauset with a 256 MB budget stores it on
+disk and still computes `trace(identity) = 12000` correctly. This is the regime where
+PyCauset does something NumPy cannot, which is the practical reason to use it even where
+NumPy is a bit faster on in-memory matrices.
 
 ## Time vs n
 
