@@ -31,7 +31,7 @@ Exceptions are for correctness and contract failures.
 
 - **Invalid arguments / shape mismatches**
 - **Unsupported dtype/structure combinations** (unless there is an explicit, documented fallback)
-- **Integer overflow** (policy: no silent wrap, no silent output widening)
+- **Integer reduction overflow** (`matmul` final cast doesn't fit the output dtype → `OverflowError`). Elementwise integer arithmetic wraps silently (C/NumPy semantics) and does **not** raise.
 
 Exceptions must be **deterministic** and should include stable, specific messages.
 
@@ -116,7 +116,7 @@ We rely on pybind11’s standard exception translation and a small amount of exp
 
 Policy notes:
 
-- **Integer overflow must raise** (no wrap). Prefer `std::overflow_error`.
+- **Integer reduction overflow must raise** (e.g. `matmul` final cast). Prefer `std::overflow_error`. (Elementwise integer arithmetic wraps per the documented C/NumPy policy and does not raise.)
 - Prefer `std::invalid_argument` for shape/contract violations so Python sees `ValueError`.
 
 ### Error messages

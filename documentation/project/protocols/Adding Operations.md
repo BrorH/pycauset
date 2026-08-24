@@ -123,7 +123,7 @@ Every new op must explicitly state its dtype behavior. In particular:
 
 - **Fundamental-kind rule (bit/int/float):** do not “promote down” across kinds. For example, `matmul(bit, float64) -> float64`.
 - **Underpromotion within floats:** `matmul(float32, float64) -> float32` by default.
-- **Overflow:** integer overflow throws; large integer matmul may emit a risk warning (advisory).
+- **Overflow:** elementwise integer arithmetic wraps (C/NumPy semantics); integer `matmul` reductions throw `OverflowError` on final-cast overflow and may emit an advisory risk warning.
 
 These rules are defined in [[internals/DType System|internals/DType System]] and summarized in [[project/Philosophy|project/Philosophy]].
 
