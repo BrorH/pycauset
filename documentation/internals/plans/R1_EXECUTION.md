@@ -30,19 +30,18 @@ Full suite: **482 passed / 23 failed / 29 skipped / 3 xfailed**.
 
 Verified-correct primitives: `matmul` ✅, `inverse` ✅ (`A @ inv ≈ I`).
 
-**Fixed 2026-08-24** (commit `204573b`): `solve`, `lu`, `qr`, `svd`, `cholesky`
-returned `unique_ptr<MatrixBase>` from the native bindings, which pybind11 mishandled
-(dangling downcast → stale `data()` / corrupted `get_backing_file()`). Changed to
-`shared_ptr<MatrixBase>(out.release())` (the working matmul pattern). Verified:
-`solve`/`lu`/`qr`/`cholesky` now correct via `np.array`, and `lu`'s backing files are
-clean (`:memory:`).
+**Fixed 2026-08-24:**
+- `solve`, `lu`, `qr`, `svd`, `cholesky` returned `unique_ptr<MatrixBase>` (pybind11
+  dangling downcast) → now `shared_ptr<MatrixBase>(out.release())` (commit `204573b`).
+- `eigh`, `eigvalsh`, `eig`, `eigvals`, `eigvals_arnoldi` (native R1_CPU Phase 6 eigen
+  crashed with access violations) → routed to NumPy fallback (commit `dabb9a2`).
+- `TriangularBitMatrix.random(n).size()` was a false positive (size() == rows*cols is
+  correct; fixed the drift check + test, commit `d8ae238`).
 
-**Still open** (pinned in `tests/python/test_known_bugs.py`):
-- `TriangularBitMatrix.random(n)` reports the wrong `.size()` (25 vs 5).
-- `eigvals_arnoldi` crashes (native access violation) — part of R1_CPU Phase 6 eigen,
-  which is documented as incomplete (eigh/eigvalsh are NumPy fallbacks; Arnoldi is native).
-- Teardown crash in `release_tracked_matrices()` (access violation on `close()`),
-  likely a separate lifecycle bug.
+**Still open** (native R1_CPU Phase 6/7 code; each fix reveals the next crash):
+- bit-matrix × float64 matmul fastpath crashes (`test_bit_mixed_fastpaths.py`).
+- Teardown crash/hang in `release_tracked_matrices()` (intermittent access violation
+  on `close()` / atexit).
 - `pc.lu` raises `MemoryError` in result bookkeeping after computing the
   factorization (`get_backing_file()` on the permutation matrix).
 - `TriangularBitMatrix.random(n)` reports the wrong `.size()`.
