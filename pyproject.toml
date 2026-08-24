@@ -1,5 +1,8 @@
 [build-system]
-requires = ["scikit-build-core>=0.3.3", "pybind11", "setuptools_scm"]
+# pybind11 is pinned to match the CMake FetchContent version (v2.12.0): the
+# source is not yet compatible with pybind11 3.x (typing::Tuple return-type
+# deduction breaks in bind_vector.cpp). Keep these two in sync.
+requires = ["scikit-build-core>=0.3.3", "pybind11==2.12.0", "setuptools_scm"]
 build-backend = "scikit_build_core.build"
 
 [project]

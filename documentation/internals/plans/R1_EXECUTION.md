@@ -109,8 +109,13 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
 - [ ] **CUDA**: compile for target compute capabilities (GTX 1060 = CC 6.1); ensure clean
   CPU fallback when CUDA is absent; decide whether to bundle NVIDIA DLLs (EULA limits
   redistribution — likely require user-installed CUDA + dynamic load instead of shipping ~1.75GB).
-- [ ] **Wheel portability**: verify Linux/macOS builds actually compile (GCC/Clang are
-  stricter than MSVC — same `template`/`<cstring>`/SIMD-flag issues we fixed for MinGW).
+- [x] **Windows wheel builds + installs**: `python -m build --wheel` now succeeds after
+  pinning `pybind11==2.12.0` in `pyproject.toml` (the source is not yet pybind11-3.x
+  compatible: `typing::Tuple` return-type deduction breaks in `bind_vector.cpp`). The wheel
+  installs into a fresh venv and `import pycauset` + `matmul`/`pinv` run correctly.
+- [ ] **Linux/macOS wheel portability**: still to be verified (GCC/Clang stricter than MSVC;
+  exercised by the CI matrix on first push). Minor wheel hygiene: stray `bin/` dir and
+  `pycauset_core.lib` in the wheel (harmless, clean up later).
 - [ ] **API lock**: freeze the public `pycauset.*` surface; mark `_internal` private;
   version (setuptools_scm) + changelog + `.pycauset` format migration path.
 - [x] **CI test matrix** baseline scaffolded (`.github/workflows/ci.yml`, 3-OS × py3.12,
