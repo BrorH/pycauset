@@ -1252,11 +1252,11 @@ def lu(a: Any, *, deps: OpsDeps) -> Any:
     
     fn = getattr(deps.native, "lu", None)
     if callable(fn):
-        p, l, u = fn(a)
+        p, l_mat, u = fn(a)
         _track_and_mark_temporary_if_native(p, deps=deps)
-        _track_and_mark_temporary_if_native(l, deps=deps)
+        _track_and_mark_temporary_if_native(l_mat, deps=deps)
         _track_and_mark_temporary_if_native(u, deps=deps)
-        return p, l, u
+        return p, l_mat, u
 
     # Scipy Fallback is not standard here as scipy is not in standard deps
     raise NotImplementedError("lu requires native implementation")

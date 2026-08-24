@@ -1795,7 +1795,7 @@ def precision_mode(mode: str):
 
 
 # Alias for IdentityMatrix
-I = getattr(_native, "IdentityMatrix", None)
+I = getattr(_native, "IdentityMatrix", None)  # noqa: E741 (public identity alias, NumPy convention)
 
 # Python-level field API
 from .field import ScalarField as ScalarField
