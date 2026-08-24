@@ -10,7 +10,7 @@
 
 </div>
 
-## **PyCauset is toolset forcausal set theory in Python.**
+## **PyCauset is a toolset for causal set theory in Python.**
 
 [Causal set theory](https://en.wikipedia.org/wiki/Causal_sets) is a discrete proposal for [quantum gravity](https://en.wikipedia.org/wiki/Quantum_gravity). Within this framework, numerical calculations quickly grow in complexity, and there are few existing tools without compromises. PyCauset is a new low-compromise engine for causal sets, built from the ground up to be fast, flexible, and easy to use. 
 
