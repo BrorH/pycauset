@@ -173,6 +173,24 @@ struct OpRegistration {
         divide.supports_block_matrix = true;
         divide.requires_square = false;
         registry.register_op(divide);
+
+        // --- Vector / vector-scalar ops ---
+        // These are not block-matrix-decomposable and are never square-constrained;
+        // they are streaming-safe (elementwise or streaming reductions).
+        auto register_vector_op = [&registry](const char* name) {
+            OpContract c;
+            c.name = name;
+            c.supports_streaming = true;
+            c.supports_block_matrix = false;
+            c.requires_square = false;
+            registry.register_op(c);
+        };
+        register_vector_op("dot");
+        register_vector_op("add_vector");
+        register_vector_op("subtract_vector");
+        register_vector_op("outer");
+        register_vector_op("add_scalar");
+        register_vector_op("mul_scalar");
     }
 };
 

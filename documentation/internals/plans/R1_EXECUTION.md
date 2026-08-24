@@ -83,8 +83,10 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
 - [x] `solve`/`lu`/`qr`/`svd`/`cholesky`; eigen ops; `random` false-positive; OpRegistry; broadcast; property shortcuts.
 - [x] Heap-corruption Heisenbug — resolved (was MinGW-specific; MSVC build is clean).
 - [ ] Eigen-cache *persistence* (avoid recompute on reload) to `.pycauset` (Phase 6, deferred); roundtrip correctness is now pinned and green.
-- [ ] `vector_scalar` registration; remaining int+complex error-by-design (lower priority).
-  (Complex *list* construction is now fixed; complex scalar × real vector already errors-by-design.)
+- [x] `vector_scalar` (and vector) OpRegistry registration: `add_scalar`/`mul_scalar`/`dot`/
+  `add_vector`/`subtract_vector`/`outer` now have contracts (`supports_streaming=true`).
+- [ ] Remaining int+complex error-by-design edge cases (lower priority). (Complex *list*
+  construction fixed; complex scalar × real vector already errors-by-design.)
 - [ ] Teardown hang in `release_tracked_matrices()`.
 
 **Phase 2 — hygiene (R1_POLISH)**
