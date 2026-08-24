@@ -190,17 +190,19 @@ They are allowed to be implemented initially via composition (calling existing o
 
 | Python endpoint | Current status | Notes |
 |---|---|---|
-| `solve(a, b)` | ✅ baseline | Currently uses `invert(a) @ b` when no dedicated solver exists |
+| `solve(a, b)` | ✅ native | LAPACK `dgesv` (float64) / Eigen `PartialPivLU` (float32); NumPy fallback otherwise. Property shortcuts for identity/zero/triangular |
 | `lstsq(a, b)` | ✅ baseline | Normal-equations baseline: $(A^T A)^{-1} A^T b$ (returns only `x`) |
 | `slogdet(a)` | ✅ baseline | Uses `a.determinant()` then returns `(sign, logabsdet)` |
 | `cond(a)` | ✅ baseline | Uses `norm(a) * norm(invert(a))` |
 | `eigh(a)` | ✅ baseline | NumPy fallback (`numpy.linalg.eigh`) |
 | `eigvalsh(a)` | ✅ baseline | NumPy fallback (`numpy.linalg.eigvalsh`) |
-| `solve_triangular(...)` | blocked | Not implemented yet |
-| `lu(...)` | blocked | Not implemented yet |
-| `cholesky(...)` | blocked | Not implemented yet |
-| `svd(...)` | blocked | Not implemented yet |
-| `pinv(...)` | blocked | Not implemented yet |
+| `eig(a)` / `eigvals(a)` / `eigvals_arnoldi(a)` | ✅ baseline | NumPy fallback / native Arnoldi |
+| `solve_triangular(...)` | ✅ native | Requires a triangular-marked matrix (`is_upper/lower_triangular`); errors otherwise |
+| `lu(...)` | ✅ native | LAPACK `dgetrf`/`sgetrf` |
+| `cholesky(...)` | ✅ native | LAPACK `dpotrf`/`spotrf` |
+| `svd(...)` | ✅ native | LAPACK `dgesvd`/`sgesvd` (thin) |
+| `qr(...)` | ✅ native | LAPACK `dgeqrf`/`dorgqr` |
+| `pinv(...)` | ❌ blocked | Raises `NotImplementedError` |
 
 ### 2.3 Object protocol (required for any public dtype)
 
