@@ -80,7 +80,8 @@ out/
 *~
 
 # --- Project Specific ---
-benchmarks/
+benchmarks/*
+!benchmarks/*.py
 .pycauset/
 *.pycauset
 storage/
