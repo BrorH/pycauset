@@ -21,19 +21,6 @@
       max-width: 72rem;
     }
 
-    /* Subtle grid background using theme colors */
-    .md-main {
-      /* Fallback if color-mix isn't supported */
-      background-image: radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
-      background-image:
-        radial-gradient(
-          color-mix(in srgb, var(--md-default-fg-color) 10%, transparent) 1px,
-          transparent 1px
-        );
-      background-size: 18px 18px;
-      background-position: 0 0;
-    }
-
     /* Branded header gradient */
     .md-header {
       /* Fallback gradient */
@@ -295,14 +282,14 @@
       pointer-events: none;
     }
 
-    /* Frosted card behind the article column: slightly opaque so the
-       animated background glows through, blurred for readability. */
+    /* Frosted card behind the article column: fairly translucent so the
+       animated causal-set background shows through, blurred for readability. */
     .md-content {
       position: relative;
       z-index: 1;
-      background: color-mix(in srgb, var(--md-default-bg-color) 84%, transparent);
-      -webkit-backdrop-filter: blur(5px);
-      backdrop-filter: blur(5px);
+      background: color-mix(in srgb, var(--md-default-bg-color) 62%, transparent);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
       border-radius: 0.75rem;
       border: 1px solid color-mix(in srgb, var(--md-default-fg-color) 10%, transparent);
       box-shadow: 0 10px 34px color-mix(in srgb, var(--md-default-fg-color) 9%, transparent);
@@ -432,7 +419,7 @@
   <script>
     // ============================================================
     // Animated causal-set background ("spacetime diagram")
-    // - nodes drift slowly (wiggle) around a base position
+    // - nodes float slowly across the screen (drift + gentle wiggle)
     // - links are drawn between near neighbours, fading with distance
     // - colours come from Material CSS vars, so light/dark both work
     // - respects prefers-reduced-motion (renders a static frame)
@@ -477,9 +464,15 @@
         const count = Math.max(30, Math.min(110, Math.round((W * H) / 26000)));
         nodes = [];
         for (let i = 0; i < count; i++) {
+          // Each node drifts (floats) with its own slow velocity and
+          // wiggles around wherever it currently is.
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 0.05 + Math.random() * 0.15;   // px per frame drift
           nodes.push({
             bx: Math.random() * W,
             by: Math.random() * H,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
             r: 1 + Math.random() * 1.6,
             phase: Math.random() * Math.PI * 2,
             speed: 0.0002 + Math.random() * 0.0005,
@@ -504,6 +497,18 @@
 
       function draw(t) {
         ctx.clearRect(0, 0, W, H);
+
+        // advance drift (float) and wrap at the edges
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          n.bx += n.vx;
+          n.by += n.vy;
+          const m = 40; // margin so nodes fade out smoothly
+          if (n.bx < -m) n.bx = W + m;
+          if (n.bx > W + m) n.bx = -m;
+          if (n.by < -m) n.by = H + m;
+          if (n.by > H + m) n.by = -m;
+        }
 
         // gentle wiggle around base positions
         for (let i = 0; i < nodes.length; i++) {
