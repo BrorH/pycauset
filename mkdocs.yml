@@ -55,6 +55,9 @@ theme:
 
 edit_uri: edit/main/documentation/
 
+extra:
+  logo_text: docs/assets/logo/logo-text-colour.png
+
 plugins:
   - search
   - roamlinks

@@ -4,6 +4,47 @@
     so suppress the separate tabs bar. -#}
 {% block tabs %}{% endblock %}
 
+{#- Left sidebar: Wikipedia-style vertical logo banner above the nav -#}
+{% block site_nav %}
+  {% if nav %}
+    {% if page.meta and page.meta.hide %}
+      {% set hidden = "hidden" if "navigation" in page.meta.hide %}
+    {% endif %}
+    <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" {{ hidden }}>
+      <div class="md-sidebar__scrollwrap">
+        <div class="md-sidebar__inner">
+
+          {#- Vertical logo banner (emblem + wordmark beneath it) -#}
+          <div class="pycauset-logo-banner">
+            <a href="{{ config.extra.homepage | d(nav.homepage.url, true) | url }}" title="{{ config.site_name }}" aria-label="{{ config.site_name }}">
+              {% if config.theme.logo %}
+                <img src="{{ config.theme.logo | url }}" alt="PyCauset logo" class="pycauset-logo-banner__emblem">
+              {% endif %}
+            </a>
+            {% if config.extra.logo_text %}
+              <img src="{{ config.extra.logo_text | url }}" alt="PyCauset" class="pycauset-logo-banner__wordmark">
+            {% endif %}
+          </div>
+
+          {% include "partials/nav.html" %}
+        </div>
+      </div>
+    </div>
+    {% if "toc.integrate" not in features %}
+      {% if page.meta and page.meta.hide %}
+        {% set hidden = "hidden" if "toc" in page.meta.hide %}
+      {% endif %}
+      <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" {{ hidden }}>
+        <div class="md-sidebar__scrollwrap">
+          <div class="md-sidebar__inner">
+            {% include "partials/toc.html" %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+{% endblock %}
+
 {% block extrahead %}
   {{ super() }}
 
@@ -35,23 +76,18 @@
       letter-spacing: 0.02em;
     }
 
+    /* The static site-name topic is redundant with the sidebar logo banner
+       on wide screens; keep only the current page title there. */
+    @media (min-width: 76.25em) {
+      .pycauset-title .md-header__topic:not([data-md-component="header-topic"]) {
+        display: none;
+      }
+    }
+
     /* ============================================================
-       Merged header: large logo + inline section nav in one bar
+       Header: title + inline section nav pills in one bar.
+       The recognizable logo lives in the left sidebar banner below.
        ============================================================ */
-
-    /* The emblem logo, enlarged and clearly recognizable */
-    .pycauset-brand {
-      display: flex;
-      align-items: center;
-      flex-shrink: 0;
-    }
-
-    .pycauset-brand__logo {
-      height: 42px;
-      width: auto;
-      display: block;
-      filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.28));
-    }
 
     /* Inline section nav (formerly the .md-tabs bar) */
     .pycauset-nav {
@@ -105,9 +141,49 @@
       }
     }
 
-    @media (min-width: 60em) {
-      .pycauset-brand__logo {
-        height: 48px;
+    /* ============================================================
+       Left sidebar: Wikipedia-style vertical logo banner
+       ============================================================ */
+
+    .pycauset-logo-banner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 1.5rem 1rem 1.25rem;
+      text-align: center;
+    }
+
+    .pycauset-logo-banner a {
+      display: block;
+      line-height: 0;
+    }
+
+    .pycauset-logo-banner__emblem {
+      height: 104px;
+      width: auto;
+      display: block;
+      filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.28));
+    }
+
+    .pycauset-logo-banner__wordmark {
+      height: auto;
+      width: 196px;
+      max-width: 100%;
+      display: block;
+      margin: 0 auto;
+    }
+
+    /* When the nav drawer is used (mobile), collapse the banner */
+    @media (max-width: 76.1875em) {
+      .pycauset-logo-banner {
+        padding: 1rem 1rem 0.75rem;
+      }
+      .pycauset-logo-banner__emblem {
+        height: 72px;
+      }
+      .pycauset-logo-banner__wordmark {
+        width: 150px;
       }
     }
 

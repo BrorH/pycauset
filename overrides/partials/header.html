@@ -1,8 +1,8 @@
 {#-
-  PyCauset: single merged top bar.
-  Combines the Material header (logo + title) and the navigation tabs into
-  one row, with a large recognizable logo on the left and the section nav
-  laid out alongside it. Palette / search / source controls stay on the right.
+  PyCauset: top bar.
+  The recognizable logo lives in the left sidebar banner (see site_nav
+  override in main.html), so the top bar keeps the site title, section
+  nav pills, and the palette/search/source controls.
 -#}
 {% set class = "md-header md-header--shadow" %}
 <header class="{{ class }}" data-md-component="header">
@@ -14,14 +14,7 @@
       {% include ".icons/" ~ icon ~ ".svg" %}
     </label>
 
-    {#- Large recognizable logo (top-left) -#}
-    <a href="{{ config.extra.homepage | d(nav.homepage.url, true) | url }}" title="{{ config.site_name }}" class="pycauset-brand" aria-label="{{ config.site_name }}" data-md-component="logo">
-      {% if config.theme.logo %}
-        <img src="{{ config.theme.logo | url }}" alt="logo" class="pycauset-brand__logo">
-      {% endif %}
-    </a>
-
-    {#- Site title (hidden on very small screens via CSS) -#}
+    {#- Site title -#}
     <div class="md-header__title pycauset-title" data-md-component="header-title">
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
@@ -39,7 +32,7 @@
       </div>
     </div>
 
-    {#- Section nav, inline next to the logo (the old .md-tabs bar) -#}
+    {#- Section nav, inline pills (the old .md-tabs bar) -#}
     {% if "navigation.tabs" in features %}
       <ul class="pycauset-nav">
         {% for nav_item in nav.items %}
