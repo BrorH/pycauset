@@ -4,9 +4,15 @@ title: PyCauset
 
 <div class="pycauset-hero" markdown>
 
+<div class="pycauset-hero__logos">
+
 <img class="pycauset-hero__logo" src="docs/assets/logo/logo.png" alt="PyCauset logo">
 
-# PyCauset
+<img class="pycauset-hero__text" src="docs/assets/logo/logo-text-colour.png" alt="PyCauset">
+
+</div>
+
+<h1 class="visually-hidden">PyCauset</h1>
 
 **A high-performance Python library for numerical Causal Set Theory** — a discrete
 proposal for quantum gravity. A NumPy-compatible engine with a C++ core,

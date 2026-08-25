@@ -131,12 +131,24 @@
         radial-gradient(ellipse at 15% 100%, color-mix(in srgb, var(--md-primary-fg-color) 16%, transparent) 0%, transparent 55%);
     }
 
+    .pycauset-hero__logos {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin: 0 auto 1rem;
+    }
+
     .pycauset-hero__logo {
       width: 132px;
       height: auto;
-      margin: 0 auto 1rem;
-      display: block;
       filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.25));
+    }
+
+    .pycauset-hero__text {
+      width: 280px;
+      height: auto;
     }
 
     .pycauset-hero h1 {
@@ -243,6 +255,19 @@
     /* --- Data tables: gentle row hover --- */
     .md-typeset table tbody tr:hover {
       background: color-mix(in srgb, var(--md-accent-fg-color) 6%, transparent);
+    }
+
+    /* --- Screen-reader-only utility (e.g. hero h1) --- */
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     /* --- Announcement bar --- */
