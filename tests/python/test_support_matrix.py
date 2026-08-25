@@ -99,6 +99,11 @@ class TestSupportMatrix(unittest.TestCase):
                 atol, rtol = 5e-2, 5e-2
             elif dtype_token in ("float32", "complex_float32"):
                 atol, rtol = 1e-6, 1e-6
+            elif dtype_token == "complex_float64":
+                # Complex division (a * conj(b) / |b|^2) has last-ulp rounding that
+                # differs between compilers (MSVC vs clang/GCC); a tight epsilon catches
+                # real regressions while tolerating that.
+                atol, rtol = 1e-12, 1e-12
             else:
                 atol, rtol = 0.0, 0.0
 
