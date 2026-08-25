@@ -72,3 +72,7 @@ milestone corresponds to **v0.5.1**.
   wraps silently (C/NumPy two's-complement semantics), while `matmul` reductions raise
   `OverflowError`. (Previously the docs promised "hard error everywhere" but only `matmul`
   actually enforced it.)
+- `__all__` no longer star-exports internal native machinery (`LazyMatrix`, `lazy_*`,
+  `MemoryGovernor`, `IOAccelerator`, `OpContract`, `OpRegistry`, `get_storage_root`,
+  `set_storage_root`, `make_coordinates`, `sprinkle`). These stay reachable as
+  `pycauset.<name>` for advanced use, but are no longer presented as public API.

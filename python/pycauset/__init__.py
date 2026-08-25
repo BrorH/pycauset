@@ -2036,7 +2036,36 @@ def __getattr__(name):
     return getattr(_native, name)
 
 
-__all__ = [name for name in dir(_native) if not name.startswith("_")]
+# Native symbols that are internal machinery, not public API. They stay reachable
+# as `pycauset.<name>` (via __getattr__) but are excluded from `__all__` so
+# `from pycauset import *` does not surface implementation details.
+_INTERNAL_NATIVE_EXPORTS = frozenset(
+    {
+        # Lazy expression-template machinery.
+        "LazyMatrix",
+        "lazy_add",
+        "lazy_cos",
+        "lazy_mul_scalar",
+        "lazy_sin",
+        "lazy_sub",
+        # Memory / I/O / op-registry machinery.
+        "MemoryGovernor",
+        "IOAccelerator",
+        "OpContract",
+        "OpRegistry",
+        # Native storage plumbing (public API is set_backing_dir / save / load).
+        "get_storage_root",
+        "set_storage_root",
+        # Causet-generation internals (public API is pc.causet).
+        "make_coordinates",
+        "sprinkle",
+    }
+)
+
+__all__ = [
+    name for name in dir(_native)
+    if not name.startswith("_") and name not in _INTERNAL_NATIVE_EXPORTS
+]
 
 # Add pure-Python facade symbols (and any optional native symbols) to __all__.
 # IMPORTANT: Only include names that actually resolve; otherwise
