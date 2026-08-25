@@ -1,0 +1,84 @@
+{#-
+  PyCauset: single merged top bar.
+  Combines the Material header (logo + title) and the navigation tabs into
+  one row, with a large recognizable logo on the left and the section nav
+  laid out alongside it. Palette / search / source controls stay on the right.
+-#}
+{% set class = "md-header md-header--shadow" %}
+<header class="{{ class }}" data-md-component="header">
+  <nav class="md-header__inner md-grid">
+
+    {#- Mobile drawer toggle -#}
+    <label class="md-header__button md-icon" for="__drawer">
+      {% set icon = config.theme.icon.menu or "material/menu" %}
+      {% include ".icons/" ~ icon ~ ".svg" %}
+    </label>
+
+    {#- Large recognizable logo (top-left) -#}
+    <a href="{{ config.extra.homepage | d(nav.homepage.url, true) | url }}" title="{{ config.site_name }}" class="pycauset-brand" aria-label="{{ config.site_name }}" data-md-component="logo">
+      {% if config.theme.logo %}
+        <img src="{{ config.theme.logo | url }}" alt="logo" class="pycauset-brand__logo">
+      {% endif %}
+    </a>
+
+    {#- Site title (hidden on very small screens via CSS) -#}
+    <div class="md-header__title pycauset-title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">{{ config.site_name }}</span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            {% if page.meta and page.meta.title %}
+              {{ page.meta.title }}
+            {% else %}
+              {{ page.title }}
+            {% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    {#- Section nav, inline next to the logo (the old .md-tabs bar) -#}
+    {% if "navigation.tabs" in features %}
+      <ul class="pycauset-nav">
+        {% for nav_item in nav.items %}
+          {% if nav_item.children %}
+            {% set first = nav_item.children | first %}
+            <li class="pycauset-nav__item {{ 'pycauset-nav__item--active' if first.active }}">
+              <a href="{{ first.url | url }}" class="pycauset-nav__link">{{ nav_item.title }}</a>
+            </li>
+          {% else %}
+            <li class="pycauset-nav__item {{ 'pycauset-nav__item--active' if nav_item.active }}">
+              <a href="{{ nav_item.url | url }}" class="pycauset-nav__link">{{ nav_item.title }}</a>
+            </li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {#- Palette (theme toggle) -#}
+    {% if config.theme.palette %}
+      {% include "partials/palette.html" %}
+    {% endif %}
+
+    {#- Search -#}
+    {% if "material/search" in config.plugins %}
+      {% set search = config.plugins["material/search"] | attr("config") %}
+      {% if search.enabled %}
+        <label class="md-header__button md-icon" for="__search">
+          {% set icon = config.theme.icon.search or "material/magnify" %}
+          {% include ".icons/" ~ icon ~ ".svg" %}
+        </label>
+        {% include "partials/search.html" %}
+      {% endif %}
+    {% endif %}
+
+    {#- Source (repo link) -#}
+    {% if config.repo_url %}
+      <div class="md-header__source">
+        {% include "partials/source.html" %}
+      </div>
+    {% endif %}
+  </nav>
+</header>

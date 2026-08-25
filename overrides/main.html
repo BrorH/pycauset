@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{#- The section nav is merged into the header (see partials/header.html),
+    so suppress the separate tabs bar. -#}
+{% block tabs %}{% endblock %}
+
 {% block extrahead %}
   {{ super() }}
 
@@ -29,6 +33,82 @@
 
     .md-header__title {
       letter-spacing: 0.02em;
+    }
+
+    /* ============================================================
+       Merged header: large logo + inline section nav in one bar
+       ============================================================ */
+
+    /* The emblem logo, enlarged and clearly recognizable */
+    .pycauset-brand {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .pycauset-brand__logo {
+      height: 42px;
+      width: auto;
+      display: block;
+      filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.28));
+    }
+
+    /* Inline section nav (formerly the .md-tabs bar) */
+    .pycauset-nav {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      list-style: none;
+      margin: 0 0 0 0.5rem;
+      padding: 0;
+      flex-wrap: wrap;
+    }
+
+    .pycauset-nav__item {
+      margin: 0;
+    }
+
+    .pycauset-nav__link {
+      display: inline-block;
+      padding: 0.35rem 0.75rem;
+      border-radius: 2rem;
+      color: var(--md-primary-bg-color);
+      font-size: 0.8rem;
+      font-weight: 500;
+      opacity: 0.85;
+      transition: opacity 0.15s ease, background 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .pycauset-nav__link:hover,
+    .pycauset-nav__item--active .pycauset-nav__link {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    /* Push the palette/search/source controls to the right */
+    .md-header__option,
+    .md-search,
+    .md-header__source {
+      margin-left: auto;
+    }
+
+    .md-header__option + .md-search,
+    .md-search + .md-header__source {
+      margin-left: 0;
+    }
+
+    /* Hide the inline nav on narrow screens (the drawer sidebar takes over) */
+    @media (max-width: 76.1875em) {
+      .pycauset-nav {
+        display: none;
+      }
+    }
+
+    @media (min-width: 60em) {
+      .pycauset-brand__logo {
+        height: 48px;
+      }
     }
 
     /* Distinctive h1/h2 underline, still theme-driven */
