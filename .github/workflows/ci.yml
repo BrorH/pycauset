@@ -37,7 +37,7 @@ jobs:
       - name: Install Python build/test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest
+          python -m pip install pytest psutil
 
       - name: Build and install pycauset
         run: python -m pip install .
