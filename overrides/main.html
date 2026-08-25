@@ -586,7 +586,6 @@
       // motion intensity is scaled down instead of frozen entirely.
       const motionScale = reduceMotion ? 0.35 : 1;
       const LINK_DIST = 180;   // px — max link length
-      const LINK_ALPHA = 0.30; // max link opacity at zero distance
 
       let W = 0, H = 0, DPR = 1;
       let nodes = [];
@@ -600,12 +599,34 @@
         return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
       }
 
+      // Blend a color toward white. Used to lift the node/link colours in
+      // dark mode, where the theme's deep purple is nearly invisible.
+      function lighten(c, amount) {
+        return [
+          Math.round(c[0] + (255 - c[0]) * amount),
+          Math.round(c[1] + (255 - c[1]) * amount),
+          Math.round(c[2] + (255 - c[2]) * amount)
+        ];
+      }
+
+      function isDark() {
+        const scheme = document.body.getAttribute('data-md-color-scheme');
+        return scheme === 'slate';
+      }
+
       function readColors() {
         const cs = getComputedStyle(document.documentElement);
         const p = parseHex(cs.getPropertyValue('--md-primary-fg-color'));
         const a = parseHex(cs.getPropertyValue('--md-accent-fg-color'));
         if (p) prim = p;
         if (a) acc = a;
+
+        // In dark mode the deep-purple/teal theme colours are too dim
+        // against the near-black background; lighten them substantially.
+        if (isDark()) {
+          prim = lighten(prim, 0.55);
+          acc = lighten(acc, 0.35);
+        }
       }
 
       function rgba(c, alpha) {
@@ -651,6 +672,11 @@
       function draw(t) {
         ctx.clearRect(0, 0, W, H);
 
+        // Dark mode: lift opacities as well as colours so the causets
+        // read clearly against the near-black background.
+        const nodeAlpha = isDark() ? 0.7 : 0.5;
+        const linkAlpha = isDark() ? 0.45 : 0.30;
+
         // advance drift (float) and wrap at the edges
         for (let i = 0; i < nodes.length; i++) {
           const n = nodes[i];
@@ -680,7 +706,7 @@
             const d2 = dx * dx + dy * dy;
             if (d2 > LINK_DIST * LINK_DIST) continue;
             const d = Math.sqrt(d2);
-            const alpha = (1 - d / LINK_DIST) * LINK_ALPHA;
+            const alpha = (1 - d / LINK_DIST) * linkAlpha;
             ctx.strokeStyle = rgba(acc, alpha);
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
@@ -692,7 +718,7 @@
         // nodes
         for (let i = 0; i < nodes.length; i++) {
           const n = nodes[i];
-          ctx.fillStyle = rgba(prim, 0.5);
+          ctx.fillStyle = rgba(prim, nodeAlpha);
           ctx.beginPath();
           ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
           ctx.fill();
