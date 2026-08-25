@@ -496,6 +496,21 @@ Deliverables:
 
 ---
 
+## Known issues to fix post-R1 (do not forget)
+
+These are real bugs, mitigated but not fixed, that must be revisited after Release 1:
+
+- **Concurrent native matrix construction is not thread-safe.** On Linux (GCC build),
+  constructing native matrices from multiple Python threads at the same time segfaults
+  in the native constructor (`MemoryGovernor` / `MemoryMapper` / `ObjectFactory`
+  allocation path). Mitigated by serializing construction with a lock in
+  `test_threaded_io_stress`, so the test still exercises concurrent file I/O. Root cause
+  is unfixed and needs ASan-on-Linux debugging plus proper locking in the native
+  allocation path.
+- **Teardown hang in `release_tracked_matrices()`.** Mitigated by skipping native
+  `close()` during interpreter finalization; the root cause of the native close hang is
+  unfixed.
+
 ## Parked (post-Release-1) ideas from the old TODO
 
 These are intentionally downstream of the foundation release:
