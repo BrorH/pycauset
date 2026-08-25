@@ -1,4 +1,58 @@
-# PyCauset Roadmap (Canonical, Sequence-Based)
+# PyCauset TODO
+
+The forward-looking work list. Release 1 (R1) shipped the correctness-focused linear
+algebra foundation; this file tracks everything that remains after R1. The original
+sequence-based R1 roadmap is retained at the bottom for reference, and the live R1
+status lives in `R1_EXECUTION.md`.
+
+## What's next (post-R1)
+
+### Immediate: finish the R1 release
+- [ ] CI green on the 3-OS matrix (Linux + macOS wheels; Windows was already green)
+- [ ] Linux build verified by maintainer
+- [ ] Tag `v0.5.1` and push (setuptools_scm picks up the tag as the version)
+- [ ] Publish to PyPI and sanity-check `pip install pycauset` in a fresh venv
+- [ ] Docs: convert wiki-links to markdown, finish API reference completeness
+- [ ] API lock: mark `_internal` as private (`__all__` is already curated)
+
+### Known issues (bugs, fix post-R1, do not forget)
+- **Concurrent native matrix construction is not thread-safe** (Linux segfault, GCC
+  build). Constructing native matrices from multiple threads at once crashes in the
+  native constructor. Mitigated by serializing construction in
+  `test_threaded_io_stress`; the root cause needs ASan-on-Linux debugging and proper
+  locking in the allocation path.
+- **Teardown hang in `release_tracked_matrices()`** (mitigated by skipping native
+  `close()` during interpreter finalization; root cause unfixed).
+- **Heap-corruption heisenbug** (was MinGW-specific; MSVC is clean, verify GCC/Clang).
+- **Dead code / deprecated-feature sweep** (leftover stubs and stray build artifacts).
+
+### Deferred optimization (continuous post-R1 program)
+- Achieve >= 0.90x NumPy throughput for every op (the "never slower than NumPy" bar).
+- GPU parity: CUDA 12.6 + VS 2022 for the GTX 1060 (Pascal); CUDA 13 dropped it.
+- Streaming-everything: enable every out-of-core path.
+- SRP-2 "Causal Math Optimization Catalog" (triangularity, Neumann series, property abuse).
+- Eigen-cache persistence to the `.pycauset` container (avoid recompute on reload).
+- macOS wheels: build OpenBLAS/libomp from source against a fixed older deployment
+  target (currently pinned to macos-15 and bounded by Homebrew).
+
+### Physics (Release 2)
+- 100GB propagator matrix K (capstone large-scale experiment)
+- Pauli-Jordan function i*Delta
+- Curved spacetimes (Schwarzschild / de Sitter)
+- User-defined spacetimes
+- A user profiler (RAM/GPU/CPU) to drive automatic optimization
+
+### Hygiene
+- Remove dead code and legacy eager-evaluation paths
+- Slim `__init__.py`
+- ruff/mypy incremental cleanup (E/I/UP style rules)
+
+---
+
+## R1 roadmap (completed)
+
+The sequence-based R1 roadmap below is retained for reference; it is now complete and
+its live status is tracked in `R1_EXECUTION.md`.
 
 ## Roadmap principles
 
@@ -493,32 +547,5 @@ Deliverables:
 - [x] Release checklist (in `R1_EXECUTION.md` §Phase 5), referencing the re-scoped SRP gates.
 - [x] Packaging sanity check: wheel builds + installs in a fresh venv.
 - [ ] Tag `v0.5.1` + publish to PyPI (maintainer action).
-
----
-
-## Known issues to fix post-R1 (do not forget)
-
-These are real bugs, mitigated but not fixed, that must be revisited after Release 1:
-
-- **Concurrent native matrix construction is not thread-safe.** On Linux (GCC build),
-  constructing native matrices from multiple Python threads at the same time segfaults
-  in the native constructor (`MemoryGovernor` / `MemoryMapper` / `ObjectFactory`
-  allocation path). Mitigated by serializing construction with a lock in
-  `test_threaded_io_stress`, so the test still exercises concurrent file I/O. Root cause
-  is unfixed and needs ASan-on-Linux debugging plus proper locking in the native
-  allocation path.
-- **Teardown hang in `release_tracked_matrices()`.** Mitigated by skipping native
-  `close()` during interpreter finalization; the root cause of the native close hang is
-  unfixed.
-
-## Parked (post-Release-1) ideas from the old TODO
-
-These are intentionally downstream of the foundation release:
-
-- 100GB propagator matrix $K$ (capstone large-scale experiment)
-- Pauli-Jordan function $i\Delta$
-- Curved spacetimes (Schwarzschild / de Sitter)
-- User-defined spacetimes
-- A more robust user profiler tool - collect info on ram, gpu, cpu etc, so that pycauset can easily optimize performance based on user hardware
 
 
