@@ -32,20 +32,23 @@ supported dtypes and classifies each cell as `ok`, `by-design` (documented error
 
 PyCauset stores semantic metadata on matrices (properties-as-gospel). When a matrix is
 marked as identity, diagonal, triangular, or zero, operations that would otherwise be
-O(n^3) in NumPy reduce to O(1) or O(n) closed forms. Examples:
+O(n^3) reduce to O(1) or O(n) closed forms. Measured at n=800 (shortcut vs the general
+path on identical data, via `benchmarks/bench_structures.py`):
 
-| operation on a structured matrix | PyCauset | NumPy |
+| operation on a structured matrix | shortcut vs general | NumPy does |
 |---|---|---|
-| `matrix_rank(identity)` | O(1): returns min(m, n) | O(n^3): full SVD |
-| `matrix_rank(diagonal/triangular)` | O(n): count non-zero diagonal | O(n^3): full SVD |
-| `trace(identity)` | O(1): n * scale | O(n) |
-| `norm(identity)` | O(1): sqrt(n) | O(n^2) |
-| `determinant(diagonal/triangular)` | O(n): product of diagonal | O(n^3): LU |
-| `matrix_power(identity)` | O(1): identity | O(n^3 log n): repeated matmul |
+| `matrix_rank(identity)` | 700x faster | full SVD |
+| `matrix_rank(diagonal)` | 126x faster | full SVD |
+| `matrix_rank(triangular)` | 157x faster | full SVD |
+| `norm(identity)` | 314x faster | full Frobenius pass |
+| `norm(diagonal)` | 734x faster | full Frobenius pass |
+| `determinant(identity/diagonal/triangular)` | 200-240x faster | LU |
+| `matrix_power(identity/zero)` | 200-240x faster | repeated matmul |
+| `invert(identity)` | 24x faster | LU |
 
 This is where PyCauset wins even though its dense kernels run at NumPy parity: a large
 identity or diagonal matrix gets an answer instantly instead of spending seconds on an
-SVD or LU factorization.
+SVD or LU factorization, and NumPy has no equivalent metadata shortcut at all.
 
 ## Summary
 
