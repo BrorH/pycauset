@@ -23,7 +23,7 @@ Implemented via NumPy SVD with `compute_uv=False`.
 ```python
 import pycauset as pc
 
-A = pc.matrix([[1.0, 0.0], [0.0, 2.0]])
+A = pc.matrix([ [1.0, 0.0], [0.0, 2.0] ])
 pc.svdvals(A)   # [2.0, 1.0]
 ```
 

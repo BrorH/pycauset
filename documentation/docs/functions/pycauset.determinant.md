@@ -29,7 +29,7 @@ Otherwise the native `determinant()` method is used, falling back to NumPy (`num
 ```python
 import pycauset as pc
 
-A = pc.matrix([[1.0, 2.0], [3.0, 4.0]])
+A = pc.matrix([ [1.0, 2.0], [3.0, 4.0] ])
 pc.determinant(A)   # -2.0
 ```
 

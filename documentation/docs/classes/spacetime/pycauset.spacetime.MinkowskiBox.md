@@ -4,7 +4,7 @@
 class MinkowskiBox(dimension: int, time_extent: float, space_extent: float)
 ```
 
-Inherits from: [[pycauset.spacetime.CausalSpacetime]]
+Inherits from: [[pycauset.CausalSpacetime]]
 
 Represents a rectangular region (block) in flat Minkowski space with hard boundaries.
 

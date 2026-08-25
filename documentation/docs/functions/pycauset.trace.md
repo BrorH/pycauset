@@ -29,7 +29,7 @@ Otherwise the native `trace()` method is used, falling back to NumPy.
 ```python
 import pycauset as pc
 
-A = pc.matrix([[1.0, 2.0], [3.0, 4.0]])
+A = pc.matrix([ [1.0, 2.0], [3.0, 4.0] ])
 pc.trace(A)   # 5.0
 ```
 

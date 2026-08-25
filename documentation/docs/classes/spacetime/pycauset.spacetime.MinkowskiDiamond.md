@@ -4,7 +4,7 @@
 class MinkowskiDiamond(dimension: int)
 ```
 
-Inherits from: [[pycauset.spacetime.CausalSpacetime]]
+Inherits from: [[pycauset.CausalSpacetime]]
 
 Represents a causal diamond (Alexandrov interval) in flat Minkowski space.
 

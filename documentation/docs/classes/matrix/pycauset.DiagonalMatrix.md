@@ -14,7 +14,7 @@ Use the factory, which takes a 1D vector of diagonal entries or a 2D square matr
 import pycauset as pc
 
 D = pc.diagonal([1.0, 2.0, 3.0])        # -> pycauset.DiagonalMatrix
-D = pc.diagonal([[1.0, 0.0], [0.0, 2.0]])  # extracts the diagonal
+D = pc.diagonal([ [1.0, 0.0], [0.0, 2.0] ])  # extracts the diagonal
 ```
 
 The raw native constructor allocates an empty matrix, filled via `set_diagonal`:
@@ -29,7 +29,7 @@ D.set_diagonal(2, 3.0)
 A dense matrix can also be marked diagonal through the properties system:
 
 ```python
-D = pc.matrix([[1.0, 0.0], [0.0, 2.0]])
+D = pc.matrix([ [1.0, 0.0], [0.0, 2.0] ])
 D.properties["is_diagonal"] = True
 ```
 

@@ -24,7 +24,7 @@ A tuple `(Q, R)`, except for NumPy's `mode='r'` / `'raw'` behaviors which are fo
 ```python
 import pycauset as pc
 
-A = pc.matrix([[1.0, 2.0], [3.0, 4.0]])
+A = pc.matrix([ [1.0, 2.0], [3.0, 4.0] ])
 Q, R = pc.qr(A)
 ```
 

@@ -163,7 +163,7 @@ nav:
         - docs/classes/spacetime/index.md
         - docs/classes/spacetime/pycauset.CausalSet.md
         - docs/classes/spacetime/pycauset.spacetime.md
-        - docs/classes/spacetime/pycauset.spacetime.CausalSpacetime.md
+        - docs/classes/spacetime/pycauset.CausalSpacetime.md
         - docs/classes/spacetime/pycauset.spacetime.MinkowskiBox.md
         - docs/classes/spacetime/pycauset.spacetime.MinkowskiCylinder.md
         - docs/classes/spacetime/pycauset.spacetime.MinkowskiDiamond.md

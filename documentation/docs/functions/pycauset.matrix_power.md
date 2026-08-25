@@ -29,7 +29,7 @@ Structural shortcuts:
 ```python
 import pycauset as pc
 
-A = pc.matrix([[1.0, 2.0], [3.0, 4.0]])
+A = pc.matrix([ [1.0, 2.0], [3.0, 4.0] ])
 pc.matrix_power(A, 2)   # A @ A
 ```
 

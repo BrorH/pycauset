@@ -4,7 +4,7 @@
 class MinkowskiCylinder(dimension: int, height: float, circumference: float)
 ```
 
-Inherits from: [[pycauset.spacetime.CausalSpacetime]]
+Inherits from: [[pycauset.CausalSpacetime]]
 
 Represents a flat Minkowski spacetime with periodic spatial boundary conditions ($S^1 \times \mathbb{R}$).
 

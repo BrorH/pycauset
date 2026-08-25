@@ -22,7 +22,7 @@ import pycauset as pc
 
 u = pc.vector([1.0, 2.0])
 v = pc.vector([3.0, 4.0])
-pc.outer(u, v)   # [[3, 4], [6, 8]]
+pc.outer(u, v)   # [ [3, 4], [6, 8] ]
 ```
 
 ## See also

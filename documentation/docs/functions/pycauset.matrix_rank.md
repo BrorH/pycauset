@@ -30,7 +30,7 @@ Otherwise a NumPy SVD-based rank is computed.
 ```python
 import pycauset as pc
 
-A = pc.matrix([[1.0, 0.0], [0.0, 0.0]])
+A = pc.matrix([ [1.0, 0.0], [0.0, 0.0] ])
 pc.matrix_rank(A)   # 1
 ```
 
