@@ -32,7 +32,7 @@ jobs:
 
       - name: Install system OpenBLAS (macOS)
         if: runner.os == 'macOS'
-        run: brew install openblas
+        run: brew install openblas libomp
 
       - name: Install Python build/test dependencies
         run: |
