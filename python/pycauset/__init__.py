@@ -1648,6 +1648,36 @@ def bitwise_not(matrix: Any) -> Any:
     return _ops.bitwise_not(matrix, deps=_OPS_DEPS)
 
 
+def bitwise_and(a: Any, b: Any) -> Any:
+    """Elementwise bitwise AND of two bit matrices or vectors."""
+    return _ops.bitwise_and(a, b, deps=_OPS_DEPS)
+
+
+def bitwise_or(a: Any, b: Any) -> Any:
+    """Elementwise bitwise OR of two bit matrices or vectors."""
+    return _ops.bitwise_or(a, b, deps=_OPS_DEPS)
+
+
+def bitwise_xor(a: Any, b: Any) -> Any:
+    """Elementwise bitwise XOR of two bit matrices or vectors."""
+    return _ops.bitwise_xor(a, b, deps=_OPS_DEPS)
+
+
+def bitwise_nand(a: Any, b: Any) -> Any:
+    """Elementwise bitwise NAND (NOT AND)."""
+    return _ops.bitwise_nand(a, b, deps=_OPS_DEPS)
+
+
+def bitwise_nor(a: Any, b: Any) -> Any:
+    """Elementwise bitwise NOR (NOT OR)."""
+    return _ops.bitwise_nor(a, b, deps=_OPS_DEPS)
+
+
+def bitwise_xnor(a: Any, b: Any) -> Any:
+    """Elementwise bitwise XNOR (NOT XOR)."""
+    return _ops.bitwise_xnor(a, b, deps=_OPS_DEPS)
+
+
 def invert(matrix: Any) -> Any:
     """
     Compute the linear algebra inverse of a matrix.
@@ -1865,6 +1895,12 @@ _extra_exports = [
     "norm",
     "compute_k",
     "bitwise_not",
+    "bitwise_and",
+    "bitwise_or",
+    "bitwise_xor",
+    "bitwise_nand",
+    "bitwise_nor",
+    "bitwise_xnor",
     "invert",
     "solve",
     "lstsq",

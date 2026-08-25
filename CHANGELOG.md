@@ -12,6 +12,9 @@ milestone corresponds to **v0.5.1**.
 - `svdvals`, `matrix_rank`, `matrix_power`, `outer`: NumPy-equivalent linalg
   operations, each with structural shortcuts where a closed form exists (rank of
   identity/diagonal/triangular, power of identity/zero/diagonal, norm of identity/zero).
+- `bitwise_and`, `bitwise_or`, `bitwise_xor`, `bitwise_nand`, `bitwise_nor`,
+  `bitwise_xnor`: elementwise logic operations on bit matrices/vectors, always returning
+  a bit structure (DenseBitMatrix/BitVector).
 - Complete per-operation support-status registry (`OpRegistry`) now covering the vector
   and vector-scalar ops (`dot`, `add_vector`, `subtract_vector`, `outer`, `add_scalar`,
   `mul_scalar`) in addition to the matrix ops.
@@ -26,6 +29,8 @@ milestone corresponds to **v0.5.1**.
   previously returned the Frobenius norm for `ord=2`.
 - `np.asarray(IdentityMatrix)` no longer raises `TypeError: data type 'identity' not
   understood`; identity matrices export as float64.
+- Structural shortcuts now trigger for native structural types: `matrix_rank` of an
+  `IdentityMatrix`/`DiagonalMatrix` uses a closed form instead of an SVD.
 - Dense `float64` `solve` and `lu` now route through LAPACK (`dgesv`/`dgetrf`) instead of
   a naive scalar Gaussian elimination; this also made the float64 path consistent with the
   float32 path and with NumPy's singularity behavior.

@@ -96,6 +96,15 @@ def _safe_rows_cols(obj: Any) -> tuple[int, int] | None:
 
 
 def _effective_structure_for(obj: Any) -> str:
+    # Native structural types report their structure by type, even when the
+    # properties mapping is not populated. (Triangular types are intentionally not
+    # mapped here: the matmul triangular fast path converts to float64, which is
+    # wrong for bit/integer triangular matrices.)
+    name = type(obj).__name__
+    if name == "IdentityMatrix":
+        return "identity"
+    if name == "DiagonalMatrix":
+        return "diagonal"
     try:
         props = _props.get_properties(obj)
         return _props.effective_structure_from_properties(props)
@@ -624,6 +633,67 @@ def bitwise_not(matrix: Any, *, deps: OpsDeps) -> Any:
             pass
 
     raise TypeError("Object does not support bitwise inversion.")
+
+
+def _bitwise_binop(a: Any, b: Any, kind: str, *, deps: OpsDeps) -> Any:
+    """Bitwise AND/OR/XOR that always returns a bit structure."""
+    op_name = {"and": "__and__", "or": "__or__", "xor": "__xor__"}[kind]
+    fn = getattr(a, op_name, None)
+    if callable(fn):
+        try:
+            result = fn(b)
+            _track_and_mark_temporary_if_native(result, deps=deps)
+            return result
+        except Exception:
+            pass
+
+    np_module = deps.np_module
+    if np_module is None:
+        raise RuntimeError(f"bitwise_{kind} requires NumPy")
+    a_np = np_module.asarray(_to_numpy_matrix(a, deps=deps)).astype(bool)
+    b_np = np_module.asarray(_to_numpy_matrix(b, deps=deps)).astype(bool)
+    fn_np = {"and": np_module.bitwise_and, "or": np_module.bitwise_or,
+             "xor": np_module.bitwise_xor}[kind]
+    result = fn_np(a_np, b_np)
+    if result.ndim == 1:
+        return _as_pycauset_vector(result, deps=deps)
+    return _as_pycauset_array(result, deps=deps)
+
+
+def bitwise_and(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Elementwise bitwise AND. Always returns a bit matrix or bit vector."""
+    _record_io_trace("bitwise_and", [a, b], deps=deps)
+    return _bitwise_binop(a, b, "and", deps=deps)
+
+
+def bitwise_or(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Elementwise bitwise OR. Always returns a bit matrix or bit vector."""
+    _record_io_trace("bitwise_or", [a, b], deps=deps)
+    return _bitwise_binop(a, b, "or", deps=deps)
+
+
+def bitwise_xor(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Elementwise bitwise XOR. Always returns a bit matrix or bit vector."""
+    _record_io_trace("bitwise_xor", [a, b], deps=deps)
+    return _bitwise_binop(a, b, "xor", deps=deps)
+
+
+def bitwise_nand(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Elementwise bitwise NAND (NOT AND)."""
+    _record_io_trace("bitwise_nand", [a, b], deps=deps)
+    return bitwise_not(bitwise_and(a, b, deps=deps), deps=deps)
+
+
+def bitwise_nor(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Elementwise bitwise NOR (NOT OR)."""
+    _record_io_trace("bitwise_nor", [a, b], deps=deps)
+    return bitwise_not(bitwise_or(a, b, deps=deps), deps=deps)
+
+
+def bitwise_xnor(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Elementwise bitwise XNOR (NOT XOR)."""
+    _record_io_trace("bitwise_xnor", [a, b], deps=deps)
+    return bitwise_not(bitwise_xor(a, b, deps=deps), deps=deps)
 
 
 def invert(matrix: Any, *, deps: OpsDeps) -> Any:

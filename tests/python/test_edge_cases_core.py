@@ -247,5 +247,29 @@ class TestNewLinalgOps(unittest.TestCase):
         self.assertTrue(np.allclose(arr, np.eye(3)))
 
 
+class TestBitwiseOps(unittest.TestCase):
+    """Bitwise logic ops return bit structures and match NumPy."""
+
+    def test_bitwise_matrix_ops(self):
+        an = np.array([[1, 0, 1], [0, 1, 1]], dtype=bool)
+        bn = np.array([[1, 1, 0], [0, 1, 0]], dtype=bool)
+        a = pc.matrix(an)
+        b = pc.matrix(bn)
+        self.assertTrue(np.array_equal(_np(pc.bitwise_and(a, b)), np.bitwise_and(an, bn)))
+        self.assertTrue(np.array_equal(_np(pc.bitwise_or(a, b)), np.bitwise_or(an, bn)))
+        self.assertTrue(np.array_equal(_np(pc.bitwise_xor(a, b)), np.bitwise_xor(an, bn)))
+        self.assertTrue(np.array_equal(_np(pc.bitwise_nand(a, b)), ~np.bitwise_and(an, bn)))
+        self.assertTrue(np.array_equal(_np(pc.bitwise_nor(a, b)), ~np.bitwise_or(an, bn)))
+        self.assertTrue(np.array_equal(_np(pc.bitwise_xnor(a, b)), ~np.bitwise_xor(an, bn)))
+        self.assertTrue(np.array_equal(_np(pc.bitwise_not(a)), ~an))
+
+    def test_bitwise_returns_bit_structure(self):
+        a = pc.matrix(np.array([[1, 0], [1, 1]], dtype=bool))
+        b = pc.matrix(np.array([[1, 1], [0, 1]], dtype=bool))
+        self.assertEqual(type(pc.bitwise_and(a, b)).__name__, "DenseBitMatrix")
+        v = pc.vector([True, False], dtype="bool")
+        self.assertEqual(type(pc.bitwise_and(v, v)).__name__, "BitVector")
+
+
 if __name__ == "__main__":
     unittest.main()

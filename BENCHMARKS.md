@@ -28,6 +28,25 @@ supported dtypes and classifies each cell as `ok`, `by-design` (documented error
 | invert, solve, cholesky, svdvals, matrix_rank, determinant, eigvalsh | 4 (float32/64, complex64/128) | all ok |
 | matrix_power, outer | 6 (float/complex + int32/64) | all ok |
 
+## Structural shortcuts (instant metadata calculations)
+
+PyCauset stores semantic metadata on matrices (properties-as-gospel). When a matrix is
+marked as identity, diagonal, triangular, or zero, operations that would otherwise be
+O(n^3) in NumPy reduce to O(1) or O(n) closed forms. Examples:
+
+| operation on a structured matrix | PyCauset | NumPy |
+|---|---|---|
+| `matrix_rank(identity)` | O(1): returns min(m, n) | O(n^3): full SVD |
+| `matrix_rank(diagonal/triangular)` | O(n): count non-zero diagonal | O(n^3): full SVD |
+| `trace(identity)` | O(1): n * scale | O(n) |
+| `norm(identity)` | O(1): sqrt(n) | O(n^2) |
+| `determinant(diagonal/triangular)` | O(n): product of diagonal | O(n^3): LU |
+| `matrix_power(identity)` | O(1): identity | O(n^3 log n): repeated matmul |
+
+This is where PyCauset wins even though its dense kernels run at NumPy parity: a large
+identity or diagonal matrix gets an answer instantly instead of spending seconds on an
+SVD or LU factorization.
+
 ## Summary
 
 PyCauset's dense kernels run on the same OpenBLAS/LAPACK backend as NumPy, so the
