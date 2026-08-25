@@ -149,6 +149,7 @@ _LazyMatrix = _safe_get("LazyMatrix")
 _UnitVector = _safe_get("UnitVector")
 _SymmetricMatrix = getattr(_native, "SymmetricMatrix", None)
 _AntiSymmetricMatrix = getattr(_native, "AntiSymmetricMatrix", None)
+_DiagonalMatrix = getattr(_native, "DiagonalMatrix", None)
 
 # Public exports
 IntegerMatrix = _IntegerMatrix
@@ -603,6 +604,7 @@ _PERSISTENCE_DEPS = _SimpleNamespace(
     UInt64Matrix=_UInt64Matrix,
     TriangularFloatMatrix=_TriangularFloatMatrix,
     TriangularIntegerMatrix=_TriangularIntegerMatrix,
+    DiagonalMatrix=_DiagonalMatrix,
     SymmetricMatrix=_SymmetricMatrix,
     AntiSymmetricMatrix=_AntiSymmetricMatrix,
     FloatVector=_FloatVector,
@@ -914,6 +916,7 @@ _properties.apply_properties_patches(
         _UInt64Vector,
         _BitVector,
         _UnitVector,
+        _DiagonalMatrix,
         _SymmetricMatrix,
         _AntiSymmetricMatrix,
     ]
@@ -1954,6 +1957,49 @@ def antisymmetric(data: Any, *, rtol: float | None = None, atol: float | None = 
     return out
 
 
+def diagonal(data: Any) -> Any:
+    """Create a diagonal matrix from a 1D vector of entries or a 2D matrix.
+
+    - A 1D vector supplies the diagonal entries.
+    - A 2D square matrix uses its diagonal entries (off-diagonal values are ignored).
+
+    Float input produces a native `DiagonalMatrix` (float64). Integer/bool input
+    produces a dense matrix with `is_diagonal=True` asserted (exact storage).
+    """
+    if _np is None:
+        raise RuntimeError("NumPy is required for diagonal construction")
+    arr = _np.asarray(data)
+    if arr.ndim == 1:
+        entries = arr
+        n = int(arr.shape[0])
+    elif arr.ndim == 2:
+        if arr.shape[0] != arr.shape[1]:
+            raise ValueError("diagonal() requires a square 2D matrix or a 1D vector")
+        entries = _np.diag(arr)
+        n = int(arr.shape[0])
+    else:
+        raise ValueError("diagonal() expects a 1D vector or a 2D square matrix")
+
+    if _is_inexact_dtype(entries) and not _np.iscomplexobj(entries):
+        cls = getattr(_native, "DiagonalMatrix", None)
+        if cls is None:
+            raise ImportError("DiagonalMatrix is not available in the native extension")
+        out = cls(n)
+        for i in range(n):
+            out.set_diagonal(i, float(entries[i]))
+        out.properties["is_diagonal"] = True
+        _track_matrix(out)
+        return out
+
+    # Integer/bool (or complex): dense matrix with the diagonal structure asserted.
+    if arr.ndim == 2:
+        out = matrix(arr)
+    else:
+        out = matrix(_np.diag(entries))
+    out.properties["is_diagonal"] = True
+    return out
+
+
 @contextmanager
 def precision_mode(mode: str):
     """Temporarily override the thread-local promotion precision mode.
@@ -1997,6 +2043,10 @@ __all__ = [name for name in dir(_native) if not name.startswith("_")]
 # `from pycauset import *` can fail if a symbol is not exported by the native module.
 _extra_exports = [
     "save",
+    "load",
+    "load_matrix",
+    "to_numpy",
+    "set_export_max_bytes",
     "set_backing_dir",
     "get_memory_threshold",
     "set_memory_threshold",
@@ -2018,7 +2068,9 @@ _extra_exports = [
     "convert_file",
     "causal_matrix",
     "TriangularBitMatrix",
+    "TriangularMatrix",
     "matmul",
+    "dot",
     "divide",
     "norm",
     "compute_k",
@@ -2054,11 +2106,13 @@ _extra_exports = [
     "eigvals_skew",
     "eigvals_arnoldi",
     "identity",
+    "diagonal",
     "symmetric",
     "antisymmetric",
     "precision_mode",
     "I",
     "causet",
+    "CausalSet",
     "spacetime",
     "field",
     "MemoryHint",

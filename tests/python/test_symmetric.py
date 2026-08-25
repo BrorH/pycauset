@@ -244,5 +244,49 @@ class TestSymmetricPersistence(unittest.TestCase):
                 loaded.close()
 
 
+class TestDiagonalFactory(unittest.TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        _STORAGE_TMP.cleanup()
+
+    def test_diagonal_from_vector_float(self):
+        d = pc.diagonal([1.0, 2.0, 3.0])
+        self.assertIsInstance(d, pc.DiagonalMatrix)
+        self.assertTrue(d.properties["is_diagonal"])
+        self.assertTrue(np.array_equal(pc.to_numpy(d), np.diag([1.0, 2.0, 3.0])))
+
+    def test_diagonal_from_matrix_float(self):
+        d = pc.diagonal(np.array([[1.0, 9.0], [9.0, 2.0]]))
+        self.assertIsInstance(d, pc.DiagonalMatrix)
+        self.assertTrue(np.array_equal(pc.to_numpy(d), np.diag([1.0, 2.0])))
+
+    def test_diagonal_from_vector_int_dense(self):
+        d = pc.diagonal(np.array([1, 2, 3], dtype=np.int32))
+        self.assertTrue(d.properties["is_diagonal"])
+        self.assertTrue(np.array_equal(pc.to_numpy(d), np.diag([1, 2, 3])))
+
+    def test_diagonal_rejects_non_square(self):
+        with self.assertRaises(ValueError):
+            pc.diagonal(np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+
+    def test_diagonal_structural_shortcuts(self):
+        d = pc.diagonal([1.0, 2.0, 3.0])
+        self.assertAlmostEqual(pc.trace(d), 6.0)
+        self.assertAlmostEqual(pc.determinant(d), 6.0)
+        self.assertEqual(pc.matrix_rank(d), 3)
+
+    def test_diagonal_persistence_roundtrip(self):
+        d = pc.diagonal([1.0, 2.0, 3.0])
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "diag.pycauset"
+            pc.save(d, path)
+            loaded = pc.load(path)
+            try:
+                self.assertIsInstance(loaded, pc.DiagonalMatrix)
+                self.assertTrue(np.array_equal(pc.to_numpy(loaded), np.diag([1.0, 2.0, 3.0])))
+            finally:
+                loaded.close()
+
+
 if __name__ == "__main__":
     unittest.main()

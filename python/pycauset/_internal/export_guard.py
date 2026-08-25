@@ -88,8 +88,9 @@ def _normalize_dtype_token(token: Any) -> str | None:
         "integer": "int32",
         # IdentityMatrix has no stored dtype; its scalar is float64 by default.
         "identity": "float64",
-        # SymmetricMatrix / AntiSymmetricMatrix are bound as float64 in R1;
-        # they materialize to a full n-by-n float64 array on export.
+        # DiagonalMatrix / SymmetricMatrix / AntiSymmetricMatrix are bound as
+        # float64 in R1; they materialize to a full n-by-n float64 array on export.
+        "diagonal": "float64",
         "symmetric": "float64",
         "antisymmetric": "float64",
         "complexfloat16": "complex_float16",

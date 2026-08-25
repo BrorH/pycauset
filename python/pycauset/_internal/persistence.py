@@ -642,6 +642,7 @@ class PersistenceDeps(Protocol):
     UInt64Matrix: type | None
     TriangularFloatMatrix: type | None
     TriangularIntegerMatrix: type | None
+    DiagonalMatrix: type | None
     SymmetricMatrix: type | None
     AntiSymmetricMatrix: type | None
 
@@ -837,6 +838,10 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             meta["matrix_type"] = "TRIANGULAR_INTEGER"
             meta["data_type"] = "INT32"
             meta["payload_layout"]["kind"] = "raw_triangular"
+        elif deps.DiagonalMatrix is not None and isinstance(payload_obj, deps.DiagonalMatrix):
+            meta["matrix_type"] = "DIAGONAL"
+            meta["data_type"] = "FLOAT64"
+            meta["payload_layout"]["kind"] = "raw_diagonal"
         elif deps.AntiSymmetricMatrix is not None and isinstance(payload_obj, deps.AntiSymmetricMatrix):
             # AntiSymmetricMatrix derives from SymmetricMatrix in the native
             # hierarchy, so it must be matched first.
@@ -1141,6 +1146,9 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
     elif matrix_type == "TRIANGULAR_INTEGER" and deps.TriangularIntegerMatrix is not None:
         _require_square_dims_for_type("TRIANGULAR_INTEGER")
         obj = deps.TriangularIntegerMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
+    elif matrix_type == "DIAGONAL" and deps.DiagonalMatrix is not None:
+        _require_square_dims_for_type("DIAGONAL")
+        obj = deps.DiagonalMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
     elif matrix_type == "SYMMETRIC" and deps.SymmetricMatrix is not None:
         _require_square_dims_for_type("SYMMETRIC")
         obj = deps.SymmetricMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)

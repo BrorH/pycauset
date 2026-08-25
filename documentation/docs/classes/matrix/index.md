@@ -4,6 +4,7 @@
 * **[[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]**
 * **[[docs/functions/pycauset.causal_matrix.md|pycauset.causal_matrix]]**
 * **[[docs/classes/matrix/pycauset.IdentityMatrix.md|pycauset.IdentityMatrix]]**
+* **[[docs/classes/matrix/pycauset.DiagonalMatrix.md|pycauset.DiagonalMatrix]]**
 * **[[docs/classes/matrix/pycauset.DenseBitMatrix.md|pycauset.DenseBitMatrix]]**
 * **[[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]]**
 * **[[docs/classes/matrix/pycauset.TriangularBitMatrix.md|pycauset.TriangularBitMatrix]]**

@@ -22,6 +22,8 @@ milestone corresponds to **v0.5.1**.
   `SymmetricMatrix`/`AntiSymmetricMatrix` with packed upper-triangle storage (roughly 2x
   smaller than dense); integer/bool input produces a dense matrix with
   `is_symmetric`/`is_anti_symmetric` asserted (exact storage, no packing in R1).
+- `diagonal(data)`: constructs a `DiagonalMatrix` from a 1D vector of entries or a 2D
+  square matrix (extracting its diagonal).
 - Complete per-operation support-status registry (`OpRegistry`) now covering the vector
   and vector-scalar ops (`dot`, `add_vector`, `subtract_vector`, `outer`, `add_scalar`,
   `mul_scalar`) in addition to the matrix ops.
@@ -44,6 +46,15 @@ milestone corresponds to **v0.5.1**.
   'symmetric' not understood`, routed through a dense float64 fallback in `matmul`
   (no longer `Unsupported matrix multiplication types`), and round-tripped by
   `save()`/`load()` (no longer `Unknown matrix type: None`).
+- Documentation/export completeness: `dot`, `load`, `load_matrix`, `to_numpy`,
+  `set_export_max_bytes`, `CausalSet`, and `TriangularMatrix` were documented and
+  callable but missing from `__all__`, so `from pycauset import *` dropped them; they
+  are now exported. Reference pages were added for `cross`, `determinant`,
+  `matrix_power`, `matrix_rank`, `outer`, `qr`, `svdvals`, `trace`, `vecdot`, the six
+  `bitwise_*` ops, and `DiagonalMatrix`.
+- `CausalSpacetime` is documented at its real location (`pycauset.CausalSpacetime`, a
+  native abstract type with no R1 constructor/methods), not the non-existent
+  `pycauset.spacetime.CausalSpacetime`.
 - Dense `float64` `solve` and `lu` now route through LAPACK (`dgesv`/`dgetrf`) instead of
   a naive scalar Gaussian elimination; this also made the float64 path consistent with the
   float32 path and with NumPy's singularity behavior.
