@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-15, windows-latest]
         python-version: ["3.12"]
 
     steps:
@@ -41,6 +41,13 @@ jobs:
 
       - name: Build and install pycauset
         run: python -m pip install .
+
+      - name: Deploy native extension into source tree
+        # The test suite adds the repo's python/ dir to sys.path and imports the
+        # package from there, but pip installs the compiled _pycauset extension and
+        # its DLLs into site-packages. Copy the native artifacts next to the source
+        # so the tests find them.
+        run: python -c "import pycauset, pathlib, shutil; sp = pathlib.Path(pycauset.__file__).parent; dst = pathlib.Path('python/pycauset'); [shutil.copy2(str(f), str(dst / f.name)) for pat in ('*.pyd','*.so','*.dylib','*.dll') for f in sp.glob(pat)]; libs = sp / 'libs'; shutil.copytree(str(libs), str(dst / 'libs'), dirs_exist_ok=True) if libs.exists() else None"
 
       - name: Run tests
         run: python -m pytest tests/python -q

@@ -17,7 +17,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-15]
 
     steps:
       - uses: actions/checkout@v4
@@ -67,12 +67,10 @@ jobs:
           # 1. Point to Homebrew locations for headers/libs (Apple Silicon uses /opt/homebrew, Intel uses /usr/local)
           # 2. Add ccache to PATH (checking both potential locations)
           # 3. MACOSX_DEPLOYMENT_TARGET must match the Homebrew bottles on the runner.
-          #    Homebrew builds against the runner's own macOS, so if the runner moves to a
-          #    newer macOS the bottles' minimum target rises too. delocate refuses to bundle
-          #    a dylib whose minimum is newer than the wheel target, so keep this in sync
-          #    with the runner (the failing log reports the required value).
+          #    We pin the runner to macos-15 so Homebrew builds against macOS 15 and the
+          #    wheel supports macOS 15+, instead of being dragged to the newest runner OS.
           CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET="26.0"
+            MACOSX_DEPLOYMENT_TARGET="15.0"
             CMAKE_ARGS='-DPython_FIND_STRATEGY=LOCATION'
             CC="clang"
             CXX="clang++"
