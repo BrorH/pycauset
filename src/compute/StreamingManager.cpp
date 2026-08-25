@@ -109,6 +109,11 @@ void StreamingManager::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBa
         const auto* b_real = dynamic_cast<const DenseMatrix<T>*>(&b);
         auto* c_real = dynamic_cast<DenseMatrix<T>*>(&c);
 
+        if (!a_real || !b_real || !c_real) {
+            throw std::runtime_error(
+                "StreamingManager::matmul requires dense inputs/output whose dtype matches the result");
+        }
+
         const T* raw_a = a_real->data();
         const T* raw_b = b_real->data();
         T* raw_c = c_real->data();
