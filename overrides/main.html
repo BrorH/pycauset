@@ -480,32 +480,50 @@
   <script>
     // Re-typeset math after MkDocs Material's `navigation.instant` swaps page
     // content in place. Instant navigation loads new articles over fetch and
-    // replaces the DOM, but MathJax only typesets on the initial page load —
-    // so math on navigated-to pages would otherwise stay as raw \\(...\\) text.
-    document.addEventListener('DOMContentLoaded', () => {
+    // replaces the DOM, but MathJax only typesets on the initial page load.
+    //
+    // Robustness notes (this has broken repeatedly):
+    // - Material's instant navigation REPLACES the <main> element (and with it
+    //   .md-content) with the fetched document's node. An observer attached to
+    //   .md-content is therefore observing a detached node after the first
+    //   navigation and silently stops firing — math breaks on every page after
+    //   the first navigation. We observe document.body, which Material never
+    //   replaces, so the observer survives all navigations.
+    // - MathJax may still be loading when the first content swap happens; if
+    //   typesetPromise is unavailable we queue the typeset until the startup
+    //   promise resolves instead of dropping it.
+    (function () {
       const scheduleTypeset = () => {
         const mj = window.MathJax;
-        if (!mj || !mj.typesetPromise) return;
+        if (!mj) return;
         clearTimeout(scheduleTypeset._t);
         scheduleTypeset._t = setTimeout(() => {
-          mj.typesetPromise().catch(() => {});
+          const run = () => mj.typesetPromise && mj.typesetPromise().catch(() => {});
+          // Wait for MathJax to finish loading if it hasn't yet.
+          const startup = mj.startup && mj.startup.promise;
+          if (startup && startup.state === 'pending') {
+            startup.then(run);
+          } else {
+            run();
+          }
         }, 60);
+      };
+
+      const hasMath = (node) => {
+        if (node.nodeType !== 1) return false;
+        if (node.matches && node.matches('.arithmatex')) return true;
+        return !!(node.querySelector && node.querySelector('.arithmatex'));
       };
 
       const watch = (root) => {
         if (!root) return;
         const observer = new MutationObserver((mutations) => {
-          outer:
           for (const m of mutations) {
             if (m.type !== 'childList') continue;
             for (const node of m.addedNodes) {
-              if (
-                node.nodeType === 1 &&
-                ((node.matches && node.matches('.arithmatex')) ||
-                  (node.querySelector && node.querySelector('.arithmatex')))
-              ) {
+              if (hasMath(node)) {
                 scheduleTypeset();
-                break outer;
+                return;
               }
             }
           }
@@ -513,10 +531,10 @@
         observer.observe(root, { childList: true, subtree: true });
       };
 
-      watch(document.querySelector('.md-content'));
-      // Sidebar tables / content may also carry inline math.
-      watch(document.querySelector('.md-sidebar__inner'));
-    });
+      // document.body is never replaced by instant navigation, so this
+      // observer survives every page swap.
+      watch(document.body);
+    })();
   </script>
 
   <script defer src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
