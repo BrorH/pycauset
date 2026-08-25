@@ -57,12 +57,15 @@ if(MSVC)
     # In Release, we keep it default (usually off unless requested)
 endif()
 
-if(NOT MSVC)
-    # SIMD is runtime-dispatched via cpuid and the AVX2/AVX-512 kernels carry
-    # per-function __attribute__((target(...))), so NO global -march is required
-    # (nor safe): -march=native emitted native-ISA instructions throughout the TU,
-    # producing binaries that crash (illegal instruction) on older CPUs — the
-    # exact MinGW failure mode. Keep the baseline ISA for distribution safety.
+# NOTE: no global -march is added anywhere. SIMD is runtime-dispatched via cpuid,
+# and the AVX2/AVX-512 kernels carry per-function __attribute__((target(...))).
+# -march=native emitted native-ISA instructions throughout the TU, producing
+# binaries that crash (illegal instruction) on older CPUs. Keep the baseline ISA
+# for distribution safety.
+if(MINGW)
+    # MinGW's GNU assembler targets COFF, which needs -mbig-obj for large
+    # translation units. Also set the Windows API target version. These flags are
+    # MinGW-only: Linux/macOS GCC/Clang do not accept -mbig-obj.
     add_compile_options(-Wa,-mbig-obj)
     add_compile_definitions(_WIN32_WINNT=0x0A00)
 endif()
