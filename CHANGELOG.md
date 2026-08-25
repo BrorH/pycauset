@@ -24,6 +24,8 @@ milestone corresponds to **v0.5.1**.
   `is_symmetric`/`is_anti_symmetric` asserted (exact storage, no packing in R1).
 - `diagonal(data)`: constructs a `DiagonalMatrix` from a 1D vector of entries or a 2D
   square matrix (extracting its diagonal).
+- `det` and `rank`: NumPy-compatible aliases for `determinant` (`np.linalg.det`) and
+  `matrix_rank`.
 - Complete per-operation support-status registry (`OpRegistry`) now covering the vector
   and vector-scalar ops (`dot`, `add_vector`, `subtract_vector`, `outer`, `add_scalar`,
   `mul_scalar`) in addition to the matrix ops.

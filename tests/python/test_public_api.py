@@ -86,6 +86,12 @@ class TestPublicApiSurface(unittest.TestCase):
             self.assertNotIn(name, ns, f"star import leaked internal {name}")
         self.assertIn("matmul", ns)
 
+    def test_num_linalg_aliases(self):
+        self.assertIs(pc.det, pc.determinant)
+        self.assertIs(pc.rank, pc.matrix_rank)
+        self.assertIn("det", pc.__all__)
+        self.assertIn("rank", pc.__all__)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2028,6 +2028,10 @@ def precision_mode(mode: str):
 # Alias for IdentityMatrix
 I = getattr(_native, "IdentityMatrix", None)  # noqa: E741 (public identity alias, NumPy convention)
 
+# NumPy-compatible aliases: np.linalg.det -> det, np.linalg.matrix_rank -> rank shorthand.
+det = determinant
+rank = matrix_rank
+
 # Python-level field API
 from .field import ScalarField as ScalarField
 
@@ -2124,8 +2128,10 @@ _extra_exports = [
     "pinv",
     "trace",
     "determinant",
+    "det",
     "svdvals",
     "matrix_rank",
+    "rank",
     "matrix_power",
     "outer",
     "cross",

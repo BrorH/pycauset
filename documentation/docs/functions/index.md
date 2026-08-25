@@ -30,6 +30,7 @@
 * **[[docs/functions/pycauset.sum.md|sum]]**
 * **[[docs/functions/pycauset.trace.md|trace]]**
 * **[[docs/functions/pycauset.determinant.md|determinant]]**
+* **[[docs/functions/pycauset.det.md|det]]**
 * **[[docs/functions/pycauset.get_precision_mode.md|get_precision_mode]]**
 * **[[docs/functions/pycauset.get_memory_threshold.md|get_memory_threshold]]**
 * **[[docs/functions/pycauset.get_num_threads.md|get_num_threads]]**
@@ -42,6 +43,7 @@
 * **[[docs/functions/pycauset.svd.md|svd]]**
 * **[[docs/functions/pycauset.svdvals.md|svdvals]]**
 * **[[docs/functions/pycauset.matrix_rank.md|matrix_rank]]**
+* **[[docs/functions/pycauset.rank.md|rank]]**
 * **[[docs/functions/pycauset.matrix_power.md|matrix_power]]**
 * **[[docs/functions/pycauset.qr.md|qr]]**
 * **[[docs/functions/pycauset.pinv.md|pinv]]**
