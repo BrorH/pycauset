@@ -91,6 +91,9 @@ benchmarks/comprehensive_benchmark.py
 benchmarks/debug_matmul.py
 benchmarks/inspect_temp.py
 benchmarks/stress_test_memory_system.py
+# Explicitly tracked harnesses referenced by documentation/dev/Testing & Benchmarks.md.
+!benchmarks/benchmark_numpy_parity.py
+!benchmarks/benchmark_io_smoke.py
 .pycauset/
 *.pycauset
 storage/
