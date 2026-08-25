@@ -28,7 +28,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libopenblas-dev gfortran
+          sudo apt-get install -y libopenblas-dev liblapacke-dev gfortran
 
       - name: Install system OpenBLAS (macOS)
         if: runner.os == 'macOS'

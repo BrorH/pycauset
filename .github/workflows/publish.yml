@@ -52,8 +52,9 @@ jobs:
           
           # Install GCC 12 on Linux before build
           # We also install openblas-devel to avoid building it from source (which fails and is slow)
+          # and lapack-devel for the LAPACKE C-interface header (CpuSolver.cpp includes <lapacke.h>).
           # The wheels will bundle the library via auditwheel
-          CIBW_BEFORE_ALL_LINUX: "yum install -y epel-release && yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic openblas-devel ccache"
+          CIBW_BEFORE_ALL_LINUX: "yum install -y epel-release && yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ libatomic openblas-devel lapack-devel ccache"
           
           # Point the build to use GCC 12
           CIBW_ENVIRONMENT_LINUX: "CMAKE_ARGS='-DPython_FIND_STRATEGY=LOCATION' CC='/opt/rh/gcc-toolset-12/root/usr/bin/gcc' CXX='/opt/rh/gcc-toolset-12/root/usr/bin/g++' PATH=\"/usr/lib64/ccache:$PATH\""
