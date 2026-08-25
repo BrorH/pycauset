@@ -70,6 +70,11 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
   `release_tracked_matrices()` now skips native `close()` during interpreter finalization
   (the OS reclaims mappings and `_cleanup_storage` handles temp files); the underlying
   root cause of the native close hang is tracked for a post-R1 fix.
+- **Concurrent native matrix construction is not thread-safe** (Linux segfault in
+  `test_threaded_io_stress`): constructing matrices from multiple threads simultaneously
+  crashes in the native constructor. The threaded I/O test now serializes construction
+  and tests file I/O (save/load/delete) concurrently. The construction race is tracked
+  for a post-R1 fix.
 
 **Environment:** MSVC Build Tools 2026 → canonical CPU build works (`build_msvc`).
 **CUDA blocked by toolchain:** CUDA 13.0 (installed) has *dropped* Pascal (GTX 1060 = CC 6.1,
