@@ -14,9 +14,13 @@
 
 [Causal set theory](https://en.wikipedia.org/wiki/Causal_sets) is a discrete proposal for [quantum gravity](https://en.wikipedia.org/wiki/Quantum_gravity). PyCauset is a low-compromise numerical tool for causal sets ("causets"), built from the ground up to be fast, flexible, and easy to use. 
 
-The **PyCauset Engine** is built to be [NumPy](https://numpy.org/) for causal sets. If you know NumPy, you already know the engine: the same shapes, dtypes, operators, and conventions, backed by a C++ core for speed. On top of that it adds what causal sets need: bit-packed causal matrices, metadata that lets the math skip unnecessary work, storage that spills to disk when RAM runs out, and CPU dispatch handled behind the scenes.
+PyCauset is made of two main components:
 
-The **physics suite** builds on it: spacetimes to sprinkle into, fields defined on a causal set, and the machinery of causal-set QFT ([propagators](https://en.wikipedia.org/wiki/Propagator), the Pauli-Jordan function, and, on the roadmap, the Sorkin-Johnston vacuum).
+- The **PyCauset Engine** is built to be [NumPy](https://numpy.org/) for causal sets. If you know NumPy, you already know the engine: the same shapes, dtypes, operators, and conventions, backed by a C++ core for speed. It is specifically made for causal sets: bit-packed causal matrices, metadata that lets the math skip unnecessary work, storage that spills to disk when RAM runs out, and CPU dispatch handled behind the scenes.
+
+- The **PyCauset Physics Tool Suite** is an extensive collection of tools for working with causal sets: a [library](https://brorh.github.io/pycauset/guides/Spacetime/) of spacetimes, sprinkling routines, [field-theoretic machinery](https://brorh.github.io/pycauset/guides/Field%20Theory/) and visualizations. 
+
+Read the [documentation](https://brorh.github.io/pycauset/).
 
 ## Quick start
 
@@ -68,7 +72,7 @@ PyCauset has an optimized C++ core with Python bindings, which is built specific
 - **CPU (and soon GPU) optimized.** *It just works.* 
 - **Storage and precision, handled.** Memory, precision, and hardware are automatically chosen.
 
-**Physics Engine** 
+**Physics Tool Suite** 
 
 - **Spacetimes**: [Minkowski](https://en.wikipedia.org/wiki/Minkowski_space) diamond, cylinder, box. Arbitrary dimensions, signatures, and curved geometries ([de Sitter](https://en.wikipedia.org/wiki/De_Sitter_space), [anti-de Sitter](https://en.wikipedia.org/wiki/Anti-de_Sitter_space), [FLRW](https://en.wikipedia.org/wiki/Friedmann%E2%80%93Lema%C3%AEtre%E2%80%93Robertson%E2%80%93Walker_metric)) are on the R2 roadmap.
 - **Sprinkling**: fixed-N or Poisson density, seeded and reproducible.
@@ -77,21 +81,8 @@ PyCauset has an optimized C++ core with Python bindings, which is built specific
 
 ## Performance
 
-PyCauset's dense kernels use the same OpenBLAS/LAPACK backend as NumPy, so the goal is parity rather than a large speedup. Measured against NumPy 2.3.5 on a 10-core i9 (speedup = numpy time / pycauset time, above 1.0 means faster):
-
-| operation | small n | large n | status |
-|---|---|---|---|
-| matmul | 0.75x (n=256) | 1.01x (n=8192) | parity at scale |
-| eigh | 0.84x (n=256) | 1.00x (n=2048) | parity |
-| eigvalsh | 0.88x (n=256) | 1.03x (n=2048) | parity |
-| cholesky | 0.76x (n=256) | 1.06x (n=4096) | parity |
-| dot | 6.21x (n=100k) | 0.95x (n=10M) | parity or faster |
-| inverse | 0.59x (n=512) | 0.82x (n=4096) | competitive |
-| solve | 0.52x (n=256) | 0.81x (n=4096) | competitive |
-| elementwise add | 0.56x (n=1024) | 0.60x (n=8192) | known gap |
-| svd | 0.79x (n=512) | 0.46x (n=2048) | ~2x, improved from 25x |
-
-Small n carries fixed Python dispatch overhead that amortizes as the matrix grows. Elementwise add and the remaining SVD row-major overhead are the top targets for the post-R1 ">= 0.90x NumPy" program. The bigger reason to use PyCauset is that it memory-maps past RAM, where NumPy raises MemoryError (see [BENCHMARKS.md](BENCHMARKS.md)).
+PyCauset's dense kernels use the same OpenBLAS/LAPACK backend as NumPy, so the goal is parity rather than a large speedup, with a goal of all PyCauset operatiosn being at least 0.90x the speed of NumPy for in-memory operations, (see [BENCHMARKS.md](BENCHMARKS.md)).
+However, the biggest reason to use PyCauset is that it memory-maps past RAM, where NumPy raises MemoryError.
 
 ## Gallery
 

@@ -14,25 +14,18 @@ title: PyCauset
 
 <h1 class="visually-hidden">PyCauset</h1>
 
-**A high-performance Python library for numerical Causal Set Theory** — a discrete
-proposal for quantum gravity. A NumPy-compatible engine with a C++ core,
-disk-backed matrices that spill past RAM, and a physics toolset for spacetimes,
-fields, and visualization.
+**A high-performance Python library for numerical Causal Set Theory**
 
 [Get started](guides/index/){ .md-button .md-button--primary }
 [API reference](docs/index/){ .md-button }
 
 </div>
 
-## The Philosophy: Tiered Storage
+## Welcome To PyCauset
+This is a tool made for researchers and those curious about causal set theory. It is no secret that causal sets are computationally demanding: for a set of size $N$, the causal matrix is $O(N^2)$, and modules like [NumPy](https://numpy.org/) or [SciPy](https://scipy.org/) are not equiped for working with humongous $N$.
 
-Causal sets are computationally demanding. For a set of size $N$, the causal matrix is $O(N^2)$. For $N=100{,}000$, a dense matrix requires gigabytes of memory.
+PyCauset solves this with a **Disk-Backed Architecture**: Large matrices can automatically spill to disk, only limiting the size of your matrices by your storage and time. Small matrices behave exactly like NumPy arrays, so you can use PyCauset as a drop-in replacement for NumPy in most cases. See [philosophy](project/Philosophy/) for more details.
 
-PyCauset solves this with a **Hybrid Architecture**:
-
-1.  **RAM-First**: Small matrices behave exactly like NumPy arrays.
-2.  **Disk-Backed**: Large matrices can automatically spill by switching to temporary memory-mapped backing files (for example `.tmp` files under the backing directory). Saving a portable `.pycauset` snapshot is explicit.
-3.  **Bit-Packing**: Causal relations are stored as single bits, reducing memory usage by 64x compared to standard integers.
 
 ## Documentation
 
