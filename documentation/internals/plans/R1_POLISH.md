@@ -9,7 +9,7 @@
 - [x] **Wheel Audit:** `python -m build --wheel` verified: wheel installs into a fresh venv and `import pycauset` + `matmul` work (DLLs resolved from `libs/`).
 
 ## 2. Documentation Standards
-- [ ] **Fix Links:** Convert all Obsidian-style `[[wiki_links]]` to standard Markdown `[Link](path.md)` syntax.
+- [ ] **Fix Links:** Convert all Obsidian-style \[\[wiki_links\]\] to standard Markdown \[Link\]\(path.md\) syntax.
     - *Target:* `documentation/index.md` and other doc files.
 - [ ] **Render Check:** Ensure documentation builds correctly with `mkdocs` and renders correctly on GitHub/PyPI.
 

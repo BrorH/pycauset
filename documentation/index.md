@@ -1,48 +1,90 @@
-# Welcome to PyCauset
+---
+title: PyCauset
+---
 
-**PyCauset** is a high-performance Python library for numerical Causal Set Theory. It is designed to bridge the gap between abstract mathematical models and large-scale numerical simulations.
+<div class="pycauset-hero" markdown>
+
+<img class="pycauset-hero__logo" src="docs/assets/logo/logo.png" alt="PyCauset logo">
+
+# PyCauset
+
+**A high-performance Python library for numerical Causal Set Theory** — a discrete
+proposal for quantum gravity. A NumPy-compatible engine with a C++ core,
+disk-backed matrices that spill past RAM, and a physics toolset for spacetimes,
+fields, and visualization.
+
+[Get started](guides/index/){ .md-button .md-button--primary }
+[API reference](docs/index/){ .md-button }
+
+</div>
 
 ## The Philosophy: Tiered Storage
 
-Causal sets are computationally demanding. For a set of size $N$, the causal matrix is $O(N^2)$. For $N=100,000$, a dense matrix requires gigabytes of memory.
+Causal sets are computationally demanding. For a set of size $N$, the causal matrix is $O(N^2)$. For $N=100{,}000$, a dense matrix requires gigabytes of memory.
 
 PyCauset solves this with a **Hybrid Architecture**:
+
 1.  **RAM-First**: Small matrices behave exactly like NumPy arrays.
 2.  **Disk-Backed**: Large matrices can automatically spill by switching to temporary memory-mapped backing files (for example `.tmp` files under the backing directory). Saving a portable `.pycauset` snapshot is explicit.
 3.  **Bit-Packing**: Causal relations are stored as single bits, reducing memory usage by 64x compared to standard integers.
 
-## Documentation Structure
+## Documentation
 
-### 📘 [[guides/index|User Guides]]
-Practical tutorials and conceptual explanations.
-*   **[[guides/Installation|Installation]]**: Install PyCauset.
-*   **[[guides/User Guide|User Guide]]**: First steps and core workflow.
-*   **[[guides/Causal Sets|Causal Sets]]**: Working with the core `CausalSet` object.
-*   **[[guides/Field Theory|Field Theory]]**: Simulating quantum fields and propagators.
-*   **[[guides/Visualization|Visualization]]**: Interactive 3D plotting.
-*   **[[guides/Performance Guide|Performance]]**: GPU acceleration and precision tuning.
-*   **[[guides/Storage and Memory|Storage]]**: Understanding the file formats and memory management.
+<div class="grid cards" markdown>
 
-### ⚙️ [[docs/index|API Reference]]
-Detailed documentation of classes and functions.
-*   **[[docs/classes/index|Classes]]**: `CausalSet`, `Matrix`, `Vector`, `Spacetime`.
-*   **[[docs/functions/index|Functions]]**: `matmul`, `inverse`.
+-   :material-compass-rose: **Guides**
 
-### 🧠 [[internals/index|Internals]]
-Deep dive into the C++ core for contributors.
-*   **[[internals/Compute Architecture|Compute Architecture]]**: CPU/GPU dispatch and solvers.
-*   **[[internals/MemoryArchitecture|Memory Architecture]]**: Tiered storage, Governor, and CoW.
-*   **[[internals/Memory and Data|Memory & Data]]**: The `.pycauset` container format and memory mapping.
-*   **[[internals/Algorithms|Algorithms]]**: Mathematical derivations and implementation details.
+    ---
 
-### 🚀 [[project/index|Project]]
-*   **[[project/Philosophy|Philosophy]]**: Design mantras.
-*   **[[project/Contributing|Contributing]]**: How to build and test.
-*   **[[TODO|Roadmap]]**: Future plans.
+    Practical tutorials and conceptual explanations.
 
-### 🧰 [[dev/index|Dev Handbook]]
-High-signal onboarding for contributors.
-*   **[[dev/Restructure Plan|Restructure Plan]]**: The approved reorganization plan and gates.
+    - [[guides/Installation|Installation]]
+    - [[guides/User Guide|User Guide]]
+    - [[guides/Causal Sets|Causal Sets]]
+    - [[guides/Field Theory|Field Theory]]
+    - [[guides/Visualization|Visualization]]
+    - [[guides/Performance Guide|Performance]]
+    - [[guides/Storage and Memory|Storage]]
+
+-   :material-code-braces: **API Reference**
+
+    ---
+
+    Detailed documentation of classes and functions.
+
+    - [[docs/classes/index|Classes]]: `CausalSet`, `Matrix`, `Vector`, `Spacetime`
+    - [[docs/functions/index|Functions]]: `matmul`, `inverse`, and more
+
+-   :material-brain: **Internals**
+
+    ---
+
+    Deep dive into the C++ core for contributors.
+
+    - [[internals/Compute Architecture|Compute Architecture]]
+    - [[internals/MemoryArchitecture|Memory Architecture]]
+    - [[internals/Memory and Data|Memory & Data]]
+    - [[internals/Algorithms|Algorithms]]
+
+-   :material-rocket-launch: **Project**
+
+    ---
+
+    Design philosophy and the roadmap.
+
+    - [[project/Philosophy|Philosophy]]
+    - [[project/Contributing|Contributing]]
+    - [[internals/plans/TODO|Roadmap]]
+
+-   :material-wrench: **Dev Handbook**
+
+    ---
+
+    High-signal onboarding for contributors.
+
+    - [[dev/Restructure Plan|Restructure Plan]]
+
+</div>
 
 ## Citation
 

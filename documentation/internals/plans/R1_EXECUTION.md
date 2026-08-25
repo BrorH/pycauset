@@ -33,7 +33,7 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
 - `test_eigen_caching::test_cache_persistence_across_load` now uses the supported
   `save()`/`load()` API (the `backing_file=` constructor kwarg was silently ignored for
   NumPy input); it passes, pinning eigen correctness across a roundtrip.
-- `matrix([[1+2j, …]])` (complex **list** input) now produces a `ComplexFloat64Matrix`;
+- complex **list** input (2D list of complex values) now produces a `ComplexFloat64Matrix`;
   it previously fell through the float branch and returned a broken abstract `Matrix`
   (no dtype, `to_numpy` raised `data type '' not understood`).
 - `pinv` implemented (normal-equations baseline + NumPy SVD fallback): was `NotImplementedError`;

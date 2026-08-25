@@ -111,12 +111,12 @@ For GPU acceleration, PyCauset uses **Algorithm Drivers**: host-side control loo
 
 ## Where this lives in code
 
-- Policy + routing: [python/pycauset/_internal/streaming_manager.py](python/pycauset/_internal/streaming_manager.py)
-- IO trace helpers: [python/pycauset/_internal/io_observability.py](python/pycauset/_internal/io_observability.py)
-- Streaming integrations in ops: [python/pycauset/_internal/ops.py](python/pycauset/_internal/ops.py)
+- Policy + routing: [python/pycauset/_internal/streaming_manager.py](https://github.com/BrorH/pycauset/blob/main/python/pycauset/_internal/streaming_manager.py)
+- IO trace helpers: [python/pycauset/_internal/io_observability.py](https://github.com/BrorH/pycauset/blob/main/python/pycauset/_internal/io_observability.py)
+- Streaming integrations in ops: [python/pycauset/_internal/ops.py](https://github.com/BrorH/pycauset/blob/main/python/pycauset/_internal/ops.py)
 - C++ Implementation (for native CPU backend):
-    - [include/pycauset/compute/StreamingManager.hpp](include/pycauset/compute/StreamingManager.hpp)
-    - [src/compute/StreamingManager.cpp](src/compute/StreamingManager.cpp)
+    - [include/pycauset/compute/StreamingManager.hpp](https://github.com/BrorH/pycauset/blob/main/include/pycauset/compute/StreamingManager.hpp)
+    - [src/compute/StreamingManager.cpp](https://github.com/BrorH/pycauset/blob/main/src/compute/StreamingManager.cpp)
 
 ## Extending (safe checklist)
 

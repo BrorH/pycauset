@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 
+{% block announce %}
+  <a href="{{ base_url }}/project/plans/R2_ROADMAP/">
+    🚀 Pre-alpha &mdash; R1 foundations are in. The physics toolset (R2) is on the roadmap.
+  </a>
+{% endblock %}
+
 {% block extrahead %}
   {{ super() }}
 
@@ -82,6 +88,175 @@
     .mermaid {
       overflow-x: auto;
     }
+
+    /* ============================================================
+       PyCauset "pizzazz" layer
+       Theme-variable driven, so light/dark both look intentional.
+       ============================================================ */
+
+    /* --- Header: slow-drifting aurora gradient + logo glow --- */
+    .md-header {
+      background-size: 200% 200%;
+      animation: pycauset-aurora 24s ease-in-out infinite;
+    }
+
+    @keyframes pycauset-aurora {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .md-header__logo img {
+      filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.35));
+      border-radius: 4px;
+    }
+
+    /* --- Home hero --- */
+    .pycauset-hero {
+      text-align: center;
+      padding: 2.5rem 1rem 1.5rem;
+      margin-bottom: 1rem;
+      position: relative;
+      border-radius: 0.75rem;
+    }
+
+    /* Soft "spacetime glow" behind the hero */
+    .pycauset-hero::before {
+      content: "";
+      position: absolute;
+      inset: -1rem -2rem;
+      z-index: -1;
+      background:
+        radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--md-accent-fg-color) 22%, transparent) 0%, transparent 60%),
+        radial-gradient(ellipse at 15% 100%, color-mix(in srgb, var(--md-primary-fg-color) 16%, transparent) 0%, transparent 55%);
+    }
+
+    .pycauset-hero__logo {
+      width: 132px;
+      height: auto;
+      margin: 0 auto 1rem;
+      display: block;
+      filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.25));
+    }
+
+    .pycauset-hero h1 {
+      margin: 0 0 0.5rem;
+      font-size: 2.6rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(
+        120deg,
+        var(--md-primary-fg-color),
+        var(--md-accent-fg-color)
+      );
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+    }
+
+    .pycauset-hero h1::after {
+      display: none;
+    }
+
+    .pycauset-hero__tagline {
+      font-size: 1.15rem;
+      line-height: 1.55;
+      max-width: 44rem;
+      margin: 0 auto 1.4rem;
+      opacity: 0.85;
+    }
+
+    .pycauset-hero__cta {
+      display: flex;
+      gap: 0.6rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .pycauset-hero__cta .md-button {
+      border-radius: 2rem;
+      padding: 0.55em 1.6em;
+    }
+
+    .pycauset-hero__cta .md-button--primary {
+      background: linear-gradient(120deg, var(--md-primary-fg-color), var(--md-accent-fg-color));
+      border-color: transparent;
+      box-shadow: 0 4px 14px color-mix(in srgb, var(--md-accent-fg-color) 35%, transparent);
+    }
+
+    /* --- Doc-section cards (Material `.grid.cards`) --- */
+    .md-typeset .grid.cards > ul > li {
+      border-radius: 0.7rem;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .md-typeset .grid.cards > ul > li:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px color-mix(in srgb, var(--md-default-fg-color) 18%, transparent);
+    }
+
+    .md-typeset .grid.cards > ul > li hr {
+      margin: 0.6em 0;
+    }
+
+    /* --- Back to top: gradient pill --- */
+    .md-top {
+      background: linear-gradient(120deg, var(--md-primary-fg-color), var(--md-accent-fg-color));
+      color: var(--md-primary-bg-color);
+      border-radius: 2rem;
+      box-shadow: 0 4px 14px color-mix(in srgb, var(--md-primary-fg-color) 30%, transparent);
+    }
+
+    /* --- Selection: brand-tinted --- */
+    ::selection {
+      background: color-mix(in srgb, var(--md-accent-fg-color) 30%, transparent);
+    }
+
+    /* --- Scrollbar: subtle, theme-aware --- */
+    @media (min-width: 76.25em) {
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--md-default-fg-color) 22%, transparent);
+        border-radius: 5px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: color-mix(in srgb, var(--md-accent-fg-color) 45%, transparent);
+      }
+    }
+
+    /* --- Code blocks: gradient accent bar on top --- */
+    .md-typeset pre {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .md-typeset pre::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--md-accent-fg-color), transparent);
+    }
+
+    /* --- Data tables: gentle row hover --- */
+    .md-typeset table tbody tr:hover {
+      background: color-mix(in srgb, var(--md-accent-fg-color) 6%, transparent);
+    }
+
+    /* --- Announcement bar --- */
+    .md-banner {
+      background: linear-gradient(120deg, var(--md-primary-fg-color), var(--md-accent-fg-color));
+      color: var(--md-primary-bg-color);
+      font-size: 0.72rem;
+    }
+
+    .md-banner a {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 0.15em;
+    }
   </style>
 
   <script>
@@ -103,6 +278,48 @@
 
 {% block scripts %}
   {{ super() }}
+
+  <script>
+    // Re-typeset math after MkDocs Material's `navigation.instant` swaps page
+    // content in place. Instant navigation loads new articles over fetch and
+    // replaces the DOM, but MathJax only typesets on the initial page load —
+    // so math on navigated-to pages would otherwise stay as raw \\(...\\) text.
+    document.addEventListener('DOMContentLoaded', () => {
+      const scheduleTypeset = () => {
+        const mj = window.MathJax;
+        if (!mj || !mj.typesetPromise) return;
+        clearTimeout(scheduleTypeset._t);
+        scheduleTypeset._t = setTimeout(() => {
+          mj.typesetPromise().catch(() => {});
+        }, 60);
+      };
+
+      const watch = (root) => {
+        if (!root) return;
+        const observer = new MutationObserver((mutations) => {
+          outer:
+          for (const m of mutations) {
+            if (m.type !== 'childList') continue;
+            for (const node of m.addedNodes) {
+              if (
+                node.nodeType === 1 &&
+                ((node.matches && node.matches('.arithmatex')) ||
+                  (node.querySelector && node.querySelector('.arithmatex')))
+              ) {
+                scheduleTypeset();
+                break outer;
+              }
+            }
+          }
+        });
+        observer.observe(root, { childList: true, subtree: true });
+      };
+
+      watch(document.querySelector('.md-content'));
+      // Sidebar tables / content may also carry inline math.
+      watch(document.querySelector('.md-sidebar__inner'));
+    });
+  </script>
 
   <script defer src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
   <script>

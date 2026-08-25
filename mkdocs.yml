@@ -12,7 +12,11 @@ theme:
   custom_dir: overrides
   icon:
     repo: fontawesome/brands/github
-  logo: material/atom
+  logo: docs/assets/logo/logo.png
+  favicon: docs/assets/logo/favicon.png
+  font:
+    text: Inter
+    code: JetBrains Mono
   features:
     - navigation.instant
     - navigation.instant.progress
@@ -86,6 +90,7 @@ nav:
     - guides/index.md
     - Installation: guides/Installation.md
     - User Guide: guides/User Guide.md
+    - Advanced Usage: guides/Advanced Usage.md
     - Release 1:
       - Overview: guides/release1/index.md
       - Shapes (NxM Matrices): guides/release1/shapes.md
@@ -185,6 +190,7 @@ nav:
       - docs/functions/pycauset.compute_k.md
       - docs/functions/pycauset.compute_k_matrix.md
       - docs/functions/pycauset.cond.md
+      - docs/functions/pycauset.convert_file.md
       - docs/functions/pycauset.divide.md
       - docs/functions/pycauset.dot.md
       - docs/functions/pycauset.eig.md
@@ -205,6 +211,7 @@ nav:
       - docs/functions/pycauset.precision_mode.md
       - docs/functions/pycauset.save.md
       - docs/functions/pycauset.set_backing_dir.md
+      - docs/functions/pycauset.set_export_max_bytes.md
       - docs/functions/pycauset.set_memory_threshold.md
       - docs/functions/pycauset.set_num_threads.md
       - docs/functions/pycauset.set_precision_mode.md
@@ -213,10 +220,20 @@ nav:
       - docs/functions/pycauset.solve_triangular.md
       - docs/functions/pycauset.sum.md
       - docs/functions/pycauset.svd.md
+      - docs/functions/pycauset.to_numpy.md
       - docs/functions/pycauset.load.md
+      - CUDA (pycauset.cuda):
+        - docs/functions/pycauset.cuda.is_available.md
+        - docs/functions/pycauset.cuda.enable.md
+        - docs/functions/pycauset.cuda.disable.md
+        - docs/functions/pycauset.cuda.current_device.md
+        - docs/functions/pycauset.cuda.force_backend.md
+        - docs/functions/pycauset.cuda.benchmark.md
+        - docs/functions/pycauset.cuda.set_pinning_budget.md
     - Parameters:
       - docs/parameters/index.md
       - docs/parameters/pycauset.keep_temp_files.md
+      - docs/parameters/pycauset.pinning_budget.md
       - docs/parameters/pycauset.seed.md
     - Visualization (pycauset.vis):
       - docs/pycauset.vis/index.md
@@ -230,6 +247,7 @@ nav:
     - DTYPE Complex Overflow Plan: internals/DTYPE_COMPLEX_OVERFLOW_PLAN.md
     - Compute Architecture: internals/Compute Architecture.md
     - Block Matrices: internals/Block Matrices.md
+    - Lazy Evaluation: internals/LazyEvaluation.md
     - Memory Architecture: internals/MemoryArchitecture.md
     - Memory and Data: internals/Memory and Data.md
     - Streaming Manager: internals/Streaming Manager.md
@@ -255,6 +273,7 @@ nav:
     - Build System: dev/Build System.md
     - Bindings & Dispatch: dev/Bindings & Dispatch.md
     - Testing & Benchmarks: dev/Testing & Benchmarks.md
+    - Performance Optimizations: dev/performance_optimizations.md
     - Warnings & Exceptions: dev/Warnings & Exceptions.md
     - Repository Hygiene: dev/Repository Hygiene.md
     - Square-only Assumptions: dev/Square-only Assumptions.md
