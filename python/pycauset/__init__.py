@@ -1546,12 +1546,19 @@ def divide(a: Any, b: Any) -> Any:
     return result
 
 
-def norm(x: Any) -> float:
+def norm(x: Any, ord: Any = None) -> float:
     """Return the norm of a vector or matrix.
 
-    - For vectors: $\\ell_2$ norm.
-    - For matrices: Frobenius norm.
+    - ord=None: Frobenius norm (matrix) / L2 norm (vector), cached.
+    - ord='fro': Frobenius norm.
+    - ord=2: spectral norm (matrix, largest singular value) / L2 norm (vector).
+    - ord=1, ord=inf, ord='nuc': 1-norm, infinity-norm, nuclear norm.
     """
+
+    if ord is not None:
+        # Explicit ord value: use ops.norm, which is correct for the spectral
+        # (2) norm and routes 1/inf/nuc through NumPy.
+        return _ops.norm(x, ord=ord, deps=_OPS_DEPS)
 
     # Cached-derived fast path (R1_PROPERTIES): if the object exposes a properties
     # mapping and already has a cached norm, use it.
@@ -1751,6 +1758,31 @@ def determinant(a: Any) -> Any:
     return _ops.determinant(a, deps=_OPS_DEPS)
 
 
+def svdvals(a: Any) -> Any:
+    """Singular values of a matrix, descending."""
+    return _ops.svdvals(a, deps=_OPS_DEPS)
+
+
+def matrix_rank(a: Any, tol: Any = None) -> int:
+    """Numerical rank of a matrix."""
+    return _ops.matrix_rank(a, tol=tol, deps=_OPS_DEPS)
+
+
+def matrix_power(a: Any, n: int) -> Any:
+    """Integer power of a square matrix (A^n)."""
+    return _ops.matrix_power(a, n, deps=_OPS_DEPS)
+
+
+def outer(a: Any, b: Any) -> Any:
+    """Outer product of two vectors."""
+    return _ops.outer(a, b, deps=_OPS_DEPS)
+
+
+def kron(a: Any, b: Any) -> Any:
+    """Kronecker product of two matrices."""
+    return _ops.kron(a, b, deps=_OPS_DEPS)
+
+
 def identity(x: Any) -> Any:
     """Create an identity-like matrix.
 
@@ -1852,6 +1884,11 @@ _extra_exports = [
     "pinv",
     "trace",
     "determinant",
+    "svdvals",
+    "matrix_rank",
+    "matrix_power",
+    "outer",
+    "kron",
     "eig",
     "eigvals",
     "eigvals_skew",

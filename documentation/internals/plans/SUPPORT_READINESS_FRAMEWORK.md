@@ -203,6 +203,12 @@ They are allowed to be implemented initially via composition (calling existing o
 | `svd(...)` | ✅ native | LAPACK `dgesvd`/`sgesvd` (thin) |
 | `qr(...)` | ✅ native | LAPACK `dgeqrf`/`dorgqr` |
 | `pinv(...)` | ✅ baseline | Normal equations (`(AᵀA)⁻¹Aᵀ` tall / `Aᵀ(AAᵀ)⁻¹` wide); NumPy SVD fallback |
+| `svdvals(a)` | ✅ baseline | NumPy SVD (`compute_uv=False`) |
+| `matrix_rank(a, tol)` | ✅ baseline | SVD-based; structural shortcuts for zero/identity/diagonal/triangular |
+| `matrix_power(a, n)` | ✅ baseline | Binary exponentiation; shortcuts for identity/zero/negative powers |
+| `outer(a, b)` | ✅ baseline | NumPy outer product |
+| `kron(a, b)` | ✅ baseline | NumPy Kronecker product |
+| `norm(x, ord)` | ✅ native + baseline | Frobenius/L2 native (cached); spectral/1/inf/nuc via NumPy |
 
 ### 2.3 Object protocol (required for any public dtype)
 

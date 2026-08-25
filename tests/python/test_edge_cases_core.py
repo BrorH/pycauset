@@ -206,5 +206,49 @@ class TestPinv(unittest.TestCase):
             self.assertTrue(np.allclose(A @ P @ A, A, atol=1e-10), f"shape {shape}")
 
 
+class TestNewLinalgOps(unittest.TestCase):
+    """Regression tests for svdvals, matrix_rank, matrix_power, outer, kron, and
+    the norm ord=2 (spectral) and IdentityMatrix-export fixes."""
+
+    def test_norm_ord_2_is_spectral(self):
+        A = np.array([[3.0, 1.0], [1.0, 2.0]])
+        self.assertAlmostEqual(pc.norm(pc.matrix(A), ord=2), np.linalg.norm(A, 2), places=6)
+        self.assertAlmostEqual(pc.norm(pc.matrix(A), ord="fro"), np.linalg.norm(A, "fro"), places=6)
+        self.assertAlmostEqual(pc.norm(pc.matrix(A), ord=1), np.linalg.norm(A, 1), places=6)
+        self.assertAlmostEqual(pc.norm(pc.matrix(A), ord=np.inf), np.linalg.norm(A, np.inf), places=6)
+
+    def test_svdvals(self):
+        A = np.random.rand(6, 4)
+        self.assertTrue(np.allclose(_np(pc.svdvals(pc.matrix(A))), np.linalg.svd(A, compute_uv=False), atol=1e-10))
+
+    def test_matrix_rank(self):
+        rng = np.random.default_rng(3)
+        A = rng.standard_normal((8, 8))
+        A[:, 5:] = A[:, :3] @ rng.standard_normal((3, 3))  # rank 3
+        self.assertEqual(pc.matrix_rank(pc.matrix(A)), np.linalg.matrix_rank(A))
+        self.assertEqual(pc.matrix_rank(pc.zeros((3, 3), dtype="float64")), 0)
+        self.assertEqual(pc.matrix_rank(pc.matrix(np.eye(4))), 4)
+
+    def test_matrix_power(self):
+        A = np.array([[1.0, 1.0], [0.0, 1.0]])
+        a = pc.matrix(A)
+        self.assertTrue(np.allclose(_np(pc.matrix_power(a, 5)), np.linalg.matrix_power(A, 5), atol=1e-10))
+        self.assertTrue(np.allclose(_np(pc.matrix_power(a, 0)), np.eye(2), atol=1e-10))
+        self.assertTrue(np.allclose(_np(pc.matrix_power(a, -2)), np.linalg.matrix_power(A, -2), atol=1e-10))
+
+    def test_outer_and_kron(self):
+        self.assertTrue(np.allclose(_np(pc.outer(pc.vector([1.0, 2.0]), pc.vector([3.0, 4.0]))),
+                                    np.outer([1.0, 2.0], [3.0, 4.0]), atol=1e-12))
+        A = np.array([[1.0, 2.0], [3.0, 4.0]])
+        B = np.array([[0.0, 1.0], [1.0, 0.0]])
+        self.assertTrue(np.allclose(_np(pc.kron(pc.matrix(A), pc.matrix(B))), np.kron(A, B), atol=1e-12))
+
+    def test_identity_export(self):
+        # Regression: np.asarray(IdentityMatrix) used to raise "data type 'identity'".
+        I = pc.identity(3)
+        arr = _np(I)
+        self.assertTrue(np.allclose(arr, np.eye(3)))
+
+
 if __name__ == "__main__":
     unittest.main()

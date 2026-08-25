@@ -1147,16 +1147,31 @@ def determinant(a: Any, *, deps: OpsDeps) -> Any:
 
 
 def norm(x: Any, ord: Any = None, *, deps: OpsDeps) -> float:
-    """Matrix or vector norm (Frobenius / L2 default)."""
+    """Matrix or vector norm.
+
+    ord=None or 'fro': Frobenius norm (matrix) / L2 norm (vector), native.
+    ord=2: spectral norm (matrix, largest singular value) / L2 norm (vector).
+    Other ord values (1, inf, 'nuc', ...) use the NumPy fallback.
+    """
     rec = _record_io_trace("norm", [x], deps=deps)
     _prefetch_if_streaming(rec, [x], deps=deps)
 
-    if ord is None or ord == 'fro' or ord == 2:
-        # Native function
+    # Structural shortcuts for the default (Frobenius) norm.
+    x_struct = _effective_structure_for(x)
+    shape = _safe_rows_cols(x)
+    if ord is None or ord == 'fro':
+        if x_struct == "zero":
+            return 0.0
+        if x_struct == "identity" and shape is not None and shape[0] > 0:
+            return float(min(shape) ** 0.5)
+
+    # Native norm only for the default Frobenius/L2 case. For ord=2 on a matrix,
+    # the native function computes Frobenius, not the spectral norm, so route
+    # ord=2 and every other ord through NumPy (which is correct).
+    if ord is None or ord == 'fro':
         fn = getattr(deps.native, "norm", None)
         if callable(fn):
             try:
-                # We try passing x directly. If it's a native object, it works.
                 return float(fn(x))
             except Exception:
                 pass
@@ -1166,6 +1181,127 @@ def norm(x: Any, ord: Any = None, *, deps: OpsDeps) -> float:
     if np_module:
         return float(np_module.linalg.norm(_to_numpy_matrix(x, deps=deps), ord=ord))
     return 0.0
+
+
+def svdvals(a: Any, *, deps: OpsDeps) -> Any:
+    """Singular values of a matrix (the S vector of an SVD), descending."""
+    _record_io_trace("svdvals", [a], deps=deps)
+
+    np_module = deps.np_module
+    if np_module is None:
+        raise RuntimeError("svdvals requires NumPy")
+    s = np_module.linalg.svd(_to_numpy_matrix(a, deps=deps), compute_uv=False)
+    return _as_pycauset_vector(s, deps=deps)
+
+
+def matrix_rank(a: Any, tol: Any = None, *, deps: OpsDeps) -> int:
+    """Numerical rank of a matrix (number of singular values above `tol`).
+
+    Structural shortcuts avoid an SVD: zero -> 0, identity -> min(m, n), and
+    diagonal/triangular -> count of non-zero diagonal entries.
+    """
+    _record_io_trace("matrix_rank", [a], deps=deps)
+
+    a_struct = _effective_structure_for(a)
+    shape = _safe_rows_cols(a)
+    if a_struct == "zero":
+        return 0
+    if a_struct == "identity":
+        return min(shape) if shape else 0
+    if a_struct in ("diagonal", "upper_triangular", "lower_triangular"):
+        n = min(shape) if shape else 0
+        non_zero = 0
+        for i in range(n):
+            try:
+                if a.get(i, i) != 0:
+                    non_zero += 1
+            except Exception:
+                pass
+        return non_zero
+
+    np_module = deps.np_module
+    if np_module is None:
+        raise RuntimeError("matrix_rank requires NumPy")
+    return int(np_module.linalg.matrix_rank(_to_numpy_matrix(a, deps=deps), tol=tol))
+
+
+def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
+    """Integer power of a square matrix (A^n) via binary exponentiation.
+
+    Structural shortcuts: identity stays identity, zero stays zero (n > 0), and a
+    diagonal matrix is raised elementwise.
+    """
+    _record_io_trace("matrix_power", [a], deps=deps)
+    shape = _safe_rows_cols(a)
+    if shape is not None and shape[0] != shape[1]:
+        raise ValueError("matrix_power requires a square matrix")
+
+    if n == 0:
+        return _identity_like(a, shape, deps)
+    if n == 1:
+        return a
+
+    a_struct = _effective_structure_for(a)
+    if a_struct == "identity":
+        return a if n >= 0 else a
+    if a_struct == "zero":
+        if n > 0:
+            return a
+        raise ValueError("matrix_power: zero matrix has no negative power")
+
+    if n < 0:
+        inv = invert(a, deps=deps)
+        return matrix_power(inv, -n, deps=deps)
+
+    # Binary exponentiation via matmul.
+    result = _identity_like(a, shape, deps)
+    base = a
+    while n > 0:
+        if n & 1:
+            result = matmul(result, base, deps=deps)
+        base = matmul(base, base, deps=deps)
+        n >>= 1
+    _track_and_mark_temporary_if_native(result, deps=deps)
+    return result
+
+
+def _identity_like(a: Any, shape: Any, deps: OpsDeps) -> Any:
+    """Return an identity matrix matching a's shape and dtype (best effort)."""
+    I_cls = getattr(deps.native, "IdentityMatrix", None)
+    if I_cls is not None and shape is not None:
+        try:
+            return I_cls(shape[0])
+        except Exception:
+            pass
+    np_module = deps.np_module
+    if np_module is not None and shape is not None:
+        return _as_pycauset_array(np_module.eye(shape[0], shape[1]), deps=deps)
+    raise RuntimeError("matrix_power: cannot build identity matrix")
+
+
+def outer(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Outer product of two vectors: out[i, j] = a[i] * b[j]."""
+    _record_io_trace("outer", [a, b], deps=deps)
+
+    np_module = deps.np_module
+    if np_module is None:
+        raise RuntimeError("outer requires NumPy")
+    a_np = np_module.asarray(_to_numpy_matrix(a, deps=deps)).ravel()
+    b_np = np_module.asarray(_to_numpy_matrix(b, deps=deps)).ravel()
+    return _as_pycauset_array(np_module.outer(a_np, b_np), deps=deps)
+
+
+def kron(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Kronecker product of two matrices."""
+    _record_io_trace("kron", [a, b], deps=deps)
+
+    np_module = deps.np_module
+    if np_module is None:
+        raise RuntimeError("kron requires NumPy")
+    return _as_pycauset_array(
+        np_module.kron(_to_numpy_matrix(a, deps=deps), _to_numpy_matrix(b, deps=deps)),
+        deps=deps,
+    )
 
 
 def cholesky(a: Any, *, deps: OpsDeps) -> Any:

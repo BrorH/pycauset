@@ -9,14 +9,23 @@ milestone corresponds to **v0.5.1**.
 ### Added
 - `pinv`: Moore-Penrose pseudoinverse (normal-equations baseline + NumPy SVD fallback).
 - `load_matrix(path)`: alias of `load`.
+- `svdvals`, `matrix_rank`, `matrix_power`, `outer`, `kron`: NumPy-equivalent linalg
+  operations, each with structural shortcuts where a closed form exists (rank of
+  identity/diagonal/triangular, power of identity/zero/diagonal, norm of identity/zero).
 - Complete per-operation support-status registry (`OpRegistry`) now covering the vector
   and vector-scalar ops (`dot`, `add_vector`, `subtract_vector`, `outer`, `add_scalar`,
   `mul_scalar`) in addition to the matrix ops.
 - `LICENSE` (MIT) and `THIRD_PARTY_NOTICES.md` (Eigen MPL2, OpenBLAS BSD, pybind11 BSD,
   googletest BSD, build-time deps, CUDA-not-bundled).
 - GitHub Actions CI matrix (`ci.yml`): Windows / macOS / Linux on Python 3.12.
+- Benchmark harness (`benchmarks/bench.py`, `benchmarks/plot.py`) with graphs, and the
+  out-of-core RAM-limit demo (`benchmarks/bench_ram.py`).
 
 ### Fixed
+- `norm(matrix, ord=2)` now returns the spectral norm (largest singular value); it
+  previously returned the Frobenius norm for `ord=2`.
+- `np.asarray(IdentityMatrix)` no longer raises `TypeError: data type 'identity' not
+  understood`; identity matrices export as float64.
 - Dense `float64` `solve` and `lu` now route through LAPACK (`dgesv`/`dgetrf`) instead of
   a naive scalar Gaussian elimination; this also made the float64 path consistent with the
   float32 path and with NumPy's singularity behavior.
