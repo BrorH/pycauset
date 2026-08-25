@@ -2,12 +2,6 @@
 
 Pycauset is designed to handle causal sets where $N$ is large enough that $O(N^2)$ storage becomes the primary bottleneck. To achieve this, we adhere to a strict set of design principles and "mantras" that guide every architectural decision.
 
-## Core Philosophy (North Star)
-
-**PyCauset is _NumPy for causal sets_.**
-
-- Users should interact with **top-level Python objects and functions** (e.g., `pycauset.matrix`, `pycauset.causal_matrix`, `pycauset.matmul`).
-- We bridge the gap between abstract theory and petabyte-scale simulation without forcing physicists to become systems engineers.
 
 ## Core Mantras
 
@@ -21,15 +15,10 @@ Pycauset is designed to handle causal sets where $N$ is large enough that $O(N^2
 ### Numpy Compatibility, C++ Engine
 *   The API should feel like home to numpy-users and be intimately compatible. The engine is pure C++ optimized for our specific storage formats and causal set operations. Every operation aims to benchmark at  >0.90x the speed of NumPy for in-memory operations.
 
-### Anti-Promotion (The "Smallest Type" Rule)
-*   **Principle**: Data types must remain as small as possible, constantly.
-*   **Implementation**: We aggressively resist type promotion.
-    *   **Underpromotion**: Operations execute in the smallest selected dtype, and results are stored in that same dtype. We do *not* silently widen intermediates.
-    *   **Mixed Types**: If a float participates, the result is float. Otherwise, we prefer the smallest dtype.
-    *   **Overflow**: Integer *elementwise* arithmetic (add/sub/mul/div and scalar variants) follows C/NumPy two's-complement wraparound semantics: overflow wraps silently, by design. Integer *reductions* (`matmul`) use a wider internal accumulator and raise `OverflowError` on overflow; `dot` returns a Python `float` (exact). Float overflow follows IEEE-754 (`inf`/`nan`).
-*   **Example**: Multiplying an `IntegerMatrix` by a float scalar (`3.5`) produces an `IntegerMatrix` with a metadata scalar factor. The data on disk remains integers.
+### Anti-Promotion 
+*   Data types must remain as small as possible.
 
-
-
+### Fun and Easy
+*  PyCauset should be intuitive and fun to use. Users should be able to get started with a few lines of code, and the API should be easy to learn and remember.
 
 ---
