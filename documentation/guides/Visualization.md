@@ -1,4 +1,4 @@
-# Visualization Guide
+spots# Visualization Guide
 
 PyCauset provides built-in tools to visualize Causal Sets embedded in spacetime. This guide explains how to use the [[docs/pycauset.vis/index.md|pycauset.vis]] module to create interactive 3D plots.
 
