@@ -43,6 +43,7 @@ static bool EnablePrivilege(LPCTSTR lpszPrivilege) {
 #include <unistd.h>
 #include <cstring>
 #include <cerrno>
+#include <atomic>
 
 #ifndef MAP_POPULATE
 #define MAP_POPULATE 0
@@ -329,10 +330,12 @@ void MemoryMapper::open_file(bool create_new) {
 #else
         // macOS lacks memfd_create. Give anonymous memory a real fd via POSIX shm_open
         // so unmap()/map_region()/map_all() can re-map and preserve content (the same
-        // role memfd plays on Linux). shm_unlink is called immediately so the name does
-        // not persist; the fd keeps the backing memory alive until close.
-        std::string shm_name = "/pycauset_anon_" + std::to_string(getpid()) + "_"
-                               + std::to_string(reinterpret_cast<uintptr_t>(this));
+        // role memfd plays on Linux). macOS caps shm names (ENAMETOOLONG beyond ~31
+        // chars), so keep the name short. shm_unlink is called immediately so the name
+        // does not persist; the fd keeps the backing memory alive until close.
+        static std::atomic<uint64_t> shm_counter{0};
+        std::string shm_name = "/pc" + std::to_string(getpid()) + "x"
+                               + std::to_string(shm_counter.fetch_add(1));
         fd_ = shm_open(shm_name.c_str(), O_CREAT | O_RDWR, 0600);
         if (fd_ == -1) {
             throw std::runtime_error("shm_open failed: " + std::string(std::strerror(errno)));
