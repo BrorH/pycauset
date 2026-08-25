@@ -16,6 +16,18 @@ python benchmarks/plot.py
 - **Dtype:** dense float64.
 - **Ratio:** `numpy_time / pycauset_time`. Values above 1.0x mean PyCauset is faster.
 
+## Dtype coverage (correctness)
+
+`benchmarks/bench_coverage.py` checks every operation against NumPy across all
+supported dtypes and classifies each cell as `ok`, `by-design` (documented error), or
+`WRONG`. Current status: every operation passes all its supported dtypes.
+
+| op | dtypes | result |
+|---|---|---|
+| matmul, add, norm, trace | 14 (bit + all int/uint + all float/complex) | all ok |
+| invert, solve, cholesky, svdvals, matrix_rank, determinant, eigvalsh | 4 (float32/64, complex64/128) | all ok |
+| matrix_power, outer | 6 (float/complex + int32/64) | all ok |
+
 ## Summary
 
 PyCauset's dense kernels run on the same OpenBLAS/LAPACK backend as NumPy, so the
