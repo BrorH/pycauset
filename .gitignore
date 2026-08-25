@@ -1,4 +1,5 @@
 # --- Python ---
+test.py
 __pycache__/
 *.py[cod]
 *$py.class
@@ -82,6 +83,14 @@ out/
 # --- Project Specific ---
 benchmarks/*
 !benchmarks/*.py
+# Scratch/exploration benchmark scripts superseded by the canonical suite
+# (bench.py, bench_coverage.py, bench_structures.py, bench_ram.py, plot.py).
+# Kept on disk but not tracked.
+benchmarks/benchmark_*.py
+benchmarks/comprehensive_benchmark.py
+benchmarks/debug_matmul.py
+benchmarks/inspect_temp.py
+benchmarks/stress_test_memory_system.py
 .pycauset/
 *.pycauset
 storage/
