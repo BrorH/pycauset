@@ -240,6 +240,18 @@ class TestNewLinalgOps(unittest.TestCase):
         self.assertTrue(np.allclose(_np(pc.outer(pc.vector([1.0, 2.0]), pc.vector([3.0, 4.0]))),
                                     np.outer([1.0, 2.0], [3.0, 4.0]), atol=1e-12))
 
+    def test_cross(self):
+        r = pc.cross(pc.vector([1.0, 2.0, 3.0]), pc.vector([4.0, 5.0, 6.0]))
+        self.assertTrue(np.allclose(_np(r), np.cross([1, 2, 3], [4, 5, 6])))
+        with self.assertRaises(ValueError):
+            pc.cross(pc.vector([1.0, 2.0]), pc.vector([1.0, 2.0]))
+
+    def test_vecdot(self):
+        self.assertEqual(pc.vecdot(pc.vector([1.0, 2.0]), pc.vector([3.0, 4.0])), 11.0)
+        ca = pc.vector(np.array([1 + 1j, 2 + 0j]))
+        cb = pc.vector(np.array([1 - 1j, 0 + 1j]))
+        self.assertEqual(pc.vecdot(ca, cb), complex(np.vdot(np.array([1 + 1j, 2 + 0j]), np.array([1 - 1j, 0 + 1j]))))
+
     def test_identity_export(self):
         # Regression: np.asarray(IdentityMatrix) used to raise "data type 'identity'".
         I = pc.identity(3)

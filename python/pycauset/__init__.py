@@ -1808,6 +1808,16 @@ def outer(a: Any, b: Any) -> Any:
     return _ops.outer(a, b, deps=_OPS_DEPS)
 
 
+def cross(a: Any, b: Any) -> Any:
+    """Cross product of two 3-element vectors."""
+    return _ops.cross(a, b, deps=_OPS_DEPS)
+
+
+def vecdot(a: Any, b: Any) -> Any:
+    """Conjugate dot product: sum(conj(a) * b)."""
+    return _ops.vecdot(a, b, deps=_OPS_DEPS)
+
+
 def identity(x: Any) -> Any:
     """Create an identity-like matrix.
 
@@ -1919,6 +1929,8 @@ _extra_exports = [
     "matrix_rank",
     "matrix_power",
     "outer",
+    "cross",
+    "vecdot",
     "eig",
     "eigvals",
     "eigvals_skew",

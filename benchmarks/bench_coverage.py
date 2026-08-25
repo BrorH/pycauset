@@ -179,6 +179,34 @@ def main():
         flag = "" if n_wrong == 0 else "  <-- investigate"
         print(f"| {name} | {n_ok}/{total} | {n_bd} | {n_wrong} | {speedup:.2f}x |{flag}")
 
+    print()
+    bench_by_design()
+
+
+def bench_by_design():
+    """Verify documented errors are raised (and would be classified 'by-design')."""
+    print("## Error-by-design checks")
+    cases = [
+        ("int8 matmul overflow", OverflowError,
+         lambda: pc.matrix(np.full((16, 16), 100, dtype=np.int8)) @ pc.matrix(np.full((16, 16), 100, dtype=np.int8))),
+        ("singular solve", np.linalg.LinAlgError,
+         lambda: pc.solve(pc.matrix(np.array([[1.0, 2.0], [2.0, 4.0]])), pc.matrix(np.ones((2, 1))))),
+        ("zero-marked solve", ValueError,
+         lambda: pc.solve(pc.zeros((4, 4), dtype="float64"), pc.matrix(np.ones((4, 1))))),
+        ("non-SPD cholesky", np.linalg.LinAlgError,
+         lambda: pc.cholesky(pc.matrix(np.array([[1.0, 2.0], [2.0, 1.0]])))),
+        ("non-triangular solve_triangular", ValueError,
+         lambda: pc.solve_triangular(pc.matrix(np.eye(2)), pc.vector([1.0, 2.0]))),
+    ]
+    for label, expected, fn in cases:
+        try:
+            fn()
+            print(f"  {label:32s} NO ERROR  <-- investigate")
+        except expected as e:
+            print(f"  {label:32s} {type(e).__name__} (by-design)")
+        except Exception as e:
+            print(f"  {label:32s} {type(e).__name__}  <-- unexpected")
+
 
 if __name__ == "__main__":
     main()

@@ -1361,6 +1361,35 @@ def outer(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     return _as_pycauset_array(np_module.outer(a_np, b_np), deps=deps)
 
 
+def cross(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Cross product of two 3-element vectors."""
+    _record_io_trace("cross", [a, b], deps=deps)
+
+    np_module = deps.np_module
+    if np_module is None:
+        raise RuntimeError("cross requires NumPy")
+    a_np = np_module.asarray(_to_numpy_matrix(a, deps=deps)).ravel()
+    b_np = np_module.asarray(_to_numpy_matrix(b, deps=deps)).ravel()
+    if a_np.size != 3 or b_np.size != 3:
+        raise ValueError("cross product requires vectors of length 3")
+    return _as_pycauset_vector(np_module.cross(a_np, b_np), deps=deps)
+
+
+def vecdot(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Conjugate dot product: sum(conj(a) * b). For real inputs this equals dot."""
+    _record_io_trace("vecdot", [a, b], deps=deps)
+
+    np_module = deps.np_module
+    if np_module is None:
+        raise RuntimeError("vecdot requires NumPy")
+    a_np = np_module.asarray(_to_numpy_matrix(a, deps=deps)).ravel()
+    b_np = np_module.asarray(_to_numpy_matrix(b, deps=deps)).ravel()
+    result = np_module.vdot(a_np, b_np)
+    if np_module.iscomplexobj(result):
+        return complex(result)
+    return float(result)
+
+
 def cholesky(a: Any, *, deps: OpsDeps) -> Any:
     """Return the Cholesky decomposition."""
     rec = _record_io_trace("cholesky", [a], deps=deps)

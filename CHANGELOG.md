@@ -15,6 +15,8 @@ milestone corresponds to **v0.5.1**.
 - `bitwise_and`, `bitwise_or`, `bitwise_xor`, `bitwise_nand`, `bitwise_nor`,
   `bitwise_xnor`: elementwise logic operations on bit matrices/vectors, always returning
   a bit structure (DenseBitMatrix/BitVector).
+- `cross`: 3D cross product.
+- `vecdot`: conjugate dot product (complex-aware inner product).
 - Complete per-operation support-status registry (`OpRegistry`) now covering the vector
   and vector-scalar ops (`dot`, `add_vector`, `subtract_vector`, `outer`, `add_scalar`,
   `mul_scalar`) in addition to the matrix ops.
