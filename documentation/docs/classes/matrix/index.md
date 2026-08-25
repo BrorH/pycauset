@@ -10,6 +10,7 @@
 * **[[docs/classes/matrix/pycauset.TriangularIntegerMatrix.md|pycauset.TriangularIntegerMatrix]]**
 * **[[docs/classes/matrix/pycauset.TriangularFloatMatrix.md|pycauset.TriangularFloatMatrix]]**
 * **[[docs/classes/matrix/pycauset.SymmetricMatrix.md|pycauset.SymmetricMatrix]]**
+* **[[docs/classes/matrix/pycauset.AntiSymmetricMatrix.md|pycauset.AntiSymmetricMatrix]]**
 * **[[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]]**
 * **[[docs/classes/matrix/pycauset.Int8Matrix.md|pycauset.Int8Matrix]]**
 * **[[docs/classes/matrix/pycauset.Int16Matrix.md|pycauset.Int16Matrix]]**

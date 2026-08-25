@@ -211,6 +211,22 @@ They are allowed to be implemented initially via composition (calling existing o
 | `vecdot(a, b)` | ✅ baseline | conjugate dot product |
 | `norm(x, ord)` | ✅ native + baseline | Frobenius/L2 native (cached); spectral/1/inf/nuc via NumPy |
 
+#### 2.2.2.1 Symmetric / anti-symmetric structure support (R1)
+
+`SymmetricMatrix` and `AntiSymmetricMatrix` are native structural types backed by packed
+upper-triangle storage (roughly half the dense payload). R1 support status:
+
+- **Construction:** `pycauset.symmetric(data)` / `pycauset.antisymmetric(data)` validate
+  the claimed structure and, for float input, return the native packed type. Integer/bool
+  input returns a dense matrix with `is_symmetric` / `is_anti_symmetric` asserted (exact
+  storage, no packing).
+- **Recognition:** the properties-as-gospel structure resolver returns
+  `"symmetric"` / `"antisymmetric"` for these types, so structural shortcuts do not misfire.
+- **Operations:** correct via the general numerical paths (matmul routes through a dense
+  float64 fallback). Optimization of symmetric/antisymmetric kernels is **post-R1**.
+- **Export/persistence:** `np.asarray`/`to_numpy` and `save()`/`load()` round-trip the
+  full matrix and its structure.
+
 ### 2.3 Object protocol (required for any public dtype)
 
 Independently of “math ops”, a dtype is not considered **publicly supported** unless its matrix/vector types satisfy:
@@ -394,7 +410,7 @@ Fill this template for each new operation you add.
 ### 8.3 Coverage axes (Protocols.md)
 - [ ] Operand rank
 - [ ] Scalar kind + flags (bit/int/float; complex/unsigned if applicable)
-- [ ] Structure/storage (dense/triangular/identity/diagonal/unit-vector)
+- [ ] Structure/storage (dense/triangular/identity/diagonal/symmetric/antisymmetric/unit-vector)
 - [ ] Device coverage (CPU required; GPU optional)
 - [ ] Python surface
 - [ ] Documentation + tests

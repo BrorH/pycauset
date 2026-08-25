@@ -50,6 +50,16 @@ This is where PyCauset wins even though its dense kernels run at NumPy parity: a
 identity or diagonal matrix gets an answer instantly instead of spending seconds on an
 SVD or LU factorization, and NumPy has no equivalent metadata shortcut at all.
 
+## Symmetric / anti-symmetric storage (2x smaller)
+
+`pycauset.symmetric(data)` and `pycauset.antisymmetric(data)` construct native
+`SymmetricMatrix` / `AntiSymmetricMatrix` objects that store only the upper triangle
+(including the diagonal), so an n x n float64 matrix costs roughly n(n+1)/2 elements
+instead of n^2. For large n this is about a 2x reduction in RAM and disk footprint,
+independent of the out-of-core threshold, and `to_numpy`/`save`/`load` reconstruct the
+full matrix on demand. Optimization of symmetric/antisymmetric kernels is part of the
+post-R1 program.
+
 ## Summary
 
 PyCauset's dense kernels run on the same OpenBLAS/LAPACK backend as NumPy, so the

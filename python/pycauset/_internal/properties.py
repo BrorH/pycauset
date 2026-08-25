@@ -777,6 +777,8 @@ def effective_structure_from_properties(props: Any) -> str:
     - "zero"
     - "identity"
     - "diagonal"
+    - "symmetric"
+    - "antisymmetric"
     - "upper_triangular"
     - "lower_triangular"
     - "general"
@@ -786,6 +788,8 @@ def effective_structure_from_properties(props: Any) -> str:
         is_zero = props.get("is_zero") is True
         is_identity = props.get("is_identity") is True
         is_diagonal = props.get("is_diagonal") is True
+        is_symmetric = props.get("is_symmetric") is True
+        is_antisymmetric = props.get("is_anti_symmetric") is True
         is_upper = props.get("is_upper_triangular") is True
         is_lower = props.get("is_lower_triangular") is True
     except Exception:
@@ -797,6 +801,10 @@ def effective_structure_from_properties(props: Any) -> str:
         return "identity"
     if is_diagonal or (is_upper and is_lower):
         return "diagonal"
+    if is_symmetric:
+        return "symmetric"
+    if is_antisymmetric:
+        return "antisymmetric"
     if is_upper:
         return "upper_triangular"
     if is_lower:

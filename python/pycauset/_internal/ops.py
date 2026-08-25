@@ -105,6 +105,13 @@ def _effective_structure_for(obj: Any) -> str:
         return "identity"
     if name == "DiagonalMatrix":
         return "diagonal"
+    # SymmetricMatrix / AntiSymmetricMatrix are native float64 structural types;
+    # their packed upper-triangle storage enforces the structure by construction,
+    # so the type name is authoritative here.
+    if name == "SymmetricMatrix":
+        return "symmetric"
+    if name == "AntiSymmetricMatrix":
+        return "antisymmetric"
     try:
         props = _props.get_properties(obj)
         return _props.effective_structure_from_properties(props)
@@ -429,6 +436,36 @@ def _try_convert_to_triangular_f64(obj: Any, *, which: str, deps: OpsDeps) -> An
         return None
 
 
+def _try_convert_to_dense_f64(obj: Any, *, deps: OpsDeps) -> Any | None:
+    """Materialize a symmetric/antisymmetric native matrix to a dense float64 matrix.
+
+    The native matmul dispatch does not accept SymmetricMatrix/AntiSymmetricMatrix
+    operands, so correctness-first matmul routes through a dense materialization.
+    """
+    dense_cls = getattr(deps.native, "FloatMatrix", None)
+    if dense_cls is None:
+        return None
+
+    shape = _safe_rows_cols(obj)
+    if shape is None:
+        return None
+    rows, cols = shape
+    if rows != cols:
+        return None
+
+    try:
+        out = dense_cls(rows)
+        for i in range(rows):
+            for j in range(cols):
+                v = obj.get(i, j)
+                if v != 0:
+                    out.set(i, j, float(v))
+        _track_and_mark_temporary_if_native(out, deps=deps)
+        return out
+    except Exception:
+        return None
+
+
 def _set_result_structure_properties(result: Any, *, structure: str) -> None:
     try:
         mapping: dict[str, Any] = {}
@@ -551,6 +588,20 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
                 if a_tri is not None and b_tri is not None:
                     a_eff = a_tri
                     b_eff = b_tri
+
+            # Symmetric/AntiSymmetric -> dense float64 fallback: the native matmul
+            # dispatch does not accept these structured types, so materialize them
+            # to dense before multiplying (correctness-first; the result is dense).
+            if a_struct in ("symmetric", "antisymmetric"):
+                converted = _try_convert_to_dense_f64(a, deps=deps)
+                if converted is not None:
+                    a_eff = converted
+                    a_struct = "general"
+            if b_struct in ("symmetric", "antisymmetric"):
+                converted = _try_convert_to_dense_f64(b, deps=deps)
+                if converted is not None:
+                    b_eff = converted
+                    b_struct = "general"
 
             # Prefer the native @ operator (MatrixBase.__matmul__), which is the
             # most widely supported entry point across matrix types.

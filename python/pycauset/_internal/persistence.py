@@ -642,6 +642,8 @@ class PersistenceDeps(Protocol):
     UInt64Matrix: type | None
     TriangularFloatMatrix: type | None
     TriangularIntegerMatrix: type | None
+    SymmetricMatrix: type | None
+    AntiSymmetricMatrix: type | None
 
     FloatVector: type | None
     Float16Vector: type | None
@@ -834,6 +836,16 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
         elif deps.TriangularIntegerMatrix is not None and isinstance(payload_obj, deps.TriangularIntegerMatrix):
             meta["matrix_type"] = "TRIANGULAR_INTEGER"
             meta["data_type"] = "INT32"
+            meta["payload_layout"]["kind"] = "raw_triangular"
+        elif deps.AntiSymmetricMatrix is not None and isinstance(payload_obj, deps.AntiSymmetricMatrix):
+            # AntiSymmetricMatrix derives from SymmetricMatrix in the native
+            # hierarchy, so it must be matched first.
+            meta["matrix_type"] = "ANTISYMMETRIC"
+            meta["data_type"] = "FLOAT64"
+            meta["payload_layout"]["kind"] = "raw_triangular"
+        elif deps.SymmetricMatrix is not None and isinstance(payload_obj, deps.SymmetricMatrix):
+            meta["matrix_type"] = "SYMMETRIC"
+            meta["data_type"] = "FLOAT64"
             meta["payload_layout"]["kind"] = "raw_triangular"
         elif deps.FloatVector is not None and isinstance(payload_obj, deps.FloatVector):
             meta["matrix_type"] = "VECTOR"
@@ -1129,6 +1141,12 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
     elif matrix_type == "TRIANGULAR_INTEGER" and deps.TriangularIntegerMatrix is not None:
         _require_square_dims_for_type("TRIANGULAR_INTEGER")
         obj = deps.TriangularIntegerMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
+    elif matrix_type == "SYMMETRIC" and deps.SymmetricMatrix is not None:
+        _require_square_dims_for_type("SYMMETRIC")
+        obj = deps.SymmetricMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
+    elif matrix_type == "ANTISYMMETRIC" and deps.AntiSymmetricMatrix is not None:
+        _require_square_dims_for_type("ANTISYMMETRIC")
+        obj = deps.AntiSymmetricMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
     elif matrix_type == "VECTOR":
         if data_type == "FLOAT64" and deps.FloatVector is not None:
             obj = deps.FloatVector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)

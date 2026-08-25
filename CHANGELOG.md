@@ -17,6 +17,11 @@ milestone corresponds to **v0.5.1**.
   a bit structure (DenseBitMatrix/BitVector).
 - `cross`: 3D cross product.
 - `vecdot`: conjugate dot product (complex-aware inner product).
+- `symmetric(data)` and `antisymmetric(data)`: validated constructors for symmetric
+  (`A == A.T`) and anti-symmetric (`A == -A.T`) matrices. Float input produces a native
+  `SymmetricMatrix`/`AntiSymmetricMatrix` with packed upper-triangle storage (roughly 2x
+  smaller than dense); integer/bool input produces a dense matrix with
+  `is_symmetric`/`is_anti_symmetric` asserted (exact storage, no packing in R1).
 - Complete per-operation support-status registry (`OpRegistry`) now covering the vector
   and vector-scalar ops (`dot`, `add_vector`, `subtract_vector`, `outer`, `add_scalar`,
   `mul_scalar`) in addition to the matrix ops.
@@ -33,6 +38,12 @@ milestone corresponds to **v0.5.1**.
   understood`; identity matrices export as float64.
 - Structural shortcuts now trigger for native structural types: `matrix_rank` of an
   `IdentityMatrix`/`DiagonalMatrix` uses a closed form instead of an SVD.
+- `SymmetricMatrix`/`AntiSymmetricMatrix` (present in the native core but previously
+  unreachable from Python) are now integrated end to end: recognized by the structure
+  system (no longer "general"), exported to NumPy without `TypeError: data type
+  'symmetric' not understood`, routed through a dense float64 fallback in `matmul`
+  (no longer `Unsupported matrix multiplication types`), and round-tripped by
+  `save()`/`load()` (no longer `Unknown matrix type: None`).
 - Dense `float64` `solve` and `lu` now route through LAPACK (`dgesv`/`dgetrf`) instead of
   a naive scalar Gaussian elimination; this also made the float64 path consistent with the
   float32 path and with NumPy's singularity behavior.
