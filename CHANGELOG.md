@@ -9,7 +9,7 @@ milestone corresponds to **v0.5.1**.
 ### Added
 - `pinv`: Moore-Penrose pseudoinverse (normal-equations baseline + NumPy SVD fallback).
 - `load_matrix(path)`: alias of `load`.
-- `svdvals`, `matrix_rank`, `matrix_power`, `outer`, `kron`: NumPy-equivalent linalg
+- `svdvals`, `matrix_rank`, `matrix_power`, `outer`: NumPy-equivalent linalg
   operations, each with structural shortcuts where a closed form exists (rank of
   identity/diagonal/triangular, power of identity/zero/diagonal, norm of identity/zero).
 - Complete per-operation support-status registry (`OpRegistry`) now covering the vector

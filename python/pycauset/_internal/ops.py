@@ -1291,19 +1291,6 @@ def outer(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     return _as_pycauset_array(np_module.outer(a_np, b_np), deps=deps)
 
 
-def kron(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Kronecker product of two matrices."""
-    _record_io_trace("kron", [a, b], deps=deps)
-
-    np_module = deps.np_module
-    if np_module is None:
-        raise RuntimeError("kron requires NumPy")
-    return _as_pycauset_array(
-        np_module.kron(_to_numpy_matrix(a, deps=deps), _to_numpy_matrix(b, deps=deps)),
-        deps=deps,
-    )
-
-
 def cholesky(a: Any, *, deps: OpsDeps) -> Any:
     """Return the Cholesky decomposition."""
     rec = _record_io_trace("cholesky", [a], deps=deps)

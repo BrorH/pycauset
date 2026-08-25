@@ -236,12 +236,9 @@ class TestNewLinalgOps(unittest.TestCase):
         self.assertTrue(np.allclose(_np(pc.matrix_power(a, 0)), np.eye(2), atol=1e-10))
         self.assertTrue(np.allclose(_np(pc.matrix_power(a, -2)), np.linalg.matrix_power(A, -2), atol=1e-10))
 
-    def test_outer_and_kron(self):
+    def test_outer(self):
         self.assertTrue(np.allclose(_np(pc.outer(pc.vector([1.0, 2.0]), pc.vector([3.0, 4.0]))),
                                     np.outer([1.0, 2.0], [3.0, 4.0]), atol=1e-12))
-        A = np.array([[1.0, 2.0], [3.0, 4.0]])
-        B = np.array([[0.0, 1.0], [1.0, 0.0]])
-        self.assertTrue(np.allclose(_np(pc.kron(pc.matrix(A), pc.matrix(B))), np.kron(A, B), atol=1e-12))
 
     def test_identity_export(self):
         # Regression: np.asarray(IdentityMatrix) used to raise "data type 'identity'".

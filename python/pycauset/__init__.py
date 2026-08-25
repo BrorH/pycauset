@@ -1778,11 +1778,6 @@ def outer(a: Any, b: Any) -> Any:
     return _ops.outer(a, b, deps=_OPS_DEPS)
 
 
-def kron(a: Any, b: Any) -> Any:
-    """Kronecker product of two matrices."""
-    return _ops.kron(a, b, deps=_OPS_DEPS)
-
-
 def identity(x: Any) -> Any:
     """Create an identity-like matrix.
 
@@ -1888,7 +1883,6 @@ _extra_exports = [
     "matrix_rank",
     "matrix_power",
     "outer",
-    "kron",
     "eig",
     "eigvals",
     "eigvals_skew",
