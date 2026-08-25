@@ -204,7 +204,10 @@ class TestLazyEvaluation(unittest.TestCase):
         # Set very low memory threshold to force spilling
         # 1KB threshold
         pycauset.set_memory_threshold(1024)
-        
+        # Restore the global threshold after this test so it does not leak
+        # into subsequent tests (single-process runs).
+        self.addCleanup(pycauset.set_memory_threshold, 1024 * 1024 * 1024)
+
         n = 100 # 100x100 doubles = 80KB > 1KB
         A = pycauset.FloatMatrix(n, n)
         B = pycauset.FloatMatrix(n, n)

@@ -75,7 +75,7 @@ class TestPhase1Inventory(unittest.TestCase):
             (pc.FloatMatrix, np.float64),
             (pc.Float32Matrix, np.float32),
             (pc.IntegerMatrix, np.int32),
-            (pc.DenseBitMatrix, np.bool), # Should be bool or uint8?
+            (pc.DenseBitMatrix, np.bool_), # Should be bool or uint8?
         ]
         for T, np_dt in pairs:
             if not hasattr(pc, T.__name__): continue
