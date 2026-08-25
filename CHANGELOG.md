@@ -57,6 +57,12 @@ milestone corresponds to **v0.5.1**.
 - `CausalSpacetime` is documented at its real location (`pycauset.CausalSpacetime`, a
   native abstract type with no R1 constructor/methods), not the non-existent
   `pycauset.spacetime.CausalSpacetime`.
+- Removed a leftover `std::cerr` debug print in `MemoryMapper` that spammed
+  "mmap success: ..." on every memory mapping.
+- Fixed a macOS bug where `:memory:` matrices had no file descriptor (macOS has no
+  `memfd_create`), so `TriangularBitMatrix` random generation crashed with
+  "File descriptor invalid" in `map_region()`. macOS now uses POSIX `shm_open` to give
+  anonymous memory a real fd, matching Linux's `memfd` behavior.
 - Dense `float64` `solve` and `lu` now route through LAPACK (`dgesv`/`dgetrf`) instead of
   a naive scalar Gaussian elimination; this also made the float64 path consistent with the
   float32 path and with NumPy's singularity behavior.

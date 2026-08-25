@@ -327,7 +327,22 @@ void MemoryMapper::open_file(bool create_new) {
         }
         offset_ = 0;
 #else
-        fd_ = -1;
+        // macOS lacks memfd_create. Give anonymous memory a real fd via POSIX shm_open
+        // so unmap()/map_region()/map_all() can re-map and preserve content (the same
+        // role memfd plays on Linux). shm_unlink is called immediately so the name does
+        // not persist; the fd keeps the backing memory alive until close.
+        std::string shm_name = "/pycauset_anon_" + std::to_string(getpid()) + "_"
+                               + std::to_string(reinterpret_cast<uintptr_t>(this));
+        fd_ = shm_open(shm_name.c_str(), O_CREAT | O_RDWR, 0600);
+        if (fd_ == -1) {
+            throw std::runtime_error("shm_open failed: " + std::string(std::strerror(errno)));
+        }
+        shm_unlink(shm_name.c_str());
+        if (ftruncate(fd_, static_cast<off_t>(data_size_)) == -1) {
+            close(fd_);
+            fd_ = -1;
+            throw std::runtime_error("ftruncate failed: " + std::string(std::strerror(errno)));
+        }
         offset_ = 0;
 #endif
     } else {
@@ -476,9 +491,6 @@ void MemoryMapper::open_file(bool create_new) {
         if (fd_ != -1) close(fd_);
         throw std::runtime_error("mmap failed: " + std::string(std::strerror(errno)));
     }
-    
-    // Debug print
-    std::cerr << "mmap success: fd=" << fd_ << " size=" << map_size << " off=" << aligned_offset << " adj=" << adjustment << std::endl;
     
     mapped_ptr_ = static_cast<char*>(base_ptr_) + adjustment;
 }
