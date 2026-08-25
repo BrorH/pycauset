@@ -34,13 +34,10 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install openblas libomp
 
-      - name: Install Python build/test dependencies
+      - name: Install pycauset with test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest psutil
-
-      - name: Build and install pycauset
-        run: python -m pip install .
+          python -m pip install ".[test]"
 
       - name: Deploy native extension into source tree
         # The test suite adds the repo's python/ dir to sys.path and imports the

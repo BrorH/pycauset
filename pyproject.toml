@@ -31,9 +31,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+test = [
+    "pytest",
+    "psutil",
+]
 dev = [
     "ruff",
     "mypy",
+    "pytest",
+    "psutil",
 ]
 
 [project.urls]
