@@ -66,10 +66,13 @@ jobs:
           # macOS: Env Setup
           # 1. Point to Homebrew locations for headers/libs (Apple Silicon uses /opt/homebrew, Intel uses /usr/local)
           # 2. Add ccache to PATH (checking both potential locations)
-          # 3. Set MACOSX_DEPLOYMENT_TARGET to 15.0 (Sequoia) or newer. Homebrew's latest OpenBLAS/libomp binaries
-          #    are explicitly built for macOS 15.0 and will not link on older targets.
+          # 3. MACOSX_DEPLOYMENT_TARGET must match the Homebrew bottles on the runner.
+          #    Homebrew builds against the runner's own macOS, so if the runner moves to a
+          #    newer macOS the bottles' minimum target rises too. delocate refuses to bundle
+          #    a dylib whose minimum is newer than the wheel target, so keep this in sync
+          #    with the runner (the failing log reports the required value).
           CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET="15.0"
+            MACOSX_DEPLOYMENT_TARGET="26.0"
             CMAKE_ARGS='-DPython_FIND_STRATEGY=LOCATION'
             CC="clang"
             CXX="clang++"
