@@ -15,7 +15,7 @@ Use the validated factory:
 ```python
 import pycauset as pc
 
-S = pc.symmetric([[2.0, 1.0], [1.0, 5.0]])   # -> pycauset.SymmetricMatrix
+S = pc.symmetric([ [2.0, 1.0], [1.0, 5.0] ])   # -> pycauset.SymmetricMatrix
 ```
 
 The factory checks that the input satisfies $A = A^T$ and then stores only the upper

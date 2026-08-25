@@ -26,7 +26,7 @@ The structure is always validated. Integer/bool input uses exact `A == A.T`; flo
 ```python
 import pycauset as pc
 
-S = pc.symmetric([[2.0, 1.0], [1.0, 5.0]])
+S = pc.symmetric([ [2.0, 1.0], [1.0, 5.0] ])
 S.properties["is_symmetric"]   # True
 ```
 

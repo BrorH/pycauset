@@ -26,7 +26,7 @@ The structure is always validated. Integer/bool input uses exact `A == -A.T`; fl
 ```python
 import pycauset as pc
 
-A = pc.antisymmetric([[0.0, 2.0], [-2.0, 0.0]])
+A = pc.antisymmetric([ [0.0, 2.0], [-2.0, 0.0] ])
 A.properties["is_anti_symmetric"]   # True
 A.properties["has_zero_diagonal"]   # True
 ```

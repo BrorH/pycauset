@@ -36,16 +36,17 @@ theme:
     - content.code.select
     - content.code.annotate
     - content.tabs.link
-  palette: 
-    # Palette toggle for light mode
-    - scheme: default
+  palette:
+    # Follows the OS theme by default; the toggle still overrides per-visitor.
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: deep purple
       accent: teal
       toggle:
-        icon: material/brightness-7 
+        icon: material/brightness-7
         name: Switch to dark mode
-    # Palette toggle for dark mode
-    - scheme: slate
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
       primary: deep purple
       accent: cyan
       toggle:

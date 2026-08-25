@@ -15,7 +15,7 @@ Use the validated factory:
 ```python
 import pycauset as pc
 
-A = pc.antisymmetric([[0.0, 2.0], [-2.0, 0.0]])   # -> pycauset.AntiSymmetricMatrix
+A = pc.antisymmetric([ [0.0, 2.0], [-2.0, 0.0] ])   # -> pycauset.AntiSymmetricMatrix
 ```
 
 The factory checks that the input satisfies $A = -A^T$ and has a zero diagonal, then stores only the strict upper triangle.
