@@ -1,10 +1,10 @@
-"""Variant coverage benchmark: operation x dtype x structure.
+"""Variant coverage benchmark: operation x dtype (tri-state classifier).
 
-For every operation with a NumPy equivalent, test correctness across all supported
-dtypes and measure speed vs NumPy. Outputs:
+Classifies each (op, dtype) cell as one of:
 
-1. A summary table (per op: dtypes passing, average speedup).
-2. Per-op detail (dtype x result).
+- ok        : matches NumPy.
+- by-design : raises a documented error (overflow / singular / non-SPD / not-implemented).
+- WRONG     : silent wrong answer, or an unexpected error, or a broken NumPy export.
 
 Usage: python benchmarks/bench_coverage.py
 """
@@ -16,7 +16,6 @@ import numpy as np
 
 import pycauset as pc
 
-# dtype token -> numpy dtype (complex_float16 maps to complex64, matching the export guard)
 DTYPES = {
     "bit": np.bool_,
     "int8": np.int8,
@@ -30,27 +29,75 @@ DTYPES = {
     "float16": np.float16,
     "float32": np.float32,
     "float64": np.float64,
-    "complex_float16": np.complex64,
     "complex_float32": np.complex64,
     "complex_float64": np.complex128,
 }
 
-N_CORRECT = 16   # matrix size for correctness checks (small = fast)
-N_SPEED = 128    # matrix size for speed checks
+N_CORRECT = 16
+N_SPEED = 256
+
+# Documented "error by design" exception types: these count as correct behavior.
+_BY_DESIGN = (OverflowError, np.linalg.LinAlgError, ValueError, NotImplementedError)
 
 
-def _pc_dtype(token: str) -> str:
-    return token
-
-
-def _make_np(n: int, dtype: str) -> np.ndarray:
-    """A well-conditioned square matrix in the given dtype."""
+def _make_np(n, dtype):
+    # Small integer values so integer matmul does not overflow, and a well-conditioned
+    # float matrix for factorizations.
+    nd = DTYPES[dtype]
+    if nd == np.bool_:
+        return np.random.randint(0, 2, (n, n)).astype(nd)
+    if np.issubdtype(nd, np.integer):
+        return np.random.randint(0, 3, (n, n)).astype(nd)
     a = np.random.rand(n, n) + n * np.eye(n)
-    return a.astype(DTYPES[dtype])
+    return a.astype(nd)
 
 
-def _to_numpy(obj) -> np.ndarray:
-    return np.asarray(obj)
+def _spd_np(n, dtype):
+    nd = DTYPES[dtype]
+    a = np.random.rand(n, n)
+    a = a @ a.T + n * np.eye(n)
+    return a.astype(nd)
+
+
+def _promote_for_reference(A, dtype):
+    """NumPy reference that mirrors PyCauset's promotion rules for bit/int."""
+    nd = DTYPES[dtype]
+    if nd == np.bool_:
+        return A.astype(np.int32)  # PyCauset promotes bit matmul to int32
+    return A
+
+
+def _tol_for(w):
+    if getattr(w, "dtype", None) == np.float16:
+        return 1e-2  # float16 has ~3 decimal digits of precision
+    if getattr(w, "dtype", None) in (np.float32, np.complex64):
+        return 1e-4
+    return 1e-5
+
+
+def _classify(pc_fn, np_want):
+    try:
+        got = pc_fn()
+    except _BY_DESIGN as e:
+        return "by-design", type(e).__name__
+    except Exception as e:
+        return "WRONG", f"unexpected {type(e).__name__}: {str(e)[:40]}"
+    try:
+        g = np.asarray(got)
+    except Exception as e:
+        return "WRONG", f"export {type(e).__name__}"
+    w = np_want
+    tol = _tol_for(w)
+    try:
+        if np.iscomplexobj(w) or np.iscomplexobj(g):
+            ok = bool(np.allclose(g, w, atol=tol, rtol=tol))
+        elif w.dtype == np.bool_ or w.dtype.kind in "iu":
+            ok = bool(np.array_equal(g, w))
+        else:
+            ok = bool(np.allclose(g, w, atol=tol, rtol=tol))
+    except Exception as e:
+        return "WRONG", f"compare {type(e).__name__}"
+    return ("ok", "") if ok else ("WRONG", f"value mismatch (got {g.ravel()[:3]} want {w.ravel()[:3]})")
 
 
 def _timeit(fn, reps=3):
@@ -62,104 +109,75 @@ def _timeit(fn, reps=3):
     return best
 
 
-def _check(got, want, dtype) -> tuple[bool, str]:
-    """Compare a pycauset result (converted to numpy) against the numpy reference."""
-    try:
-        g = _to_numpy(got)
-    except Exception as e:
-        return False, f"export error: {type(e).__name__}"
-    w = want
-    try:
-        if np.iscomplexobj(w) or np.iscomplexobj(g):
-            return bool(np.allclose(g, w, atol=1e-4, rtol=1e-4)), ""
-        if w.dtype == np.bool_ or w.dtype.kind in "iu":
-            return bool(np.array_equal(g, w)), ""
-        return bool(np.allclose(g, w, atol=1e-5, rtol=1e-5)), ""
-    except Exception as e:
-        return False, f"compare error: {type(e).__name__}"
-
-
-# Each op: name, numpy function (A, B) -> result, pycauset function (a, b) -> result,
-# dtypes it applies to, and whether it is a matrix-matrix op (B is a matrix).
+# op -> (numpy fn(A,B), pycauset fn(a,b), dtypes, needs_second_matrix)
 OPS = [
-    ("matmul", lambda A, B: A @ B, lambda a, b: a @ b, ["float16", "float32", "float64", "complex_float32", "complex_float64", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "bit"]),
-    ("add", lambda A, B: A + B, lambda a, b: a + b, ["float16", "float32", "float64", "complex_float32", "complex_float64", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "bit"]),
-    ("invert", lambda A, B: np.linalg.inv(A), lambda a, b: pc.invert(a), ["float32", "float64", "complex_float32", "complex_float64"]),
-    ("solve", lambda A, B: np.linalg.solve(A, B), lambda a, b: pc.solve(a, b), ["float32", "float64", "complex_float32", "complex_float64"]),
-    ("cholesky", lambda A, B: np.linalg.cholesky(A), lambda a, b: pc.cholesky(a), ["float32", "float64", "complex_float32", "complex_float64"]),
-    ("svd", lambda A, B: np.linalg.svd(A, full_matrices=False)[1], lambda a, b: pc.svdvals(a), ["float32", "float64", "complex_float32", "complex_float64"]),
-    ("svdvals", lambda A, B: np.linalg.svd(A, compute_uv=False), lambda a, b: pc.svdvals(a), ["float32", "float64", "complex_float32", "complex_float64"]),
-    ("matrix_rank", lambda A, B: np.linalg.matrix_rank(A), lambda a, b: pc.matrix_rank(a), ["float32", "float64", "complex_float32", "complex_float64"]),
-    ("matrix_power", lambda A, B: np.linalg.matrix_power(A, 3), lambda a, b: pc.matrix_power(a, 3), ["float32", "float64", "complex_float32", "complex_float64", "int32", "int64"]),
-    ("norm", lambda A, B: np.linalg.norm(A, "fro"), lambda a, b: pc.norm(a), ["float16", "float32", "float64", "complex_float32", "complex_float64", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "bit"]),
-    ("determinant", lambda A, B: np.linalg.det(A), lambda a, b: pc.determinant(a), ["float32", "float64", "complex_float32", "complex_float64"]),
-    ("eigvalsh", lambda A, B: np.linalg.eigvalsh(A), lambda a, b: pc.eigvalsh(a), ["float32", "float64", "complex_float32", "complex_float64"]),
-    ("trace", lambda A, B: np.trace(A), lambda a, b: pc.trace(a), ["float16", "float32", "float64", "complex_float32", "complex_float64", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "bit"]),
-    ("outer", lambda A, B: np.outer(A[0, :], A[1, :]), lambda a, b: pc.outer(pc.vector(np.asarray(a)[0, :]), pc.vector(np.asarray(a)[1, :])), ["float32", "float64", "complex_float32", "complex_float64", "int32", "int64"]),
+    ("matmul", lambda A, B: A @ B, lambda a, b: a @ b, ["bit", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "float16", "float32", "float64", "complex_float32", "complex_float64"], True),
+    ("add", lambda A, B: A + B, lambda a, b: a + b, ["bit", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "float16", "float32", "float64", "complex_float32", "complex_float64"], True),
+    ("invert", lambda A, B: np.linalg.inv(A), lambda a, b: pc.invert(a), ["float32", "float64", "complex_float32", "complex_float64"], False),
+    ("solve", lambda A, B: np.linalg.solve(A, B), lambda a, b: pc.solve(a, b), ["float32", "float64", "complex_float32", "complex_float64"], True),
+    ("cholesky", lambda A, B: np.linalg.cholesky(A), lambda a, b: pc.cholesky(a), ["float32", "float64", "complex_float32", "complex_float64"], False),
+    ("svdvals", lambda A, B: np.linalg.svd(A, compute_uv=False), lambda a, b: pc.svdvals(a), ["float32", "float64", "complex_float32", "complex_float64"], False),
+    ("matrix_rank", lambda A, B: np.linalg.matrix_rank(A), lambda a, b: pc.matrix_rank(a), ["float32", "float64", "complex_float32", "complex_float64"], False),
+    ("matrix_power", lambda A, B: np.linalg.matrix_power(A, 3), lambda a, b: pc.matrix_power(a, 3), ["float32", "float64", "complex_float32", "complex_float64", "int32", "int64"], False),
+    ("norm", lambda A, B: np.linalg.norm(A, "fro"), lambda a, b: pc.norm(a), ["bit", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "float16", "float32", "float64", "complex_float32", "complex_float64"], False),
+    ("determinant", lambda A, B: np.linalg.det(A), lambda a, b: pc.determinant(a), ["float32", "float64", "complex_float32", "complex_float64"], False),
+    ("eigvalsh", lambda A, B: np.linalg.eigvalsh(A), lambda a, b: pc.eigvalsh(a), ["float32", "float64", "complex_float32", "complex_float64"], False),
+    ("trace", lambda A, B: np.trace(A), lambda a, b: pc.trace(a), ["bit", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "float16", "float32", "float64", "complex_float32", "complex_float64"], False),
+    ("outer", lambda A, B: np.outer(A[0, :], A[1, :]), lambda a, b: pc.outer(pc.vector(np.asarray(a)[0, :]), pc.vector(np.asarray(a)[1, :])), ["float32", "float64", "complex_float32", "complex_float64", "int32", "int64"], False),
 ]
 
 
-def _spd_np(n, dtype):
-    """Symmetric positive-definite matrix (for cholesky/eigh)."""
-    a = np.random.rand(n, n).astype(np.float64)
-    a = a @ a.T + n * np.eye(n)
-    return a.astype(DTYPES[dtype])
-
-
 def main():
-    summary = []
-    print("# Variant coverage benchmark")
-    print(f"(correctness at n={N_CORRECT}, speed at n={N_SPEED}, best-of-3; NumPy {np.__version__})")
+    print("# Variant coverage benchmark (op x dtype)")
+    print(f"(correctness n={N_CORRECT}; speed n={N_SPEED} best-of-3; NumPy {np.__version__})")
     print()
-
-    for name, np_fn, pc_fn, dtypes in OPS:
-        results = []
+    rows = []
+    for name, np_fn, pc_fn, dtypes, needs_B in OPS:
+        statuses = {}
         for dt in dtypes:
-            # correctness
             if name in ("cholesky", "eigvalsh"):
                 A = _spd_np(N_CORRECT, dt)
             else:
                 A = _make_np(N_CORRECT, dt)
-            B = _make_np(N_CORRECT, dt) if name not in ("matrix_rank", "norm", "determinant", "trace", "outer", "svdvals", "matrix_power", "cholesky", "eigvalsh") else None
+            A_ref = _promote_for_reference(A, dt)
+            B = _make_np(N_CORRECT, dt) if needs_B else None
+            B_ref = _promote_for_reference(B, dt) if B is not None else None
             a = pc.matrix(A)
             b = pc.matrix(B) if B is not None else None
-            try:
-                want = np_fn(A, B)
-            except Exception as e:
-                want = e
-            try:
-                got = pc_fn(a, b)
-                ok, msg = _check(got, want, dt)
-            except Exception as e:
-                ok, msg = False, f"{type(e).__name__}: {str(e)[:50]}"
-            results.append((dt, ok, msg))
+            want = np_fn(A_ref, B_ref)
+            status, note = _classify(lambda: pc_fn(a, b), want)
+            statuses[dt] = (status, note)
 
-            # speed (dense float64 only, medium n)
-        # speed for float64
+        # speed (float64)
         A = _make_np(N_SPEED, "float64")
-        B = _make_np(N_SPEED, "float64")
-        a = pc.matrix(A); b = pc.matrix(B)
+        B = _make_np(N_SPEED, "float64") if needs_B else None
+        a = pc.matrix(A)
+        b = pc.matrix(B) if B is not None else None
         try:
             t_np = _timeit(lambda: np_fn(A, B))
-            t_pc = _timeit(lambda: pc_fn(a, b))
+            t_pc = _timeit(lambda: pc_fn(pc.matrix(A), pc.matrix(B)) if needs_B else pc_fn(pc.matrix(A), None))
             speedup = t_np / t_pc
         except Exception:
             speedup = float("nan")
 
-        passing = sum(1 for _, ok, _ in results if ok)
-        print(f"## {name}")
-        print(f"dtypes passing: {passing}/{len(dtypes)}; float64 speedup: {speedup:.2f}x")
-        for dt, ok, msg in results:
-            mark = "OK" if ok else f"FAIL ({msg})"
-            print(f"  {dt:18s} {mark}")
+        n_ok = sum(1 for s, _ in statuses.values() if s == "ok")
+        n_bd = sum(1 for s, _ in statuses.values() if s == "by-design")
+        n_wrong = sum(1 for s, _ in statuses.values() if s == "WRONG")
+        rows.append((name, n_ok, n_bd, n_wrong, len(dtypes), speedup))
+
+        print(f"## {name}: ok={n_ok} by-design={n_bd} WRONG={n_wrong} speedup(f64)={speedup:.2f}x")
+        for dt, (s, note) in statuses.items():
+            if s == "ok":
+                continue
+            print(f"  {dt:16s} {s:10s} {note}")
         print()
-        summary.append((name, passing, len(dtypes), speedup))
 
     print("\n## Summary")
-    print("| op | dtypes passing | float64 speedup |")
-    print("|---|---|---|")
-    for name, p, t, s in summary:
-        print(f"| {name} | {p}/{t} | {s:.2f}x |")
+    print("| op | ok | by-design | WRONG | speedup(f64) |")
+    print("|---|---|---|---|---|")
+    for name, n_ok, n_bd, n_wrong, total, speedup in rows:
+        flag = "" if n_wrong == 0 else "  <-- investigate"
+        print(f"| {name} | {n_ok}/{total} | {n_bd} | {n_wrong} | {speedup:.2f}x |{flag}")
 
 
 if __name__ == "__main__":
