@@ -426,13 +426,15 @@ void MemoryMapper::open_file(bool create_new) {
 
     size_t total_required_size = offset_ + data_size_;
 
-    if (create_new) {
+    if (create_new && filename_ != ":memory:") {
         if (fd_ != -1) {
             // Try fallocate first to pre-allocate blocks (avoids fragmentation and some metadata updates)
             // 0 = default mode (allocate and initialize to zero)
             // We could use FALLOC_FL_KEEP_SIZE if we wanted, but we want to set size.
             // Note: fallocate is not standard POSIX, but available on Linux.
             // If it fails (e.g. not supported by FS), fallback to ftruncate.
+            // (Skipped for :memory: - the shm/memfd in the :memory: branch is already
+            // sized to data_size_, and a second ftruncate fails on macOS shm objects.)
 #ifdef __linux__
             if (fallocate(fd_, 0, 0, total_required_size) != 0) {
                 if (ftruncate(fd_, total_required_size) == -1) {
