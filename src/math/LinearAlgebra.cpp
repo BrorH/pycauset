@@ -828,6 +828,18 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
         return res;
     }
 
+    // TriangularIntegerMatrix x {TriangularBitMatrix, TriangularIntegerMatrix}
+    // -> TriangularIntegerMatrix (product of strictly upper triangular matrices).
+    // Placed before the same-dtype integer case so a TriangularIntegerMatrix
+    // operand is not treated as a dense int32 matrix.
+    auto* a_ti32 = dynamic_cast<const TriangularMatrix<int32_t>*>(&a);
+    auto* b_ti32 = dynamic_cast<const TriangularMatrix<int32_t>*>(&b);
+    if ((a_ti32 && b_tbm) || (a_tbm && b_ti32) || (a_ti32 && b_ti32)) {
+        auto res = std::make_unique<TriangularMatrix<int32_t>>(a.rows(), saveas);
+        ComputeContext::instance().get_device()->matmul(a, b, *res);
+        return res;
+    }
+
     // Same-dtype integer matmul beyond int16/int32 (int8/int64/uint*): allocate and dispatch via device.
     const auto a_dt = a.get_data_type();
     const auto b_dt = b.get_data_type();
@@ -857,7 +869,46 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
         return a_tbm->multiply(*b_tbm, saveas);
     }
 
-    throw std::runtime_error("Unsupported matrix multiplication types.");
+    // DenseBitMatrix x TriangularBitMatrix -> IntegerMatrix (bit x bit promotes to int32)
+    if (a_dbm && b_tbm) {
+        auto res = std::make_unique<IntegerMatrix>(a.rows(), b.cols(), saveas);
+        ComputeContext::instance().get_device()->matmul(*a_dbm, *b_tbm, *res);
+        return res;
+    }
+
+    // TriangularBitMatrix x DenseBitMatrix -> IntegerMatrix (bit x bit promotes to int32)
+    if (a_tbm && b_dbm) {
+        auto res = std::make_unique<IntegerMatrix>(a.rows(), b.cols(), saveas);
+        ComputeContext::instance().get_device()->matmul(*a_tbm, *b_dbm, *res);
+        return res;
+    }
+
+    // General fallback: mixed int/float/bit combinations without a specialized
+    // kernel. Resolve the promoted result dtype and compute via a generic
+    // element-access path (correctness-first).
+    {
+        DataType res_dt = DataType::UNKNOWN;
+        try {
+            res_dt = promotion::resolve(
+                promotion::BinaryOp::Matmul,
+                a.get_data_type(),
+                b.get_data_type()).result_dtype;
+        } catch (...) {
+            res_dt = DataType::UNKNOWN;
+        }
+        const bool real_supported =
+            (res_dt == DataType::FLOAT16 || res_dt == DataType::FLOAT32 || res_dt == DataType::FLOAT64 ||
+             res_dt == DataType::INT8 || res_dt == DataType::INT16 || res_dt == DataType::INT32 ||
+             res_dt == DataType::INT64 ||
+             res_dt == DataType::UINT8 || res_dt == DataType::UINT16 || res_dt == DataType::UINT32 ||
+             res_dt == DataType::UINT64);
+        if (!real_supported) {
+            throw std::runtime_error("Unsupported matrix multiplication types.");
+        }
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dt, MatrixType::DENSE_FLOAT, saveas);
+        ComputeContext::instance().get_device()->matmul(a, b, *res);
+        return res;
+    }
 }
 
 std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& result_file) {

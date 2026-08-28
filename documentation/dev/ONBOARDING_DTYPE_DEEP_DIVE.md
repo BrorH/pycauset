@@ -13,9 +13,11 @@ matrices/vectors with a NumPy-like API, memory-mapped / out-of-core storage, and
 Repo: `C:\Users\ireal\Documents\Projects\pycauset`
 
 Release-1 (R1) gate (authoritative): ship on **correctness + no silent wrong answers +
-explicit support status everywhere**. Optimization (>= 0.90x NumPy, GPU parity,
-streaming-everything) is deferred to a continuous post-R1 program. R1 is nearly shipped;
-the remaining work is release mechanics (CI green, tag v0.5.1, PyPI publish).
+explicit support status everywhere**. Targeted optimization of correctness-first paths is
+in scope where a naive fallback is egregiously slow relative to NumPy (bit-matmul
+popcount, causal-matrix matvec); the full performance program (>= 0.90x NumPy everywhere,
+GPU parity, streaming-everything) remains a continuous post-R1 program. R1 is nearly
+shipped; the remaining work is release mechanics (CI green, tag v0.5.1, PyPI publish).
 
 ## 2. Non-negotiable rules (from the project owner)
 
@@ -126,11 +128,11 @@ C = pc.CausalSet(N, seed=1223).C          # TriangularBitMatrix
 B = pc.ones((N, N), dtype=pc.bool_)       # currently requires dtype; should not
 
 # these should all work after the fix:
-print(pc.ones((N, N)))                    # default dtype, no keyword
-print(pc.zeros((2, 2)))                   # default dtype
-print(pc.empty((2, 2)))                   # default dtype
+print(pc.ones((N, N)))                    # dtype-deferred; resolves to int32
+print(pc.zeros((2, 2)))                   # dtype-deferred; resolves to int32
+e = pc.empty((2, 2)); e.fill(0.0); print(e)  # empty resolves on first write
 print(pc.bool)                            # alias for pc.bool_ (should resolve)
-print(B @ C)                              # bool @ bit matmul (promote)
+print(B @ C)                              # bool @ bit matmul (promote to int32)
 print(pc.dot(B, C))                       # dot should accept matrices
 ```
 
@@ -144,8 +146,10 @@ line in the same commit:
 1. Read `test.py`, `python/pycauset/__init__.py` (zeros/ones/empty/dot/matmul + the dtype
    constants), `python/pycauset/_internal/dtypes.py` (`normalize_dtype`), and
    `src/core/PromotionResolver.cpp` to understand the current promotion rules end to end.
-2. Give `zeros`/`ones`/`empty` a sensible default dtype (float64, matching NumPy) so the
-   `dtype=` keyword becomes optional. Make sure explicit dtype still works.
+2. Give `zeros`/`ones`/`empty` an optional `dtype=` (no longer required). With no dtype
+   they return a dtype-deferred wrapper that resolves to int32 on first use (or to the
+   dtype of the first written value); a still-typeless `empty` raises on read/use.
+   Explicit dtype still works.
 3. Add `bool` as an alias for `bool_` in `normalize_dtype` (and expose `pc.bool`), while
    keeping `bool_` working for back-compat.
 4. Fix bool/bit matmul (`@`) so `B @ C` promotes correctly instead of throwing. The error
@@ -182,8 +186,9 @@ line in the same commit:
 
 ## 10. Definition of done for this mission
 
-- `pc.ones/zeros/empty` work with no dtype argument (default float64) and still accept an
-  explicit dtype.
+- `pc.ones/zeros/empty` work with no dtype argument (a dtype-deferred wrapper that
+  resolves to int32 on first use, or to the first written value's dtype) and still
+  accept an explicit dtype.
 - `pc.bool` resolves (alias of `pc.bool_`), and dtype normalization accepts `bool`.
 - Bool/bit `@` matmul works and produces a correct promoted result (no "unsupported
   matrix multiplication types", no "mixing type error").

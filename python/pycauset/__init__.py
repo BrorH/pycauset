@@ -18,6 +18,7 @@ from ._internal import export_guard as _export_guard
 from ._internal import factories as _factories
 from ._internal import formatting as _formatting
 from ._internal import io_observability as _io_observability
+from ._internal import lazy_allocation as _lazy_allocation
 from ._internal import linalg_cache as _linalg_cache
 from ._internal import matrix_api as _matrix_api
 from ._internal import native as _native_mod
@@ -580,7 +581,12 @@ def to_numpy(obj: Any, *, allow_huge: bool = False, dtype: Any = None, copy: boo
     - By default, file-backed or over-ceiling exports hard-error.
     - Pass allow_huge=True to intentionally materialize.
     - Ceiling is controlled via set_export_max_bytes(...).
+
+    Lazy dtype-deferred allocations (zeros/ones/empty without dtype) are
+    materialized first; a still-typeless empty() raises.
     """
+    if isinstance(obj, _lazy_allocation.LazyAllocated):
+        obj = obj._materialize()
 
     return _export_guard.export_to_numpy(obj, allow_huge=allow_huge, dtype=dtype, copy=copy)
 
@@ -1278,10 +1284,28 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
     raise TypeError("matrix(...) expects 1D or 2D input")
 
 
-def _require_dtype(dtype: Any) -> Any:
-    if dtype is None:
-        raise TypeError("dtype is required for zeros/ones/empty")
-    return dtype
+def _deduce_dtype_from_value(value: Any) -> str:
+    """Map a written Python value to a concrete dtype token.
+
+    Matches the promotion ethos: bool -> "bool", int -> "int32",
+    float -> "float64", complex -> "complex_float64". NumPy scalar types are
+    normalized through `normalize_dtype`.
+    """
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, int):
+        return "int32"
+    if isinstance(value, float):
+        return "float64"
+    if isinstance(value, complex):
+        return "complex_float64"
+    token = _normalize_dtype(type(value), np_module=_np)
+    if token is None:
+        raise TypeError(
+            f"cannot infer a dtype from a value of type {type(value).__name__}; "
+            "pass dtype= explicitly"
+        )
+    return token
 
 
 def _allocate_dense_matrix_by_shape(rows: int, cols: int, *, dtype: Any, kwargs: dict[str, Any]) -> Any:
@@ -1366,9 +1390,11 @@ def _allocate_dense_matrix_by_shape(rows: int, cols: int, *, dtype: Any, kwargs:
     raise TypeError("Unsupported dtype")
 
 
-def zeros(shape: Any, *, dtype: Any, **kwargs: Any) -> Any:
-    """Allocate a vector/matrix filled with zeros. Requires explicit dtype."""
-    dtype = _require_dtype(dtype)
+def _allocate_like(shape: Any, kind: str, dtype: Any, kwargs: dict[str, Any]) -> Any:
+    """Allocate a vector/matrix of the given dtype and apply the fill pattern.
+
+    kind is one of "zeros", "ones", or "empty" (empty applies no fill).
+    """
     if isinstance(shape, int):
         vec = _factories.vector_factory(
             int(shape),
@@ -1391,13 +1417,16 @@ def zeros(shape: Any, *, dtype: Any, **kwargs: Any) -> Any:
             BitVector=_BitVector,
             kwargs=kwargs,
         )
-        vec.fill(0)
+        if kind == "zeros":
+            vec.fill(0)
+        elif kind == "ones":
+            vec.fill(1)
         return vec
 
     if not _is_sequence_like(shape):
         raise TypeError("shape must be an int or a tuple")
     if len(shape) == 1:
-        return zeros(int(shape[0]), dtype=dtype, **kwargs)
+        return _allocate_like(int(shape[0]), kind, dtype, kwargs)
     if len(shape) != 2:
         raise ValueError("shape must be 1D or 2D")
     rows, cols = int(shape[0]), int(shape[1])
@@ -1405,59 +1434,75 @@ def zeros(shape: Any, *, dtype: Any, **kwargs: Any) -> Any:
         mat = _allocate_dense_matrix_by_shape(rows, cols, dtype=dtype, kwargs=kwargs)
     else:
         mat = _matrix_api.Matrix(rows, dtype=dtype, **kwargs)
-    if hasattr(mat, "fill"):
-        mat.fill(0)
+    if kind == "zeros":
+        if hasattr(mat, "fill"):
+            mat.fill(0)
+    elif kind == "ones":
+        if hasattr(mat, "fill"):
+            mat.fill(1)
     return mat
 
 
-def ones(shape: Any, *, dtype: Any, **kwargs: Any) -> Any:
-    """Allocate a vector/matrix filled with ones. Requires explicit dtype."""
-    dtype = _require_dtype(dtype)
-    obj = zeros(shape, dtype=dtype, **kwargs)
-    obj.fill(1)
-    return obj
+def _lazy_allocate(shape: Any, kind: str, kwargs: dict[str, Any]) -> Any:
+    """Build a dtype-deferred allocation wrapper for the given fill pattern."""
+    if isinstance(shape, int):
+        shp = (int(shape),)
+        ndim = 1
+    elif _is_sequence_like(shape):
+        if len(shape) == 1:
+            shp = (int(shape[0]),)
+            ndim = 1
+        elif len(shape) == 2:
+            shp = (int(shape[0]), int(shape[1]))
+            ndim = 2
+        else:
+            raise ValueError("shape must be 1D or 2D")
+    else:
+        raise TypeError("shape must be an int or a tuple")
+
+    def _materialize(dtype: str) -> Any:
+        return _allocate_like(shape, kind, dtype, kwargs)
+
+    return _lazy_allocation.LazyAllocated(
+        kind=kind,
+        shape=shp,
+        ndim=ndim,
+        materialize=_materialize,
+        deduce_dtype=_deduce_dtype_from_value,
+    )
 
 
-def empty(shape: Any, *, dtype: Any, **kwargs: Any) -> Any:
+def zeros(shape: Any, *, dtype: Any = None, **kwargs: Any) -> Any:
+    """Allocate a vector/matrix filled with zeros.
+
+    With no dtype, returns a dtype-deferred wrapper that resolves to int32 on
+    first use (or to the dtype of the first written value).
+    """
+    if dtype is None:
+        return _lazy_allocate(shape, "zeros", kwargs)
+    return _allocate_like(shape, "zeros", dtype, kwargs)
+
+
+def ones(shape: Any, *, dtype: Any = None, **kwargs: Any) -> Any:
+    """Allocate a vector/matrix filled with ones.
+
+    With no dtype, returns a dtype-deferred wrapper that resolves to int32 on
+    first use (or to the dtype of the first written value).
+    """
+    if dtype is None:
+        return _lazy_allocate(shape, "ones", kwargs)
+    return _allocate_like(shape, "ones", dtype, kwargs)
+
+
+def empty(shape: Any, *, dtype: Any = None, **kwargs: Any) -> Any:
     """Allocate a vector/matrix without guaranteeing initialization.
 
-    Note: for some backends this may still be zero-initialized.
-    Requires explicit dtype.
+    With no dtype, returns a dtype-deferred wrapper; using it before a write
+    raises (no silent wrong answer).
     """
-    dtype = _require_dtype(dtype)
-    if isinstance(shape, int):
-        return _factories.vector_factory(
-            int(shape),
-            dtype=dtype,
-            np_module=_np,
-            Float16Vector=_Float16Vector,
-            Float32Vector=_Float32Vector,
-            FloatVector=_FloatVector,
-            ComplexFloat16Vector=_ComplexFloat16Vector,
-            ComplexFloat32Vector=_ComplexFloat32Vector,
-            ComplexFloat64Vector=_ComplexFloat64Vector,
-            Int8Vector=_Int8Vector,
-            Int64Vector=_Int64Vector,
-            UInt8Vector=_UInt8Vector,
-            UInt16Vector=_UInt16Vector,
-            UInt32Vector=_UInt32Vector,
-            UInt64Vector=_UInt64Vector,
-            IntegerVector=_IntegerVector,
-            Int16Vector=_Int16Vector,
-            BitVector=_BitVector,
-            kwargs=kwargs,
-        )
-
-    if not _is_sequence_like(shape):
-        raise TypeError("shape must be an int or a tuple")
-    if len(shape) == 1:
-        return empty(int(shape[0]), dtype=dtype, **kwargs)
-    if len(shape) != 2:
-        raise ValueError("shape must be 1D or 2D")
-    rows, cols = int(shape[0]), int(shape[1])
-    if rows != cols:
-        return _allocate_dense_matrix_by_shape(rows, cols, dtype=dtype, kwargs=kwargs)
-    return _matrix_api.Matrix(rows, dtype=dtype, **kwargs)
+    if dtype is None:
+        return _lazy_allocate(shape, "empty", kwargs)
+    return _allocate_like(shape, "empty", dtype, kwargs)
 
 
 def causal_matrix(source: Any, populate: bool = True, **kwargs: Any) -> Any:
@@ -1519,19 +1564,38 @@ def matmul(a: Any, b: Any) -> Any:
     return _ops.matmul(a, b, deps=_OPS_DEPS)
 
 
-def dot(a: Any, b: Any) -> float | complex:
-    """Compute the dot product of two vectors.
+def dot(a: Any, b: Any) -> Any:
+    """Compute a dot product or matrix product, matching NumPy's `np.dot`.
 
-    This is a convenience wrapper around the vector method `a.dot(b)`.
+    Semantics:
+    - vector . vector: scalar inner product (no implicit conjugation).
+    - matrix . matrix: matrix multiplication.
+    - matrix . vector / vector . matrix: matrix-vector product.
 
-    Notes:
-    - For real vectors, returns a Python `float`.
-    - For complex vectors, returns a Python `complex`.
+    Matrix cases route through `matmul`.
     """
-    fn = getattr(a, "dot", None)
-    if fn is None:
-        raise TypeError("pycauset.dot: expected a vector-like object with a .dot(other) method")
-    return fn(b)
+    native_vector_base = getattr(_native, "VectorBase", None)
+    a_is_vector = native_vector_base is not None and isinstance(a, native_vector_base)
+    b_is_vector = native_vector_base is not None and isinstance(b, native_vector_base)
+
+    if a_is_vector and b_is_vector:
+        fn = getattr(a, "dot", None)
+        if fn is None:
+            raise TypeError("pycauset.dot: expected a vector-like object with a .dot(other) method")
+        return fn(b)
+
+    result = _ops.matmul(a, b, deps=_OPS_DEPS)
+
+    # np.dot(vector, matrix) returns a 1-D vector, but the native vec-mat path
+    # yields a transposed (row) vector; un-transpose it to match np.dot.
+    if a_is_vector and not b_is_vector:
+        transpose = getattr(result, "transpose", None)
+        if callable(transpose):
+            try:
+                result = transpose()
+            except Exception:
+                pass
+    return result
 
 
 def divide(a: Any, b: Any) -> Any:
@@ -2037,6 +2101,8 @@ from .field import ScalarField as ScalarField
 
 
 def __getattr__(name):
+    if name == "bool":
+        return "bool"
     return getattr(_native, name)
 
 
@@ -2089,6 +2155,7 @@ _extra_exports = [
     "clear_io_traces",
     "keep_temp_files",
     "seed",
+    "bool",
     "matrix",
     "vector",
     "zeros",
@@ -2158,7 +2225,9 @@ _extra_exports = [
 for _name in _extra_exports:
     if _name in __all__:
         continue
-    if _name in globals() or getattr(_native, _name, None) is not None:
+    # pc.bool resolves via module __getattr__ (a module global named bool would
+    # shadow the builtin), so it is recognized explicitly here.
+    if _name in globals() or _name == "bool" or getattr(_native, _name, None) is not None:
         __all__.append(_name)
 
 # Lazy ufunc patching is intentionally disabled: the C++ operator overloads handle

@@ -34,8 +34,43 @@ milestone corresponds to **v0.5.1**.
 - GitHub Actions CI matrix (`ci.yml`): Windows / macOS / Linux on Python 3.12.
 - Benchmark harness (`benchmarks/bench.py`, `benchmarks/plot.py`) with graphs, and the
   out-of-core RAM-limit demo (`benchmarks/bench_ram.py`).
+- `bool`: alias for the `bool_` dtype token (both normalize to `"bool"`). `pc.bool`
+  now resolves and is star-exported; `bool_` remains for back-compat.
+- `zeros`/`ones`/`empty` no longer require `dtype=`. With no dtype they return a
+  dtype-deferred wrapper that resolves to `int32` on first use (or to the dtype of
+  the first written value); a still-typeless `empty` raises on read/use.
+- `dot(a, b)` now accepts matrices and matches `np.dot` semantics (vector-vector
+  scalar, matrix-matrix matmul, matrix-vector / vector-matrix products).
+- "constant" structure registered in the properties/structure system
+  (`is_constant` + `constant_value`); `ones` without a dtype carries it.
+- Everyday-use scenario tests (`tests/python/test_everyday_scenarios.py`), each
+  exercised in at least two ways and cross-checked against NumPy, plus a findings
+  note (`documentation/dev/FINDINGS_EVERYDAY_SCENARIOS.md`) and a scenario
+  benchmark script (`benchmarks/scenario_benchmarks.py`).
 
 ### Fixed
+- Bool/bit matmul no longer raises `Unsupported matrix multiplication types`:
+  `DenseBitMatrix @ TriangularBitMatrix` and `TriangularBitMatrix @ DenseBitMatrix`
+  now promote to a dense `int32` result (bit x bit counting semantics).
+- Cubing a causal matrix now works: `TriangularIntegerMatrix x TriangularBitMatrix`
+  and `TriangularIntegerMatrix x TriangularIntegerMatrix` matmul are supported
+  (native `int32` result), so `(C @ C) @ C` and `matrix_power(C, 3)` no longer throw
+  `Unsupported matrix multiplication types`.
+- `TriangularIntegerMatrix` (the result of `C @ C`) now exports to NumPy as
+  `int32` instead of raising `TypeError: data type 'triangularinteger' not
+  understood`.
+- Dense mixed-dtype matmul now works via a general promotion fallback:
+  `int32 @ float64`, `float64 @ int32`, `int32 @ TriangularBitMatrix`, and
+  `float64 @ TriangularBitMatrix` (and their reverses) no longer raise
+  `Unsupported matrix multiplication types`.
+- `matrix_power(C, k)` keeps triangular causal-matrix powers triangular (it no
+  longer densifies to a dense `IntegerMatrix` for some powers).
+- `dot(vector, matrix)` returns a 1-D vector like `np.dot` (previously a
+  transposed `(1, n)` row vector).
+- Wide mixed-integer matmul now promotes to the wider type instead of raising:
+  `int8 @ int16`, `int64 @ int32`, `uint8 @ uint16`, `uint32 @ int32` (promotes to
+  `int64`), and other mixed-width integer combinations all work via a generic
+  integer fallback kernel.
 - `norm(matrix, ord=2)` now returns the spectral norm (largest singular value); it
   previously returned the Frobenius norm for `ord=2`.
 - `np.asarray(IdentityMatrix)` no longer raises `TypeError: data type 'identity' not
@@ -84,3 +119,11 @@ milestone corresponds to **v0.5.1**.
   `MemoryGovernor`, `IOAccelerator`, `OpContract`, `OpRegistry`, `get_storage_root`,
   `set_storage_root`, `make_coordinates`, `sprinkle`). These stay reachable as
   `pycauset.<name>` for advanced use, but are no longer presented as public API.
+
+### Performance
+- `DenseBitMatrix x TriangularBitMatrix` matmul now uses a popcount kernel instead
+  of a naive element loop (~15x faster at n=256).
+- `C @ vector` matvec for `TriangularBitMatrix` now uses scale-first kernels that
+  iterate the set bits (beats NumPy's dense int64 matvec by ~30x at N=5000).
+- R1 goal restated to allow targeted optimization of correctness-first paths where a
+  naive fallback is egregiously slow relative to NumPy.

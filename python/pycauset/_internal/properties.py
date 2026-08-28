@@ -53,6 +53,7 @@ def _get_shape(obj: Any) -> tuple[int, int] | None:
 _BOOL_LIKE_KEYS: frozenset[str] = frozenset(
     {
         "is_zero",
+        "is_constant",
         "is_identity",
         "is_permutation",
         "is_diagonal",
@@ -776,6 +777,7 @@ def effective_structure_from_properties(props: Any) -> str:
     Returns one of:
     - "zero"
     - "identity"
+    - "constant"
     - "diagonal"
     - "symmetric"
     - "antisymmetric"
@@ -787,6 +789,7 @@ def effective_structure_from_properties(props: Any) -> str:
     try:
         is_zero = props.get("is_zero") is True
         is_identity = props.get("is_identity") is True
+        is_constant = props.get("is_constant") is True
         is_diagonal = props.get("is_diagonal") is True
         is_symmetric = props.get("is_symmetric") is True
         is_antisymmetric = props.get("is_anti_symmetric") is True
@@ -799,6 +802,8 @@ def effective_structure_from_properties(props: Any) -> str:
         return "zero"
     if is_identity:
         return "identity"
+    if is_constant:
+        return "constant"
     if is_diagonal or (is_upper and is_lower):
         return "diagonal"
     if is_symmetric:

@@ -85,6 +85,8 @@ def _normalize_dtype_token(token: Any) -> str | None:
         "uint": "uint32",
         "densebit": "bit",
         "triangularbit": "bit",
+        # Triangular integer matrices are stored as int32.
+        "triangularinteger": "int32",
         "integer": "int32",
         # IdentityMatrix has no stored dtype; its scalar is float64 by default.
         "identity": "float64",

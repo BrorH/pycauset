@@ -112,6 +112,13 @@ def _effective_structure_for(obj: Any) -> str:
         return "symmetric"
     if name == "AntiSymmetricMatrix":
         return "antisymmetric"
+    if name == "LazyAllocated":
+        kind = getattr(obj, "kind", None)
+        if kind == "zeros":
+            return "zero"
+        if kind == "ones":
+            return "constant"
+        return "general"
     try:
         props = _props.get_properties(obj)
         return _props.effective_structure_from_properties(props)
@@ -507,6 +514,21 @@ def _matmul_result_structure(a_struct: str, b_struct: str) -> str:
 
 
 def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    # Materialize dtype-deferred allocations so they take the native fast path
+    # (and produce the same promoted result as the `@` operator).
+    try:
+        from .lazy_allocation import LazyAllocated as _LazyAllocated
+        from .lazy_allocation import _is_bit_matrix as _is_bit_matrix
+    except Exception:  # pragma: no cover
+        _LazyAllocated = None  # type: ignore[assignment]
+        _is_bit_matrix = None  # type: ignore[assignment]
+
+    if _LazyAllocated is not None:
+        if isinstance(a, _LazyAllocated):
+            a = a._materialize("bool" if _is_bit_matrix(b) else None)
+        if isinstance(b, _LazyAllocated):
+            b = b._materialize("bool" if _is_bit_matrix(a) else None)
+
     rec = _record_io_trace("matmul", [a, b], deps=deps)
     _prefetch_if_streaming(rec, [a, b], deps=deps)
     # Phase F integration: BlockMatrix routing.

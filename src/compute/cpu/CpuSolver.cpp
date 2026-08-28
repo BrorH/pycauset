@@ -332,6 +332,104 @@ namespace {
         return a + b;
     }
 
+    // Correctness-first integer matmul for mixed-kind inputs. Accumulates in
+    // double, which is exact for integer results up to 2^53, so every integer
+    // width except int64/uint64 is always exact; int64/uint64 results are exact
+    // up to 2^53 (documented boundary).
+    template <typename T>
+    inline void generic_integer_matmul_into(const MatrixBase& a, const MatrixBase& b,
+                                            DenseMatrix<T>& c, uint64_t m, uint64_t k, uint64_t n) {
+        const double lo = static_cast<double>((std::numeric_limits<T>::lowest)());
+        const double hi = static_cast<double>((std::numeric_limits<T>::max)());
+        ParallelFor(0, m, [&](size_t i) {
+            for (size_t j = 0; j < n; ++j) {
+                double sum = 0.0;
+                for (size_t kk = 0; kk < k; ++kk) {
+                    sum += a.get_element_as_double(static_cast<uint64_t>(i), static_cast<uint64_t>(kk)) *
+                           b.get_element_as_double(static_cast<uint64_t>(kk), static_cast<uint64_t>(j));
+                }
+                if (sum > hi || sum < lo) {
+                    throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
+                }
+                c.set(static_cast<uint64_t>(i), static_cast<uint64_t>(j), static_cast<T>(sum));
+            }
+        });
+    }
+
+    // Popcount-based dense bit x dense bit matmul producing int32. Both operands
+    // must be non-transposed with uniform dense column indexing.
+    inline void bit_popcount_matmul(const DenseMatrix<bool>& a, const DenseMatrix<bool>& b,
+                                    DenseMatrix<int32_t>& c) {
+        const uint64_t m = a.rows();
+        const uint64_t k = a.cols();
+        const uint64_t n = b.cols();
+        const uint64_t* a_data = a.data();
+        const uint64_t words_per_row = a.stride_bytes() / 8;
+        const uint64_t rem_bits = k % 64u;
+        const uint64_t last_mask = (rem_bits == 0u) ? ~0ull : ((1ull << rem_bits) - 1ull);
+
+        auto b_transposed_mat = std::make_unique<DenseBitMatrix>(n, k, "");
+        b_transposed_mat->set_temporary(true);
+        uint64_t* b_transposed_data = b_transposed_mat->data();
+
+        for (uint64_t i = 0; i < k; ++i) {
+            for (uint64_t j = 0; j < n; ++j) {
+                if (b.get(i, j)) {
+                    const uint64_t word_idx = i / 64;
+                    const uint64_t bit_idx = i % 64;
+                    b_transposed_data[j * words_per_row + word_idx] |= (1ULL << bit_idx);
+                }
+            }
+        }
+
+        const bool use_avx512 = has_avx512_vpopcntdq();
+
+        ParallelFor(0, m, [&](size_t i) {
+            const uint64_t* a_row = a_data + i * words_per_row;
+            for (uint64_t j = 0; j < n; ++j) {
+                const uint64_t* b_col = b_transposed_data + j * words_per_row;
+                int64_t dot_product = 0;
+                uint64_t w = 0;
+                if (use_avx512) {
+#if defined(__x86_64__) || defined(_M_X64)
+                    const uint64_t avx_limit = words_per_row & ~7ULL;
+                    dot_product = dot_product_avx512(a_row, b_col, avx_limit);
+                    w = avx_limit;
+#endif
+                }
+                for (; w < words_per_row; ++w) {
+                    uint64_t aw = a_row[w];
+                    uint64_t bw = b_col[w];
+                    if (w == words_per_row - 1 && rem_bits != 0u) {
+                        aw &= last_mask;
+                        bw &= last_mask;
+                    }
+                    dot_product = checked_add_int64(dot_product, static_cast<int64_t>(std::popcount(aw & bw)));
+                }
+                if (dot_product > static_cast<int64_t>((std::numeric_limits<int32_t>::max)())) {
+                    throw std::overflow_error("Integer matmul overflow: bit×bit result does not fit in int32 output");
+                }
+                c.set(static_cast<uint64_t>(i), j, static_cast<int32_t>(dot_product));
+            }
+        });
+    }
+
+    // Materialize a strictly-upper triangular bit matrix to a dense bit matrix.
+    inline std::unique_ptr<DenseMatrix<bool>> materialize_bit_to_dense(const TriangularMatrix<bool>& tri) {
+        const uint64_t n = tri.rows();
+        auto dense = std::make_unique<DenseMatrix<bool>>(n, n, "");
+        dense->set_temporary(true);
+        for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t j = i + 1; j < n; ++j) {
+                if (tri.get(i, j)) {
+                    dense->set(i, j, true);
+                }
+            }
+        }
+        dense->set_scalar(tri.get_scalar());
+        return dense;
+    }
+
     template <typename T>
     constexpr bool is_std_complex_v = false;
 
@@ -1424,9 +1522,13 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
         return;
     }
 
-    // 5. BitMatrix Support (bit×bit -> int32)
+    // 5. Bit x Bit -> int32 (popcount), for any mix of dense and triangular bit
+    // matrices. Triangular operands are materialized to dense first so the
+    // popcount kernel can assume uniform dense column indexing.
     auto* c_int = dynamic_cast<DenseMatrix<int32_t>*>(&result);
-    if (a_bit && b_bit && c_int) {
+    auto* a_tbm = dynamic_cast<const TriangularMatrix<bool>*>(&a);
+    auto* b_tbm = dynamic_cast<const TriangularMatrix<bool>*>(&b);
+    if (c_int && (a_bit || a_tbm) && (b_bit || b_tbm)) {
         debug_trace::set_last("cpu.matmul.bitbit_popcount");
         const uint64_t m = a.rows();
         const uint64_t k = a.cols();
@@ -1435,56 +1537,24 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
             throw std::invalid_argument("Dimension mismatch");
         }
 
-        // Optimized popcount kernel: requires non-transposed inputs to safely use raw packed rows.
-        if (!a_bit->is_transposed() && !b_bit->is_transposed()) {
-            const uint64_t* a_data = a_bit->data();
-            const uint64_t words_per_row = a_bit->stride_bytes() / 8;
-            const uint64_t rem_bits = k % 64u;
-            const uint64_t last_mask = (rem_bits == 0u) ? ~0ull : ((1ull << rem_bits) - 1ull);
+        std::unique_ptr<DenseMatrix<bool>> a_holder;
+        std::unique_ptr<DenseMatrix<bool>> b_holder;
+        const DenseMatrix<bool>* a_dense = a_bit;
+        const DenseMatrix<bool>* b_dense = b_bit;
+        if (a_tbm) { a_holder = materialize_bit_to_dense(*a_tbm); a_dense = a_holder.get(); }
+        if (b_tbm) { b_holder = materialize_bit_to_dense(*b_tbm); b_dense = b_holder.get(); }
 
-            auto b_transposed_mat = std::make_unique<DenseBitMatrix>(n, k, "");
-            b_transposed_mat->set_temporary(true);
-            uint64_t* b_transposed_data = b_transposed_mat->data();
-
-            // Build bit-packed columns of B as rows of B^T.
-            for (uint64_t i = 0; i < k; ++i) {
-                for (uint64_t j = 0; j < n; ++j) {
-                    if (b_bit->get(i, j)) {
-                        const uint64_t word_idx = i / 64;
-                        const uint64_t bit_idx = i % 64;
-                        b_transposed_data[j * words_per_row + word_idx] |= (1ULL << bit_idx);
-                    }
-                }
-            }
-
-            const bool use_avx512 = has_avx512_vpopcntdq();
-
+        if (!a_dense->is_transposed() && !b_dense->is_transposed()) {
+            bit_popcount_matmul(*a_dense, *b_dense, *c_int);
+        } else {
+            // Correct generic fallback (supports transpose flags).
             ParallelFor(0, m, [&](size_t i) {
-                const uint64_t* a_row = a_data + i * words_per_row;
                 for (uint64_t j = 0; j < n; ++j) {
-                    const uint64_t* b_col = b_transposed_data + j * words_per_row;
-
                     int64_t dot_product = 0;
-                    uint64_t w = 0;
-
-                    // AVX-512 Loop (8 words = 512 bits per iteration)
-                    if (use_avx512) {
-#if defined(__x86_64__) || defined(_M_X64)
-                        const uint64_t avx_limit = words_per_row & ~7ULL; // Multiple of 8
-                        dot_product = dot_product_avx512(a_row, b_col, avx_limit);
-                        w = avx_limit;
-#endif
-                    }
-
-                    // Scalar Loop (Tail)
-                    for (; w < words_per_row; ++w) {
-                        uint64_t aw = a_row[w];
-                        uint64_t bw = b_col[w];
-                        if (w == words_per_row - 1 && rem_bits != 0u) {
-                            aw &= last_mask;
-                            bw &= last_mask;
+                    for (uint64_t kk = 0; kk < k; ++kk) {
+                        if (a_dense->get(static_cast<uint64_t>(i), kk) && b_dense->get(kk, j)) {
+                            dot_product = checked_add_int64(dot_product, 1);
                         }
-                        dot_product = checked_add_int64(dot_product, static_cast<int64_t>(std::popcount(aw & bw)));
                     }
                     if (dot_product > static_cast<int64_t>((std::numeric_limits<int32_t>::max)())) {
                         throw std::overflow_error("Integer matmul overflow: bit×bit result does not fit in int32 output");
@@ -1492,27 +1562,43 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
                     c_int->set(static_cast<uint64_t>(i), j, static_cast<int32_t>(dot_product));
                 }
             });
+        }
+        c_int->set_scalar(a.get_scalar() * b.get_scalar());
+        return;
+    }
 
-            c_int->set_scalar(a_bit->get_scalar() * b_bit->get_scalar());
-            return;
+    // 5c. Triangular int32 x Triangular {bit, int32} -> Triangular int32.
+    auto* a_ti32 = dynamic_cast<const TriangularMatrix<int32_t>*>(&a);
+    auto* b_ti32 = dynamic_cast<const TriangularMatrix<int32_t>*>(&b);
+    auto* a_tbit = dynamic_cast<const TriangularMatrix<bool>*>(&a);
+    auto* b_tbit = dynamic_cast<const TriangularMatrix<bool>*>(&b);
+    auto* c_ti32 = dynamic_cast<TriangularMatrix<int32_t>*>(&result);
+    if (c_ti32 && (a_ti32 || a_tbit) && (b_ti32 || b_tbit)) {
+        debug_trace::set_last("cpu.matmul.tri_i32");
+        const uint64_t n = a.rows();
+        if (b.rows() != n || result.rows() != n || result.cols() != n) {
+            throw std::invalid_argument("Dimension mismatch");
         }
 
-        // Correct generic fallback (supports transpose flags).
-        ParallelFor(0, m, [&](size_t i) {
-            for (uint64_t j = 0; j < n; ++j) {
-                int64_t dot_product = 0;
-                for (uint64_t kk = 0; kk < k; ++kk) {
-                    if (a_bit->get(static_cast<uint64_t>(i), kk) && b_bit->get(kk, j)) {
-                        dot_product = checked_add_int64(dot_product, 1);
-                    }
+        ParallelFor(0, n, [&](size_t i) {
+            for (uint64_t j = i + 1; j < n; ++j) {
+                double acc = 0.0;
+                for (uint64_t k = i + 1; k < j; ++k) {
+                    const double av = a.get_element_as_double(static_cast<uint64_t>(i), k);
+                    const double bv = b.get_element_as_double(k, j);
+                    acc += av * bv;
                 }
-                if (dot_product > static_cast<int64_t>((std::numeric_limits<int32_t>::max)())) {
-                    throw std::overflow_error("Integer matmul overflow: bit×bit result does not fit in int32 output");
+                if (acc > static_cast<double>((std::numeric_limits<int32_t>::max)())) {
+                    throw std::overflow_error("Integer matmul overflow: triangular result does not fit in int32 output");
                 }
-                c_int->set(static_cast<uint64_t>(i), j, static_cast<int32_t>(dot_product));
+                if (acc != 0.0) {
+                    c_ti32->set(static_cast<uint64_t>(i), j, static_cast<int32_t>(acc));
+                }
             }
         });
-        c_int->set_scalar(a_bit->get_scalar() * b_bit->get_scalar());
+        // get_element_as_double applies the operand scalars, so the raw result
+        // already holds the scaled product and the result scalar is the identity.
+        c_ti32->set_scalar(1.0);
         return;
     }
 
@@ -1682,6 +1768,34 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
             }
         });
         return;
+    }
+
+    // Generic integer result fallback for mixed-kind inputs (int x bit, bit x int,
+    // and mixed-width int). Handles every integer width via a templated helper.
+    {
+        DenseMatrix<int8_t>*   c_i8  = dynamic_cast<DenseMatrix<int8_t>*>(&result);
+        DenseMatrix<int16_t>*  c_i16 = dynamic_cast<DenseMatrix<int16_t>*>(&result);
+        DenseMatrix<int32_t>*  c_i32 = dynamic_cast<DenseMatrix<int32_t>*>(&result);
+        DenseMatrix<int64_t>*  c_i64 = dynamic_cast<DenseMatrix<int64_t>*>(&result);
+        DenseMatrix<uint8_t>*  c_u8  = dynamic_cast<DenseMatrix<uint8_t>*>(&result);
+        DenseMatrix<uint16_t>* c_u16 = dynamic_cast<DenseMatrix<uint16_t>*>(&result);
+        DenseMatrix<uint32_t>* c_u32 = dynamic_cast<DenseMatrix<uint32_t>*>(&result);
+        DenseMatrix<uint64_t>* c_u64 = dynamic_cast<DenseMatrix<uint64_t>*>(&result);
+
+        if (c_i8 || c_i16 || c_i32 || c_i64 || c_u8 || c_u16 || c_u32 || c_u64) {
+            debug_trace::set_last("cpu.matmul.generic_fallback_int");
+            if (b.rows() != k || result.rows() != m || result.cols() != n) {
+                throw std::invalid_argument("Dimension mismatch");
+            }
+            if (c_i8)  { generic_integer_matmul_into(a, b, *c_i8,  m, k, n); return; }
+            if (c_i16) { generic_integer_matmul_into(a, b, *c_i16, m, k, n); return; }
+            if (c_i32) { generic_integer_matmul_into(a, b, *c_i32, m, k, n); return; }
+            if (c_i64) { generic_integer_matmul_into(a, b, *c_i64, m, k, n); return; }
+            if (c_u8)  { generic_integer_matmul_into(a, b, *c_u8,  m, k, n); return; }
+            if (c_u16) { generic_integer_matmul_into(a, b, *c_u16, m, k, n); return; }
+            if (c_u32) { generic_integer_matmul_into(a, b, *c_u32, m, k, n); return; }
+            if (c_u64) { generic_integer_matmul_into(a, b, *c_u64, m, k, n); return; }
+        }
     }
 
     auto* res_dense = dynamic_cast<DenseMatrix<double>*>(&result);
@@ -3082,6 +3196,100 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             res_f64->set_scalar(m_bit->get_scalar() * v_f64->get_scalar());
             return;
         }
+    }
+
+    // TriangularBitMatrix x DenseVector<int32_t> (scale-first).
+    auto* m_tbm = dynamic_cast<const TriangularMatrix<bool>*>(&m);
+    if (m_tbm && v_i32 && res_i32 && !m_tbm->is_transposed()) {
+        debug_trace::set_last("cpu.matvec.tri_bit_x_i32");
+        const uint64_t n = rows;
+        const uint64_t* m_data = m_tbm->data();
+        const int32_t* v_data = v_i32->data();
+        int32_t* res_data = res_i32->data();
+        ParallelFor(0, n, [&](size_t i) {
+            int64_t sum = 0;
+            const uint64_t row_len = (n - 1) - i;
+            const uint64_t words = (row_len + 63) / 64;
+            const uint64_t word_offset = m_tbm->get_row_offset(i) / 8;
+            const uint64_t* row_ptr = m_data + word_offset;
+            for (uint64_t w = 0; w < words; ++w) {
+                uint64_t word = row_ptr[w];
+                while (word) {
+                    const uint64_t bit = static_cast<uint64_t>(std::countr_zero(word));
+                    const uint64_t j = (i + 1) + w * 64 + bit;
+                    if (j < n) {
+                        sum = checked_add_int64(sum, static_cast<int64_t>(v_data[j]));
+                    }
+                    word &= (word - 1);
+                }
+            }
+            if (sum > static_cast<int64_t>((std::numeric_limits<int32_t>::max)()) ||
+                sum < static_cast<int64_t>((std::numeric_limits<int32_t>::min)())) {
+                throw std::overflow_error("Integer matvec overflow: triangular bit x int32 result does not fit in int32 output");
+            }
+            res_data[i] = static_cast<int32_t>(sum);
+        });
+        res_i32->set_scalar(m_tbm->get_scalar() * v_i32->get_scalar());
+        return;
+    }
+
+    // TriangularBitMatrix x DenseVector<double> (scale-first).
+    if (m_tbm && v_f64 && res_f64 && !m_tbm->is_transposed()) {
+        debug_trace::set_last("cpu.matvec.tri_bit_x_f64");
+        const uint64_t n = rows;
+        const uint64_t* m_data = m_tbm->data();
+        const double* v_data = v_f64->data();
+        double* res_data = res_f64->data();
+        ParallelFor(0, n, [&](size_t i) {
+            double sum = 0.0;
+            const uint64_t row_len = (n - 1) - i;
+            const uint64_t words = (row_len + 63) / 64;
+            const uint64_t word_offset = m_tbm->get_row_offset(i) / 8;
+            const uint64_t* row_ptr = m_data + word_offset;
+            for (uint64_t w = 0; w < words; ++w) {
+                uint64_t word = row_ptr[w];
+                while (word) {
+                    const uint64_t bit = static_cast<uint64_t>(std::countr_zero(word));
+                    const uint64_t j = (i + 1) + w * 64 + bit;
+                    if (j < n) {
+                        sum += v_data[j];
+                    }
+                    word &= (word - 1);
+                }
+            }
+            res_data[i] = sum;
+        });
+        res_f64->set_scalar(m_tbm->get_scalar() * v_f64->get_scalar());
+        return;
+    }
+
+    // TriangularBitMatrix x BitVector -> int32 (count set bits).
+    if (m_tbm && v_bit && res_int && !m_tbm->is_transposed()) {
+        debug_trace::set_last("cpu.matvec.tri_bit_x_bit");
+        const uint64_t n = rows;
+        const uint64_t* m_data = m_tbm->data();
+        int32_t* res_data = res_int->data();
+        ParallelFor(0, n, [&](size_t i) {
+            int32_t sum = 0;
+            const uint64_t row_len = (n - 1) - i;
+            const uint64_t words = (row_len + 63) / 64;
+            const uint64_t word_offset = m_tbm->get_row_offset(i) / 8;
+            const uint64_t* row_ptr = m_data + word_offset;
+            for (uint64_t w = 0; w < words; ++w) {
+                uint64_t word = row_ptr[w];
+                while (word) {
+                    const uint64_t bit = static_cast<uint64_t>(std::countr_zero(word));
+                    const uint64_t j = (i + 1) + w * 64 + bit;
+                    if (j < n && v_bit->get(j)) {
+                        sum++;
+                    }
+                    word &= (word - 1);
+                }
+            }
+            res_data[i] = sum;
+        });
+        res_int->set_scalar(m_tbm->get_scalar() * v_bit->get_scalar());
+        return;
     }
 
     // Generic Fallback
