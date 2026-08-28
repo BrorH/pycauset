@@ -38,10 +38,17 @@ jobs:
 
       - name: Deploy extension and run tests under ASan
         env:
-          ASAN_OPTIONS: "detect_leaks=0:halt_on_error=1"
+          ASAN_OPTIONS: "detect_leaks=0:halt_on_error=1:verify_asan_link_order=0"
           OPENBLAS_NUM_THREADS: "1"
         run: |
-          export LD_PRELOAD="$(gcc -print-file-name=libasan.so)"
+          LIBSTDCXX="$(find /usr/lib /lib -name 'libstdc++.so.6' 2>/dev/null | head -n1)"
+          # Preload libstdc++ BEFORE libasan. Python is a C binary, so libstdc++ is
+          # loaded lazily (only when our C++ .so is dlopen'd); if libasan initializes
+          # first, its __cxa_throw interceptor cannot resolve the real libstdc++
+          # __cxa_throw and dies with "real___cxa_throw == 0" on the first C++ throw.
+          # Loading libstdc++ first makes __cxa_throw resolve to the real symbol, so
+          # ASan no longer intercepts it (memory interceptors still work).
+          export LD_PRELOAD="${LIBSTDCXX}:$(gcc -print-file-name=libasan.so)"
           echo "LD_PRELOAD=$LD_PRELOAD"
           # The deploy step imports pycauset, which loads the ASan-instrumented
           # extension, so it needs libasan preloaded too (ASan runtime must come
