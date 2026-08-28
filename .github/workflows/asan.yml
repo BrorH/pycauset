@@ -31,15 +31,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install ".[test]"
 
-      - name: Deploy native extension into source tree
-        run: python -c "import pycauset, pathlib, shutil; sp = pathlib.Path(pycauset.__file__).parent; dst = pathlib.Path('python/pycauset'); [shutil.copy2(str(f), str(dst / f.name)) for pat in ('*.pyd','*.so','*.dylib','*.dll') for f in sp.glob(pat)]; libs = sp / 'libs'; shutil.copytree(str(libs), str(dst / 'libs'), dirs_exist_ok=True) if libs.exists() else None"
-
-      - name: Run full test suite under ASan
+      - name: Deploy extension and run tests under ASan
         env:
           ASAN_OPTIONS: "detect_leaks=0:halt_on_error=1"
           OPENBLAS_NUM_THREADS: "1"
         run: |
-          ASAN_LIB="$(gcc -print-file-name=libasan.so)"
-          export LD_PRELOAD="$ASAN_LIB"
+          export LD_PRELOAD="$(gcc -print-file-name=libasan.so)"
           echo "LD_PRELOAD=$LD_PRELOAD"
+          # The deploy step imports pycauset, which loads the ASan-instrumented
+          # extension, so it needs libasan preloaded too (ASan runtime must come
+          # first in the initial library list).
+          python -c "import pycauset, pathlib, shutil; sp = pathlib.Path(pycauset.__file__).parent; dst = pathlib.Path('python/pycauset'); [shutil.copy2(str(f), str(dst / f.name)) for pat in ('*.pyd','*.so','*.dylib','*.dll') for f in sp.glob(pat)]; libs = sp / 'libs'; shutil.copytree(str(libs), str(dst / 'libs'), dirs_exist_ok=True) if libs.exists() else None"
           python -m pytest tests/python -q
