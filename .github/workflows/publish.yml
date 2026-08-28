@@ -117,3 +117,8 @@ jobs:
           merge-multiple: true
 
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Idempotent publishes: a partial publish (e.g. only some OS wheels made
+          # it to PyPI before a later run) must not fail on "File already exists".
+          # Skip files already on PyPI and upload the rest.
+          skip-existing: true
