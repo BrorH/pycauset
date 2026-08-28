@@ -50,8 +50,17 @@ PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
     }
 }
 
-// PersistentObject::~PersistentObject() {
-// }
+PersistentObject::~PersistentObject() {
+    // Derived matrix types do not call close() from their destructors, so the
+    // MemoryGovernor's LRU would otherwise accumulate dangling PersistentObject*
+    // entries and evict_until_fits() would dereference them (use-after-free).
+    // Unregister here so the governor only ever holds live objects. Safe if
+    // already unregistered (close()/spill_to_disk() ran first): unregister is a
+    // no-op when the pointer is absent.
+    if (storage_state_ == pycauset::core::StorageState::RAM_ONLY) {
+        pycauset::core::MemoryGovernor::instance().unregister_object(this);
+    }
+}
 
 std::string PersistentObject::get_backing_file() const {
     if (mapper_) {

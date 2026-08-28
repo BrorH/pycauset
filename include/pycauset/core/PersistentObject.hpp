@@ -40,8 +40,7 @@ public:
                      bool is_transposed = false,
                      bool is_temporary = false);
 
-    virtual ~PersistentObject() {
-    }
+    virtual ~PersistentObject();
 
     virtual std::unique_ptr<PersistentObject> clone() const = 0;
 

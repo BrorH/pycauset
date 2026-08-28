@@ -49,6 +49,12 @@ milestone corresponds to **v0.5.1**.
   benchmark script (`benchmarks/scenario_benchmarks.py`).
 
 ### Fixed
+- Fixed a use-after-free in the memory governor: `PersistentObject`'s destructor
+  never unregistered the object from `MemoryGovernor`, so its LRU accumulated
+  dangling `PersistentObject*` entries and `evict_until_fits()` dereferenced them via
+  `spill_to_disk()` under memory pressure. This caused intermittent constructor
+  crashes (Linux SIGSEGV, macOS SIGBUS) during the large-allocation stress test.
+  `~PersistentObject()` now unregisters.
 - Bool/bit matmul no longer raises `Unsupported matrix multiplication types`:
   `DenseBitMatrix @ TriangularBitMatrix` and `TriangularBitMatrix @ DenseBitMatrix`
   now promote to a dense `int32` result (bit x bit counting semantics).

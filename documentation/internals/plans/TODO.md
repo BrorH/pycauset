@@ -16,17 +16,22 @@ status lives in `R1_EXECUTION.md`.
 - [ ] API lock: mark `_internal` as private (`__all__` is already curated)
 
 ### Known issues (bugs, fix post-R1, do not forget)
-- **Concurrent native operations are not thread-safe** (Linux segfault, GCC build).
-  Constructing, saving, loading, or deleting native matrices from multiple threads at
-  once crashes in the native layer. Serializing only construction was tried and did
-  not help, because the concurrent save/load/delete paths also corrupt shared
-  MemoryGovernor/MemoryMapper state. `test_threaded_io_stress` is skipped in R1; the
-  root cause needs ASan-on-Linux debugging and proper locking across the whole
-  allocation + I/O path.
+- **Concurrent native operations may not be thread-safe** (unverified after the
+  dangling-pointer fix). `test_threaded_io_stress` stays skipped in R1; the segfaults
+  it produced were the governor dangling-pointer bug below, but true concurrent
+  save/load/delete thread-safety has not been separately proven.
 - **Teardown hang in `release_tracked_matrices()`** (mitigated by skipping native
   `close()` during interpreter finalization; root cause unfixed).
-- **Heap-corruption heisenbug** (was MinGW-specific; MSVC is clean, verify GCC/Clang).
 - **Dead code / deprecated-feature sweep** (leftover stubs and stray build artifacts).
+
+### Resolved (R1)
+- **Constructor segfault / heap-corruption heisenbug (Linux SIGSEGV, macOS SIGBUS)**:
+  root cause was `PersistentObject`'s destructor never calling
+  `MemoryGovernor::unregister_object()`, so the governor LRU accumulated dangling
+  `PersistentObject*` entries and `evict_until_fits()` dereferenced them via
+  `spill_to_disk()` under memory pressure (ASan: heap-buffer-overflow in
+  `PersistentObject::spill_to_disk()`). Fixed by unregistering in
+  `~PersistentObject()`.
 
 ### Deferred optimization (continuous post-R1 program)
 - Achieve >= 0.90x NumPy throughput for every op (the "never slower than NumPy" bar).
