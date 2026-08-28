@@ -1,7 +1,7 @@
 # R1 Execution Status (canonical)
 
 **Status:** Active: single source of truth for Release-1 (backend) progress.
-**Last verified:** 2026-08-24
+**Last verified:** 2026-08-28
 **Roadmap graph:** `TODO.md` · **SRP gates:** `SUPPORT_READINESS_FRAMEWORK.md`
 
 > Updated ONLY when something is verified by running code. Never claims "done"
@@ -57,8 +57,11 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
   Per decision, elementwise integer arithmetic is now *documented* as C/NumPy wraparound
   (Philosophy.md, DType System.md §5.1, release1/dtypes.md); only `matmul` reductions throw
   `OverflowError`. Pinned by `TestIntegerOverflowPolicy`.
-- **"Heap-corruption Heisenbug" was MinGW-specific**: MSVC (with/without ASan) runs the
-  full suite cleanly with zero ASan errors.
+- **"Heap-corruption Heisenbug" root-caused and fixed** (`d8025be`): it was not
+  MinGW-specific. The `PersistentObject` destructor never unregistered the object from
+  `MemoryGovernor`, so the LRU accumulated dangling `PersistentObject*` entries and
+  `evict_until_fits()` dereferenced them via `spill_to_disk()` under memory pressure
+  (Linux ASan: heap-buffer-overflow; Linux SIGSEGV / macOS SIGBUS in the constructor).
 
 **Remaining (no failures: deferred features, not correctness):**
 - Eigen-*cache* persistence to the `.pycauset` container (avoid recompute on reload) is a
@@ -70,11 +73,14 @@ R1 ships when the backend is **correct and trustworthy**, not maximally fast.
   `release_tracked_matrices()` now skips native `close()` during interpreter finalization
   (the OS reclaims mappings and `_cleanup_storage` handles temp files); the underlying
   root cause of the native close hang is tracked for a post-R1 fix.
-- **Concurrent native matrix construction is not thread-safe** (Linux segfault in
-  `test_threaded_io_stress`): constructing matrices from multiple threads simultaneously
-  crashes in the native constructor. The threaded I/O test now serializes construction
-  and tests file I/O (save/load/delete) concurrently. The construction race is tracked
-  for a post-R1 fix.
+- **Concurrent native matrix construction is not thread-safe** (tracked post-R1).
+  `test_threaded_io_stress` is skipped in R1. The earlier Linux segfault in that test
+  was actually the governor dangling-pointer bug above, now fixed; true concurrent
+  save/load/delete thread-safety has not been separately proven.
+- **Linux memory detection fixed** (`807e0e7` + `9b229bd`): `MemoryGovernor` used
+  `sysinfo().freeram` (MemFree), which excludes page cache and read artificially low
+  after a build, wrongly routing small/bit ops to disk/streaming. It now reads
+  `MemAvailable` from `/proc/meminfo`.
 
 **Environment:** MSVC Build Tools 2026 → canonical CPU build works (`build_msvc`).
 **CUDA blocked by toolchain:** CUDA 13.0 (installed) has *dropped* Pascal (GTX 1060 = CC 6.1,
@@ -139,9 +145,12 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
 **Phase 5: release mechanics (R1_REL)**
 - [x] `CHANGELOG.md` written (R1 → v0.5.1 section).
 - [x] **GPU-in-R1 decision: ship CPU-only** (skipped for R1; deferred to post-R1).
-- [ ] CI green on the 3-OS matrix (first GitHub run; exercises Linux/macOS wheels).
-- [ ] Linux build verified by maintainer (in progress, not today).
-- [ ] Tag `v0.5.1` and cut the release (setuptools_scm will pick up the tag as the version).
+- [x] CI green on the 3-OS matrix (Ubuntu/macOS/Windows all pass; Linux ASan clean,
+  2026-08-28).
+- [ ] Linux build verified by maintainer (CI green now; manual spot-check optional).
+- [ ] Tag the release and cut it (setuptools_scm picks up the tag). **Versioning note:**
+  the plan below says `v0.5.1`, but `v0.6.0` is already tagged and is the latest on
+  PyPI, so the next release must be `v0.6.1` (or `v0.7.0`), not `v0.5.1`.
 
 **R1 CPU-only is ready to ship.** The only remaining steps are maintainer release actions
 below (tag, CI/Linux verification, PyPI publish): no further code changes required.
