@@ -1,4 +1,4 @@
-﻿#include "bindings_common.hpp"
+#include "bindings_common.hpp"
 #include <vector>
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #include <immintrin.h>
@@ -3239,8 +3239,25 @@ void bind_matrix_classes(py::module_& m) {
                 } catch (...) {
                 }
 
+                // Duck-typed matrix/vector: rows/cols or size. Check BEFORE the
+                // sequence branch, because native matrices expose __getitem__ and would
+                // otherwise match py::sequence and then fail len() (they have no __len__).
+                if (py::hasattr(x, "rows") && py::hasattr(x, "cols")) {
+                    py::object rows_attr = x.attr("rows");
+                    py::object cols_attr = x.attr("cols");
+                    uint64_t rows = PyCallable_Check(rows_attr.ptr()) ? rows_attr().cast<uint64_t>() : rows_attr.cast<uint64_t>();
+                    uint64_t cols = PyCallable_Check(cols_attr.ptr()) ? cols_attr().cast<uint64_t>() : cols_attr.cast<uint64_t>();
+                    return std::make_shared<IdentityMatrix<double>>(rows, cols, "");
+                }
+
+                if (py::hasattr(x, "size")) {
+                    py::object size_attr = x.attr("size");
+                    uint64_t n = PyCallable_Check(size_attr.ptr()) ? size_attr().cast<uint64_t>() : size_attr.cast<uint64_t>();
+                    return std::make_shared<IdentityMatrix<double>>(n, "");
+                }
+
                 // Sequence [rows, cols]
-                if (py::isinstance<py::sequence>(x)) {
+                if (py::hasattr(x, "__len__") && py::isinstance<py::sequence>(x)) {
                     py::sequence seq = x.cast<py::sequence>();
                     if (py::len(seq) == 2) {
                         py::object r0 = seq[0];
@@ -3252,21 +3269,6 @@ void bind_matrix_classes(py::module_& m) {
                         uint64_t cols = c0.cast<uint64_t>();
                         return std::make_shared<IdentityMatrix<double>>(rows, cols, "");
                     }
-                }
-
-                // Duck-typed matrix/vector: rows/cols or size
-                if (py::hasattr(x, "rows") && py::hasattr(x, "cols")) {
-                    py::object rows_attr = x.attr("rows");
-                    py::object cols_attr = x.attr("cols");
-                    uint64_t rows = PyCallable_Check(rows_attr.ptr()) ? rows_attr().cast<py::function>()().cast<uint64_t>() : rows_attr.cast<uint64_t>();
-                    uint64_t cols = PyCallable_Check(cols_attr.ptr()) ? cols_attr().cast<py::function>()().cast<uint64_t>() : cols_attr.cast<uint64_t>();
-                    return std::make_shared<IdentityMatrix<double>>(rows, cols, "");
-                }
-
-                if (py::hasattr(x, "size")) {
-                    py::object size_attr = x.attr("size");
-                    uint64_t n = PyCallable_Check(size_attr.ptr()) ? size_attr().cast<py::function>()().cast<uint64_t>() : size_attr.cast<uint64_t>();
-                    return std::make_shared<IdentityMatrix<double>>(n, "");
                 }
 
                 throw py::type_error("IdentityMatrix(x) expects an int, [rows, cols], or a matrix/vector");
