@@ -49,6 +49,12 @@ milestone corresponds to **v0.5.1**.
   benchmark script (`benchmarks/scenario_benchmarks.py`).
 
 ### Fixed
+- Fixed Linux memory detection: `MemoryGovernor` used `sysinfo().freeram`
+  (MemFree), which excludes reclaimable page cache and reads artificially low
+  right after a build, so `can_fit_in_ram()`/`request_ram()` wrongly routed small
+  and bit-matrix operations to disk/streaming (`test_ram_backed_small_object`,
+  `test_scalar_optimization`, `test_scale_first_bit_guard` failures on Linux). It
+  now reads `MemAvailable` from `/proc/meminfo`, with a `sysinfo()` fallback.
 - Fixed a use-after-free in the memory governor: `PersistentObject`'s destructor
   never unregistered the object from `MemoryGovernor`, so its LRU accumulated
   dangling `PersistentObject*` entries and `evict_until_fits()` dereferenced them via

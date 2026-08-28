@@ -2,6 +2,7 @@
 #include "pycauset/core/PersistentObject.hpp" // We will need this later for eviction
 #include <iostream>
 #include <algorithm>
+#include <fstream>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -75,12 +76,37 @@ void MemoryGovernor::refresh_system_stats() const {
          cached_available_ram_ = 1024 * 1024 * 1024; // Assume 1GB
     }
 #else
-    struct sysinfo info;
-    if (sysinfo(&info) == 0) {
-        cached_total_ram_ = (uint64_t)info.totalram * info.mem_unit;
-        cached_available_ram_ = (uint64_t)info.freeram * info.mem_unit;
+    // Linux: sysinfo().freeram reports MemFree, which excludes reclaimable page
+    // cache and reads artificially low right after a build (most RAM sits in
+    // cache), causing can_fit_in_ram()/request_ram() to wrongly route small and
+    // bit-matrix operations to disk/streaming. Use MemAvailable from
+    // /proc/meminfo (the kernel's "memory available without swapping" estimate)
+    // instead. Fall back to sysinfo() if /proc/meminfo is unavailable.
+    uint64_t mem_available = 0;
+    uint64_t mem_total = 0;
+    {
+        std::ifstream meminfo("/proc/meminfo");
+        std::string key;
+        uint64_t kb = 0;
+        while (meminfo >> key) {
+            if (key == "MemAvailable:") {
+                if (meminfo >> kb) mem_available = kb * 1024;
+            } else if (key == "MemTotal:") {
+                if (meminfo >> kb) mem_total = kb * 1024;
+            }
+        }
+    }
+    if (mem_available != 0) {
+        cached_total_ram_ = (mem_total != 0) ? mem_total : cached_total_ram_;
+        cached_available_ram_ = mem_available;
     } else {
-        cached_available_ram_ = 1024 * 1024 * 1024; // Assume 1GB free
+        struct sysinfo info;
+        if (sysinfo(&info) == 0) {
+            cached_total_ram_ = (uint64_t)info.totalram * info.mem_unit;
+            cached_available_ram_ = (uint64_t)info.freeram * info.mem_unit;
+        } else {
+            cached_available_ram_ = 1024 * 1024 * 1024; // Assume 1GB free
+        }
     }
 #endif
 }
