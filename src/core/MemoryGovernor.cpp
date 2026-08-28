@@ -97,7 +97,7 @@ void MemoryGovernor::refresh_system_stats() const {
         }
     }
     if (mem_available != 0) {
-        cached_total_ram_ = (mem_total != 0) ? mem_total : cached_total_ram_;
+        cached_total_ram_ = (mem_total != 0) ? mem_total : cached_total_ram_.load();
         cached_available_ram_ = mem_available;
     } else {
         struct sysinfo info;
