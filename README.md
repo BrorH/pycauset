@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="documentation/docs/assets/logo/logo.png" width="150" alt="PyCauset Logo" style="vertical-align: middle; margin-right: 20px;">
-  <img src="documentation/docs/assets/logo/logo-text-colour.png" width="300" alt="PyCauset Text" style="vertical-align: middle;">
+  <img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/logo/logo.png" width="150" alt="PyCauset Logo" style="vertical-align: middle; margin-right: 20px;">
+  <img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/logo/logo-text-colour.png" width="300" alt="PyCauset Text" style="vertical-align: middle;">
 
   <br><br>
 
@@ -36,7 +36,7 @@ fig = plot_embedding(c)             # interactive Plotly figure
 fig.show()
 ```
 
-<img src="documentation/docs/assets/gallery/diamond_embedding.png" width="520" alt="3000 points in a 2D Minkowski diamond">
+<img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/gallery/diamond_embedding.png" width="520" alt="3000 points in a 2D Minkowski diamond">
 
 
 
@@ -88,10 +88,10 @@ However, the biggest reason to use PyCauset is that it memory-maps past RAM, whe
 
 Both images come straight from the public API. Reproduce them with `scripts/make_r1_gallery.py`.
 
-<img src="documentation/docs/assets/gallery/diamond_hasse.png" width="420" alt="Hasse diagram of an 80-point diamond">
+<img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/gallery/diamond_hasse.png" width="420" alt="Hasse diagram of an 80-point diamond">
 *The causal links of an 80-point diamond (Hasse diagram).*
 
-<img src="documentation/docs/assets/gallery/cylinder_embedding.png" width="420" alt="3000 points on a Minkowski cylinder">
+<img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/gallery/cylinder_embedding.png" width="420" alt="3000 points on a Minkowski cylinder">
 *3000 points sprinkled onto a Minkowski cylinder, rendered as a 3D tube.*
 
 ## Installation
