@@ -16,11 +16,13 @@ status lives in `R1_EXECUTION.md`.
 - [ ] API lock: mark `_internal` as private (`__all__` is already curated)
 
 ### Known issues (bugs, fix post-R1, do not forget)
-- **Concurrent native matrix construction is not thread-safe** (Linux segfault, GCC
-  build). Constructing native matrices from multiple threads at once crashes in the
-  native constructor. Mitigated by serializing construction in
-  `test_threaded_io_stress`; the root cause needs ASan-on-Linux debugging and proper
-  locking in the allocation path.
+- **Concurrent native operations are not thread-safe** (Linux segfault, GCC build).
+  Constructing, saving, loading, or deleting native matrices from multiple threads at
+  once crashes in the native layer. Serializing only construction was tried and did
+  not help, because the concurrent save/load/delete paths also corrupt shared
+  MemoryGovernor/MemoryMapper state. `test_threaded_io_stress` is skipped in R1; the
+  root cause needs ASan-on-Linux debugging and proper locking across the whole
+  allocation + I/O path.
 - **Teardown hang in `release_tracked_matrices()`** (mitigated by skipping native
   `close()` during interpreter finalization; root cause unfixed).
 - **Heap-corruption heisenbug** (was MinGW-specific; MSVC is clean, verify GCC/Clang).
