@@ -426,53 +426,56 @@ void MemoryMapper::open_file(bool create_new) {
 
     size_t total_required_size = offset_ + data_size_;
 
-    if (create_new && filename_ != ":memory:") {
-        if (fd_ != -1) {
-            // Try fallocate first to pre-allocate blocks (avoids fragmentation and some metadata updates)
-            // 0 = default mode (allocate and initialize to zero)
-            // We could use FALLOC_FL_KEEP_SIZE if we wanted, but we want to set size.
-            // Note: fallocate is not standard POSIX, but available on Linux.
-            // If it fails (e.g. not supported by FS), fallback to ftruncate.
-            // (Skipped for :memory: - the shm/memfd in the :memory: branch is already
-            // sized to data_size_, and a second ftruncate fails on macOS shm objects.)
+    // File sizing/validation only applies to real files. For :memory:, the shm/memfd
+    // in the :memory: branch above is already sized to data_size_ and has no header,
+    // so neither the create_new resize nor the load-time fstat checks should run.
+    if (filename_ != ":memory:") {
+        if (create_new) {
+            if (fd_ != -1) {
+                // Try fallocate first to pre-allocate blocks (avoids fragmentation and some metadata updates)
+                // 0 = default mode (allocate and initialize to zero)
+                // We could use FALLOC_FL_KEEP_SIZE if we wanted, but we want to set size.
+                // Note: fallocate is not standard POSIX, but available on Linux.
+                // If it fails (e.g. not supported by FS), fallback to ftruncate.
 #ifdef __linux__
-            if (fallocate(fd_, 0, 0, total_required_size) != 0) {
+                if (fallocate(fd_, 0, 0, total_required_size) != 0) {
+                    if (ftruncate(fd_, total_required_size) == -1) {
+                        close(fd_);
+                        throw std::runtime_error("Failed to resize file (fallocate & ftruncate failed)");
+                    }
+                }
+#else
                 if (ftruncate(fd_, total_required_size) == -1) {
                     close(fd_);
-                    throw std::runtime_error("Failed to resize file (fallocate & ftruncate failed)");
+                    throw std::runtime_error("Failed to resize file");
                 }
-            }
-#else
-            if (ftruncate(fd_, total_required_size) == -1) {
-                close(fd_);
-                throw std::runtime_error("Failed to resize file");
-            }
 #endif
-        }
-    } else {
-        if (fd_ != -1) {
-            struct stat st;
-            if (fstat(fd_, &st) == -1) {
-                close(fd_);
-                throw std::runtime_error("Failed to stat file");
-            }
-            
-            if (data_size_ == 0) {
-                if (static_cast<size_t>(st.st_size) <= offset_) {
-                    close(fd_);
-                    throw std::runtime_error("File too small for offset");
-                }
-                data_size_ = static_cast<size_t>(st.st_size) - offset_;
-                // Recalculate map_size
-                map_size = data_size_ + adjustment;
-            } else {
-                if (static_cast<size_t>(st.st_size) < total_required_size) {
-                    close(fd_);
-                    throw std::runtime_error("File smaller than expected");
-                }
             }
         } else {
-             if (data_size_ == 0) throw std::runtime_error("Anonymous mapping requires size");
+            if (fd_ != -1) {
+                struct stat st;
+                if (fstat(fd_, &st) == -1) {
+                    close(fd_);
+                    throw std::runtime_error("Failed to stat file");
+                }
+                
+                if (data_size_ == 0) {
+                    if (static_cast<size_t>(st.st_size) <= offset_) {
+                        close(fd_);
+                        throw std::runtime_error("File too small for offset");
+                    }
+                    data_size_ = static_cast<size_t>(st.st_size) - offset_;
+                    // Recalculate map_size
+                    map_size = data_size_ + adjustment;
+                } else {
+                    if (static_cast<size_t>(st.st_size) < total_required_size) {
+                        close(fd_);
+                        throw std::runtime_error("File smaller than expected");
+                    }
+                }
+            } else {
+                 if (data_size_ == 0) throw std::runtime_error("Anonymous mapping requires size");
+            }
         }
     }
 
