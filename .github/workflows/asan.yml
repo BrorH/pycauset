@@ -1,0 +1,45 @@
+name: ASan memory-safety
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  asan:
+    name: ASan · Linux (heap corruption hunt)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # setuptools_scm needs full history + tags
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system OpenBLAS / LAPACK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopenblas-dev liblapacke-dev gfortran
+
+      - name: Build extension with AddressSanitizer
+        env:
+          CMAKE_ARGS: '-DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer" -DCMAKE_C_FLAGS="-fsanitize=address" -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address"'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[test]"
+
+      - name: Deploy native extension into source tree
+        run: python -c "import pycauset, pathlib, shutil; sp = pathlib.Path(pycauset.__file__).parent; dst = pathlib.Path('python/pycauset'); [shutil.copy2(str(f), str(dst / f.name)) for pat in ('*.pyd','*.so','*.dylib','*.dll') for f in sp.glob(pat)]; libs = sp / 'libs'; shutil.copytree(str(libs), str(dst / 'libs'), dirs_exist_ok=True) if libs.exists() else None"
+
+      - name: Run full test suite under ASan
+        env:
+          ASAN_OPTIONS: "detect_leaks=0:halt_on_error=1"
+          OPENBLAS_NUM_THREADS: "1"
+        run: |
+          ASAN_LIB="$(gcc -print-file-name=libasan.so)"
+          export LD_PRELOAD="$ASAN_LIB"
+          echo "LD_PRELOAD=$LD_PRELOAD"
+          python -m pytest tests/python -q
