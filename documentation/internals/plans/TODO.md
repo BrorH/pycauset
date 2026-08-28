@@ -8,9 +8,9 @@ status lives in `R1_EXECUTION.md`.
 ## What's next (post-R1)
 
 ### Immediate: finish the R1 release
-- [ ] CI green on the 3-OS matrix (Linux + macOS wheels; Windows was already green)
-- [ ] Linux build verified by maintainer
-- [ ] Tag `v0.5.1` and push (setuptools_scm picks up the tag as the version)
+- [x] CI green on the 3-OS matrix (Ubuntu/macOS/Windows + Linux ASan, 2026-08-28)
+- [ ] Linux build verified by maintainer (CI green now; manual spot-check optional)
+- [ ] Tag `v0.6.1` and push (setuptools_scm picks up the tag as the version)
 - [ ] Publish to PyPI and sanity-check `pip install pycauset` in a fresh venv
 - [ ] Docs: convert wiki-links to markdown, finish API reference completeness
 - [ ] API lock: mark `_internal` as private (`__all__` is already curated)
@@ -553,6 +553,6 @@ Goal: releasing is routine and reproducible.
 Deliverables:
 - [x] Release checklist (in `R1_EXECUTION.md` §Phase 5), referencing the re-scoped SRP gates.
 - [x] Packaging sanity check: wheel builds + installs in a fresh venv.
-- [ ] Tag `v0.5.1` + publish to PyPI (maintainer action).
+- [ ] Tag `v0.6.1` + publish to PyPI (maintainer action).
 
 

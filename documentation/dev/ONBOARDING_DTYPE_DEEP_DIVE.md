@@ -17,7 +17,7 @@ explicit support status everywhere**. Targeted optimization of correctness-first
 in scope where a naive fallback is egregiously slow relative to NumPy (bit-matmul
 popcount, causal-matrix matvec); the full performance program (>= 0.90x NumPy everywhere,
 GPU parity, streaming-everything) remains a continuous post-R1 program. R1 is nearly
-shipped; the remaining work is release mechanics (CI green, tag v0.5.1, PyPI publish).
+shipped; the remaining work is release mechanics (CI green, tag v0.6.1, PyPI publish).
 
 ## 2. Non-negotiable rules (from the project owner)
 

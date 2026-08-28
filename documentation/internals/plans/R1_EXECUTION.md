@@ -143,24 +143,23 @@ help). → **CUDA build requires VS 2022 (MSVC 14.4x)** alongside the existing V
   scikit-build-core, setuptools_scm, CUDA-not-bundled).
 
 **Phase 5: release mechanics (R1_REL)**
-- [x] `CHANGELOG.md` written (R1 → v0.5.1 section).
+- [x] `CHANGELOG.md` written (R1 → v0.6.1 section).
 - [x] **GPU-in-R1 decision: ship CPU-only** (skipped for R1; deferred to post-R1).
 - [x] CI green on the 3-OS matrix (Ubuntu/macOS/Windows all pass; Linux ASan clean,
   2026-08-28).
 - [ ] Linux build verified by maintainer (CI green now; manual spot-check optional).
-- [ ] Tag the release and cut it (setuptools_scm picks up the tag). **Versioning note:**
-  the plan below says `v0.5.1`, but `v0.6.0` is already tagged and is the latest on
-  PyPI, so the next release must be `v0.6.1` (or `v0.7.0`), not `v0.5.1`.
+- [ ] Tag the release and cut it (setuptools_scm picks up the tag). R1 version is
+  `v0.6.1` (patch after the already-published `v0.6.0`).
 
 **R1 CPU-only is ready to ship.** The only remaining steps are maintainer release actions
 below (tag, CI/Linux verification, PyPI publish): no further code changes required.
 
 Release checklist (run at tag time):
-1. `git tag v0.5.1 && git push --tags`.
-2. Confirm `pycauset.__version__` == `0.5.1` in a clean build.
+1. `git tag v0.6.1 && git push --tags`.
+2. Confirm `pycauset.__version__` == `0.6.1` in a clean build.
 3. Build wheels for the 3 OSes (CI artifacts) and `twine check` them.
 4. Publish to PyPI; sanity-check `pip install pycauset` in a fresh venv.
-5. Point the docs "latest" at the v0.5.1 tag.
+5. Point the docs "latest" at the v0.6.1 tag.
 
 ## 4. Working agreements
 - Every code change ships with its test AND its doc line (same commit).

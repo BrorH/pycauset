@@ -2,9 +2,9 @@
 
 All notable changes to PyCauset are documented in this file. The project follows
 [Semantic Versioning](https://semver.org/). The documentation's **"Release 1 (R1)"**
-milestone corresponds to **v0.5.1**.
+milestone corresponds to **v0.6.1**.
 
-## [Unreleased]: R1 (target v0.5.1)
+## [0.6.1] - 2026-08-28
 
 ### Added
 - `pinv`: Moore-Penrose pseudoinverse (normal-equations baseline + NumPy SVD fallback).
