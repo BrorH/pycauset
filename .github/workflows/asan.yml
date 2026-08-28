@@ -26,7 +26,12 @@ jobs:
 
       - name: Build extension with AddressSanitizer
         env:
-          CMAKE_ARGS: '-DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer" -DCMAKE_C_FLAGS="-fsanitize=address" -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address"'
+          # Instrument at COMPILE time only. Do NOT pass -fsanitize=address to the
+          # linker: that would link a second copy of libasan into the .so, which
+          # clashes with the LD_PRELOAD runtime and breaks the __cxa_throw
+          # interceptor (real___cxa_throw == 0). The single runtime comes from
+          # LD_PRELOAD below.
+          CMAKE_ARGS: '-DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer" -DCMAKE_C_FLAGS="-fsanitize=address"'
         run: |
           python -m pip install --upgrade pip
           python -m pip install ".[test]"
