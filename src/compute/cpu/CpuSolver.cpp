@@ -549,6 +549,14 @@ namespace {
                 const int ldc = static_cast<int>(c_dense->base_cols());
 
                 if constexpr (std::is_same_v<T, double>) {
+                    // GEMM scales well with threads, while small LAPACK
+                    // factorizations (invert/determinant) do not, so we keep the
+                    // global OpenBLAS default low (8) and bump it here only for
+                    // the matmul GEMM, then restore. (Assumes single-threaded
+                    // dispatch; the thread-safety of the global OpenBLAS count is
+                    // tracked separately under R2_HARDEN.)
+                    const int prev_threads = openblas_get_num_threads();
+                    openblas_set_num_threads(20);
                     cblas_dgemm(
                         CblasRowMajor,
                         t_a ? CblasTrans : CblasNoTrans,
@@ -558,6 +566,7 @@ namespace {
                         b_data, ldb,
                         0.0, c_data, ldc
                     );
+                    openblas_set_num_threads(prev_threads);
                 } else {
                     cblas_sgemm(
                         CblasRowMajor,
