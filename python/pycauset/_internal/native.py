@@ -70,7 +70,20 @@ def import_native_extension(*, package: str, module: str = "._pycauset") -> Any:
     if module.startswith("."):
         try:
             pkg = import_module(package)
-            pkg_dir = next(iter(getattr(pkg, "__path__", [])), None)
+            # Prefer the directory that actually owns the loaded package
+            # (``__file__`` of the regular package's __init__.py). ``pkg.__path__``
+            # can merge a source checkout with a stale installed wheel into a
+            # namespace package, and its entry ORDER is filesystem-dependent on
+            # Windows. Using ``next(iter(pkg.__path__))`` therefore picks a
+            # non-deterministic directory, which can silently load a stale
+            # ``_pycauset.pyd`` from site-packages instead of the freshly built
+            # one beside ``__init__.py`` (Heisenbug: fast SIMD path vs old
+            # blocked-eval path).
+            pkg_file = getattr(pkg, "__file__", None)
+            if pkg_file:
+                pkg_dir = os.path.dirname(os.path.abspath(pkg_file))
+            else:
+                pkg_dir = next(iter(getattr(pkg, "__path__", [])), None)
         except Exception:
             pkg_dir = None
 
