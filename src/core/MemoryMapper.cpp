@@ -51,7 +51,13 @@ static bool EnablePrivilege(LPCTSTR lpszPrivilege) {
 #endif
 
 MemoryMapper::MemoryMapper(const std::string& filename, size_t data_size, size_t offset, bool create_new) 
-    : filename_(filename), data_size_(data_size), offset_(offset), mapped_ptr_(nullptr), base_ptr_(nullptr), is_pinned_(false) {
+    : filename_(filename), data_size_(data_size), offset_(offset), mapped_ptr_(nullptr), base_ptr_(nullptr),
+#ifdef _WIN32
+      hFile_(INVALID_HANDLE_VALUE), hMapping_(nullptr),
+#else
+      fd_(-1),
+#endif
+      is_pinned_(false) {
     open_file(create_new);
 }
 

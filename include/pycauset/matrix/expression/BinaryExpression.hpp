@@ -68,6 +68,9 @@ public:
         }
     }
 
+    const L& lhs() const { return lhs_; }
+    const R& rhs() const { return rhs_; }
+
 private:
     L lhs_;
     R rhs_;

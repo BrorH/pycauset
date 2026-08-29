@@ -39,6 +39,8 @@ public:
     DataType get_dtype() const { return matrix_.get_data_type(); }
     MatrixType get_matrix_type() const { return matrix_.get_matrix_type(); }
 
+    const MatrixBase& matrix() const { return matrix_; }
+
 private:
     const MatrixBase& matrix_;
 };

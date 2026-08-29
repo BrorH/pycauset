@@ -9,10 +9,17 @@
 
 #include <cstdint>
 #include <memory>
+#include <type_traits>
 #include "MatrixExpression.hpp"
+#include "BinaryExpression.hpp"
+#include "MatrixRefExpression.hpp"
+#include "Functors.hpp"
 
 #include <iostream>
 #include "pycauset/matrix/MatrixBase.hpp"
+#include "pycauset/core/MemoryMapper.hpp"
+#include "pycauset/compute/ComputeContext.hpp"
+#include "pycauset/compute/ComputeDevice.hpp"
 
 namespace pycauset {
 
@@ -26,6 +33,7 @@ public:
     virtual DataType get_dtype() const = 0;
     virtual MatrixType get_matrix_type() const = 0;
     virtual void eval_into(MatrixBase& target) const = 0;
+    virtual bool try_eval_fast(MatrixBase& target) const = 0;
     virtual bool aliases(const MatrixBase* target) const = 0;
     virtual void touch_operands() const = 0;
     
@@ -33,6 +41,41 @@ public:
     // but type erasure makes that hard.
     // For now, we assume the wrapper is used for immediate evaluation or simple chaining.
 };
+
+static inline bool is_plain_in_memory(const MatrixBase& m) {
+    auto mp = m.shared_mapper();
+    return !mp || mp->get_filename() == ":memory:";
+}
+
+template <typename L, typename R, typename Op>
+bool try_fast_binary_elementwise(const BinaryExpression<L, R, Op>& e, MatrixBase& target) {
+    if constexpr (std::is_same_v<L, MatrixRefExpression> && std::is_same_v<R, MatrixRefExpression>) {
+        const MatrixBase& a = e.lhs().matrix();
+        const MatrixBase& b = e.rhs().matrix();
+        if (!is_plain_in_memory(a) || !is_plain_in_memory(b) || !is_plain_in_memory(target)) {
+            return false;
+        }
+        auto* dev = ComputeContext::instance().get_device();
+        if constexpr (std::is_same_v<Op, ops::Add>) {
+            dev->add(a, b, target);
+        } else if constexpr (std::is_same_v<Op, ops::Sub>) {
+            dev->subtract(a, b, target);
+        } else if constexpr (std::is_same_v<Op, ops::Div>) {
+            dev->elementwise_divide(a, b, target);
+        } else if constexpr (std::is_same_v<Op, ops::Mul>) {
+            dev->elementwise_multiply(a, b, target);
+        } else {
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+template <typename E>
+bool try_fast_binary_elementwise(const E&, MatrixBase&) {
+    return false;
+}
 
 template <typename E>
 class MatrixExpressionHolder : public MatrixExpressionWrapper {
@@ -48,7 +91,11 @@ public:
     DataType get_dtype() const override { return expr_.get_dtype(); }
     MatrixType get_matrix_type() const override { return expr_.get_matrix_type(); }
     void eval_into(MatrixBase& target) const override {
+        if (try_eval_fast(target)) return;
         target = expr_;
+    }
+    bool try_eval_fast(MatrixBase& target) const override {
+        return try_fast_binary_elementwise(expr_, target);
     }
     bool aliases(const MatrixBase* target) const override {
         return expr_.aliases(target);
