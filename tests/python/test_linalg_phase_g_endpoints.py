@@ -109,7 +109,10 @@ class TestPhaseGLinalgEndpoints(unittest.TestCase):
         expected_sorted = np.array(sorted(expected, key=lambda x: abs(x), reverse=True))
         np.testing.assert_allclose(vals_np, expected_sorted, rtol=1e-6, atol=1e-8)
 
-    def test_removed_eig_apis_are_deterministic(self):
-        A = pc.matrix(((1.0, 0.0), (0.0, 1.0)))
-        with self.assertRaises(NotImplementedError):
-            pc.eigvals_skew(A)
+    def test_eigvals_skew_implemented(self):
+        # eigvals_skew was previously a stub; it is now a native top-k imaginary
+        # eigenvalue solver (see tests/python/test_skew.py for the full suite).
+        A = pc.matrix(((0.0, 2.0), (-2.0, 0.0)))  # skew-symmetric, evals +-2i
+        vals = pc.eigvals_skew(A, 2)
+        mags = sorted(abs(vals.get(i)) for i in range(vals.size()))
+        np.testing.assert_allclose(mags, [2.0, 2.0], rtol=1e-10, atol=1e-12)

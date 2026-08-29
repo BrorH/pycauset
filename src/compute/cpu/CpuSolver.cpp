@@ -2256,6 +2256,53 @@ void CpuSolver::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int
     }
 }
 
+void CpuSolver::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {
+    if (k <= 0) {
+        throw std::invalid_argument("CpuSolver::eigvals_skew requires positive k");
+    }
+    if (a.rows() != a.cols()) {
+        throw std::invalid_argument("CpuSolver::eigvals_skew requires a square matrix");
+    }
+
+    auto* out_c = dynamic_cast<DenseVector<std::complex<double>>*>(&out);
+    if (!out_c) {
+        throw std::runtime_error("CpuSolver::eigvals_skew output must be DenseVector<complex<double>>");
+    }
+
+    const uint64_t n = a.rows();
+    const int kk = std::min(k, static_cast<int>(n));
+
+    // Copy the (real) matrix into a dense row-major scratch buffer; dgeev
+    // factorizes in place, so the input must never be mutated. to_memory_flat_real_square
+    // also folds in the matrix scalar, so eigenvalues scale correctly.
+    auto data = to_memory_flat_real_square(a);
+
+    std::vector<double> wr(n);
+    std::vector<double> wi(n);
+
+    // General non-symmetric eigensolver with no eigenvectors requested. For a real
+    // skew-symmetric matrix this yields pure-imaginary pairs (+-i*lambda) and a zero
+    // for odd n. This is the correctness-first baseline for the native skew
+    // eigensystem (a dedicated Paige-Van Loan tridiagonalization can come later).
+    lapack_int info = LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', 'N', static_cast<lapack_int>(n),
+        data.data(), static_cast<lapack_int>(n), wr.data(), wi.data(),
+        nullptr, static_cast<lapack_int>(n), nullptr, static_cast<lapack_int>(n));
+    if (info > 0) throw std::runtime_error("CpuSolver::eigvals_skew failed to converge");
+    if (info < 0) throw std::runtime_error("CpuSolver::eigvals_skew: illegal argument");
+
+    std::vector<std::complex<double>> evals(n);
+    for (uint64_t i = 0; i < n; ++i) {
+        evals[i] = std::complex<double>(wr[i], wi[i]);
+    }
+    std::sort(evals.begin(), evals.end(), [](const std::complex<double>& x, const std::complex<double>& y) {
+        return std::norm(x) > std::norm(y);
+    });
+
+    for (int i = 0; i < kk; ++i) {
+        out_c->set(i, evals[i]);
+    }
+}
+
 void CpuSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {
     uint64_t n = A.rows();
     if (A.cols() != n) {

@@ -1,100 +1,77 @@
+"""Native skew-symmetric eigensolver tests (R2_CATALOG: R2E native skew eigensystem).
+
+`pycauset.eigvals_skew(A, k)` returns the top-k (by magnitude) eigenvalues of a
+real skew-symmetric matrix (A == -A.T). Such eigenvalues are purely imaginary
+and come in +/-i*lambda pairs (plus a zero eigenvalue for odd dimension).
+"""
+
 import unittest
 
-raise unittest.SkipTest(
-    "Skew eigenvalue solver was removed along with the legacy complex/eigen subsystem."
-)
-
-import sys
-import os
 import numpy as np
-import time
-
-# Add the python directory to the path so we can import pycauset
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../python')))
 
 import pycauset
 
-def test_skew_symmetric_solver():
-    print("Testing Skew-Symmetric Eigenvalue Solver...")
-    
-    N = 100
-    k = 10
-    
-    # 1. Create a random matrix
-    np.random.seed(42)
-    M = np.random.rand(N, N)
-    
-    # 2. Make it skew-symmetric: A = M - M^T
-    # A^T = (M - M^T)^T = M^T - M = -(M - M^T) = -A
-    A_np = M - M.T
-    
-    # 3. Create PyCauset matrix
-    # We use Float64 for accuracy in this test
-    A_pc = pycauset.matrix(A_np)
-    
-    print(f"Matrix size: {N}x{N}")
-    print(f"Computing {k} eigenvalues...")
-    
-    # 4. Run the solver
-    start_time = time.time()
-    # The solver returns complex eigenvalues
-    evals = pycauset.eigvals_skew(A_pc, k)
-    end_time = time.time()
-    
-    print(f"Skew Solver time: {end_time - start_time:.4f}s")
-    
-    print("Eigenvalues returned:")
-    for i in range(evals.size()):
-        e = evals.get(i)
-        print(f"  {e}")
-        
-    # 5. Verification
-    
-    # Check 1: Purely imaginary
-    # The real part should be negligible (machine epsilon)
-    max_real_part = 0.0
-    for i in range(evals.size()):
-        e = evals.get(i)
-        if abs(e.real) > max_real_part:
-            max_real_part = abs(e.real)
-            
-    print(f"Max real part: {max_real_part}")
-    if max_real_part > 1e-10:
-        print("FAIL: Eigenvalues are not purely imaginary!")
-        sys.exit(1)
-        
-    # Check 2: Compare with Numpy
-    # Numpy returns all N eigenvalues. We need the k largest magnitude ones.
-    print("Comparing with Numpy...")
-    evals_np = np.linalg.eigvals(A_np)
-    
-    # Sort numpy eigenvalues by magnitude (descending)
-    evals_np_sorted = sorted(evals_np, key=lambda x: abs(x), reverse=True)
-    
-    print("\nTop 5 Numpy eigenvalues (magnitude):")
-    for i in range(min(k, 5)):
-        print(f"  {evals_np_sorted[i]}")
-        
-    # Compare magnitudes
-    # We allow some tolerance because Arnoldi is an iterative method
-    tolerance = 1e-5
-    passed = True
-    
-    print("\nComparison (Skew vs Numpy):")
-    for i in range(k):
-        mag_pc = abs(evals.get(i))
-        mag_np = abs(evals_np_sorted[i])
-        diff = abs(mag_pc - mag_np)
-        
-        if diff > tolerance:
-            print(f"Mismatch at index {i}: PyCauset={mag_pc}, Numpy={mag_np}, Diff={diff}")
-            passed = False
-            
-    if passed:
-        print("\nSUCCESS: Skew Eigenvalues match Numpy results!")
-    else:
-        print("\nFAIL: Skew Eigenvalues do not match Numpy results.")
-        sys.exit(1)
+
+class TestSkewEigvals(unittest.TestCase):
+    def _generate_skew(self, n: int) -> np.ndarray:
+        """Return a random real skew-symmetric n x n matrix (A == -A.T)."""
+        rng = np.random.default_rng(42)
+        M = rng.random((n, n))
+        return M - M.T
+
+    def test_topk_matches_numpy(self) -> None:
+        """Top-k skew eigenvalues match NumPy's general eigensolver by magnitude."""
+        N = 100
+        k = 10
+        A_np = self._generate_skew(N)
+        evals = pycauset.eigvals_skew(pycauset.matrix(A_np), k)
+
+        self.assertEqual(evals.size(), k)
+
+        np_sorted = sorted(np.linalg.eigvals(A_np), key=abs, reverse=True)
+        for i in range(k):
+            self.assertAlmostEqual(abs(evals.get(i)), abs(np_sorted[i]), places=5)
+
+    def test_purely_imaginary(self) -> None:
+        """Skew eigenvalues have a negligible real part."""
+        A_np = self._generate_skew(50)
+        evals = pycauset.eigvals_skew(pycauset.matrix(A_np), 10)
+        max_real = max(abs(evals.get(i).real) for i in range(evals.size()))
+        self.assertLess(max_real, 1e-9)
+
+    def test_odd_dimension_has_zero(self) -> None:
+        """A skew matrix of odd dimension must have a zero eigenvalue."""
+        A_np = self._generate_skew(11)
+        evals = pycauset.eigvals_skew(pycauset.matrix(A_np), 11)
+        min_mag = min(abs(evals.get(i)) for i in range(evals.size()))
+        self.assertLess(min_mag, 1e-9)
+
+    def test_k_clamping(self) -> None:
+        """Requesting more eigenvalues than N returns at most N."""
+        A_np = self._generate_skew(10)
+        evals = pycauset.eigvals_skew(pycauset.matrix(A_np), 20)
+        self.assertLessEqual(evals.size(), 10)
+
+    def test_singular_block(self) -> None:
+        """A rank-deficient skew matrix returns no more non-zeros than its rank."""
+        N = 20
+        A_small = self._generate_skew(10)
+        A_np = np.zeros((N, N))
+        A_np[:10, :10] = A_small
+        evals = pycauset.eigvals_skew(pycauset.matrix(A_np), 15)
+        non_zeros = sum(1 for i in range(evals.size()) if abs(evals.get(i)) > 1e-5)
+        self.assertLessEqual(non_zeros, 10)
+
+    def test_rejects_non_square(self) -> None:
+        """Non-square input raises ValueError."""
+        with self.assertRaises(ValueError):
+            pycauset.eigvals_skew(pycauset.matrix(np.zeros((3, 4))), 2)
+
+    def test_rejects_nonpositive_k(self) -> None:
+        """k <= 0 raises ValueError."""
+        with self.assertRaises(ValueError):
+            pycauset.eigvals_skew(pycauset.matrix(self._generate_skew(5)), 0)
+
 
 if __name__ == "__main__":
-    test_skew_symmetric_solver()
+    unittest.main()

@@ -1,16 +1,6 @@
 import unittest
 
-raise unittest.SkipTest(
-    "Skew eigenvalue solver was removed along with the legacy complex/eigen subsystem."
-)
-
-import sys
-import os
 import numpy as np
-import time
-
-# Add the python directory to the path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../python')))
 
 import pycauset
 

@@ -905,6 +905,12 @@ void AutoSolver::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, in
     }
 }
 
+void AutoSolver::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {
+    // GPU backend does not yet implement eigvals_skew; run on CPU directly.
+    // (The AutoSolver GPU path is reserved for the GPU-parity R2.2 item.)
+    cpu_device_->eigvals_skew(a, out, k);
+}
+
 void AutoSolver::eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) {
     // TODO: Add GPU support
     cpu_device_->eigh(in, eigenvalues, eigenvectors, uplo);

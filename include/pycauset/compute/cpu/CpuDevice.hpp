@@ -55,6 +55,7 @@ public:
     void solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) override;
 
     void eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) override;
+    void eigvals_skew(const MatrixBase& a, VectorBase& out, int k) override;
 
     void eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) override;
     void eigvalsh(const MatrixBase& in, VectorBase& eigenvalues, char uplo) override;

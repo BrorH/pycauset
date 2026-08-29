@@ -82,8 +82,12 @@ _native = _native_mod.import_native_extension(package=__name__)
 # Import modules that depend on the native extension after it is loaded.
 from . import field as field
 from . import spacetime as spacetime
+from . import synthetic as synthetic
 from ._storage import cleanup_storage, set_temporary_file
 from .causet import CausalSet
+from .spacetime import MinkowskiBox as MinkowskiBox
+from .spacetime import MinkowskiCylinder as MinkowskiCylinder
+from .spacetime import MinkowskiDiamond as MinkowskiDiamond
 
 
 def _debug_resolve_promotion(
@@ -1820,8 +1824,16 @@ def eigvals(a: Any) -> Any:
     return _ops.eigvals(a, deps=_OPS_DEPS)
 
 
-def eigvals_skew(*_args: Any, **_kwargs: Any) -> Any:
-    raise NotImplementedError("pycauset.eigvals_skew is not available yet (pre-alpha).")
+def eigvals_skew(a: Any, k: int) -> Any:
+    """Top-k (by magnitude) eigenvalues of a real skew-symmetric matrix.
+
+    A real skew-symmetric matrix (``A == -A.T``) has purely imaginary eigenvalues
+    that come in ``+/-i*lambda`` pairs (plus a zero eigenvalue for odd dimension).
+    Returns a complex vector of length ``min(k, n)`` sorted by descending
+    magnitude.
+    """
+
+    return _ops.eigvals_skew(a, k, deps=_OPS_DEPS)
 
 
 def trace(a: Any) -> Any:
@@ -2096,8 +2108,34 @@ I = getattr(_native, "IdentityMatrix", None)  # noqa: E741 (public identity alia
 det = determinant
 rank = matrix_rank
 
+# Lazy top-level visualization verbs (R2_VIZ): these exist for non-causet objects
+# and as zero-import sugar; the primary citizens are the CausalSet.plot_* methods.
+def plot_embedding(causet, **kwargs):
+    from .vis import plot_embedding as _f
+    return _f(causet, **kwargs)
+
+
+def plot_hasse(causet, **kwargs):
+    from .vis import plot_hasse as _f
+    return _f(causet, **kwargs)
+
+
+def plot_causal_matrix(causet, **kwargs):
+    from .vis import plot_causal_matrix as _f
+    return _f(causet, **kwargs)
+
+
+def show(causet):
+    """One-verb sugar: plot a causal set's embedding and open it in the browser."""
+    return causet.plot_embedding().show()
+
+
 # Python-level field API
+from .field import ContinuumCorrelatedField as ContinuumCorrelatedField
+from .field import CorrelatedField as CorrelatedField
+from .field import Field as Field
 from .field import ScalarField as ScalarField
+from .field import State as State
 
 
 def __getattr__(name):
@@ -2216,10 +2254,22 @@ _extra_exports = [
     "causet",
     "CausalSet",
     "spacetime",
+    "synthetic",
     "field",
+    "MinkowskiDiamond",
+    "MinkowskiCylinder",
+    "MinkowskiBox",
     "MemoryHint",
     "AccessPattern",
     "ScalarField",
+    "Field",
+    "CorrelatedField",
+    "ContinuumCorrelatedField",
+    "State",
+    "plot_embedding",
+    "plot_hasse",
+    "plot_causal_matrix",
+    "show",
 ]
 
 for _name in _extra_exports:

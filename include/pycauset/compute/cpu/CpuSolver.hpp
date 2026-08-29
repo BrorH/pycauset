@@ -76,6 +76,7 @@ public:
     void eigvals(const MatrixBase& in, VectorBase& eigenvalues);
 
     void eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol);
+    void eigvals_skew(const MatrixBase& a, VectorBase& out, int k);
 
 private:
     void matmul_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);

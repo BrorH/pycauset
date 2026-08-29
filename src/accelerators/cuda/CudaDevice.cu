@@ -909,6 +909,11 @@ void CudaDevice::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, in
     ArnoldiDriver::run(*this, a, out, k, m, tol);
 }
 
+void CudaDevice::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {
+    (void)a; (void)out; (void)k;
+    throw std::runtime_error("CudaDevice::eigvals_skew not implemented (use CPU or wait for update)");
+}
+
 void CudaDevice::eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) {
     throw std::runtime_error("CudaDevice::eigh not implemented (use CPU or wait for update)");
 }

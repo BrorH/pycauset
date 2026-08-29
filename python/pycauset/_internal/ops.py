@@ -1141,6 +1141,40 @@ def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any
     return out
 
 
+def eigvals_skew(a: Any, k: int, *, deps: OpsDeps) -> Any:
+    """Top-k (by magnitude) eigenvalues of a real skew-symmetric matrix.
+
+    A real skew-symmetric matrix (A == -A.T) has purely imaginary eigenvalues
+    that come in +/-i*lambda pairs (plus a zero eigenvalue for odd dimension).
+    Prefers the native `eigvals_skew` when available; otherwise falls back to
+    NumPy's general eigensolver and returns the top-|k| by magnitude.
+    """
+
+    if k <= 0:
+        raise ValueError("eigvals_skew: k must be positive")
+    shape = _safe_rows_cols(a)
+    if shape is not None and shape[0] != shape[1]:
+        raise ValueError("eigvals_skew requires a square matrix")
+
+    native_fn = getattr(deps.native, "eigvals_skew", None)
+    if callable(native_fn):
+        try:
+            result = native_fn(a, k)
+            _track_and_mark_temporary_if_native(result, deps=deps)
+            return result
+        except Exception:
+            pass
+
+    np_module = deps.np_module
+    if np_module is None:
+        raise NotImplementedError("eigvals_skew is not available (no native/NumPy fallback)")
+
+    eigs = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
+    eigs_sorted = sorted(eigs, key=lambda x: abs(x), reverse=True)
+    top = np_module.array(eigs_sorted[:k])
+    return _as_pycauset_vector(top, deps=deps)
+
+
 def solve_triangular(*_args: Any, **_kwargs: Any) -> Any:
     """Solve a triangular system using gospel properties.
 

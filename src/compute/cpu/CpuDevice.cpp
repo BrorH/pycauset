@@ -196,6 +196,10 @@ void CpuDevice::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int
     solver_.eigvals_arnoldi(a, out, k, m, tol);
 }
 
+void CpuDevice::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {
+    solver_.eigvals_skew(a, out, k);
+}
+
 bool CpuDevice::fill_hardware_profile(HardwareProfile& profile, bool run_benchmarks) {
     (void)profile;
     (void)run_benchmarks;

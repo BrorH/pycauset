@@ -4677,6 +4677,17 @@ void bind_matrix_classes(py::module_& m) {
         py::arg("tol") = 1e-6);
 
     m.def(
+        "eigvals_skew",
+        [](std::shared_ptr<MatrixBase> a, int k) {
+            return translate_invalid_argument([&]() {
+                auto out = pycauset::eigvals_skew(*a, k);
+                return std::shared_ptr<VectorBase>(out.release());
+            });
+        },
+        py::arg("a"),
+        py::arg("k"));
+
+    m.def(
         "compute_k_matrix",
         [](std::shared_ptr<TriangularBitMatrix> C,
            double a,

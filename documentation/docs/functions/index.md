@@ -1,5 +1,12 @@
 # Functions
 
+* **[[docs/functions/pycauset.field.md|pycauset.field]]**
+* **[[docs/functions/pycauset.spacetime.create.md|spacetime.create]]**
+* **[[docs/functions/pycauset.spacetime.register.md|spacetime.register]]**
+* **[[docs/functions/pycauset.spacetime.export_python.md|spacetime.export_python]]**
+* **[[docs/functions/pycauset.spacetime.get_registry.md|spacetime.get_registry]]**
+* **[[docs/functions/pycauset.synthetic.md|pycauset.synthetic]]**
+* **[[docs/functions/pycauset.show.md|pycauset.show]]**
 * **[[docs/functions/pycauset.I.md|pycauset.I]]**
 * **[[docs/functions/pycauset.identity.md|pycauset.identity]]**
 * **[[docs/functions/pycauset.diagonal.md|pycauset.diagonal]]**
@@ -54,6 +61,7 @@
 * **[[docs/functions/pycauset.eig.md|eig]]**
 * **[[docs/functions/pycauset.eigvals.md|eigvals]]**
 * **[[docs/functions/pycauset.eigvals_arnoldi.md|eigvals_arnoldi]]**
+* **[[docs/functions/pycauset.eigvals_skew.md|eigvals_skew]]**
 * **[[docs/functions/pycauset.load.md|load]]**
 * **[[docs/functions/pycauset.load_matrix.md|load_matrix]]**
 * **[[docs/functions/pycauset.load_npy.md|load_npy]]**

@@ -94,6 +94,11 @@ public:
     // Contract: out is a pre-allocated real vector of length k.
     virtual void eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) = 0;
 
+    // Eigenvalues of a real skew-symmetric matrix (A == -A^T), which are purely
+    // imaginary. Contract: out is a pre-allocated complex<double> vector of length
+    // min(k, n); results are sorted by descending magnitude.
+    virtual void eigvals_skew(const MatrixBase& a, VectorBase& out, int k) = 0;
+
     // Real Symmetric / Complex Hermitian Eigenvalue Decomposition
     // Contract: `in` is symmetric/hermitian. `eigenvalues` is vector of length N. `eigenvectors` is NxN matrix.
     // 'uplo' = 'L' or 'U' (default 'L').
