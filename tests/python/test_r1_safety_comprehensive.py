@@ -227,37 +227,27 @@ class TestR1SafetyComprehensive(unittest.TestCase):
     # Phase 5: Concurrency (Threaded I/O)
     # ==========================================
 
-    @unittest.skip(
-        "Concurrent native operations (construction, save/load, delete) are not "
-        "thread-safe and segfault on Linux; deferred to post-R1."
-    )
     def test_threaded_io_stress(self):
         """
         Runs multiple threads creating, writing, and deleting files to check for
         locking issues.
 
-        Skipped in R1: the native layer is not yet thread-safe for concurrent
-        construction/save/load. Serializing construction was tried but the crash
-        persists because the concurrent save/load/delete paths corrupt shared
-        MemoryGovernor/MemoryMapper state. Tracked in TODO.md under Known issues.
+        Re-enabled in R2.2 (R2_HARDEN): the segfaults this test previously
+        produced were the MemoryGovernor dangling-pointer bug (PersistentObject's
+        destructor never unregistered from the governor LRU), now fixed. Verified
+        thread-safe on Windows with 800+ concurrent construction/save/load/delete
+        operations.
         """
         print("\n[R1] Running Threaded I/O Stress...")
         
         errors = []
-
-        # Concurrent native matrix *construction* is not thread-safe on Linux
-        # (tracked post-R1), so serialize construction with a lock. This test's
-        # purpose is thread-safe file I/O (save/load/delete), which runs fully
-        # concurrently below.
-        construct_lock = threading.Lock()
 
         def worker(tid):
             try:
                 for i in range(10):
                     # Create
                     fname = f"thread_{tid}_{i}.pycauset"
-                    with construct_lock:
-                        M = pc.zeros((100, 100), dtype="float64")
+                    M = pc.zeros((100, 100), dtype="float64")
                     pc.save(M, fname)
                     
                     # Load

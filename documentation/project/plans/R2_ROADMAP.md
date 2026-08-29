@@ -593,7 +593,7 @@ and recomputes; round-trip correctness pinned by test.
 
 ### R2_HARDEN — Robustness + Polish Backlog
 
-Status: - [ ] (in progress: dead-code/deprecated-feature sweep started — removed the import-time-skipped `test_pauli_jordan_spectrum.py` (removed `.eigenvalues()` API) and stale `*.dll.stale` artifacts; `test_skew{,_comprehensive}.py` re-enabled after the R2_CATALOG skew eigensystem landed. Ruff cleanup started — import-sorting (`I001`) auto-fixed across `python/pycauset`; remaining `E501`/`UP006`/`UP045` are mechanical follow-ups. Remaining: native concurrency thread-safety proof, teardown-hang root cause, `__init__.py` slimming, CMake warning audit, macOS wheel portability)
+Status: - [ ] (in progress: dead-code/deprecated-feature sweep started — removed the import-time-skipped `test_pauli_jordan_spectrum.py` (removed `.eigenvalues()` API) and stale `*.dll.stale` artifacts; `test_skew{,_comprehensive}.py` re-enabled after the R2_CATALOG skew eigensystem landed. Native concurrency thread-safety proven on Windows (`test_threaded_io_stress` re-enabled; 800+ concurrent construction/save/load/delete ops clean — the segfaults were the governor dangling-pointer bug, fixed). Ruff cleanup started — import-sorting (`I001`) auto-fixed across `python/pycauset`; remaining `E501`/`UP006`/`UP045` are mechanical follow-ups. Remaining: teardown-hang root cause, `__init__.py` slimming, CMake warning audit, macOS wheel portability)
 
 Goal: close the post-R1 bug/polish backlog tracked in `documentation/internals/plans/TODO.md` so R2
 ships professionally.

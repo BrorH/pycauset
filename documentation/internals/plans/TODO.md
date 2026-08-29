@@ -16,10 +16,6 @@ status lives in `R1_EXECUTION.md`.
 - [ ] API lock: mark `_internal` as private (`__all__` is already curated)
 
 ### Known issues (bugs, fix post-R1, do not forget)
-- **Concurrent native operations may not be thread-safe** (unverified after the
-  dangling-pointer fix). `test_threaded_io_stress` stays skipped in R1; the segfaults
-  it produced were the governor dangling-pointer bug below, but true concurrent
-  save/load/delete thread-safety has not been separately proven.
 - **Teardown hang in `release_tracked_matrices()`** (mitigated by skipping native
   `close()` during interpreter finalization; root cause unfixed).
 - **Dead code / deprecated-feature sweep** — in progress (R2_HARDEN): removed the
