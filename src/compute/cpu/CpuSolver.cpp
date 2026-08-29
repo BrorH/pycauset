@@ -221,7 +221,27 @@ namespace {
         }
         for (; i < n; ++i) dst[i] = a[i] + b[i];
     }
-    // ... specialized logic for others ...
+    PYCAUSET_AVX2_TARGET void avx2_sub_f64(double* dst, const double* a, const double* b, size_t n) {
+        size_t i = 0;
+        for (; i + 4 <= n; i += 4) {
+            _mm256_storeu_pd(dst + i, _mm256_sub_pd(_mm256_loadu_pd(a + i), _mm256_loadu_pd(b + i)));
+        }
+        for (; i < n; ++i) dst[i] = a[i] - b[i];
+    }
+    PYCAUSET_AVX2_TARGET void avx2_mul_f64(double* dst, const double* a, const double* b, size_t n) {
+        size_t i = 0;
+        for (; i + 4 <= n; i += 4) {
+            _mm256_storeu_pd(dst + i, _mm256_mul_pd(_mm256_loadu_pd(a + i), _mm256_loadu_pd(b + i)));
+        }
+        for (; i < n; ++i) dst[i] = a[i] * b[i];
+    }
+    PYCAUSET_AVX2_TARGET void avx2_div_f64(double* dst, const double* a, const double* b, size_t n) {
+        size_t i = 0;
+        for (; i + 4 <= n; i += 4) {
+            _mm256_storeu_pd(dst + i, _mm256_div_pd(_mm256_loadu_pd(a + i), _mm256_loadu_pd(b + i)));
+        }
+        for (; i < n; ++i) dst[i] = a[i] / b[i];
+    }
 #endif
 #undef PYCAUSET_AVX2_TARGET
 
@@ -239,7 +259,9 @@ namespace {
     template<> SimdKernel<float> get_div_kernel<float>() { return has_avx2() ? avx2_div_f32 : scalar_div<float>; }
     
     template<> SimdKernel<double> get_add_kernel<double>() { return has_avx2() ? avx2_add_f64 : scalar_add<double>; }
-    // Implement others as needed or rely on robust scalars
+    template<> SimdKernel<double> get_sub_kernel<double>() { return has_avx2() ? avx2_sub_f64 : scalar_sub<double>; }
+    template<> SimdKernel<double> get_mul_kernel<double>() { return has_avx2() ? avx2_mul_f64 : scalar_mul<double>; }
+    template<> SimdKernel<double> get_div_kernel<double>() { return has_avx2() ? avx2_div_f64 : scalar_div<double>; }
 #endif
 
     template<typename T>
@@ -269,9 +291,18 @@ namespace {
         if (auto* rd = dynamic_cast<DenseMatrix<T>*>(&result)) {
             if (auto* ad = dynamic_cast<const DenseMatrix<T>*>(&a)) {
                 if (auto* bd = dynamic_cast<const DenseMatrix<T>*>(&b)) {
-                    // Check for contiguous memory layout
-                    bool is_contiguous = !rd->is_transposed() && !ad->is_transposed() && !bd->is_transposed() &&
-                                         !rd->has_view_offset() && !ad->has_view_offset() && !bd->has_view_offset();
+                    // Check for contiguous memory layout. A matrix is only safe
+                    // to process as a raw flat pointer when it is a full span:
+                    // non-transposed, zero offset, AND its logical shape equals
+                    // its storage shape. A zero-offset submatrix view (e.g. a
+                    // [:3,:3] slice of a 5x5 parent) has has_view_offset()==false
+                    // but is strided (storage uses base_cols()), so it must fall
+                    // back to the element-wise path.
+                    auto full_span = [](const DenseMatrix<T>* m) {
+                        return !m->is_transposed() && !m->has_view_offset() &&
+                               m->rows() == m->base_rows() && m->cols() == m->base_cols();
+                    };
+                    bool is_contiguous = full_span(rd) && full_span(ad) && full_span(bd);
                                          
                     if (is_contiguous &&
                         ad->rows() == bd->rows() && ad->cols() == bd->cols() &&
@@ -2282,8 +2313,17 @@ namespace {
             auto* a_dense = dynamic_cast<const DenseMatrix<T>*>(&a);
             auto* b_dense = dynamic_cast<const DenseMatrix<T>*>(&b);
             
-            // Fast path: All dense, no transpose, scalar=1, no view offsets
+            // Fast path: All dense, no transpose, scalar=1, and a full span
+            // (logical shape == storage shape). A zero-offset submatrix view
+            // (e.g. a [:3,:3] slice of a 5x5 parent) has has_view_offset()==false
+            // but is strided (storage uses base_cols()), so it must use the
+            // generic element-wise path below. Note a_dense/b_dense may be null
+            // (mixed-type operands), so the full-span checks are evaluated after
+            // the null guard via short-circuit evaluation.
             if (a_dense && b_dense && a_full && b_full &&
+                res_dense->rows() == res_dense->base_rows() && res_dense->cols() == res_dense->base_cols() &&
+                a_dense->rows() == a_dense->base_rows() && a_dense->cols() == a_dense->base_cols() &&
+                b_dense->rows() == b_dense->base_rows() && b_dense->cols() == b_dense->base_cols() &&
                 res_dense->get_scalar() == 1.0 && !res_dense->is_transposed() && !res_dense->has_view_offset() &&
                 a_dense->get_scalar() == 1.0 && !a_dense->is_transposed() && !a_dense->has_view_offset() &&
                 b_dense->get_scalar() == 1.0 && !b_dense->is_transposed() && !b_dense->has_view_offset()) {
@@ -2408,8 +2448,10 @@ namespace {
         auto* a_dense = dynamic_cast<const DenseMatrix<T>*>(&a);
         
         if (a_dense &&
-            res->get_scalar() == 1.0 && !res->is_transposed() &&
-            a_dense->get_scalar() == 1.0 && !a_dense->is_transposed()) {
+            res->get_scalar() == 1.0 && !res->is_transposed() && !res->has_view_offset() &&
+            res->rows() == res->base_rows() && res->cols() == res->base_cols() &&
+            a_dense->get_scalar() == 1.0 && !a_dense->is_transposed() && !a_dense->has_view_offset() &&
+            a_dense->rows() == a_dense->base_rows() && a_dense->cols() == a_dense->base_cols()) {
             const T* a_data = a_dense->data();
             T* res_data = res->data();
             T s;
@@ -2533,12 +2575,14 @@ void CpuSolver::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& r
 
     if (dtype == DataType::FLOAT64) {
         debug_trace::set_last("cpu.subtract.f64");
+        if (try_fast_simd<double>(a, b, result, get_sub_kernel<double>())) return;
         binary_op_impl<double>(a, b, result, std::minus<>());
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.subtract.f16");
         binary_op_impl<pycauset::float16_t>(a, b, result, std::minus<>());
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.subtract.f32");
+        if (try_fast_simd<float>(a, b, result, get_sub_kernel<float>())) return;
         binary_op_impl<float>(a, b, result, std::minus<>());
     } else if (dtype == DataType::INT8) {
         debug_trace::set_last("cpu.subtract.i8");
@@ -2621,12 +2665,14 @@ void CpuSolver::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, M
 
     if (dtype == DataType::FLOAT64) {
         debug_trace::set_last("cpu.mul.f64");
+        if (try_fast_simd<double>(a, b, result, get_mul_kernel<double>())) return;
         binary_op_impl<double>(a, b, result, std::multiplies<>());
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.mul.f16");
         binary_op_impl<pycauset::float16_t>(a, b, result, std::multiplies<>());
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.mul.f32");
+        if (try_fast_simd<float>(a, b, result, get_mul_kernel<float>())) return;
         binary_op_impl<float>(a, b, result, std::multiplies<>());
     } else if (dtype == DataType::INT8) {
         debug_trace::set_last("cpu.mul.i8");
@@ -2684,12 +2730,14 @@ void CpuSolver::elementwise_divide(const MatrixBase& a, const MatrixBase& b, Mat
 
     if (dtype == DataType::FLOAT64) {
         debug_trace::set_last("cpu.div.f64");
+        if (try_fast_simd<double>(a, b, result, get_div_kernel<double>())) return;
         binary_op_impl<double>(a, b, result, [](auto x, auto y) { return x / y; });
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.div.f16");
         binary_op_impl<pycauset::float16_t>(a, b, result, [](auto x, auto y) { return x / y; });
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.div.f32");
+        if (try_fast_simd<float>(a, b, result, get_div_kernel<float>())) return;
         binary_op_impl<float>(a, b, result, [](auto x, auto y) { return x / y; });
     } else if (dtype == DataType::INT8) {
         debug_trace::set_last("cpu.div.i8");
@@ -4876,25 +4924,66 @@ double CpuSolver::determinant(const MatrixBase& matrix) {
         return det;
     }
 
-    // General case: LU determinant.
+    // General case: LU determinant via LAPACK dgetrf/zgetrf. This matches NumPy's
+    // own backend (LAPACK dgetrf) so the two are on equal footing, instead of
+    // Eigen's single-threaded PartialPivLU which is ~3x slower for large dense
+    // matrices. det = sign(permutation) * prod(pivots).
     // If there is any complex scalar/component, compute using complex LU and return the real part.
     const bool use_complex = is_complex || std::abs(matrix.get_scalar().imag()) > 1e-14;
 
-    if (!use_complex) {
-        auto data = to_memory_flat_real_square(matrix);
-        Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> mat_eigen(
-            data.data(), static_cast<Eigen::Index>(n), static_cast<Eigen::Index>(n));
-
-        Eigen::PartialPivLU<Eigen::MatrixXd> lu(mat_eigen);
-        return lu.determinant();
+    if (use_complex) {
+        auto data = to_memory_flat_complex_square(matrix); // already folds scalar + conjugation
+        std::vector<lapack_int> ipiv(n);
+        lapack_int info = LAPACKE_zgetrf(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)n,
+            reinterpret_cast<lapack_complex_double*>(data.data()), (lapack_int)n, ipiv.data());
+        if (info > 0) return 0.0; // singular
+        if (info < 0) throw std::runtime_error("LAPACK zgetrf: illegal argument");
+        std::complex<double> det = 1.0;
+        for (uint64_t i = 0; i < n; ++i) {
+            det *= data[i * n + i];
+            if (ipiv[i] != static_cast<lapack_int>(i + 1)) det = -det;
+        }
+        return det.real();
     }
 
-    auto data = to_memory_flat_complex_square(matrix);
-    Eigen::Map<Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> mat_eigen(
-        data.data(), static_cast<Eigen::Index>(n), static_cast<Eigen::Index>(n));
+    // Real path. Copy into a scratch buffer (dgetrf factorizes in place), using a
+    // raw memcpy when the matrix is a full-span DenseMatrix<double> (the common
+    // in-memory case) and the element-wise fallback otherwise.
+    std::vector<double> data;
+    bool raw_copy = false;
+    if (const auto* dense = dynamic_cast<const DenseMatrix<double>*>(&matrix);
+        dense && !dense->is_transposed() && !dense->has_view_offset() &&
+        dense->rows() == dense->base_rows() && dense->cols() == dense->base_cols()) {
+        data.resize(n * n);
+        std::memcpy(data.data(), dense->data(), n * n * sizeof(double));
+        raw_copy = true;
+    } else {
+        data = to_memory_flat_real_square(matrix); // already folds scalar
+    }
 
-    Eigen::PartialPivLU<Eigen::MatrixXcd> lu(mat_eigen);
-    return lu.determinant().real();
+    std::vector<lapack_int> ipiv(n);
+    lapack_int info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)n,
+        data.data(), (lapack_int)n, ipiv.data());
+    if (info > 0) return 0.0; // singular
+    if (info < 0) throw std::runtime_error("LAPACK dgetrf: illegal argument");
+
+    double det = 1.0;
+    for (uint64_t i = 0; i < n; ++i) {
+        det *= data[i * n + i];
+        if (ipiv[i] != static_cast<lapack_int>(i + 1)) det = -det;
+    }
+
+    // The raw memcpy path reads storage directly, so fold in the matrix scalar
+    // factor (det(s*A) = s^n * det(A)) here. The element-wise fallback already
+    // bakes the scalar into each entry; this is a no-op when scalar == 1.
+    if (raw_copy) {
+        const std::complex<double> s = matrix.get_scalar();
+        if (s != 1.0) {
+            det *= std::pow(s, static_cast<double>(n)).real();
+        }
+    }
+
+    return det;
 }
 
 
