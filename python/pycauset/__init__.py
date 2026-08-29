@@ -79,6 +79,24 @@ complex128 = "complex_float64"
 _native_mod.configure_windows_dll_search_paths(package_dir=os.path.dirname(__file__))
 _native = _native_mod.import_native_extension(package=__name__)
 
+# Set a sensible OpenBLAS thread default. Too many threads add SMP-server overhead
+# to small LAPACK factorizations (invert/determinant/eigh) while barely helping
+# GEMM at the parity-benchmark size (n=1024). 8 balances both; users can override
+# with OPENBLAS_NUM_THREADS. The DLL is already loaded as a pycauset_core.dll
+# dependency, so a name-based ctypes lookup reuses the existing handle.
+try:
+    _ob_threads = int(os.environ.get("OPENBLAS_NUM_THREADS", "0") or "0")
+    if _ob_threads <= 0:
+        _ob_threads = 8
+    import ctypes as _ctypes
+
+    _ob_dll = _ctypes.CDLL("libopenblas.dll")
+    _ob_set = getattr(_ob_dll, "openblas_set_num_threads", None)
+    if _ob_set is not None:
+        _ob_set(_ob_threads)
+except Exception:
+    pass
+
 # Import modules that depend on the native extension after it is loaded.
 from . import field as field
 from . import spacetime as spacetime
