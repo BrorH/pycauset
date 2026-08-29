@@ -150,7 +150,7 @@ This table is a **living** SRP handoff artifact. It records the *current routing
 
 - **CPU**: whether a correctness implementation exists (required)
 - **GPU**: `GPU-enabled` vs `CPU-route` vs `blocked`
-- **Out-of-core**: `naive` vs `streaming-enabled`
+- **Out-of-core**: `streaming-enabled` vs `blocked` (materializes; tiled path present or explicitly out of scope — see Notes)
 
 | ComputeDevice op | CPU | GPU | Out-of-core | Notes |
 |---|---:|---|---|---|
@@ -160,10 +160,10 @@ This table is a **living** SRP handoff artifact. It records the *current routing
 | `matrix_vector_multiply` | ✅ | CPU-route | naive | CUDA implementation not present |
 | `vector_matrix_multiply` | ✅ | CPU-route | naive | CUDA implementation not present |
 | `outer_product` | ✅ | CPU-route | naive | CUDA implementation not present |
-| `add` | ✅ | GPU-enabled (Dense float32/64; matching dtype) | naive | AutoSolver uses heuristic + dtype checks |
-| `subtract` | ✅ | GPU-enabled (Dense float32/64; matching dtype) | naive | AutoSolver uses heuristic + dtype checks |
-| `elementwise_multiply` | ✅ | CPU-route | naive | CUDA implementation not present |
-| `elementwise_divide` | ✅ | CPU-route | naive | CUDA implementation not present |
+| `add` | ✅ | GPU-enabled (Dense float32/64; matching dtype) | streaming-enabled (CPU tiled) | AutoSolver uses heuristic + dtype checks |
+| `subtract` | ✅ | GPU-enabled (Dense float32/64; matching dtype) | streaming-enabled (CPU tiled) | AutoSolver uses heuristic + dtype checks |
+| `elementwise_multiply` | ✅ | CPU-route | streaming-enabled (CPU tiled) | CUDA implementation not present |
+| `elementwise_divide` | ✅ | CPU-route | streaming-enabled (CPU tiled) | CUDA implementation not present |
 | `multiply_scalar` | ✅ | GPU-enabled (Dense float32/64; matching dtype) | naive | AutoSolver uses heuristic + dtype checks |
 | `dot` | ✅ | CPU-route | naive | Always CPU for now |
 | `dot_complex` | ✅ | CPU-route | naive | Always CPU for now |

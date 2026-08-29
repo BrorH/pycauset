@@ -103,13 +103,13 @@ R2.2 — Advanced + Polish:
 - [ ] R2_QA
 
 R2E — Engine + Optimization (folded in from the post-R1 program):
-- [ ] R2_PERF
-- [ ] R2_CPU
-- [ ] R2_GPU
-- [ ] R2_STREAM
-- [ ] R2_CATALOG
+- [x] R2_PERF (8/8 ops ≥ 0.90× NumPy, incl. fair invert/determinant)
+- [ ] R2_CPU (tiled CPU engine — not R2.2 scope)
+- [x] R2_GPU (CUDA backend activates + GPU eig/eigvals + win-detection)
+- [x] R2_STREAM (elementwise + matmul/batch_gemv stream; the rest explicitly blocked per DoD)
+- [ ] R2_CATALOG (skew eigenvalues done; skew eigenvectors + full catalog remain)
 - [x] R2_EIGCACHE
-- [ ] R2_HARDEN
+- [x] R2_HARDEN (teardown-hang root cause fixed; thread-safety proven on Windows)
 
 > **R2.1 shipped (director decision, 2026-08-29).** R2.1 = the physics (R2.0/R2.1/R2.2
 > above) + the safe R2E items done in-step (elementwise f64 SIMD + view hardening,
@@ -550,7 +550,13 @@ GPU-implemented or explicitly routed/blocked (no silent CPU fallback without a s
 
 ### R2_STREAM — Streaming / Out-of-Core Everywhere
 
-Status: - [ ]
+Status: - [x] (2026-08: the SRP handoff table is now accurate and honest — `add`/`subtract`/
+`elementwise_multiply`/`elementwise_divide` stream via `StreamingManager::elementwise` (the
+table had wrongly marked them "naive"), `matmul`/`batch_gemv` stream, and every remaining op is
+explicitly `blocked` with a stated reason (LAPACK factorizations/reductions materialize; tiled
+`inverse`/`qr`/`svd` is deferred). Pinned by `test_outofcore_elementwise.py`, which forces the
+streaming route via `set_io_streaming_threshold(64)` and checks add/subtract/multiply/divide
+against NumPy.)
 
 Goal: every op can run on memory-mapped `.pycauset` containers without materializing the full
 result in RAM. Absorbs the out-of-core scope in `archive/R1_CPU_PLAN.md` and
@@ -558,7 +564,8 @@ result in RAM. Absorbs the out-of-core scope in `archive/R1_CPU_PLAN.md` and
 
 Deliverables: a generic tiled/blocked out-of-core executor keyed on the `MemoryGovernor` budget,
 so `add`/`subtract`/`inverse`/`qr`/`svd` (today only `matmul`/`batch_gemv`) stream; CCA lookahead
-hints wired through (SRP-4).
+hints wired through (SRP-4). (Status: elementwise + matmul/batch_gemv stream; `inverse`/`qr`/`svd`
+are explicitly blocked pending a tiled factorization driver.)
 
 DoD: the streaming matrix in the support-readiness framework shows every op streaming-capable or
 explicitly blocked, verified by a forced-threshold out-of-core test.
