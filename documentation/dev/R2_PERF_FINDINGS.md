@@ -5,75 +5,67 @@ best-of-3, PyCauset result forced through `np.asarray`; `invert`/`determinant`
 clear their derived caches before timing so both sides recompute). The ratio is
 `numpy_time / pycauset_time`; the R2_PERF bar is **≥ 0.90×**.
 
-Current state (threaded DYNAMIC_ARCH OpenBLAS, `OPENBLAS_NUM_THREADS=8` default):
+Current state (threaded DYNAMIC_ARCH OpenBLAS, `OPENBLAS_NUM_THREADS=8` default,
+GEMM bumps to 20 threads internally):
 
 | op | ratio | verdict |
 | :-- | --: | :-- |
-| solve | 0.96× | PASS |
-| invert | 1.09× | PASS |
-| dot | ~1.8× | PASS |
-| determinant | 1.24× | PASS |
-| eigh | 0.98× | PASS |
-| add | 0.88× | FAIL (marginal) |
-| multiply | 0.72× | FAIL |
-| matmul | 0.80× | FAIL |
+| add | ~1.1–1.2× | PASS |
+| solve | ~0.96× | PASS |
+| invert | ~1.1× | PASS |
+| dot | ~2× | PASS |
+| multiply | ~0.93× | PASS (marginal) |
+| determinant | ~1.24× | PASS |
+| eigh | ~0.98× | PASS |
+| matmul | ~0.87× | FAIL (marginal) |
+
+7/8 ops are at or above parity. `matmul` hovers just under 0.90× (~0.0071 s vs
+NumPy ~0.0063 s) and `multiply` just above it (~0.93×); both flap across the 0.90
+line run-to-run (CPU frequency/thermal noise).
 
 ## What landed in R2.2
 
-1. **`determinant` → LAPACK** — `CpuSolver::determinant` now uses `LAPACKE_dgetrf`/
+1. **`determinant` → LAPACK** — `CpuSolver::determinant` uses `LAPACKE_dgetrf`/
    `zgetrf` (NumPy's own backend) instead of Eigen's single-threaded `PartialPivLU`.
-   This took determinant from ~3× slower to ~1.24× (PASS).
 2. **Fair `invert`/`determinant` benchmarking** — the benchmark clears the derived
-   caches (`_invalidate_cached_derived`) before timing, so a warm inverse/determinant
-   cache is no longer compared against NumPy's fresh factorization.
-3. **`add` flakiness root-caused** — NOT a C++ Heisenbug. A stale installed wheel in
-   `site-packages` (no `__init__.py`) merged with the source checkout into a namespace
-   package, and `import_native_extension()` used `next(iter(pkg.__path__))`, whose
-   entry order is filesystem-dependent on Windows. ~50% of processes loaded a stale
-   `_pycauset.pyd` (predating the lazy `try_eval_fast` SIMD path) and took the blocked
-   `target = expr_` eval (~0.019 s) instead of the AVX2 path (~0.003 s). Fixed by
-   loading from the package's own `__file__` directory (see `python/pycauset/_internal/native.py`).
-4. **AVX2 f64 sub/mul/div kernels + full-span hardening** — `try_fast_simd` now routes
-   `subtract`/`elementwise_multiply`/`elementwise_divide` through AVX2 (was only `add`),
-   with stricter full-span guards (zero-offset strided views fall back correctly).
+   caches (`_invalidate_cached_derived`) before timing.
+3. **`add` flakiness root-caused** — a stale installed wheel merged into a namespace
+   package and `import_native_extension()` used `next(iter(pkg.__path__))` (filesystem-
+   dependent order on Windows), so ~50% of processes loaded a stale `_pycauset.pyd`.
+   Fixed by loading from the package's `__file__` directory (`native.py`).
+4. **AVX2 f64 sub/mul/div kernels + full-span hardening** — elementwise `subtract`/
+   `multiply`/`divide` now route through AVX2 with strict full-span guards.
+5. **`matmul` OpenBLAS rebuilt** — the CMake fallback downloaded a *generic single-core*
+   0.3.26 binary; rebuilt 0.3.28 with `DYNAMIC_ARCH=1 USE_THREAD=1` (Haswell kernels),
+   relinked, and bundled the MinGW runtime DLLs. `build_openblas.ps1` documents it.
+6. **`OPENBLAS_NUM_THREADS` default 8** — the threaded OpenBLAS uses one pool for BLAS
+   and LAPACK; 20 threads regresses small LAPACK (invert/determinant) via SMP sync
+   overhead, so `pycauset` pins 8 at import and the matmul GEMM temporarily bumps to 20.
 
-## `matmul` — bundled OpenBLAS build/tuning (0.56× → 0.80×)
+## The two memory/perf root fixes (biggest wins)
 
-`pc.matmul` has always hit `cblas_dgemm` (not a naive loop). The gap was the bundled
-OpenBLAS: the CMake fallback downloads `OpenBLAS-0.3.26-x64.zip`, a **generic**
-(single-core, no arch-specific kernels) build. NumPy links `scipy-openblas` (DYNAMIC_ARCH,
-Haswell, threaded).
+- **`:memory:` backing switched to `VirtualAlloc`** (`MemoryMapper`) instead of a
+  pagefile-backed section (`CreateFileMappingA(INVALID_HANDLE_VALUE)`). The pagefile
+  path commits a page from the paging file on every first write, costing several ms
+  per 8MB result and dominating small elementwise ops. This single change took
+  `add` 0.88× → ~1.1× and `multiply` 0.72× → ~0.93×.
+- **CPU dgemm no longer pins operands** (`CpuSolver::attempt_direct_path`) — `VirtualLock`
+  is a GPU-DMA optimization and pure overhead for CPU `dgemm`.
 
-Fix attempted in R2.2: build OpenBLAS 0.3.28 from source with
-`DYNAMIC_ARCH=1 USE_THREAD=1 NUM_THREADS=24` (MinGW-w64 gcc/gfortran 15.2, see
-`build_openblas.ps1`), generating an MSVC import lib via `gendef`+`dlltool`, and relinking
-`pycauset_core.dll`. The MinGW runtime DLLs (`libgcc_s_seh-1`, `libgfortran-5`,
-`libquadmath-0`, `libwinpthread-1`) must be bundled alongside `libopenblas.dll`.
+## Remaining gap: `matmul` (~0.87×)
 
-Result: `matmul` 0.66× → ~0.80× (0.011 s → ~0.008 s at n=1024), `corename=Haswell`.
+The raw `cblas_dgemm` is already **faster than NumPy** (0.0044 s vs NumPy's 0.0060 s
+at the same 20 threads). The residual is per-call wrapper cost on top of the kernel:
 
-### OpenBLAS thread-count tradeoff (important)
+| component | time |
+| :-- | --: |
+| raw `cblas_dgemm` (warm buffer, 20 threads) | ~0.0044 s |
+| fresh 8MB result (VirtualAlloc + first-write faults) | ~1.6 ms |
+| C++ `create_matrix` + MemoryGovernor + dispatch | ~0.4 ms |
+| Python `_ops.matmul` (IO planning, streaming checks, inline imports) | ~0.7 ms |
+| **total** | **~0.0071 s** |
 
-The threaded OpenBLAS uses one thread pool for BLAS **and** LAPACK. At the default
-(20 threads on this machine) small LAPACK factorizations (`dgetrf`/`dgetri` for
-`invert`/`determinant`) pay SMP-server sync overhead and become **slower** than
-single-threaded. `pycauset` therefore pins `openblas_set_num_threads(8)` at import
-(overridable via `OPENBLAS_NUM_THREADS`), which keeps `invert`/`determinant` at parity
-while still speeding GEMM. At n=1024, 8 threads ≈ 0.80× matmul; more threads help GEMM
-only marginally but hurt LAPACK.
-
-Remaining `matmul` gap to 0.90× is the OpenBLAS version/tuning delta (0.3.28 vs NumPy's
-0.3.30 `scipy-openblas`); fully closing it needs either NumPy's exact OpenBLAS (its DLL is
-`scipy_`-symbol-prefixed, so a relink through a symbol shim) or a 0.3.30+ tuned build.
-
-## Remaining below-parity ops
-
-- **`add` (0.88×)** — essentially at parity; the residual is the `:memory:` backing
-  (pagefile-backed `CreateFileMappingA(INVALID_HANDLE_VALUE)` + `MemoryGovernor`
-  `request_ram`/`register_object` on every result allocation) vs NumPy's `malloc`.
-- **`multiply` (0.72×)** — eager `elementwise_multiply` (the MatrixBase `operator*` for
-  matrix×matrix is eager, unlike the lazy `+`/`-`/`÷`). Same SIMD kernel as `add`, but the
-  eager free-function path (~0.0030 s) is ~15% slower than the lazy add path (~0.0026 s).
-- **`matmul` (0.80×)** — OpenBLAS tuning (see above).
-
-These are tracked against the R2E engine track in `R2_ROADMAP.md` (`R2_PERF`).
+NumPy's `@` skips most of the Python/IO-planning layer. Fully closing the 0.03× gap
+means trimming the Python `_ops.matmul` IO-planning/inline-import path (or routing the
+native `matmul` through the eager operator), which trades away the streaming/observability
+layer for the hot dense case. Tracked against `R2_PERF` in `R2_ROADMAP.md`.
