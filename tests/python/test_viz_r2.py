@@ -1,4 +1,4 @@
-"""R2_VIZ — CausalSet.plot_* methods, lazy top-level verbs, and the subset policy."""
+"""R2_VIZ, CausalSet.plot_* methods, lazy top-level verbs, and the subset policy."""
 
 import sys
 import unittest

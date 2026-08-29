@@ -18,7 +18,7 @@ typedef ComputeDevice* (*CreateDeviceFunc)(const AcceleratorConfig*);
 // MemoryMapper::open_file() consults ComputeContext::instance().is_gpu_active()
 // to decide whether to allocate pinned memory for ":memory:" backing. During the
 // first instance() call, the CUDA device-load path runs a CPU benchmark that
-// constructs DenseMatrix objects, which in turn construct MemoryMappers — i.e.
+// constructs DenseMatrix objects, which in turn construct MemoryMappers, i.e.
 // they call back into instance() while the function-local static is mid-init.
 // That re-enters the magic-static guard and deadlocks. While construction is in
 // progress we therefore report "GPU not active" so the mapper takes the plain
@@ -35,7 +35,7 @@ ComputeContext& ComputeContext::instance() {
     // destruction) can reach the context during interpreter finalization, where a
     // Meyers singleton's destruction order is undefined. Leaking it also skips the
     // CUDA handle teardown at exit (cublas/cusolver destroy), which the driver
-    // reclaims on process exit anyway — removing a second teardown-hang source.
+    // reclaims on process exit anyway, removing a second teardown-hang source.
     static ComputeContext* ctx = new ComputeContext();
     return *ctx;
 }

@@ -1,4 +1,4 @@
-# R1_IO — Out-of-core I/O + Persistence Performance (Phased Plan)
+# R1_IO, Out-of-core I/O + Persistence Performance (Phased Plan)
 
 **Status:** Draft (to be iterated)
 
@@ -39,7 +39,7 @@ This plan focuses on making large-scale workflows (10s–100s of GB) correct, ef
 - After edits, report “what changed” and “what’s next”; keep this loop for all future plan/doc work.
 - Explicitly mark when a phase is complete once its Definition of Done is met.
 
-## Phase 0 — Contract lock (interfaces + policies) — **Status: Completed**
+## Phase 0, Contract lock (interfaces + policies), **Status: Completed**
 
 **Objective:** Decide the policies that other phases implement and test.
 
@@ -88,7 +88,7 @@ Deliverables:
 
 **Definition of done (Phase 0):** A short written contract section in this plan that can be used to reject/accept implementation PRs.
 
-## Phase 1 — Snapshot I/O correctness (all public types) — **Status: Completed**
+## Phase 1, Snapshot I/O correctness (all public types), **Status: Completed**
 
 **Objective:** Ensure `save/load` round-trips are correct across the declared dtype/structure surface.
 
@@ -107,7 +107,7 @@ Deliverables:
 
 **Definition of done (Phase 1):** SRP-style round-trip suite passes for the full public surface, including spill vs snapshot parity and metadata-only updates not touching payload; failures are deterministic and loud.
 
-## Phase 2 — Snapshot I/O performance (large-scale) — **Status: Completed**
+## Phase 2, Snapshot I/O performance (large-scale), **Status: Completed**
 
 **Objective:** Large reads/writes are demonstrably efficient and avoid avoidable extra passes.
 
@@ -121,7 +121,7 @@ Deliverables:
 
 **Definition of done (Phase 2):** Measured throughput is competitive and regressions are detectable.
 
-## Phase 2b — Format interoperability (pragmatic, pipeline-friendly) — **Status: Completed**
+## Phase 2b, Format interoperability (pragmatic, pipeline-friendly), **Status: Completed**
 
 **Objective:** Interoperate with the ecosystem without pretending NumPy will become an out-of-core engine.
 
@@ -148,7 +148,7 @@ Notes (ambition with realism):
 
 **Definition of done (Phase 2b):** A minimal set of formats works end-to-end and is documented; conversion failures are deterministic and actionable.
 
-## Phase 3 — Out-of-core kernel I/O strategy — **Status: Completed**
+## Phase 3, Out-of-core kernel I/O strategy, **Status: Completed**
 
 **Objective:** Streaming paths and IO hinting match access patterns and reduce page faults.
 
@@ -199,25 +199,25 @@ Phase 3 success goals (detailed; this is the main bottleneck)
 
 These goals define what “working well” means for large out-of-core runs. They are intentionally measurable, but avoid hard-coding a single numeric target that would be invalid across SSD/HDD/NVMe/network storage.
 
-- **Goal A — No pathological thrashing (stability first):**
+- **Goal A, No pathological thrashing (stability first):**
   - Large jobs do not enter a “death spiral” of page faults / tiny random reads / runaway memory growth.
   - Queue depths and buffering are bounded (no unbounded in-flight tiles).
   - If the system cannot keep up, it degrades gracefully (smaller tiles / reduced concurrency) rather than stalling unpredictably.
 
-- **Goal B — Sustained throughput is close to hardware limits (performance):**
+- **Goal B, Sustained throughput is close to hardware limits (performance):**
   - For sequential-friendly kernels (blocked/streamed access), sustained read/write throughput during steady state should be a large fraction of a simple measured baseline for the same backing device (e.g., sequential file read/write micro-benchmark).
   - The kernel should spend most of its time doing useful work rather than waiting on I/O.
 
-- **Goal C — Verified compute↔I/O overlap (not just “async calls”):**
+- **Goal C, Verified compute↔I/O overlap (not just “async calls”):**
   - Traces show that while stage C (compute) is active, stage A (prefetch) and/or stage D (write-behind) are also active most of the time.
   - On GPU workloads specifically: avoid long GPU idle gaps attributed to input starvation.
   - On CPU workloads: avoid long worker idle gaps attributed to input starvation.
 
-- **Goal D — Access patterns match the plan (predictable I/O shape):**
+- **Goal D, Access patterns match the plan (predictable I/O shape):**
   - When a kernel is declared “streaming/blocked”, its I/O should be dominated by large, mostly sequential reads/writes (as opposed to many tiny reads).
   - Prefetch/discard hints align with the chosen tiling and do not regress to “hint spam”.
 
-- **Goal E — Deterministic routing and debuggability (engineering reality):**
+- **Goal E, Deterministic routing and debuggability (engineering reality):**
   - The system can explain *why* it chose direct vs streaming for a given op (inputs, sizes, device, thresholds).
   - A user/dev can answer: “is this op I/O-bound or compute-bound?” from logs/counters.
   - Regressions are actionable: benchmarks include the key counters (throughput, queue depth, page-fault rate proxy, device idle time proxy) alongside wall time.
@@ -229,7 +229,7 @@ These goals define what “working well” means for large out-of-core runs. The
 - Streaming route now enforces a concrete streaming implementation for matmul (tiled) and streaming fallbacks for invert/eigh/eigvalsh/eigvals_arnoldi, with prefetch + discard hints.
 - Threshold controls and trace access/clearing are exposed publicly; CI-friendly tests cover file-backed stand-ins, threshold-driven streaming, and top-k eigen, asserting the streaming implementation tag.
 
-## Phase 4 — Temp storage lifecycle + observability — **Status: Completed**
+## Phase 4, Temp storage lifecycle + observability, **Status: Completed**
 
 **Objective:** Temp files and spill behavior are correct, predictable, and diagnosable.
 
@@ -251,7 +251,7 @@ Deliverables:
 - IO traces include storage summaries (backing/temporary files, roots, spill flag) plus compute vs IO events; diagnostics answer “did this spill?” and “where is the backing file?”
 - Tests cover spill-to-temp under low memory thresholds, cleanup-on-set/exit semantics, the `keep_temp_files` toggle, and trace observability of spill + IO events.
 
-## Phase 5 — Documentation and testing deliverables (required) — **Status: Completed**
+## Phase 5, Documentation and testing deliverables (required), **Status: Completed**
 
 **Objective:** Make the behavior discoverable and prevent regressions. Follow documentation protocol in [[Documentation Protocol]]
 

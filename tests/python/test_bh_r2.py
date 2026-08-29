@@ -1,4 +1,4 @@
-"""R2_BH — Schwarzschild (1+1 radial, exact tortoise null condition)."""
+"""R2_BH, Schwarzschild (1+1 radial, exact tortoise null condition)."""
 
 import unittest
 

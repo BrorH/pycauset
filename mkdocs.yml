@@ -222,6 +222,7 @@ nav:
       - docs/functions/pycauset.eigvals.md
       - docs/functions/pycauset.eigvals_arnoldi.md
       - docs/functions/pycauset.eigvals_skew.md
+      - docs/functions/pycauset.eig_skew.md
       - docs/functions/pycauset.eigvalsh.md
       - docs/functions/pycauset.get_memory_threshold.md
       - docs/functions/pycauset.get_num_threads.md

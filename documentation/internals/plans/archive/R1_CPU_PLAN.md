@@ -1,6 +1,6 @@
-# R1_CPU_PLAN — Modern Tiled CPU Engine (Phased Plan)
+# R1_CPU_PLAN, Modern Tiled CPU Engine (Phased Plan)
 
-**Status**: Archived — deferred out of R1 (post-R1 optimization program). The work is folded
+**Status**: Archived, deferred out of R1 (post-R1 optimization program). The work is folded
 into the R2 engine track: see `project/plans/R2_ROADMAP.md` → **R2_CPU** / **R2_STREAM**.
 **Owner**: Chief Programmer/Planner (AI)
 **Stakeholder**: Chief Design Engineer (user)
@@ -125,7 +125,7 @@ Each phase below is work we will do now. Every phase includes **implementation**
 
 ---
 
-## Phase 1 — Contract lock + audit (COMPLETE)
+## Phase 1, Contract lock + audit (COMPLETE)
 
 **Objective**: Establish the CPU worker contract and audit existing CPU kernels/legacy loops (start immediately).
 
@@ -164,7 +164,7 @@ Each phase below is work we will do now. Every phase includes **implementation**
 
 ---
 
-## Phase 2 — Op Contract + Registry scaffolding (pre‑ops) (COMPLETE)
+## Phase 2, Op Contract + Registry scaffolding (pre‑ops) (COMPLETE)
 
 **Objective**: Establish the Op Contract and registry so all priority ops implement through it from day one.
 
@@ -196,7 +196,7 @@ Each phase below is work we will do now. Every phase includes **implementation**
 
 ---
 
-## Phase 3 — CPU matmul via shared worker + tiling (COMPLETE)
+## Phase 3, CPU matmul via shared worker + tiling (COMPLETE)
 
 **Objective**: Replace legacy CPU matmul with a tiled worker path consistent with streaming drivers **and the Op Contract**.
 
@@ -234,7 +234,7 @@ Each phase below is work we will do now. Every phase includes **implementation**
 
 ---
 
-## Phase 4 — Vectorized elementwise ops (COMPLETE)
+## Phase 4, Vectorized elementwise ops (COMPLETE)
 
 **Objective**: Modernize elementwise CPU ops with SIMD and shared worker path.
 
@@ -261,7 +261,7 @@ Each phase below is work we will do now. Every phase includes **implementation**
 
 ---
 
-## Phase 5 — Inverse (BLAS/LAPACK‑first) (COMPLETE)
+## Phase 5, Inverse (BLAS/LAPACK‑first) (COMPLETE)
 
 **Objective**: Implement inverse through BLAS/LAPACK paths, using the Op Contract + ComputeWorker, and replace legacy CPU inverse code paths.
 
@@ -291,7 +291,7 @@ Each phase below is work we will do now. Every phase includes **implementation**
 
 ---
 
-## Phase 6 — Eigen (Hermitian + non‑Hermitian + Arnoldi)
+## Phase 6, Eigen (Hermitian + non‑Hermitian + Arnoldi)
 
 **Objective**: Implement Hermitian and non‑Hermitian eigen solvers using LAPACK where available, plus Arnoldi for large/top‑k, all via the Op Contract + ComputeWorker.
 
@@ -329,7 +329,7 @@ Each phase below is work we will do now. Every phase includes **implementation**
 
 ---
 
-## Phase 7 — Future optimized ops (extensible CPU pipeline)
+## Phase 7, Future optimized ops (extensible CPU pipeline)
 
 **Objective**: Make it straightforward to add optimized CPU ops beyond the priority trio, without scattering policy or violating metadata/streaming rules.
 
@@ -362,7 +362,7 @@ Each phase below is work we will do now. Every phase includes **implementation**
 
 ---
 
-## Phase 8 — Cleanup, parity gates, and SRP alignment
+## Phase 8, Cleanup, parity gates, and SRP alignment
 
 **Objective**: Remove remaining legacy CPU paths, enforce ≥ 0.90× NumPy target, and align with SRP.
 

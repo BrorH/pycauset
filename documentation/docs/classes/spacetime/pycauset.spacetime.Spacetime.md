@@ -4,15 +4,15 @@
 class Spacetime
 ```
 
-`Spacetime` is the abstract base class that makes custom spacetimes first-class. Subclass it and implement four methods — `dimension()`, `volume()`, `sample(rng, n)`, and `is_causal(u, v)` — and you get a spacetime the sprinkler, field engine, and visualizer all understand.
+`Spacetime` is the abstract base class that makes custom spacetimes first-class. Subclass it and implement four methods, `dimension()`, `volume()`, `sample(rng, n)`, and `is_causal(u, v)`, and you get a spacetime the sprinkler, field engine, and visualizer all understand.
 
 ## Description
 
 A `Spacetime` bundles a continuum region, a measure, and a causal order:
 
-- `signature` — the first-class signature `(t, s) = (timelike, spacelike)`. It defaults to Lorentzian `(1, d-1)`; declare a class attribute `signature = (t, s)` to override.
-- `sample()` — draws points uniformly w.r.t. the measure whose mass is `volume()`. It must be a pure function of the injected RNG (this is what makes `same (spacetime, seed, n) ⇒ bit-identical` hold).
-- `is_causal()` — the strict, transitive partial order (the closure, not the links). A causal order exists only for Lorentzian `t == 1`; the base implementation raises for any other signature rather than guessing.
+- `signature`, the first-class signature `(t, s) = (timelike, spacelike)`. It defaults to Lorentzian `(1, d-1)`; declare a class attribute `signature = (t, s)` to override.
+- `sample()`, draws points uniformly w.r.t. the measure whose mass is `volume()`. It must be a pure function of the injected RNG (this is what makes `same (spacetime, seed, n) ⇒ bit-identical` hold).
+- `is_causal()`, the strict, transitive partial order (the closure, not the links). A causal order exists only for Lorentzian `t == 1`; the base implementation raises for any other signature rather than guessing.
 
 ## Signature property
 
@@ -74,7 +74,7 @@ Optional fast path: the `(n, n)` boolean causal matrix (upper-triangular). The s
 def scalar_coeffs(self, mass, density) -> tuple[float, float]
 ```
 
-Authored field coefficients `(a, b)`, or raise — never guessed. The built-in Minkowski spacetimes implement the known 2D/4D table.
+Authored field coefficients `(a, b)`, or raise, never guessed. The built-in Minkowski spacetimes implement the known 2D/4D table.
 
 ### to_embedding / boundary / display_axes
 

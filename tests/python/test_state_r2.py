@@ -1,4 +1,4 @@
-"""R2_FIELD (State) + R2_CORR (vevs) — the Field → CorrelatedField → State layer."""
+"""R2_FIELD (State) + R2_CORR (vevs), the Field → CorrelatedField → State layer."""
 
 import unittest
 

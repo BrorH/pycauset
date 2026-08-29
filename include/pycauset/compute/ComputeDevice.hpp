@@ -99,6 +99,12 @@ public:
     // min(k, n); results are sorted by descending magnitude.
     virtual void eigvals_skew(const MatrixBase& a, VectorBase& out, int k) = 0;
 
+    // Eigenvalues + right eigenvectors of a real skew-symmetric matrix.
+    // Contract: eigenvalues is a pre-allocated complex<double> vector of length
+    // min(k, n); eigenvectors is a pre-allocated complex<double> matrix of shape
+    // n x min(k, n). Both sorted by descending eigenvalue magnitude.
+    virtual void eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBase& eigenvectors, int k) = 0;
+
     // Real Symmetric / Complex Hermitian Eigenvalue Decomposition
     // Contract: `in` is symmetric/hermitian. `eigenvalues` is vector of length N. `eigenvectors` is NxN matrix.
     // 'uplo' = 'L' or 'U' (default 'L').

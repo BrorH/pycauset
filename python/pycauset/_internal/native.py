@@ -23,7 +23,7 @@ def configure_windows_dll_search_paths(*, package_dir: str) -> None:
         return
 
     # Always add the package directory first, plus its `libs/` subdir (where the
-    # bundled Windows DLLs live — pycauset_core.dll + libopenblas.dll).
+    # bundled Windows DLLs live, pycauset_core.dll + libopenblas.dll).
     dirs: list[str] = []
     try:
         pkg = Path(package_dir).resolve()

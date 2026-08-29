@@ -7,7 +7,7 @@
 
 The **R1_GPU** node turns the experimental CUDA backend into a robust, "Just Works" acceleration tier.
 
-Crucially, we do **not** invent a new scheduler. We leverage the existing, sophisticated **`AsyncStreamer`** architecture. The goal is to build **Algorithm Drivers**—smart host-side loops that orchestrate the `AsyncStreamer` logic to handle complex operations (Inversion, Eigen) on datasets larger than GPU memory.
+Crucially, we do **not** invent a new scheduler. We leverage the existing, sophisticated **`AsyncStreamer`** architecture. The goal is to build **Algorithm Drivers**-smart host-side loops that orchestrate the `AsyncStreamer` logic to handle complex operations (Inversion, Eigen) on datasets larger than GPU memory.
 
 ## Core Philosophy
 
@@ -23,7 +23,7 @@ Crucially, we do **not** invent a new scheduler. We leverage the existing, sophi
 
 **Note**: This plan is **not** documentation. Each phase must end with real doc updates that follow the Documentation Protocol.
 
-### Phase 1: Robust Discovery & "Just Works" Dispatch — DONE
+### Phase 1: Robust Discovery & "Just Works" Dispatch, DONE
 **Goal**: Make the `AutoSolver` smart enough to trust by default.
 
 *   **Hardware Audit & Persistence**:
@@ -43,7 +43,7 @@ Crucially, we do **not** invent a new scheduler. We leverage the existing, sophi
     *   [x] Add `docs/functions/pycauset.cuda.*` API references.
     *   [x] Add `docs/parameters/pinning_budget.md`.
 
-### Phase 2: Streaming Algorithm Drivers (Host-Orchestrated) — DONE
+### Phase 2: Streaming Algorithm Drivers (Host-Orchestrated), DONE
 **Goal**: Implement robust out-of-core drivers for complex linear algebra by orchestrating the existing `AsyncStreamer`.
 
 *   **Strategy: Host-Side Orchestration**:
@@ -64,7 +64,7 @@ Crucially, we do **not** invent a new scheduler. We leverage the existing, sophi
     *   [x] Update `project/protocols/Adding Operations.md` with a **GPU routine authoring checklist** (plug-and-play steps).
     *   [x] Update `guides/Performance Guide.md` with a section on "Streaming Constraints" and CPU/GPU orchestration caveats.
 
-### Phase 3: Integration (Properties & Heterogeneity) — DONE
+### Phase 3: Integration (Properties & Heterogeneity), DONE
 **Goal**: Routing respects semantic properties to exploit PyCauset's structural advantage.
 
 *   **Mechanism: Traits-Based Dispatch (Tag Dispatch)**:
@@ -81,7 +81,7 @@ Crucially, we do **not** invent a new scheduler. We leverage the existing, sophi
     *   [x] Update `internals/algorithms.md` with property-specific complexity guarantees.
     *   [x] Update `project/protocols/Adding Operations.md` to include steps for registering new Traits/Tags.
 
-### Phase 4: Block Matrix Orchestration — DONE
+### Phase 4: Block Matrix Orchestration, DONE
 **Goal**: Ensure the `BlockMatrix` composite structure utilizes the new drivers.
 
 *   **Routing**: Ensure `BlockMatrix` operations (which decompose into sub-ops) route those sub-ops through `AutoSolver` correctly.

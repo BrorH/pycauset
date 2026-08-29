@@ -10,7 +10,7 @@
 
 </div>
 
-## **A High-performance Numerical Toolset for Causal Set Theory in Python.**
+## **A High-Performance Toolset for Causal Set Theory in Python.**
 
 [Causal set theory](https://en.wikipedia.org/wiki/Causal_sets) is a discrete proposal for [quantum gravity](https://en.wikipedia.org/wiki/Quantum_gravity). PyCauset is a low-compromise numerical tool for causal sets ("causets"), built from the ground up to be fast, flexible, and easy to use. 
 
@@ -110,22 +110,17 @@ pip install .
 
 ### GPU acceleration (optional)
 
-PyCauset ships **CPU-only by default** to keep the install small. The GPU backend is a
-one-command opt-in:
+The default install is CPU-only. To add GPU support:
 
 ```bash
 pip install "pycauset[gpu]"
 ```
 
-That pulls the CUDA runtime (~500 MB) and enables the `pycauset_cuda` backend. Requirements:
+This also downloads the CUDA runtime, about 500 MB. It needs an NVIDIA GPU with
+Compute Capability 6.0 or newer, on Linux or Windows. macOS is not supported.
 
-- NVIDIA GPU, Compute Capability 6.0+ (Pascal or newer)
-- Linux or Windows (macOS has no NVIDIA CUDA)
-
-If you run on a machine with an NVIDIA GPU but haven't installed the GPU backend, PyCauset
-prints a one-line reminder at import telling you the exact command (silence it with
-`PYCAUSET_GPU_HINT=0`). CPU remains the correct, fully-supported default, the GPU backend
-is used automatically only when the cost model predicts it will be faster.
+If you have an NVIDIA GPU but are on the CPU-only build, the first `import pycauset`
+prints a short note with the install command. Set `PYCAUSET_GPU_HINT=0` to silence it.
 
 ## Status
 

@@ -1,4 +1,4 @@
-"""R2_ABC (sprinkler) + R2_VALIDATE — custom Spacetime sprinkling and order validation."""
+"""R2_ABC (sprinkler) + R2_VALIDATE, custom Spacetime sprinkling and order validation."""
 
 import unittest
 

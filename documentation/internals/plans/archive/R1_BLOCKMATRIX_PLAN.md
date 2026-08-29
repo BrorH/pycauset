@@ -1,4 +1,4 @@
-# R1_BLOCKMATRIX Plan — Block Matrices + Heterogeneous Dtypes (Storage-First)
+# R1_BLOCKMATRIX Plan, Block Matrices + Heterogeneous Dtypes (Storage-First)
 
 **Status:** Active (drafted 2025-12-17)
 
@@ -24,7 +24,7 @@ This plan is the canonical source of truth for block matrices in Release 1.
 
 **Last updated:** 2025-12-22
 
-**Current phase step:** Phase H — Testing & hardening (completed 2025-12-22)
+**Current phase step:** Phase H, Testing & hardening (completed 2025-12-22)
 
 **What is done (DONE):**
 
@@ -53,7 +53,7 @@ This plan is the canonical source of truth for block matrices in Release 1.
 - Phase F started: integration tests cover operator fallback and device routing for block addition when CUDA is active (with CPU fallback for unsupported dtypes).
 - Phase F completed: elementwise block ops (`+`, `-`, `*`, `/`) are thunked and partition-aligned, with IO prefetch/discard hooks.
 - Phase F completed: integration tests cover mixed-operand fallbacks (`dense op block`) and device routing expectations for `+`/`-` (GPU when supported, CPU otherwise) plus CPU-only guarantees for `*`/`/` under CUDA.
-- Phase G completed: documentation footprint added per Documentation Protocol — public guides (Matrix Guide, R1 linalg/storage), API reference (`pycauset.matrix`, `pycauset.matmul`, `pycauset.save`, `pycauset.load`), and internals (Block Matrices) now cover construction rules, slicing, triggers/non-triggers, refinement, staleness, persistence sidecars, and device routing expectations.
+- Phase G completed: documentation footprint added per Documentation Protocol, public guides (Matrix Guide, R1 linalg/storage), API reference (`pycauset.matrix`, `pycauset.matmul`, `pycauset.save`, `pycauset.load`), and internals (Block Matrices) now cover construction rules, slicing, triggers/non-triggers, refinement, staleness, persistence sidecars, and device routing expectations.
 - Phase H completed: hardening tests added for complex matmul vs dense (CPU fallback with guarded skip when complex matmul/persistence unsupported), float16 matmul vs dense, many-small-block matmul vs dense, mixed-dtype add vs dense, nested complex matmul+persistence (guarded skip), thunk concurrency single-eval locking, and `set_block` staleness invalidation; suite is green with expected skips only.
 
 Phase E policy choices (locked for this implementation pass):
@@ -80,18 +80,18 @@ Phase E policy choices (locked for this implementation pass):
 
 ## Phased execution plan (docs/testing baked in)
 
-- **Phase A — Contract lock (planning):** finalize semantics for evaluation triggers, caching/versioning, dtype accumulation, partition refinement, mutation, and manifest shape. Exit: written acceptance criteria + updated risk/open questions if any. Docs: update this plan + roadmap status.
-- **Phase B — Core types & validation:** implement `BlockMatrix` container (partitions, lookup, mixed dtype metadata), construction validation, structural `repr`/`str`. Exit: construction/indexing unit tests + structure-only printing tests.
-- **Phase C — Views & partition refinement:** deliver `SubmatrixView` (no-copy), block-grid refinement for mismatched partitions, tiled views across blocks, scalar/transpose propagation. Exit: view composition tests (dense + block), refinement correctness tests, deterministic error cases for unsupported views.
-- **Phase D — Ops orchestration & thunks:** elementwise ops and block matmul orchestration with deterministic per-block accumulator dtype, thunk creation, evaluation triggers, and snapshot/version checks. Exit: lazy-eval tests (triggers/non-triggers), dtype accumulator tests, stale-thunk error tests, and CPU routing for complex blocks; add trace tags for observability.
-- **Phase E — Persistence & caching:** manifest save/load for nested blocks, temp handling for thunks, cache invalidation on `set_block`/child mutation, single-eval locking. Exit: save/load round-trip tests (nested, mixed dtype), cache invalidation tests, concurrent thunk evaluation test.
-- **Phase F — Integration (properties/device/IO):** ensure “once block, always block” behavior with AutoSolver boundary, property metadata pass-through, IO accelerator prefetch/discard hooks, and CPU fallback for CUDA gaps. Exit: integration tests covering property propagation, device routing expectations, and IO prefetch/discard trace validation.
-- **Phase G — Documentation:** publish API + internals per Documentation Protocol (construction rules, triggers, manifest schema, versioning/staleness, device routing expectations, printing). Exit: docs merged + updated roadmap status.
-- **Phase H — Testing & hardening:** expand coverage (complex blocks, float16, deep nesting), stress/block-count overhead checks, and CLI/bench hooks if needed. Exit: test suite green, known gaps documented; optional perf guardrails noted.
+- **Phase A, Contract lock (planning):** finalize semantics for evaluation triggers, caching/versioning, dtype accumulation, partition refinement, mutation, and manifest shape. Exit: written acceptance criteria + updated risk/open questions if any. Docs: update this plan + roadmap status.
+- **Phase B, Core types & validation:** implement `BlockMatrix` container (partitions, lookup, mixed dtype metadata), construction validation, structural `repr`/`str`. Exit: construction/indexing unit tests + structure-only printing tests.
+- **Phase C, Views & partition refinement:** deliver `SubmatrixView` (no-copy), block-grid refinement for mismatched partitions, tiled views across blocks, scalar/transpose propagation. Exit: view composition tests (dense + block), refinement correctness tests, deterministic error cases for unsupported views.
+- **Phase D, Ops orchestration & thunks:** elementwise ops and block matmul orchestration with deterministic per-block accumulator dtype, thunk creation, evaluation triggers, and snapshot/version checks. Exit: lazy-eval tests (triggers/non-triggers), dtype accumulator tests, stale-thunk error tests, and CPU routing for complex blocks; add trace tags for observability.
+- **Phase E, Persistence & caching:** manifest save/load for nested blocks, temp handling for thunks, cache invalidation on `set_block`/child mutation, single-eval locking. Exit: save/load round-trip tests (nested, mixed dtype), cache invalidation tests, concurrent thunk evaluation test.
+- **Phase F, Integration (properties/device/IO):** ensure “once block, always block” behavior with AutoSolver boundary, property metadata pass-through, IO accelerator prefetch/discard hooks, and CPU fallback for CUDA gaps. Exit: integration tests covering property propagation, device routing expectations, and IO prefetch/discard trace validation.
+- **Phase G, Documentation:** publish API + internals per Documentation Protocol (construction rules, triggers, manifest schema, versioning/staleness, device routing expectations, printing). Exit: docs merged + updated roadmap status.
+- **Phase H, Testing & hardening:** expand coverage (complex blocks, float16, deep nesting), stress/block-count overhead checks, and CLI/bench hooks if needed. Exit: test suite green, known gaps documented; optional perf guardrails noted.
 
 ---
 
-## Phase A — Contract lock (COMPLETED 2025-12-21)
+## Phase A, Contract lock (COMPLETED 2025-12-21)
 
 This section freezes the semantics and interfaces so Phase B+ can implement without re-litigating contracts.
 
@@ -444,7 +444,7 @@ Implementation direction:
 - Thunks store the input versions they were derived from.
 - On evaluation/cache hit, verify versions match.
 
-Clarification (R1 choice — explicit):
+Clarification (R1 choice, explicit):
 
 - This is **snapshot-at-creation semantics** for lazy results: a thunk is only valid for the specific versions of its inputs that existed when the thunk was created.
 - If an input’s version differs, the thunk must raise a deterministic “stale thunk” error rather than silently recomputing with new values.

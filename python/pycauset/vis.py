@@ -51,7 +51,7 @@ def _embedding(coords, st):
 
     Prefers the `Spacetime.to_embedding` hook; falls back to the native
     `transform_coordinates` alias. If neither is present (geometry-free custom
-    spacetime), the raw coordinates are used — never inferred.
+    spacetime), the raw coordinates are used, never inferred.
     """
     coords = np.asarray(coords, dtype=float)
     if st is None:

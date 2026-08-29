@@ -2,7 +2,7 @@
 
 PyCauset lets you work with matrices that don’t fit in RAM by storing their data on disk and letting the operating system load pieces as you touch them.
 
-If you’re comfortable with NumPy, this will feel familiar: you use normal indexing (`M[i, j]`), shapes, and transpose views (`M.T`). Nothing “auto-saves” behind your back — saving is explicit.
+If you’re comfortable with NumPy, this will feel familiar: you use normal indexing (`M[i, j]`), shapes, and transpose views (`M.T`). Nothing “auto-saves” behind your back, saving is explicit.
 
 Most of the time you don’t need to think about file layouts or memory maps. You just create matrices, use normal indexing (`M[i, j]`), and call `save()` / `load()`.
 

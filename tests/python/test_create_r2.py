@@ -1,4 +1,4 @@
-"""R2_CREATE — composition decorators and `export_python` code generation."""
+"""R2_CREATE, composition decorators and `export_python` code generation."""
 
 import unittest
 

@@ -150,7 +150,7 @@ This table is a **living** SRP handoff artifact. It records the *current routing
 
 - **CPU**: whether a correctness implementation exists (required)
 - **GPU**: `GPU-enabled` vs `CPU-route` vs `blocked`
-- **Out-of-core**: `streaming-enabled` vs `blocked` (materializes; tiled path present or explicitly out of scope — see Notes)
+- **Out-of-core**: `streaming-enabled` vs `blocked` (materializes; tiled path present or explicitly out of scope, see Notes)
 
 | ComputeDevice op | CPU | GPU | Out-of-core | Notes |
 |---|---:|---|---|---|

@@ -91,7 +91,7 @@ class TestEigenCaching(unittest.TestCase):
         pycauset.save(A, str(path))
         A2 = pycauset.load_matrix(str(path))
 
-        # Compute again — values must match (cache hit or recomputation).
+        # Compute again, values must match (cache hit or recomputation).
         w2, v2 = pycauset.eigh(A2)
         w2_vals = [w2.get(i) for i in range(n)]
 

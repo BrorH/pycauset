@@ -11,9 +11,9 @@ Use this to override the automatic CPU/GPU selection when you need deterministic
 ## Parameters
 
 *   **mode** (*str*): One of:
-    *   **"auto"** — use the cost model (default behavior).
-    *   **"cpu"** — force CPU routing where possible.
-    *   **"gpu"** — prefer GPU routing when supported.
+    *   **"auto"**, use the cost model (default behavior).
+    *   **"cpu"**, force CPU routing where possible.
+    *   **"gpu"**, prefer GPU routing when supported.
 
 ## Returns
 

@@ -6,7 +6,7 @@ class Schwarzschild(dimension=2, mass=1.0, r_max=10.0, time_extent=10.0)
 
 Inherits from: [[docs/classes/spacetime/pycauset.spacetime.Spacetime.md|Spacetime]]
 
-Schwarzschild black hole — geometry-only, exterior region `r > 2M` in Schwarzschild coordinates.
+Schwarzschild black hole, geometry-only, exterior region `r > 2M` in Schwarzschild coordinates.
 
 ## Parameters
 
@@ -19,7 +19,7 @@ Schwarzschild black hole — geometry-only, exterior region `r > 2M` in Schwarzs
 
 - `is_causal` is the **exact** 1+1 radial null condition via the tortoise coordinate `r* = r + 2M ln(r/2M − 1)`: `Δt ≥ |Δr*|`. Higher dimensions (the angular null geodesic) are a research task and raise `NotImplementedError`.
 - The sampler is uniform in `(t, r)` over the exterior patch (a documented parametrization).
-- `scalar_coeffs` raises `NotImplementedError` — coefficients are manual `(a, b)`.
+- `scalar_coeffs` raises `NotImplementedError`, coefficients are manual `(a, b)`.
 - Reissner–Nordström / Kerr / Kerr–Newman are parked (see the R2 roadmap).
 
 ## Methods

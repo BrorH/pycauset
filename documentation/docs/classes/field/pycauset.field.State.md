@@ -4,7 +4,7 @@
 class State(correlated_field: CorrelatedField, config: np.ndarray)
 ```
 
-A specific excitation of the vacuum — a coherent/classical field configuration over the causet, carrying the vacuum two-point function. Returned by `CorrelatedField.state(config)`.
+A specific excitation of the vacuum, a coherent/classical field configuration over the causet, carrying the vacuum two-point function. Returned by `CorrelatedField.state(config)`.
 
 ## Description
 
@@ -24,7 +24,7 @@ where `W` is the Sorkin–Johnston Wightman function.
 def field(self) -> np.ndarray
 ```
 
-`⟨φ⟩` — the mean field configuration.
+`⟨φ⟩`, the mean field configuration.
 
 ### two_point
 

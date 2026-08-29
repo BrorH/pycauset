@@ -113,7 +113,7 @@ view = pc.to_numpy(M, copy=False)
 
 ### Safety rules (materialization)
 
-Converting a massive out-of-core matrix to NumPy is dangerous—it forces the entire dataset into RAM, which can crash your process. PyCauset guards against this.
+Converting a massive out-of-core matrix to NumPy is dangerous-it forces the entire dataset into RAM, which can crash your process. PyCauset guards against this.
 
 - **Snapshot-backed** (`.pycauset`) and **RAM-backed** (`:memory:`) objects: `np.array(obj)` is allowed and returns a copy.
 - **Spill/file-backed** objects (e.g., `.tmp`): `np.array(obj)` **raises** by default to prevent surprise full materialization. Opt in explicitly via `pc.to_numpy(obj, allow_huge=True)` if you truly want to load it into RAM.

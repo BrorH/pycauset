@@ -4,7 +4,7 @@
 spacetime.export_python(recipe_or_st) -> str
 ```
 
-Emits a paste-ready `Spacetime` subclass for a recipe (or a `Spacetime` instance). The emitted class delegates to `create(recipe)` — the same template `create` uses — so it can never drift from the declarative builder.
+Emits a paste-ready `Spacetime` subclass for a recipe (or a `Spacetime` instance). The emitted class delegates to `create(recipe)`, the same template `create` uses, so it can never drift from the declarative builder.
 
 ## Parameters
 

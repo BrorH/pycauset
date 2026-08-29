@@ -323,7 +323,7 @@ void MemoryMapper::close_file() {
 #else
 void MemoryMapper::open_file(bool create_new) {
     if (filename_ == ":memory:") {
-        // NOTE: no auto-pin via cudaHostAlloc here — see the Windows branch
+        // NOTE: no auto-pin via cudaHostAlloc here, see the Windows branch
         // comment. GPU transfers pin on-demand (ScopedPinner) instead.
 
 #ifdef __linux__

@@ -32,7 +32,7 @@ the default). The legacy `ScalarField` remains available for back-compat.
 `ContinuumCorrelatedField` with closed-form Green's functions and `.at(coords)`
 sampling, for the R2 continuum-limit comparison.
 
-> **R2 scope boundary.** Release 2 ships the **free scalar field core** — the
+> **R2 scope boundary.** Release 2 ships the **free scalar field core**, the
 > retarded/advanced propagators, the Pauli–Jordan function `iΔ`, and the
 > Sorkin–Johnston Wightman vacuum. The deeper field-theoretic system (massive
 > Green's functions with Bessel kernels, the continuum Wightman log, higher-point

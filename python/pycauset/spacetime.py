@@ -7,15 +7,15 @@ Lorentzian guess.
 
 Contract (R2_ABC, frozen early):
 
-* ``dimension()``   — total ``d = t + s`` (index 0 is time for Lorentzian).
-* ``volume()``      — total mass of the sampling measure (``0 < volume() < inf``).
-* ``sample(rng, n)``— ``(n, d)`` array, uniform w.r.t. that measure, a pure
+* ``dimension()``  , total ``d = t + s`` (index 0 is time for Lorentzian).
+* ``volume()``     , total mass of the sampling measure (``0 < volume() < inf``).
+* ``sample(rng, n)``- ``(n, d)`` array, uniform w.r.t. that measure, a pure
                       function of the injected RNG.
-* ``is_causal(u,v)``— the strict, transitive partial order (the closure, not the
+* ``is_causal(u,v)``- the strict, transitive partial order (the closure, not the
                       links). Meaningful only for Lorentzian ``t == 1``.
 
 Optional hooks: ``is_causal_batch`` (Rung 2 fast path), ``scalar_coeffs``
-(authored field coefficients — never guessed), ``to_embedding`` and ``boundary``
+(authored field coefficients, never guessed), ``to_embedding`` and ``boundary``
 (presentation only). ``@spacetime.register("name")`` gives a spacetime a
 persistable name.
 """
@@ -58,10 +58,10 @@ __all__ = [
 
 
 class Spacetime(abc.ABC):
-    """Continuum region + measure + causal order — the public extension seam.
+    """Continuum region + measure + causal order, the public extension seam.
 
     Subclasses implement ``dimension()``, ``volume()``, ``sample(rng, n)``, and
-    ``is_causal(u, v)``. ``signature`` defaults to Lorentzian ``(1, d-1)`` — a
+    ``is_causal(u, v)``. ``signature`` defaults to Lorentzian ``(1, d-1)``, a
     documented default, not an inference; override by declaring a class attribute
     ``signature = (t, s)``.
     """
@@ -113,7 +113,7 @@ class Spacetime(abc.ABC):
         raise NotImplementedError
 
     def scalar_coeffs(self, mass, density) -> Tuple[float, float]:
-        """Authored field coefficients ``(a, b)``, or raise — never guessed."""
+        """Authored field coefficients ``(a, b)``, or raise, never guessed."""
         raise NotImplementedError(
             f"{type(self).__name__} ships no authored field coefficients; "
             "pass a, b manually or implement scalar_coeffs(mass, density)."
@@ -130,7 +130,7 @@ class Spacetime(abc.ABC):
     def display_axes(self):
         """Optional axis labels for the embedding (default: none authored).
 
-        Return a list of strings — one per embedding column — so the viz layer
+        Return a list of strings, one per embedding column, so the viz layer
         does not guess geometry. Returning `None` (the default) means "no authored
         labels"; the viz layer falls back to generic `c0, c1, …`.
         """
@@ -193,7 +193,7 @@ class MinkowskiDiamond(Spacetime):
     """Causal diamond in lightcone coordinates.
 
     For ``d == 2`` this is the true 1+1 causal diamond ``(u, v) \u2208 [0,1]\u00b2``.
-    For ``d > 2`` the region is the product-interval ``[0,1]^d`` (a placeholder —
+    For ``d > 2`` the region is the product-interval ``[0,1]^d`` (a placeholder -
     the true ``I\u207a(p)\u2229I\u207b(q)`` sampler is tracked under R2_MINK).
     """
 
@@ -393,7 +393,7 @@ MinkowskiBox.scalar_coeffs = _flat_scalar_coeffs
 
 
 # ---------------------------------------------------------------------------
-# Rung 0 — declarative builder (flat Minkowski family)
+# Rung 0, declarative builder (flat Minkowski family)
 # ---------------------------------------------------------------------------
 
 _FLAT_DOMAINS = ("box", "diamond", "cylinder")
@@ -411,7 +411,7 @@ def create(
 ):
     """Assemble a configured spacetime from a recipe (no class required).
 
-    Every parameter maps 1:1 to a concrete setting — there is no hidden
+    Every parameter maps 1:1 to a concrete setting, there is no hidden
     inference. Curved metrics (de_sitter / anti_de_sitter / flrw) are R2.1 and
     raise `NotImplementedError` here with the valid options.
     """
@@ -466,7 +466,7 @@ def create(
 
 
 # ---------------------------------------------------------------------------
-# R2_CREATE — composition decorators + code generation
+# R2_CREATE, composition decorators + code generation
 # ---------------------------------------------------------------------------
 
 
@@ -570,7 +570,7 @@ class ConformalSpacetime(Spacetime):
     """Wrap a spacetime with a conformal factor (R2_CREATE decorator).
 
     A conformal transformation rescales the metric by ``Omega(x)^2``. It preserves
-    the **causal light-cone** — so ``is_causal`` is inherited verbatim — but rescales
+    the **causal light-cone**, so ``is_causal`` is inherited verbatim, but rescales
     the volume measure by ``Omega^d``.
 
     ``conformal_factor(x) -> float`` must be positive on the base's support (points
@@ -749,8 +749,8 @@ def _recipe_from_spacetime(st) -> dict:
 def export_python(recipe_or_st) -> str:
     """Emit a paste-ready `Spacetime` subclass for a recipe (R2_CREATE codegen).
 
-    The emitted subclass delegates to `create(recipe)` — the same template `create`
-    uses — so it can never drift from the declarative builder.
+    The emitted subclass delegates to `create(recipe)`, the same template `create`
+    uses, so it can never drift from the declarative builder.
     """
     if isinstance(recipe_or_st, Spacetime):
         recipe = _recipe_from_spacetime(recipe_or_st)
@@ -793,7 +793,7 @@ def export_python(recipe_or_st) -> str:
 
 
 # ---------------------------------------------------------------------------
-# R2_CURVED — curved / cosmological spacetimes (documented parametrizations)
+# R2_CURVED, curved / cosmological spacetimes (documented parametrizations)
 # ---------------------------------------------------------------------------
 
 
@@ -905,7 +905,7 @@ class FLRW(Spacetime):
 
     ``scale_factor`` is a power-law exponent ``p`` (``a(t) = t^p``) or a callable
     ``a(t) -> float``. Causality uses the null condition ``\u222b dt/a(t) \u2265 |\u0394x\u20d7|``.
-    The sampler is uniform in ``(t, x\u20d7)`` — a documented parametrization, not the
+    The sampler is uniform in ``(t, x\u20d7)``, a documented parametrization, not the
     FLRW-invariant measure unless ``a(t)`` is constant.
     """
 
@@ -969,7 +969,7 @@ def _tortoise(r, M):
 
 
 class Schwarzschild(Spacetime):
-    """Schwarzschild black hole (R2_BH) — geometry-only, 1+1 (radial) exact.
+    """Schwarzschild black hole (R2_BH), geometry-only, 1+1 (radial) exact.
 
     Exterior region ``r > 2M`` in Schwarzschild coordinates ``(t, r)``. ``is_causal``
     uses the **exact** radial null condition via the tortoise coordinate

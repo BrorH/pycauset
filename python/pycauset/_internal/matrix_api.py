@@ -221,7 +221,7 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                 # `backing_file` cannot be honoured by the NumPy fast-path
                 # (native.asarray allocates RAM- or threshold-backed storage only).
                 # Reject it explicitly instead of silently returning an in-memory
-                # matrix while the caller believed it was file-backed — that silent
+                # matrix while the caller believed it was file-backed, that silent
                 # drop is a wrong answer for persistence expectations.
                 if "backing_file" in kwargs:
                     raise TypeError(

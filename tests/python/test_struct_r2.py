@@ -1,4 +1,4 @@
-"""R2_STRUCT — causal-structure methods: links, chains/antichains, intervals, layering."""
+"""R2_STRUCT, causal-structure methods: links, chains/antichains, intervals, layering."""
 
 import unittest
 

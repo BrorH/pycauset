@@ -1,4 +1,4 @@
-"""R2_PERF — canonical compute-parity benchmark (PyCauset vs NumPy, dense float64).
+"""R2_PERF, canonical compute-parity benchmark (PyCauset vs NumPy, dense float64).
 
 Reproduces with::
 
@@ -7,7 +7,7 @@ Reproduces with::
 For each op, reports the ratio ``numpy_time / pycauset_time``. A ratio >= 1.0
 means PyCauset is faster; >= 0.90 means "at parity" (the R2_PERF bar). Sizes are
 chosen large enough that Python-dispatch overhead is amortized. This is the single
-canonical gate — it supersedes the older ad-hoc benchmark scripts.
+canonical gate, it supersedes the older ad-hoc benchmark scripts.
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ def main() -> None:
     # invert() and determinant() memoize their results (a real PyCauset feature:
     # the inverse lives in `_cached_inverse`, the determinant in the derived-
     # property store). NumPy recomputes every call, so a warm-cache comparison
-    # would measure a cache hit against a fresh factorization — not parity. Clear
+    # would measure a cache hit against a fresh factorization, not parity. Clear
     # the derived caches before each timed call so both sides recompute.
     def _clear_derived_caches(m):
         try:

@@ -1,9 +1,9 @@
-"""Fields on causal sets — the R2 field core.
+"""Fields on causal sets, the R2 field core.
 
 The model is ``Field -> CorrelatedField`` (R2_FIELD):
 
 * ``pc.field("scalar", mass=…)`` is a set-independent `Field` (the field content).
-* ``phi.on(causet)`` returns a `CorrelatedField` — the field together with its
+* ``phi.on(causet)`` returns a `CorrelatedField`, the field together with its
   Green's functions and vacuum two-point function on that causet.
 
 The propagators follow R2_KRD:
@@ -31,7 +31,7 @@ def _scalar_coeffs(causet: CausalSet, mass: float) -> Tuple[float, float]:
     """Derive the ``(a, b)`` coefficients for a scalar on a causet's spacetime.
 
     Delegates to ``Spacetime.scalar_coeffs(mass, density)`` (R2_COEFFS): the built-in
-    Minkowski spacetimes implement the known 2D/4D table, everything else raises —
+    Minkowski spacetimes implement the known 2D/4D table, everything else raises -
     coefficients are never guessed and never name-sniffed.
     """
     try:
@@ -160,10 +160,10 @@ class CorrelatedField:
 
         **Conventions (documented):**
 
-        * ``"sorkin_yazdi"`` (default) — the zero-point ``1/2`` convention:
+        * ``"sorkin_yazdi"`` (default), the zero-point ``1/2`` convention:
           ``S = tr[(W_A + I) ln(W_A + I) \u2212 W_A ln W_A]``, with ``0 ln 0 = 0``.
           Well-defined for the SJ Wightman (``W_A \u2265 0``).
-        * ``"symplectic"`` — the literal symplectic-eigenvalue form
+        * ``"symplectic"``, the literal symplectic-eigenvalue form
           ``S = tr[(W_A + 1/2) ln(W_A + 1/2) \u2212 (W_A \u2212 1/2) ln(W_A \u2212 1/2)]``,
           which assumes ``W_A \u2265 1/2`` (a Wightman already in the covariance
           convention); raises `ValueError` otherwise.
@@ -229,7 +229,7 @@ class State:
         return self._cf
 
     def field(self) -> np.ndarray:
-        """``\u27e8\u03c6\u27e9`` — the mean field configuration."""
+        """``\u27e8\u03c6\u27e9``, the mean field configuration."""
         return self._phi.copy()
 
     def two_point(self) -> np.ndarray:

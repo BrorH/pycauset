@@ -34,7 +34,7 @@ __global__ void k_transpose_dense(T* A, int n) {
 
 // Generic (64-bit) geev wrapper. T is the real element type (float/double) and
 // CT the matching cuSOLVER complex type (cuComplex/cuDoubleComplex). Eigenvalues
-// come back in host_W (size n, complex), and — when want_vr — right eigenvectors
+// come back in host_W (size n, complex), and, when want_vr, right eigenvectors
 // in host_VR (size n*n, real, with conjugate pairs in adjacent columns like
 // LAPACK).
 template <typename T, typename CT>
@@ -1034,6 +1034,11 @@ void CudaDevice::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, in
 void CudaDevice::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {
     (void)a; (void)out; (void)k;
     throw std::runtime_error("CudaDevice::eigvals_skew not implemented (use CPU or wait for update)");
+}
+
+void CudaDevice::eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBase& eigenvectors, int k) {
+    (void)a; (void)eigenvalues; (void)eigenvectors; (void)k;
+    throw std::runtime_error("CudaDevice::eig_skew not implemented (use CPU)");
 }
 
 void CudaDevice::eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) {

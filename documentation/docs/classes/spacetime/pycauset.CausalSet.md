@@ -4,7 +4,7 @@
 class CausalSet(n=None, density=None, spacetime=None, seed=None, matrix=None, validate=True)
 ```
 
-The `CausalSet` class represents a causal set — a discrete partial order. It is the primary object of PyCauset: a `TriangularBitMatrix` (the causal relations) plus provenance (the spacetime + seed it was sprinkled from, or an attached embedding).
+The `CausalSet` class represents a causal set, a discrete partial order. It is the primary object of PyCauset: a `TriangularBitMatrix` (the causal relations) plus provenance (the spacetime + seed it was sprinkled from, or an attached embedding).
 
 ## Parameters
 
@@ -78,7 +78,7 @@ Validates that the order is a strict partial order (reflexive-free, antisymmetri
 def coordinates(self, indices=None, force=False) -> np.ndarray
 ```
 
-Returns the spacetime coordinates of the elements — the attached embedding for a custom-`Spacetime` causet, or regenerated from `(spacetime, seed)` for a native causet. Raises `UserWarning` above 100,000 elements unless `force=True`.
+Returns the spacetime coordinates of the elements, the attached embedding for a custom-`Spacetime` causet, or regenerated from `(spacetime, seed)` for a native causet. Raises `UserWarning` above 100,000 elements unless `force=True`.
 
 ### links
 
@@ -86,7 +86,7 @@ Returns the spacetime coordinates of the elements — the attached embedding for
 def links(self) -> np.ndarray
 ```
 
-The link (Hasse) matrix — the transitive reduction `L = C & ~(C@C)`.
+The link (Hasse) matrix, the transitive reduction `L = C & ~(C@C)`.
 
 ### past / future
 

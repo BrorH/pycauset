@@ -1,4 +1,4 @@
-# R2 Spacetime Creation — Recipe, Protocol & Tooling (Spec)
+# R2 Spacetime Creation, Recipe, Protocol & Tooling (Spec)
 
 **Status**: Planning. Defines the full "easy ladder" for defining custom spacetimes.
 **Companion**: `R2_PLAN_MAP.md` (§5), `R2_API_DESIGN.md` (§2), `R2_SPACETIME_LIBRARY.md`.
@@ -7,7 +7,7 @@
 
 ## 1. The minimal `Spacetime` contract
 
-Every spacetime — library or custom — implements this. It is the *only* thing the sprinkler and
+Every spacetime, library or custom, implements this. It is the *only* thing the sprinkler and
 the field engine are allowed to depend on.
 
 ```python
@@ -32,7 +32,7 @@ class Spacetime(ABC):
 ```
 
 **RNG contract (hard requirement):** `sample` receives a seeded RNG object and must be a *pure
-function* of it — no global random state. This is what makes
+function* of it, no global random state. This is what makes
 `same (spacetime, seed, n) ⇒ bit-identical points and order` hold, which the hybrid coordinate
 model depends on.
 
@@ -44,12 +44,12 @@ causet). Multi-time (`t > 1`) spacetimes may override it if they define a "futur
 
 ## 2. The easy ladder
 
-### Rung 0 — `spacetime.create(recipe)` (declarative, no class)
+### Rung 0, `spacetime.create(recipe)` (declarative, no class)
 
 ```python
 st = spacetime.create(
     dimension=3,
-    signature=(1, 2),       # optional; default (1, d-1) Lorentzian — a documented default, not inference
+    signature=(1, 2),       # optional; default (1, d-1) Lorentzian, a documented default, not inference
     domain="box",           # box | diamond | cylinder | ball | slab | none
     metric="flat",          # flat | de_sitter | anti_de_sitter | flrw
     time_extent=4.0,
@@ -67,20 +67,20 @@ st = spacetime.create(
 | `signature` | `(t, s)` | `(1, d-1)` | must satisfy `t + s == dimension` |
 | `domain` | enum | required | `box`/`diamond`/`cylinder`/`ball`/`slab`/`none` |
 | `metric` | enum | required | `flat`/`de_sitter`/`anti_de_sitter`/`flrw` |
-| domain params | — | per-domain | e.g. `time_extent`, `space_extent`, `height`, `circumference`, `radius` |
-| metric params | — | per-metric | e.g. `curvature_radius`, `scale_factor`, `k` |
+| domain params |, | per-domain | e.g. `time_extent`, `space_extent`, `height`, `circumference`, `radius` |
+| metric params |, | per-metric | e.g. `curvature_radius`, `scale_factor`, `k` |
 | `periodic` | `bool \| list[int]` | `False` | which spatial dims wrap |
 
 **Mapping rule:** `(domain, metric)` selects a registered **template**. Each template declares
 exactly which parameters it *requires* and which it *forbids*. Missing-required or
 not-supported-combination ⇒ an immediate error listing the valid combinations. **No silent
-defaults for physics parameters** — the only defaults are `signature` (documented) and `periodic`
+defaults for physics parameters**, the only defaults are `signature` (documented) and `periodic`
 (documented), neither of which is inference.
 
 **Result:** a configured `Spacetime` instance (implementation detail: a built-in class, a composed
-decorator stack, or a generated subclass — but the user only ever sees a `Spacetime`).
+decorator stack, or a generated subclass, but the user only ever sees a `Spacetime`).
 
-### Rung 1 — subclass (three methods)
+### Rung 1, subclass (three methods)
 
 The §1 contract written by hand. This is the escape hatch and the pedagogical path; `create` is
 implemented *on top of* it, so nothing is magic.
@@ -101,7 +101,7 @@ class MyDiamond4D(spacetime.Spacetime):
         return 1.0
 ```
 
-### Rung 2 — batch hook (optional speed)
+### Rung 2, batch hook (optional speed)
 
 Add `is_causal_batch(coords) -> (n, n) bool` (upper-triangular) and the sprinkler runs the O(n²)
 pairwise step in NumPy/C instead of a Python loop. If absent, the sprinkler falls back to calling
@@ -125,7 +125,7 @@ Two sanctioned ways (director decision #6):
 | `PeriodicSpacetime(base, dims)` | wrap spatial dims | `is_causal` (wrap distance) |
 
 Decorators compose (`Restricted(Conformal(DeSitter(d), Ω), region)`) and **must keep `volume()`
-consistent with the wrapped `sample()`** — that consistency is an invariant the runtime checks on
+consistent with the wrapped `sample()`**, that consistency is an invariant the runtime checks on
 construction where feasible.
 
 ---
@@ -153,13 +153,13 @@ Two launch modes, both pure client-side (no backend needed for R2.0):
 1. **Hosted (GitHub Pages):** publish the studio as a static page under the docs site (the repo
    already deploys MkDocs to GitHub Pages). Best for discoverability and sharing.
 2. **Open-in-browser, Plotly-style:** `pycauset.studio()` opens a self-contained HTML file in the
-   default browser — exactly how Plotly's `fig.show()` opens a local page. Since the studio is
+   default browser, exactly how Plotly's `fig.show()` opens a local page. Since the studio is
    pure JS, no server is required. `pycauset.studio(hosted=True)` opens the GitHub Pages URL
    instead.
 
 Creative note: for R2.0 the studio is a *generator* (form → recipe → code) and can be fully
 static. A later "live preview" (actually sprinkle and render the causet in the browser) needs the
-pycauset engine behind a tiny local server — the Plotly model again — and is an R2.x stretch, not
+pycauset engine behind a tiny local server, the Plotly model again, and is an R2.x stretch, not
 R2.0.
 
 **Interactive mockup:** `mockups/spacetime_studio_mockup.html` (self-contained; open in any
@@ -175,7 +175,7 @@ browser) sketches the layout, the library picker, live recipe/code generation, a
 - **Load** looks up `kind`/`name` in the registry; if absent, raise
   `UnknownSpacetime("... is not registered; import the module that defines it")`.
 - **Collision policy (agreed):** explicit error on duplicate name, with an `overwrite=True`
-  override — no silent last-wins.
+  override, no silent last-wins.
 
 ---
 

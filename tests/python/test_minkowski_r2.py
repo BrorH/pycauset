@@ -1,4 +1,4 @@
-"""R2_MINK — the flat Minkowski family: correct order, volume, sampler, causality."""
+"""R2_MINK, the flat Minkowski family: correct order, volume, sampler, causality."""
 
 import unittest
 

@@ -1,4 +1,4 @@
-"""R2_ENT — Sorkin–Yazdi entanglement entropy (two documented conventions)."""
+"""R2_ENT, Sorkin–Yazdi entanglement entropy (two documented conventions)."""
 
 import unittest
 
@@ -34,7 +34,7 @@ class TestEntanglementEntropy(unittest.TestCase):
             self.Q.entanglement_entropy(self.region, convention="bogus")
 
     def test_conventions_agree_after_shift(self):
-        # sorkin_yazdi(W) == symplectic(W + 1/2 I) — the two conventions are the same
+        # sorkin_yazdi(W) == symplectic(W + 1/2 I), the two conventions are the same
         # formula up to the zero-point shift.
         W = self.Q.wightman()
         idx = self.region

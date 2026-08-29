@@ -6,7 +6,7 @@ class AntiDeSitter(dimension=2, radius=1.0, rho_max=1.0)
 
 Inherits from: [[docs/classes/spacetime/pycauset.spacetime.Spacetime.md|Spacetime]]
 
-anti-de Sitter spacetime — the hyperboloid `−X₀² − X₁² + Σ Xᵢ² = −R²`.
+anti-de Sitter spacetime, the hyperboloid `−X₀² − X₁² + Σ Xᵢ² = −R²`.
 
 ## Parameters
 
@@ -18,7 +18,7 @@ anti-de Sitter spacetime — the hyperboloid `−X₀² − X₁² + Σ Xᵢ² =
 
 - **No causal order:** the naive AdS hyperboloid has closed timelike curves, so `is_causal` raises `NotImplementedError` ("no causal order"); the universal cover is a research task.
 - The **sampler** is a documented parametrization.
-- `scalar_coeffs` raises `NotImplementedError` — coefficients are manual `(a, b)`.
+- `scalar_coeffs` raises `NotImplementedError`, coefficients are manual `(a, b)`.
 
 ## Methods
 

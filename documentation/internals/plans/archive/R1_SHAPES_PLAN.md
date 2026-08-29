@@ -1,4 +1,4 @@
-# R1_SHAPES Plan — NxM Matrices Across The System (End-to-End)
+# R1_SHAPES Plan, NxM Matrices Across The System (End-to-End)
 
 **Status:** Complete (Phase 0 complete; Phase 1 complete; Phase 2 complete; Phase 3 complete)
 
@@ -250,7 +250,7 @@ We should expect many call sites in:
 
 ## 3) Work breakdown (phased)
 
-### Phase 0 — Public API lowercase sweep (purge uppercase factories)
+### Phase 0, Public API lowercase sweep (purge uppercase factories)
 
 **Status:** Complete
 
@@ -296,7 +296,7 @@ Notes:
 - This step is intentionally large and mechanical; it is worth doing early to avoid rewriting examples twice.
 - Do not emit any messaging like “X is deprecated, use Y”. Old names simply stop existing.
 
-### Phase 1 — Rectangular-safe dense objects end-to-end (Float64 first)
+### Phase 1, Rectangular-safe dense objects end-to-end (Float64 first)
 
 **Status:** Complete (validated 2025-12-17)
 
@@ -366,7 +366,7 @@ Phase 1 completion record (2025-12-17):
    - NumPy `asarray` / `np.array(m)` roundtrip preserves shape,
    - persistence roundtrip preserves base dims + transpose flag.
 
-### Phase 1.5 — Expand dense dtypes (mechanical)
+### Phase 1.5, Expand dense dtypes (mechanical)
 
 **Status:** Complete (validated 2025-12-17)
 
@@ -375,7 +375,7 @@ Once Float64 is stable, extend the same rectangular-safe implementation to:
 - float32, float16
 - integer dense types
 - complex dense types
-- dense bit matrix (bit-packed) — requires “stride by cols”, not by `n_`
+- dense bit matrix (bit-packed), requires “stride by cols”, not by `n_`
 
 The intent is to reuse the same invariants and tests, with dtype-specific differences limited to:
 
@@ -393,7 +393,7 @@ Phase 1.5 validation note (2025-12-17):
 - Rectangular allocation + transpose-view shape were smoke-validated for: float16/32/64, int16/32, uint8/64, complex_float16/32/64.
 - Dense `bool/bit` matrices support rectangular `(rows, cols)` allocation; bit-packed storage uses a stride derived from `cols`.
 
-### Phase 2 — NxM operation rules (matmul/matvec/vecmat + elementwise)
+### Phase 2, NxM operation rules (matmul/matvec/vecmat + elementwise)
 
 **Status:** Complete (validated 2025-12-17)
 
@@ -432,7 +432,7 @@ Acceptance checklist:
 - Restricted/square-only ops throw deterministic errors on non-square inputs.
 - The NxM-enabled vs restricted list is published in a discoverable docs location and kept current.
 
-### Phase 3 — Structure policies for “inherently square” vs “shape-flexible”
+### Phase 3, Structure policies for “inherently square” vs “shape-flexible”
 
 **Status:** Complete (validated 2025-12-17)
 

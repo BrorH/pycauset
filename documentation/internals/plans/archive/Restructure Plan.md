@@ -8,17 +8,17 @@ This document started as a proposal. Since then, several phases have been execut
 
 For contributors: the bullets below are the “what happened” summary. The canonical details live in the linked dev handbook pages.
 
-- [x] Phase A — Documentation-first
+- [x] Phase A, Documentation-first
   - `documentation/dev/` handbook exists (bootstrap/build/bindings/testing/hygiene/structure).
   - Philosophy positioning updated to “NumPy for causal sets”.
   - Documented in: [[dev/index]], [[project/Philosophy]]
-- [x] Phase B — Purge committed binaries + enforce hygiene
+- [x] Phase B, Purge committed binaries + enforce hygiene
   - Committed build artifacts/binaries were removed and history rewritten.
   - Documented in: [[dev/Repository Hygiene]]
-- [x] Phase C — Build workflow alignment
+- [x] Phase C, Build workflow alignment
   - Pip/scikit-build-core workflow is the documented “canonical” path; scripts are wrappers.
   - Documented in: [[dev/Build System]]
-- [~] Phase D — Python internal modularization
+- [~] Phase D, Python internal modularization
   - Public API remains `pycauset.*`.
   - `python/pycauset/_internal/` created and used for implementation.
   - Persistence (single-file container) + linalg caching extracted.
@@ -26,12 +26,12 @@ For contributors: the bullets below are the “what happened” summary. The can
   - Ops glue (`matmul`, `compute_k`, `bitwise_not`, `invert`) extracted into `python/pycauset/_internal/ops.py` and `__init__.py` delegates.
   - Remaining work: keep shrinking `python/pycauset/__init__.py` and keep dev docs in sync.
   - Documented in: [[dev/Codebase Structure]], [[dev/Python Internals]]
-- [~] Phase E — Bindings modularization
+- [~] Phase E, Bindings modularization
   - `src/bindings.cpp` is a thin `PYBIND11_MODULE` entrypoint.
   - Binding code split into modular translation units under `src/bindings/`.
   - Added native export drift check: `tools/check_native_exports.py`.
   - Documented in: [[dev/Bindings & Dispatch]]
-- [ ] Phase F — NxM groundwork
+- [ ] Phase F, NxM groundwork
   - Square-only assumptions list started: `documentation/dev/Square-only Assumptions.md`.
   - Documented in: [[dev/Square-only Assumptions]]
 
@@ -57,7 +57,7 @@ This plan focuses on:
 - **API coherence:** the top-level Python surface keeps a NumPy-like feel (entrypoints remain at `pycauset.*`).
 - **Pre-alpha flexibility:** breaking changes are acceptable when they improve the architecture, but they require explicit approval and corresponding updates to tests + docs.
 - **Reproducibility:** the code you run is the code you built.
-- **Documentation completeness:** “no amount is too much” — developers should have transparent guides.
+- **Documentation completeness:** “no amount is too much”, developers should have transparent guides.
 - **Extensibility:** adding dtype/op support can follow a clear recipe (ties into optimization checklist).
 
 ## 2) Non-goals (for this restructure)
@@ -87,7 +87,7 @@ This plan focuses on:
 
 Each phase has an explicit “Done when…” acceptance criterion.
 
-### Phase A — Documentation-first (developer transparency)
+### Phase A, Documentation-first (developer transparency)
 
 **Work:**
 - Create a dedicated `documentation/dev/` handbook (this folder).
@@ -105,7 +105,7 @@ Each phase has an explicit “Done when…” acceptance criterion.
   - add a new dtype/op in the correct places,
   - run tests/benchmarks.
 
-### Phase B — Purge committed binaries + enforce hygiene
+### Phase B, Purge committed binaries + enforce hygiene
 
 **Work:**
 - Remove currently committed compiled artifacts from the repo (e.g., binaries under the Python package directory).
@@ -116,7 +116,7 @@ Each phase has an explicit “Done when…” acceptance criterion.
 - Fresh clone contains only source + docs (no compiled artifacts).
 - Building/installing produces artifacts locally.
 
-### Phase C — Build workflow alignment (pip as source of truth)
+### Phase C, Build workflow alignment (pip as source of truth)
 
 **Work:**
 - Keep `build.ps1` as a thin wrapper that calls the canonical pip build/install commands.
@@ -130,7 +130,7 @@ Each phase has an explicit “Done when…” acceptance criterion.
 - “The official way” to build from source is documented as pip-based.
 - `build.ps1` cannot diverge into a second, incompatible build system.
 
-### Phase D — Python package internal modularization (without changing public API)
+### Phase D, Python package internal modularization (without changing public API)
 
 **Work (internal-only):**
 - Split the current large `pycauset` package internals by responsibility (example target shape):
@@ -150,7 +150,7 @@ Each phase has an explicit “Done when…” acceptance criterion.
   - native importing/bootstrap.
 - Tests continue to import from `pycauset.*` unchanged.
 
-### Phase E — Bindings completeness + modular binding sources
+### Phase E, Bindings completeness + modular binding sources
 
 **Work:**
 - Make binding code modular (multiple binding translation units) to match subsystems.
@@ -161,7 +161,7 @@ Each phase has an explicit “Done when…” acceptance criterion.
 - A mismatch between Python expectations and C++ bindings is easy to detect.
 - Adding a new matrix type/op has a clear binding template.
 
-### Phase F — NxM groundwork (documentation + interfaces first)
+### Phase F, NxM groundwork (documentation + interfaces first)
 
 **Work:**
 - Update roadmap/TODO: NxM support planned for all types.

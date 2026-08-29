@@ -4688,6 +4688,20 @@ void bind_matrix_classes(py::module_& m) {
         py::arg("k"));
 
     m.def(
+        "eig_skew",
+        [](std::shared_ptr<MatrixBase> a, int k) {
+            return translate_invalid_argument([&]() {
+                auto out = pycauset::eig_skew(*a, k);
+                return std::make_pair(
+                    std::shared_ptr<VectorBase>(out.first.release()),
+                    std::shared_ptr<MatrixBase>(out.second.release())
+                );
+            });
+        },
+        py::arg("a"),
+        py::arg("k"));
+
+    m.def(
         "compute_k_matrix",
         [](std::shared_ptr<TriangularBitMatrix> C,
            double a,

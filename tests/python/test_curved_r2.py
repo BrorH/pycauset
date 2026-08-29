@@ -1,4 +1,4 @@
-"""R2_CURVED — DeSitter / AntiDeSitter / FLRW (documented parametrizations)."""
+"""R2_CURVED, DeSitter / AntiDeSitter / FLRW (documented parametrizations)."""
 
 import unittest
 

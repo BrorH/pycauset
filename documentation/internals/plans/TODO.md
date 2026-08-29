@@ -16,7 +16,7 @@ status lives in `R1_EXECUTION.md`.
 - [ ] API lock: mark `_internal` as private (`__all__` is already curated)
 
 ### Known issues (bugs, fix post-R1, do not forget)
-- **Teardown hang in `release_tracked_matrices()`** — root-caused and fixed
+- **Teardown hang in `release_tracked_matrices()`**, root-caused and fixed
   (R2_HARDEN, 2026-08): the `MemoryGovernor`/`ComputeContext`/`ThreadPool`/
   `OpRegistry` singletons were Meyers statics whose destruction order is undefined
   during interpreter finalization, so `PersistentObject` destructors and `close()`
@@ -25,7 +25,7 @@ status lives in `R1_EXECUTION.md`.
   resources at process exit), eliminating the whole class of teardown-ordering
   hazards. The `release_tracked_matrices()` finalization skip is retained as
   defense-in-depth (the OS reclaims mappings anyway).
-- **Dead code / deprecated-feature sweep** — in progress (R2_HARDEN): removed the
+- **Dead code / deprecated-feature sweep**, in progress (R2_HARDEN): removed the
   import-time-skipped `test_pauli_jordan_spectrum.py` (referenced the removed
   `.eigenvalues()` API) and the stale `*.dll.stale` build artifacts. `test_skew.py`
   and `test_skew_comprehensive.py` were re-enabled once the native `eigvals_skew`
@@ -59,10 +59,10 @@ status lives in `R1_EXECUTION.md`.
 ### Hygiene
 - Remove dead code and legacy eager-evaluation paths
 - Slim `__init__.py`
-- ruff/mypy incremental cleanup (E/I/UP style rules) — **in progress**: `ruff check --fix`
+- ruff/mypy incremental cleanup (E/I/UP style rules), **in progress**: `ruff check --fix`
   applied import-sorting (I001) across `python/pycauset`. Remaining are ~295 mechanical
   findings: `E501` (docstring/line >100 chars, cosmetic) and `UP006`/`UP045`
-  (`Tuple`→`tuple`, `Optional[X]`→`X | None`, `List`→`list` — need `--unsafe-fixes`;
+  (`Tuple`→`tuple`, `Optional[X]`→`X | None`, `List`→`list`, need `--unsafe-fixes`;
   safe on the actual py3.10+ runtime but flagged against the stale `py38` target).
 
 ---

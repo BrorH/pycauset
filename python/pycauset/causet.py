@@ -1,4 +1,4 @@
-"""CausalSet — the primary object of PyCauset.
+"""CausalSet, the primary object of PyCauset.
 
 A `CausalSet` is a discrete partial order: a `TriangularBitMatrix` of causal
 relations plus provenance (a `Spacetime` + seed, or an attached embedding). It also
@@ -40,9 +40,9 @@ def validate_causal_matrix(matrix, *, context: str = "causal matrix") -> None:
     """Validate that a causal matrix is a strict partial order.
 
     A causal set's order must be:
-    * **reflexive-free** — no element is its own cause (zero diagonal);
-    * **antisymmetric** — never both ``i ≺ j`` and ``j ≺ i``;
-    * **transitive** — the matrix is the *closure*, not just the links (every
+    * **reflexive-free**, no element is its own cause (zero diagonal);
+    * **antisymmetric**, never both ``i ≺ j`` and ``j ≺ i``;
+    * **transitive**, the matrix is the *closure*, not just the links (every
       length-2 path must be a direct relation).
 
     Raises ``ValueError`` with an actionable message on the first violation.
@@ -353,8 +353,8 @@ class CausalSet:
     def myrheim_meyer_dimension(self, dmin: float = 1.0, dmax: float = 8.0) -> float:
         """Myrheim\u2013Meyer dimension estimate (inverts the relation fraction).
 
-        Uses ``f(d) = \u0393(d+1) \u0393(d/2) / (2 \u0393(3d/2))`` — the fraction of
-        comparable pairs in d-dimensional Minkowski (f(1)=1, f(2)=1/2, f(4)=1/10) —
+        Uses ``f(d) = \u0393(d+1) \u0393(d/2) / (2 \u0393(3d/2))``, the fraction of
+        comparable pairs in d-dimensional Minkowski (f(1)=1, f(2)=1/2, f(4)=1/10) -
         and bisects on the measured relation fraction. Correct for the true causal
         diamond (d = 1, 2); for ``d > 2`` the product-interval placeholder biases it
         (see R2_MINK).

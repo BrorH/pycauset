@@ -112,7 +112,7 @@ Block-grid input rejects `dtype` and `**kwargs`.
     - crossing the compute boundary (e.g., feeding a thunk block into another op).
 - Non-triggers: `repr/str`, shape/partition metadata, and `get_block`.
 - Block-aware slicing is supported: slicing a block matrix returns tiled `SubmatrixView` blocks without densifying; it raises deterministically if a required view cannot be represented.
-- Partition mismatches during ops or slicing are handled by refinement (union of boundaries) with `SubmatrixView` tiling—no silent densify.
+- Partition mismatches during ops or slicing are handled by refinement (union of boundaries) with `SubmatrixView` tiling-no silent densify.
 - Staleness: thunks pin input `version` metadata; `set_block` or child mutation bumps versions. Stale thunks/caches raise on access (no auto-recompute).
 
 ### Saving and loading

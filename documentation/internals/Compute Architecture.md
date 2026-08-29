@@ -356,7 +356,7 @@ This section outlines the plan to address the remaining gaps in the PyCauset acc
 
 ### Phase 1: Dense Eigenvalues on GPU (Complete)
 *   **Status**: ✅ Complete (General non-symmetric via `geev`)
-*   **Implementation**: `eig` / `eigvals` use `cusolverDnXgeev` (the 64-bit generic API) for Float32/Float64, returning complex eigenvalues and — for `eig` — complex right eigenvectors. Row-major input is transposed on device so the column-major solver sees `A` (not `Aᵀ`) and returns the correct right eigenvectors. Symmetric `eigvalsh`/`eigh` remain CPU-backed until the symmetric GPU kernels are wired.
+*   **Implementation**: `eig` / `eigvals` use `cusolverDnXgeev` (the 64-bit generic API) for Float32/Float64, returning complex eigenvalues and, for `eig`, complex right eigenvectors. Row-major input is transposed on device so the column-major solver sees `A` (not `Aᵀ`) and returns the correct right eigenvectors. Symmetric `eigvalsh`/`eigh` remain CPU-backed until the symmetric GPU kernels are wired.
 
 ### Phase 2: Element-wise Operations on GPU (Partial)
 *   **Status**: 🟡 Partial

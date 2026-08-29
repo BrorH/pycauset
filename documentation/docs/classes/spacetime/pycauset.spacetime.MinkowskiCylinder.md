@@ -78,11 +78,11 @@ Returns the volume of the cylinder, calculated as $height \times circumference$.
 
 `MinkowskiCylinder` also implements the full `Spacetime` contract:
 
-*   **signature** (*property*): `(1, d-1)` — Lorentzian.
-*   **sample** (*method*): `sample(rng, n) -> np.ndarray` — draws `n` points uniformly.
-*   **is_causal** (*method*): `is_causal(u, v) -> bool` — the strict transitive causal order (wrap-aware on the circle).
-*   **is_causal_batch** (*method*): `is_causal_batch(coords) -> np.ndarray` — the vectorized `(n, n)` causal matrix.
-*   **scalar_coeffs** (*method*): `scalar_coeffs(mass, density) -> (a, b)` — the authored 2D field coefficients.
+*   **signature** (*property*): `(1, d-1)`, Lorentzian.
+*   **sample** (*method*): `sample(rng, n) -> np.ndarray`, draws `n` points uniformly.
+*   **is_causal** (*method*): `is_causal(u, v) -> bool`, the strict transitive causal order (wrap-aware on the circle).
+*   **is_causal_batch** (*method*): `is_causal_batch(coords) -> np.ndarray`, the vectorized `(n, n)` causal matrix.
+*   **scalar_coeffs** (*method*): `scalar_coeffs(mass, density) -> (a, b)`, the authored 2D field coefficients.
 *   **to_embedding** / **boundary** (*methods*): presentation hooks (equivalent to `transform_coordinates` / `get_boundary`).
 
 See [[docs/classes/spacetime/pycauset.spacetime.Spacetime.md|Spacetime]] for the full contract.

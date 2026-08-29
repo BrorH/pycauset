@@ -4,8 +4,8 @@
 class Field(kind="scalar", *, mass=0.0, spin=0, scheme=None)
 ```
 
-Set-independent field content (R2): the field's species — `kind`, `mass`, `spin`, and
-discretization `scheme` — independent of any background. You apply it to a background
+Set-independent field content (R2): the field's species, `kind`, `mass`, `spin`, and
+discretization `scheme`, independent of any background. You apply it to a background
 with `.on()`.
 
 ## Parameters

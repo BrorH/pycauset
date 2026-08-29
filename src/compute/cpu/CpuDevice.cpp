@@ -200,6 +200,10 @@ void CpuDevice::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {
     solver_.eigvals_skew(a, out, k);
 }
 
+void CpuDevice::eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBase& eigenvectors, int k) {
+    solver_.eig_skew(a, eigenvalues, eigenvectors, k);
+}
+
 bool CpuDevice::fill_hardware_profile(HardwareProfile& profile, bool run_benchmarks) {
     (void)profile;
     (void)run_benchmarks;

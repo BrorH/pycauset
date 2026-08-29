@@ -1,4 +1,4 @@
-"""R2_FIELD / R2_KRD / R2_SJ — Field → CorrelatedField, propagators, and SJ Wightman."""
+"""R2_FIELD / R2_KRD / R2_SJ, Field → CorrelatedField, propagators, and SJ Wightman."""
 
 import unittest
 

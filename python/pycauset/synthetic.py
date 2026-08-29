@@ -1,4 +1,4 @@
-"""Synthetic poset generators (R2_SYNTH) — "a causet is just a poset".
+"""Synthetic poset generators (R2_SYNTH), "a causet is just a poset".
 
 These build valid causal orders directly (no continuum geometry), for testing,
 pedagogy, and null models. Every generator returns a `CausalSet` whose order passes

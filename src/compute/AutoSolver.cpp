@@ -911,6 +911,12 @@ void AutoSolver::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {
     cpu_device_->eigvals_skew(a, out, k);
 }
 
+void AutoSolver::eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBase& eigenvectors, int k) {
+    // The skew eigensystem is a CPU LAPACK path; keep it CPU-only (the GPU backend
+    // throws for eig_skew and would fall back here).
+    cpu_device_->eig_skew(a, eigenvalues, eigenvectors, k);
+}
+
 void AutoSolver::eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) {
     // TODO: Add GPU support
     cpu_device_->eigh(in, eigenvalues, eigenvectors, uplo);

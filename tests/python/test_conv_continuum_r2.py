@@ -1,4 +1,4 @@
-"""R2_CONV / R2_CMVP — pin the iΔ convention against the continuum (massless 1+1).
+"""R2_CONV / R2_CMVP, pin the iΔ convention against the continuum (massless 1+1).
 
 For the massless 1+1 field the discrete Pauli–Jordan function is **exact**: the
 discrete ``iΔ = (i/2)(C − Cᵀ)`` equals the continuum ``iΔ = (i/2) sgn(Δt) θ(σ)``

@@ -37,7 +37,7 @@ Then apply the mapping below.
 
 ## 2) Where to document (mapping)
 
-### A) Source Code Headers (File-Level) — mandatory for all source files
+### A) Source Code Headers (File-Level), mandatory for all source files
 
 Every source file (`.hpp`, `.cpp`, `.py`) must start with a technical header block that answers:
 - **What** this file contains (classes, functions, modules).
@@ -47,7 +47,7 @@ Every source file (`.hpp`, `.cpp`, `.py`) must start with a technical header blo
 
 This is for the *maintainer* reading the code, not the user.
 
-### B) API reference (`documentation/docs/`) — mandatory for user-facing surfaces
+### B) API reference (`documentation/docs/`), mandatory for user-facing surfaces
 
 Add/update:
 
@@ -62,7 +62,7 @@ Minimum expectation for API reference pages:
 - Exceptions / warnings
 - At least one example that actually runs
 
-### B) Guides (`documentation/guides/`) — mandatory for “how do I use this?”
+### B) Guides (`documentation/guides/`), mandatory for “how do I use this?”
 
 Guides are where we teach workflows.
 
@@ -78,7 +78,7 @@ Minimum expectation for guides:
 - One realistic example (with caveats)
 - Links to the relevant API reference pages
 
-### C) Internals (`documentation/internals/`) — mandatory for architecture/backend changes
+### C) Internals (`documentation/internals/`), mandatory for architecture/backend changes
 
 Internals are for contributors and future maintainers.
 
@@ -89,7 +89,7 @@ Minimum expectation for internals:
 - How to extend it safely
 - Common failure modes and debugging tips
 
-### D) Dev handbook (`documentation/dev/`) — mandatory for process / contributor UX
+### D) Dev handbook (`documentation/dev/`), mandatory for process / contributor UX
 
 Use dev handbook pages when:
 

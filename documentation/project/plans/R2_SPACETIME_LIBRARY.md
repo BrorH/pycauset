@@ -1,4 +1,4 @@
-# R2 Spacetime Library — Catalog (Spec)
+# R2 Spacetime Library, Catalog (Spec)
 
 **Status**: Planning. Defines *what* spacetimes R2 ships, and the contract each must satisfy.
 **Companion**: `R2_PLAN_MAP.md` (feature map), `R2_SPACETIME_CREATION.md` (how to add new ones).
@@ -20,7 +20,7 @@ provide exactly the same contract as a custom one (see `R2_SPACETIME_CREATION.md
 
 **Definition of done** for each entry: exact `volume`; sampler uniform (Monte Carlo test vs
 formula); order validated transitive/irreflexive/antisymmetric; reproducibility test (same seed ⇒
-bit-identical); docs page + nav entry. Curved entries also get a "known coefficients: none —
+bit-identical); docs page + nav entry. Curved entries also get a "known coefficients: none -
 manual `a, b`" note unless we actually derive them.
 
 ---
@@ -41,7 +41,7 @@ Priorities: P0 = R2.0, P1 = R2.1, P2 = R2.2/later.
 | `MinkowskiCone(d)` (future lightcone) | d / (1, d-1) | `(t, x)` | finite (cone volume) | timelike future | manual | P2 |
 
 **Current gap to fix in R2:** today's `MinkowskiDiamond(d)` for `d > 2` is a *product of
-lightcone intervals* `[0,1]^d`, which is a placeholder — **not** the true d-dimensional causal
+lightcone intervals* `[0,1]^d`, which is a placeholder, **not** the true d-dimensional causal
 diamond (`I⁺(p) ∩ I⁻(q)`). R2 must implement the real diamond (correct volume + uniform sampler
 + causal predicate), and either rename or retire the placeholder. The `MinkowskiBox(d)` and
 `MinkowskiCylinder(d)` code generalizes more honestly, but only `d=2` is exposed/tested today.
@@ -62,7 +62,7 @@ diamond (`I⁺(p) ∩ I⁻(q)`). R2 must implement the real diamond (correct vol
   product must surface rather than paper over.
 - **None of these ship automatic `scalar_coeffs`** unless we derive and document them. R2.1 ships
   the geometry; coefficients remain manual `a, b`. Deriving dS/AdS/FLRW coefficients is a research
-  task, not a coding task — flag for a later, dedicated effort.
+  task, not a coding task, flag for a later, dedicated effort.
 
 ### 2.3 Black holes (later)
 
@@ -77,7 +77,7 @@ Hard samplers + horizon/ergosphere handling; explicitly P2/later, not a blocking
 
 **Honesty notes (never-guess policy):** Kerr contains closed timelike curves inside the inner
 horizon and an ergosphere (no global time), and Reissner–Nordström has a Cauchy horizon and a
-timelike singularity — richer causal pathology than Schwarzschild. All ship **geometry-only** with
+timelike singularity, richer causal pathology than Schwarzschild. All ship **geometry-only** with
 manual `a, b`. Higher-dimensional rotation generalizes to **Myers–Perry** (deferred); the charged
 family generalizes to any `d` more directly.
 
@@ -91,7 +91,7 @@ family generalizes to any `d` more directly.
 These are natural targets for the `PeriodicSpacetime` decorator in `R2_SPACETIME_CREATION.md`,
 so they may ship as *compositions* rather than bespoke classes.
 
-### 2.5 Synthetic / test (order generators — "a causet is just a poset")
+### 2.5 Synthetic / test (order generators, "a causet is just a poset")
 
 Causal sets are partially ordered sets; these generators build **orders directly** (no continuum),
 for testing, pedagogy, and null models. They satisfy the sprinkling API surface but skip geometry.

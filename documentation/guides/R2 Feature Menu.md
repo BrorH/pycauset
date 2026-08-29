@@ -1,18 +1,18 @@
 # R2 Feature Menu
 
-A one-page map of what Release 2 ships — the "conference feature menu". Each item is
+A one-page map of what Release 2 ships, the "conference feature menu". Each item is
 a shippable capability with a minimal demo recipe; follow the link for the full guide.
 
 ## Spacetimes (R2_SIG / R2_ABC / R2_MINK / R2_CURVED / R2_CREATE)
 
-*   **Flat family** — `MinkowskiDiamond` (2D causal diamond), `MinkowskiCylinder`
+*   **Flat family**, `MinkowskiDiamond` (2D causal diamond), `MinkowskiCylinder`
     (2D), `MinkowskiBox` (arbitrary `d`), each with exact volume, a uniform sampler,
     and a causal predicate.
-*   **Curved** — `DeSitter`, `AntiDeSitter`, `FLRW`, `Schwarzschild` (1+1) ship as
+*   **Curved**, `DeSitter`, `AntiDeSitter`, `FLRW`, `Schwarzschild` (1+1) ship as
     documented parametrizations (honest caveats; manual field coefficients).
-*   **First-class signature** — every spacetime declares `(t, s)`; no hidden
+*   **First-class signature**, every spacetime declares `(t, s)`; no hidden
     Lorentzian guess.
-*   **Composition decorators** — `Restricted`, `Transformed`, `Conformal`, `Periodic`
+*   **Composition decorators**, `Restricted`, `Transformed`, `Conformal`, `Periodic`
     build new spacetimes from existing ones.
 
 ```python
@@ -22,15 +22,15 @@ half    = sp.RestrictedSpacetime(diamond, region=lambda c: c[1] < 0.5)
 ring    = sp.PeriodicSpacetime(diamond, periods={1: 1.0})
 ```
 
-*   **Declarative + codegen** — `spacetime.create(recipe)` and
+*   **Declarative + codegen**, `spacetime.create(recipe)` and
     `spacetime.export_python(...)`.
 
 ## Causal sets (R2_VALIDATE / R2_EMBED / R2_STRUCT)
 
-*   **Eager validation** — a non-transitive matrix is rejected at construction.
-*   **Structure methods** — `links()`, `past()`, `future()`, `interval()`,
+*   **Eager validation**, a non-transitive matrix is rejected at construction.
+*   **Structure methods**, `links()`, `past()`, `future()`, `interval()`,
     `is_chain()`, `is_antichain()`, `longest_chain()`, `layers()`.
-*   **Coordinates** — sampled embeddings served by `coordinates()`.
+*   **Coordinates**, sampled embeddings served by `coordinates()`.
 
 ```python
 import pycauset as pc
@@ -39,7 +39,7 @@ c.validate()                 # strict partial order guaranteed
 links = c.links()            # transitive reduction
 ```
 
-## Fields — the Sorkin–Johnston flagship (R2_FIELD / R2_KRD / R2_SJ)
+## Fields, the Sorkin–Johnston flagship (R2_FIELD / R2_KRD / R2_SJ)
 
 *   `pc.field("scalar", mass=…)` → a set-independent `Field`; `phi.on(causet)` returns
     a `CorrelatedField`; `phi.on(spacetime)` returns a continuum field (massless 1+1).

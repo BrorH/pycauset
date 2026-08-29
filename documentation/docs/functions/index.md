@@ -62,6 +62,7 @@
 * **[[docs/functions/pycauset.eigvals.md|eigvals]]**
 * **[[docs/functions/pycauset.eigvals_arnoldi.md|eigvals_arnoldi]]**
 * **[[docs/functions/pycauset.eigvals_skew.md|eigvals_skew]]**
+* **[[docs/functions/pycauset.eig_skew.md|eig_skew]]**
 * **[[docs/functions/pycauset.load.md|load]]**
 * **[[docs/functions/pycauset.load_matrix.md|load_matrix]]**
 * **[[docs/functions/pycauset.load_npy.md|load_npy]]**

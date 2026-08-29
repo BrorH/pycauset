@@ -4,7 +4,7 @@
 
 ## Bug documentation
 
-Whenever a bug is discovered—whether it's a compilation error, a runtime failure, a logic error, or a regression—it **must** be documented in `tests/BUG_LOG.md`.
+Whenever a bug is discovered-whether it's a compilation error, a runtime failure, a logic error, or a regression-it **must** be documented in `tests/BUG_LOG.md`.
 
 ### Format
 

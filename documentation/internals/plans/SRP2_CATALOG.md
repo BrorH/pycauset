@@ -1,4 +1,4 @@
-# SRP-2 — Causal Math Optimization Catalog (R2_CATALOG)
+# SRP-2, Causal Math Optimization Catalog (R2_CATALOG)
 
 Maps the operator combinations causal-set theory actually uses to the numerical
 shortcuts they admit. Each entry is a *routing target*: the shortcut must be
@@ -49,9 +49,9 @@ general O(n³) path when structure makes it O(n²) or better.
 | :-- | :-: | :-- |
 | triangular solve for `K_R` | ✅ | `CpuSolver::compute_k_matrix` does column-wise back-substitution over the bit matrix (O(n²), no `inv`); pinned against the naive dense `inv` by `test_retarded_matches_formula` |
 | antisymmetric `iΔ` storage | ✅ | `AntiSymmetricMatrix` + scalar `1j` |
-| skew eigensolver for `W` | ❌ | `wightman()` uses `np.linalg.eigh`; a native real-antisymmetric skew eigensystem is the remaining target |
+| skew eigensolver for `W` | ✅ | native `eig_skew` returns eigenvalues + eigenvectors (LAPACK `dgeev` + top-k sort, pinned by `test_skew.py`). `wightman()` still routes through `np.linalg.eigh` because the general `dgeev` path is not yet faster than `dsyevd`; the routing flips to `eig_skew` once a dedicated skew tridiagonalization lands |
 | bit-popcount `C @ C` for links | ✅ | engine popcount kernel |
 
-The `❌` row is the single remaining R2E routing target for the field core (a native
-skew eigensystem that returns eigenvectors — `eigvals_skew` alone is not enough to
-build `W`).
+All four shortcuts are now implemented. The `W` routing note above is the one
+follow-up left in the field core: `eig_skew` exists, but `wightman()` keeps using
+`eigh` until the skew tridiagonalization makes `eig_skew` the faster path.

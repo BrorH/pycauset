@@ -1,6 +1,6 @@
 # Plans
 
-Planning documents for upcoming releases. These are specs and design records — no implementation
+Planning documents for upcoming releases. These are specs and design records, no implementation
 lives here.
 
 | Document | Purpose |

@@ -174,7 +174,7 @@ namespace {
         for(size_t i=0; i<n; ++i) dst[i] = a[i] / b[i]; 
     }
 
-    // AVX2 Kernels — per-function ISA target for GCC/Clang so these compile
+    // AVX2 Kernels, per-function ISA target for GCC/Clang so these compile
     // without a global -march (runtime-dispatched via has_avx2() below). MSVC
     // emits intrinsics without /arch, so the attribute is a no-op there.
 #if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(_M_X64))
@@ -531,7 +531,7 @@ namespace {
             // Check: does the operation fit in RAM? (Anti-Nanny Logic). When it
             // does, call BLAS directly. We intentionally do NOT pin the operands
             // (VirtualLock): pinning is a GPU-DMA optimization (R1_GPU) and is pure
-            // overhead for CPU dgemm — it added ~1-2ms per call at n=1024 and was
+            // overhead for CPU dgemm, it added ~1-2ms per call at n=1024 and was
             // the dominant residual in the matmul parity gap.
             if (governor.should_use_direct_path(total_bytes)) {
                 const T* a_data = a_dense->data() + (a_dense->row_offset() * a_dense->base_cols() + a_dense->col_offset());
@@ -2291,6 +2291,74 @@ void CpuSolver::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {
 
     for (int i = 0; i < kk; ++i) {
         out_c->set(i, evals[i]);
+    }
+}
+
+void CpuSolver::eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBase& eigenvectors, int k) {
+    if (k <= 0) {
+        throw std::invalid_argument("CpuSolver::eig_skew requires positive k");
+    }
+    if (a.rows() != a.cols()) {
+        throw std::invalid_argument("CpuSolver::eig_skew requires a square matrix");
+    }
+
+    auto* out_w = dynamic_cast<DenseVector<std::complex<double>>*>(&eigenvalues);
+    auto* out_v = dynamic_cast<DenseMatrix<std::complex<double>>*>(&eigenvectors);
+    if (!out_w || !out_v) {
+        throw std::runtime_error("CpuSolver::eig_skew output must be complex<double> vector + matrix");
+    }
+
+    const uint64_t n = a.rows();
+    const int kk = std::min(k, static_cast<int>(n));
+    if (eigenvectors.rows() != n || eigenvectors.cols() != static_cast<uint64_t>(kk)) {
+        throw std::invalid_argument("CpuSolver::eig_skew eigenvectors matrix bad shape");
+    }
+
+    // Same scratch-and-factorize pattern as eigvals_skew, but request the right
+    // eigenvectors so the Sorkin-Johnston W = V_+ diag(σ) V_+^H can be built.
+    auto data = to_memory_flat_real_square(a);
+
+    std::vector<double> wr(n);
+    std::vector<double> wi(n);
+    std::vector<double> vr(n * n);
+    lapack_int info = LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', 'V', static_cast<lapack_int>(n),
+        data.data(), static_cast<lapack_int>(n), wr.data(), wi.data(),
+        nullptr, static_cast<lapack_int>(n), vr.data(), static_cast<lapack_int>(n));
+    if (info > 0) throw std::runtime_error("CpuSolver::eig_skew failed to converge");
+    if (info < 0) throw std::runtime_error("CpuSolver::eig_skew: illegal argument");
+
+    // Build the full complex eigensystem (eigenvalues + eigenvectors), unpacking
+    // conjugate pairs exactly like the general eig path.
+    std::vector<std::complex<double>> full_evals(n);
+    std::vector<std::complex<double>> full_evecs(n * n);
+    for (size_t j = 0; j < n; ++j) {
+        full_evals[j] = { wr[j], wi[j] };
+        if (wi[j] == 0.0) {
+            for (size_t i = 0; i < n; ++i) full_evecs[i * n + j] = { vr[i * n + j], 0.0 };
+        } else {
+            // Conjugate pair (j, j+1): v[j] = VR[:,j] + i VR[:,j+1],
+            //                          v[j+1] = VR[:,j] - i VR[:,j+1].
+            for (size_t i = 0; i < n; ++i) {
+                full_evecs[i * n + j] = { vr[i * n + j], vr[i * n + (j + 1)] };
+                full_evecs[i * n + (j + 1)] = { vr[i * n + j], -vr[i * n + (j + 1)] };
+            }
+            ++j;
+        }
+    }
+
+    // Order by descending eigenvalue magnitude and return the top k.
+    std::vector<size_t> idx(n);
+    for (size_t i = 0; i < n; ++i) idx[i] = i;
+    std::sort(idx.begin(), idx.end(), [&](size_t x, size_t y) {
+        return std::norm(full_evals[x]) > std::norm(full_evals[y]);
+    });
+
+    for (int t = 0; t < kk; ++t) {
+        const size_t src = idx[t];
+        out_w->set(t, full_evals[src]);
+        for (size_t i = 0; i < n; ++i) {
+            out_v->set(i, t, full_evecs[i * n + src]);
+        }
     }
 }
 

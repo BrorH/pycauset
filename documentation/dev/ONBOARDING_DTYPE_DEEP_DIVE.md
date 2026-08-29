@@ -23,7 +23,7 @@ shipped; the remaining work is release mechanics (CI green, tag v0.6.1, PyPI pub
 
 - **"THE DOCS MUST STAY UP TO DATE. No exceptions."** Every code change ships with its
   test AND its doc line, in the same commit.
-- **NO em-dashes ever** (never type `—` or `–` in any prose/docs you write; use commas,
+- **NO em-dashes ever** (never type `-` or `–` in any prose/docs you write; use commas,
   colons, or hyphens).
 - **No silent wrong answers.** Anything unsupported must be an explicit error or a
   documented support status, never a silently-wrong result.

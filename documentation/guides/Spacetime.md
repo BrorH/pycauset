@@ -100,8 +100,8 @@ c = pycauset.causet(density=100, spacetime=st)
 ## Defining Custom Spacetimes (R2)
 
 `pycauset.spacetime.Spacetime` is the abstract base class that makes custom spacetimes
-first-class. Subclass it and implement four methods — `dimension()`, `volume()`,
-`sample(rng, n)`, and `is_causal(u, v)` — and you get a spacetime the sprinkler,
+first-class. Subclass it and implement four methods, `dimension()`, `volume()`,
+`sample(rng, n)`, and `is_causal(u, v)`, and you get a spacetime the sprinkler,
 field engine, and visualizer all understand.
 
 ### Signature
@@ -110,7 +110,7 @@ Every spacetime has a **signature** `(t, s)` = (timelike, spacelike). It default
 Lorentzian `(1, d-1)`; declare `signature = (t, s)` as a class attribute to override.
 A causal order (`is_causal`) exists only for Lorentzian `t == 1`: Euclidean `(0, d)`
 spacetimes are point processes, and multi-time `(t > 1, s)` spacetimes must supply
-their own "future" convention — the base `is_causal` raises rather than guessing.
+their own "future" convention, the base `is_causal` raises rather than guessing.
 
 ```python
 from pycauset import spacetime
@@ -134,10 +134,10 @@ class MyDiamond(spacetime.Spacetime):
 
 `@spacetime.register("name")` gives a spacetime a persistable name (used by
 save/load). Duplicate names raise unless you pass `overwrite=True`.
-`spacetime.create(...)` (Rung 0) assembles a spacetime from a declarative recipe —
+`spacetime.create(...)` (Rung 0) assembles a spacetime from a declarative recipe -
 currently the flat Minkowski family (`domain="diamond" | "cylinder" | "box"`).
 
-Optional hooks: `scalar_coeffs(mass, density)` (authored field coefficients — the
+Optional hooks: `scalar_coeffs(mass, density)` (authored field coefficients, the
 default raises, never guesses), `is_causal_batch(coords)` (fast path),
 `to_embedding(coords)` and `boundary()` (presentation).
 
@@ -146,13 +146,13 @@ default raises, never guesses), `is_causal_batch(coords)` (fast path),
 Build new spacetimes by wrapping an existing one instead of writing a fresh
 subclass. Each decorator keeps `volume ↔ sample` consistent:
 
-*   **[[docs/classes/spacetime/pycauset.spacetime.RestrictedSpacetime.md|RestrictedSpacetime]]** — keep a
+*   **[[docs/classes/spacetime/pycauset.spacetime.RestrictedSpacetime.md|RestrictedSpacetime]]**, keep a
     subregion selected by a predicate; rejection sampling + Monte-Carlo volume.
-*   **[[docs/classes/spacetime/pycauset.spacetime.TransformedSpacetime.md|TransformedSpacetime]]** — apply a
+*   **[[docs/classes/spacetime/pycauset.spacetime.TransformedSpacetime.md|TransformedSpacetime]]**, apply a
     (volume-preserving) coordinate transform `forward`/`inverse`.
-*   **[[docs/classes/spacetime/pycauset.spacetime.ConformalSpacetime.md|ConformalSpacetime]]** — a conformal
+*   **[[docs/classes/spacetime/pycauset.spacetime.ConformalSpacetime.md|ConformalSpacetime]]**, a conformal
     factor `Omega(x)` preserves the light-cone but rescales the volume measure by `Omega^d`.
-*   **[[docs/classes/spacetime/pycauset.spacetime.PeriodicSpacetime.md|PeriodicSpacetime]]** — periodic
+*   **[[docs/classes/spacetime/pycauset.spacetime.PeriodicSpacetime.md|PeriodicSpacetime]]**, periodic
     identification along spacelike axes (periodic time raises: it would create CTCs).
 
 ```python
@@ -168,7 +168,7 @@ ring  = spacetime.PeriodicSpacetime(box, periods={1: 5.0})
 
 `spacetime.DeSitter`, `spacetime.AntiDeSitter`, and `spacetime.FLRW` ship as
 documented **parametrizations** (their samplers are not the invariant measure, and
-`scalar_coeffs` raises — coefficients are manual `a, b`). `DeSitter` carries the
+`scalar_coeffs` raises, coefficients are manual `a, b`). `DeSitter` carries the
 ambient-Minkowski causal order; `AntiDeSitter` is flagged "no causal order" (the
 naive hyperboloid has closed timelike curves); `FLRW` uses the null-geodesic order.
 `Schwarzschild` (1+1) uses the exact radial tortoise null condition; the other black

@@ -152,7 +152,7 @@ class TestElementwiseViews(unittest.TestCase):
 
     def _slice_cases(self, parent):
         pr, pc = parent
-        # (r0, r1, c0, c1) — includes zero-offset (strided) and offset views.
+        # (r0, r1, c0, c1), includes zero-offset (strided) and offset views.
         cases = [(0, 3, 0, 3), (0, 5, 2, 5), (1, 4, 1, 4)]
         if pr >= 6 and pc >= 6:
             cases += [(0, pr, 0, pc), (0, pr - 1, 0, pc - 1), (2, pr, 1, pc - 1)]
@@ -174,7 +174,7 @@ class TestElementwiseViews(unittest.TestCase):
                 _assert_close(self, av / (bv + 2.0), Ar / (Br + 2.0))
 
     def test_eager_mul_view(self):
-        # `__mul__` is eager and passes view operands straight to the solver —
+        # `__mul__` is eager and passes view operands straight to the solver -
         # the exact path that was wrong before the full-span fix.
         rng = np.random.default_rng(7)
         A = rng.standard_normal((5, 5))

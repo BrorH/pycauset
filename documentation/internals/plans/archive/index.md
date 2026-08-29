@@ -1,7 +1,7 @@
 # Plan Archive (R1 and earlier)
 
 This directory holds the **historical plan artifacts** from Release 1 (v0.6.x) and earlier. They
-are archived for reference only — they are **not** the current plan of record, and they are **not**
+are archived for reference only, they are **not** the current plan of record, and they are **not**
 rendered in the docs navigation.
 
 For **what's happening now**, see:
@@ -20,7 +20,7 @@ For **what's happening now**, see:
 
 | File | What it was | Disposition |
 | :-- | :-- | :-- |
-| `BLAS_INTEGRATION_PLAN.md` | OpenBLAS integration for dense GEMM | Done — superseded by `OPTIMIZATION_STATUS.md` |
+| `BLAS_INTEGRATION_PLAN.md` | OpenBLAS integration for dense GEMM | Done, superseded by `OPTIMIZATION_STATUS.md` |
 | `DTYPE_COMPLEX_OVERFLOW_PLAN.md` | dtype/complex/overflow policy + complex-float integration | Complete |
 | `phase1_inventory.md` | R1_NUMPY interop inventory report | Complete |
 | `R1_BLOCKMATRIX_PLAN.md` | Block matrices + heterogeneous dtypes | Complete |

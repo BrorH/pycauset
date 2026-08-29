@@ -92,14 +92,14 @@ The visualization module automatically handles coordinate transformations for sp
 ### Authored shapes (R2_VIZ)
 
 These shapes are **authored by the spacetime**, not guessed by the plotter. A
-`Spacetime` declares three optional presentation hooks — `to_embedding(coords)`
+`Spacetime` declares three optional presentation hooks, `to_embedding(coords)`
 (display transform), `boundary()` (paths in embedding coordinates), and
-`display_axes()` (axis labels) — and the viz layer just reads them. A geometry-free
+`display_axes()` (axis labels), and the viz layer just reads them. A geometry-free
 custom spacetime renders its raw coordinates with generic `c0, c1, …` labels; no
 shape is ever inferred. Composition decorators (`Restricted`/`Transformed`/
 `Conformal`/`Periodic`) delegate these hooks to their base, so a wrapped cylinder
 still renders as a cylinder. Embeddings with `d > 3` dimensions are shown as the
-first three axes with an explicit warning — never silently truncated.
+first three axes with an explicit warning, never silently truncated.
 
 ## Hasse Diagrams
 

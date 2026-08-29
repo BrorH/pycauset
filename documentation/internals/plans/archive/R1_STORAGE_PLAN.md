@@ -1,4 +1,4 @@
-# R1_STORAGE — Single-File Persistence Container + Typed Metadata (Release 1)
+# R1_STORAGE, Single-File Persistence Container + Typed Metadata (Release 1)
 
 **Status:** Implemented for Release 1 (plan + implementation aligned)
 
@@ -449,7 +449,7 @@ This section breaks R1_STORAGE into **large, verifiable phases**. Each phase has
 
 Important: phases are ordered to minimize churn. Do not start a later phase until the earlier phase’s acceptance criteria are met.
 
-### Phase 0 — Contract freeze (format + invariants)
+### Phase 0, Contract freeze (format + invariants)
 
 Goal:
 
@@ -493,7 +493,7 @@ Acceptance criteria:
 - A new contributor can implement a reader/writer without asking format questions.
 - The plan’s crash-consistency story is $O(1)$ and does not require “scan backwards for last block”.
 
-### Phase 1 — Minimal container (read/write)
+### Phase 1, Minimal container (read/write)
 
 Goal:
 
@@ -527,7 +527,7 @@ Acceptance criteria:
 - New files are single-file containers and still mmap correctly via stable payload offsets.
 - A corrupted header or metadata pointer fails deterministically (no scanning).
 
-### Phase 2 — Typed metadata v1 + taxonomy enforcement
+### Phase 2, Typed metadata v1 + taxonomy enforcement
 
 Goal:
 
@@ -554,7 +554,7 @@ Acceptance criteria:
   - typed values,
   - unknown keys (forward compatibility) without breaking load.
 
-### Phase 3 — Cache persistence integration (including inverse)
+### Phase 3, Cache persistence integration (including inverse)
 
 Goal:
 
@@ -644,7 +644,7 @@ Additional acceptance criteria (big blob caches):
 - The base object never points to a partially-written big-blob object after a crash.
 - Missing/corrupt big-blob caches are never implicitly recomputed; regeneration must be explicitly requested by the user.
 
-### Phase 4 — Native/C++ persistence alignment (if applicable in R1)
+### Phase 4, Native/C++ persistence alignment (if applicable in R1)
 
 Goal:
 
@@ -666,7 +666,7 @@ Acceptance criteria:
 
 - New-format files work for at least the core matrix/vector types on the supported platforms.
 
-### Phase 5 — Hard-break policy (single format)
+### Phase 5, Hard-break policy (single format)
 
 Goal:
 
@@ -688,7 +688,7 @@ Acceptance criteria:
 
 - No fallback behavior.
 
-### Phase 6 — Testing + debugging (EXTENSIVE; final engineering gate)
+### Phase 6, Testing + debugging (EXTENSIVE; final engineering gate)
 
 Goal:
 
@@ -776,7 +776,7 @@ Acceptance criteria:
 - Crash-consistency tests demonstrate $O(1)$ recovery (no scanning).
 - Known Windows cleanup/file-lock issues are addressed (tests do not leave files open).
 
-### Phase 7 — Documentation (EXTENSIVE; per Documentation Protocol)
+### Phase 7, Documentation (EXTENSIVE; per Documentation Protocol)
 
 Goal:
 

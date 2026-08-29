@@ -23,30 +23,30 @@ This page explains **where things live** in the repository and **how the pieces 
 
 ### C++ core (engine)
 
-- `include/pycauset/` — public C++ headers (engine API)
-- `src/` — C++ implementations
-  - `src/core/` — memory mapping, storage utils, I/O accelerator, system utils
-  - `src/matrix/` — matrix types (dense, triangular, bit, etc.)
-  - `src/vector/` — vector types
-  - `src/compute/` — compute dispatch architecture
+- `include/pycauset/`, public C++ headers (engine API)
+- `src/`, C++ implementations
+  - `src/core/`, memory mapping, storage utils, I/O accelerator, system utils
+  - `src/matrix/`, matrix types (dense, triangular, bit, etc.)
+  - `src/vector/`, vector types
+  - `src/compute/`, compute dispatch architecture
     - `ComputeContext` (singleton)
     - `AutoSolver` (routes CPU vs GPU)
     - `cpu/` (CPU device + solvers)
-  - `src/accelerators/cuda/` — optional CUDA plugin (loaded dynamically)
-  - `src/bindings.cpp` — Python extension entrypoint (pybind11 module)
-  - `src/bindings/` — modular binding translation units (e.g. `bind_matrix.cpp`)
+  - `src/accelerators/cuda/`, optional CUDA plugin (loaded dynamically)
+  - `src/bindings.cpp`, Python extension entrypoint (pybind11 module)
+  - `src/bindings/`, modular binding translation units (e.g. `bind_matrix.cpp`)
 
 ### Tests & benchmarks
 
-- `tests/python/` — Python interface + integration tests
-- `tests/*.cpp` — C++ unit tests (engine-level)
-- `benchmarks/` — performance scripts and comparison suites
+- `tests/python/`, Python interface + integration tests
+- `tests/*.cpp`, C++ unit tests (engine-level)
+- `benchmarks/`, performance scripts and comparison suites
 
 ### Build system
 
-- `pyproject.toml` — canonical Python build entry (scikit-build-core)
-- `CMakeLists.txt` — C++ build configuration and compiler flags
-- `build.ps1` — thin wrapper around the canonical pip build commands
+- `pyproject.toml`, canonical Python build entry (scikit-build-core)
+- `CMakeLists.txt`, C++ build configuration and compiler flags
+- `build.ps1`, thin wrapper around the canonical pip build commands
 
 ## How a user call flows through the stack
 

@@ -1,4 +1,4 @@
-"""R2_SIG + R2_ABC — Spacetime ABC, signature model, and registry.
+"""R2_SIG + R2_ABC, Spacetime ABC, signature model, and registry.
 
 Exercises the `pycauset.spacetime` extension seam against the real package.
 """

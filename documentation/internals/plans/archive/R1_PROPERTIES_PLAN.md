@@ -1,4 +1,4 @@
-# R1_PROPERTIES — Semantic Properties + Property-Aware Algebra (Release 1)
+# R1_PROPERTIES, Semantic Properties + Property-Aware Algebra (Release 1)
 
 **Status:** Phase A–F implemented (Phase E expanded: property-aware matmul/solve/eigvalsh; O(1) mutation effect summaries integrated)
 
@@ -586,7 +586,7 @@ In particular, type-based structural dispatch (e.g., “triangular-by-class”) 
 
 ## Phases
 
-### Phase A — Lock schema + compatibility rules
+### Phase A, Lock schema + compatibility rules
 
 **Status (R1): Implemented**
 
@@ -604,7 +604,7 @@ Deliverables:
 - Lazy-evaluation invariant is explicitly enforced (no propagation/compatibility rule may require scanning data).
 - Caching model requirements are locked (content-versioning + safe propagation vs clear rules).
 
-### Phase B — Public API surface contract
+### Phase B, Public API surface contract
 
 **Status (R1): Implemented**
 
@@ -618,7 +618,7 @@ Deliverables:
 - Define `properties` exposure shape in Python (mapping of stable keys to typed values; boolean-like keys use tri-state semantics via presence).
 - Define mutation contract (set whole mapping vs per-key updates) and error behavior for invalid combinations.
 
-### Phase C — Persistence + metadata schema
+### Phase C, Persistence + metadata schema
 
 **Status (R1): Implemented**
 
@@ -651,7 +651,7 @@ Storage-format note:
 - The single-file container format and typed metadata encoding are tracked under `documentation/internals/plans/archive/R1_STORAGE_PLAN.md`.
 - R1_PROPERTIES must remain storage-format agnostic: the `properties` and derived-cache semantics must plug into the storage layer without changing frontend save/load call sites.
 
-### Phase D — Propagation integration
+### Phase D, Propagation integration
 
 **Status (R1): Implemented**
 
@@ -667,7 +667,7 @@ Deliverables:
 - Ensure clones/materializations preserve properties.
 - Ensure derived caches are invalidated or safely propagated under metadata-only transforms.
 
-### Phase E — Property-aware operator wiring
+### Phase E, Property-aware operator wiring
 
 **Status (R1): Implemented**
 
@@ -685,7 +685,7 @@ Deliverables:
 - Identify the minimal operator set that must become property-aware in R1 (tracked via SRP inventory).
 - Implement algorithm selection using the priority tree (effective structure), without mutating stored properties.
 
-### Phase F — Tests + documentation (FINAL)
+### Phase F, Tests + documentation (FINAL)
 
 **Status (R1): Implemented for current surface; ongoing as operator coverage expands**
 

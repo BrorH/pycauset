@@ -1,4 +1,4 @@
-"""R2_QA / R2_CMVP — continuum-limit benchmark (massless 1+1, Minkowski diamond).
+"""R2_QA / R2_CMVP, continuum-limit benchmark (massless 1+1, Minkowski diamond).
 
 Reproduces with::
 
@@ -6,17 +6,17 @@ Reproduces with::
 
 For the massless 1+1 field the discrete Pauli–Jordan ``iΔ = (i/2)(C − Cᵀ)`` is
 **exact** against the continuum ``iΔ = (i/2) sgn(Δt) θ(σ)`` sampled at the causet's
-points — there is no discretization error, so this also pins the sign/scale
+points, there is no discretization error, so this also pins the sign/scale
 convention (R2_CONV). What *does* converge is the Sorkin–Johnston Wightman
 ``W = positive part of iΔ``: as the number of sprinkled points grows, its
 finite-dimensional positive spectrum approaches the continuum positive-frequency
 spectrum. This benchmark reports both:
 
-* ``max |iΔ_discrete − iΔ_continuum|`` — the convention pin (should be ~0 at every n).
+* ``max |iΔ_discrete − iΔ_continuum|``, the convention pin (should be ~0 at every n).
 * the SJ Wightman positive spectrum (count, extremal eigenvalues, trace) vs ``n``.
 
 The analytic continuum **Wightman** (massive/Bessel + the massless log) is a
-deferred R2_CMVP item — see `documentation/project/plans/R2_ROADMAP.md`.
+deferred R2_CMVP item, see `documentation/project/plans/R2_ROADMAP.md`.
 """
 
 from __future__ import annotations

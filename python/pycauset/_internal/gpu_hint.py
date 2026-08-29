@@ -4,7 +4,7 @@ PyCauset ships CPU-only by default; the optional GPU backend (and its ~500 MB of
 CUDA runtime) is installed separately via ``pip install pycauset[gpu]``.
 
 To make the GPU backend *impossible to miss* without being annoying, we detect an
-NVIDIA GPU through the *driver* API (``libcuda``/``nvcuda`` — present with any
+NVIDIA GPU through the *driver* API (``libcuda``/``nvcuda``, present with any
 NVIDIA GPU, no CUDA runtime required) and, when a GPU is present but the backend
 is not installed, emit a single clear hint pointing at the one-command install.
 """
@@ -46,9 +46,9 @@ def emit_gpu_install_hint(*, backend_available: Callable[[], bool]) -> None:
 
     try:
         if backend_available():
-            return  # already installed — nothing to say
+            return  # already installed, nothing to say
         if not _driver_has_nvidia_gpu():
-            return  # no NVIDIA GPU — stay quiet (CPU user)
+            return  # no NVIDIA GPU, stay quiet (CPU user)
     except Exception:
         return
 

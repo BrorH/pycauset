@@ -4,7 +4,7 @@
 spacetime.create(name=None, *, dimension, signature=None, domain, metric="flat", **params) -> Spacetime
 ```
 
-The Rung-0 declarative builder: assemble a configured `Spacetime` from a recipe, with no class. Every parameter maps 1:1 to a concrete setting — there is no hidden inference.
+The Rung-0 declarative builder: assemble a configured `Spacetime` from a recipe, with no class. Every parameter maps 1:1 to a concrete setting, there is no hidden inference.
 
 ## Parameters
 
@@ -13,7 +13,7 @@ The Rung-0 declarative builder: assemble a configured `Spacetime` from a recipe,
 *   **signature** (*tuple, optional*): `(t, s)`. Defaults to Lorentzian `(1, d-1)`.
 *   **domain** (*str*): `"diamond"`, `"cylinder"`, or `"box"`.
 *   **metric** (*str*): `"flat"` (only; curved metrics raise `NotImplementedError`).
-*   **params**: Domain-specific — `height`/`circumference` for `"cylinder"`, `time_extent`/`space_extent` for `"box"`.
+*   **params**: Domain-specific, `height`/`circumference` for `"cylinder"`, `time_extent`/`space_extent` for `"box"`.
 
 ## Raises
 

@@ -68,7 +68,7 @@ Examples:
 
 ## 2. Stateless Sprinkling (Spacetime Generation)
 
-One of the key features of `pycauset` is its ability to handle extremely large causal sets—potentially billions of elements—without exhausting system RAM. This is achieved through a technique we call **Stateless Sprinkling**.
+One of the key features of `pycauset` is its ability to handle extremely large causal sets-potentially billions of elements-without exhausting system RAM. This is achieved through a technique we call **Stateless Sprinkling**.
 
 ### The Problem
 

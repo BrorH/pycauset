@@ -73,5 +73,54 @@ class TestSkewEigvals(unittest.TestCase):
             pycauset.eigvals_skew(pycauset.matrix(self._generate_skew(5)), 0)
 
 
+class TestSkewEig(unittest.TestCase):
+    def _generate_skew(self, n: int) -> np.ndarray:
+        rng = np.random.default_rng(7)
+        M = rng.random((n, n))
+        return M - M.T
+
+    def test_eigenvectors_satisfy_eigequation(self) -> None:
+        """Each returned pair satisfies A v = w v."""
+        n = 30
+        k = 8
+        A_np = self._generate_skew(n)
+        w, v = pycauset.eig_skew(pycauset.matrix(A_np), k)
+
+        self.assertEqual(w.size(), k)
+        self.assertEqual(v.rows(), n)
+        self.assertEqual(v.cols(), k)
+
+        for j in range(k):
+            vj = np.array([v.get(i, j) for i in range(n)])
+            resid = np.linalg.norm(A_np @ vj - w.get(j) * vj)
+            self.assertLess(resid, 1e-8)
+
+    def test_topk_by_magnitude(self) -> None:
+        """Returned eigenvalues are the top-k by magnitude, matching NumPy."""
+        n = 60
+        k = 12
+        A_np = self._generate_skew(n)
+        w, _ = pycauset.eig_skew(pycauset.matrix(A_np), k)
+
+        np_sorted = sorted(np.linalg.eigvals(A_np), key=abs, reverse=True)
+        for i in range(k):
+            self.assertAlmostEqual(abs(w.get(i)), abs(np_sorted[i]), places=5)
+
+    def test_k_clamping(self) -> None:
+        """k larger than n returns n columns."""
+        A_np = self._generate_skew(9)
+        w, v = pycauset.eig_skew(pycauset.matrix(A_np), 100)
+        self.assertEqual(v.cols(), 9)
+        self.assertEqual(w.size(), 9)
+
+    def test_rejects_non_square(self) -> None:
+        with self.assertRaises(ValueError):
+            pycauset.eig_skew(pycauset.matrix(np.zeros((3, 4))), 2)
+
+    def test_rejects_nonpositive_k(self) -> None:
+        with self.assertRaises(ValueError):
+            pycauset.eig_skew(pycauset.matrix(self._generate_skew(5)), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

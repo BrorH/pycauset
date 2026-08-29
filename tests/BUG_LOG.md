@@ -14,8 +14,8 @@ This file documents discovered bugs per the `Testing and Bug Tracking Protocol`
 **Description**:
 The SIMD fast paths (`try_fast_simd`, `binary_op_impl` dense path, `scalar_op_impl`)
 decided a `DenseMatrix` was safe to process as a raw flat pointer using only
-`has_view_offset()` (offset == 0). A zero-offset submatrix view — e.g. `A[:3,:3]`
-sliced from a 5×5 parent — has offset 0 but is *strided*: its storage row length
+`has_view_offset()` (offset == 0). A zero-offset submatrix view, e.g. `A[:3,:3]`
+sliced from a 5×5 parent, has offset 0 but is *strided*: its storage row length
 is `base_cols() == 5`, not the logical 3. The fast path therefore read/wrote
 `data()[0..9]` contiguously and produced **wrong results** instead of the view's
 true (strided) elements.
@@ -61,7 +61,7 @@ While hardening the fast paths for the view bug above, the full-span checks in
 `binary_op_impl` were hoisted *before* the null guard, dereferencing `a_dense`/
 `b_dense` which are null for mixed-type operands (e.g. `FloatMatrix + IntegerMatrix`
 in a `double` dispatch). This crashed with exit code `0xC0000005` (access violation)
-— the "stack buffer overrun" reported at runtime.
+- the "stack buffer overrun" reported at runtime.
 
 **Reproduction**:
 ```python
@@ -88,7 +88,7 @@ a_full && b_full`, so short-circuit evaluation guarantees non-null before the
 
 **Status**: Fixed (root-caused + re-enabled)
 **Severity**: Critical
-**Component**: Core / storage (`MemoryMapper` handle lifetime) — *not* the lazy routing
+**Component**: Core / storage (`MemoryMapper` handle lifetime), *not* the lazy routing
 
 **Description**:
 Routing the lazy `A+B` / `A−B` / `A÷B` materialization (`MatrixExpressionWrapper::eval_into`)
@@ -108,7 +108,7 @@ python -m unittest tests.python.test_lazy_evaluation tests.python.test_lazy_ops_
 ```
 
 **Root Cause** (confirmed via procdump + cdb stack trace):
-`MemoryMapper`'s `hFile_`/`hMapping_` members are **uninitialized** — the constructor's
+`MemoryMapper`'s `hFile_`/`hMapping_` members are **uninitialized**, the constructor's
 initializer list omitted them. For a `:memory:` matrix, `open_file` sets `hFile_ =
 INVALID_HANDLE_VALUE` but **never sets `hMapping_`**, so `~MemoryMapper → close_file()`
 runs `if (hMapping_) CloseHandle(hMapping_)` on a **garbage pointer**. Depending on the
@@ -130,6 +130,6 @@ _pycauset!pybind11::class_<DenseMatrix<float16_t>>::dealloc+0x6e
 Initialize the handles in `MemoryMapper`'s constructor initializer list:
 `hFile_(INVALID_HANDLE_VALUE)`, `hMapping_(nullptr)` on Windows, `fd_(-1)` elsewhere.
 The lazy-routing change is **re-enabled** (no longer the cause). Verified by running
-the previously-crashing 7-module batch 8× consecutively — all pass.
+the previously-crashing 7-module batch 8× consecutively, all pass.
 
 

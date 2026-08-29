@@ -1,4 +1,4 @@
-"""R2_BATCH — the `is_causal_batch` fast path matches the element-wise path exactly."""
+"""R2_BATCH, the `is_causal_batch` fast path matches the element-wise path exactly."""
 
 import unittest
 

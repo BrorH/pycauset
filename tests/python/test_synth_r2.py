@@ -1,4 +1,4 @@
-"""R2_SYNTH — synthetic poset generators (Chain, Antichain, percolation, products, Poset)."""
+"""R2_SYNTH, synthetic poset generators (Chain, Antichain, percolation, products, Poset)."""
 
 import unittest
 

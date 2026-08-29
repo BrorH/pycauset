@@ -1,4 +1,4 @@
-# R1_NUMPY — Fast NumPy Interop (Release 1 Plan)
+# R1_NUMPY, Fast NumPy Interop (Release 1 Plan)
 
 **Status:** In Progress (Resumed Jan 2026)
 
@@ -139,7 +139,7 @@ Initial allowlist (Release 1):
 
 ## 6) Benchmark gates (Release 1 acceptance criteria)
 
-### 6.1 Conversion gate — “≥ 0.90× NumPy” (<10GB)
+### 6.1 Conversion gate, “≥ 0.90× NumPy” (<10GB)
 
 **Metric:** throughput ratio for the same semantic boundary.
 
@@ -181,7 +181,7 @@ Initial allowlist (Release 1):
 
 On failure: file a bug in `tests/BUG_LOG.md` with benchmark output; fix or downgrade with design-chief approval.
 
-### 6.2 Out-of-core gate — “> 1.00× NumPy” (matrices larger than RAM)
+### 6.2 Out-of-core gate, “> 1.00× NumPy” (matrices larger than RAM)
 
 This gate targets workloads that **do not fit in RAM**.
 
@@ -227,14 +227,14 @@ These do not block R1_NUMPY unless explicitly promoted into the release gate.
 
 ## 7) Phased execution plan
 
-### Phase 0 — Contract freeze (no semantic changes)
+### Phase 0, Contract freeze (no semantic changes)
 
 - Verify Sections 5–6 match the intended contract (do not change semantics in Phase 0).
 - Verify the out-of-core inverse workload definition: full inverse materialization ($A^{-1}$), written to disk-backed storage.
 
 **Done when:** this plan can accept/reject implementation PRs without re-litigating semantics.
 
-### Phase 1 — Inventory (current behavior map) -> DONE
+### Phase 1, Inventory (current behavior map) -> DONE
 
 **Completed Jan 2026**
 - **Critical Bug Fixes:**
@@ -242,7 +242,7 @@ These do not block R1_NUMPY unless explicitly promoted into the release gate.
   - Fixed `MemoryMapper` offset calculation bug causing `pc.load()` snapshots to read as zeros when converted to NumPy.
 - **Verification:** `tests/python/test_phase1_inventory.py` clean pass.
 
-### Phase 2 — Correctness tests (guardrails) -> DONE
+### Phase 2, Correctness tests (guardrails) -> DONE
 
 **Completed Jan 2026**
 - `FloatMatrix`, `FloatVector`, `IntegerVector`, `IntegerMatrix`, `DenseBitMatrix` export types are verified.
@@ -253,7 +253,7 @@ These do not block R1_NUMPY unless explicitly promoted into the release gate.
 
 **Done when:** the Phase 2 correctness suite is complete and stable (verified by `pytest`).
 
-### Phase 3 — Import performance (NumPy → PyCauset) -> DONE
+### Phase 3, Import performance (NumPy → PyCauset) -> DONE
 
 **Completed Jan 2026**
 - **Native Bulk Import:** Exists and verified (using parallelized `memcpy` where applicable).
@@ -263,7 +263,7 @@ These do not block R1_NUMPY unless explicitly promoted into the release gate.
 
 **Done when:** import meets the conversion gate (0.90x) for required regimes.
 
-### Phase 3.5 — Advanced Strided Optimizations (Bonus) -> DONE
+### Phase 3.5, Advanced Strided Optimizations (Bonus) -> DONE
 
 **Completed Jan 2026**
 - **Results:**
@@ -276,7 +276,7 @@ These do not block R1_NUMPY unless explicitly promoted into the release gate.
     - Handles both contiguous (via parallel memcpy) and non-contiguous (via parallel loops) inputs.
     - Threshold set to 1MB to avoid overhead on tiny arrays.
 
-### Phase 4 — Export performance & safety (PyCauset → NumPy) -> DONE
+### Phase 4, Export performance & safety (PyCauset → NumPy) -> DONE
 
 **Completed Jan 2026**
 - **Performance:** Export throughput achieved ~5.5 GB/s (Read bound).
@@ -291,7 +291,7 @@ These do not block R1_NUMPY unless explicitly promoted into the release gate.
 
 **Done when:** export meets the conversion gate and guardrails.
 
-### Phase 5 — Interop ergonomics (“feels like NumPy”) -> DONE
+### Phase 5, Interop ergonomics (“feels like NumPy”) -> DONE
 
 **Completed Jan 2026**
 - **Mixed-Operand Arithmetic:**
@@ -306,13 +306,13 @@ These do not block R1_NUMPY unless explicitly promoted into the release gate.
 
 **Done when:** selected UX targets behave deterministically and are documented.
 
-### Phase 6 — Extensive Testing & Benchmarking -> DONE
+### Phase 6, Extensive Testing & Benchmarking -> DONE
 
 **Completed Jan 2026**
 - **Benchmarking:** `benchmarks/benchmark_numpy_parity.py` validates the 10.0x parity improvement.
 - **Extensive Testing:** `test_numpy_interop.py` is comprehensive. `comprehensive_stability.py` added for release validation.
 
-### Phase 7 — Documentation & Final Polish -> DONE
+### Phase 7, Documentation & Final Polish -> DONE
 
 **Completed Jan 2026**
 - **User Facings:**

@@ -1873,6 +1873,18 @@ def eigvals_skew(a: Any, k: int) -> Any:
     return _ops.eigvals_skew(a, k, deps=_OPS_DEPS)
 
 
+def eig_skew(a: Any, k: int) -> tuple[Any, Any]:
+    """Top-k eigenvalues and eigenvectors of a real skew-symmetric matrix.
+
+    Returns ``(w, v)``: ``w`` is a complex vector of the top-|k| eigenvalues by
+    magnitude, and ``v`` is the ``n x min(k, n)`` complex matrix of the matching
+    eigenvectors, in the same order. This is the diagonalization used to build the
+    Sorkin-Johnston vacuum ``W`` from ``i*Delta``.
+    """
+
+    return _ops.eig_skew(a, k, deps=_OPS_DEPS)
+
+
 def trace(a: Any) -> Any:
     """Return the sum of the diagonal elements."""
     return _ops.trace(a, deps=_OPS_DEPS)
@@ -2281,6 +2293,7 @@ _extra_exports = [
     "eig",
     "eigvals",
     "eigvals_skew",
+    "eig_skew",
     "eigvals_arnoldi",
     "identity",
     "diagonal",

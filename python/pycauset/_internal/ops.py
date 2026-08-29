@@ -1192,6 +1192,43 @@ def eigvals_skew(a: Any, k: int, *, deps: OpsDeps) -> Any:
     return _as_pycauset_vector(top, deps=deps)
 
 
+def eig_skew(a: Any, k: int, *, deps: OpsDeps) -> tuple[Any, Any]:
+    """Top-k eigenvalues + eigenvectors of a real skew-symmetric matrix.
+
+    A real skew-symmetric matrix (A == -A.T) has purely imaginary eigenvalues in
+    +/-i*lambda pairs. Returns ``(w, v)`` where ``w`` holds the top-|k| eigenvalues
+    by magnitude and ``v`` is the n x min(k, n) matrix of the matching (complex)
+    eigenvectors, sorted the same way. This is the diagonalization the Sorkin-Johnston
+    W = positive part of i*Delta needs.
+    """
+
+    if k <= 0:
+        raise ValueError("eig_skew: k must be positive")
+    shape = _safe_rows_cols(a)
+    if shape is not None and shape[0] != shape[1]:
+        raise ValueError("eig_skew requires a square matrix")
+
+    native_fn = getattr(deps.native, "eig_skew", None)
+    if callable(native_fn):
+        try:
+            w, v = native_fn(a, k)
+            _track_and_mark_temporary_if_native(w, deps=deps)
+            _track_and_mark_temporary_if_native(v, deps=deps)
+            return w, v
+        except Exception:
+            pass
+
+    np_module = deps.np_module
+    if np_module is None:
+        raise NotImplementedError("eig_skew is not available (no native/NumPy fallback)")
+
+    w, v = np_module.linalg.eig(_to_numpy_matrix(a, deps=deps))
+    idx = sorted(range(len(w)), key=lambda i: abs(w[i]), reverse=True)[:k]
+    top_w = np_module.array([w[i] for i in idx])
+    top_v = np_module.stack([v[:, i] for i in idx], axis=1)
+    return _as_pycauset_vector(top_w, deps=deps), _as_pycauset_array(top_v, deps=deps)
+
+
 def solve_triangular(*_args: Any, **_kwargs: Any) -> Any:
     """Solve a triangular system using gospel properties.
 

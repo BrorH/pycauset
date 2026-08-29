@@ -1,4 +1,4 @@
-"""R2_DIM — dimension estimators (Myrheim–Meyer, relation fraction)."""
+"""R2_DIM, dimension estimators (Myrheim–Meyer, relation fraction)."""
 
 import unittest
 

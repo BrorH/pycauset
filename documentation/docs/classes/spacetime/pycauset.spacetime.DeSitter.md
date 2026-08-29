@@ -6,7 +6,7 @@ class DeSitter(dimension=2, radius=1.0, time_extent=2.0)
 
 Inherits from: [[docs/classes/spacetime/pycauset.spacetime.Spacetime.md|Spacetime]]
 
-de Sitter spacetime — the hyperboloid `−X₀² + Σ Xᵢ² = R²` in (d+1)-dim Minkowski.
+de Sitter spacetime, the hyperboloid `−X₀² + Σ Xᵢ² = R²` in (d+1)-dim Minkowski.
 
 ## Parameters
 
@@ -18,7 +18,7 @@ de Sitter spacetime — the hyperboloid `−X₀² + Σ Xᵢ² = R²` in (d+1)-d
 
 - The **sampler** is a *documented parametrization* (uniform in global time `t` and spherical angles), **not** the dS-invariant measure.
 - `is_causal` is the ambient-Minkowski causal order restricted to the hyperboloid.
-- `scalar_coeffs` raises `NotImplementedError` — coefficients are manual `(a, b)`.
+- `scalar_coeffs` raises `NotImplementedError`, coefficients are manual `(a, b)`.
 
 ## Methods
 

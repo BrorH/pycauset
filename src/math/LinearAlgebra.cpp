@@ -1057,6 +1057,27 @@ std::unique_ptr<VectorBase> eigvals_skew(
     return out;
 }
 
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig_skew(
+    const MatrixBase& a,
+    int k,
+    const std::string& result_file
+) {
+    if (k <= 0) {
+        throw std::invalid_argument("eig_skew: k must be positive");
+    }
+    if (a.rows() != a.cols()) {
+        throw std::invalid_argument("eig_skew: matrix must be square");
+    }
+
+    const uint64_t n = a.rows();
+    const int kk = std::min(k, static_cast<int>(n));
+    auto w = ObjectFactory::create_vector(static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file + "_vals");
+    auto v = ObjectFactory::create_matrix(n, static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, MatrixType::DENSE_FLOAT, result_file + "_vecs");
+
+    ComputeContext::instance().get_device()->eig_skew(a, *w, *v, kk);
+    return std::make_pair(std::move(w), std::move(v));
+}
+
 std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in, const std::string& result_file) {
     if (in.rows() != in.cols()) {
         throw std::invalid_argument("eig: matrix must be square");

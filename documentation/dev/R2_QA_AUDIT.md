@@ -1,7 +1,7 @@
-# R2_QA — public-surface audit (partial)
+# R2_QA, public-surface audit (partial)
 
 Audit of the R2 public API surface and per-node test/doc coverage. This is the
-"in-step docs + tests" gate (R2_QA); it does not write docs/tests — it verifies.
+"in-step docs + tests" gate (R2_QA); it does not write docs/tests, it verifies.
 
 ## Public surface (all resolve)
 
@@ -44,17 +44,17 @@ Testing & Bug Tracking protocol.
 
 ## Delivered audit items
 
-- **Continuum-limit benchmark** — `benchmarks/r2_continuum_limit.py` (discrete `iΔ`
+- **Continuum-limit benchmark**, `benchmarks/r2_continuum_limit.py` (discrete `iΔ`
   vs continuum `iΔ` convention pin + the SJ Wightman positive-spectrum growth vs `n`).
-- **Conference feature menu** — `documentation/guides/R2 Feature Menu.md`.
-- **CI correctness gate** — `.github/workflows/ci.yml` runs `pytest tests/python`
+- **Conference feature menu**, `documentation/guides/R2 Feature Menu.md`.
+- **CI correctness gate**, `.github/workflows/ci.yml` runs `pytest tests/python`
   on the 3-OS matrix (Linux/macOS/Windows).
 
 ## Remaining (not yet audited/closed)
 
 - **CI parity threshold** (R2_PERF: `benchmarks/r2_parity.py` with the `>= 0.90×`
-  bar enforced in CI — timing thresholds are intentionally not CI-gated yet).
-- **C++ R2E** (R2_CPU lazy-routing / R2_GPU / R2_STREAM / R2_EIGCACHE) — in progress.
+  bar enforced in CI, timing thresholds are intentionally not CI-gated yet).
+- **C++ R2E** (R2_CPU lazy-routing / R2_GPU / R2_STREAM / R2_EIGCACHE), in progress.
 
 ## Deferred to future releases (explicitly NOT R2 scope)
 

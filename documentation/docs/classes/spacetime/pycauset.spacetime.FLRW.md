@@ -18,8 +18,8 @@ FLRW spacetime with flat spatial slices (k=0): `ds² = −dt² + a(t)² dx⃗²`
 ## Notes (honest caveats)
 
 - `is_causal` uses the null condition `∫_{t₁}^{t₂} dt/a(t) ≥ |Δx⃗|`.
-- The **sampler** is uniform in `(t, x⃗)` — a documented parametrization, not the FLRW-invariant measure unless `a(t)` is constant.
-- `scalar_coeffs` raises `NotImplementedError` — coefficients are manual `(a, b)`.
+- The **sampler** is uniform in `(t, x⃗)`, a documented parametrization, not the FLRW-invariant measure unless `a(t)` is constant.
+- `scalar_coeffs` raises `NotImplementedError`, coefficients are manual `(a, b)`.
 
 ## Methods
 
@@ -45,7 +45,7 @@ def volume(self) -> float
 ```python
 from pycauset import spacetime
 
-# a(t) = t  (radiation-like) — or pass a callable a(t)
+# a(t) = t  (radiation-like), or pass a callable a(t)
 st = spacetime.FLRW(2, scale_factor=1, time_extent=1.0, space_extent=1.0)
 ```
 

@@ -24,6 +24,7 @@ std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, cons
 
 std::unique_ptr<VectorBase> eigvals_arnoldi(const MatrixBase& a, int k, int m, double tol, const std::string& result_file = "");
 std::unique_ptr<VectorBase> eigvals_skew(const MatrixBase& a, int k, const std::string& result_file = "");
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig_skew(const MatrixBase& a, int k, const std::string& result_file = "");
 std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in, const std::string& result_file = "");
 std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string& result_file = "");
 std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in, const std::string& result_file = "");

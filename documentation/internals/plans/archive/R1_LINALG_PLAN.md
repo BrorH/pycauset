@@ -1,4 +1,4 @@
-# R1_LINALG — Linear Algebra Foundation (Release 1)
+# R1_LINALG, Linear Algebra Foundation (Release 1)
 
 **Status:** Phase H completed (property-awareness sweep)
 
@@ -90,7 +90,7 @@ Deliverables:
 
 Keep `SUPPORT_READINESS_FRAMEWORK.md` current (per-op CPU/GPU/out-of-core readiness) to avoid future archaeology.
 
-### Phase G  Expand the linear algebra suite (COMPLETED — endpoint-first baseline)
+### Phase G  Expand the linear algebra suite (COMPLETED, endpoint-first baseline)
 
 Goal: define the R1 foundation endpoints for full linalg workflows (solve/factorize/spectral), even if optimized implementations arrive later.
 
@@ -116,13 +116,13 @@ Completed items:
 - Tests added for property-driven solve behavior (identity shortcut and zero singular guard).
 - Docs updated for `solve` and `solve_triangular` to describe property-sensitive behavior.
 
-### Phase I  Indexing & slicing (PENDING — numpy semantics for vectors/matrices)
+### Phase I  Indexing & slicing (PENDING, numpy semantics for vectors/matrices)
 
 Goal: implement NumPy-compatible slicing for 2D-only (matrices, and vectors represented as 1×N matrices) without introducing N-D tensors.
 
 Scope (matches NumPy for rank-2):
 - Basic indexing (`:`, integers incl. negative, slices with start/stop/step including negative, ellipsis, newaxis/None) yielding views where NumPy would (basic indexing → view) and copies where NumPy would (advanced indexing/Boolean/integer arrays → copy). Mixed basic+advanced follows NumPy’s copy semantics.
-- Advanced indexing: integer arrays, boolean masks, mixed basic+advanced—copy semantics and NumPy shape rules.
+- Advanced indexing: integer arrays, boolean masks, mixed basic+advanced-copy semantics and NumPy shape rules.
 - Dimensionality: mirrors NumPy reduction behavior (e.g., `M[i, :]` yields 1D in API, represented internally as 1×N matrix per existing convention). No shape-changing assignment beyond what NumPy allows for the indexed region.
 - Assignment: `M[slice] = X` allowed; `X` must broadcast and convert per NumPy rules; dtype conversions emit PyCauset warnings per Warnings & Exceptions (e.g., promotion/overflow-risk); shape-changing assignments are rejected.
 - Out-of-bounds and empty slices: NumPy rules (negatives wrap; empty slices are allowed and produce empty views/copies per NumPy behavior).

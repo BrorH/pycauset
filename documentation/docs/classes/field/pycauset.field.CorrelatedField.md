@@ -43,7 +43,7 @@ Pauli–Jordan function `iΔ = K_R - K_A` (a Hermitian matrix).
 def wightman(self) -> np.ndarray
 ```
 
-Sorkin–Johnston vacuum Wightman two-point function — the positive-eigenvalue part of `iΔ`.
+Sorkin–Johnston vacuum Wightman two-point function, the positive-eigenvalue part of `iΔ`.
 
 ### correlator
 
@@ -73,7 +73,7 @@ Sorkin–Yazdi entanglement entropy of a region (a subset of element indices), f
 
 | `convention` | formula | requirement |
 | :-- | :-- | :-- |
-| `"sorkin_yazdi"` *(default)* | `S = tr[(W_A + I) ln(W_A + I) − W_A ln W_A]` (`0 ln 0 = 0`) | `W_A ≥ 0` — the SJ Wightman's zero-point "1/2" convention |
+| `"sorkin_yazdi"` *(default)* | `S = tr[(W_A + I) ln(W_A + I) − W_A ln W_A]` (`0 ln 0 = 0`) | `W_A ≥ 0`, the SJ Wightman's zero-point "1/2" convention |
 | `"symplectic"` | `S = tr[(W_A + 1/2) ln(W_A + 1/2) − (W_A − 1/2) ln(W_A − 1/2)]` | `W_A ≥ 1/2` (raises `ValueError` otherwise) |
 
 The two conventions are the same formula up to the zero-point shift:
