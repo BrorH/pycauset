@@ -244,6 +244,22 @@ void MemoryMapper::open_file(bool create_new) {
         return;
     }
 
+    // Anonymous (:memory:) storage: allocate with VirtualAlloc instead of a
+    // pagefile-backed section (CreateFileMappingA(INVALID_HANDLE_VALUE)). The
+    // pagefile-backed path commits a page from the paging file on every first
+    // write, which costs several ms for an 8MB result and dominates small
+    // elementwise ops (add/multiply). VirtualAlloc gives fast anonymous commit
+    // (the same class as malloc), closing most of the gap vs NumPy.
+    if (hFile_ == INVALID_HANDLE_VALUE) {
+        base_ptr_ = VirtualAlloc(NULL, map_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        if (base_ptr_ == NULL) {
+            throw std::runtime_error("Failed to allocate anonymous memory (VirtualAlloc)");
+        }
+        hMapping_ = NULL;
+        mapped_ptr_ = static_cast<char*>(base_ptr_) + adjustment;
+        return;
+    }
+
     hMapping_ = CreateFileMappingA(
         hFile_,
         NULL,
@@ -292,6 +308,9 @@ void MemoryMapper::close_file() {
         // Check if it was pinned memory
         if (is_pinned_) {
             pycauset::ComputeContext::instance().free_pinned(base_ptr_);
+        } else if (hMapping_ == NULL) {
+            // Anonymous (:memory:) storage allocated with VirtualAlloc.
+            VirtualFree(base_ptr_, 0, MEM_RELEASE);
         } else {
             UnmapViewOfFile(base_ptr_);
         }
@@ -534,8 +553,8 @@ void MemoryMapper::close_file() {
 void MemoryMapper::flush() {
     if (mapped_ptr_) {
 #ifdef _WIN32
-        if (!FlushViewOfFile(mapped_ptr_, 0)) {
-            // Log warning?
+        if (hMapping_ != NULL) {
+            FlushViewOfFile(mapped_ptr_, 0);
         }
         if (hFile_ != INVALID_HANDLE_VALUE) {
             FlushFileBuffers(hFile_);
@@ -549,7 +568,9 @@ void MemoryMapper::flush() {
 void MemoryMapper::flush(void* ptr, size_t size) {
     if (ptr && size > 0) {
 #ifdef _WIN32
-        FlushViewOfFile(ptr, size);
+        if (hMapping_ != NULL) {
+            FlushViewOfFile(ptr, size);
+        }
         // R1_SAFETY: Ensure metadata/file size changes are also committed
         if (hFile_ != INVALID_HANDLE_VALUE) {
             FlushFileBuffers(hFile_);

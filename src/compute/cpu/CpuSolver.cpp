@@ -525,71 +525,53 @@ namespace {
             const uint64_t b_elems = b_dense->base_rows() * b_dense->base_cols();
             const uint64_t c_elems = c_dense->base_rows() * c_dense->base_cols();
             const size_t total_bytes = static_cast<size_t>(a_elems + b_elems + c_elems) * sizeof(T);
-            
-            auto& governor = pycauset::core::MemoryGovernor::instance();
-            
-            // Check 1: Does it fit in RAM? (Anti-Nanny Logic)
-            // Check 2: Do we have enough Pinned Memory Budget?
-            if (governor.should_use_direct_path(total_bytes) && governor.try_pin_memory(total_bytes)) {
-                // Attempt to pin all three matrices
-                bool pinned = true;
-                // We use const_cast because pinning is a logical const operation (doesn't change data)
-                // but might change internal OS handles.
-                pinned &= const_cast<DenseMatrix<T>*>(a_dense)->pin_range(0, a_elems);
-                pinned &= const_cast<DenseMatrix<T>*>(b_dense)->pin_range(0, b_elems);
-                pinned &= c_dense->pin_range(0, c_elems);
-                
-                if (pinned) {
-                    const T* a_data = a_dense->data() + (a_dense->row_offset() * a_dense->base_cols() + a_dense->col_offset());
-                    const T* b_data = b_dense->data() + (b_dense->row_offset() * b_dense->base_cols() + b_dense->col_offset());
-                    T* c_data = c_dense->data() + (c_dense->row_offset() * c_dense->base_cols() + c_dense->col_offset());
-                    
-                    bool t_a = a_dense->is_transposed();
-                    bool t_b = b_dense->is_transposed();
 
-                    const int M = static_cast<int>(a_dense->rows());
-                    const int N = static_cast<int>(b_dense->cols());
-                    const int K = static_cast<int>(a_dense->cols());
-                    const int lda = static_cast<int>(a_dense->base_cols());
-                    const int ldb = static_cast<int>(b_dense->base_cols());
-                    const int ldc = static_cast<int>(c_dense->base_cols());
-                    
-                    if constexpr (std::is_same_v<T, double>) {
-                        cblas_dgemm(
-                            CblasRowMajor,
-                            t_a ? CblasTrans : CblasNoTrans,
-                            t_b ? CblasTrans : CblasNoTrans,
-                            M, N, K,
-                            1.0, a_data, lda,
-                            b_data, ldb,
-                            0.0, c_data, ldc
-                        );
-                    } else {
-                        cblas_sgemm(
-                            CblasRowMajor,
-                            t_a ? CblasTrans : CblasNoTrans,
-                            t_b ? CblasTrans : CblasNoTrans,
-                            M, N, K,
-                            1.0f, a_data, lda,
-                            b_data, ldb,
-                            0.0f, c_data, ldc
-                        );
-                    }
-                    
-                    // Cleanup
-                    // Unpinning is important to release the "locked" status
-                    const_cast<DenseMatrix<T>*>(a_dense)->unpin_range(0, a_elems);
-                    const_cast<DenseMatrix<T>*>(b_dense)->unpin_range(0, b_elems);
-                    c_dense->unpin_range(0, c_elems);
-                    
-                    governor.unpin_memory(total_bytes);
-                    
-                    c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
-                    return true;
+            auto& governor = pycauset::core::MemoryGovernor::instance();
+
+            // Check: does the operation fit in RAM? (Anti-Nanny Logic). When it
+            // does, call BLAS directly. We intentionally do NOT pin the operands
+            // (VirtualLock): pinning is a GPU-DMA optimization (R1_GPU) and is pure
+            // overhead for CPU dgemm — it added ~1-2ms per call at n=1024 and was
+            // the dominant residual in the matmul parity gap.
+            if (governor.should_use_direct_path(total_bytes)) {
+                const T* a_data = a_dense->data() + (a_dense->row_offset() * a_dense->base_cols() + a_dense->col_offset());
+                const T* b_data = b_dense->data() + (b_dense->row_offset() * b_dense->base_cols() + b_dense->col_offset());
+                T* c_data = c_dense->data() + (c_dense->row_offset() * c_dense->base_cols() + c_dense->col_offset());
+
+                bool t_a = a_dense->is_transposed();
+                bool t_b = b_dense->is_transposed();
+
+                const int M = static_cast<int>(a_dense->rows());
+                const int N = static_cast<int>(b_dense->cols());
+                const int K = static_cast<int>(a_dense->cols());
+                const int lda = static_cast<int>(a_dense->base_cols());
+                const int ldb = static_cast<int>(b_dense->base_cols());
+                const int ldc = static_cast<int>(c_dense->base_cols());
+
+                if constexpr (std::is_same_v<T, double>) {
+                    cblas_dgemm(
+                        CblasRowMajor,
+                        t_a ? CblasTrans : CblasNoTrans,
+                        t_b ? CblasTrans : CblasNoTrans,
+                        M, N, K,
+                        1.0, a_data, lda,
+                        b_data, ldb,
+                        0.0, c_data, ldc
+                    );
                 } else {
-                    // Pinning failed (OS limit?), release budget and fall back
-                    governor.unpin_memory(total_bytes);
+                    cblas_sgemm(
+                        CblasRowMajor,
+                        t_a ? CblasTrans : CblasNoTrans,
+                        t_b ? CblasTrans : CblasNoTrans,
+                        M, N, K,
+                        1.0f, a_data, lda,
+                        b_data, ldb,
+                        0.0f, c_data, ldc
+                    );
                 }
+
+                c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
+                return true;
             }
         }
         return false;
