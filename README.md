@@ -10,7 +10,7 @@
 
 </div>
 
-## **PyCauset is a toolset for causal set theory in Python.**
+## **A High-performance Numerical Toolset for Causal Set Theory in Python.**
 
 [Causal set theory](https://en.wikipedia.org/wiki/Causal_sets) is a discrete proposal for [quantum gravity](https://en.wikipedia.org/wiki/Quantum_gravity). PyCauset is a low-compromise numerical tool for causal sets ("causets"), built from the ground up to be fast, flexible, and easy to use. 
 
@@ -124,12 +124,12 @@ That pulls the CUDA runtime (~500 MB) and enables the `pycauset_cuda` backend. R
 
 If you run on a machine with an NVIDIA GPU but haven't installed the GPU backend, PyCauset
 prints a one-line reminder at import telling you the exact command (silence it with
-`PYCAUSET_GPU_HINT=0`). CPU remains the correct, fully-supported default — the GPU backend
+`PYCAUSET_GPU_HINT=0`). CPU remains the correct, fully-supported default, the GPU backend
 is used automatically only when the cost model predicts it will be faster.
 
 ## Status
 
-Pre-alpha. Release 1 (v0.6.1, the Foundation Release) shipped the numerical core — matrices, storage, and linear algebra — CPU-only (GPU parity is deferred). Release 2 (the Physics Release) adds the physics suite — arbitrary-dimension and curved spacetimes, fields, and the Sorkin-Johnston vacuum — and folds in the deferred optimization program. The current plan is tracked in the documentation.
+Pre-alpha. Release 1 (v0.6.1, the Foundation Release) shipped the numerical core, matrices, storage, and linear algebra, CPU-only (GPU parity is deferred). Release 2 (the Physics Release) adds the physics suite, arbitrary-dimension and curved spacetimes, fields, and the Sorkin-Johnston vacuum, and folds in the deferred optimization program. The current plan is tracked in the documentation.
 
 ## Documentation
 
