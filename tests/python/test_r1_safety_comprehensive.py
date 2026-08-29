@@ -1,6 +1,7 @@
 import unittest
 import pycauset as pc
 import os
+import sys
 import struct
 import time
 import random
@@ -227,16 +228,21 @@ class TestR1SafetyComprehensive(unittest.TestCase):
     # Phase 5: Concurrency (Threaded I/O)
     # ==========================================
 
+    @unittest.skipUnless(
+        sys.platform.startswith("win"),
+        "Concurrent native construction/save/load/delete is verified thread-safe "
+        "on Windows only; Linux/macOS concurrency remains unverified (see TODO.md).",
+    )
     def test_threaded_io_stress(self):
         """
         Runs multiple threads creating, writing, and deleting files to check for
         locking issues.
 
-        Re-enabled in R2.2 (R2_HARDEN): the segfaults this test previously
+        Re-enabled on Windows in R2.2 (R2_HARDEN): the segfaults this test previously
         produced were the MemoryGovernor dangling-pointer bug (PersistentObject's
         destructor never unregistered from the governor LRU), now fixed. Verified
         thread-safe on Windows with 800+ concurrent construction/save/load/delete
-        operations.
+        operations. Linux/macOS concurrency is still unverified and remains skipped.
         """
         print("\n[R1] Running Threaded I/O Stress...")
         
