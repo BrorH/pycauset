@@ -19,6 +19,7 @@ class Runtime:
         self._set_temporary_file = set_temporary_file
         self._env_var = env_var
         self._storage_root_cache: Path | None = None
+        self._resolved_root_cache: Path | None = None
         self._storage_roots_seen: set[Path] = set()
         self._live_matrices: weakref.WeakSet = weakref.WeakSet()
 
@@ -114,8 +115,16 @@ class Runtime:
             return
 
         try:
-            path = Path(matrix.get_backing_file()).resolve()
-            root = self.storage_root().resolve()
+            backing = matrix.get_backing_file()
+            # Anonymous RAM (:memory:) matrices are never auto-created temp files.
+            # Skip the Path.resolve() calls below, whose nt._getfinalpathname
+            # syscall (~30-60us each) would otherwise dominate small-op
+            # construction (the matmul parity residual was traced here).
+            if not backing or backing == ":memory:":
+                return
+
+            path = Path(backing).resolve()
+            root = self._resolved_storage_root()
 
             # Path.is_relative_to is 3.9+; we support 3.8+ historically? repo is 3.12 now.
             if path.is_relative_to(root):
@@ -125,3 +134,8 @@ class Runtime:
                     self._set_temporary_file(path, True)
         except (ValueError, OSError, AttributeError):
             pass
+
+    def _resolved_storage_root(self) -> Path:
+        if self._resolved_root_cache is None:
+            self._resolved_root_cache = self.storage_root().resolve()
+        return self._resolved_root_cache
