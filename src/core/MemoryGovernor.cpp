@@ -21,8 +21,13 @@ namespace pycauset {
 namespace core {
 
 MemoryGovernor& MemoryGovernor::instance() {
-    static MemoryGovernor instance;
-    return instance;
+    // Intentionally leaked: PersistentObject destructors and close() call back
+    // into the governor during interpreter finalization, where the static
+    // destruction order of a Meyers singleton is undefined. A heap singleton that
+    // is never destroyed removes that entire class of teardown hang/crash (the
+    // destructor is empty anyway; the OS reclaims the few bytes at process exit).
+    static MemoryGovernor* instance = new MemoryGovernor();
+    return *instance;
 }
 
 MemoryGovernor::MemoryGovernor() {

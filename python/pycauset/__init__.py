@@ -97,6 +97,25 @@ try:
 except Exception:
     pass
 
+# One-time GPU install hint. PyCauset ships CPU-only by default; the GPU backend
+# is opt-in via `pip install pycauset[gpu]`. On a machine with an NVIDIA GPU but
+# no GPU backend, emit a single clear install hint (silence with
+# PYCAUSET_GPU_HINT=0). Never blocks or breaks import.
+try:
+    from ._internal.gpu_hint import emit_gpu_install_hint
+
+    def _gpu_backend_available() -> bool:
+        try:
+            from . import _pycauset_cuda as _cuda_mod
+
+            return bool(_cuda_mod.is_available())
+        except Exception:
+            return False
+
+    emit_gpu_install_hint(backend_available=_gpu_backend_available)
+except Exception:
+    pass
+
 # Import modules that depend on the native extension after it is loaded.
 from . import field as field
 from . import spacetime as spacetime

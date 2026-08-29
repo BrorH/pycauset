@@ -486,8 +486,11 @@ if(ENABLE_CUDA)
     check_language(CUDA)
 
     if(CMAKE_CUDA_COMPILER)
-        # Target the native architecture of the build machine (supports Pascal 6.1 on CUDA 12)
-        set(CMAKE_CUDA_ARCHITECTURES "native")
+        # Default to the build machine's GPU ("native"), but allow distribution
+        # builds (CI) to override with a list of target compute capabilities
+        # (e.g. "61;70;75;80;86;89") so the wheel runs on a range of GPUs and
+        # does not require a GPU on the builder.
+        set(CMAKE_CUDA_ARCHITECTURES "native" CACHE STRING "CUDA compute capabilities to target")
         enable_language(CUDA)
         find_package(CUDAToolkit REQUIRED)
         

@@ -41,6 +41,20 @@ dev = [
     "pytest",
     "psutil",
 ]
+# CUDA runtime for the optional GPU backend (`pycauset_cuda`).
+# These are NVIDIA's official redistributable pip packages (the same mechanism
+# PyTorch/TensorFlow use), so `pip install pycauset[gpu]` downloads the runtime
+# DLLs automatically instead of requiring a full CUDA Toolkit install.
+#
+# The CUDA plugin links cudart/cublas/cusolver only (see
+# CudaDevice.cu + CMakeLists.txt), hence exactly these three. Keep the floor at
+# the CUDA minor the plugin is compiled against (12.6); the runtime is
+# forward-compatible within the 12.x major.
+gpu = [
+    "nvidia-cuda-runtime-cu12>=12.6",
+    "nvidia-cublas-cu12>=12.6",
+    "nvidia-cusolver-cu12>=12.6",
+]
 
 [project.urls]
 Homepage = "https://github.com/BrorH/pycauset"

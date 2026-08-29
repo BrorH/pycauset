@@ -108,6 +108,25 @@ cd pycauset
 pip install .
 ```
 
+### GPU acceleration (optional)
+
+PyCauset ships **CPU-only by default** to keep the install small. The GPU backend is a
+one-command opt-in:
+
+```bash
+pip install "pycauset[gpu]"
+```
+
+That pulls the CUDA runtime (~500 MB) and enables the `pycauset_cuda` backend. Requirements:
+
+- NVIDIA GPU, Compute Capability 6.0+ (Pascal or newer)
+- Linux or Windows (macOS has no NVIDIA CUDA)
+
+If you run on a machine with an NVIDIA GPU but haven't installed the GPU backend, PyCauset
+prints a one-line reminder at import telling you the exact command (silence it with
+`PYCAUSET_GPU_HINT=0`). CPU remains the correct, fully-supported default — the GPU backend
+is used automatically only when the cost model predicts it will be faster.
+
 ## Status
 
 Pre-alpha. Release 1 (v0.6.1, the Foundation Release) shipped the numerical core — matrices, storage, and linear algebra — CPU-only (GPU parity is deferred). Release 2 (the Physics Release) adds the physics suite — arbitrary-dimension and curved spacetimes, fields, and the Sorkin-Johnston vacuum — and folds in the deferred optimization program. The current plan is tracked in the documentation.

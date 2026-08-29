@@ -16,8 +16,15 @@ status lives in `R1_EXECUTION.md`.
 - [ ] API lock: mark `_internal` as private (`__all__` is already curated)
 
 ### Known issues (bugs, fix post-R1, do not forget)
-- **Teardown hang in `release_tracked_matrices()`** (mitigated by skipping native
-  `close()` during interpreter finalization; root cause unfixed).
+- **Teardown hang in `release_tracked_matrices()`** — root-caused and fixed
+  (R2_HARDEN, 2026-08): the `MemoryGovernor`/`ComputeContext`/`ThreadPool`/
+  `OpRegistry` singletons were Meyers statics whose destruction order is undefined
+  during interpreter finalization, so `PersistentObject` destructors and `close()`
+  calling `instance()` could hang or crash. They are now heap singletons that are
+  intentionally never destroyed (destructors are empty or the OS reclaims the
+  resources at process exit), eliminating the whole class of teardown-ordering
+  hazards. The `release_tracked_matrices()` finalization skip is retained as
+  defense-in-depth (the OS reclaims mappings anyway).
 - **Dead code / deprecated-feature sweep** — in progress (R2_HARDEN): removed the
   import-time-skipped `test_pauli_jordan_spectrum.py` (referenced the removed
   `.eigenvalues()` API) and the stale `*.dll.stale` build artifacts. `test_skew.py`

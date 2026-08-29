@@ -31,8 +31,13 @@ struct ConstructionScope {
 };
 
 ComputeContext& ComputeContext::instance() {
-    static ComputeContext ctx;
-    return ctx;
+    // Intentionally leaked: object teardown (MemoryMapper::close_file, CudaDevice
+    // destruction) can reach the context during interpreter finalization, where a
+    // Meyers singleton's destruction order is undefined. Leaking it also skips the
+    // CUDA handle teardown at exit (cublas/cusolver destroy), which the driver
+    // reclaims on process exit anyway — removing a second teardown-hang source.
+    static ComputeContext* ctx = new ComputeContext();
+    return *ctx;
 }
 
 bool compute_context_is_constructing() {

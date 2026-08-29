@@ -133,7 +133,7 @@ tools/test_release_locally.sh
 build_*/
 
 # --- Local rebuild/scratch artifacts ---
-third_party/openblas_src/
+third_party/
 *.log
 *.release_bak
 /cpp_diff.txt

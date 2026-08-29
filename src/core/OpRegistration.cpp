@@ -3,8 +3,10 @@
 namespace pycauset {
 
 OpRegistry& OpRegistry::instance() {
-    static OpRegistry reg;
-    return reg;
+    // Intentionally leaked (see the other ::instance() singletons): avoids any
+    // static-destruction-order hazard during interpreter finalization.
+    static OpRegistry* reg = new OpRegistry();
+    return *reg;
 }
 
 void OpRegistry::register_op(const OpContract& contract) {

@@ -10,6 +10,18 @@ This is **not** a hardware probe. It reports whether the CUDA backend is
 currently active (plugin loaded + device created). If you need to attempt
 activation, call `pycauset.cuda.enable()` first.
 
+## Installing the GPU backend
+
+The GPU backend is opt-in. The base install is CPU-only; add the CUDA runtime
+(~500 MB) with:
+
+```bash
+pip install "pycauset[gpu]"
+```
+
+On a machine with an NVIDIA GPU but no GPU backend, `import pycauset` prints a
+one-line reminder with this command (silence it with `PYCAUSET_GPU_HINT=0`).
+
 ## Returns
 
 *   **bool**: Whether the CUDA backend is active.

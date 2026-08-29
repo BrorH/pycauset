@@ -14,8 +14,11 @@ size_t ThreadPool::get_num_threads() {
 }
 
 ThreadPool& ThreadPool::instance() {
-    static ThreadPool pool;
-    return pool;
+    // Intentionally leaked: the destructor joins workers, which can block during
+    // interpreter finalization (workers may be mid-task or blocked on I/O). Never
+    // destroying the pool avoids that teardown hang; OS reclaims the threads.
+    static ThreadPool* pool = new ThreadPool();
+    return *pool;
 }
 
 ThreadPool::ThreadPool(size_t threads) : stop(false) {
