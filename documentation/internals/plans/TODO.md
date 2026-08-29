@@ -22,7 +22,11 @@ status lives in `R1_EXECUTION.md`.
   save/load/delete thread-safety has not been separately proven.
 - **Teardown hang in `release_tracked_matrices()`** (mitigated by skipping native
   `close()` during interpreter finalization; root cause unfixed).
-- **Dead code / deprecated-feature sweep** (leftover stubs and stray build artifacts).
+- **Dead code / deprecated-feature sweep** — in progress (R2_HARDEN): removed the
+  import-time-skipped `test_pauli_jordan_spectrum.py` (referenced the removed
+  `.eigenvalues()` API) and the stale `*.dll.stale` build artifacts. `test_skew.py`
+  and `test_skew_comprehensive.py` were re-enabled once the native `eigvals_skew`
+  (R2_CATALOG skew eigensolver) landed in R2.2.
 
 ### Resolved (R1)
 - **Constructor segfault / heap-corruption heisenbug (Linux SIGSEGV, macOS SIGBUS)**:
@@ -52,7 +56,11 @@ status lives in `R1_EXECUTION.md`.
 ### Hygiene
 - Remove dead code and legacy eager-evaluation paths
 - Slim `__init__.py`
-- ruff/mypy incremental cleanup (E/I/UP style rules)
+- ruff/mypy incremental cleanup (E/I/UP style rules) — **in progress**: `ruff check --fix`
+  applied import-sorting (I001) across `python/pycauset`. Remaining are ~295 mechanical
+  findings: `E501` (docstring/line >100 chars, cosmetic) and `UP006`/`UP045`
+  (`Tuple`→`tuple`, `Optional[X]`→`X | None`, `List`→`list` — need `--unsafe-fixes`;
+  safe on the actual py3.10+ runtime but flagged against the stale `py38` target).
 
 ---
 
@@ -261,7 +269,7 @@ Status: - [x]
 Goal: define and maintain the **single-file `.pycauset` binary container** that preserves mmap-friendly payload access and supports sparse, typed, forward-compatible metadata.
 
 Starting point:
-- `documentation/internals/plans/completed/R1_STORAGE_PLAN.md`
+- `documentation/internals/plans/archive/R1_STORAGE_PLAN.md`
 
 Deliverables:
 - Single-file container spec (header + payload offsets + metadata blocks).
@@ -283,7 +291,7 @@ Goal: introduce a **canonical semantic properties system** that is treated as **
 Properties are not validated for mathematical truth. If a matrix has `is_unitary=True`, the system is allowed to use unitary identities and skip work, even if the underlying data is not truly unitary.
 
 Starting point:
-- `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md`
+- `documentation/internals/plans/archive/R1_PROPERTIES_PLAN.md`
 
 Deliverables:
 - A canonical properties schema (keys, meanings, typing, and a priority/implication model for structural properties).
@@ -294,14 +302,14 @@ Deliverables:
 - A more rigorous cached-derived model (validation + invalidation) so cached metadata cannot become stale.
 
 Definition of Done:
-- Every public matrix/vector object exposes a `properties` container and preserves the distinction between `False` and “unset” (missing/`None`), per `documentation/internals/plans/R1_PROPERTIES_PLAN.md`.
-- Every public matrix/vector object exposes a `properties` container and preserves the distinction between `False` and “unset” (missing/`None`), per `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md`.
+- Every public matrix/vector object exposes a `properties` container and preserves the distinction between `False` and “unset” (missing/`None`), per `documentation/internals/plans/archive/R1_PROPERTIES_PLAN.md`.
+- Every public matrix/vector object exposes a `properties` container and preserves the distinction between `False` and “unset” (missing/`None`), per `documentation/internals/plans/archive/R1_PROPERTIES_PLAN.md`.
 - Operators that can exploit properties do so deterministically and correctly per “properties-as-gospel”.
 
 Persistence format note:
 
 - R1_PROPERTIES depends on the storage layer for encoding, but the container format change itself is tracked under **R1_STORAGE**.
-- The metadata schema must not block moving to a single-file binary `.pycauset` container with a sparse, forward-compatible typed metadata block (see `documentation/internals/plans/completed/R1_STORAGE_PLAN.md`).
+- The metadata schema must not block moving to a single-file binary `.pycauset` container with a sparse, forward-compatible typed metadata block (see `documentation/internals/plans/archive/R1_STORAGE_PLAN.md`).
 
 ### R1_LAZY: Lazy Evaluation & Persistence
 
@@ -364,14 +372,14 @@ Deliverables:
     - PyCauset does not expose a `pc.asarray` “array” API; only matrices and vectors are first-class.
     - Define the supported conversion entrypoints (e.g., `pc.matrix(np_array)`, `pc.vector(np_array)`, and `np.asarray(obj)`), and their copy/materialization policy.
     - Ensure conversions do not accidentally materialize huge out-of-core data; default UX is a hard error with an explicit power-user override.
-    - Import/export override kwargs (RAM cap on import; `allow_huge` on export) and snapshot copy semantics are defined canonically in `documentation/internals/plans/R1_IO_PLAN.md`.
+    - Import/export override kwargs (RAM cap on import; `allow_huge` on export) and snapshot copy semantics are defined canonically in `documentation/internals/plans/archive/R1_IO_PLAN.md`.
 - **Format interoperability (pipeline-friendly):**
     - PyCauset can load relevant external formats (at least NumPy `.npy` / `.npz`).
     - PyCauset can export to relevant external formats (at least `.npy` / `.npz`).
     - Provide a file conversion utility (proposed: `pc.convert_file(...)`) to convert `.pycauset` ⇄ other supported formats.
     - Optional: define a minimal pandas interoperability surface (explicit scope + optional dependency).
 
-Authoritative plan: `documentation/internals/plans/R1_IO_PLAN.md`.
+Authoritative plan: `documentation/internals/plans/archive/R1_IO_PLAN.md`.
 
 
 ### R1_LINALG: Core Linalg Surface Completeness
@@ -384,10 +392,10 @@ Seed items (from prior TODO):
 - Norms, normalization, projections
 - Elementwise division for matrices/vectors
 - Initialization from array input for typed classes (not only factories)
-- Block matrices/vectors (moved to **R1_BLOCKMATRIX**; see `documentation/internals/plans/R1_BLOCKMATRIX_PLAN.md`)
+- Block matrices/vectors (moved to **R1_BLOCKMATRIX**; see `documentation/internals/plans/archive/R1_BLOCKMATRIX_PLAN.md`)
 - Advanced indexing (slicing, fancy indexing)
 - Random matrix/vector generation
-- Matrix properties (expressed via **properties** and consumed by operators; see `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md`)
+- Matrix properties (expressed via **properties** and consumed by operators; see `documentation/internals/plans/archive/R1_PROPERTIES_PLAN.md`)
 
 ### R1_BLOCKMATRIX: Block Matrices + Heterogeneous Dtypes
 
@@ -406,7 +414,7 @@ Goal: make block matrices a first-class internal representation built from exist
 with **heterogeneous dtypes**, **manifest-based reference persistence**, and **semi-lazy block ops**
 that preserve storage efficiency.
 
-Authoritative plan: `documentation/internals/plans/R1_BLOCKMATRIX_PLAN.md`.
+Authoritative plan: `documentation/internals/plans/archive/R1_BLOCKMATRIX_PLAN.md`.
 
 Deliverables:
 - `pycauset.matrix(block_grid)` constructs a block matrix from a 2D grid of blocks (e.g., list-of-lists) without densifying.
@@ -440,7 +448,7 @@ Status: - [x] (routing/CPU-fallback only; GPU parity is **post-R1**)
 
 Goal: GPU behavior is predictable, correct, and **cooperative**.
 
-Authoritative plan: `documentation/internals/plans/completed/R1_GPU_PLAN.md`.
+Authoritative plan: `documentation/internals/plans/archive/R1_GPU_PLAN.md`.
 
 Deliverables:
 - **Phase 1: Robust Discovery & "Just Works" Dispatch:**
