@@ -90,20 +90,14 @@ size_t MemoryMapper::get_granularity() {
 #ifdef _WIN32
 void MemoryMapper::open_file(bool create_new) {
     if (filename_ == ":memory:") {
-        // Try Pinned Memory if GPU is active
-        if (pycauset::ComputeContext::instance().is_gpu_active()) {
-            mapped_ptr_ = pycauset::ComputeContext::instance().allocate_pinned(data_size_);
-            if (mapped_ptr_) {
-                // Success! We are using pinned memory.
-                // base_ptr_ is same as mapped_ptr_ for malloc/pinned
-                base_ptr_ = mapped_ptr_;
-                hFile_ = INVALID_HANDLE_VALUE;
-                hMapping_ = NULL;
-                is_pinned_ = true;
-                return;
-            }
-        }
-
+        // NOTE: We intentionally do NOT auto-pin ":memory:" backing via
+        // cudaHostAlloc when the GPU is active. Permanent pinning of every
+        // allocation slows CPU-side elementwise/GEMM access (page-locked memory
+        // + the costlier cudaHostAlloc path) and pushed add/multiply/matmul
+        // below NumPy parity once the GPU was active. GPU transfers pin the host
+        // buffers they actually move on-demand (ScopedPinner) instead, so CPU
+        // workloads stay on plain VirtualAlloc while GPU transfers still get
+        // fast DMA where it matters.
         hFile_ = INVALID_HANDLE_VALUE;
         offset_ = 0; // Ignore offset for memory-only
     } else {
@@ -329,16 +323,8 @@ void MemoryMapper::close_file() {
 #else
 void MemoryMapper::open_file(bool create_new) {
     if (filename_ == ":memory:") {
-        // Try Pinned Memory if GPU is active
-        if (pycauset::ComputeContext::instance().is_gpu_active()) {
-            mapped_ptr_ = pycauset::ComputeContext::instance().allocate_pinned(data_size_);
-            if (mapped_ptr_) {
-                base_ptr_ = mapped_ptr_;
-                fd_ = -1;
-                is_pinned_ = true;
-                return;
-            }
-        }
+        // NOTE: no auto-pin via cudaHostAlloc here — see the Windows branch
+        // comment. GPU transfers pin on-demand (ScopedPinner) instead.
 
 #ifdef __linux__
         // Use memfd_create for anonymous memory to give it a file descriptor
@@ -583,6 +569,13 @@ void MemoryMapper::flush(void* ptr, size_t size) {
 
 void MemoryMapper::unmap() {
 #ifdef _WIN32
+    if (filename_ == ":memory:") {
+        // VirtualAlloc memory is a single committed region, not a mapped file
+        // view; there is nothing to unmap (and UnmapViewOfFile would be wrong
+        // for it). fill_random() calls this only to shed address space for large
+        // disk-backed files, so for RAM-backed storage it is a no-op.
+        return;
+    }
     if (mapped_ptr_) {
         UnmapViewOfFile(mapped_ptr_);
         mapped_ptr_ = nullptr;
@@ -607,6 +600,11 @@ void MemoryMapper::unmap() {
 void MemoryMapper::map_all() {
     if (mapped_ptr_) return; // Already mapped
 #ifdef _WIN32
+    if (filename_ == ":memory:") {
+        // Restore the (never-freed) VirtualAlloc pointer.
+        mapped_ptr_ = base_ptr_;
+        return;
+    }
     if (!hMapping_) throw std::runtime_error("File mapping handle is invalid");
     
     ULARGE_INTEGER liOffset;
@@ -640,6 +638,11 @@ void MemoryMapper::map_all() {
 
 void* MemoryMapper::map_region(size_t offset, size_t size) {
 #ifdef _WIN32
+    if (filename_ == ":memory:") {
+        // The whole VirtualAlloc region is already committed and addressable;
+        // return a pointer into it. unmap_region() is a matching no-op.
+        return static_cast<char*>(base_ptr_) + offset;
+    }
     if (!hMapping_) throw std::runtime_error("File mapping handle is invalid");
     
     ULARGE_INTEGER liOffset;
@@ -668,6 +671,7 @@ void* MemoryMapper::map_region(size_t offset, size_t size) {
 
 void MemoryMapper::unmap_region(void* ptr) {
 #ifdef _WIN32
+    if (filename_ == ":memory:") return; // map_region returned an interior pointer; nothing to free
     UnmapViewOfFile(ptr);
 #else
     // munmap requires size, which we don't have here easily without tracking.

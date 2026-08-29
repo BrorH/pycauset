@@ -155,4 +155,28 @@ field = ScalarField(c, mass=1.0)
 K = field.propagator()
 ```
 
+## Analyzing the causal structure (R2)
+
+The causal set is a partial order; its structure methods are first-class on `CausalSet`:
+
+```python
+c.validate()              # verify reflexive-free, antisymmetric, transitive
+links = c.links()         # the Hasse / link matrix (transitive reduction)
+past = c.past(x)          # indices i with i ≺ x
+future = c.future(x)      # indices j with x ≺ j
+I = c.interval(x, y)      # Alexandrov interval I(x, y) = future(x) ∩ past(y)
+chain = c.longest_chain() # a longest causal chain
+layers = c.layers()       # ranked layering
+d = c.myrheim_meyer_dimension()  # dimension estimate
+```
+
+Synthetic orders (no geometry) come from [[docs/functions/pycauset.synthetic.md|pycauset.synthetic]]:
+
+```python
+from pycauset import synthetic
+c = synthetic.chain(100)  # total order; also antichain, transitive_percolation, product_order, poset
+```
+
+See [[docs/classes/spacetime/pycauset.CausalSet.md|CausalSet]] for the full method list.
+
 

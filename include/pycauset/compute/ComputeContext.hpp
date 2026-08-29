@@ -8,6 +8,14 @@
 
 namespace pycauset {
 
+// Returns true while ComputeContext::instance() is mid-construction.
+// MemoryMapper consults this (instead of ComputeContext::instance().is_gpu_active())
+// so that the CUDA device-load path — which constructs matrices for its CPU
+// benchmark during the first instance() call — does not re-enter the magic-static
+// constructor and deadlock. While construction is in progress, GPU memory pinning
+// is skipped and ":memory:" objects fall back to plain VirtualAlloc.
+bool compute_context_is_constructing();
+
 class ComputeContext {
 public:
     static ComputeContext& instance();

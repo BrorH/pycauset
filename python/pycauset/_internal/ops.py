@@ -1040,7 +1040,17 @@ def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     result_w = None
     result_v = None
 
-    # Correctness-first (2026-08-24): native eig (R1_CPU Phase 6) crashes; use NumPy.
+    # Try the native backend first (routes to CPU or GPU via AutoSolver). The
+    # 2026-08-24 "native eig crashes" workaround is obsolete: the native general
+    # eig is verified correct on both CPU and GPU.
+    try:
+        native_eig = getattr(deps.native, "eig", None)
+        if native_eig is not None:
+            result_w, result_v = native_eig(a)
+    except Exception:
+        result_w = None
+        result_v = None
+
     # NumPy Fallback
     if result_w is None:
         np_module = deps.np_module
@@ -1080,7 +1090,14 @@ def eigvals(a: Any, *, deps: OpsDeps) -> Any:
 
     result_w = None
 
-    # Correctness-first (2026-08-24): native eigvals (R1_CPU Phase 6) crashes; use NumPy.
+    # Try the native backend first (routes to CPU or GPU via AutoSolver).
+    try:
+        native_eigvals = getattr(deps.native, "eigvals", None)
+        if native_eigvals is not None:
+            result_w = native_eigvals(a)
+    except Exception:
+        result_w = None
+
     # NumPy Fallback
     if result_w is None:
         np_module = deps.np_module

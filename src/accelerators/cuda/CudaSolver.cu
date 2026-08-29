@@ -116,7 +116,7 @@ void ParallelFor(size_t start, size_t end, Func f) {
 CudaSolver::CudaSolver(CudaDevice* device) : device_(device) {}
 
 void CudaSolver::invert(const MatrixBase& in, MatrixBase& out) {
-    size_t n = in.size();
+    size_t n = in.rows();  // dimension, not element count (in.size() == n*n)
     size_t element_size = (in.get_data_type() == DataType::FLOAT64) ? 8 : 4;
     size_t bytes = n * n * element_size;
     size_t available = device_->get_available_memory_bytes();
@@ -135,7 +135,7 @@ void CudaSolver::invert(const MatrixBase& in, MatrixBase& out) {
         const DenseMatrix<double>* in_dense = static_cast<const DenseMatrix<double>*>(&in);
         DenseMatrix<double>* out_dense = static_cast<DenseMatrix<double>*>(&out);
         
-        size_t N = in.size();
+        size_t N = in.rows();  // dimension, not element count
         const double* src = in_dense->data();
         double* dst = out_dense->data();
         
@@ -194,7 +194,7 @@ void CudaSolver::invert(const MatrixBase& in, MatrixBase& out) {
         const DenseMatrix<float>* in_dense = static_cast<const DenseMatrix<float>*>(&in);
         DenseMatrix<float>* out_dense = static_cast<DenseMatrix<float>*>(&out);
         
-        size_t N = in.size();
+        size_t N = in.rows();  // dimension, not element count
         const float* src = in_dense->data();
         float* dst = out_dense->data();
         
@@ -874,8 +874,7 @@ void CudaSolver::gemm_streaming(
 
 
 void CudaSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    size_t n = a.size();
-    size_t num_elements = n * n;
+    size_t num_elements = a.size();  // element count (rows*cols)
     
     if (auto* a_d = dynamic_cast<const DenseMatrix<double>*>(&a)) {
         auto* b_d = dynamic_cast<const DenseMatrix<double>*>(&b);
@@ -925,8 +924,7 @@ void CudaSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& resul
 }
 
 void CudaSolver::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    size_t n = a.size();
-    size_t num_elements = n * n;
+    size_t num_elements = a.size();  // element count (rows*cols)
     
     if (auto* a_d = dynamic_cast<const DenseMatrix<double>*>(&a)) {
         auto* b_d = dynamic_cast<const DenseMatrix<double>*>(&b);
@@ -976,8 +974,7 @@ void CudaSolver::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& 
 }
 
 void CudaSolver::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {
-    size_t n = a.size();
-    size_t num_elements = n * n;
+    size_t num_elements = a.size();  // element count (rows*cols)
     
     if (auto* a_d = dynamic_cast<const DenseMatrix<double>*>(&a)) {
         auto* c_d = dynamic_cast<DenseMatrix<double>*>(&result);
@@ -1021,8 +1018,8 @@ void CudaSolver::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase&
 }
 
 void CudaSolver::matmul_bit(const DenseMatrix<bool>& a, const DenseMatrix<bool>& b, DenseMatrix<int32_t>& result) {
-    size_t n = a.size();
-    if (b.size() != n || result.size() != n) {
+    size_t n = a.rows();  // dimension, not element count (a.size() == n*n)
+    if (b.rows() != n || b.cols() != n || result.rows() != n || result.cols() != n) {
         throw std::invalid_argument("Dimension mismatch");
     }
 

@@ -122,7 +122,7 @@ class LazyAllocated:
         impl = self._materialize_from_write(value)
         impl[key] = value
 
-    def fill(self, value: Any) -> "LazyAllocated":
+    def fill(self, value: Any) -> LazyAllocated:
         self._materialize_from_write(value)
         self._impl.fill(value)
         return self

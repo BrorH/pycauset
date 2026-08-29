@@ -648,7 +648,7 @@ Implications:
 
 Storage-format note:
 
-- The single-file container format and typed metadata encoding are tracked under `documentation/internals/plans/R1_STORAGE_PLAN.md`.
+- The single-file container format and typed metadata encoding are tracked under `documentation/internals/plans/archive/R1_STORAGE_PLAN.md`.
 - R1_PROPERTIES must remain storage-format agnostic: the `properties` and derived-cache semantics must plug into the storage layer without changing frontend save/load call sites.
 
 ### Phase D — Propagation integration

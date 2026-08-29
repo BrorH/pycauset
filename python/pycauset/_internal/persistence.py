@@ -1303,7 +1303,10 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
             )
 
         n = int(metadata.get("n", rows))
-        return deps.CausalSet(n=n, spacetime=st, seed=seed, matrix=obj)
+        # The loaded matrix is file-backed (mmap'd); eager in-memory validation
+        # cannot materialize it. It was written by a trusted path, so load-time
+        # partial-order validation is deferred (see R2_VALIDATE).
+        return deps.CausalSet(n=n, spacetime=st, seed=seed, matrix=obj, validate=False)
 
     return obj
 

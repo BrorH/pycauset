@@ -73,7 +73,7 @@ Current benchmarks show `import_matrix` at ~50% of theoretical bandwidth, and th
     *   [x] **SIMD Bit Packing:** Implemented SSE2 intrinsics for `DenseBitMatrix` write (packing), achieving 5x speedup.
     *   [x] **SIMD Bit Unpacking:** Implemented SSE2 intrinsics for `DenseBitMatrix` read (unpacking), achieving 1.9x speedup.
     *   [x] **Bitwise Operations:** Implemented SIMD-accelerated `__xor__`, `__and__`, `__or__` for `DenseBitMatrix`, achieving ~5x speedup vs NumPy.
-    *   [x] **Documentation:** Created `documentation/guides/performance.md` detailing these wins.
+    *   [x] **Documentation:** Documented these wins in the performance guide (`documentation/guides/Performance Guide.md`).
 
 ## 3. Success Criteria
 *   **Import Speed:** > 4.0 GB/s on NVMe (Write).

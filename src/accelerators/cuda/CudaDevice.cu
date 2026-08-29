@@ -16,6 +16,109 @@
 #include <cctype>
 #include <cstdlib>
 
+namespace {
+
+// In-place transpose of an n x n dense matrix. Used to convert row-major host
+// data into the column-major layout cuSOLVER's geev expects, so the solver sees
+// A (not A^T) and returns the correct right eigenvectors.
+template <typename T>
+__global__ void k_transpose_dense(T* A, int n) {
+    int i = blockIdx.y * blockDim.y + threadIdx.y;
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n && j < n && i < j) {
+        T tmp = A[i * n + j];
+        A[i * n + j] = A[j * n + i];
+        A[j * n + i] = tmp;
+    }
+}
+
+// Generic (64-bit) geev wrapper. T is the real element type (float/double) and
+// CT the matching cuSOLVER complex type (cuComplex/cuDoubleComplex). Eigenvalues
+// come back in host_W (size n, complex), and — when want_vr — right eigenvectors
+// in host_VR (size n*n, real, with conjugate pairs in adjacent columns like
+// LAPACK).
+template <typename T, typename CT>
+void run_xgeev(pycauset::CudaDevice& dev, int64_t n, cudaDataType dtA, cudaDataType dtW,
+               const T* host_A, CT* host_W, T* host_VR, bool want_vr) {
+    const cusolverEigMode_t jobvl = CUSOLVER_EIG_MODE_NOVECTOR;
+    const cusolverEigMode_t jobvr = want_vr ? CUSOLVER_EIG_MODE_VECTOR : CUSOLVER_EIG_MODE_NOVECTOR;
+
+    cusolverDnParams_t params = nullptr;
+    dev.check_cusolver_error(cusolverDnCreateParams(&params), "cusolverDnCreateParams");
+
+    const size_t bytes_A = static_cast<size_t>(n) * n * sizeof(T);
+    T* d_A = nullptr;
+    CT* d_W = nullptr;
+    T* d_VR = nullptr;
+    int* d_Info = nullptr;
+    void* d_work = nullptr;
+    void* h_work = nullptr;
+
+    try {
+        dev.check_cuda_error(cudaMalloc(&d_A, bytes_A), "cudaMalloc A");
+        dev.check_cuda_error(cudaMalloc(&d_W, n * sizeof(CT)), "cudaMalloc W");
+        if (want_vr) dev.check_cuda_error(cudaMalloc(&d_VR, bytes_A), "cudaMalloc VR");
+        dev.check_cuda_error(cudaMalloc(&d_Info, sizeof(int)), "cudaMalloc Info");
+        dev.check_cuda_error(cudaMemcpy(d_A, host_A, bytes_A, cudaMemcpyHostToDevice), "cudaMemcpy A");
+
+        if (want_vr) {
+            dim3 block(16, 16);
+            dim3 grid(static_cast<unsigned>((n + 15) / 16), static_cast<unsigned>((n + 15) / 16));
+            k_transpose_dense<<<grid, block>>>(d_A, static_cast<int>(n));
+        }
+
+        size_t ws_dev = 0, ws_host = 0;
+        dev.check_cusolver_error(
+            cusolverDnXgeev_bufferSize(dev.get_cusolver_handle(), params, jobvl, jobvr, n,
+                                       dtA, d_A, n,
+                                       dtW, d_W,
+                                       dtA, nullptr, n,
+                                       dtA, want_vr ? d_VR : nullptr, n,
+                                       dtA, &ws_dev, &ws_host),
+            "Xgeev_bufferSize");
+
+        dev.check_cuda_error(cudaMalloc(&d_work, ws_dev), "cudaMalloc work");
+        if (ws_host > 0) h_work = std::malloc(ws_host);
+
+        dev.check_cusolver_error(
+            cusolverDnXgeev(dev.get_cusolver_handle(), params, jobvl, jobvr, n,
+                            dtA, d_A, n,
+                            dtW, d_W,
+                            dtA, nullptr, n,
+                            dtA, want_vr ? d_VR : nullptr, n,
+                            dtA, d_work, ws_dev, h_work, ws_host, d_Info),
+            "Xgeev");
+
+        int info = 0;
+        dev.check_cuda_error(cudaMemcpy(&info, d_Info, sizeof(int), cudaMemcpyDeviceToHost), "copy Info");
+        if (info != 0) {
+            throw std::runtime_error("cusolverDnXgeev failed (info=" + std::to_string(info) + ")");
+        }
+
+        dev.check_cuda_error(cudaMemcpy(host_W, d_W, n * sizeof(CT), cudaMemcpyDeviceToHost), "copy W");
+        if (want_vr) dev.check_cuda_error(cudaMemcpy(host_VR, d_VR, bytes_A, cudaMemcpyDeviceToHost), "copy VR");
+    } catch (...) {
+        if (d_A) cudaFree(d_A);
+        if (d_W) cudaFree(d_W);
+        if (d_VR) cudaFree(d_VR);
+        if (d_Info) cudaFree(d_Info);
+        if (d_work) cudaFree(d_work);
+        if (h_work) std::free(h_work);
+        cusolverDnDestroyParams(params);
+        throw;
+    }
+
+    cudaFree(d_A);
+    cudaFree(d_W);
+    if (d_VR) cudaFree(d_VR);
+    cudaFree(d_Info);
+    cudaFree(d_work);
+    if (h_work) std::free(h_work);
+    cusolverDnDestroyParams(params);
+}
+
+} // namespace
+
 namespace pycauset {
 
 std::complex<double> CudaDevice::dot_complex(const VectorBase& a, const VectorBase& b) {
@@ -56,6 +159,21 @@ void CudaDevice::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
     (void)Q;
     (void)R;
     throw std::runtime_error("CudaDevice::qr not implemented");
+}
+
+void CudaDevice::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) {
+    (void)in; (void)P; (void)L; (void)U;
+    throw std::runtime_error("CudaDevice::lu not implemented (use CPU)");
+}
+
+void CudaDevice::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) {
+    (void)in; (void)U; (void)S; (void)VT;
+    throw std::runtime_error("CudaDevice::svd not implemented (use CPU)");
+}
+
+void CudaDevice::solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) {
+    (void)A; (void)B; (void)X;
+    throw std::runtime_error("CudaDevice::solve not implemented (use CPU)");
 }
 
 } // namespace pycauset
@@ -579,9 +697,13 @@ void CudaDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
         return;
     }
 
-    uint64_t n = a.size();
-    if (b.size() != n || result.size() != n) {
-        throw std::invalid_argument("Dimension mismatch");
+    // NOTE: a.size() is the element count (n*n), not the dimension. Use rows().
+    uint64_t n = a.rows();
+    // The GPU matmul buffers are sized n*n and the gemm is issued square, so
+    // non-square inputs are routed back to the CPU via AutoSolver's fallback.
+    if (a.cols() != n || b.rows() != n || b.cols() != n ||
+        result.rows() != n || result.cols() != n) {
+        throw std::invalid_argument("CudaDevice::matmul requires square matrices");
     }
     size_t free_mem = get_available_memory();
 
@@ -686,7 +808,7 @@ void CudaDevice::inverse_incore(const MatrixBase& in, MatrixBase& out) {
             auto* out_dense = dynamic_cast<DenseMatrix<double>*>(&out);
             if (!out_dense) throw std::runtime_error("CudaDevice::inverse output must match input type (double)");
 
-            uint64_t n = in.size();
+            uint64_t n = in.rows();  // dimension, not element count (in.size() == n*n)
             size_t size_bytes = n * n * sizeof(double);
 
             double *d_A;
@@ -739,7 +861,7 @@ void CudaDevice::inverse_incore(const MatrixBase& in, MatrixBase& out) {
             auto* out_dense = dynamic_cast<DenseMatrix<float>*>(&out);
             if (!out_dense) throw std::runtime_error("CudaDevice::inverse output must match input type (float)");
 
-            uint64_t n = in.size();
+            uint64_t n = in.rows();  // dimension, not element count (in.size() == n*n)
             size_t size_bytes = n * n * sizeof(float);
 
             float *d_A;
@@ -794,7 +916,7 @@ void CudaDevice::inverse_incore(const MatrixBase& in, MatrixBase& out) {
             if (out_dense) {
                 auto res = in_dense->inverse(); // CPU Parallel
                 auto* res_dense = dynamic_cast<DenseMatrix<double>*>(res.get());
-                std::copy(res_dense->data(), res_dense->data() + in.size()*in.size(), out_dense->data());
+                std::copy(res_dense->data(), res_dense->data() + in.size(), out_dense->data());
                 out_dense->set_scalar(res_dense->get_scalar());
                 return;
             }
@@ -806,7 +928,7 @@ void CudaDevice::inverse_incore(const MatrixBase& in, MatrixBase& out) {
             if (out_dense) {
                 auto res = in_dense->inverse();
                 auto* res_dense = dynamic_cast<DenseMatrix<float>*>(res.get());
-                std::copy(res_dense->data(), res_dense->data() + in.size()*in.size(), out_dense->data());
+                std::copy(res_dense->data(), res_dense->data() + in.size(), out_dense->data());
                 out_dense->set_scalar(res_dense->get_scalar());
                 return;
             }
@@ -823,7 +945,7 @@ void CudaDevice::batch_gemv(const MatrixBase& A, const double* x_data, double* y
     
     if (!a_double && !a_float) throw std::runtime_error("CudaDevice::batch_gemv only supports DenseMatrix<double> or DenseMatrix<float>");
     
-    uint64_t n = A.size();
+    uint64_t n = A.rows();  // dimension, not element count (A.size() == n*n)
     size_t free_mem = get_available_memory();
 
     if (a_float) {
@@ -923,11 +1045,130 @@ void CudaDevice::eigvalsh(const MatrixBase& in, VectorBase& eigenvalues, char up
 }
 
 void CudaDevice::eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors) {
-    throw std::runtime_error("CudaDevice::eig not implemented");
+    if (in.rows() != in.cols()) throw std::invalid_argument("eig requires square matrix");
+    const uint64_t n = in.rows();
+    if (eigenvectors.rows() != n || eigenvectors.cols() != n) throw std::invalid_argument("Eigenvectors matrix bad shape");
+    if (eigenvalues.size() != n) throw std::invalid_argument("Eigenvalues vector bad size");
+
+    const int64_t nn = static_cast<int64_t>(n);
+
+    // Helper to unpack the (real) right-eigenvector buffer VR from geev into the
+    // complex output, reconstructing conjugate pairs exactly like the CPU path.
+    auto unpack_eigenvectors = [&](const auto& wi, const auto* vr, MatrixBase& out) {
+        if (auto* out_cd = dynamic_cast<DenseMatrix<std::complex<double>>*>(&out)) {
+            std::complex<double>* out_ptr = out_cd->data();
+            const bool contiguous = (out_cd->row_offset() == 0 && out_cd->col_offset() == 0 && out_cd->base_cols() == n);
+            for (size_t j = 0; j < n; ++j) {
+                if (wi[j] == 0.0) {
+                    for (size_t i = 0; i < n; ++i) {
+                        std::complex<double> val = { static_cast<double>(vr[j * n + i]), 0.0 };
+                        if (contiguous) out_ptr[i * n + j] = val; else out_cd->set(i, j, val);
+                    }
+                } else {
+                    for (size_t i = 0; i < n; ++i) {
+                        double re = static_cast<double>(vr[j * n + i]);
+                        double im = static_cast<double>(vr[(j + 1) * n + i]);
+                        if (contiguous) { out_ptr[i * n + j] = {re, im}; out_ptr[i * n + (j + 1)] = {re, -im}; }
+                        else { out_cd->set(i, j, {re, im}); out_cd->set(i, j + 1, {re, -im}); }
+                    }
+                    ++j;
+                }
+            }
+        } else if (auto* out_cf = dynamic_cast<DenseMatrix<std::complex<float>>*>(&out)) {
+            std::complex<float>* out_ptr = out_cf->data();
+            const bool contiguous = (out_cf->row_offset() == 0 && out_cf->col_offset() == 0 && out_cf->base_cols() == n);
+            for (size_t j = 0; j < n; ++j) {
+                if (wi[j] == 0.0f) {
+                    for (size_t i = 0; i < n; ++i) {
+                        std::complex<float> val = { static_cast<float>(vr[j * n + i]), 0.0f };
+                        if (contiguous) out_ptr[i * n + j] = val; else out_cf->set(i, j, val);
+                    }
+                } else {
+                    for (size_t i = 0; i < n; ++i) {
+                        float re = static_cast<float>(vr[j * n + i]);
+                        float im = static_cast<float>(vr[(j + 1) * n + i]);
+                        if (contiguous) { out_ptr[i * n + j] = {re, im}; out_ptr[i * n + (j + 1)] = {re, -im}; }
+                        else { out_cf->set(i, j, {re, im}); out_cf->set(i, j + 1, {re, -im}); }
+                    }
+                    ++j;
+                }
+            }
+        } else {
+            throw std::runtime_error("eig requires complex matrix output");
+        }
+    };
+
+    // Double precision
+    if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+        std::vector<cuDoubleComplex> h_W(n);
+        std::vector<double> h_WI(n), h_VR(n * n);
+        run_xgeev<double, cuDoubleComplex>(*this, nn, CUDA_R_64F, CUDA_C_64F, in_d->data(), h_W.data(), h_VR.data(), true);
+
+        if (auto* d_dst = dynamic_cast<DenseVector<std::complex<double>>*>(&eigenvalues)) {
+            std::complex<double>* ptr = d_dst->data();
+            for (size_t i = 0; i < n; ++i) { ptr[i] = { h_W[i].x, h_W[i].y }; h_WI[i] = h_W[i].y; }
+        } else {
+            throw std::runtime_error("eig requires complex vector output");
+        }
+        unpack_eigenvectors(h_WI, h_VR.data(), eigenvectors);
+        return;
+    }
+
+    // Single precision
+    if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+        std::vector<cuComplex> h_W(n);
+        std::vector<float> h_WI(n), h_VR(n * n);
+        run_xgeev<float, cuComplex>(*this, nn, CUDA_R_32F, CUDA_C_32F, in_f->data(), h_W.data(), h_VR.data(), true);
+
+        if (auto* f_dst = dynamic_cast<DenseVector<std::complex<float>>*>(&eigenvalues)) {
+            std::complex<float>* ptr = f_dst->data();
+            for (size_t i = 0; i < n; ++i) { ptr[i] = { h_W[i].x, h_W[i].y }; h_WI[i] = h_W[i].y; }
+        } else {
+            throw std::runtime_error("eig requires complex vector output");
+        }
+        unpack_eigenvectors(h_WI, h_VR.data(), eigenvectors);
+        return;
+    }
+
+    throw std::runtime_error("eig not implemented for these types");
 }
 
 void CudaDevice::eigvals(const MatrixBase& in, VectorBase& eigenvalues) {
-    throw std::runtime_error("CudaDevice::eigvals not implemented");
+    if (in.rows() != in.cols()) throw std::invalid_argument("eigvals requires square matrix");
+    const uint64_t n = in.rows();
+    if (eigenvalues.size() != n) throw std::invalid_argument("Eigenvalues vector bad size");
+
+    const int64_t nn = static_cast<int64_t>(n);
+
+    // Double precision
+    if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+        std::vector<cuDoubleComplex> h_W(n);
+        run_xgeev<double, cuDoubleComplex>(*this, nn, CUDA_R_64F, CUDA_C_64F, in_d->data(), h_W.data(), nullptr, false);
+
+        if (auto* d_dst = dynamic_cast<DenseVector<std::complex<double>>*>(&eigenvalues)) {
+            std::complex<double>* ptr = d_dst->data();
+            for (size_t i = 0; i < n; ++i) ptr[i] = { h_W[i].x, h_W[i].y };
+        } else {
+            throw std::runtime_error("eigvals requires complex vector output");
+        }
+        return;
+    }
+
+    // Single precision
+    if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+        std::vector<cuComplex> h_W(n);
+        run_xgeev<float, cuComplex>(*this, nn, CUDA_R_32F, CUDA_C_32F, in_f->data(), h_W.data(), nullptr, false);
+
+        if (auto* f_dst = dynamic_cast<DenseVector<std::complex<float>>*>(&eigenvalues)) {
+            std::complex<float>* ptr = f_dst->data();
+            for (size_t i = 0; i < n; ++i) ptr[i] = { h_W[i].x, h_W[i].y };
+        } else {
+            throw std::runtime_error("eigvals requires complex vector output");
+        }
+        return;
+    }
+
+    throw std::runtime_error("eigvals not implemented for these types");
 }
 
 void CudaDevice::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) {
@@ -954,7 +1195,7 @@ void CudaDevice::batch_gemv_streaming(const MatrixBase& A, const double* x_data,
     auto* a_double = dynamic_cast<const DenseMatrix<double>*>(&A);
     auto* a_float = dynamic_cast<const DenseMatrix<float>*>(&A);
     
-    uint64_t n = A.size();
+    uint64_t n = A.rows();  // dimension, not element count (A.size() == n*n)
     
     if (a_float) {
         size_t size_X_float = n * b * sizeof(float);

@@ -28,14 +28,17 @@ The following operations are currently accelerated via the AutoSolver:
     *   **BitMatrices**: `DenseBitMatrix` and `TriangularBitMatrix` multiplication is **fully accelerated** using custom bit-packed kernels. This allows for extremely fast path counting and transitive closure operations (up to 64x faster than float operations).
 *   **Matrix Inversion** (`inverse`):
     *   Uses `cuSOLVER` LU factorization.
+*   **General eigen-decomposition** (`eig`, `eigvals`):
+    *   Uses `cuSOLVER` `geev` for Float32/Float64. Eigenvalues are complex;
+      eigenvectors are returned for `eig`.
 
 ### Streaming constraints
 
 GPU acceleration assumes **streaming-first** execution. Operations that exceed VRAM are tiled and pipelined so the CPU can prepare the next batch while the GPU computes.
 
 **Constraints to know:**
-- Routing may prefer CPU for medium sizes if PCIe transfer cost dominates.
-- Pinned memory is budgeted; if the pinning budget is exhausted, transfers degrade to pageable memory (slower but safe).
+- Routing may prefer CPU for medium sizes if PCIe transfer cost dominates (the cost model compares transfer + compute against CPU throughput, and only selects the GPU when it wins).
+- Host buffers are pinned **on demand** during GPU transfers (`ScopedPinner`), so CPU-side workloads keep ordinary pageable memory and are not slowed by page-locked allocations.
 - Some operations remain CPU-only until GPU kernels are implemented (routing is explicit and testable).
 
 #### Minimal example (force streaming decisions)

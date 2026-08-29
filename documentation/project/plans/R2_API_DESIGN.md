@@ -146,9 +146,10 @@ classDiagram
 
 Notes:
 
-- `dimension()` stays **total** spacetime dimension (d = 1 time + d−1 space); index 0 is time.
-  Do not introduce a separate "signature" object for R2 — Lorentzian is the only signature for
-  now; encode it as a documented invariant, not a class.
+- `dimension()` stays **total** spacetime dimension (d = t + s). Signature `(t, s)` is a
+  first-class property on `Spacetime` (decisions #8/#10 in `R2_PLAN_MAP.md`): Lorentzian `(1, d−1)`
+  carries the causal order, Euclidean `(0, d)` is a point process with no causal order, and
+  multi-time `(t > 1, s)` requires a user-supplied "future" convention.
 - `to_embedding`/`boundary` are **presentation**, moved out of the physics contract. A spacetime
   that doesn't implement them still sprinkles and still plots (raw coordinates, no boundary).
 - `Sprinkler` is deliberately a free function/algorithm, not a base class. The sampling strategy

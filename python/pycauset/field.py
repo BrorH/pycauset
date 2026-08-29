@@ -1,43 +1,338 @@
-import abc
-import math
+"""Fields on causal sets — the R2 field core.
+
+The model is ``Field -> CorrelatedField`` (R2_FIELD):
+
+* ``pc.field("scalar", mass=…)`` is a set-independent `Field` (the field content).
+* ``phi.on(causet)`` returns a `CorrelatedField` — the field together with its
+  Green's functions and vacuum two-point function on that causet.
+
+The propagators follow R2_KRD:
+
+* ``K_R = aC (I - baC)\u207b\u00b9``  (retarded Green's function)
+* ``K_A = K_R\u1d40``                (advanced Green's function)
+* ``i\u0394 = K_R - K_A``            (Pauli\u2013Jordan commutator function, Hermitian)
+
+The Sorkin\u2013Johnston vacuum (R2_SJ, the flagship) is the positive-eigenvalue part
+of ``i\u0394``, exposed via ``.wightman()``.
+"""
+
+from __future__ import annotations
+
+import sys
+import types
 from typing import Optional, Tuple
+
+import numpy as np
 
 from .causet import CausalSet
 
-# from . import compute_k # Circular import
 
-class Field(abc.ABC):
+def _scalar_coeffs(causet: CausalSet, mass: float) -> Tuple[float, float]:
+    """Derive the ``(a, b)`` coefficients for a scalar on a causet's spacetime.
+
+    Delegates to ``Spacetime.scalar_coeffs(mass, density)`` (R2_COEFFS): the built-in
+    Minkowski spacetimes implement the known 2D/4D table, everything else raises —
+    coefficients are never guessed and never name-sniffed.
     """
-    Abstract base class for fields defined on a Causal Set.
-    
-    A Field represents the matter content (or vacuum state) imposed on the 
-    spacetime geometry of a Causal Set. It is responsible for defining 
-    the propagators and correlation functions associated with that field.
+    try:
+        rho = causet.density
+    except (ValueError, AttributeError):
+        rho = None
+
+    if rho is None:
+        raise ValueError(
+            "Cannot compute field coefficients: CausalSet density is unknown. "
+            "Ensure the CausalSet was created with density information or provide 'a' and 'b' manually."
+        )
+
+    return causet.spacetime.scalar_coeffs(mass, rho)
+
+
+class Field:
+    """Set-independent field content (R2_FIELD).
+
+    ``kind`` is the species (``"scalar"`` for now), ``mass`` the field mass,
+    ``spin`` and ``scheme`` reserved for future species.
     """
-    def __init__(self, causet: CausalSet):
+
+    def __init__(self, *, kind: str = "scalar", mass: float = 0.0, spin: int = 0, scheme=None):
+        if kind != "scalar":
+            raise NotImplementedError(
+                f"field kind {kind!r} is not implemented (only 'scalar')"
+            )
+        self.kind = kind
+        self.mass = float(mass)
+        self.spin = int(spin)
+        self.scheme = scheme
+
+    def on(self, background):
+        """Apply the field to a background.
+
+        ``phi.on(causet)`` returns a discrete `CorrelatedField`; ``phi.on(spacetime)``
+        returns a continuum `ContinuumCorrelatedField` (R2_CMVP).
+        """
+        if self.kind != "scalar":
+            raise NotImplementedError(self.kind)  # pragma: no cover
+        if isinstance(background, CausalSet):
+            return CorrelatedField(background, mass=self.mass)
+        return ContinuumCorrelatedField(background, mass=self.mass)
+
+
+class CorrelatedField:
+    """A field together with its Green's functions and vacuum two-point function
+    on a causal set (R2_FIELD / R2_KRD / R2_SJ). Returns dense NumPy matrices."""
+
+    def __init__(self, causet: CausalSet, mass: float = 0.0):
         self._causet = causet
+        self._mass = float(mass)
 
     @property
     def causet(self) -> CausalSet:
         return self._causet
 
-    @abc.abstractmethod
-    def propagator(self):
-        """Compute the propagator (Green's function) for this field."""
-        pass
+    @property
+    def mass(self) -> float:
+        return self._mass
+
+    def _coeffs(self) -> Tuple[float, float]:
+        return _scalar_coeffs(self._causet, self._mass)
+
+    def retarded(self, a: Optional[float] = None, b: Optional[float] = None) -> np.ndarray:
+        """Retarded Green's function ``K_R = aC (I - baC)\u207b\u00b9`` (dense n\u00d7n)."""
+        from . import compute_k
+
+        C = self._causet.C
+        if a is None or b is None:
+            ca, cb = self._coeffs()
+            a = ca if a is None else a
+            b = cb if b is None else b
+
+        if abs(b) < 1e-15:
+            return a * np.asarray(C, dtype=float)
+
+        alpha = -1.0 / (a * b)
+        X = compute_k(C, alpha)  # C @ inv(alpha*I + C)
+        return (-1.0 / b) * np.asarray(X, dtype=float)
+
+    def advanced(self, a: Optional[float] = None, b: Optional[float] = None) -> np.ndarray:
+        """Advanced Green's function ``K_A = K_R\u1d40``."""
+        return self.retarded(a, b).T
+
+    def pauli_jordan(self) -> np.ndarray:
+        """Pauli\u2013Jordan function ``i\u0394 = K_R - K_A`` (Hermitian)."""
+        K = self.retarded()
+        return 1j * (K - K.T)
+
+    def wightman(self) -> np.ndarray:
+        """Sorkin\u2013Johnston vacuum Wightman two-point function.
+
+        ``W`` is the positive-eigenvalue part of ``i\u0394``: diagonalize the
+        Hermitian ``i\u0394`` and keep the non-negative eigenvalues.
+        """
+        iDelta = self.pauli_jordan()
+        evals, evecs = np.linalg.eigh(iDelta)
+        return (evecs * np.clip(evals, 0.0, None)) @ evecs.conj().T
+
+    def correlator(self) -> np.ndarray:
+        """Vacuum two-point function ``\u27e8\u03c6\u03c6\u27e9 = W`` (free field)."""
+        return self.wightman()
+
+    def propagator(self, a: Optional[float] = None, b: Optional[float] = None) -> np.ndarray:
+        """Alias for `retarded()`."""
+        return self.retarded(a, b)
+
+    def state(self, config=None) -> State:
+        """Build a `State` (a field configuration) on top of this correlated field.
+
+        ``config`` is a real vector of length ``n`` (the classical field values at
+        each element); ``None`` gives the vacuum (zero configuration).
+        """
+        n = self._causet.n
+        if config is None:
+            config = np.zeros(n)
+        return State(self, config)
+
+    def entanglement_entropy(self, region, convention="sorkin_yazdi") -> float:
+        """Sorkin\u2013Yazdi entanglement entropy of a region (R2_ENT).
+
+        Computes the entanglement entropy of a region (a subset of element indices)
+        from the region-restricted SJ Wightman matrix ``W_A``.
+
+        **Conventions (documented):**
+
+        * ``"sorkin_yazdi"`` (default) — the zero-point ``1/2`` convention:
+          ``S = tr[(W_A + I) ln(W_A + I) \u2212 W_A ln W_A]``, with ``0 ln 0 = 0``.
+          Well-defined for the SJ Wightman (``W_A \u2265 0``).
+        * ``"symplectic"`` — the literal symplectic-eigenvalue form
+          ``S = tr[(W_A + 1/2) ln(W_A + 1/2) \u2212 (W_A \u2212 1/2) ln(W_A \u2212 1/2)]``,
+          which assumes ``W_A \u2265 1/2`` (a Wightman already in the covariance
+          convention); raises `ValueError` otherwise.
+
+        Parameters:
+            region: iterable of element indices.
+            convention: ``"sorkin_yazdi"`` or ``"symplectic"``.
+
+        Returns:
+            float: the entanglement entropy (``\u2265 0``).
+        """
+        W = self.wightman()
+        idx = [int(i) for i in region]
+        W_A = W[np.ix_(idx, idx)]
+        evals = np.linalg.eigvalsh(W_A).astype(float)
+
+        if convention == "sorkin_yazdi":
+            s = np.zeros_like(evals)
+            nz = evals > 0.0
+            s[nz] = (evals[nz] + 1.0) * np.log(evals[nz] + 1.0) - evals[nz] * np.log(evals[nz])
+            return float(np.sum(s))
+
+        if convention == "symplectic":
+            if np.any(evals < 0.5):
+                raise ValueError(
+                    "convention='symplectic' requires the restricted Wightman to have "
+                    "eigenvalues >= 1/2 (the covariance convention); the SJ Wightman "
+                    "(positive part of i\u0394) has eigenvalues >= 0. Use "
+                    "convention='sorkin_yazdi' (the 1/2 zero-point convention) instead."
+                )
+            s = (evals + 0.5) * np.log(evals + 0.5) - (evals - 0.5) * np.log(evals - 0.5)
+            return float(np.sum(s))
+
+        raise ValueError(
+            f"unknown convention {convention!r}; use 'sorkin_yazdi' or 'symplectic'"
+        )
 
 
-class ScalarField(Field):
+class State:
+    """A specific excitation of the vacuum (R2_FIELD: Field \u2192 CorrelatedField \u2192 State).
+
+    A `State` is a coherent/classical field configuration ``phi`` (a real vector of
+    length n) over the causet, carrying the vacuum two-point function ``W``. Its
+    expectation values are (for a Gaussian/coherent state):
+
+    * ``\u27e8\u03c6\u27e9 = phi``
+    * ``\u27e8\u03c6\u03c6\u27e9 = phi phi\u1d40 + W``
+    * ``\u27e8\u03c6\u00b2\u27e9 = diag(W) + phi\u00b2``
     """
-    A massive scalar field defined on a Causal Set.
-    
-    The retarded propagator K_R is defined as:
-        K_R = Phi * (I - b * Phi)^-1
-    where Phi = a * C.
-    
-    The coefficients 'a' and 'b' are derived from the spacetime dimension,
-    sprinkling density, and field mass.
+
+    def __init__(self, correlated_field: CorrelatedField, config: np.ndarray):
+        self._cf = correlated_field
+        self._phi = np.asarray(config, dtype=float)
+        if self._phi.shape != (correlated_field.causet.n,):
+            raise ValueError(
+                f"state config must have length {correlated_field.causet.n}, "
+                f"got shape {self._phi.shape}"
+            )
+        self._W = correlated_field.wightman()
+
+    @property
+    def correlated_field(self) -> CorrelatedField:
+        return self._cf
+
+    def field(self) -> np.ndarray:
+        """``\u27e8\u03c6\u27e9`` — the mean field configuration."""
+        return self._phi.copy()
+
+    def two_point(self) -> np.ndarray:
+        """``\u27e8\u03c6\u03c6\u27e9 = phi phi\u1d40 + W``."""
+        return np.outer(self._phi, self._phi) + self._W
+
+    def field_variance(self) -> np.ndarray:
+        """``\u27e8\u03c6\u00b2\u27e9 = diag(W) + phi\u00b2`` (per-element fluctuation)."""
+        return np.real(np.diag(self._W)) + self._phi ** 2
+
+
+class ContinuumCorrelatedField:
+    """Continuum comparison (R2_CMVP): closed-form Green's functions on flat Minkowski.
+
+    Covers the **massless 1+1** case exactly (the state-independent ``i\u0394`` is
+    ``(i/2) sgn(\u0394t) \u03b8(\u03c3)``). Massive and higher-dimensional closed forms
+    (Bessel functions) are flagged for R2_CONV.
     """
+
+    def __init__(self, spacetime, mass: float = 0.0):
+        name = type(spacetime).__name__
+        if "Minkowski" not in name:
+            raise NotImplementedError(
+                f"continuum comparison for spacetime {name!r} is not implemented"
+            )
+        self._spacetime = spacetime
+        self._mass = float(mass)
+        self._d = int(spacetime.dimension())
+
+    def _sigma(self, x, y):
+        # Convention (R2_CONV): `dt = y[0] - x[0]` is positive when y is in the
+        # FUTURE of x, so the discrete matrix convention ``K_R[i,j]`` ("from the
+        # past element i to the future element j") maps to ``retarded(x, y)``.
+        x = np.asarray(x, dtype=float)
+        y = np.asarray(y, dtype=float)
+        dt = y[0] - x[0]
+        dx = x[1:] - y[1:]
+        return dt * dt - float(np.dot(dx, dx)), dt
+
+    def retarded(self, x, y) -> float:
+        """Continuum retarded Green's function ``G_R(x, y)``."""
+        sigma, dt = self._sigma(x, y)
+        if self._mass != 0.0:
+            raise NotImplementedError(
+                "massive continuum Green's functions require Bessel functions (R2_CONV)"
+            )
+        if self._d == 2:
+            return 0.5 if (dt > 0 and sigma > 0) else 0.0
+        raise NotImplementedError(
+            f"massless continuum G_R in d={self._d} is distributional (\u03b4 on the lightcone)"
+        )
+
+    def advanced(self, x, y) -> float:
+        """Continuum advanced Green's function ``G_A(x, y) = G_R(y, x)``."""
+        return self.retarded(y, x)
+
+    def pauli_jordan(self, x, y) -> complex:
+        """Continuum Pauli\u2013Jordan ``i\u0394(x, y) = i(G_R - G_A)`` (massless 1+1 exact)."""
+        sigma, dt = self._sigma(x, y)
+        if self._mass != 0.0 or self._d != 2:
+            raise NotImplementedError(
+                "continuum i\u0394 is exact only for the massless 1+1 case (R2_CONV)"
+            )
+        return 0.5j * np.sign(dt) * (sigma > 0)
+
+    def wightman(self, x, y):
+        """Continuum Wightman two-point function (R2_CONV: log/Bessel convention)."""
+        raise NotImplementedError(
+            "continuum Wightman closed form is R2_CONV (log/Bessel convention pinning)"
+        )
+
+    def at(self, coords, which: str = "pauli_jordan"):
+        """Sample a kernel at the ``(n, d)`` coordinates, returning an ``(n, n)`` matrix."""
+        coords = np.asarray(coords, dtype=float)
+        n = coords.shape[0]
+        fn = {"retarded": self.retarded, "advanced": self.advanced,
+              "pauli_jordan": self.pauli_jordan, "wightman": self.wightman}[which]
+        is_complex = which == "pauli_jordan"
+        out = np.zeros((n, n), dtype=complex if is_complex else float)
+        for i in range(n):
+            for j in range(n):
+                out[i, j] = fn(coords[i], coords[j])
+        return out
+
+
+def field(kind: str = "scalar", *, mass: float = 0.0, spin: int = 0, scheme=None) -> Field:
+    """String-factory sugar: ``pc.field("scalar", mass=…)`` returns a `Field`.
+
+    Unknown kinds raise (never guessed).
+    """
+    return Field(kind=kind, mass=mass, spin=spin, scheme=scheme)
+
+
+# --- back-compat: the R1 ScalarField (keeps the native-matrix return types) ---
+
+
+class ScalarField:
+    """A massive scalar field defined on a Causal Set (R1 API, kept for back-compat).
+
+    The retarded propagator is ``K_R = aC (I - baC)\u207b\u00b9``; the coefficients
+    ``a, b`` derive from the spacetime dimension, sprinkling density, and mass.
+    """
+
     def __init__(
         self,
         causet: CausalSet | None = None,
@@ -49,133 +344,47 @@ class ScalarField(Field):
         seed=None,
         matrix=None,
     ):
-        """
-        Initialize a scalar field.
-        
-        Args:
-            causet: The causal set on which the field lives.
-            mass: The mass of the field. Defaults to 0.0 (massless).
-            n: Convenience constructor: if provided (and `causet` is None), a new CausalSet
-               is sprinkled with this many elements.
-            density: Convenience constructor: if provided (and `causet` is None), a new CausalSet
-               is sprinkled with Poisson(density * volume) elements.
-            spacetime: Optional spacetime for the sprinkled CausalSet.
-            seed: Optional RNG seed for sprinkling.
-            matrix: Optional pre-existing causal matrix to attach to the CausalSet.
-        """
         if causet is None:
             causet = CausalSet(n=n, density=density, spacetime=spacetime, seed=seed, matrix=matrix)
-
-        super().__init__(causet)
+        self._causet = causet
         self._mass = float(mass)
         self._cached_propagator = None
-        
-        # Validate that we have the necessary info to compute physics
-        if self._causet.density is None:
-            # If density is missing (e.g. raw matrix load), we can't compute a/b automatically.
-            # We don't raise here, but propagator() will fail unless a/b are manually provided.
-            pass
+
+    @property
+    def causet(self) -> CausalSet:
+        return self._causet
 
     @property
     def mass(self) -> float:
         return self._mass
 
     def _get_coeffs(self) -> Tuple[float, float]:
-        """
-        Calculate the coefficients 'a' and 'b' based on spacetime and mass.
-        
-        Returns:
-            (a, b)
-        """
-        # We need density to compute coefficients
-        try:
-            rho = self._causet.density
-        except (ValueError, AttributeError):
-            rho = None
-            
-        if rho is None:
-             raise ValueError(
-                "Cannot compute field coefficients: CausalSet density is unknown. "
-                "Ensure the CausalSet was created with density information or provide 'a' and 'b' manually."
-            )
-
-        dim = self._causet.spacetime.dimension()
-        st_type = self._causet.spacetime.__class__.__name__
-        
-        # Check if spacetime is Minkowski-like (flat)
-        # This includes Diamond, Cylinder, Box, etc.
-        is_flat = "Minkowski" in st_type
-        
-        if not is_flat:
-             raise NotImplementedError(
-                f"Field coefficients for spacetime '{st_type}' are not yet implemented. "
-                "Please provide 'a' and 'b' manually."
-            )
-
-        m = self._mass
-        
-        if dim == 2:
-            # 1+1 Dimensions
-            a = 0.5
-            b = - (m**2) / rho
-        elif dim == 4:
-            # 3+1 Dimensions
-            # a = sqrt(rho) / (2 * pi * sqrt(6))
-            a = math.sqrt(rho) / (2 * math.pi * math.sqrt(6))
-            b = - (m**2) / rho
-        else:
-            raise NotImplementedError(
-                f"Field coefficients for {dim}D Minkowski spacetime are not yet implemented. "
-                "Please provide 'a' and 'b' manually."
-            )
-            
-        return a, b
+        return _scalar_coeffs(self._causet, self._mass)
 
     def compute_retarded_propagator(self, a: Optional[float] = None, b: Optional[float] = None):
-        """
-        Compute the Retarded Propagator K_R.
-        
-        Args:
-            a (float, optional): Manual override for coefficient 'a'.
-            b (float, optional): Manual override for coefficient 'b'.
-            
-        Returns:
-            TriangularFloatMatrix: The K_R matrix.
-        """
         if self._cached_propagator is not None and a is None and b is None:
             return self._cached_propagator
 
-        # 1. Determine coefficients
         if a is None or b is None:
             calc_a, calc_b = self._get_coeffs()
-            if a is None: a = calc_a
-            if b is None: b = calc_b
-            
+            if a is None:
+                a = calc_a
+            if b is None:
+                b = calc_b
+
         C = self._causet.C
-        
-        # 2. Handle Massless Limit (b -> 0)
-        # If mass is 0, b is 0.
+
         if abs(b) < 1e-15:
-            # K_R = a * C
             result = a * C
         else:
-            # 3. Compute Massive Propagator
-            # Formula: K_R = (-1/b) * C * (alpha_eff * I + C)^-1
-            # Where alpha_eff = -1 / (a * b)
-            
             alpha_eff = -1.0 / (a * b)
-            
-            # X = C * (alpha_eff * I + C)^-1
-            # This is exactly what compute_k(C, alpha) calculates
             from . import compute_k
             X = compute_k(C, alpha_eff)
-            
-            # Result is (-1/b) * X
             result = (-1.0 / b) * X
-        
-        if a is None and b is None: # Only cache if using default coefficients
+
+        if a is None and b is None:
             self._cached_propagator = result
-            
+
         return result
 
     def propagator(self, a: Optional[float] = None, b: Optional[float] = None):
@@ -183,35 +392,22 @@ class ScalarField(Field):
         return self.compute_retarded_propagator(a, b)
 
     def pauli_jordan(self):
-        """
-        Compute the Pauli-Jordan function i*Delta, where Delta = K - K^T.
-        
-        Returns:
-            AntiSymmetricFloat64Matrix: The matrix Delta, with scalar set to 1j (imaginary unit).
-            This represents the operator i*Delta.
-        """
+        """Pauli-Jordan function ``i\u0394 = K_R - K_R\u1d40``, stored antisymmetrically."""
         K = self.compute_retarded_propagator()
-        
-        # Create Delta = K - K^T efficiently using AntiSymmetricMatrix.from_triangular
-        # This copies the upper triangle of K into an AntiSymmetricMatrix.
-        # Since K is triangular, K - K^T is exactly what AntiSymmetricMatrix represents
-        # when initialized from K (assuming K is upper triangular).
-        # If K is lower triangular, we might need to transpose first, but standard K is upper packed?
-        # Wait, TriangularMatrix usually stores upper triangle.
-        # If K is Retarded, it is non-zero for causal future.
-        # If indices are sorted by time, future is i < j (upper) or i > j (lower)?
-        # In PyCauset, C[i, j] = 1 if i < j and i prec j. So C is Upper Triangular.
-        # So K is Upper Triangular.
-        # So Delta = K - K^T has K in upper triangle and -K^T in lower.
-        # AntiSymmetricMatrix stores upper triangle and negates for lower access.
-        # So AntiSymmetricMatrix(K) effectively represents K - K^T.
-        
         from . import AntiSymmetricFloat64Matrix
         Delta = AntiSymmetricFloat64Matrix.from_triangular(K)
-        
-        # Set scalar to i (imaginary unit) to represent i*Delta
-        # We use a complex scalar if supported, or just document it.
-        # The user requested storing the factor of i in the scalar.
         Delta.set_scalar(1j)
-        
         return Delta
+
+
+# Make `pycauset.field` callable (R2 string factory) while remaining a module, so
+# both `pc.field("scalar", mass=…)` and `from pycauset.field import ScalarField`
+# keep working.
+class _FieldModule(types.ModuleType):
+    def __call__(self, kind: str = "scalar", **kwargs) -> Field:
+        return field(kind, **kwargs)
+
+
+sys.modules[__name__].__class__ = _FieldModule
+
+__all__ = ["Field", "CorrelatedField", "ContinuumCorrelatedField", "ScalarField", "State", "field"]

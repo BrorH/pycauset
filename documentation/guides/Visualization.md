@@ -89,6 +89,18 @@ The visualization module automatically handles coordinate transformations for sp
 *   **MinkowskiCylinder (2D)**: Coordinates are mapped to a 3D cylinder visualization. The top and bottom rings of the cylinder are drawn in white.
 *   **MinkowskiBox (2D)**: Coordinates are displayed as Cartesian $(t, x)$. The rectangular boundary is drawn in white.
 
+### Authored shapes (R2_VIZ)
+
+These shapes are **authored by the spacetime**, not guessed by the plotter. A
+`Spacetime` declares three optional presentation hooks — `to_embedding(coords)`
+(display transform), `boundary()` (paths in embedding coordinates), and
+`display_axes()` (axis labels) — and the viz layer just reads them. A geometry-free
+custom spacetime renders its raw coordinates with generic `c0, c1, …` labels; no
+shape is ever inferred. Composition decorators (`Restricted`/`Transformed`/
+`Conformal`/`Periodic`) delegate these hooks to their base, so a wrapped cylinder
+still renders as a cylinder. Embeddings with `d > 3` dimensions are shown as the
+first three axes with an explicit warning — never silently truncated.
+
 ## Hasse Diagrams
 
 [[docs/pycauset.vis/plot_hasse.md|pycauset.vis.plot_hasse]] generates a Hasse diagram, which visualizes the causal structure (partial order) directly.
@@ -128,3 +140,31 @@ pip install plotly
 ```
 
 If `plotly` is not installed, importing `pycauset.vis` will raise an `ImportError`.
+
+## CausalSet plot methods + `pc.show` (R2)
+
+`CausalSet` exposes the plotters as methods (zero imports, lazy Plotly):
+
+```python
+import pycauset as pc
+
+c = pc.causet(n=3000, seed=42)
+fig = c.plot_embedding()      # also c.plot_hasse(), c.plot_causal_matrix()
+fig.show()
+
+pc.show(c)                    # one-verb sugar: plot + .show()
+```
+
+## Large-set policy (subset + warning + bypass)
+
+Above `max_points`, each plotter draws a **seeded random subset** and emits a
+`PyCausetPerformanceWarning` naming what was sampled. Pass `force=True` (or
+`max_points=None`) to render everything:
+
+```python
+c.plot_embedding()              # warns + subsets above 50,000 points
+c.plot_embedding(force=True)    # renders everything
+```
+
+See [[docs/classes/spacetime/pycauset.CausalSet.md|CausalSet]] and
+[[docs/functions/pycauset.show.md|pc.show]].

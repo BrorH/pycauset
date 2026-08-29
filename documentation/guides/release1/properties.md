@@ -156,4 +156,4 @@ See [[docs/functions/pycauset.save.md|pycauset.save]] and [[docs/functions/pycau
 - [[docs/functions/pycauset.solve.md|pycauset.solve]]
 - [[docs/functions/pycauset.solve_triangular.md|pycauset.solve_triangular]]
 - [[internals/DType System.md|DType System]]
-- [[internals/plans/completed/R1_PROPERTIES_PLAN.md|R1_PROPERTIES plan artifact]]
+- [[internals/plans/archive/R1_PROPERTIES_PLAN.md|R1_PROPERTIES plan artifact]]

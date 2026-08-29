@@ -96,3 +96,105 @@ where $V$ is the volume of the spacetime region.
 # Total volume = 50, so expected N = 5000
 c = pycauset.causet(density=100, spacetime=st)
 ```
+
+## Defining Custom Spacetimes (R2)
+
+`pycauset.spacetime.Spacetime` is the abstract base class that makes custom spacetimes
+first-class. Subclass it and implement four methods — `dimension()`, `volume()`,
+`sample(rng, n)`, and `is_causal(u, v)` — and you get a spacetime the sprinkler,
+field engine, and visualizer all understand.
+
+### Signature
+
+Every spacetime has a **signature** `(t, s)` = (timelike, spacelike). It defaults to
+Lorentzian `(1, d-1)`; declare `signature = (t, s)` as a class attribute to override.
+A causal order (`is_causal`) exists only for Lorentzian `t == 1`: Euclidean `(0, d)`
+spacetimes are point processes, and multi-time `(t > 1, s)` spacetimes must supply
+their own "future" convention — the base `is_causal` raises rather than guessing.
+
+```python
+from pycauset import spacetime
+
+@spacetime.register("my_diamond")
+class MyDiamond(spacetime.Spacetime):
+    def dimension(self):
+        return 2
+
+    def volume(self):
+        return 1.0
+
+    def sample(self, rng, n):
+        return rng.uniform(0.0, 1.0, size=(n, 2))
+
+    def is_causal(self, u, v):
+        return u[0] < v[0] and u[1] < v[1]
+```
+
+### Registry
+
+`@spacetime.register("name")` gives a spacetime a persistable name (used by
+save/load). Duplicate names raise unless you pass `overwrite=True`.
+`spacetime.create(...)` (Rung 0) assembles a spacetime from a declarative recipe —
+currently the flat Minkowski family (`domain="diamond" | "cylinder" | "box"`).
+
+Optional hooks: `scalar_coeffs(mass, density)` (authored field coefficients — the
+default raises, never guesses), `is_causal_batch(coords)` (fast path),
+`to_embedding(coords)` and `boundary()` (presentation).
+
+### Composition decorators (R2_CREATE)
+
+Build new spacetimes by wrapping an existing one instead of writing a fresh
+subclass. Each decorator keeps `volume ↔ sample` consistent:
+
+*   **[[docs/classes/spacetime/pycauset.spacetime.RestrictedSpacetime.md|RestrictedSpacetime]]** — keep a
+    subregion selected by a predicate; rejection sampling + Monte-Carlo volume.
+*   **[[docs/classes/spacetime/pycauset.spacetime.TransformedSpacetime.md|TransformedSpacetime]]** — apply a
+    (volume-preserving) coordinate transform `forward`/`inverse`.
+*   **[[docs/classes/spacetime/pycauset.spacetime.ConformalSpacetime.md|ConformalSpacetime]]** — a conformal
+    factor `Omega(x)` preserves the light-cone but rescales the volume measure by `Omega^d`.
+*   **[[docs/classes/spacetime/pycauset.spacetime.PeriodicSpacetime.md|PeriodicSpacetime]]** — periodic
+    identification along spacelike axes (periodic time raises: it would create CTCs).
+
+```python
+from pycauset import spacetime
+
+box = spacetime.MinkowskiBox(2, 10.0, 10.0)
+half  = spacetime.RestrictedSpacetime(box, region=lambda c: c[1] < 5.0)
+blown = spacetime.ConformalSpacetime(box, conformal_factor=lambda c: 2.0)
+ring  = spacetime.PeriodicSpacetime(box, periods={1: 5.0})
+```
+
+### Curved spacetimes (R2_CURVED)
+
+`spacetime.DeSitter`, `spacetime.AntiDeSitter`, and `spacetime.FLRW` ship as
+documented **parametrizations** (their samplers are not the invariant measure, and
+`scalar_coeffs` raises — coefficients are manual `a, b`). `DeSitter` carries the
+ambient-Minkowski causal order; `AntiDeSitter` is flagged "no causal order" (the
+naive hyperboloid has closed timelike curves); `FLRW` uses the null-geodesic order.
+`Schwarzschild` (1+1) uses the exact radial tortoise null condition; the other black
+holes are parked.
+
+### Sprinkling a custom spacetime + validation
+
+A custom spacetime sprinkles through the same `CausalSet` API. Points are labelled
+by time (coordinate index 0) so the stored matrix is strictly upper-triangular, and
+the sampled coordinates are attached as an embedding (served by `coordinates()`).
+
+```python
+import pycauset
+from pycauset import spacetime
+
+@spacetime.register("my_diamond")
+class MyDiamond(spacetime.Spacetime):
+    def dimension(self): return 2
+    def volume(self): return 1.0
+    def sample(self, rng, n): return rng.uniform(0.0, 1.0, size=(n, 2))
+    def is_causal(self, u, v): return u[0] < v[0] and u[1] < v[1]
+
+c = pycauset.causet(n=500, spacetime=MyDiamond(), seed=42)
+c.validate()      # verifies the order is a strict partial order
+c.coordinates()   # the attached embedding (500, 2)
+```
+
+`CausalSet(matrix=..., validate=True)` (the default) rejects a matrix that is not
+reflexive-free, antisymmetric, and transitive; pass `validate=False` to skip the check.

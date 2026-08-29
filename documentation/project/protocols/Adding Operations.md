@@ -275,7 +275,7 @@ For `bit` specifically, always state whether the new op is:
 ## See also
 
 - [[project/protocols/Documentation Protocol.md|Documentation Protocol]]
-- [[internals/plans/completed/R1_PROPERTIES_PLAN.md|R1_PROPERTIES plan (properties + caches)]]
+- [[internals/plans/archive/R1_PROPERTIES_PLAN.md|R1_PROPERTIES plan (properties + caches)]]
 - [[internals/DType System|internals/DType System]]
 - [[internals/Compute Architecture.md|Compute Architecture]]
 - [[internals/Streaming Manager.md|Streaming Manager]]

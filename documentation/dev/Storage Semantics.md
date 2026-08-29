@@ -4,8 +4,8 @@ This page is the developer-facing hub for how storage works in Release 1. User-f
 
 ## Canonical references
 - [[guides/Storage and Memory]] (user workflow + container overview)
-- [[internals/plans/completed/R1_STORAGE_PLAN.md|R1_STORAGE_PLAN]] (frozen container contract)
-- [[internals/plans/completed/R1_PROPERTIES_PLAN.md|R1_PROPERTIES_PLAN]] (metadata semantics and gospel properties)
+- [[internals/plans/archive/R1_STORAGE_PLAN.md|R1_STORAGE_PLAN]] (frozen container contract)
+- [[internals/plans/archive/R1_PROPERTIES_PLAN.md|R1_PROPERTIES_PLAN]] (metadata semantics and gospel properties)
 
 ## Release 1 guarantees (storage)
 - Single-file `.pycauset` container, little-endian, with a 4096-byte header holding two slots (A/B). The valid slot with the highest generation is active; CRC mismatch or out-of-range pointers fail deterministically.

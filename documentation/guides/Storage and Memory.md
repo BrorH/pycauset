@@ -353,8 +353,8 @@ See [[guides/Numpy Integration.md|Numpy Integration]] for details.
 - [[dev/Storage Semantics.md|Storage Semantics]]
 - [[internals/MemoryArchitecture.md|MemoryArchitecture]]
 - [[internals/Memory and Data.md|Memory and Data]]
-- [[internals/plans/completed/R1_STORAGE_PLAN.md|R1_STORAGE_PLAN]]
-- [[internals/plans/completed/R1_PROPERTIES_PLAN.md|R1_PROPERTIES_PLAN]]
+- [[internals/plans/archive/R1_STORAGE_PLAN.md|R1_STORAGE_PLAN]]
+- [[internals/plans/archive/R1_PROPERTIES_PLAN.md|R1_PROPERTIES_PLAN]]
 - [[project/protocols/Documentation Protocol.md|Documentation Protocol]]
 
 ## Crash Consistency (R1_SAFETY)

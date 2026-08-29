@@ -116,4 +116,4 @@ Minimum expectation:
 ## See also
 
 - `documentation/project/protocols/Documentation Protocol.md`
-- `documentation/internals/plans/R1_SHAPES_PLAN.md`
+- `documentation/internals/plans/archive/R1_SHAPES_PLAN.md`

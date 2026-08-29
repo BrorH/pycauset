@@ -922,13 +922,74 @@ void AutoSolver::eigvalsh(const MatrixBase& in, VectorBase& eigenvalues, char up
 }
 
 void AutoSolver::eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors) {
-    // TODO: Add GPU support
-    cpu_device_->eig(in, eigenvalues, eigenvectors);
+    uint64_t n = in.rows();
+    // General (non-symmetric) eig is a QR/Hessenberg iteration, ~10-25 n^3 flops.
+    double ops = 10.0 * static_cast<double>(n) * static_cast<double>(n) * static_cast<double>(n);
+
+    bool use_gpu = false;
+    if (is_gpu_active() && in.get_matrix_type() == MatrixType::DENSE_FLOAT) {
+        DataType dt = in.get_data_type();
+        if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
+            if (prefers_cpu_for_properties(in)) {
+                use_gpu = false;
+            } else if (backend_preference_ == BackendPreference::GPU) {
+                use_gpu = true;
+            } else if (backend_preference_ == BackendPreference::CPU) {
+                use_gpu = false;
+            } else {
+                double elem_bytes = bytes_per_element(dt);
+                double bytes = elem_bytes * 2.0 * static_cast<double>(n) * n;
+                use_gpu = should_use_gpu(ops, bytes, dt);
+            }
+        }
+    }
+
+    if (use_gpu) {
+        try {
+            gpu_device_->eig(in, eigenvalues, eigenvectors);
+        } catch (const std::exception& e) {
+            std::cerr << "[PyCauset] GPU Error in eig: " << e.what() << ". Falling back to CPU." << std::endl;
+            gpu_device_.reset();
+            cpu_device_->eig(in, eigenvalues, eigenvectors);
+        }
+    } else {
+        cpu_device_->eig(in, eigenvalues, eigenvectors);
+    }
 }
 
 void AutoSolver::eigvals(const MatrixBase& in, VectorBase& eigenvalues) {
-    // TODO: Add GPU support
-    cpu_device_->eigvals(in, eigenvalues);
+    uint64_t n = in.rows();
+    double ops = 10.0 * static_cast<double>(n) * static_cast<double>(n) * static_cast<double>(n);
+
+    bool use_gpu = false;
+    if (is_gpu_active() && in.get_matrix_type() == MatrixType::DENSE_FLOAT) {
+        DataType dt = in.get_data_type();
+        if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
+            if (prefers_cpu_for_properties(in)) {
+                use_gpu = false;
+            } else if (backend_preference_ == BackendPreference::GPU) {
+                use_gpu = true;
+            } else if (backend_preference_ == BackendPreference::CPU) {
+                use_gpu = false;
+            } else {
+                double elem_bytes = bytes_per_element(dt);
+                double bytes = elem_bytes * 2.0 * static_cast<double>(n) * n;
+                use_gpu = should_use_gpu(ops, bytes, dt);
+            }
+        }
+    }
+
+    if (use_gpu) {
+        try {
+            gpu_device_->eigvals(in, eigenvalues);
+        } catch (const std::exception& e) {
+            std::cerr << "[PyCauset] GPU Error in eigvals: " << e.what() << ". Falling back to CPU." << std::endl;
+            gpu_device_.reset();
+            cpu_device_->eigvals(in, eigenvalues);
+        }
+    } else {
+        cpu_device_->eigvals(in, eigenvalues);
+    }
 }
 
 } // namespace pycauset

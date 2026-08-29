@@ -175,5 +175,30 @@ class TestOperationsExtensive(unittest.TestCase):
         with self.assertRaises(ValueError):
             A @ D
 
+    def test_zero_offset_view_elementwise(self):
+        """Regression: elementwise ops on zero-offset submatrix views.
+
+        A [:3,:3] slice of a 5x5 parent is a view with has_view_offset()==False
+        but strided storage (base_cols()==5). The SIMD fast paths must not treat
+        it as contiguous; they must fall back to element-wise access.
+        """
+        rng = np.random.default_rng(7)
+        A = rng.standard_normal((5, 5))
+        B = rng.standard_normal((5, 5))
+        a = pycauset.matrix(A)
+        b = pycauset.matrix(B)
+
+        # zero-offset view (the strided case) and an offset view
+        for (r0, r1, c0, c1) in [(0, 3, 0, 3), (1, 4, 1, 4)]:
+            av = a[r0:r1, c0:c1]
+            bv = b[r0:r1, c0:c1]
+            Ar = A[r0:r1, c0:c1]
+            Br = B[r0:r1, c0:c1]
+            np.testing.assert_allclose(np.asarray(av - bv), Ar - Br)
+            np.testing.assert_allclose(np.asarray(av * bv), Ar * Br)
+            np.testing.assert_allclose(np.asarray(av + bv), Ar + Br)
+            np.testing.assert_allclose(np.asarray(av / (bv + 2.0)), Ar / (Br + 2.0))
+            np.testing.assert_allclose(np.asarray(av * 3.0), Ar * 3.0)
+
 if __name__ == '__main__':
     unittest.main()

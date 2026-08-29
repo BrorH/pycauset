@@ -12,6 +12,10 @@ These guides show how to use PyCauset in practice, from first setup to large-sca
 
 *   **[[guides/release1/index.md|Release 1: What Shipped]]**: A guided map of the Release 1 foundations (NxM shapes, storage container, semantic properties, dtype/overflow rules, and core linalg endpoints).
 
+## Release 2 (what shipped)
+
+*   **[[guides/R2 Feature Menu|R2 Feature Menu]]**: A one-page map of Release 2 — spacetimes, causal sets, the Sorkin–Johnston field flagship, dimension/entropy, synthetic posets, and visualization.
+
 ## Common workflows
 
 *   **[[guides/Visualization|Visualization]]**: Creating interactive plots of causal sets.

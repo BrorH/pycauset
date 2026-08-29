@@ -13,8 +13,10 @@ import pycauset as _pc
 
 def _load_native() -> ModuleType | None:
     try:
-        return getattr(_pc, "cuda")
-    except Exception:
+        from . import _pycauset_cuda
+
+        return _pycauset_cuda
+    except ImportError:
         return None
 
 

@@ -4,6 +4,53 @@ Causal Set Theory is not just about the discrete structure of spacetime itself; 
 
 In PyCauset, the geometry (the [[pycauset.CausalSet]]) and the matter (the [[pycauset.field.Field]]) are distinct objects. This separation allows you to study different fields (massless, massive, interacting) on the same underlying spacetime background.
 
+## The R2 field model (`Field` → `CorrelatedField`)
+
+A **field** is one set-independent object; you *apply* it to a background:
+
+```python
+import pycauset as pc
+
+phi = pc.field("scalar", mass=1.5)   # the Field (species + mass), background-independent
+Q   = phi.on(causet)                 # a CorrelatedField: the field + its Green's functions on the causet
+```
+
+`CorrelatedField` exposes the field core (R2_KRD / R2_SJ):
+
+```python
+K_R = Q.retarded()      # K_R = aC (I - baC)^-1   (retarded Green's function)
+K_A = Q.advanced()      # K_A = K_R^T              (advanced Green's function)
+iD  = Q.pauli_jordan()  # iΔ = K_R - K_A           (Hermitian commutator function)
+W   = Q.wightman()      # Sorkin–Johnston vacuum two-point function (positive part of iΔ)
+G   = Q.correlator()    # ⟨φφ⟩ = W (free field)
+```
+
+The vacuum choice is explicit in `.wightman()` (the Sorkin–Johnston prescription is
+the default). The legacy `ScalarField` remains available for back-compat.
+
+`phi.on(spacetime)` (a continuum Minkowski spacetime) returns a
+`ContinuumCorrelatedField` with closed-form Green's functions and `.at(coords)`
+sampling, for the R2 continuum-limit comparison.
+
+> **R2 scope boundary.** Release 2 ships the **free scalar field core** — the
+> retarded/advanced propagators, the Pauli–Jordan function `iΔ`, and the
+> Sorkin–Johnston Wightman vacuum. The deeper field-theoretic system (massive
+> Green's functions with Bessel kernels, the continuum Wightman log, higher-point
+> Wick contractions, interacting fields, fermions, gauge fields) is **future work**,
+> not R2.
+
+### Entanglement entropy (R2_ENT)
+
+```python
+S = Q.entanglement_entropy(region)                 # Sorkin–Yazdi, "1/2" zero-point convention
+S = Q.entanglement_entropy(region, convention="symplectic")  # literal symplectic form
+```
+
+Two documented conventions are available (see
+[[docs/classes/field/pycauset.field.CorrelatedField.md|CorrelatedField]]): the default
+`"sorkin_yazdi"` (absorbs the `1/2` zero-point, so it's well-defined for the SJ
+Wightman `W ≥ 0`), and `"symplectic"` (the literal form, requiring `W ≥ 1/2`).
+
 ## The Scalar Field
 
 The most fundamental field studied in Causal Set Theory is the **Scalar Field**. 

@@ -33,7 +33,7 @@ See:
 
 Some additional restructure work was intentionally deferred behind an explicit approval gate. The execution record and remaining proposals live in:
 
-- [[internals/plans/completed/Restructure Plan.md|Internals: Restructure execution record]]
+- [[internals/plans/archive/Restructure Plan.md|Internals: Restructure execution record]]
 
 ## See also
 

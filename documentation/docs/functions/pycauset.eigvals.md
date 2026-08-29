@@ -1,7 +1,24 @@
-﻿# pycauset.eigvals
+# pycauset.eigvals
 
-This function is currently not available in pre-alpha builds.
+```python
+pycauset.eigvals(a)
+```
 
-It is present as a stub API and will raise `NotImplementedError`.
+Eigenvalues of a general (non-symmetric) square matrix.
 
-Alternatives: `MatrixBase.trace()`, `MatrixBase.determinant()`, `pycauset.eigh`, `pycauset.eigvalsh`, and `pycauset.invert()` (where applicable).
+## Returns
+
+A complex vector of eigenvalues.
+
+## Backend
+
+- Prefers the native backend, which routes through the AutoSolver cost model:
+  the operation runs on the GPU when the GPU is active **and** the model predicts
+  it wins, otherwise on the CPU.
+- On CUDA builds the GPU path uses cuSOLVER `geev`.
+- Falls back to NumPy (`numpy.linalg.eigvals`) if the native backend cannot
+  handle the input.
+
+## Notes
+
+- For symmetric/Hermitian inputs prefer `pycauset.eigvalsh` / `pycauset.eigh`.

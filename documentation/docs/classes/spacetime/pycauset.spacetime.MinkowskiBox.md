@@ -4,7 +4,7 @@
 class MinkowskiBox(dimension: int, time_extent: float, space_extent: float)
 ```
 
-Inherits from: [[pycauset.CausalSpacetime]]
+Inherits from: [[docs/classes/spacetime/pycauset.spacetime.Spacetime.md|Spacetime]]
 
 Represents a rectangular region (block) in flat Minkowski space with hard boundaries.
 
@@ -71,3 +71,16 @@ def get_boundary(self) -> List[np.ndarray]
 ```
 
 *(Extension)* Returns the rectangular boundary of the box for visualization.
+
+## Spacetime contract methods
+
+`MinkowskiBox` also implements the full `Spacetime` contract:
+
+*   **signature** (*property*): `(1, d-1)` — Lorentzian.
+*   **sample** (*method*): `sample(rng, n) -> np.ndarray` — draws `n` points uniformly in the box.
+*   **is_causal** (*method*): `is_causal(u, v) -> bool` — the strict transitive causal order (`dt > ||dx||`).
+*   **is_causal_batch** (*method*): `is_causal_batch(coords) -> np.ndarray` — the vectorized `(n, n)` causal matrix.
+*   **scalar_coeffs** (*method*): `scalar_coeffs(mass, density) -> (a, b)` — the authored 2D/4D field coefficients.
+*   **to_embedding** / **boundary** (*methods*): presentation hooks (equivalent to `transform_coordinates` / `get_boundary`).
+
+See [[docs/classes/spacetime/pycauset.spacetime.Spacetime.md|Spacetime]] for the full contract.

@@ -31,7 +31,7 @@ Release 1 needs a **single-file `.pycauset` container format** that:
 
 This plan is intentionally *about storage mechanics*. The semantics of `properties` (gospel claims, propagation, etc.) are defined in:
 
-- `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md`
+- `documentation/internals/plans/archive/R1_PROPERTIES_PLAN.md`
 
 The key contract between the two plans is:
 
@@ -865,6 +865,6 @@ Additional minimum tests:
 
 ## See also
 
-- `documentation/internals/plans/R1_PROPERTIES_PLAN.md`
-- `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md`
+- `documentation/internals/plans/archive/R1_PROPERTIES_PLAN.md`
+- `documentation/internals/plans/archive/R1_PROPERTIES_PLAN.md`
 - `documentation/project/protocols/Documentation Protocol.md`

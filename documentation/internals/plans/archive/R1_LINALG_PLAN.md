@@ -1,4 +1,4 @@
-﻿# R1_LINALG — Linear Algebra Foundation (Release 1)
+# R1_LINALG — Linear Algebra Foundation (Release 1)
 
 **Status:** Phase H completed (property-awareness sweep)
 
@@ -29,7 +29,7 @@ In this milestone, it is acceptable to land some operations as **endpoints first
 - Compute model: `documentation/internals/Compute Architecture.md`
 - Shape/naming alignment: `documentation/project/protocols/NumPy Alignment Protocol.md`
 - Op × dtype × device status: `documentation/internals/plans/SUPPORT_READINESS_FRAMEWORK.md`
-- BLAS/LAPACK notes: `documentation/internals/plans/BLAS_INTEGRATION_PLAN.md`
+- BLAS/LAPACK notes: `documentation/internals/plans/archive/BLAS_INTEGRATION_PLAN.md`
 
 ## Relationship to R1_PROPERTIES (semantic properties)
 

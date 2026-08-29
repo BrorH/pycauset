@@ -1,6 +1,10 @@
 # R2 Feature Plan Map
 
-**Status**: Planning (no implementation). This is the authoritative R2 feature map.
+**Status**: Implemented — the R2.0/R2.1/R2.2 physics is done (free scalar field core:
+retarded/advanced propagators, Pauli–Jordan `iΔ`, Sorkin–Johnston Wightman); the R2E
+engine/optimization phase is partially done (elementwise SIMD, SRP-2 catalog 3/4, eigen-cache
+persistence, parity baseline) with the remainder tracked live in `R2_ROADMAP.md`. This document
+is the authoritative R2 feature map.
 **Audience**: Creative director + contributors.
 **Companion**: `R2_API_DESIGN.md` holds the deeper rationale and tradeoffs. Where they
 differ, **this document wins** (it records the director's locked decisions).
@@ -41,6 +45,7 @@ differ, **this document wins** (it records the director's locked decisions).
 | 10 | Visualization | Plotly-only; hybrid call surface (methods + lazy top-level + `show`); subset + warning + bypass; higher-D deferred | P0/P2 |
 | 11 | Persistence | Save/load spacetimes (built-in + custom + modified) by registry/recipe | P0 |
 | 12 | Physics core | Propagators K_R/K_A, Pauli–Jordan iΔ, Wightman/Sorkin–Johnston, correlators, vevs — flawless; dimension estimators, entanglement entropy (see `R2_FIELDS_PHYSICS.md`) | P0/P1 |
+| 13 | Engine & optimization | Folded-in post-R1 program: ≥0.90× NumPy parity, tiled CPU engine, GPU parity, streaming-everywhere, SRP-2 catalog, eigen-cache (R2E) | P0/P1 |
 
 ---
 
@@ -279,6 +284,7 @@ documented `validate=False` escape hatch for experts who want the speed and acce
 | 14 | Dynamics | **Yes — add bucket, deferred** (BDG action, growth models, path sum) |
 | 15 | Field model | **`Field` → `CorrelatedField` → `State`**; `phi.on(causet\|spacetime)`; `pc.field("scalar", …)` string factory = sugar (unknown strings raise) |
 | 16 | Visualization call surface | **Hybrid**: `CausalSet.plot_*()` methods + lazy top-level `pc.plot_*` for non-causets + `pc.show(c)` sugar; explicit verbs, no `kind=` dispatch; returns Plotly `Figure` |
+| 17 | Engine/optimization scope | **Folded into R2** — the R1 post-R1 optimization program (≥0.90× NumPy, GPU parity, streaming-everything, SRP-2, eigen-cache) is tracked as the R2E phase of `R2_ROADMAP.md`, not deferred past R2 |
 
 ---
 
@@ -316,3 +322,27 @@ bare-minimum Minkowski MVP).
    open-in-browser à la Plotly). Decide which ships first, or ship both.
 3. **"Extensive" bar** — how far to push the library before R2 ships vs after (black holes,
    multi-time, synthetic models)?
+
+---
+
+## 14. Engine & optimization (folded into R2)
+
+The optimization work deferred out of R1 is **part of R2**, not a separate post-R2 effort
+(decision #17). It is tracked as the **R2E** phase in [`R2_ROADMAP.md`](R2_ROADMAP.md), with
+per-op status in `documentation/internals/plans/OPTIMIZATION_STATUS.md`:
+
+- **R2_PERF** — ≥ 0.90× NumPy throughput for every op, CI-enforced.
+- **R2_CPU** — modern tiled CPU engine (absorbs `archive/R1_CPU_PLAN.md`).
+- **R2_GPU** — GPU parity or explicit support status (absorbs `archive/R1_GPU_PLAN.md`).
+- **R2_STREAM** — streaming/out-of-core across the op surface.
+- **R2_CATALOG** — SRP-2 "Causal Math Optimization Catalog".
+- **R2_EIGCACHE** — eigen-cache persistence to `.pycauset`.
+- **R2_HARDEN** — post-R1 bug/polish backlog.
+
+The engine track runs in parallel with the physics phases and feeds `R2_QA` (the final gate).
+
+**Current R2E status (2026-08-29):** R2.1 ships the safe engine items — `R2_EIGCACHE`, elementwise
+f64 SIMD + view-hardening (R2_CPU), 3/4 SRP-2 shortcuts (R2_CATALOG), and the parity baseline +
+matmul-OpenBLAS root-cause (R2_PERF). R2.2 takes the larger-risk remainder: the `≥ 0.90× NumPy`
+bar, the lazy-elementwise routing (reverted — stack overrun, see BUG_LOG), the SRP-2 skew
+eigensystem, R2_GPU (VS 2022 + CUDA 12.6), R2_STREAM, and R2_HARDEN.

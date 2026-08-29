@@ -509,6 +509,7 @@ if(ENABLE_CUDA)
             CUDA::cublas 
             CUDA::cusolver
             pycauset_core
+            Eigen3::Eigen
         )
         
         # Set properties
@@ -516,6 +517,11 @@ if(ENABLE_CUDA)
             WINDOWS_EXPORT_ALL_SYMBOLS ON
             CUDA_SEPARABLE_COMPILATION ON
         )
+
+        # Eigen's C++11 math detection mis-fires under nvcc's host compilation
+        # (EIGEN_USING_STD(arg) falls back to `using ::arg`, which does not exist),
+        # so force the std::arg path.
+        target_compile_definitions(pycauset_cuda PRIVATE EIGEN_HAS_CXX11_MATH=1)
         
         # Suppress specific NVCC warnings
         # 611: overloaded virtual function is only partially overridden
@@ -533,7 +539,7 @@ if(ENABLE_CUDA)
         # Only meaningful if CUDA is enabled. This module provides discovery functions.
         python_add_library(_pycauset_cuda MODULE src/bindings/bind_cuda.cpp)
         target_include_directories(_pycauset_cuda PRIVATE include)
-        target_link_libraries(_pycauset_cuda PRIVATE pycauset_cuda pybind11::module pycauset_core)
+        target_link_libraries(_pycauset_cuda PRIVATE pycauset_cuda pybind11::module pycauset_core CUDA::cudart)
         set_target_properties(_pycauset_cuda PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
         install(TARGETS _pycauset_cuda DESTINATION pycauset)
 

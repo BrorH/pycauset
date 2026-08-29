@@ -43,8 +43,8 @@ Developer reference:
 
 Authoritative plans:
 
-- `documentation/internals/plans/completed/R1_STORAGE_PLAN.md` (container format)
-- `documentation/internals/plans/completed/R1_PROPERTIES_PLAN.md` (metadata semantics)
+- `documentation/internals/plans/archive/R1_STORAGE_PLAN.md` (container format)
+- `documentation/internals/plans/archive/R1_PROPERTIES_PLAN.md` (metadata semantics)
 
 ### Container summary
 

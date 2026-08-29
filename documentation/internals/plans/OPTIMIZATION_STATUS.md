@@ -39,8 +39,8 @@ Legend:
 | `svd` | LAPACK `dgesvd`/`sgesvd` (thin) | ❌ stub | ❌ naive | ✅ (add `gesvd` later) |
 | `eigh` / `eigvalsh` | LAPACK `dsyev` (C++); NumPy fallback (Python) | ❌ (only `eigvals_arnoldi` is GPU) | ❌ naive | ⚠️ dense eig is O(n³)/O(n²) mem: use Arnoldi for huge |
 | `eigvals_arnoldi` | Eigen `EigenSolver` on small Hessenberg | ✅ Arnoldi driver | ✅ iterative (k-step) | ✅ |
-| `add` / `subtract` | AVX2 (runtime-dispatched) + thread pool; **f64 sub = scalar** | ✅ custom kernels | ❌ naive | ✅ (f64 sub gap) |
-| `elementwise_multiply` / `_divide` | AVX2 f32; **f64 = scalar** | ❌ stub | ❌ naive | ⚠️ f64 SIMD + GPU gap |
+| `add` / `subtract` | AVX2 (runtime-dispatched) + thread pool (f64 sub now SIMD) | ✅ custom kernels | ❌ naive | ✅ (lazy materialization is the remaining gap) |
+| `elementwise_multiply` / `_divide` | AVX2 f32 + f64 (f64 was scalar) | ❌ stub | ❌ naive | ⚠️ GPU gap; lazy materialization remains |
 | `multiply_scalar` | AVX2 f32 + thread pool; f64 scalar | ✅ custom kernel | ❌ naive | ✅ |
 | `dot` / `dot_complex` | OpenMP reduction (real + complex) | ❌ stub | ❌ naive | ✅ |
 | `sum` (vec & mat) | OpenMP reduction | ❌ stub | ❌ naive | ✅ |
@@ -62,7 +62,7 @@ Python-level linalg endpoints (`solve`, `lstsq`, `slogdet`, `cond`, `eigh`, `eig
 |---|---|---|
 | **OpenBLAS** (`cblas_dgemm`/`sgemm`) | `CpuSolver::matmul`, `matmul_dense`, bit→int accumulation | Multithreaded; the workhorse for dense GEMM. |
 | **LAPACK** (`dgetrf`/`dgetri`, `dpotrf`, `dgeqrf`/`dorgqr`, `dgesvd`, `dsyev`) | inverse, cholesky, qr, svd, eigh | Real float/double only in most paths; complex routed to NumPy fallback at Python level. |
-| **AVX2 elementwise** (runtime-dispatched via `has_avx2()` cpuid, scalar fallback) | `avx2_add/sub/mul/div_f32`, `avx2_add_f64` | f32 fully covered; f64 only `add`. |
+| **AVX2 elementwise** (runtime-dispatched via `has_avx2()` cpuid, scalar fallback) | `avx2_add/sub/mul/div_f32`, `avx2_add/sub/mul/div_f64` | f32 and f64 fully covered (f64 sub/mul/div added R2_CPU). |
 | **AVX-512 popcount** (cpuid `has_avx512_vpopcntdq` + `vpopcntdq`; `target` attr on GCC/Clang) | bit-matmul `dot_product_avx512` | Runtime-dispatched; baseline-safe. |
 | **`ParallelFor` thread pool** | every `CpuSolver::*` elementwise/vector loop | Custom global ThreadPool. |
 | **OpenMP reductions** | `sum`, `dot`, `dot_complex`, `frobenius_norm` | `#pragma omp parallel for reduction`. |
@@ -102,7 +102,7 @@ Python-level linalg endpoints (`solve`, `lstsq`, `slogdet`, `cond`, `eigh`, `eig
 1. **LAPACK/BLAS int32 indexing is a non-issue for dense matrices.** `lapack_int`/`blasint` are int32 but are used for *single dimensions* (`n`, `lda`, `M/N/K`), which overflow only near n ≈ 2.1e9: unreachable for dense (RAM-bound first). **Verified:** bundled OpenBLAS is LP64 and ABI-consistent with the code. The real scale limit is RAM/VRAM → out-of-core (§6 items 6-7). Guard against it by keeping all *flattened element* loops on `size_t`/`uint64_t` (already the case) and never casting a total-element count to `int`.
 2. ~~`solve`/`lu` double naive kernels~~ → **FIXED** (LAPACK `dgesv`/`dgetrf`, §3.1). Singularity now matches LAPACK/NumPy exactly-zero-pivot semantics.
 3. ~~AVX-512 `/arch` leakage~~ → **FIXED**. SIMD kernels are runtime-dispatched via cpuid (`has_avx512_vpopcntdq()` / `has_avx2()`) with scalar fallbacks; `-march=native` was removed and the AVX2 kernels now carry per-function `__attribute__((target("avx2")))` (MSVC emits intrinsics without `/arch`, so no flag is needed or leaked there). Distribution binaries are baseline-safe.
-4. **f64 elementwise is largely scalar** (`sub`/`mul`/`div` in double fall to `scalar_*`). Not wrong, just slower; low risk.
+4. ~~**f64 elementwise is largely scalar** (`sub`/`mul`/`div` in double fall to `scalar_*`)~~ → **FIXED** (R2_CPU: added `avx2_sub/mul/div_f64` and wired `try_fast_simd` into `subtract`/`elementwise_multiply`/`elementwise_divide`). Also hardened the SIMD fast paths (`try_fast_simd`, `binary_op_impl` dense path, `scalar_op_impl`) to require a **full span** (`rows()==base_rows() && cols()==base_cols()`), not just `has_view_offset()==false` — a zero-offset submatrix view (`A[:3,:3]` of 5×5) is strided over `base_cols()` and was being mis-read as contiguous, producing wrong elementwise results on views. Regression-tested (18/18 operations tests + view elementwise stress).
 5. **GPU `CMAKE_CUDA_ARCHITECTURES "native"`**: fine locally, wrong for distribution (would compile only for the build machine's arch). Replace with an explicit arch list (e.g., `50;60;61;70;75;80;86;90` + PTX) for wheels.
 
 ---
@@ -133,7 +133,7 @@ Ordered by expected payoff for huge matrices:
 | 3 | Unblock CUDA build (VS 2022) and re-enable `ENABLE_CUDA` | Gates all GPU work | User action + M |
 | 4 | ~~Scope AVX-512 TU isolation / runtime dispatch~~ → DONE (cpuid-gated + per-fn `target`, `-march=native` removed) | Top production crash risk | M |
 | 5 | cuBLAS/cuSOLVER for `qr`/`svd`/`lu`/`eig` | GPU parity | M-L |
-| 6 | f64 elementwise SIMD (sub/mul/div) | Cheap throughput win | S |
+| 6 | ~~f64 elementwise SIMD (sub/mul/div)~~ → DONE (R2_CPU) | Cheap throughput win | S |
 | 7 | Generic tiled out-of-core executor | "Absurdly large" RAM ceiling | L |
 
 Companion tables: `SUPPORT_READINESS_FRAMEWORK.md` §2.2.1 (routing policy), `R1_EXECUTION.md` (release gate), `TODO.md` (roadmap).

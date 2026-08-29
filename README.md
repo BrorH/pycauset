@@ -81,7 +81,7 @@ PyCauset has an optimized C++ core with Python bindings, which is built specific
 
 ## Performance
 
-PyCauset's dense kernels use the same OpenBLAS/LAPACK backend as NumPy, so the goal is parity rather than a large speedup, with a goal of all PyCauset operatiosn being at least 0.90x the speed of NumPy for in-memory operations, (see [BENCHMARKS.md](BENCHMARKS.md)).
+PyCauset's dense kernels use the same OpenBLAS/LAPACK backend as NumPy, so the goal is parity rather than a large speedup, with a goal of all PyCauset operations being at least 0.90x the speed of NumPy for in-memory operations, (see [BENCHMARKS.md](BENCHMARKS.md)).
 However, the biggest reason to use PyCauset is that it memory-maps past RAM, where NumPy raises MemoryError.
 
 ## Gallery
@@ -110,7 +110,7 @@ pip install .
 
 ## Status
 
-Pre-alpha. Release 1 (the Foundation Release) builds the numerical core: matrices, storage, linear algebra, GPU. Release 2 (the Physics Release) adds the physics suite: arbitrary-dimension and curved spacetimes, fields, and the Sorkin-Johnston vacuum. The current plan is tracked in the documentation.
+Pre-alpha. Release 1 (v0.6.1, the Foundation Release) shipped the numerical core — matrices, storage, and linear algebra — CPU-only (GPU parity is deferred). Release 2 (the Physics Release) adds the physics suite — arbitrary-dimension and curved spacetimes, fields, and the Sorkin-Johnston vacuum — and folds in the deferred optimization program. The current plan is tracked in the documentation.
 
 ## Documentation
 

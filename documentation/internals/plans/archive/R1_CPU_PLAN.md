@@ -1,9 +1,10 @@
 # R1_CPU_PLAN — Modern Tiled CPU Engine (Phased Plan)
 
-**Status**: Active (execution plan; work starts now)
+**Status**: Archived — deferred out of R1 (post-R1 optimization program). The work is folded
+into the R2 engine track: see `project/plans/R2_ROADMAP.md` → **R2_CPU** / **R2_STREAM**.
 **Owner**: Chief Programmer/Planner (AI)
 **Stakeholder**: Chief Design Engineer (user)
-**Last updated**: 2026-02-08
+**Last updated**: 2026-02-08 (archived at R2 plan consolidation)
 
 ---
 

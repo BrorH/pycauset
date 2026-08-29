@@ -275,6 +275,10 @@ class TestBlockMatrixPhaseFIntegration(unittest.TestCase):
         pycauset.cuda.enable()
         if not pycauset.cuda.is_available():
             self.skipTest("CUDA is not active in this build/environment")
+        # Force the GPU backend so these tests exercise the GPU kernel path
+        # deterministically (Auto win-detection routes small elementwise ops to
+        # the CPU, where transfer overhead dominates).
+        pycauset.cuda.force_backend("gpu")
 
         n = 600  # exceeds AutoSolver gpu_threshold_elements_ (512*512)
         a32 = b32 = a16 = b16 = None
@@ -328,6 +332,10 @@ class TestBlockMatrixPhaseFIntegration(unittest.TestCase):
         pycauset.cuda.enable()
         if not pycauset.cuda.is_available():
             self.skipTest("CUDA is not active in this build/environment")
+        # Force the GPU backend so these tests exercise the GPU kernel path
+        # deterministically (Auto win-detection routes small elementwise ops to
+        # the CPU, where transfer overhead dominates).
+        pycauset.cuda.force_backend("gpu")
 
         n = 600
         a32 = b32 = a16 = b16 = None
@@ -379,6 +387,10 @@ class TestBlockMatrixPhaseFIntegration(unittest.TestCase):
         pycauset.cuda.enable()
         if not pycauset.cuda.is_available():
             self.skipTest("CUDA is not active in this build/environment")
+        # Force the GPU backend so these tests exercise the GPU kernel path
+        # deterministically (Auto win-detection routes small elementwise ops to
+        # the CPU, where transfer overhead dominates).
+        pycauset.cuda.force_backend("gpu")
 
         n = 600
         a = b = None

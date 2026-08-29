@@ -1,9 +1,29 @@
-﻿# pycauset.eig
+# pycauset.eig
 
-This function is currently not available in pre-alpha builds.
+```python
+pycauset.eig(a)
+```
 
-It is present as a stub API and will raise `NotImplementedError`.
+Eigen-decomposition for general (non-symmetric) square matrices.
 
-Alternatives:
+## Returns
 
-- For symmetric/Hermitian inputs: `pycauset.eigh`, `pycauset.eigvalsh` (NumPy fallback).
+A pair `(w, v)` where:
+
+- `w` is a complex vector of eigenvalues.
+- `v` is a complex matrix whose columns are the corresponding right eigenvectors.
+
+## Backend
+
+- Prefers the native backend, which routes through the AutoSolver cost model:
+  the operation runs on the GPU when the GPU is active **and** the model predicts
+  it wins, otherwise on the CPU.
+- On CUDA builds the GPU path uses cuSOLVER `geev`.
+- Falls back to NumPy (`numpy.linalg.eig`) if the native backend cannot handle
+  the input.
+
+## Notes
+
+- Complex conjugate eigenvalue pairs share a pair of eigenvector columns,
+  matching LAPACK/NumPy conventions.
+- For symmetric/Hermitian inputs prefer `pycauset.eigh` / `pycauset.eigvalsh`.

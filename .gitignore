@@ -131,3 +131,16 @@ tools/test_release_locally.sh
 /.pycauset_stability/
 /tmp_verification_phase3_4/
 build_*/
+
+# --- Local rebuild/scratch artifacts ---
+third_party/openblas_src/
+*.log
+*.release_bak
+/cpp_diff.txt
+/disasm_pyd.txt
+/import_dump.txt
+/avxoff.log
+/openblas_build.log
+/pin.log
+/pin2.log
+/pin7.log

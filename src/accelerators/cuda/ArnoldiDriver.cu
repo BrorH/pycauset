@@ -8,7 +8,6 @@
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/vector/DenseVector.hpp"
 
-#include <Eigen/Dense>
 #include <random>
 #include <algorithm>
 #include <complex>
@@ -107,27 +106,77 @@ void ArnoldiDriver::run(CudaDevice& device, const MatrixBase& a, VectorBase& out
         throw std::runtime_error("ArnoldiDriver: failed to build Krylov subspace");
     }
 
-    Eigen::MatrixXd H = Eigen::MatrixXd::Zero(steps_completed, steps_completed);
-    for (int i = 0; i < steps_completed; ++i) {
-        for (int j = 0; j < steps_completed; ++j) {
-            H(i, j) = h[i * max_steps + j];
+    // Build the Hessenberg matrix H (mm x mm) from the Arnoldi recurrence.
+    const int mm = steps_completed;
+    std::vector<double> A(mm * mm, 0.0);
+    for (int i = 0; i < mm; ++i) {
+        for (int j = 0; j < mm; ++j) {
+            A[i * mm + j] = h[i * max_steps + j];
         }
     }
 
-    Eigen::EigenSolver<Eigen::MatrixXd> solver(H, /*computeEigenvectors=*/false);
-    if (solver.info() != Eigen::Success) {
-        throw std::runtime_error("ArnoldiDriver: Hessenberg eigensolve failed");
+    // Eigenvalues of the small Hessenberg matrix via explicit unshifted QR
+    // iteration (self-contained; replaces the Eigen dependency, which does not
+    // compile under nvcc C++20). H is small (Arnoldi subspace), so plain QR
+    // converges adequately for the top-k approximation.
+    for (int iter = 0; iter < 4000; ++iter) {
+        std::vector<double> Q(mm * mm, 0.0);
+        std::vector<double> R(mm * mm, 0.0);
+        for (int j = 0; j < mm; ++j) {
+            std::vector<double> v(mm);
+            for (int i = 0; i < mm; ++i) v[i] = A[i * mm + j];
+            for (int k = 0; k < j; ++k) {
+                double r = 0.0;
+                for (int i = 0; i < mm; ++i) r += Q[i * mm + k] * v[i];
+                R[k * mm + j] = r;
+                for (int i = 0; i < mm; ++i) v[i] -= r * Q[i * mm + k];
+            }
+            double nrm = 0.0;
+            for (double x : v) nrm += x * x;
+            nrm = std::sqrt(nrm);
+            R[j * mm + j] = nrm;
+            for (int i = 0; i < mm; ++i) Q[i * mm + j] = (nrm > 1e-300) ? (v[i] / nrm) : 0.0;
+        }
+        std::vector<double> A2(mm * mm, 0.0);
+        for (int i = 0; i < mm; ++i) {
+            for (int j = 0; j < mm; ++j) {
+                double s = 0.0;
+                for (int k = 0; k < mm; ++k) s += R[i * mm + k] * Q[k * mm + j];
+                A2[i * mm + j] = s;
+            }
+        }
+        A.swap(A2);
     }
 
-    const auto evals = solver.eigenvalues();
+    // Extract eigenvalues from the (block) upper-triangular real Schur form.
     std::vector<std::pair<double, std::complex<double>>> ranked;
-    ranked.reserve(evals.size());
-    for (int i = 0; i < evals.size(); ++i) {
-        std::complex<double> val(evals[i].real(), evals[i].imag());
-        ranked.emplace_back(std::abs(val), val);
+    ranked.reserve(mm);
+    for (int i = 0; i < mm; ++i) {
+        if (i + 1 < mm && std::abs(A[(i + 1) * mm + i]) > 1e-10) {
+            const double a = A[i * mm + i];
+            const double b = A[i * mm + i + 1];
+            const double c = A[(i + 1) * mm + i];
+            const double d = A[(i + 1) * mm + i + 1];
+            const double tr = a + d;
+            const double disc = (a - d) * (a - d) + 4.0 * b * c;
+            if (disc < 0.0) {
+                const double re = tr / 2.0;
+                const double im = std::sqrt(-disc) / 2.0;
+                ranked.emplace_back(std::hypot(re, im), std::complex<double>(re, im));
+                ranked.emplace_back(std::hypot(re, im), std::complex<double>(re, -im));
+            } else {
+                const double sq = std::sqrt(disc);
+                ranked.emplace_back(std::abs((tr + sq) / 2.0), std::complex<double>((tr + sq) / 2.0, 0.0));
+                ranked.emplace_back(std::abs((tr - sq) / 2.0), std::complex<double>((tr - sq) / 2.0, 0.0));
+            }
+            ++i;
+        } else {
+            const double v = A[i * mm + i];
+            ranked.emplace_back(std::abs(v), std::complex<double>(v, 0.0));
+        }
     }
-    std::sort(ranked.begin(), ranked.end(), [](const auto& a_pair, const auto& b_pair) {
-        return a_pair.first > b_pair.first;
+    std::sort(ranked.begin(), ranked.end(), [](const auto& x, const auto& y) {
+        return x.first > y.first;
     });
 
     for (int i = 0; i < k; ++i) {

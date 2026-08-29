@@ -88,7 +88,7 @@ Authoritative source: `include/pycauset/core/Types.hpp`.
 - Complex floats (`complex float32/float64`) should use true complex numeric storage where possible (BLAS/cuBLAS path).
 - Complex float16 is first-class for storage/bandwidth wins at very large scale; solvers may upcast internally (e.g., compute in float32) where required for stability.
 
-Reference implementation plan: `documentation/internals/DTYPE_COMPLEX_OVERFLOW_PLAN.md`.
+Reference implementation plan: `documentation/internals/plans/archive/DTYPE_COMPLEX_OVERFLOW_PLAN.md`.
 
 ---
 

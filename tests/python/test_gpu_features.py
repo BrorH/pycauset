@@ -33,8 +33,8 @@ class TestGPUFeatures(unittest.TestCase):
     def test_float32_multiplication(self):
         """Test GPU multiplication of Float32Matrix."""
         N = 512
-        A = pycauset.Float32Matrix.random(N)
-        B = pycauset.Float32Matrix.random(N)
+        A = pycauset.matrix(np.random.randn(N, N).astype(np.float32))
+        B = pycauset.matrix(np.random.randn(N, N).astype(np.float32))
         
         # GPU Mult
         C = A @ B
@@ -57,8 +57,8 @@ class TestGPUFeatures(unittest.TestCase):
         """Test GPU multiplication of DenseBitMatrix."""
         N = 1024
         # Create random bit matrices
-        A = pycauset.DenseBitMatrix.random(N, density=0.1)
-        B = pycauset.DenseBitMatrix.random(N, density=0.1)
+        A = pycauset.DenseBitMatrix.random(N, p=0.1)
+        B = pycauset.DenseBitMatrix.random(N, p=0.1)
         
         # GPU Mult
         # Note: DenseBitMatrix @ DenseBitMatrix returns IntegerMatrix (path counts)
@@ -84,8 +84,8 @@ class TestGPUFeatures(unittest.TestCase):
         
         # Verify against CPU (which might be slow, so use smaller N for verification)
         N_small = 128
-        A_s = pycauset.DenseBitMatrix.random(N_small, density=0.5)
-        B_s = pycauset.DenseBitMatrix.random(N_small, density=0.5)
+        A_s = pycauset.DenseBitMatrix.random(N_small, p=0.5)
+        B_s = pycauset.DenseBitMatrix.random(N_small, p=0.5)
         
         C_s = A_s @ B_s
         

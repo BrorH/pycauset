@@ -67,6 +67,9 @@ public:
     double trace(const MatrixBase& m) override;
     double determinant(const MatrixBase& m) override;
     void qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) override;
+    void lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) override;
+    void svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) override;
+    void solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) override;
     void eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) override;
     void eigvals_skew(const MatrixBase& a, VectorBase& out, int k) override;
     void eigh(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& eigenvectors, char uplo) override;

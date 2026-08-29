@@ -1,12 +1,17 @@
 # pycauset.field.ScalarField
 
 ```python
-class ScalarField(Field)
+class ScalarField(causet=None, mass=0.0, *, n=None, density=None, spacetime=None, seed=None, matrix=None)
 ```
 
 Represents a massive scalar field defined on a Causal Set.
 
 This class implements the generalized Retarded Propagator $K_R$ for a scalar field $\phi$ satisfying the Klein-Gordon equation on the discrete causal set structure.
+
+> **R1 back-compat.** The R2 field model is `Field → CorrelatedField → State` (see
+> [[docs/classes/field/pycauset.field.CorrelatedField.md|CorrelatedField]]). `ScalarField`
+> is kept for back-compat and returns the R1 native matrix types (`TriangularFloatMatrix`,
+> `AntiSymmetricFloat64Matrix`).
 
 ## Constructor
 
