@@ -54,7 +54,11 @@ Testing & Bug Tracking protocol.
 
 - **CI parity threshold** (R2_PERF: `benchmarks/r2_parity.py` with the `>= 0.90×`
   bar enforced in CI, timing thresholds are intentionally not CI-gated yet).
-- **C++ R2E** (R2_CPU lazy-routing / R2_GPU / R2_STREAM / R2_EIGCACHE), in progress.
+- **C++ R2E**, in progress: GPU `lu`/`qr`/`svd` factorizations are done (cuSOLVER,
+  square dense, with CPU fallback); remaining are the shared `CudaLinalg` dispatch
+  layer, CUDA wheel packaging, out-of-core `inverse`/`qr`/`svd` (tiled
+  factorization driver), and R2_HARDEN polish (`__init__.py` slimming, CMake
+  warning audit, macOS wheel portability).
 
 ## Deferred to future releases (explicitly NOT R2 scope)
 
