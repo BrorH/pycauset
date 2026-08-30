@@ -23,16 +23,16 @@ equivalent must run at least 0.90x as fast as NumPy. `invert` and `determinant`
 clear their derived caches on every timed call so the comparison is a fresh
 factorization on both sides, not a cache hit. Median ratio over 6 runs (n=1024):
 
-| op | ratio | vs NumPy |
-|---|---|---|
-| matmul | 1.03x | parity |
-| solve | 1.02x | parity |
-| invert | 1.19x | faster |
-| determinant | 1.26x | faster |
-| add | 1.31x | faster |
-| multiply | 1.22x | faster |
-| dot | 2.45x | faster (a ~0.1 ms op, so this one is noisy) |
-| eigh | 0.99x | parity |
+| op | x times faster than numpy |
+|---|---|
+| matmul | 1.03x |
+| solve | 1.02x |
+| invert | 1.19x |
+| determinant | 1.26x |
+| add | 1.31x |
+| multiply | 1.22x |
+| dot | 2.45x (noisy, ~0.1 ms op) |
+| eigh | 0.99x |
 
 ```text
   matmul       1.03x  ██████████
