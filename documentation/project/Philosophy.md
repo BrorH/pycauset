@@ -1,6 +1,6 @@
 # Pycauset Philosophy & Design Principles
 
-Pycauset is designed to handle causal sets where $N$ is large enough that $O(N^2)$ storage becomes the primary bottleneck. To achieve this, we adhere to a strict set of design principles and "mantras" that guide every architectural decision.
+PyCauset is for causal sets big enough that $O(N^2)$ storage is the bottleneck. A few mantras guide every decision:
 
 
 ## Core Mantras
