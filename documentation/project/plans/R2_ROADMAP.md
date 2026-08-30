@@ -105,7 +105,7 @@ R2.2, Advanced + Polish:
 R2E, Engine + Optimization (folded in from the post-R1 program):
 - [x] R2_PERF (8/8 ops ≥ 0.90× NumPy, incl. fair invert/determinant)
 - [ ] R2_CPU (tiled CPU engine, not R2.2 scope)
-- [x] R2_GPU (CUDA backend activates + GPU eig/eigvals + win-detection)
+- [ ] R2_GPU (CUDA build unblocked + GPU eig/eigvals done; qr/svd/lu factorizations and CUDA wheel packaging remain)
 - [x] R2_STREAM (elementwise + matmul/batch_gemv stream; the rest explicitly blocked per DoD)
 - [x] R2_CATALOG (4/4 shortcuts; `eig_skew` provides eigenvectors; `W` routing flips to `eig_skew` after the skew tridiagonalization optimization)
 - [x] R2_EIGCACHE
@@ -536,7 +536,12 @@ verified against NumPy and benchmarked ≥ 0.90×; no legacy scalar loops remain
 
 ### R2_GPU, GPU Parity
 
-Status: - [ ]
+Status: - [ ] (in progress: the CUDA build is unblocked (VS 2022 + CUDA 12.6, Pascal GTX 1060) and
+`cuda.is_available()` is `True`; GPU `matmul`/`add`/`subtract`/`multiply_scalar`/`invert`/
+`batch_gemv`/`cholesky`/`eig`/`eigvals` are wired with win-detection and CPU fallback. Remaining:
+GPU `qr`/`svd`/`lu` factorizations (currently CPU-only in `AutoSolver`), a shared `CudaLinalg`
+dispatch layer, and CUDA wheel packaging. Intra-op hybrid CPU/GPU split execution is a stretch
+beyond R2 and is explicitly out of scope.)
 
 Goal: bring the CUDA backend to parity (or an explicit support status) across the op inventory.
 Absorbs `archive/R1_GPU_PLAN.md` (SRP-3).

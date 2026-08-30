@@ -18,7 +18,7 @@ Audit of the R2 public API surface and per-node test/doc coverage. This is the
   `product_order`, `poset`.
 - Top-level: `pc.plot_embedding/hasse/causal_matrix`, `pc.show`.
 
-## Test coverage (187 tests across the R2 node files + regression suites, all passing)
+## Test coverage (full suite: 812 passed + 23 skipped; the R2 node files are listed below)
 
 | node | test file |
 | :-- | :-- |
