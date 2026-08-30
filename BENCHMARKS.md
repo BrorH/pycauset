@@ -11,10 +11,52 @@ python benchmarks/plot.py
 ## Methodology
 
 - **Hardware:** Intel Core i9-10850K (10 cores @ 3.6 GHz), 32 GB RAM, Windows 11.
-- **Versions:** NumPy 2.3.5 (OpenBLAS), PyCauset 0.5.1 (OpenBLAS 0.3.26).
+- **Versions:** NumPy 2.3.5 (OpenBLAS), PyCauset 0.6.2.dev0 (OpenBLAS 0.3.28).
 - **Timing:** `time.perf_counter`, best-of-N per operation (fewer repeats at large n).
 - **Dtype:** dense float64.
 - **Ratio:** `numpy_time / pycauset_time`. Values above 1.0x mean PyCauset is faster.
+
+## R2.2 parity gate: 8/8 ops at or above 0.90x NumPy
+
+The R2.2 gate is `benchmarks/r2_parity.py`: every operation with a direct NumPy
+equivalent must run at least 0.90x as fast as NumPy. `invert` and `determinant`
+clear their derived caches on every timed call so the comparison is a fresh
+factorization on both sides, not a cache hit. Median ratio over 6 runs (n=1024):
+
+| op | ratio | vs NumPy |
+|---|---|---|
+| matmul | 1.03x | parity |
+| solve | 1.02x | parity |
+| invert | 1.19x | faster |
+| determinant | 1.26x | faster |
+| add | 1.31x | faster |
+| multiply | 1.22x | faster |
+| dot | 2.45x | faster (a ~0.1 ms op, so this one is noisy) |
+| eigh | 0.99x | parity |
+
+```text
+  matmul       1.03x  ██████████
+  solve        1.02x  ██████████
+  invert       1.19x  ███████████▉
+  determinant  1.26x  ████████████▋
+  add          1.31x  █████████████▏
+  multiply     1.22x  ████████████▏
+  dot          2.45x  ████████████████████████▌   (noisy)
+  eigh         0.99x  █████████▉
+  -------- parity 1.00x  ██████████
+```
+
+Where the boost came from, versus the pre-R2.2 baseline in the tables below:
+
+- **add / multiply / elementwise** moved from ~0.54x / ~0.72x to ~1.3x / ~1.2x by
+  running the AVX2 SIMD kernels over fast anonymous `VirtualAlloc` backing (instead
+  of a pagefile-backed section) and by keeping CPU matrices on ordinary pageable
+  memory when the GPU is active (pinning is on-demand now).
+- **matmul / solve / invert / determinant** reached parity by rebuilding OpenBLAS
+  0.3.28 with `DYNAMIC_ARCH` + threading and linking it by name (the CUDA build had
+  been linking a stale ordinal-based import lib), and by clearing the invert/determinant
+  derived caches so the gate measures a real factorization.
+- **eigh** was already at parity; the gate now also holds with the GPU backend active.
 
 ## Dtype coverage (correctness)
 
@@ -63,10 +105,13 @@ post-R1 program.
 ## Summary
 
 PyCauset's dense kernels run on the same OpenBLAS/LAPACK backend as NumPy, so the
-realistic goal is parity, not a large speedup. At large sizes PyCauset matches or
-edges ahead of NumPy on matmul, eigenvalues, and Cholesky. The current gaps are SVD
-(about 2x, from the row-major transpose) and elementwise materialization, both tracked
-for the post-R1 program.
+realistic goal is parity, not a large speedup. As of R2.2 every parity-gate operation
+runs at or above 0.90x NumPy (see the table above), and the elementwise ops that used to
+lag (add, multiply) now edge ahead. The remaining gaps are SVD (about 2x, from the
+row-major transpose) and out-of-core factorizations, both tracked in `TODO.md`.
+
+The detailed tables and graphs below are the pre-R2.2 baseline, kept for their per-size
+detail; the current numbers are the R2.2 parity table and bar chart above.
 
 ## The reason to use PyCauset: it scales past RAM
 
@@ -176,8 +221,9 @@ the lazy-expression materialization path is not yet SIMD-optimized; it is a post
 
 ## What this means
 
-- **Matmul, eigenvalues, Cholesky, and dot** match or beat NumPy at large sizes.
-- **Inverse and solve** are competitive, within 25% of NumPy.
-- **SVD** is roughly 2x slower (down from 25x after switching to `gesdd`); the row-major
-  overhead and elementwise add are the concrete targets for the post-R1
-  "greater than 0.90x NumPy" program (tracked in `TODO.md`).
+- **Every parity-gate operation is now at or above 0.90x NumPy** (R2.2, see the table at
+  the top): matmul, solve, invert, determinant, add, multiply, dot, and eigh all pass.
+- **SVD** remains the one dense gap, roughly 2x (down from 25x after switching to
+  `gesdd`), from the row-major transpose overhead; tracked in `TODO.md`.
+- **Where PyCauset wins outright** is the structural/metadata shortcuts (hundreds of x
+  on identity/diagonal/triangular matrices) and scaling past RAM, which NumPy cannot do.
