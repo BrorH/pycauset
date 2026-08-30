@@ -298,7 +298,7 @@ Persistence is a single-file `.pycauset` container with an mmap-friendly raw pay
 
 ## 4) Cooperative Compute Architecture (CCA) / Lookahead protocol gate
 
-Authoritative source: `documentation/internals/CooperativeArchitecture.md`.
+Authoritative source: `documentation/internals/Memory and Data.md` (IO Accelerator + memory hints).
 
 **Rule:** For operations that stream or stride through persistent storage (especially matmul-like kernels), the solver must emit `MemoryHint`s before heavy reads.
 

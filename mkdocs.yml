@@ -1,4 +1,4 @@
-site_name: PyCauset
+﻿site_name: PyCauset
 site_url: https://brorh.github.io/pycauset/
 docs_dir: documentation
 repo_url: https://github.com/BrorH/pycauset
@@ -273,7 +273,6 @@ nav:
       - docs/pycauset.vis/plot_hasse.md
   - Internals:
     - internals/index.md
-    - Cooperative Architecture: internals/CooperativeArchitecture.md
     - DType System: internals/DType System.md
     - DType Complex Overflow Plan: internals/plans/archive/DTYPE_COMPLEX_OVERFLOW_PLAN.md
     - Compute Architecture: internals/Compute Architecture.md

@@ -85,6 +85,10 @@ to tiled streaming.
 
 The workflow is: create (reserve space) -> prefetch -> compute -> discard.
 
+Solvers declare their access pattern up front (sequential, strided, random, or
+once) through `pycauset.AccessPattern` / `pycauset.MemoryHint`, and the accelerator
+turns that into the right prefetch/discard syscalls.
+
 ## Export guard
 
 A disk-backed object converted naively to a NumPy array would blow up RAM. The
