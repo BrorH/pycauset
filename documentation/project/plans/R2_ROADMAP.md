@@ -620,8 +620,11 @@ Status: - [ ] (in progress: dead-code/deprecated-feature sweep started, removed 
 and never uses Boost. Kept `CMP0135` (timestamps) and `CMP0169` (`FetchContent_Populate`,
 still used). `__init__.py` slimming started (2026-08): the import-time OpenBLAS thread
 setup and GPU install hint were extracted to `_internal/native_setup.py`. Remaining:
-macOS wheel portability (OpenBLAS/libomp from source against a fixed deployment target),
-full facade extraction, and the mechanical ruff `E501`/`UP006`/`UP045` pass)
+macOS wheel portability (OpenBLAS/libomp from source against a fixed deployment target;
+see `documentation/dev/MACOS_WHEEL_PORTABILITY.md` for the plan and why it is deferred),
+full facade extraction, and the mechanical ruff `E501`/`UP006`/`UP045` pass (the `UP`
+fixes are held back because `requires-python = ">=3.8"` does not allow PEP 604 `X | None`
+syntax without `from __future__ import annotations` everywhere))
 
 Goal: close the post-R1 bug/polish backlog tracked in `documentation/internals/plans/TODO.md` so R2
 ships professionally.
