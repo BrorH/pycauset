@@ -281,6 +281,21 @@ if(NOT OpenBLAS_FOUND)
     else()
         # On Linux/Mac, try to build from source (requires Fortran)
         message(STATUS "Downloading OpenBLAS source...")
+        # OpenBLAS v0.3.26 declares a cmake_minimum_required older than 3.5,
+        # which CMake 4.x rejects. Pin the policy floor for this subproject.
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+            set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
+        endif()
+        # AppleClang rejects OpenBLAS's `getarch` probe (`-march=native`). Give
+        # OpenBLAS an explicit target instead of probing the host CPU: a fixed
+        # ARMV8 on Apple Silicon, and dynamic-arch on Intel.
+        if(APPLE)
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+                set(TARGET "ARMV8" CACHE STRING "" FORCE)
+            else()
+                set(DYNAMIC_ARCH ON CACHE BOOL "" FORCE)
+            endif()
+        endif()
         FetchContent_Declare(
             OpenBLAS
             URL https://github.com/OpenMathLib/OpenBLAS/archive/v0.3.26.zip

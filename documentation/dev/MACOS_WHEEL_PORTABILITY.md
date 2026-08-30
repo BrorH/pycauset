@@ -63,6 +63,21 @@ OpenBLAS-on-macOS build problems:
 So the from-source path is a CMake + OpenBLAS build-configuration task, not just a
 `publish.yml` change. Reverted the workflow to the working brew-based macOS 15 build.
 
+## Update (2026-08)
+
+- The CMake from-source wiring for the two OpenBLAS blockers above is now landed in
+  `CMakeLists.txt`: `CMAKE_POLICY_VERSION_MINIMUM=3.5` under CMake 4.x, and an
+  explicit `TARGET=ARMV8` (Apple Silicon) / `DYNAMIC_ARCH=ON` (Intel) so `getarch`
+  no longer probes with `-march=native`. This unblocks the from-source path when the
+  workflow is switched to it; the remaining steps are `gfortran` + lowering
+  `MACOSX_DEPLOYMENT_TARGET` in `CIBW_BEFORE_ALL_MACOS`/`CIBW_ENVIRONMENT_MACOS` and
+  a `macos-14` smoke test.
+- Separately, the `Publish to PyPI` workflow was publishing a new `devN` wheel on
+  every push to `main`, which filled PyPI past its 10 GB project limit (upload
+  returned HTTP 400 "Project size too large"). The `push` trigger is removed; PyPI
+  now publishes only on a release tag or `workflow_dispatch`. A project-size-limit
+  increase still needs to be requested from PyPI to accept new uploads again.
+
 ## Decision
 
 Deferred: the current macOS 15+ wheels are correct and honest, and the from-source
