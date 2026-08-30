@@ -24,6 +24,13 @@ views are `plot_hasse` and `plot_causal_matrix`, also available both ways.
 Plotting needs `plotly`. It comes with `pip install pycauset`; if it is missing, the
 plotters raise an `ImportError` telling you to install it.
 
+Here is what the embedding plot of a 2D Minkowski diamond looks like:
+
+![Minkowski diamond embedding](../docs/assets/gallery/diamond_embedding.png)
+
+*800 points in a 2D diamond. Time runs up the vertical axis; colour is the time
+coordinate, and the white outline is the diamond boundary.*
+
 ## Reproducibility
 
 The causal set itself is reproducible when you pass a `seed`. The large-set
@@ -81,9 +88,19 @@ layer just reads them:
 - `MinkowskiCylinder` (2D): mapped to a 3D cylinder, top and bottom rings in white.
 - `MinkowskiBox` (2D): Cartesian $(t, x)$ with a rectangular boundary.
 
+![Minkowski cylinder embedding](../docs/assets/gallery/cylinder_embedding.png)
+
+*The same causal set machinery on a cylinder: the plotter reads the spacetime's
+authored shape and draws the 3D cylinder with its end rings.*
+
 A geometry-free custom spacetime renders its raw coordinates with generic
 `c0, c1, …` axis labels. Embeddings with more than 3 dimensions show the first three
 axes and warn explicitly; nothing is silently truncated.
+
+![4D diamond, first three axes](../docs/assets/gallery/diamond_4d_embedding.png)
+
+*A 4D diamond has no flat 2D picture; the plotter renders the first three axes and
+warns, rather than silently dropping the fourth.*
 
 ## Hasse diagrams
 
@@ -92,9 +109,14 @@ of the partial order rather than every relation. It places elements at their
 spacetime coordinates.
 
 ```python
-c = pc.causet(n=200, seed=7)
+c = pc.causet(n=80, seed=7)
 c.plot_hasse().show()
 ```
+
+![Hasse diagram](../docs/assets/gallery/diamond_hasse.png)
+
+*Only the links are drawn, so the skeleton of the partial order is visible. Lines run
+between immediate causal neighbours, placed at their spacetime coordinates.*
 
 The default cap is 500 points; above that it subsets with a warning.
 
@@ -106,6 +128,11 @@ strictly upper triangular for a sorted causal set, you see a triangular pattern.
 ```python
 c.plot_causal_matrix(color_scale="Greys").show()
 ```
+
+![Causal matrix heatmap](../docs/assets/gallery/causal_matrix.png)
+
+*The strictly upper-triangular pattern is the signature of a time-labelled causal set:
+elements below the diagonal are never in the past of anything above it.*
 
 The default cap is 2,000 points; above that it subsets with a warning.
 

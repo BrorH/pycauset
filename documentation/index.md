@@ -64,29 +64,12 @@ arrays. See the [philosophy](project/Philosophy/) page.
 
     ---
 
-    Deep dive into the C++ core for contributors.
+    Deep dive into the C++ core and the design philosophy.
 
+    - [[project/Philosophy|Philosophy]]
     - [[internals/Compute Architecture|Compute Architecture]]
     - [[internals/Memory and Data|Memory & Data]]
     - [[internals/Algorithms|Algorithms]]
-
--   :material-rocket-launch: **Project**
-
-    ---
-
-    Design philosophy and the roadmap.
-
-    - [[project/Philosophy|Philosophy]]
-    - [[project/Contributing|Contributing]]
-    - [[internals/plans/TODO|Roadmap]]
-
--   :material-wrench: **Dev Handbook**
-
-    ---
-
-    High-signal onboarding for contributors.
-
-    - [[dev/Restructure Plan|Restructure Plan]]
 
 </div>
 
