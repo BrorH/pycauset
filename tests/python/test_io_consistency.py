@@ -28,6 +28,7 @@ def test_io_roundtrip_consistency(dtype):
     # Write to PyCauset (disk-backed)
     # Use pycauset.matrix() factory
     mat = pycauset.matrix(data, storage="disk")
+    assert mat.get_backing_file() != ":memory:", "storage='disk' must spill to a file"
     
     # Read back
     result = pycauset.to_numpy(mat, allow_huge=True)
@@ -49,6 +50,7 @@ def test_large_file_consistency():
     data = np.full((n, n), val, dtype=dtype)
     
     mat = pycauset.matrix(data, storage="disk")
+    assert mat.get_backing_file() != ":memory:", "storage='disk' must spill to a file"
     
     # Check a few elements without full readback first (if API supports it)
     # Assuming we have to_numpy() for full read
@@ -69,6 +71,8 @@ def test_direct_path_consistency():
     
     a = pycauset.matrix(a_np, storage="ram")
     b = pycauset.matrix(b_np, storage="ram")
+    assert a.get_backing_file() == ":memory:", "storage='ram' must stay in memory"
+    assert b.get_backing_file() == ":memory:", "storage='ram' must stay in memory"
     
     # Perform matmul
     c = pycauset.matmul(a, b)
@@ -85,6 +89,7 @@ def test_bit_matrix_consistency():
     data = np.random.randint(0, 2, size=(rows, cols)).astype(bool)
     
     mat = pycauset.matrix(data, storage="disk")
+    assert mat.get_backing_file() != ":memory:", "storage='disk' must spill to a file"
     result = pycauset.to_numpy(mat, allow_huge=True)
     
     np.testing.assert_array_equal(data, result)

@@ -117,6 +117,30 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
 
         max_in_ram_bytes = kwargs.pop("max_in_ram_bytes", None)
 
+        # storage= selects RAM-first (default) vs forced disk backing. It used to
+        # be silently dropped for NumPy input, so callers (and the out-of-core
+        # benchmarks) believed they had a disk-backed matrix while actually
+        # getting an anonymous :memory: one. Now 'disk' zeroes the memory
+        # threshold during construction so the matrix spills to a mmap'd file.
+        storage = kwargs.pop("storage", None)
+        if storage not in (None, "ram", "disk"):
+            raise ValueError(
+                f"Matrix storage must be 'ram' or 'disk', not {storage!r}. "
+                "RAM-first is the default; 'disk' forces spill-to-disk."
+            )
+        force_disk = storage == "disk"
+
+        if force_disk:
+            _np_for_check = _np
+            if _np_for_check is None:
+                import numpy as _np_for_check  # type: ignore
+            if not isinstance(size_or_data, _np_for_check.ndarray):
+                raise TypeError(
+                    "storage='disk' requires NumPy-array input. Use "
+                    "set_memory_threshold(0) before allocation for typed "
+                    "construction, or save()/load() for explicit persistence."
+                )
+
         if isinstance(size_or_data, (int, float)) and (
             isinstance(size_or_data, int) or size_or_data.is_integer()
         ):
@@ -245,6 +269,10 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
                     getattr(np, "complex64", object()),
                     getattr(np, "complex128", object()),
                 ) and hasattr(native, "asarray"):
+                    if force_disk:
+                        # storage='disk': spill to a mmap'd file regardless of size.
+                        with temporary_native_memory_threshold(native, 0):
+                            return native.asarray(data)
                     if max_in_ram_bytes is not None:
                         est = export_guard.estimate_materialized_bytes(data)
                         if est is not None and est > max_in_ram_bytes:

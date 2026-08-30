@@ -1220,6 +1220,15 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
     - 2D input -> matrix
 
     NumPy alignment: this is a data constructor. Use `zeros/ones/empty` for allocation.
+
+    ``storage`` controls backing for 2D NumPy-array input:
+
+    - ``storage="ram"`` (default): RAM-first, spills to disk only when the memory
+      threshold is exceeded.
+    - ``storage="disk"``: force a disk-backed (mmap) matrix regardless of size.
+
+    For explicit persistence use `save()`/`load()`; for automatic spill control use
+    `set_memory_threshold()`.
     """
     if _is_scalar_0d(source):
         raise TypeError(

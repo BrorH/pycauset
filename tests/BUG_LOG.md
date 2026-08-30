@@ -5,6 +5,42 @@ This file documents discovered bugs per the `Testing and Bug Tracking Protocol`
 
 ---
 
+## [Date: 2026-08-30] matrix(storage="disk") silently ignored, benchmarks tested RAM instead of disk
+
+**Status**: Fixed
+**Severity**: Medium
+**Component**: Python matrix factory (`python/pycauset/_internal/matrix_api.py`)
+
+**Description**:
+`pycauset.matrix(data, storage="disk")` silently dropped the `storage` kwarg for
+NumPy-array input, always returning an anonymous `:memory:` matrix. The disk I/O
+tests (`test_io_consistency.py`) and the out-of-core benchmarks
+(`benchmark_outofcore_matmul.py`, `benchmark_numpy_parity.py`) therefore
+benchmarked RAM while claiming to exercise disk-backed storage, a silent wrong
+answer for the out-of-core (R2_STREAM) claims.
+
+**Reproduction**:
+```python
+import numpy as np, pycauset as pc
+mat = pc.matrix(np.random.rand(100, 100), storage="disk")
+mat.get_backing_file()  # was ":memory:" (RAM), expected a .tmp file
+```
+
+**Root Cause**:
+`Matrix.__new__` only handled `max_in_ram_bytes`; any other kwarg, including
+`storage`, was dropped before the `native.asarray` fast path, so the memory
+threshold was never lowered and the matrix never spilled.
+
+**Fix**:
+`Matrix.__new__` now pops and validates `storage` (`"ram"` or `"disk"`), and for
+`"disk"` wraps the `native.asarray` fast path in a zeroed memory threshold so the
+matrix spills to a mmap'd file. `storage="disk"` with non-NumPy input raises a
+clear `TypeError`, and any other value raises `ValueError`. Regression tests in
+`tests/python/test_storage_kwarg.py`; `test_io_consistency.py` now asserts the
+backing file is not `:memory:` for the disk cases.
+
+---
+
 ## [Date: 2026-08-30] macOS CI hang in matmul (OpenBLAS GEMM thread oversubscription)
 
 **Status**: Fixed
