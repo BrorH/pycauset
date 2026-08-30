@@ -1,4 +1,4 @@
----
+﻿---
 title: PyCauset
 ---
 
@@ -61,7 +61,6 @@ PyCauset solves this with a **Disk-Backed Architecture**: Large matrices can aut
     Deep dive into the C++ core for contributors.
 
     - [[internals/Compute Architecture|Compute Architecture]]
-    - [[internals/MemoryArchitecture|Memory Architecture]]
     - [[internals/Memory and Data|Memory & Data]]
     - [[internals/Algorithms|Algorithms]]
 

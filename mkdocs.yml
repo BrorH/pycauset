@@ -284,7 +284,6 @@ nav:
     - Compute Architecture: internals/Compute Architecture.md
     - Block Matrices: internals/Block Matrices.md
     - Lazy Evaluation: internals/LazyEvaluation.md
-    - Memory Architecture: internals/MemoryArchitecture.md
     - Memory and Data: internals/Memory and Data.md
     - Streaming Manager: internals/Streaming Manager.md
     - Algorithms: internals/Algorithms.md

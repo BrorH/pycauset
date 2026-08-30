@@ -1,178 +1,177 @@
 # Memory & Data Architecture
 
-This document details the internal architecture of the Pycauset memory system, matrix/vector hierarchy, and type system.
+How PyCauset stores matrices and vectors, and how it decides whether a given
+object lives in RAM or on disk.
 
-## 1. Memory System: Tiered Storage
+## Tiered storage
 
-PyCauset is designed to handle causal sets that exceed physical RAM. To achieve this, it adopts a tiered storage architecture where objects can live in RAM or be backed by files on disk.
+PyCauset can handle matrices larger than RAM. It does that by keeping each object
+in one of two places:
 
-*   **Persistence**: Objects survive process termination if saved.
-*   **Virtual Memory**: The OS handles paging, allowing datasets larger than RAM.
-*   **Interprocess Communication**: Memory-mapped files allow multiple processes (e.g., a viewer and a solver) to share data with zero copy overhead.
+- **RAM** — anonymous memory (`VirtualAlloc` on Windows, `mmap` with a shared-memory
+  fd on macOS/Linux). The fast path.
+- **Disk** — a memory-mapped file, either a temporary session file (`.tmp`) or a
+  persisted `.pycauset` snapshot.
 
-### The `PersistentObject` Base Class
+Objects start in RAM and spill to disk when the `MemoryGovernor` decides there is
+no room, or when you ask for disk directly (`storage="disk"` on `matrix()`).
 
-All matrix and vector classes inherit from `PersistentObject`.
+## PersistentObject
 
-*   **`MemoryMapper`**: A member object that handles the low-level `mmap` (Windows/Linux) calls.
-*   **Lifecycle**:
-    *   **Creation**: Creates a temporary file in the system temp directory (or a specified path).
-    *   **Access**: Maps the file into the process's address space.
-    *   **Destruction**: Unmaps the view. If the object was temporary, the file is deleted.
+Every matrix and vector inherits from `PersistentObject`. It owns a `MemoryMapper`
+(which does the low-level map/unmap calls) and remembers whether the object is
+RAM-backed or disk-backed.
 
-### Snapshot immutability (mutation policy)
+- On creation it decides RAM vs disk, creates the backing store, and maps it.
+- On destruction it unmaps, and if the backing was a temporary file, deletes it.
 
-PyCauset distinguishes between:
+### Snapshot immutability
 
-- persisted `.pycauset` snapshots on disk, and
-- runtime working copies that may be mutated.
+A persisted `.pycauset` file behaves like an immutable snapshot once loaded:
 
-Policy (Release 1):
+- Loading it gives you a snapshot-backed view.
+- Mutating it does not overwrite the snapshot file. The object switches to a
+  copy-on-write working copy instead.
 
-- Loading a `.pycauset` file yields a snapshot-backed view.
-- Payload writes do not implicitly overwrite the snapshot file.
-- Mutations transition to a copy-on-write working copy so snapshot payload bytes are not overwritten by incidental edits.
+See [[guides/Storage and Memory]] for the user-facing policy.
 
-Developer reference:
+## The Memory Governor
 
-- [[guides/Storage and Memory]]
+`MemoryGovernor` is the singleton that decides what fits and what spills.
 
-### File Format (`.pycauset`)
+- **Budget.** It polls the OS for actually-available RAM (using `free + inactive`
+  pages on macOS, `MemAvailable` on Linux) and keeps a safety margin (10% of RAM
+  or 2 GB, whichever is smaller).
+- **Tracking.** It keeps every `PersistentObject` in an LRU list. Touching an
+  object moves it to the front.
+- **Eviction.** `request_ram(size)` returns true when `available > size + margin`.
+  Otherwise it spills the least-recently-used objects to disk until there is room.
 
-`.pycauset` is a **single-file binary container** designed for mmap-friendly payload access and sparse, typed metadata.
+```cpp
+// In PersistentObject::initialize_storage
+if (MemoryGovernor::instance().request_ram(size_bytes)) {
+    use_ram_buffer();
+    MemoryGovernor::instance().register_object(this, size_bytes);
+} else {
+    use_disk_file();
+}
+```
 
-Authoritative plans:
+### Direct path (the "anti-nanny" rule)
 
-- `documentation/internals/plans/archive/R1_STORAGE_PLAN.md` (container format)
-- `documentation/internals/plans/archive/R1_PROPERTIES_PLAN.md` (metadata semantics)
+For operations that fit in RAM, streaming them through the tiled/out-of-core path
+is slower than just letting the OS page them. `should_use_direct_path(bytes)`
+encodes that:
 
-### Container summary
+1. Fits in the pinned-memory budget -> pin and use the BLAS direct path.
+2. Fits in available RAM but not the pin budget -> use the direct path without
+   pinning (trust the OS pager).
+3. Exceeds available RAM -> use the streaming/out-of-core solver.
 
-At a high level, each `.pycauset` file contains:
+The CPU solver's `attempt_direct_path<T>` tries these in order before falling back
+to tiled streaming.
 
-- A fixed-size header region that selects the active header slot (A/B).
-- A raw payload region at a stable, aligned offset (so it can be memory-mapped efficiently).
-- A typed metadata block (sparse map) that can be appended/updated without shifting the payload.
+## IO Accelerator
 
-This design keeps the “heavy” numeric data mmap-friendly while allowing metadata evolution without scans or full rewrites.
-*   **Alignment**: The data is laid out exactly as it would be in memory (e.g., row-major order for dense matrices, bit-packed words for bit matrices).
+`IOAccelerator` makes the disk-backed path fast by telling the OS what is coming.
+
+- **Write:** `SetFileValidData` (Windows) / `fallocate` (Linux) reserves file space
+  without zero-filling it, which removes the "import gap".
+- **Read:** `PrefetchVirtualMemory` (Windows) / `madvise(MADV_WILLNEED)` or
+  `MAP_POPULATE` (Linux) pulls pages into the page cache before the CPU faults on
+  them.
+- **Discard:** `OfferVirtualMemory` (Windows) / `MADV_DONTNEED` (Linux) lets the
+  OS drop pages that will not be reused.
+
+The workflow is: create (reserve space) -> prefetch -> compute -> discard.
+
+## Export guard
+
+A disk-backed object converted naively to a NumPy array would blow up RAM. The
+export guard stops that: file-backed objects are blocked from `np.array()` /
+`to_numpy()` unless you pass `allow_huge=True`. See [[pycauset.to_numpy]].
+
+## File formats
+
+There are two on-disk formats.
+
+### `.pycauset` (snapshot container)
+
+Portable, persistent storage for matrices and causal sets. Managed by
+`python/pycauset/_internal/persistence.py`.
+
+- A fixed header (magic `PYCAUSET`, version, and A/B slot pointers).
+- Double-buffered slots for crash-consistent metadata updates.
+- A typed, sparse metadata block (shape, dtype, properties, cached values).
+- A raw payload region at a stable, aligned offset so it can be mmap'd.
+
+The payload is laid out exactly as it would be in memory (row-major dense, packed
+words for bit matrices). Metadata updates never shift the payload.
+
+### `.tmp` (session backing file)
+
+Temporary storage for spilled objects and large intermediates. Managed by
+`src/core/MemoryMapper.cpp`.
+
+- A 64-byte header (magic + version + reserved).
+- The raw payload.
+
+The header stops a raw file from being mistaken for a `.pycauset` container (and
+the other way around).
 
 ### Typed metadata is the only schema
 
-All metadata is stored as a typed top-level map (no parallel “legacy”/flattened metadata schema).
+All metadata is a typed top-level map. The important namespaces:
 
-Important namespaces:
+- `view` — view state (scalar, transpose, conjugation).
+- `properties` — user-facing "gospel" assertions (semantic hints, not validated).
+- `cached` — cached-derived values (scalars and big-blob references).
 
-- `view`: view-state that affects interpretation/derived values (e.g., scalar/transpose/conjugation).
-- `properties`: user-facing gospel assertions (semantic hints; not truth-validated).
-- `cached`: cached-derived values (both small scalars and big-blob references).
+### Big-blob caches
 
-### Big-blob caches (generalized mechanism)
+A big-blob cache is a cached-derived value that is itself large (another matrix or
+vector), so it is persisted as its own `.pycauset` object next to the base.
 
-A **big-blob cache** is a cached-derived value that is itself large (often another matrix/vector) and therefore must be persisted as an independent `.pycauset` object.
+- The base stores `cached.<name>.value` as a reference: `ref_kind` and `object_id`.
+- The object lives in `BASE.pycauset.objects/<object_id>.pycauset`.
+- Validity is checked with a `signature` derived from the base payload, so a stale
+  or missing reference is just a cache miss (a `PyCausetStorageWarning`, then
+  continue; it is not recomputed implicitly).
 
-Persistence model:
+## Matrix & vector hierarchy
 
-- The base snapshot stores a typed entry at `cached.<name>`.
-- For big blobs, `cached.<name>.value` is a reference:
-    - `ref_kind`: currently `sibling_object_store`
-    - `object_id`: UUID hex
-- The referenced object lives in a sibling object store directory:
-	`BASE.pycauset.objects/<object_id>.pycauset`
-
-Validity model:
-
-- `cached.<name>.signature` must allow $O(1)$ validation against the base object (no scans).
-- Signatures use `payload_uuid` (a per-snapshot identifier that changes whenever payload bytes are persisted).
-- If the reference is missing/unreadable/stale, it is treated as a cache miss (ignored).
-- A `PyCausetStorageWarning` is emitted and the cache is **not** implicitly recomputed.
-- Missing/unreadable big-blob references should emit `PyCausetStorageWarning` and continue load.
-
-Implementation reference (Python):
-
-- `python/pycauset/_internal/persistence.py`
-    - Object store layout helpers: `object_store_path_for_id`, `new_object_id`
-    - Typed ref read/write: `try_get_cached_big_blob_ref`, `write_cached_big_blob_ref`
-- `python/pycauset/_internal/big_blob_cache.py`
-    - Reusable big-blob cache plumbing for operations: `compute_view_signature`, `try_load_cached_matrix`, `persist_cached_object`
-
-#### Loading Process
-1.  Python opens the `.pycauset` container and reads the fixed header.
-2.  Python selects the active header slot (A/B), validates it, and reads the typed metadata block.
-3.  Python instantiates the appropriate C++ class (e.g., `_TriangularBitMatrix`), passing the filename and the payload offset.
-4.  C++ calls `mmap` on the file, applying the payload offset to map only the raw payload region.
-
-## 2. Matrix & Vector Class Hierarchy
-
-The system is built on a hierarchy designed to separate **storage management** from **mathematical operations**.
+The class hierarchy separates storage management from math:
 
 ```mermaid
 classDiagram
     class PersistentObject {
         +shared_ptr~MemoryMapper~ mapper_
-        +complex scalar_
         +bool is_transposed_
         +uint64_t rows_
         +uint64_t cols_
         +initialize_storage()
         +copy_storage()
         +ensure_unique()
-        +clone()
     }
-    
     class MatrixBase {
         <<abstract>>
-        +uint64_t rows()
-        +uint64_t cols()
-        +uint64_t base_rows()
-        +uint64_t base_cols()
-        +uint64_t size()
-        +get_element_as_double(i, j)*
-        +multiply_scalar()
-        +add_scalar()
+        +rows() +cols()
+        +base_rows() +base_cols()
+        +get_element_as_double(i, j)
         +transpose()
     }
-
     class VectorBase {
         <<abstract>>
-        +uint64_t size()
-        +get_element_as_double(i)*
+        +size()
+        +get_element_as_double(i)
         +transpose()
     }
-    
-    class DenseMatrix~T~ {
-        +T* data()
-        +read(i, j)
-        +write(i, j, value)
-    }
-    
-    class TriangularMatrix~T~ {
-        +vector~uint64_t~ row_offsets_
-        +read(i, j) T
-        +write(i, j, value)
-    }
-
-    class DiagonalMatrix~T~ {
-        +read(i, j) T
-        +write(i, j, value)
-        +get_diagonal(i)
-    }
-
-    class IdentityMatrix~T~ {
-        +get_element_as_double(i, j)
-        +add(IdentityMatrix)
-    }
-
-    class DenseVector~T~ {
-        +T* data()
-        +read(i)
-        +write(i, value)
-    }
-
-    class UnitVector {
-        +uint64_t active_index_
-        +read(i)
-    }
+    class DenseMatrix~T~ { +data() +read(i,j) +write(i,j,v) }
+    class TriangularMatrix~T~ { +row_offsets_ +read(i,j) +write(i,j,v) }
+    class DiagonalMatrix~T~ { +read(i,j) +write(i,j,v) }
+    class IdentityMatrix~T~ { +get_element_as_double(i,j) }
+    class DenseVector~T~ { +data() +read(i) +write(i,v) }
+    class UnitVector { +active_index_ +read(i) }
 
     PersistentObject <|-- MatrixBase
     PersistentObject <|-- VectorBase
@@ -184,97 +183,33 @@ classDiagram
     VectorBase <|-- UnitVector
 ```
 
-### Core Concepts
+### Lazy metadata
 
-#### Lazy Evaluation & Metadata
-To maintain performance with large matrices, we avoid iterating over data whenever possible.
+Small operations avoid touching the payload:
 
-*   **Scalars**: Multiplying a matrix by a scalar $k$ does **not** multiply every element in memory. Instead, it updates `PersistentObject::scalar_`.
-*   **Transposition**: Transposing a matrix usually just toggles the `PersistentObject::is_transposed_` flag. This is a metadata view: the backing storage stays in row-major order.
+- Scaling a matrix updates `scalar_`; it does not multiply every element.
+- Transposing toggles `is_transposed_`; the backing bytes stay row-major.
 
-Important: `MatrixBase.rows()` / `MatrixBase.cols()` are *logical* dimensions and account for transpose metadata. `MatrixBase.base_rows()` / `MatrixBase.base_cols()` are the backing storage dimensions.
+`rows()` / `cols()` are logical (they account for the transpose). `base_rows()` /
+`base_cols()` are the backing dimensions.
 
-#### Storage vs. View
-The data on disk is the "canonical" storage. The C++ object is a "view" onto that data.
-*   **Raw Data**: `mapper_->get_data()` returns the raw bytes.
-*   **View**: The class (e.g., `DenseMatrix`) interprets those bytes (as `int`, `double`, etc.) and applies metadata (scalar, transpose).
+### Storage vs view
 
-For dense matrices, `MatrixBase.size()` is NumPy-aligned: it returns the total number of logical elements (`rows * cols`).
+The disk bytes are the storage; the C++ object is a view that interprets them and
+applies metadata (scalar, transpose). `mapper_->get_data()` is the raw pointer.
 
-#### Indexing and slicing (backend invariants)
+## Type system and dispatch
 
-Release 1 implements NumPy-style 2D indexing for dense matrices only:
+PyCauset does not silently widen your types ("anti-promotion"): float32 in, float32
+out. It only promotes when you mix types (float32 with float64 -> float64).
 
-* **Basic indexing (view):** integer/`slice`/`...` with unit steps produces a view that shares the underlying mapper. Logical shape comes from the parsed slice; backing shape/offsets remain on the base. Transpose/conjugate metadata is preserved.
-* **Advanced indexing (copy):** 1D integer arrays (negative wrap) and 1D boolean masks are supported per axis. Any use of arrays returns a copy; two array axes must broadcast length or length-1.
-* **Assignments:** RHS may be scalar, NumPy 0/1/2-D array, or dense matrix. NumPy 2D broadcast rules must hold; otherwise the setter raises. Casting RHS arrays triggers `PyCausetDTypeWarning`; narrowing or float→int casts also trigger `PyCausetOverflowRiskWarning`.
-* **Unsupported:** `None`/newaxis and slicing of structured/triangular matrices.
-* **Kernel guardrail:** Offsets in views are not yet honored by matmul/qr/lu/inverse kernels; calls with nonzero offsets throw and should be materialized via `copy()` first.
-* **Persistence policy (pending):** Persisted sources must prefer view reuse; oversized slices on in-RAM sources should fail deterministically instead of implicit spill/snapshot (not yet implemented).
-
-Code touchpoints:
-* Slice parsing and dispatch: `src/bindings/bind_matrix.cpp` (`SliceInfo`, `parse_matrix_subscript`, `dense_getitem`, `dense_setitem`).
-* View metadata: `MatrixBase` (`logical_rows/cols`, `row_offset/col_offset`) and `DenseMatrix` view constructor/accessors.
-* Kernel guards: `DenseMatrix::multiply`, `inverse`, `qr`, `lu` reject nonzero view offsets.
-
-See also: [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]], [[guides/Matrix Guide.md|Matrix Guide]], [[project/protocols/NumPy Alignment Protocol.md|NumPy Alignment Protocol]]
-
-## 3. Type System and Dispatch
-
-This document explains how PyCauset handles different data types (`double`, `float`, `bool`) and how operations are dispatched to the correct implementation.
-
-### Philosophy: Anti-Promotion
-
-A core principle of PyCauset's type system is **Anti-Promotion**.
-
-*   **Traditional Approach**: Many libraries (like early NumPy or MATLAB) aggressively promote everything to `double` (Float64) to ensure precision.
-*   **PyCauset Approach**: We respect the user's choice of type. If a user provides `Float32` data, they likely want the performance benefits of `Float32`. We should not silently promote it to `Float64` unless absolutely necessary (e.g., mixing types).
-
-**Rules:**
-1.  `Float32` op `Float32` -> `Float32`
-2.  `Float32` op `Float64` -> `Float64` (Promotion allowed for mixed types)
-
-### The Dispatcher
-
-We avoid virtual function overhead for every single element access. Instead, we use a **Templated Dispatcher** pattern at the operation level (e.g., Matrix Multiplication, Addition).
-
-#### CPU Dispatch
-On the CPU, we use C++ templates to generate specialized code for each type.
-
-```cpp
-// Conceptual example
-template <typename T>
-void matmul_impl(const MatrixBase& A, const MatrixBase& B, MatrixBase& C) {
-    // ... optimized code for type T ...
-}
-
-void dispatch_matmul(const MatrixBase& A, const MatrixBase& B, MatrixBase& C) {
-    if (A.dtype() == DType::Float32 && B.dtype() == DType::Float32) {
-        matmul_impl<float>(A, B, C);
-    } else if (A.dtype() == DType::Float64) {
-        matmul_impl<double>(A, B, C);
-    }
-    // ...
-}
-```
-
-#### GPU Dispatch
-On the GPU, `CudaDevice::matmul` inspects the `DType` of the operands and routes the call to the appropriate `cuBLAS` function.
-
-*   `DType::Float64` -> `cublasDgemm`
-*   `DType::Float32` -> `cublasSgemm`
-*   `DType::Float16` -> `cublasHgemm` (Tensor Cores)
-
-### Memory Layout
-
-To support this efficient dispatch, the backend works with raw, dtype-tagged memory.
-
-*   **Host memory** lives behind `MemoryMapper` (`mapper_->get_data()`), which provides access to the mapped bytes.
-*   **Matrix/Vector views** interpret those bytes as typed storage and apply metadata (scalar, transpose).
-*   **Device memory** (CUDA) uses dtype-specific buffers to avoid constant casting or reallocation.
+Dispatch is templated, not virtual-per-element. At the operation level the code
+picks the instantiation for the operand dtype (and on the GPU, the matching cuBLAS
+call). See [[internals/DType System]].
 
 ## See also
 
+- [[guides/Storage and Memory]] — the user-facing guide.
+- [[internals/DType System]]
+- [[internals/LazyEvaluation]]
 - [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]
-- [[internals/DType System|internals/DType System]]
-- [[project/protocols/Documentation Protocol.md|Documentation Protocol]]

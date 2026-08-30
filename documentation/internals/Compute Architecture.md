@@ -1,4 +1,4 @@
-# Compute System Architecture
+﻿# Compute System Architecture
 
 This document details the computational backend of PyCauset, including the CPU/GPU abstraction layer, parallelization strategies, and hardware-specific optimizations.
 
@@ -66,14 +66,14 @@ The `ComputeWorker` interface is the heart of the R1 architecture. It exposes ti
 AutoSolver can use property flags (mirrored from Python) to bias routing when structural shortcuts exist. This avoids scanning payloads and keeps routing $O(1)$.
 
 ### 1.3 IO Acceleration Integration
-To minimize page faults during computation, the compute backend integrates with the **IO Accelerator** (see [[internals/MemoryArchitecture.md|MemoryArchitecture]]).
+To minimize page faults during computation, the compute backend integrates with the **IO Accelerator** (see [[internals/Memory and Data|Memory & Data]]).
 
 *   **Prefetching**: Before starting a heavy operation (like `matmul` or `inverse`), the solver calls `matrix->get_accelerator()->prefetch()`. This hints the OS to load the data into RAM asynchronously.
 *   **Discarding**: For temporary intermediate results, the solver may call `discard()` after usage to free up memory immediately.
 
 ### 1.4 Debug trace tags (kernel vs IO)
 
-For deterministic testing and debugging (especially device routing and “did this trigger evaluation?” checks), PyCauset exposes a small trace surface:
+For deterministic testing and debugging (especially device routing and â€œdid this trigger evaluation?â€ checks), PyCauset exposes a small trace surface:
 
 - Kernel trace (thread-local):
     - `pycauset._debug_clear_kernel_trace()`
@@ -83,7 +83,7 @@ For deterministic testing and debugging (especially device routing and “did th
     - `pycauset._debug_clear_io_trace()`
     - `pycauset._debug_last_io_trace()`
 
-The IO trace is intentionally separate so IO hints (prefetch/discard) don’t clobber kernel dispatch traces.
+The IO trace is intentionally separate so IO hints (prefetch/discard) donâ€™t clobber kernel dispatch traces.
 
 ### 1.5 Streaming Manager integration
 The Streaming Manager is the policy layer for out-of-core execution. AutoSolver consults it to decide when to stream, how to tile, and which route to annotate. Streaming plans are recorded in the IO trace so tests can assert the expected routing without timing-dependent checks.
@@ -187,7 +187,7 @@ The CPU backend provides a comprehensive suite of linear algebra operations beyo
     *   **Implementation**: Direct diagonal sum with optimizations for Identity/Diagonal matrices
     *   **Block-matrix**: Supported - can sum block diagonals
     *   **Non-square**: Works on rectangular matrices (trace of min(m,n) diagonal)
-*   **`frobenius_norm(A)`**: Computes √(Σ|aᵢⱼ|²)
+*   **`frobenius_norm(A)`**: Computes âˆš(Î£|aáµ¢â±¼|Â²)
     *   **Streaming**: **Supported** - sum of squares across tiles
     *   **Implementation**: Parallelized sum using ParallelFor
     *   **Block-matrix**: Supported - can sum block norms
@@ -196,10 +196,10 @@ The CPU backend provides a comprehensive suite of linear algebra operations beyo
 #### LAPACK Factorizations (In-Memory)
 All factorizations use LAPACK and require the full matrix in contiguous memory:
 
-*   **`qr(A)`**: QR decomposition (A = Q×R)
+*   **`qr(A)`**: QR decomposition (A = QÃ—R)
     *   **Backend**: LAPACK `geqrf` + `orgqr`/`ungqr`
     *   **Returns**: Q (orthogonal), R (upper triangular)
-    *   **Reduced QR**: Q is m×k, R is k×n where k=min(m,n)
+    *   **Reduced QR**: Q is mÃ—k, R is kÃ—n where k=min(m,n)
     *   **Streaming**: Not supported (LAPACK constraint)
     *   **Use case**: Least squares, orthogonalization
 *   **`lu(A)`**: LU decomposition with partial pivoting (PA = LU)
@@ -207,9 +207,9 @@ All factorizations use LAPACK and require the full matrix in contiguous memory:
     *   **Returns**: P (permutation), L (lower triangular), U (upper triangular)
     *   **Streaming**: Not supported (LAPACK constraint)
     *   **Requirements**: Square matrix
-*   **`svd(A)`**: Singular Value Decomposition (A = U×Σ×Vᵀ)
+*   **`svd(A)`**: Singular Value Decomposition (A = UÃ—Î£Ã—Váµ€)
     *   **Backend**: LAPACK `gesdd` (default), fallback to `gesvd`
-    *   **Returns**: U, S (singular values), Vᵀ
+    *   **Returns**: U, S (singular values), Váµ€
     *   **Streaming**: Not supported (LAPACK constraint)
     *   **Full vs Reduced**: Supports both full and reduced SVD
 *   **`solve(A, b)`**: Solves linear system Ax = b
@@ -281,7 +281,7 @@ The decision is based on the GPU's Compute Capability (CC):
 
 ### Python Binding Integration
 
-PyCauset’s Python bindings include an internal “NumPy → PyCauset” import helper (referred to in code as `native.asarray`) that converts NumPy arrays into PyCauset vectors/matrices based on shape and dtype.
+PyCausetâ€™s Python bindings include an internal â€œNumPy â†’ PyCausetâ€ import helper (referred to in code as `native.asarray`) that converts NumPy arrays into PyCauset vectors/matrices based on shape and dtype.
 
 Note: this is **not** a public `pycauset.asarray` API; the user-facing constructors are `pycauset.vector(...)` and `pycauset.matrix(...)`.
 *   **Shape**: Supports 1D (vector) and 2D (matrix) arrays.
@@ -355,15 +355,15 @@ This architecture allows for **True Overlap**:
 This section outlines the plan to address the remaining gaps in the PyCauset acceleration layer.
 
 ### Phase 1: Dense Eigenvalues on GPU (Complete)
-*   **Status**: ✅ Complete (General non-symmetric via `geev`)
-*   **Implementation**: `eig` / `eigvals` use `cusolverDnXgeev` (the 64-bit generic API) for Float32/Float64, returning complex eigenvalues and, for `eig`, complex right eigenvectors. Row-major input is transposed on device so the column-major solver sees `A` (not `Aᵀ`) and returns the correct right eigenvectors. Symmetric `eigvalsh`/`eigh` remain CPU-backed until the symmetric GPU kernels are wired.
+*   **Status**: âœ… Complete (General non-symmetric via `geev`)
+*   **Implementation**: `eig` / `eigvals` use `cusolverDnXgeev` (the 64-bit generic API) for Float32/Float64, returning complex eigenvalues and, for `eig`, complex right eigenvectors. Row-major input is transposed on device so the column-major solver sees `A` (not `Aáµ€`) and returns the correct right eigenvectors. Symmetric `eigvalsh`/`eigh` remain CPU-backed until the symmetric GPU kernels are wired.
 
 ### Phase 2: Element-wise Operations on GPU (Partial)
-*   **Status**: 🟡 Partial
+*   **Status**: ðŸŸ¡ Partial
 *   **Implementation**: CUDA supports `add`, `subtract`, and `multiply_scalar` for dense float32/float64 with matching dtypes. Elementwise multiply/divide are currently CPU-only.
 
 ### Phase 3: BitMatrix Optimization (Complete)
-*   **Status**: ✅ Complete
+*   **Status**: âœ… Complete
 *   **Implementation**: "Bit-Packed GEMM" kernel implemented using `__popc` and shared memory tiling.
 
 ### Phase 4: Precision Control

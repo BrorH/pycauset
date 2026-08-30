@@ -1,4 +1,4 @@
-# pinning_budget
+﻿# pinning_budget
 
 Pinned-memory budget (bytes) used by the `MemoryGovernor` for GPU transfers.
 
@@ -13,6 +13,6 @@ You can override this with `pycauset.cuda.set_pinning_budget(bytes)`.
 ## See also
 
 - [[docs/functions/pycauset.cuda.set_pinning_budget.md|pycauset.cuda.set_pinning_budget]]
-- [[internals/MemoryArchitecture.md|MemoryArchitecture]]
+- [[internals/Memory and Data.md|Memory and Data]]
 - [[internals/Compute Architecture.md|Compute Architecture]]
 - [[guides/Performance Guide.md|Performance Guide]]
