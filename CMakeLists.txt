@@ -1,14 +1,13 @@
 cmake_minimum_required(VERSION 3.24)
 
-# Set policies to silence warnings about timestamps and other modern features
+# CMake warning audit (R2_HARDEN): keep only the policy settings that are still
+# exercised. CMP0135 (timestamps in add_custom_command) and CMP0169 (the still-used
+# FetchContent_Populate) remain. CMP0146 (FindCUDA) and CMP0167 (FindBoost) were
+# removed: this project uses CUDAToolkit, not FindCUDA, and never uses Boost, so
+# those two "allow legacy module" shims were dead and only hid that nothing sets
+# them anymore.
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
-endif()
-if(POLICY CMP0146)
-  cmake_policy(SET CMP0146 OLD) # Allow FindCUDA for now if needed, though we use CUDAToolkit
-endif()
-if(POLICY CMP0167)
-  cmake_policy(SET CMP0167 OLD) # Allow FindBoost for now
 endif()
 if(POLICY CMP0169)
   cmake_policy(SET CMP0169 OLD) # Allow FetchContent_Populate
