@@ -162,9 +162,6 @@ static. A later "live preview" (actually sprinkle and render the causet in the b
 pycauset engine behind a tiny local server, the Plotly model again, and is an R2.x stretch, not
 R2.0.
 
-**Interactive mockup:** `mockups/spacetime_studio_mockup.html` (self-contained; open in any
-browser) sketches the layout, the library picker, live recipe/code generation, and a 2D preview.
-
 ---
 
 ## 5. Persistence (save/load spacetimes)
