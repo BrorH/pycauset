@@ -119,6 +119,82 @@ void run_xgeev(pycauset::CudaDevice& dev, int64_t n, cudaDataType dtA, cudaDataT
     cusolverDnDestroyParams(params);
 }
 
+// Generic (64-bit) gesvd wrapper for square n x n real matrices. T is float/double.
+// Returns the reduced SVD (jobu='S', jobvt='S'); for square input U and VT are n x n
+// and S has n singular values, all in column-major device layout on return to host.
+template <typename T>
+void run_xgesvd(pycauset::CudaDevice& dev, int64_t n, cudaDataType dt,
+                const T* host_A, T* host_S, T* host_U, T* host_VT) {
+    cusolverDnParams_t params = nullptr;
+    dev.check_cusolver_error(cusolverDnCreateParams(&params), "cusolverDnCreateParams");
+
+    const size_t bytes = static_cast<size_t>(n) * n * sizeof(T);
+    T* d_A = nullptr;
+    T* d_S = nullptr;
+    T* d_U = nullptr;
+    T* d_VT = nullptr;
+    int* d_Info = nullptr;
+    void* d_work = nullptr;
+    void* h_work = nullptr;
+
+    try {
+        dev.check_cuda_error(cudaMalloc(&d_A, bytes), "cudaMalloc A");
+        dev.check_cuda_error(cudaMalloc(&d_S, n * sizeof(T)), "cudaMalloc S");
+        dev.check_cuda_error(cudaMalloc(&d_U, bytes), "cudaMalloc U");
+        dev.check_cuda_error(cudaMalloc(&d_VT, bytes), "cudaMalloc VT");
+        dev.check_cuda_error(cudaMalloc(&d_Info, sizeof(int)), "cudaMalloc Info");
+        dev.check_cuda_error(cudaMemcpy(d_A, host_A, bytes, cudaMemcpyHostToDevice), "cudaMemcpy A");
+
+        // Row-major host data -> column-major layout gesvd expects (in-place transpose).
+        dim3 block(16, 16);
+        dim3 grid(static_cast<unsigned>((n + 15) / 16), static_cast<unsigned>((n + 15) / 16));
+        k_transpose_dense<<<grid, block>>>(d_A, static_cast<int>(n));
+
+        size_t ws_dev = 0, ws_host = 0;
+        dev.check_cusolver_error(
+            cusolverDnXgesvd_bufferSize(dev.get_cusolver_handle(), params, 'S', 'S', n, n,
+                                        dt, d_A, n, dt, d_S, dt, d_U, n, dt, d_VT, n, dt,
+                                        &ws_dev, &ws_host),
+            "Xgesvd_bufferSize");
+
+        dev.check_cuda_error(cudaMalloc(&d_work, ws_dev), "cudaMalloc work");
+        if (ws_host > 0) h_work = std::malloc(ws_host);
+
+        dev.check_cusolver_error(
+            cusolverDnXgesvd(dev.get_cusolver_handle(), params, 'S', 'S', n, n,
+                             dt, d_A, n, dt, d_S, dt, d_U, n, dt, d_VT, n, dt,
+                             d_work, ws_dev, h_work, ws_host, d_Info),
+            "Xgesvd");
+
+        int info = 0;
+        dev.check_cuda_error(cudaMemcpy(&info, d_Info, sizeof(int), cudaMemcpyDeviceToHost), "copy Info");
+        if (info != 0) throw std::runtime_error("cusolverDnXgesvd failed (info=" + std::to_string(info) + ")");
+
+        dev.check_cuda_error(cudaMemcpy(host_S, d_S, n * sizeof(T), cudaMemcpyDeviceToHost), "copy S");
+        dev.check_cuda_error(cudaMemcpy(host_U, d_U, bytes, cudaMemcpyDeviceToHost), "copy U");
+        dev.check_cuda_error(cudaMemcpy(host_VT, d_VT, bytes, cudaMemcpyDeviceToHost), "copy VT");
+    } catch (...) {
+        if (d_A) cudaFree(d_A);
+        if (d_S) cudaFree(d_S);
+        if (d_U) cudaFree(d_U);
+        if (d_VT) cudaFree(d_VT);
+        if (d_Info) cudaFree(d_Info);
+        if (d_work) cudaFree(d_work);
+        if (h_work) std::free(h_work);
+        cusolverDnDestroyParams(params);
+        throw;
+    }
+
+    cudaFree(d_A);
+    cudaFree(d_S);
+    cudaFree(d_U);
+    cudaFree(d_VT);
+    cudaFree(d_Info);
+    cudaFree(d_work);
+    if (h_work) std::free(h_work);
+    cusolverDnDestroyParams(params);
+}
+
 } // namespace
 
 namespace pycauset {
@@ -492,8 +568,79 @@ void CudaDevice::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBa
 }
 
 void CudaDevice::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) {
-    (void)in; (void)U; (void)S; (void)VT;
-    throw std::runtime_error("CudaDevice::svd not implemented (use CPU)");
+    // GPU SVD for square dense float/double matrices. Rectangular input throws so
+    // AutoSolver falls back to the CPU path (which handles the general M x N case).
+    const uint64_t m = in.rows();
+    const uint64_t n = in.cols();
+    if (m != n) {
+        throw std::runtime_error("CudaDevice::svd only supports square matrices (CPU handles rectangular)");
+    }
+    const uint64_t N = m;
+
+    // Double precision.
+    if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+        auto* u_out = dynamic_cast<DenseMatrix<double>*>(&U);
+        auto* vt_out = dynamic_cast<DenseMatrix<double>*>(&VT);
+        auto* s_out = dynamic_cast<DenseVector<double>*>(&S);
+        if (!u_out || !vt_out || !s_out) throw std::runtime_error("SVD output type mismatch (double)");
+
+        std::vector<double> h_a(N * N);
+        for (uint64_t i = 0; i < N; ++i)
+            for (uint64_t j = 0; j < N; ++j)
+                h_a[i * N + j] = in_d->get(i, j);
+
+        std::vector<double> h_s(N);
+        std::vector<double> h_u(N * N);
+        std::vector<double> h_vt(N * N);
+        run_xgesvd<double>(*this, static_cast<int64_t>(N), CUDA_R_64F, h_a.data(), h_s.data(), h_u.data(), h_vt.data());
+
+        double* s_ptr = s_out->data();
+        std::copy(h_s.begin(), h_s.end(), s_ptr);
+
+        // U and VT come back column-major: entry (r,c) = h_u[c*N + r].
+        double* u_ptr = u_out->data();
+        double* vt_ptr = vt_out->data();
+        for (uint64_t r = 0; r < N; ++r) {
+            for (uint64_t c = 0; c < N; ++c) {
+                u_ptr[r * N + c] = h_u[c * N + r];
+                vt_ptr[r * N + c] = h_vt[c * N + r];
+            }
+        }
+        return;
+    }
+
+    // Single precision.
+    if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+        auto* u_out = dynamic_cast<DenseMatrix<float>*>(&U);
+        auto* vt_out = dynamic_cast<DenseMatrix<float>*>(&VT);
+        auto* s_out = dynamic_cast<DenseVector<float>*>(&S);
+        if (!u_out || !vt_out || !s_out) throw std::runtime_error("SVD output type mismatch (float)");
+
+        std::vector<float> h_a(N * N);
+        for (uint64_t i = 0; i < N; ++i)
+            for (uint64_t j = 0; j < N; ++j)
+                h_a[i * N + j] = in_f->get(i, j);
+
+        std::vector<float> h_s(N);
+        std::vector<float> h_u(N * N);
+        std::vector<float> h_vt(N * N);
+        run_xgesvd<float>(*this, static_cast<int64_t>(N), CUDA_R_32F, h_a.data(), h_s.data(), h_u.data(), h_vt.data());
+
+        float* s_ptr = s_out->data();
+        std::copy(h_s.begin(), h_s.end(), s_ptr);
+
+        float* u_ptr = u_out->data();
+        float* vt_ptr = vt_out->data();
+        for (uint64_t r = 0; r < N; ++r) {
+            for (uint64_t c = 0; c < N; ++c) {
+                u_ptr[r * N + c] = h_u[c * N + r];
+                vt_ptr[r * N + c] = h_vt[c * N + r];
+            }
+        }
+        return;
+    }
+
+    throw std::runtime_error("CudaDevice::svd only implemented for float/double");
 }
 
 void CudaDevice::solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) {

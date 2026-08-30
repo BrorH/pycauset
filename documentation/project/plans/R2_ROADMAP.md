@@ -538,10 +538,10 @@ verified against NumPy and benchmarked ≥ 0.90×; no legacy scalar loops remain
 
 Status: - [ ] (in progress: the CUDA build is unblocked (VS 2022 + CUDA 12.6, Pascal GTX 1060) and
 `cuda.is_available()` is `True`; GPU `matmul`/`add`/`subtract`/`multiply_scalar`/`invert`/
-`batch_gemv`/`cholesky`/`eig`/`eigvals`/`lu`/`qr` are wired with win-detection and CPU fallback.
-Remaining: the GPU `svd` factorization (currently CPU-only in `AutoSolver`), a shared
-`CudaLinalg` dispatch layer, and CUDA wheel packaging. Intra-op hybrid CPU/GPU split execution
-is a stretch beyond R2 and is explicitly out of scope.)
+`batch_gemv`/`cholesky`/`eig`/`eigvals`/`lu`/`qr`/`svd` are wired with win-detection and CPU
+fallback, so the cuSOLVER factorization gap (qr/svd/lu) is closed for square dense matrices.
+Remaining: a shared `CudaLinalg` dispatch layer and CUDA wheel packaging. Intra-op hybrid
+CPU/GPU split execution is a stretch beyond R2 and is explicitly out of scope.)
 
 Goal: bring the CUDA backend to parity (or an explicit support status) across the op inventory.
 Absorbs `archive/R1_GPU_PLAN.md` (SRP-3).

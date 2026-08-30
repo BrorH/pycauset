@@ -932,8 +932,41 @@ void AutoSolver::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBa
 }
 
 void AutoSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) {
-    // Always CPU for now
-    cpu_device_->svd(in, U, S, VT);
+    uint64_t n = in.rows();
+    // Reduced SVD is roughly ~20 n^3 flops for a square matrix (gesvd is QR-based).
+    double ops = 20.0 * static_cast<double>(n) * static_cast<double>(n) * static_cast<double>(n);
+
+    bool use_gpu = false;
+    // The GPU path handles square dense float/double only; rectangular input
+    // routes straight to the CPU (no wasted dispatch + throw).
+    if (is_gpu_active() && in.get_matrix_type() == MatrixType::DENSE_FLOAT && in.rows() == in.cols()) {
+        DataType dt = in.get_data_type();
+        if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
+            if (prefers_cpu_for_properties(in)) {
+                use_gpu = false;
+            } else if (backend_preference_ == BackendPreference::GPU) {
+                use_gpu = true;
+            } else if (backend_preference_ == BackendPreference::CPU) {
+                use_gpu = false;
+            } else {
+                double elem_bytes = bytes_per_element(dt);
+                double bytes = elem_bytes * 2.0 * static_cast<double>(n) * n;
+                use_gpu = should_use_gpu(ops, bytes, dt);
+            }
+        }
+    }
+
+    if (use_gpu) {
+        try {
+            gpu_device_->svd(in, U, S, VT);
+        } catch (const std::exception& e) {
+            std::cerr << "[PyCauset] GPU Error in svd: " << e.what() << ". Falling back to CPU." << std::endl;
+            gpu_device_.reset();
+            cpu_device_->svd(in, U, S, VT);
+        }
+    } else {
+        cpu_device_->svd(in, U, S, VT);
+    }
 }
 
 void AutoSolver::solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) {

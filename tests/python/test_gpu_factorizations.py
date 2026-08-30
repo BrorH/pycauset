@@ -130,3 +130,49 @@ def test_gpu_qr_reconstructs_float32():
     np.testing.assert_allclose(q_np @ r_np, a_np, rtol=1e-3, atol=1e-4)
     np.testing.assert_allclose(q_np.T @ q_np, np.eye(n), rtol=1e-3, atol=1e-4)
     np.testing.assert_allclose(np.triu(r_np), r_np, atol=1e-4)
+
+
+@pytest.mark.skipif(not _cuda_available(), reason="CUDA not available")
+def test_gpu_svd_reconstructs_float64():
+    rng = np.random.default_rng(13)
+    n = 64
+    a_np = rng.standard_normal((n, n))
+    a = pycauset.matrix(a_np)
+
+    pycauset.cuda.force_backend("gpu")
+    try:
+        u, s, vt = pycauset.svd(a, full_matrices=False)
+    finally:
+        pycauset.cuda.force_backend("auto")
+
+    u_np = np.asarray(u)
+    s_np = np.asarray(s)
+    vt_np = np.asarray(vt)
+
+    np.testing.assert_allclose(u_np @ np.diag(s_np) @ vt_np, a_np, rtol=1e-5, atol=1e-7)
+    np.testing.assert_allclose(u_np.T @ u_np, np.eye(n), rtol=1e-5, atol=1e-7)  # orthonormal U
+    np.testing.assert_allclose(vt_np @ vt_np.T, np.eye(n), rtol=1e-5, atol=1e-7)  # orthonormal VT
+    assert np.all(s_np >= -1e-8)  # singular values are non-negative
+
+
+@pytest.mark.skipif(not _cuda_available(), reason="CUDA not available")
+def test_gpu_svd_reconstructs_float32():
+    rng = np.random.default_rng(17)
+    n = 48
+    a_np = rng.standard_normal((n, n)).astype(np.float32)
+    a = pycauset.matrix(a_np)
+
+    pycauset.cuda.force_backend("gpu")
+    try:
+        u, s, vt = pycauset.svd(a, full_matrices=False)
+    finally:
+        pycauset.cuda.force_backend("auto")
+
+    u_np = np.asarray(u)
+    s_np = np.asarray(s)
+    vt_np = np.asarray(vt)
+
+    np.testing.assert_allclose(u_np @ np.diag(s_np) @ vt_np, a_np, rtol=1e-3, atol=1e-5)
+    np.testing.assert_allclose(u_np.T @ u_np, np.eye(n), rtol=1e-3, atol=1e-5)
+    np.testing.assert_allclose(vt_np @ vt_np.T, np.eye(n), rtol=1e-3, atol=1e-5)
+    assert np.all(s_np >= -1e-5)
