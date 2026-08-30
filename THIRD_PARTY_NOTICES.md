@@ -12,7 +12,7 @@ by those licenses. For PyCauset's own license, see `LICENSE` (MIT).
 - **Attribution:** © Eigen authors, <https://eigen.tuxfamily.org>
 - **Note:** the build may define `EIGEN_MPL2_ONLY` to restrict usage to the
   MPL2/BSD-permissive subset.
-- Source: `include/eigen3/` (vendored); also fetched via CMake FetchContent.
+- Source: fetched via CMake FetchContent (`eigen-3.4.0.zip`).
 
 ### OpenBLAS (0.3.26)
 - **License:** BSD-3-Clause (with some permissive components under other
