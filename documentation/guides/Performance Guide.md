@@ -4,7 +4,7 @@ PyCauset is designed to automatically optimize performance based on your hardwar
 
 ## 1. GPU Acceleration
 
-PyCauset includes a high-performance GPU backend powered by NVIDIA CUDA. This backend is managed by the **ComputeContext** and is designed to be **frictionless**: it requires no configuration, automatically detects compatible hardware, and seamlessly falls back to the CPU if no GPU is available.
+PyCauset has a CUDA backend. It needs no configuration: it detects a compatible GPU on its own and falls back to the CPU when there is none.
 
 ### Features
 
@@ -150,7 +150,7 @@ NumPy stores booleans as 8-bit bytes (`bool_`). PyCauset stores them as 1-bit pa
 *   **Matmul**: 64x faster (using specialized bit-block kernels).
 
 ### 4. Mixed-Precision GPU Offloading
-NumPy is CPU-only. PyCauset seamlessly offloads large `matmul` or `inverse` ops to CUDA without the user managing device memory.
+NumPy is CPU-only. PyCauset sends large `matmul` and `inverse` ops to CUDA without you having to manage device memory.
 *   **Latency**: Lower for small ops (don't use GPU for 10x10 matrices).
 *   **Throughput**: Orders of magnitude higher for large matrices (e.g., 4000x4000).
 
@@ -158,7 +158,7 @@ NumPy is CPU-only. PyCauset seamlessly offloads large `matmul` or `inverse` ops 
 
 PyCauset uses a **"RAM-First"** architecture to maximize speed.
 
-1.  **Use All Available RAM**: The system aggressively utilizes available physical RAM to keep matrices in memory for maximum throughput.
+1.  **Use all available RAM**: PyCauset keeps matrices in memory up to the threshold for speed.
 2.  **Automatic Disk Spillover**: When physical RAM is exhausted, the system can spill by switching to file-backed (memory-mapped) storage (for example `.tmp` backing files under the backing directory).
 3.  **Hybrid Async Pipeline**:
     *   **Small Matrices**: If a matrix fits entirely in VRAM, it is uploaded once and processed at maximum speed.

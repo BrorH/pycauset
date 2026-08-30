@@ -1,6 +1,6 @@
 # NumPy Integration Guide
 
-`pycauset` is designed to work seamlessly with the Python scientific stack, particularly NumPy. While `pycauset` uses its own optimized storage (RAM or disk-backed) for handling massive datasets, it provides smooth interoperability with NumPy arrays for convenience and flexibility.
+PyCauset works with NumPy: convert a matrix to a NumPy array and back. PyCauset keeps its own storage (RAM or disk), but the two interoperate directly.
 
 ## Converting NumPy Arrays to PyCauset
 

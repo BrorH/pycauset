@@ -34,7 +34,7 @@ Description of the solution implemented.
 
 When working on tests, follow this workflow:
 
-1. **Design**: create comprehensive test cases covering edge cases, boundary conditions, and type permutations.
+1. **Design**: create test cases covering edge cases, boundary conditions, and type permutations.
 2. **Review**: ensure tests are valid before running.
 3. **Execute**: run tests and monitor for failures.
 

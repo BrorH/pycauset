@@ -67,7 +67,7 @@ pip install -e .
 
 ## Running Tests
 
-PyCauset has a comprehensive test suite covering both the C++ core and the Python interface.
+PyCauset has a test suite covering both the C++ core and the Python interface.
 
 ### Python Tests
 ```bash

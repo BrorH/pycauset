@@ -90,7 +90,7 @@ The Streaming Manager is the policy layer for out-of-core execution. AutoSolver 
 
 ## 2. CPU Backend
 
-The CPU backend is designed for low-latency execution of small-to-medium workloads and robust fallback for all operations.
+The CPU backend handles small-to-medium workloads with low latency, and it is the fallback for everything.
 
 ### 2.1 CpuDevice & CpuSolver
 *   **`CpuDevice`**: A thin wrapper that implements the `ComputeDevice` interface. It routes operations to the appropriate execution strategy:
@@ -121,12 +121,12 @@ PyCauset uses a custom thread pool (`ThreadPool`) to manage parallelism with a *
 
 *   **`ParallelFor`**: A helper function that splits loops across available threads.
 *   **Dynamic Scheduling**: Unlike static partitioning (which suffers from stalls if one thread hits a page fault), `ParallelFor` uses an atomic index to hand out small chunks of work (`grain_size`) to threads as they finish previous tasks.
-*   **Load Balancing**: This ensures that if one thread is blocked by I/O or OS paging, other threads continue processing the remaining work, maximizing CPU utilization.
+*   **Load balancing**: if one thread blocks on I/O or paging, the others keep going.
 *   **Granularity**: The grain size is tuned (heuristic: `range / (threads * 4)`) to balance load distribution against atomic contention overhead.
 
 ### 2.5 Eigensolvers (Phase 6: R1_CPU)
 
-The CPU backend provides comprehensive eigensolver support via LAPACK, with specialized handling for different matrix types:
+The CPU backend covers eigensolvers through LAPACK, with special handling per matrix type:
 
 #### Hermitian/Symmetric Eigensolvers
 *   **`eigh(A)`**: Computes eigenvalues and eigenvectors for Hermitian (complex) or symmetric (real) matrices
@@ -179,7 +179,7 @@ Eigenvalues and eigenvectors are expensive to compute, so they are cached:
 
 ### 2.6 Additional Linear Algebra Operations (Phase 7: R1_CPU)
 
-The CPU backend provides a comprehensive suite of linear algebra operations beyond eigensolvers:
+Beyond eigensolvers, the CPU backend provides:
 
 #### Streaming-Safe Operations (Disk-Friendly)
 *   **`trace(A)`**: Computes sum of diagonal elements
@@ -237,7 +237,7 @@ Phase 7 operations declare their capabilities:
 
 ## 3. GPU Backend (CUDA)
 
-The GPU backend leverages NVIDIA CUDA for massive parallelism, particularly for $O(N^3)$ operations like matrix multiplication and inversion.
+The GPU backend uses CUDA for the $O(N^3)$ operations, like matmul and inversion.
 
 ### 3.1 CudaDevice
 *   **Libraries**: Wraps `cuBLAS` (for matrix multiplication) and `cuSOLVER` (for decomposition/inversion).
@@ -305,7 +305,7 @@ The core of this architecture is the `AsyncStreamer<T>` class (`src/accelerators
 
 ### Pipeline Logic
 
-The pipeline consists of two buffers (Index 0 and Index 1) and utilizes **Hybrid CPU/GPU Parallelism**.
+The pipeline uses two buffers (index 0 and index 1) and runs CPU and GPU in parallel.
 
 1.  **CPU Phase (Producer)**:
     *   **Wait**: Waits for Buffer $i$ to be free (consumed by GPU in previous cycle).
@@ -372,7 +372,7 @@ This section outlines the plan to address the remaining gaps in the PyCauset acc
 
 ### 1.5 Resilience & Fallback (R1_SAFETY)
 
-To ensure robustness against hardware instability (e.g., GPU driver crashes, OOM), AutoSolver implements a **Circuit Breaker** pattern:
+To survive hardware failures (GPU driver crashes, out of memory), AutoSolver has a circuit breaker:
 
 1.  **Pessimistic Initialization**: GPU context creation is wrapped in try-catch. If it fails, the GPU is disabled for the session.
 2.  **Operation Guard**: Every GPU operation (matmul, inverse, etc.) is guarded.

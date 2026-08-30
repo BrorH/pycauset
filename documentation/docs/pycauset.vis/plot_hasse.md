@@ -36,5 +36,5 @@ The function automatically applies coordinate transformations for supported spac
 
 ## See Also
 
-*   [[guides/Visualization|Visualization Guide]]: For a comprehensive guide on visualizing causal sets.
+*   [[guides/Visualization|Visualization Guide]]: For a guide on visualizing causal sets.
 *   [[docs/pycauset.vis/plot_embedding.md|pycauset.vis.plot_embedding]]: For visualizing the embedding without links.

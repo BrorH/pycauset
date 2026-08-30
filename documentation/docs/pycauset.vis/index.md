@@ -18,7 +18,7 @@ subset and emit a `PyCausetPerformanceWarning`; `force=True` renders everything.
 
 ## Description
 
-This module leverages [Plotly](https://plotly.com/python/) to create interactive 3D visualizations. It is designed to handle large causal sets efficiently by using smart sampling and on-demand coordinate generation.
+This module uses [Plotly](https://plotly.com/python/) for interactive 3D plots. Large causal sets are handled by sampling and by generating coordinates on demand.
 
 ## Examples
 

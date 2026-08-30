@@ -1,6 +1,6 @@
 ﻿# Vector Guide
 
-`pycauset` introduces efficient vectors that integrate seamlessly with the matrix operations. Vectors are stored in RAM for small sizes (behaving like NumPy arrays) and may automatically **spill** by switching to temporary memory-mapped backing files (for example `.tmp`) for massive datasets.
+Vectors work with the matrix operations. Small ones live in RAM (like NumPy arrays); large ones spill to a temporary memory-mapped file (`.tmp`).
 
 ## Creating Vectors
 

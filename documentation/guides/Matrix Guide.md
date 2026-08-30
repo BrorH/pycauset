@@ -1,4 +1,4 @@
-The back-bone of pycauset is the matrix system. While most users will interact with the high-level [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]] class, the matrix engine powers everything underneath. It is built from the ground-up to allow a seamless workflow as similar to possible to numpy.
+Matrices are the backbone of PyCauset. Most people use [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]], but the matrix engine runs underneath it, and it follows NumPy conventions so it feels familiar.
 
 `pycauset` behaves like NumPy at small scales (storing data in RAM), but converts to a memory-efficient beast at high scales (automatically spilling to disk).
 
@@ -359,7 +359,7 @@ For working with causal matrices (a backbone of the causal set theory), `Triangu
 
 # Performance & Parallelism
 
-Pycauset is designed to handle large matrices ($N > 5000$) efficiently by leveraging multi-core CPUs.
+For large matrices ($N > 5000$) PyCauset uses multiple CPU cores.
 
 ## Automatic Parallelization
 

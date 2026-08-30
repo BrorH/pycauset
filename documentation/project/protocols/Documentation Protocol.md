@@ -101,7 +101,7 @@ Use dev handbook pages when:
 
 ## 3) Linking protocol (MkDocs roamlinks)
 
-MkDocs supports wiki links. We use them aggressively, but in a **controlled** way.
+MkDocs supports wiki links, and we use them deliberately.
 
 ### Use explicit links (preferred)
 
