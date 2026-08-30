@@ -9,7 +9,7 @@ the README images are out of date.
 from pathlib import Path
 
 import pycauset as pc
-from pycauset.vis import plot_embedding, plot_hasse
+from pycauset.vis import plot_causal_matrix, plot_embedding, plot_hasse
 
 OUT = Path(__file__).resolve().parents[1] / "documentation" / "docs" / "assets" / "gallery"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -26,8 +26,14 @@ fig.write_image(OUT / "diamond_hasse.png", scale=2)
 
 # 3. A Minkowski cylinder, 3000 points (3D)
 st = pc.spacetime.MinkowskiCylinder(2, height=10, circumference=5)
-c_cyl = pc.CausalSet(n=3000, density=60, spacetime=st, seed=11)
+c_cyl = pc.CausalSet(n=3000, spacetime=st, seed=11)
 fig = plot_embedding(c_cyl, title="Minkowski cylinder, 3000 points")
 fig.write_image(OUT / "cylinder_embedding.png", scale=2)
+
+# 4. The causal matrix of a 120-point diamond, as a heatmap
+c_heat = pc.CausalSet(n=120, seed=7)
+fig = plot_causal_matrix(c_heat, title="Causal matrix of a 120-point diamond")
+fig.update_layout(width=720, height=720)
+fig.write_image(OUT / "causal_matrix.png", scale=2)
 
 print("wrote:", sorted(p.name for p in OUT.glob("*.png")))

@@ -77,7 +77,7 @@ PyCauset has an optimized C++ core with Python bindings, which is built specific
 - **Spacetimes**: [Minkowski](https://en.wikipedia.org/wiki/Minkowski_space) diamond, cylinder, box. Arbitrary dimensions, signatures, and curved geometries ([de Sitter](https://en.wikipedia.org/wiki/De_Sitter_space), [anti-de Sitter](https://en.wikipedia.org/wiki/Anti-de_Sitter_space), [FLRW](https://en.wikipedia.org/wiki/Friedmann%E2%80%93Lema%C3%AEtre%E2%80%93Robertson%E2%80%93Walker_metric)) are on the R2 roadmap.
 - **Sprinkling**: fixed-N or Poisson density, seeded and reproducible.
 - **Fields**: scalar fields with [propagator](https://en.wikipedia.org/wiki/Propagator) and Pauli-Jordan functions.
-- **Visualization**: interactive 2D/3D embeddings and [Hasse diagrams](https://en.wikipedia.org/wiki/Hasse_diagram).
+- **Visualization**: interactive 2D/3D embeddings, [Hasse diagrams](https://en.wikipedia.org/wiki/Hasse_diagram), and causal-matrix heatmaps.
 
 ## Performance
 
@@ -86,13 +86,16 @@ However, the biggest reason to use PyCauset is that it memory-maps past RAM, whe
 
 ## Gallery
 
-Both images come straight from the public API. Reproduce them with `scripts/make_r1_gallery.py`.
+These images come straight from the public API. Reproduce them with `scripts/make_r1_gallery.py`.
 
 <img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/gallery/diamond_hasse.png" width="420" alt="Hasse diagram of an 80-point diamond">
 *The causal links of an 80-point diamond (Hasse diagram).*
 
 <img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/gallery/cylinder_embedding.png" width="420" alt="3000 points on a Minkowski cylinder">
 *3000 points sprinkled onto a Minkowski cylinder, rendered as a 3D tube.*
+
+<img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/gallery/causal_matrix.png" width="420" alt="Causal matrix heatmap of a 120-point diamond">
+*The causal matrix of a 120-point diamond as a heatmap: a bright cell means one element is in the causal past of another.*
 
 ## Installation
 

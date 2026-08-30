@@ -6,9 +6,9 @@ pycauset.plot_embedding(causet, **kwargs)
 
 Plot a causal set's embedding (spacetime coordinates).
 
-Lazy top-level sugar for [[pycauset.CausalSet.plot_embedding|CausalSet.plot_embedding]];
-the method on `CausalSet` is the primary citizen and accepts the same keyword
-arguments (subsetting, `force`, title, etc.). Plotly is imported on first use.
+Lazy top-level sugar for the `CausalSet.plot_embedding` method, which is the primary
+citizen and accepts the same keyword arguments (subsetting, `force`, title, etc.).
+Plotly is imported on first use.
 
 ## Parameters
 

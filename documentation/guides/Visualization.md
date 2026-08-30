@@ -28,7 +28,7 @@ Here is what the embedding plot of a 2D Minkowski diamond looks like:
 
 ![Minkowski diamond embedding](../docs/assets/gallery/diamond_embedding.png)
 
-*800 points in a 2D diamond. Time runs up the vertical axis; colour is the time
+*3000 points in a 2D diamond. Time runs up the vertical axis; colour is the time
 coordinate, and the white outline is the diamond boundary.*
 
 ## Reproducibility

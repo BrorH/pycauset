@@ -340,12 +340,19 @@ def plot_causal_matrix(
     max_points: int = 2000,
     force: bool = False,
     title: Optional[str] = None,
-    color_scale: str = 'Greys'
+    color_scale: Optional[str] = None
 ):
-    """Visualize the Causal Matrix (Adjacency Matrix) as a heatmap.
+    """Visualize the causal matrix as a heatmap.
 
-    Since the matrix is strictly upper triangular (for a sorted causal set),
-    the heatmap will show a triangular pattern.
+    The causal matrix is boolean: a bright cell means element ``i`` is in the
+    causal past of element ``j``, a dark cell means it is not. For a causal set
+    whose elements are labelled by time the matrix is strictly upper triangular,
+    so the plot shows a crisp triangle.
+
+    ``color_scale`` accepts any Plotly continuous colorscale name (``"Greys"``,
+    ``"Viridis"``, ...). The default is a two-tone scale (dark ``0``, teal ``1``)
+    tuned for the dark template; it reads as a boolean image rather than a
+    gradient.
     """
     _check_plotly()
 
@@ -356,16 +363,28 @@ def plot_causal_matrix(
     else:
         matrix_data = np.array(causet.C, dtype=int)
 
+    if color_scale is None:
+        color_scale = [[0.0, "#10131a"], [1.0, "#14b8a6"]]
+
     fig = px.imshow(
         matrix_data,
         color_continuous_scale=color_scale,
         title=title or "Causal Matrix Heatmap",
-        labels=dict(x="Future Index", y="Past Index", color="Relation"),
+        labels=dict(x="Future index", y="Past index"),
+        aspect="equal",
+        zmin=0,
+        zmax=1,
     )
 
     fig.update_layout(
         template="plotly_dark",
         xaxis_side="top",
+        coloraxis_colorbar=dict(
+            title="Related",
+            tickvals=[0, 1],
+            ticktext=["no", "yes"],
+            thickness=14,
+        ),
     )
 
     return fig
