@@ -47,4 +47,5 @@ jobs:
         run: python -c "import pycauset, pathlib, shutil; sp = pathlib.Path(pycauset.__file__).parent; dst = pathlib.Path('python/pycauset'); [shutil.copy2(str(f), str(dst / f.name)) for pat in ('*.pyd','*.so','*.dylib','*.dll') for f in sp.glob(pat)]; libs = sp / 'libs'; shutil.copytree(str(libs), str(dst / 'libs'), dirs_exist_ok=True) if libs.exists() else None"
 
       - name: Run tests
-        run: python -m pytest tests/python -q
+        timeout-minutes: 10
+        run: python -m pytest tests/python -v --tb=short
