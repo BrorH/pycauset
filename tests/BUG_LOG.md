@@ -41,6 +41,33 @@ backing file is not `:memory:` for the disk cases.
 
 ---
 
+## [Date: 2026-08-30] macOS flaky spill of tiny matrices (free-RAM detection reads low)
+
+**Status**: Fixed
+**Severity**: High
+**Component**: Compute / MemoryGovernor (`src/core/MemoryGovernor.cpp`)
+
+**Description**:
+After `matrix(storage="disk")` was made to actually allocate disk-backed matrices,
+the macOS CI job became flaky: `test_viz_r2.py::test_top_level_verbs` intermittently
+failed with "Export to NumPy is blocked for file-backed/out-of-core objects" because
+`causet.C` (a fresh 100 by 100 bit matrix) was wrongly spilled to disk.
+
+**Root Cause**:
+`MemoryGovernor::refresh_system_stats()` computed macOS available RAM from
+`vm_stat.free_count` (strictly free pages). Free pages exclude the reclaimable file
+cache and read artificially low after a build or a large mmap write, so
+`request_ram()` returned false for tiny objects and routed them to disk. The Linux
+branch already had the equivalent fix (MemAvailable instead of MemFree).
+
+**Fix**:
+On macOS, available RAM is now `free_count + inactive_count` (inactive pages are
+clean and reclaimable), mirroring the Linux MemAvailable fix. Also closed the
+disk-backed matrices in `test_io_consistency.py` so they no longer leak mmap
+mappings and file descriptors.
+
+---
+
 ## [Date: 2026-08-30] macOS CI hang in matmul (OpenBLAS GEMM thread oversubscription)
 
 **Status**: Fixed

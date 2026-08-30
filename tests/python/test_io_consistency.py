@@ -31,10 +31,12 @@ def test_io_roundtrip_consistency(dtype):
     assert mat.get_backing_file() != ":memory:", "storage='disk' must spill to a file"
     
     # Read back
-    result = pycauset.to_numpy(mat, allow_huge=True)
-    
-    # Verify
-    np.testing.assert_array_equal(data, result, err_msg=f"Roundtrip failed for {dtype}")
+    try:
+        result = pycauset.to_numpy(mat, allow_huge=True)
+        # Verify
+        np.testing.assert_array_equal(data, result, err_msg=f"Roundtrip failed for {dtype}")
+    finally:
+        mat.close()
 
 def test_large_file_consistency():
     """
@@ -54,9 +56,11 @@ def test_large_file_consistency():
     
     # Check a few elements without full readback first (if API supports it)
     # Assuming we have to_numpy() for full read
-    result = pycauset.to_numpy(mat, allow_huge=True)
-    
-    np.testing.assert_array_equal(data, result)
+    try:
+        result = pycauset.to_numpy(mat, allow_huge=True)
+        np.testing.assert_array_equal(data, result)
+    finally:
+        mat.close()
 
 def test_direct_path_consistency():
     """
@@ -90,9 +94,11 @@ def test_bit_matrix_consistency():
     
     mat = pycauset.matrix(data, storage="disk")
     assert mat.get_backing_file() != ":memory:", "storage='disk' must spill to a file"
-    result = pycauset.to_numpy(mat, allow_huge=True)
-    
-    np.testing.assert_array_equal(data, result)
+    try:
+        result = pycauset.to_numpy(mat, allow_huge=True)
+        np.testing.assert_array_equal(data, result)
+    finally:
+        mat.close()
 if __name__ == "__main__":
     # Manual run if executed as script
     try:

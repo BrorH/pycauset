@@ -68,15 +68,16 @@ void MemoryGovernor::refresh_system_stats() const {
     sysctl(mib, 2, &physical_memory, &length, NULL, 0);
     cached_total_ram_ = physical_memory;
 
-    // Get Free/Available RAM
-    // macOS doesn't report "free" RAM simply like Linux.
-    // We can approximate by getting page size and free page count.
+    // Get Free/Available RAM. macOS's "free" page count is strictly free pages,
+    // which excludes the reclaimable file cache and reads artificially low right
+    // after a build or a big mmap write, so a tiny object can be wrongly routed
+    // to disk. Use free + inactive pages (inactive pages are clean and reclaimable
+    // without swapping), mirroring the Linux MemAvailable fix below.
     mach_msg_type_number_t count = HOST_VM_INFO_COUNT;
     vm_statistics_data_t vm_stat;
     if (host_statistics(mach_host_self(), HOST_VM_INFO, (host_info_t)&vm_stat, &count) == KERN_SUCCESS) {
-        // This is strictly "free" pages, not including file cache which is "available".
-        // For our safety purposes, strictly free is likely safer.
-        cached_available_ram_ = (uint64_t)vm_stat.free_count * sysconf(_SC_PAGESIZE);
+        uint64_t available_pages = (uint64_t)vm_stat.free_count + (uint64_t)vm_stat.inactive_count;
+        cached_available_ram_ = available_pages * sysconf(_SC_PAGESIZE);
     } else {
          cached_available_ram_ = 1024 * 1024 * 1024; // Assume 1GB
     }
