@@ -1,148 +1,136 @@
 # Field Theory on Causal Sets
 
-Causal Set Theory is not just about the discrete structure of spacetime itself; it is also a framework for doing Quantum Field Theory (QFT). To do this, we define **Fields** that live on the causal set.
+Causal set theory is a framework for quantum field theory as much as for spacetime
+itself. PyCauset keeps the two concerns separate: the geometry is a
+[[pycauset.CausalSet]], the matter is a [[pycauset.field.Field]]. You define a field
+once and apply it to whatever background you like.
 
-In PyCauset, the geometry (the [[pycauset.CausalSet]]) and the matter (the [[pycauset.field.Field]]) are distinct objects. This separation allows you to study different fields (massless, massive, interacting) on the same underlying spacetime background.
+## The field API
 
-## The R2 field model (`Field` → `CorrelatedField`)
-
-A **field** is one set-independent object; you *apply* it to a background:
+A **field** is a set-independent object (species + mass). Applying it to a background
+returns a **correlated field** that knows the Green's functions on that background.
 
 ```python
 import pycauset as pc
 
-phi = pc.field("scalar", mass=1.5)   # the Field (species + mass), background-independent
-Q   = phi.on(causet)                 # a CorrelatedField: the field + its Green's functions on the causet
+phi = pc.field("scalar", mass=1.5)   # the Field, background-independent
+Q   = phi.on(c)                      # a CorrelatedField: the field on this causet
 ```
 
-`CorrelatedField` exposes the field core (R2_KRD / R2_SJ):
+`Q` exposes the free-field core:
 
 ```python
-K_R = Q.retarded()      # K_R = aC (I - baC)^-1   (retarded Green's function)
-K_A = Q.advanced()      # K_A = K_R^T              (advanced Green's function)
-iD  = Q.pauli_jordan()  # iΔ = K_R - K_A           (Hermitian commutator function)
-W   = Q.wightman()      # Sorkin–Johnston vacuum two-point function (positive part of iΔ)
+K_R = Q.retarded()      # retarded Green's function, K_R = aC (I - baC)^-1
+K_A = Q.advanced()      # advanced Green's function, K_A = K_R^T
+iD  = Q.pauli_jordan()  # iΔ = K_R - K_A  (the Hermitian commutator function)
+W   = Q.wightman()      # Sorkin-Johnston vacuum two-point function (positive part of iΔ)
 G   = Q.correlator()    # ⟨φφ⟩ = W (free field)
 ```
 
-The vacuum choice is explicit in `.wightman()` (the Sorkin–Johnston prescription is
-the default). The legacy `ScalarField` remains available for back-compat.
+`pauli_jordan()` returns the real matrix $\Delta$ with a scalar factor of $i$ attached
+rather than storing complex numbers twice; the factor is applied automatically when
+you read elements or convert to NumPy.
 
-`phi.on(spacetime)` (a continuum Minkowski spacetime) returns a
-`ContinuumCorrelatedField` with closed-form Green's functions and `.at(coords)`
-sampling, for the R2 continuum-limit comparison.
+`Q.state()` returns the vacuum `State`. `Q.propagator()` is an alias for the retarded
+propagator.
 
-> **R2 scope boundary.** Release 2 ships the **free scalar field core**, the
-> retarded/advanced propagators, the Pauli–Jordan function `iΔ`, and the
-> Sorkin–Johnston Wightman vacuum. The deeper field-theoretic system (massive
-> Green's functions with Bessel kernels, the continuum Wightman log, higher-point
-> Wick contractions, interacting fields, fermions, gauge fields) is **future work**,
-> not R2.
-
-### Entanglement entropy (R2_ENT)
+### Entanglement entropy
 
 ```python
-S = Q.entanglement_entropy(region)                 # Sorkin–Yazdi, "1/2" zero-point convention
+S = Q.entanglement_entropy(region)                       # Sorkin-Yazdi "1/2" convention
 S = Q.entanglement_entropy(region, convention="symplectic")  # literal symplectic form
 ```
 
-Two documented conventions are available (see
+Two conventions are available (see
 [[docs/classes/field/pycauset.field.CorrelatedField.md|CorrelatedField]]): the default
-`"sorkin_yazdi"` (absorbs the `1/2` zero-point, so it's well-defined for the SJ
-Wightman `W ≥ 0`), and `"symplectic"` (the literal form, requiring `W ≥ 1/2`).
+`"sorkin_yazdi"` absorbs the $1/2$ zero-point so it is well defined for the
+Sorkin-Johnston Wightman $W \ge 0$, and `"symplectic"` is the literal form, which
+requires $W \ge 1/2$.
 
-## The Scalar Field
+### Continuum limit
 
-The most fundamental field studied in Causal Set Theory is the **Scalar Field**. 
-### The Retarded Propagator ($K_R$)
+`phi.on(spacetime)` (a continuum Minkowski spacetime) returns a
+`ContinuumCorrelatedField` with closed-form Green's functions and a `.at(coords)`
+sampler, for comparing the discrete theory to the continuum.
 
-The Retarded Propagator $K_R$ is the inverse of the causal set d'Alembertian. In PyCauset, it is computed using the generalized formula:
+## The retarded propagator and the coefficients
 
-$$ K_R = \Phi(I - b\Phi)^{-1} $$
+The retarded propagator is the inverse of the causal-set d'Alembertian:
 
-where $\Phi = a C$ ($C$ is the Causal Matrix).
+$$ K_R = \Phi (I - b\Phi)^{-1}, \qquad \Phi = aC $$
 
-### Parameters
+where $C$ is the causal matrix. The two coefficients $a$ and $b$ connect the discrete
+matrix to the continuous physics; they depend on dimension $d$, sprinkling density
+$\rho = N/V$, and mass $m$.
 
-The coefficients $a$ and $b$ are the bridge between the discrete matrix mathematics and the continuous physical parameters. They depend on:
-
-1.  **Dimension ($d$)**: The dimension of the manifold (e.g., 2 or 4).
-2.  **Density ($\rho$)**: The sprinkling density ($N/V$).
-3.  **Mass ($m$)**: The mass of the field.
-
-PyCauset automatically derives $a$ and $b$ for standard Minkowski spacetimes.
+PyCauset derives them from the spacetime itself (`Spacetime.scalar_coeffs`), never
+guessing. For flat Minkowski spacetimes:
 
 | Dimension | $a$ | $b$ |
 | :--- | :--- | :--- |
-| **2D** | $1/2$ | $-m^2/\rho$ |
-| **4D** | $\frac{\sqrt{\rho}}{2\pi\sqrt{6}}$ | $-m^2/\rho$ |
+| 2D | $1/2$ | $-m^2/\rho$ |
+| 4D | $\sqrt{\rho} / (2\pi\sqrt{6})$ | $-m^2/\rho$ |
 
-## Usage Guide
+Curved spacetimes (`DeSitter`, `AntiDeSitter`, `FLRW`, `Schwarzschild`) ship as
+documented parametrizations whose `scalar_coeffs` raises; you pass $a$ and $b$ manually
+for those.
 
-### 1. Define the Spacetime and Causal Set
-First, generate your background geometry. Note that you **must** use density-based sprinkling (or provide the density manually) for the field coefficients to be calculated correctly.
+### Massless limit
+
+For $m = 0$, $b = 0$ and the propagator simplifies to $K_R = aC$.
+
+## Using density-based sprinkling
+
+The coefficients need a density, so sprinkle with `density` (or pass the density
+explicitly) rather than a fixed `n`:
 
 ```python
 import pycauset as pc
 
-# 1. Define Spacetime (2D Minkowski)
 st = pc.spacetime.MinkowskiDiamond(2)
+c = pc.causet(density=1000, spacetime=st, seed=1)
 
-# 2. Sprinkle Causal Set (Density is required!)
-c = pc.CausalSet(density=1000, spacetime=st)
+phi = pc.field("scalar", mass=1.5)
+Q = phi.on(c)
+K = Q.retarded()
 ```
 
-### 2. Define the Field
-Create a [[pycauset.field.ScalarField]] instance attached to your causal set. This is where you specify the mass.
+## Manual coefficients
+
+To override the derived coefficients, use the legacy `ScalarField`, whose
+`propagator(a=..., b=...)` accepts them directly:
 
 ```python
 from pycauset.field import ScalarField
 
-# Define a massive field (m=1.5)
 field = ScalarField(c, mass=1.5)
+K = field.propagator(a=0.5, b=-0.02)
 ```
 
-### 3. Compute the Propagator
-Call `.propagator()` to compute the $K_R$ matrix. This operation is computationally intensive ($O(N^2)$) and returns a [[pycauset.TriangularFloatMatrix]].
+## Legacy ScalarField
+
+`ScalarField` predates the `field`/`CorrelatedField` split. It is a single object
+that wraps a causet plus a mass, and computes the retarded propagator and the
+Pauli-Jordan function:
 
 ```python
-# Compute K_R
-K = field.propagator()
+from pycauset.field import ScalarField
 
-# K is a large matrix backed by disk storage
-print(f"Propagator shape: {K.shape}")
+field = ScalarField(c, mass=1.5)
+K   = field.propagator()        # TriangularFloatMatrix
+iD  = field.pauli_jordan()      # AntiSymmetricMatrix (Δ with scalar factor 1j)
 ```
 
-### Massless Limit
-For a massless field ($m=0$), the parameter $b$ becomes 0. The formula simplifies to $K_R = aC$.
+It remains for back-compat. New code should use `pc.field(...).on(...)`, which
+separates the set-independent field from the correlated field and adds the
+Sorkin-Johnston Wightman vacuum, the correlator, state, and entanglement entropy.
 
-```python
-massless_field = ScalarField(c, mass=0.0)
-K_0 = massless_field.propagator()
-```
+## Scope boundary
 
-## Advanced: Manual Coefficients
-If you are working with a non-standard spacetime or want to experiment with different non-locality parameters, you can override $a$ and $b$ manually.
+Release 2 ships the free scalar field core: the retarded/advanced propagators, the
+Pauli-Jordan function $i\Delta$, and the Sorkin-Johnston Wightman vacuum. Massive
+Green's functions with Bessel kernels, the continuum Wightman log, higher-point Wick
+contractions, interacting fields, fermions, and gauge fields are future work, not R2.
 
-```python
-# Manually specifying coefficients (bypasses automatic derivation)
-K_custom = field.propagator(a=0.5, b=-0.02)
-```
-
-## The Pauli-Jordan Function ($i\Delta$)
-
-The Pauli-Jordan function $\Delta$ is defined as the difference between the retarded and advanced propagators:
-$$ \Delta = K_R - K_A $$
-Since $K_A = K_R^T$, this is equivalent to:
-$$ \Delta = K - K^T $$
-
-In Quantum Field Theory, the operator of interest is often $i\Delta$. PyCauset provides a dedicated method to compute this efficiently.
-
-```python
-# Compute i*Delta
-Delta = field.pauli_jordan()
-```
-
-The result is an `AntiSymmetricFloat64Matrix`. To represent the factor of $i$ without storing complex numbers for every element (which would double the storage requirement), PyCauset stores the real values of $\Delta$ and sets the matrix's `scalar` property to `1j`.
-
-When you access elements or perform arithmetic with this matrix, the factor of $i$ is automatically applied.
+See [[docs/classes/field/pycauset.field.CorrelatedField.md|CorrelatedField]] for the
+full method list.

@@ -45,10 +45,15 @@ instead of computing immediately. The work happens when you materialize the resu
 (into a matrix, or into NumPy).
 
 ```python
-expr = A + B        # no computation yet
-C = expr            # computed here
-C_np = pc.to_numpy(expr)   # or here
+A = pc.matrix([ [1, 2], [3, 4] ], dtype="float64")
+B = pc.matrix([ [5, 6], [7, 8] ], dtype="float64")
+
+expr = A + B                 # lazy: no computation yet
+C_np = pc.to_numpy(expr)     # materialized here
 ```
+
+Materialization also happens on element access and on `pc.save(...)`; see
+[[guides/Matrix Guide|Matrix Guide]] for the triggers.
 
 ### 5. Save and load
 

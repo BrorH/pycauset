@@ -1,170 +1,113 @@
-spots# Visualization Guide
+# Visualization Guide
 
-PyCauset provides built-in tools to visualize Causal Sets embedded in spacetime. This guide explains how to use the [[docs/pycauset.vis/index.md|pycauset.vis]] module to create interactive 3D plots.
+PyCauset ships Plotly-based plotters for causal sets. You get three views: the
+spacetime embedding, the Hasse diagram, and the causal-matrix heatmap.
 
-## Overview
+## Basic usage
 
-Visualizing high-dimensional causal structures is crucial for understanding their geometry and topology. PyCauset uses **Plotly** to generate interactive figures that allow you to rotate, zoom, and inspect the causal set.
-
-## Basic Usage
-
-The primary function for visualization is [[docs/pycauset.vis/plot_embedding.md|pycauset.vis.plot_embedding]].
-
-```python
-from pycauset import CausalSet
-from pycauset.vis import plot_embedding
-
-# 1. Generate a Causal Set
-# Use a seed for reproducibility!
-c = CausalSet(n=5000, density=100, seed=42)
-
-# 2. Create the plot
-fig = plot_embedding(c)
-
-# 3. Display it
-fig.show()
-```
-
-## Reproducibility
-
-To ensure your visualization is identical every time, you must ensure the [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]] itself is reproducible (using `seed` in `CausalSet()`). The visualization function uses a fixed internal seed for subsampling, so plotting the same `CausalSet` object will always yield the same plot.
-
-```python
-# 1. Reproducible Causal Set
-c = CausalSet(n=100_000, seed=12345)
-
-# 2. Plotting
-# This will always show the same subset of points
-fig = plot_embedding(c)
-```
-
-## Handling Large Sets
-
-Visualizing millions of points in a web browser is not feasible. PyCauset solves this by **Smart Sampling**.
-
-When you pass a large [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]] to `plot_embedding`, it automatically samples a subset of points (default 50,000) to display. This preserves the global structure while keeping the visualization responsive.
-
-```python
-# A very large set (1 million elements)
-c_huge = CausalSet(n=1_000_000)
-
-# This will plot a random sample of 50,000 points
-fig = plot_embedding(c_huge)
-fig.show()
-```
-
-You can control the sample size with the `sample_size` parameter:
-
-```python
-fig = plot_embedding(c_huge, sample_size=10000)
-```
-
-## Coordinate Regeneration
-
-Under the hood, PyCauset does not store the coordinates of every element in memory. Instead, it uses the **Sprinkler** algorithm to regenerate coordinates on-demand using the original random seed.
-
-This means you can visualize a subset of a massive causal set without ever generating the full coordinate table, saving gigabytes of RAM.
-
-See `pycauset.CausalSet.coordinates` on [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]] for more details on the coordinate system.
-
-## Customizing the Plot
-
-You can customize the plot title and marker size.
-
-```python
-fig = plot_embedding(
-    c, 
-    title="My Universe", # Custom title
-    marker_size=3        # Larger points
-)
-```
-
-Since [[docs/pycauset.vis/plot_embedding.md|pycauset.vis.plot_embedding]] returns a Plotly figure, you can modify it how you would any Plotly figure.
-
-## Coordinate Transformations & Boundaries
-
-The visualization module automatically handles coordinate transformations for specific spacetimes to make them easier to interpret:
-
-*   **MinkowskiDiamond (2D)**: Lightcone coordinates $(u, v)$ are rotated to Cartesian coordinates $(t, x)$. The diamond boundary is drawn in white.
-*   **MinkowskiCylinder (2D)**: Coordinates are mapped to a 3D cylinder visualization. The top and bottom rings of the cylinder are drawn in white.
-*   **MinkowskiBox (2D)**: Coordinates are displayed as Cartesian $(t, x)$. The rectangular boundary is drawn in white.
-
-### Authored shapes (R2_VIZ)
-
-These shapes are **authored by the spacetime**, not guessed by the plotter. A
-`Spacetime` declares three optional presentation hooks, `to_embedding(coords)`
-(display transform), `boundary()` (paths in embedding coordinates), and
-`display_axes()` (axis labels), and the viz layer just reads them. A geometry-free
-custom spacetime renders its raw coordinates with generic `c0, c1, …` labels; no
-shape is ever inferred. Composition decorators (`Restricted`/`Transformed`/
-`Conformal`/`Periodic`) delegate these hooks to their base, so a wrapped cylinder
-still renders as a cylinder. Embeddings with `d > 3` dimensions are shown as the
-first three axes with an explicit warning, never silently truncated.
-
-## Hasse Diagrams
-
-[[docs/pycauset.vis/plot_hasse.md|pycauset.vis.plot_hasse]] generates a Hasse diagram, which visualizes the causal structure (partial order) directly.
-
-```python
-from pycauset.vis import plot_hasse
-
-fig = plot_hasse(c, title="Hasse Diagram")
-fig.show()
-```
-
-A Hasse diagram draws elements at their spacetime coordinates but draws lines (links) only between immediate causal neighbors. This reveals the "skeleton" of the causal structure.
-
-*   **Note**: Hasse diagrams are computationally expensive and visually cluttered for large sets. The function will raise an error if $N > 500$.
-
-## Causal Matrix Heatmaps
-
-`plot_causal_matrix` visualizes the Causal Matrix (Adjacency Matrix) $C$ as a heatmap.
-
-```python
-from pycauset.vis import plot_causal_matrix
-
-fig = plot_causal_matrix(c, title="Causal Matrix")
-fig.show()
-```
-
-Since the causal matrix is strictly upper triangular (for a sorted causal set), the heatmap will show a triangular pattern. This is useful for inspecting the density and structure of causal relations.
-
-*   **Note**: For very large sets ($N > 2000$), this plot may become slow to render.
-
-## Dependencies
-
-Visualization requires the `plotly` library.
-
-```bash
-pip install plotly
-```
-
-If `plotly` is not installed, importing `pycauset.vis` will raise an `ImportError`.
-
-## CausalSet plot methods + `pc.show` (R2)
-
-`CausalSet` exposes the plotters as methods (zero imports, lazy Plotly):
+The plotters live at the top level and as methods on `CausalSet`. Both do the same
+thing:
 
 ```python
 import pycauset as pc
 
 c = pc.causet(n=3000, seed=42)
-fig = c.plot_embedding()      # also c.plot_hasse(), c.plot_causal_matrix()
-fig.show()
 
+pc.plot_embedding(c).show()   # top-level function
+c.plot_embedding().show()     # method (no import needed)
 pc.show(c)                    # one-verb sugar: plot + .show()
 ```
 
-## Large-set policy (subset + warning + bypass)
+`pc.show(c)` picks the embedding plot and calls `.show()` for you. The other two
+views are `plot_hasse` and `plot_causal_matrix`, also available both ways.
 
-Above `max_points`, each plotter draws a **seeded random subset** and emits a
-`PyCausetPerformanceWarning` naming what was sampled. Pass `force=True` (or
-`max_points=None`) to render everything:
+Plotting needs `plotly`. It comes with `pip install pycauset`; if it is missing, the
+plotters raise an `ImportError` telling you to install it.
+
+## Reproducibility
+
+The causal set itself is reproducible when you pass a `seed`. The large-set
+subsampling uses a fixed internal seed too, so plotting the same causal set always
+shows the same subset.
 
 ```python
-c.plot_embedding()              # warns + subsets above 50,000 points
-c.plot_embedding(force=True)    # renders everything
+c = pc.causet(n=100_000, seed=12345)
+c.plot_embedding().show()   # same subset every time
 ```
 
-See [[docs/classes/spacetime/pycauset.CausalSet.md|CausalSet]] and
-[[docs/functions/pycauset.show.md|pc.show]].
+## Large sets
+
+Rendering millions of points in a browser is not practical, so each plotter caps the
+number of points it draws. Above the cap it draws a seeded random subset and emits a
+`PyCausetPerformanceWarning` naming what was sampled. Pass `force=True` (or
+`max_points=None`) to render everything.
+
+| Plotter | Default cap (`max_points`) |
+| :--- | :--- |
+| `plot_embedding` | 50,000 |
+| `plot_hasse` | 500 |
+| `plot_causal_matrix` | 2,000 |
+
+```python
+c.plot_embedding()               # warns + subsets above 50,000
+c.plot_embedding(force=True)     # render every point
+c.plot_embedding(max_points=10_000)   # a smaller subset
+```
+
+`sample_size` is an alias for `max_points`; it exists for back-compat with earlier
+call signatures.
+
+## Customizing the plot
+
+```python
+c.plot_embedding(
+    title="My universe",
+    marker_size=3,
+)
+```
+
+Each plotter returns a plain Plotly `Figure`, so anything you can do to a Plotly
+figure you can do here (change the template, add traces, save to file).
+
+## Coordinates and boundaries
+
+The plotter does not guess the shape of a spacetime. Each `Spacetime` can declare
+three presentation hooks — `to_embedding(coords)` (display transform), `boundary()`
+(paths in embedding coordinates), and `display_axes()` (axis labels) — and the viz
+layer just reads them:
+
+- `MinkowskiDiamond` (2D): lightcone coordinates $(u, v)$ rotated to Cartesian
+  $(t, x)$, diamond boundary drawn in white.
+- `MinkowskiCylinder` (2D): mapped to a 3D cylinder, top and bottom rings in white.
+- `MinkowskiBox` (2D): Cartesian $(t, x)$ with a rectangular boundary.
+
+A geometry-free custom spacetime renders its raw coordinates with generic
+`c0, c1, …` axis labels. Embeddings with more than 3 dimensions show the first three
+axes and warn explicitly; nothing is silently truncated.
+
+## Hasse diagrams
+
+`plot_hasse` draws only the links (the transitive reduction), so you see the skeleton
+of the partial order rather than every relation. It places elements at their
+spacetime coordinates.
+
+```python
+c = pc.causet(n=200, seed=7)
+c.plot_hasse().show()
+```
+
+The default cap is 500 points; above that it subsets with a warning.
+
+## Causal-matrix heatmaps
+
+`plot_causal_matrix` draws the causal matrix $C$ as a heatmap. Since the matrix is
+strictly upper triangular for a sorted causal set, you see a triangular pattern.
+
+```python
+c.plot_causal_matrix(color_scale="Greys").show()
+```
+
+The default cap is 2,000 points; above that it subsets with a warning.
+
+See [[docs/pycauset.vis/index.md|pycauset.vis]] for the exact signatures, and
+[[guides/Spacetime|Spacetime]] for how spacetimes author their own shapes.

@@ -1,4 +1,4 @@
-﻿site_name: PyCauset
+site_name: PyCauset
 site_url: https://brorh.github.io/pycauset/
 docs_dir: documentation
 repo_url: https://github.com/BrorH/pycauset
@@ -92,6 +92,9 @@ nav:
   - Home: index.md
   - Guides:
     - guides/index.md
+    - Quickstart: guides/Quickstart.md
+    - Tutorials: guides/Tutorials.md
+    - Examples: guides/Examples.md
     - Installation: guides/Installation.md
     - User Guide: guides/User Guide.md
     - Advanced Usage: guides/Advanced Usage.md

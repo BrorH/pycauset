@@ -74,10 +74,10 @@ A = pc.matrix([ [4., 12., -16.], [12., 37., -43.], [-16., -43., 98.] ], dtype="f
 L = pc.cholesky(A)     # lower-triangular
 
 M = pc.matrix([ [1., 2.], [3., 4.] ], dtype="float64")
-Llu, Ulu = pc.lu(M)
+P, L, U = pc.lu(M)   # returns (P, L, U)
 ```
 - `cholesky` expects Hermitian positive-definite; raises otherwise.
-- `lu` factors square matrices; returns `(L, U)`.
+- `lu` factors square matrices; returns `(P, L, U)`.
 - See [[docs/functions/pycauset.cholesky.md|pycauset.cholesky]], [[docs/functions/pycauset.lu.md|pycauset.lu]].
 
 ## Spectral (eigen) and SVD
@@ -102,7 +102,7 @@ pinv = pc.pinv(sym)
 A = pc.matrix([ [4., 7.], [2., 6.] ], dtype="float64")
 A_inv = pc.invert(A)
 
-val, sign = pc.slogdet(A)
+val, logabsdet = pc.slogdet(A)
 κ = pc.cond(A)
 ```
 - `invert`/`inverse` require square, supported dtypes (float64/float32); errors on singular.

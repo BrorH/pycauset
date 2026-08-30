@@ -4,6 +4,9 @@ These guides show how to use PyCauset in practice, from first setup to large-sca
 
 ## Start here
 
+*   **[[guides/Quickstart|Quickstart]]**: Ten minutes from install to a field on a causal set.
+*   **[[guides/Tutorials|Tutorials]]**: End-to-end walkthroughs, from first causet to fields and dimension estimates.
+*   **[[guides/Examples|Examples]]**: Short, copy-paste recipes across the whole surface.
 *   **[[guides/Installation|Installation]]**: Install PyCauset (pip or from source).
 *   **[[guides/User Guide|User Guide]]**: First workflow: create, visualize, save/load.
 *   **[[guides/Causal Sets|Causal Sets]]**: Core object model and common operations.

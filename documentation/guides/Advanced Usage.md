@@ -1,78 +1,102 @@
 # Advanced Usage & Tuning
 
-This guide covers advanced configuration knobs for performance tuning and debugging. 
+These are the knobs you reach for when you need to control memory, threads, storage
+location, or the device backend. Most runs do not need any of them.
 
-> **Warning**: These controls are intended for power users. Altering them may degrade performance or cause stability issues in low-memory environments.
+> **Warning**: These controls are for power users. Changing them can make things
+> slower or less stable if you do not know why you are changing them.
 
-## 1. Streaming Threshold
+## 1. Memory threshold (RAM vs disk)
 
-PyCauset automatically decides when to stream data (out-of-core) versus computing directly in RAM. You can override the bytecode threshold that triggers streaming.
+PyCauset keeps small objects in RAM and moves large ones to disk-backed storage. The
+cutoff is the native memory threshold, 1 GB by default.
 
-*   **API**: `pycauset.set_io_streaming_threshold(bytes: int | None)`
-*   **Default**: `None` (Use internal MemoryGovernor heuristics, typically ~80% safety margin).
-*   **Usage**:
-    ```python
-    import pycauset as pc
-    # Force streaming for any op involving > 1GB data
-    pc.set_io_streaming_threshold(1024 * 1024 * 1024)
-    
-    # Reset to automatic
-    pc.set_io_streaming_threshold(None)
-    ```
+```python
+import pycauset as pc
 
-## 2. CPU Tile Size Override
+pc.set_memory_threshold(100 * 1024 * 1024)   # spill above 100 MB
+print(pc.get_memory_threshold())             # read it back
+pc.set_memory_threshold(None)                # reset to the default
+```
 
-Control the tile dimensions used by the CPU backend during streaming operations.
+## 2. IO streaming threshold
 
-*   **API**: `pycauset.advanced.set_cpu_tile_size(size: int | tuple[int, int] | None)`
-*   **Default**: `None` (Streaming Manager selects optimal size based on L3 cache and RAM).
-*   **Usage**:
-    ```python
-    # Force 2048x2048 tiles
-    pc.advanced.set_cpu_tile_size(2048)
-    
-    # Reset
-    pc.advanced.set_cpu_tile_size(None)
-    ```
+Separately, the IO observability layer routes operations through streaming (out-of-core)
+heuristics above a byte threshold. This is a routing hint, not the RAM/disk cutoff.
 
-## 3. Thread Count
+```python
+pc.set_io_streaming_threshold(1024 * 1024 * 1024)   # 1 GB
+print(pc.get_io_streaming_threshold())
+pc.set_io_streaming_threshold(None)                 # automatic
+```
 
-Manually set the concurrency level for parallel operations (ParallelFor and OpenBLAS).
+## 3. Backing directory
 
-*   **API**: `pycauset.set_num_threads(n: int)`
-*   **Default**: `os.cpu_count()`.
-*   **Usage**:
-    ```python
-    # Limit to 4 threads
-    pc.set_num_threads(4)
-    ```
+Disk-backed payloads live in a `.pycauset` directory under the working directory by
+default. Point it somewhere else once, right after import, before you allocate
+anything large.
 
-## 4. Backend Override (Debug)
+```python
+from pathlib import Path
+import pycauset as pc
 
-Force the `AutoSolver` to route operations to a specific device, disregarding cost models.
+pc.set_backing_dir(Path.cwd() / "pycauset_storage")
+```
 
-*   **API**: `pycauset.cuda.force_backend(backend: str)`
-*   **Values**: 
-    *   `"auto"`: Smart routing (Default).
-    *   `"cpu"`: Force CPU execution.
-    *   `"gpu"`: Force GPU execution (raises error if unavailable).
-*   **Usage**:
-    ```python
-    pc.cuda.force_backend("cpu")
-    ```
+Changing it after matrices exist is allowed but not guaranteed to be clean; you get a
+`PyCausetStorageWarning` if live matrices are still tracked.
 
-## 5. Trace Verbosity
+## 4. Thread count
 
-Control the detail level of the internal IO and kernel event tracing.
+```python
+pc.set_num_threads(4)        # cap parallel work at 4 threads
+print(pc.get_num_threads())
+```
 
-*   **API**: `pycauset.debug.set_trace_level(level: int)`
-*   **Levels**: 
-    *   0: None
-    *   1: IO Trace (Routing decisions, plans).
-    *   2: Kernel Trace (Micro-ops, tile execution).
-*   **Usage**:
-    ```python
-    pc.debug.set_trace_level(1)
-    # Check trace
-    print(pc._debug_last_io_trace())
-    ```
+The default is the machine's CPU count. `pc.configure_openblas_threads()` reapplies
+the current thread setting to the OpenBLAS pool if the build uses it.
+
+## 5. Backend override (debug)
+
+The autosolver normally routes each operation to CPU or GPU by cost. You can force a
+device. `pycauset.cuda` is safe to import on a CPU-only install: the controls are
+no-ops when no CUDA device is present.
+
+```python
+pc.cuda.is_available()      # bool
+pc.cuda.force_backend("cpu")  # or "gpu" (raises if unavailable), "auto"
+```
+
+## 6. IO trace observability
+
+The IO layer records routing decisions. Read the most recent one, or filter by
+operation name, when you want to see why something streamed or stayed in RAM.
+
+```python
+pc.last_io_trace()          # most recent trace, or None
+pc.last_io_trace("matmul")  # most recent matmul trace
+pc.clear_io_traces()        # reset the log
+```
+
+## 7. Keeping temporary files
+
+Temporary backing files are deleted on exit by default. Set the flag to keep them for
+debugging.
+
+```python
+pc.keep_temp_files = True
+```
+
+## 8. Precision mode
+
+Temporarily override the promotion precision mode with a context manager:
+
+```python
+with pc.precision_mode("highest"):
+    C = A @ B
+```
+
+This controls storage-dtype promotion decisions, not the accelerator's internal
+compute dtype.
+
+See [[docs/index|API Reference]] for exact signatures.
