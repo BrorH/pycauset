@@ -49,16 +49,19 @@ Testing & Bug Tracking protocol.
 - **Conference feature menu**, `documentation/guides/R2 Feature Menu.md`.
 - **CI correctness gate**, `.github/workflows/ci.yml` runs `pytest tests/python`
   on the 3-OS matrix (Linux/macOS/Windows).
+- **CI parity visibility**, `.github/workflows/ci.yml` runs `benchmarks/r2_parity.py`
+  after the tests (report-only; the `>= 0.90x` ratio is logged per op, not hard-gated,
+  because shared-runner timing is noisy).
+- **Public-surface documentation audit**, `tools/audit_public_surface.py` verifies
+  every `pycauset.__all__` symbol has a doc page (zero undocumented public API).
 
 ## Remaining (not yet audited/closed)
 
-- **CI parity threshold** (R2_PERF: `benchmarks/r2_parity.py` with the `>= 0.90×`
-  bar enforced in CI, timing thresholds are intentionally not CI-gated yet).
-- **C++ R2E**, in progress: GPU `lu`/`qr`/`svd` factorizations are done (cuSOLVER,
-  square dense, with CPU fallback); remaining are the shared `CudaLinalg` dispatch
-  layer, CUDA wheel packaging, out-of-core `inverse`/`qr`/`svd` (tiled
-  factorization driver), and R2_HARDEN polish (`__init__.py` slimming, CMake
-  warning audit, macOS wheel portability).
+- **C++ R2E** (parked per director): GPU `lu`/`qr`/`svd` are done (cuSOLVER, square
+  dense, with CPU fallback); the shared `CudaLinalg` dispatch layer, CUDA wheel
+  packaging, and out-of-core `inverse`/`qr`/`svd` remain as future work.
+- **R2_HARDEN polish**: `__init__.py` slimming, CMake warning audit, macOS wheel
+  portability.
 
 ## Deferred to future releases (explicitly NOT R2 scope)
 

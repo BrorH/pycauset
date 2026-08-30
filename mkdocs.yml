@@ -190,6 +190,8 @@ nav:
       - Core:
         - docs/classes/core/index.md
         - docs/classes/core/pycauset.PersistentObject.md
+        - docs/classes/core/pycauset.AccessPattern.md
+        - docs/classes/core/pycauset.MemoryHint.md
     - Functions:
       - docs/functions/index.md
       - docs/functions/pycauset.field.md
@@ -247,6 +249,15 @@ nav:
       - docs/functions/pycauset.svd.md
       - docs/functions/pycauset.to_numpy.md
       - docs/functions/pycauset.load.md
+      - docs/functions/pycauset.bool.md
+      - docs/functions/pycauset.clear_io_traces.md
+      - docs/functions/pycauset.get_io_streaming_threshold.md
+      - docs/functions/pycauset.is_gpu_available.md
+      - docs/functions/pycauset.last_io_trace.md
+      - docs/functions/pycauset.plot_causal_matrix.md
+      - docs/functions/pycauset.plot_embedding.md
+      - docs/functions/pycauset.plot_hasse.md
+      - docs/functions/pycauset.set_io_streaming_threshold.md
       - CUDA (pycauset.cuda):
         - docs/functions/pycauset.cuda.is_available.md
         - docs/functions/pycauset.cuda.enable.md

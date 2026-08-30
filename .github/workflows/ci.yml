@@ -49,3 +49,10 @@ jobs:
       - name: Run tests
         timeout-minutes: 10
         run: python -m pytest tests/python -v --tb=short
+
+      - name: Benchmark (parity vs NumPy, report-only)
+        # R2_PERF/R2_QA visibility: this reports the numpy_time/pycauset_time
+        # ratio per op (>= 0.90x = "at parity"). It is intentionally report-only,
+        # not a hard gate: shared CI runners are noisy and timing thresholds are
+        # enforced locally/on a dedicated machine, not on the 3-OS CI matrix.
+        run: python benchmarks/r2_parity.py
