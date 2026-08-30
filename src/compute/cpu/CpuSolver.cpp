@@ -2328,11 +2328,16 @@ void CpuSolver::eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBas
     if (info < 0) throw std::runtime_error("CpuSolver::eig_skew: illegal argument");
 
     // Build the full complex eigensystem (eigenvalues + eigenvectors), unpacking
-    // conjugate pairs exactly like the general eig path.
+    // conjugate pairs exactly like the general eig path. Eigenvalues are set in a
+    // separate loop first: each conjugate pair contributes BOTH eigenvalues, and the
+    // eigenvector loop below skips the second column of each pair (++j), so writing
+    // full_evals inside that loop would leave the "-i*lambda" eigenvalue unset.
     std::vector<std::complex<double>> full_evals(n);
-    std::vector<std::complex<double>> full_evecs(n * n);
     for (size_t j = 0; j < n; ++j) {
         full_evals[j] = { wr[j], wi[j] };
+    }
+    std::vector<std::complex<double>> full_evecs(n * n);
+    for (size_t j = 0; j < n; ++j) {
         if (wi[j] == 0.0) {
             for (size_t i = 0; i < n; ++i) full_evecs[i * n + j] = { vr[i * n + j], 0.0 };
         } else {

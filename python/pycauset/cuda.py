@@ -1,21 +1,23 @@
-"""Python facade for the native cuda submodule.
+"""Python facade for the native CUDA control surface.
 
-This makes `import pycauset.cuda` work even when the native CUDA plugin
-is unavailable, so tests can skip cleanly.
+`pycauset.cuda` is the native `_pycauset.cuda` submodule (`is_available`, `enable`,
+`disable`, `force_backend`, `benchmark`, `current_device`, `set_pinning_budget`).
+This module re-exports it so `import pycauset.cuda` works on a CPU-only install too:
+the submodule always exists and its controls are safe no-ops when no CUDA device is
+present.
 """
+
 from __future__ import annotations
 
 from types import ModuleType
 from typing import Any
 
-import pycauset as _pc
-
 
 def _load_native() -> ModuleType | None:
     try:
-        from . import _pycauset_cuda
+        from . import _pycauset
 
-        return _pycauset_cuda
+        return getattr(_pycauset, "cuda", None)
     except ImportError:
         return None
 
