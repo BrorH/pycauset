@@ -79,62 +79,11 @@ complex128 = "complex_float64"
 _native_mod.configure_windows_dll_search_paths(package_dir=os.path.dirname(__file__))
 _native = _native_mod.import_native_extension(package=__name__)
 
-# Set a sensible OpenBLAS thread default. Too many threads add SMP-server overhead
-# to small LAPACK factorizations (invert/determinant/eigh) while barely helping
-# GEMM at the parity-benchmark size (n=1024). 8 balances both; users can override
-# with OPENBLAS_NUM_THREADS. The library is already loaded as a pycauset_core
-# dependency, so a name-based ctypes lookup reuses the existing handle. The name
-# differs per platform (libopenblas.dll / libopenblas.dylib / libopenblas.so);
-# probe each and fall back to ctypes.util.find_library.
-try:
-    _ob_threads = int(os.environ.get("OPENBLAS_NUM_THREADS", "0") or "0")
-    if _ob_threads <= 0:
-        # Cap the default to the visible CPU count so small runners (macOS CI
-        # exposes 3 vCPUs) are not asked to run more OpenBLAS threads than they
-        # have cores.
-        _ob_threads = min(8, os.cpu_count() or 8)
-    import ctypes as _ctypes
+# One-shot native configuration (OpenBLAS thread default + GPU install hint).
+from ._internal.native_setup import configure_openblas_threads, emit_gpu_install_hint_once
 
-    _ob_dll = None
-    for _ob_name in ("libopenblas.dll", "libopenblas.dylib", "libopenblas.so.0", "libopenblas.so"):
-        try:
-            _ob_dll = _ctypes.CDLL(_ob_name)
-            break
-        except Exception:
-            continue
-    if _ob_dll is None:
-        try:
-            import ctypes.util as _ctypes_util
-            _ob_lib = _ctypes_util.find_library("openblas")
-            if _ob_lib:
-                _ob_dll = _ctypes.CDLL(_ob_lib)
-        except Exception:
-            _ob_dll = None
-    if _ob_dll is not None:
-        _ob_set = getattr(_ob_dll, "openblas_set_num_threads", None)
-        if _ob_set is not None:
-            _ob_set(_ob_threads)
-except Exception:
-    pass
-
-# One-time GPU install hint. PyCauset ships CPU-only by default; the GPU backend
-# is opt-in via `pip install pycauset[gpu]`. On a machine with an NVIDIA GPU but
-# no GPU backend, emit a single clear install hint (silence with
-# PYCAUSET_GPU_HINT=0). Never blocks or breaks import.
-try:
-    from ._internal.gpu_hint import emit_gpu_install_hint
-
-    def _gpu_backend_available() -> bool:
-        try:
-            from . import _pycauset_cuda as _cuda_mod
-
-            return bool(_cuda_mod.is_available())
-        except Exception:
-            return False
-
-    emit_gpu_install_hint(backend_available=_gpu_backend_available)
-except Exception:
-    pass
+configure_openblas_threads()
+emit_gpu_install_hint_once()
 
 # Import modules that depend on the native extension after it is loaded.
 from . import field as field
