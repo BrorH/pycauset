@@ -61,24 +61,23 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: "CMAKE_ARGS='-DPython_FIND_STRATEGY=LOCATION' CC='/opt/rh/gcc-toolset-12/root/usr/bin/gcc' CXX='/opt/rh/gcc-toolset-12/root/usr/bin/g++' PATH=\"/usr/lib64/ccache:$PATH\""
           
           # macOS: Install build dependencies.
-          # OpenBLAS is built from source by CMake's FetchContent fallback (which
-          # needs a Fortran compiler, hence gfortran) instead of from Homebrew, so
-          # the wheel is not bound to the runner's Homebrew deployment target.
-          # libomp is intentionally omitted: the OpenMP `#pragma omp` loops then run
-          # serially (correct, slightly slower) and the wheel no longer needs the
-          # Homebrew libomp bottle, which also carried the macOS-15 minimum.
-          CIBW_BEFORE_ALL_MACOS: "brew install gfortran ccache"
+          # OpenBLAS and libomp are needed for the C++ extension.
+          CIBW_BEFORE_ALL_MACOS: "brew install libomp openblas ccache"
           
           # macOS: Env Setup
-          # 1. Add ccache to PATH (checking both potential locations)
-          # 2. MACOSX_DEPLOYMENT_TARGET is lowered so the wheel supports macOS 13+.
-          #    It must stay >= what the from-source OpenBLAS actually supports; do
-          #    not claim a target lower than the bundled libraries honor.
+          # 1. Point to Homebrew locations for headers/libs (Apple Silicon uses /opt/homebrew, Intel uses /usr/local)
+          # 2. Add ccache to PATH (checking both potential locations)
+          # 3. MACOSX_DEPLOYMENT_TARGET must match the Homebrew bottles on the runner.
+          #    We pin the runner to macos-15 so Homebrew builds against macOS 15 and the
+          #    wheel supports macOS 15+, instead of being dragged to the newest runner OS.
           CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET="13.0"
-            CMAKE_ARGS='-DPython_FIND_STRATEGY=LOCATION -DCMAKE_POLICY_VERSION_MINIMUM=3.5'
+            MACOSX_DEPLOYMENT_TARGET="15.0"
+            CMAKE_ARGS='-DPython_FIND_STRATEGY=LOCATION'
             CC="clang"
             CXX="clang++"
+            CFLAGS="-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include"
+            CXXFLAGS="-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include -I/usr/local/opt/libomp/include"
+            LDFLAGS="-L/opt/homebrew/opt/libomp/lib -L/usr/local/opt/libomp/lib -lomp"
             PATH="/opt/homebrew/opt/ccache/libexec:/usr/local/opt/ccache/libexec:$PATH"
 
       - uses: actions/upload-artifact@v4

@@ -46,8 +46,26 @@ smoke-tested on `macos-14`, but a genuine macOS 12 claim needs a separate runner
 4. Keep the explicit deployment target honest: never claim a target lower than what
    the bundled libraries actually support.
 
+## Attempt findings (2026-08)
+
+A direct attempt (drop Homebrew OpenBLAS, add `gfortran`, lower the target, add
+`-DCMAKE_POLICY_VERSION_MINIMUM=3.5`) got past the first hurdle but hit two real
+OpenBLAS-on-macOS build problems:
+
+1. OpenBLAS v0.3.26's `CMakeLists.txt` declares an old `cmake_minimum_required`,
+   which CMake 4.x rejects. `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` works around it.
+2. OpenBLAS's `getarch` step compiles with `-march=native`, which AppleClang does
+   not accept (`clang: error: unsupported argument 'native' to option '-march='`).
+   This needs the OpenBLAS build to be told an explicit `TARGET` (e.g. `ARMV8` for
+   Apple Silicon) or `DYNAMIC_ARCH=1` to skip `getarch`, which is a CMake-level
+   change to the `FetchContent` invocation in `CMakeLists.txt`, not a workflow tweak.
+
+So the from-source path is a CMake + OpenBLAS build-configuration task, not just a
+`publish.yml` change. Reverted the workflow to the working brew-based macOS 15 build.
+
 ## Decision
 
 Deferred: the current macOS 15+ wheels are correct and honest, and the from-source
-build is a real, multi-step packaging change with a hard verification requirement.
+build is a real, multi-step packaging change (OpenBLAS target/`DYNAMIC_ARCH` wiring
+plus deployment-target propagation) with a hard verification requirement.
 It is intentionally left documented here rather than half-done.
