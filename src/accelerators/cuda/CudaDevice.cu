@@ -157,10 +157,170 @@ double CudaDevice::determinant(const MatrixBase& m) {
 }
 
 void CudaDevice::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
-    (void)in;
-    (void)Q;
-    (void)R;
-    throw std::runtime_error("CudaDevice::qr not implemented");
+    // GPU QR for square dense float/double matrices. Rectangular input throws so
+    // AutoSolver falls back to the CPU path (which handles M x N thin QR).
+    const uint64_t m = in.rows();
+    const uint64_t n = in.cols();
+    if (m != n) {
+        throw std::runtime_error("CudaDevice::qr only supports square matrices (CPU handles rectangular)");
+    }
+    const uint64_t N = m;
+
+    // Double precision.
+    if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+        auto* q_out = dynamic_cast<DenseMatrix<double>*>(&Q);
+        auto* r_out = dynamic_cast<DenseMatrix<double>*>(&R);
+        if (!q_out || !r_out) throw std::runtime_error("QR output type mismatch (double)");
+
+        const size_t bytes = N * N * sizeof(double);
+        std::vector<double> h_a(N * N);
+        for (uint64_t i = 0; i < N; ++i)
+            for (uint64_t j = 0; j < N; ++j)
+                h_a[i * N + j] = in_d->get(i, j);
+
+        double* d_A = nullptr;
+        double* d_Tau = nullptr;
+        int* d_Info = nullptr;
+        double* d_Work = nullptr;
+        try {
+            check_cuda(cudaMalloc(&d_A, bytes), "cudaMalloc A");
+            check_cuda(cudaMalloc(&d_Tau, N * sizeof(double)), "cudaMalloc Tau");
+            check_cuda(cudaMalloc(&d_Info, sizeof(int)), "cudaMalloc Info");
+            check_cuda(cudaMemcpy(d_A, h_a.data(), bytes, cudaMemcpyHostToDevice), "cudaMemcpy A");
+
+            // Row-major -> column-major (in-place transpose) so geqrf sees A.
+            dim3 block(16, 16);
+            dim3 grid(static_cast<unsigned>((N + 15) / 16), static_cast<unsigned>((N + 15) / 16));
+            k_transpose_dense<<<grid, block>>>(d_A, static_cast<int>(N));
+
+            int lwork = 0;
+            check_cusolver(cusolverDnDgeqrf_bufferSize(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                                       d_A, static_cast<int>(N), &lwork), "geqrf_bufferSize");
+            check_cuda(cudaMalloc(&d_Work, lwork * sizeof(double)), "cudaMalloc Work");
+            check_cusolver(cusolverDnDgeqrf(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                            d_A, static_cast<int>(N), d_Tau, d_Work, lwork, d_Info), "geqrf");
+
+            int info = 0;
+            check_cuda(cudaMemcpy(&info, d_Info, sizeof(int), cudaMemcpyDeviceToHost), "copy Info");
+            if (info != 0) throw std::runtime_error("QR factorization failed (geqrf)");
+
+            // Extract R (upper triangular) from the factorized matrix BEFORE orgqr
+            // overwrites it with Q. d_A is column-major: entry (r,c) = d_A[c*N + r].
+            std::vector<double> h_r(N * N);
+            check_cuda(cudaMemcpy(h_r.data(), d_A, bytes, cudaMemcpyDeviceToHost), "copy R");
+            double* r_ptr = r_out->data();
+            std::fill(r_ptr, r_ptr + N * N, 0.0);
+            for (uint64_t r = 0; r < N; ++r)
+                for (uint64_t c = r; c < N; ++c)
+                    r_ptr[r * N + c] = h_r[c * N + r];
+
+            // orgqr reconstructs Q from the Householder reflectors in place.
+            check_cusolver(cusolverDnDorgqr_bufferSize(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                                       static_cast<int>(N), d_A, static_cast<int>(N), d_Tau, &lwork), "orgqr_bufferSize");
+            if (lwork * sizeof(double) > 0) {
+                cudaFree(d_Work);
+                d_Work = nullptr;
+                check_cuda(cudaMalloc(&d_Work, lwork * sizeof(double)), "cudaMalloc Work (orgqr)");
+            }
+            check_cusolver(cusolverDnDorgqr(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                            static_cast<int>(N), d_A, static_cast<int>(N), d_Tau, d_Work, lwork, d_Info), "orgqr");
+            check_cuda(cudaMemcpy(&info, d_Info, sizeof(int), cudaMemcpyDeviceToHost), "copy Info 2");
+            if (info != 0) throw std::runtime_error("QR factorization failed (orgqr)");
+
+            std::vector<double> h_q(N * N);
+            check_cuda(cudaMemcpy(h_q.data(), d_A, bytes, cudaMemcpyDeviceToHost), "copy Q");
+            double* q_ptr = q_out->data();
+            for (uint64_t r = 0; r < N; ++r)
+                for (uint64_t c = 0; c < N; ++c)
+                    q_ptr[r * N + c] = h_q[c * N + r];
+
+            cudaFree(d_A); cudaFree(d_Tau); cudaFree(d_Info); cudaFree(d_Work);
+            return;
+        } catch (...) {
+            if (d_A) cudaFree(d_A);
+            if (d_Tau) cudaFree(d_Tau);
+            if (d_Info) cudaFree(d_Info);
+            if (d_Work) cudaFree(d_Work);
+            throw;
+        }
+    }
+
+    // Single precision.
+    if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+        auto* q_out = dynamic_cast<DenseMatrix<float>*>(&Q);
+        auto* r_out = dynamic_cast<DenseMatrix<float>*>(&R);
+        if (!q_out || !r_out) throw std::runtime_error("QR output type mismatch (float)");
+
+        const size_t bytes = N * N * sizeof(float);
+        std::vector<float> h_a(N * N);
+        for (uint64_t i = 0; i < N; ++i)
+            for (uint64_t j = 0; j < N; ++j)
+                h_a[i * N + j] = in_f->get(i, j);
+
+        float* d_A = nullptr;
+        float* d_Tau = nullptr;
+        int* d_Info = nullptr;
+        float* d_Work = nullptr;
+        try {
+            check_cuda(cudaMalloc(&d_A, bytes), "cudaMalloc A");
+            check_cuda(cudaMalloc(&d_Tau, N * sizeof(float)), "cudaMalloc Tau");
+            check_cuda(cudaMalloc(&d_Info, sizeof(int)), "cudaMalloc Info");
+            check_cuda(cudaMemcpy(d_A, h_a.data(), bytes, cudaMemcpyHostToDevice), "cudaMemcpy A");
+
+            dim3 block(16, 16);
+            dim3 grid(static_cast<unsigned>((N + 15) / 16), static_cast<unsigned>((N + 15) / 16));
+            k_transpose_dense<<<grid, block>>>(d_A, static_cast<int>(N));
+
+            int lwork = 0;
+            check_cusolver(cusolverDnSgeqrf_bufferSize(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                                       d_A, static_cast<int>(N), &lwork), "geqrf_bufferSize");
+            check_cuda(cudaMalloc(&d_Work, lwork * sizeof(float)), "cudaMalloc Work");
+            check_cusolver(cusolverDnSgeqrf(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                            d_A, static_cast<int>(N), d_Tau, d_Work, lwork, d_Info), "geqrf");
+
+            int info = 0;
+            check_cuda(cudaMemcpy(&info, d_Info, sizeof(int), cudaMemcpyDeviceToHost), "copy Info");
+            if (info != 0) throw std::runtime_error("QR factorization failed (geqrf)");
+
+            std::vector<float> h_r(N * N);
+            check_cuda(cudaMemcpy(h_r.data(), d_A, bytes, cudaMemcpyDeviceToHost), "copy R");
+            float* r_ptr = r_out->data();
+            std::fill(r_ptr, r_ptr + N * N, 0.0f);
+            for (uint64_t r = 0; r < N; ++r)
+                for (uint64_t c = r; c < N; ++c)
+                    r_ptr[r * N + c] = h_r[c * N + r];
+
+            check_cusolver(cusolverDnSorgqr_bufferSize(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                                       static_cast<int>(N), d_A, static_cast<int>(N), d_Tau, &lwork), "orgqr_bufferSize");
+            if (lwork * sizeof(float) > 0) {
+                cudaFree(d_Work);
+                d_Work = nullptr;
+                check_cuda(cudaMalloc(&d_Work, lwork * sizeof(float)), "cudaMalloc Work (orgqr)");
+            }
+            check_cusolver(cusolverDnSorgqr(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                            static_cast<int>(N), d_A, static_cast<int>(N), d_Tau, d_Work, lwork, d_Info), "orgqr");
+            check_cuda(cudaMemcpy(&info, d_Info, sizeof(int), cudaMemcpyDeviceToHost), "copy Info 2");
+            if (info != 0) throw std::runtime_error("QR factorization failed (orgqr)");
+
+            std::vector<float> h_q(N * N);
+            check_cuda(cudaMemcpy(h_q.data(), d_A, bytes, cudaMemcpyDeviceToHost), "copy Q");
+            float* q_ptr = q_out->data();
+            for (uint64_t r = 0; r < N; ++r)
+                for (uint64_t c = 0; c < N; ++c)
+                    q_ptr[r * N + c] = h_q[c * N + r];
+
+            cudaFree(d_A); cudaFree(d_Tau); cudaFree(d_Info); cudaFree(d_Work);
+            return;
+        } catch (...) {
+            if (d_A) cudaFree(d_A);
+            if (d_Tau) cudaFree(d_Tau);
+            if (d_Info) cudaFree(d_Info);
+            if (d_Work) cudaFree(d_Work);
+            throw;
+        }
+    }
+
+    throw std::runtime_error("CudaDevice::qr only implemented for float/double");
 }
 
 void CudaDevice::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) {

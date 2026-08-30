@@ -88,3 +88,45 @@ def test_gpu_lu_rectangular_falls_back_to_cpu():
     assert l_np.shape == (m, k)
     assert u_np.shape == (k, n)
     np.testing.assert_allclose(p_np @ l_np @ u_np, a_np, rtol=1e-5, atol=1e-8)
+
+
+@pytest.mark.skipif(not _cuda_available(), reason="CUDA not available")
+def test_gpu_qr_reconstructs_float64():
+    rng = np.random.default_rng(11)
+    n = 64
+    a_np = rng.standard_normal((n, n))
+    a = pycauset.matrix(a_np)
+
+    pycauset.cuda.force_backend("gpu")
+    try:
+        q, r = pycauset.qr(a)
+    finally:
+        pycauset.cuda.force_backend("auto")
+
+    q_np = np.asarray(q)
+    r_np = np.asarray(r)
+
+    np.testing.assert_allclose(q_np @ r_np, a_np, rtol=1e-5, atol=1e-8)
+    np.testing.assert_allclose(q_np.T @ q_np, np.eye(n), rtol=1e-5, atol=1e-8)  # orthonormal
+    np.testing.assert_allclose(np.triu(r_np), r_np, atol=1e-8)  # upper triangular
+
+
+@pytest.mark.skipif(not _cuda_available(), reason="CUDA not available")
+def test_gpu_qr_reconstructs_float32():
+    rng = np.random.default_rng(5)
+    n = 48
+    a_np = rng.standard_normal((n, n)).astype(np.float32)
+    a = pycauset.matrix(a_np)
+
+    pycauset.cuda.force_backend("gpu")
+    try:
+        q, r = pycauset.qr(a)
+    finally:
+        pycauset.cuda.force_backend("auto")
+
+    q_np = np.asarray(q)
+    r_np = np.asarray(r)
+
+    np.testing.assert_allclose(q_np @ r_np, a_np, rtol=1e-3, atol=1e-4)
+    np.testing.assert_allclose(q_np.T @ q_np, np.eye(n), rtol=1e-3, atol=1e-4)
+    np.testing.assert_allclose(np.triu(r_np), r_np, atol=1e-4)
