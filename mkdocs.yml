@@ -295,7 +295,6 @@ nav:
       - Plan Archive: internals/plans/archive/index.md
   - Dev Handbook:
     - dev/index.md
-    - Agent Bootstrap: dev/Agent Bootstrap.md
     - Restructure Plan: dev/Restructure Plan.md
     - PyCauset Container Format: dev/PyCauset Container Format.md
     - Storage Semantics: dev/Storage Semantics.md
