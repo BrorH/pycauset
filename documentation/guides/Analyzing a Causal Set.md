@@ -28,6 +28,12 @@ If `i < j` and there is no `k` with `i < k < j`, then `links[i, j]` is `True`. T
 causal matrix `c.C` has every related pair; `links` has only the ones with nothing in
 between.
 
+![The causal matrix](../docs/assets/gallery/causal_matrix.png)
+
+*The full causal matrix `c.C` as a heatmap. The strict upper triangle is the
+signature of a time-labelled causal set; `links()` keeps only the entries with no
+intermediate element.*
+
 ## Chains, antichains, layers
 
 ```python
