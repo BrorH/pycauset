@@ -31,3 +31,7 @@ jobs:
       - name: Run diagnostic
         timeout-minutes: 8
         run: python -u tools/macos_hang_diagnose.py
+
+      - name: Run full test suite
+        timeout-minutes: 15
+        run: python -m pytest tests/python -v --tb=short
