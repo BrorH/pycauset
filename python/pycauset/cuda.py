@@ -15,10 +15,13 @@ from typing import Any
 
 def _load_native() -> ModuleType | None:
     try:
-        from . import _pycauset
+        import pycauset
 
-        return getattr(_pycauset, "cuda", None)
-    except ImportError:
+        native = getattr(pycauset, "_native", None)
+        if native is None:
+            return None
+        return getattr(native, "cuda", None)
+    except Exception:
         return None
 
 
