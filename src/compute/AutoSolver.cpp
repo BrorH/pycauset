@@ -861,8 +861,41 @@ void AutoSolver::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
 }
 
 void AutoSolver::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) {
-    // Always CPU for now
-    cpu_device_->lu(in, P, L, U);
+    uint64_t n = in.rows();
+    // LU factorization is ~(2/3) n^3 flops (getrf).
+    double ops = (2.0 / 3.0) * static_cast<double>(n) * static_cast<double>(n) * static_cast<double>(n);
+
+    bool use_gpu = false;
+    // The GPU path handles square dense float/double only; rectangular input
+    // routes straight to the CPU (no wasted dispatch + throw).
+    if (is_gpu_active() && in.get_matrix_type() == MatrixType::DENSE_FLOAT && in.rows() == in.cols()) {
+        DataType dt = in.get_data_type();
+        if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
+            if (prefers_cpu_for_properties(in)) {
+                use_gpu = false;
+            } else if (backend_preference_ == BackendPreference::GPU) {
+                use_gpu = true;
+            } else if (backend_preference_ == BackendPreference::CPU) {
+                use_gpu = false;
+            } else {
+                double elem_bytes = bytes_per_element(dt);
+                double bytes = elem_bytes * 2.0 * static_cast<double>(n) * n;
+                use_gpu = should_use_gpu(ops, bytes, dt);
+            }
+        }
+    }
+
+    if (use_gpu) {
+        try {
+            gpu_device_->lu(in, P, L, U);
+        } catch (const std::exception& e) {
+            std::cerr << "[PyCauset] GPU Error in lu: " << e.what() << ". Falling back to CPU." << std::endl;
+            gpu_device_.reset();
+            cpu_device_->lu(in, P, L, U);
+        }
+    } else {
+        cpu_device_->lu(in, P, L, U);
+    }
 }
 
 void AutoSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) {

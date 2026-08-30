@@ -15,6 +15,8 @@
 #include <sstream>
 #include <cctype>
 #include <cstdlib>
+#include <vector>
+#include <algorithm>
 
 namespace {
 
@@ -162,8 +164,171 @@ void CudaDevice::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
 }
 
 void CudaDevice::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) {
-    (void)in; (void)P; (void)L; (void)U;
-    throw std::runtime_error("CudaDevice::lu not implemented (use CPU)");
+    // GPU LU for square dense float/double matrices. Rectangular input (and any
+    // non-dense dtype) throws so AutoSolver falls back to the CPU path, which
+    // handles the general M x N case. Square is the causal-set case (relation and
+    // adjacency matrices are n x n).
+    const uint64_t m = in.rows();
+    const uint64_t n = in.cols();
+    if (m != n) {
+        throw std::runtime_error("CudaDevice::lu only supports square matrices (CPU handles rectangular)");
+    }
+    const uint64_t N = m;
+
+    // Double precision.
+    if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
+        auto* p_out = dynamic_cast<DenseMatrix<double>*>(&P);
+        auto* l_out = dynamic_cast<DenseMatrix<double>*>(&L);
+        auto* u_out = dynamic_cast<DenseMatrix<double>*>(&U);
+        if (!p_out || !l_out || !u_out) throw std::runtime_error("LU output type mismatch (double)");
+
+        const size_t bytes = N * N * sizeof(double);
+        // Materialize through get() so scalar/transpose/view metadata is applied.
+        std::vector<double> h_a(N * N);
+        for (uint64_t i = 0; i < N; ++i)
+            for (uint64_t j = 0; j < N; ++j)
+                h_a[i * N + j] = in_d->get(i, j);
+
+        double* d_A = nullptr;
+        int* d_Ipiv = nullptr;
+        int* d_Info = nullptr;
+        double* d_Work = nullptr;
+        try {
+            check_cuda(cudaMalloc(&d_A, bytes), "cudaMalloc A");
+            check_cuda(cudaMalloc(&d_Ipiv, N * sizeof(int)), "cudaMalloc Ipiv");
+            check_cuda(cudaMalloc(&d_Info, sizeof(int)), "cudaMalloc Info");
+            check_cuda(cudaMemcpy(d_A, h_a.data(), bytes, cudaMemcpyHostToDevice), "cudaMemcpy A");
+
+            // Row-major host data -> column-major layout getrf expects (in-place
+            // transpose), so the solver factorizes A rather than A^T.
+            dim3 block(16, 16);
+            dim3 grid(static_cast<unsigned>((N + 15) / 16), static_cast<unsigned>((N + 15) / 16));
+            k_transpose_dense<<<grid, block>>>(d_A, static_cast<int>(N));
+
+            int lwork = 0;
+            check_cusolver(cusolverDnDgetrf_bufferSize(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                                       d_A, static_cast<int>(N), &lwork), "getrf_bufferSize");
+            check_cuda(cudaMalloc(&d_Work, lwork * sizeof(double)), "cudaMalloc Work");
+            check_cusolver(cusolverDnDgetrf(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                            d_A, static_cast<int>(N), d_Work, d_Ipiv, d_Info), "getrf");
+
+            int info = 0;
+            check_cuda(cudaMemcpy(&info, d_Info, sizeof(int), cudaMemcpyDeviceToHost), "copy Info");
+            if (info < 0) throw std::runtime_error("LU factorization failed: illegal value");
+            // info > 0 => singular; the factorization is still returned, matching CPU.
+
+            std::vector<double> h_lu(N * N);
+            std::vector<int> h_ipiv(N);
+            check_cuda(cudaMemcpy(h_lu.data(), d_A, bytes, cudaMemcpyDeviceToHost), "copy LU");
+            check_cuda(cudaMemcpy(h_ipiv.data(), d_Ipiv, N * sizeof(int), cudaMemcpyDeviceToHost), "copy Ipiv");
+
+            // Extract L (unit lower) and U (upper). h_lu is column-major, so the
+            // (r,c) entry lives at h_lu[c*N + r]; the output matrices are row-major.
+            double* l_ptr = l_out->data();
+            double* u_ptr = u_out->data();
+            std::fill(l_ptr, l_ptr + N * N, 0.0);
+            std::fill(u_ptr, u_ptr + N * N, 0.0);
+            for (uint64_t r = 0; r < N; ++r) {
+                for (uint64_t c = 0; c < N; ++c) {
+                    if (r > c) l_ptr[r * N + c] = h_lu[c * N + r];
+                    else if (r == c) l_ptr[r * N + c] = 1.0;
+                    if (r <= c) u_ptr[r * N + c] = h_lu[c * N + r];
+                }
+            }
+
+            // Build P from the 1-based pivot array (row-swap semantics, same as CPU).
+            double* p_ptr = p_out->data();
+            std::fill(p_ptr, p_ptr + N * N, 0.0);
+            std::vector<int> p_idx(N);
+            for (uint64_t i = 0; i < N; ++i) p_idx[i] = static_cast<int>(i);
+            for (uint64_t i = 0; i < N; ++i) std::swap(p_idx[i], p_idx[h_ipiv[i] - 1]);
+            for (uint64_t i = 0; i < N; ++i) p_ptr[static_cast<uint64_t>(p_idx[i]) * N + i] = 1.0;
+
+            cudaFree(d_A); cudaFree(d_Ipiv); cudaFree(d_Info); cudaFree(d_Work);
+            return;
+        } catch (...) {
+            if (d_A) cudaFree(d_A);
+            if (d_Ipiv) cudaFree(d_Ipiv);
+            if (d_Info) cudaFree(d_Info);
+            if (d_Work) cudaFree(d_Work);
+            throw;
+        }
+    }
+
+    // Single precision.
+    if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
+        auto* p_out = dynamic_cast<DenseMatrix<float>*>(&P);
+        auto* l_out = dynamic_cast<DenseMatrix<float>*>(&L);
+        auto* u_out = dynamic_cast<DenseMatrix<float>*>(&U);
+        if (!p_out || !l_out || !u_out) throw std::runtime_error("LU output type mismatch (float)");
+
+        const size_t bytes = N * N * sizeof(float);
+        std::vector<float> h_a(N * N);
+        for (uint64_t i = 0; i < N; ++i)
+            for (uint64_t j = 0; j < N; ++j)
+                h_a[i * N + j] = in_f->get(i, j);
+
+        float* d_A = nullptr;
+        int* d_Ipiv = nullptr;
+        int* d_Info = nullptr;
+        float* d_Work = nullptr;
+        try {
+            check_cuda(cudaMalloc(&d_A, bytes), "cudaMalloc A");
+            check_cuda(cudaMalloc(&d_Ipiv, N * sizeof(int)), "cudaMalloc Ipiv");
+            check_cuda(cudaMalloc(&d_Info, sizeof(int)), "cudaMalloc Info");
+            check_cuda(cudaMemcpy(d_A, h_a.data(), bytes, cudaMemcpyHostToDevice), "cudaMemcpy A");
+
+            dim3 block(16, 16);
+            dim3 grid(static_cast<unsigned>((N + 15) / 16), static_cast<unsigned>((N + 15) / 16));
+            k_transpose_dense<<<grid, block>>>(d_A, static_cast<int>(N));
+
+            int lwork = 0;
+            check_cusolver(cusolverDnSgetrf_bufferSize(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                                       d_A, static_cast<int>(N), &lwork), "getrf_bufferSize");
+            check_cuda(cudaMalloc(&d_Work, lwork * sizeof(float)), "cudaMalloc Work");
+            check_cusolver(cusolverDnSgetrf(cusolver_handle_, static_cast<int>(N), static_cast<int>(N),
+                                            d_A, static_cast<int>(N), d_Work, d_Ipiv, d_Info), "getrf");
+
+            int info = 0;
+            check_cuda(cudaMemcpy(&info, d_Info, sizeof(int), cudaMemcpyDeviceToHost), "copy Info");
+            if (info < 0) throw std::runtime_error("LU factorization failed: illegal value");
+
+            std::vector<float> h_lu(N * N);
+            std::vector<int> h_ipiv(N);
+            check_cuda(cudaMemcpy(h_lu.data(), d_A, bytes, cudaMemcpyDeviceToHost), "copy LU");
+            check_cuda(cudaMemcpy(h_ipiv.data(), d_Ipiv, N * sizeof(int), cudaMemcpyDeviceToHost), "copy Ipiv");
+
+            float* l_ptr = l_out->data();
+            float* u_ptr = u_out->data();
+            std::fill(l_ptr, l_ptr + N * N, 0.0f);
+            std::fill(u_ptr, u_ptr + N * N, 0.0f);
+            for (uint64_t r = 0; r < N; ++r) {
+                for (uint64_t c = 0; c < N; ++c) {
+                    if (r > c) l_ptr[r * N + c] = h_lu[c * N + r];
+                    else if (r == c) l_ptr[r * N + c] = 1.0f;
+                    if (r <= c) u_ptr[r * N + c] = h_lu[c * N + r];
+                }
+            }
+
+            float* p_ptr = p_out->data();
+            std::fill(p_ptr, p_ptr + N * N, 0.0f);
+            std::vector<int> p_idx(N);
+            for (uint64_t i = 0; i < N; ++i) p_idx[i] = static_cast<int>(i);
+            for (uint64_t i = 0; i < N; ++i) std::swap(p_idx[i], p_idx[h_ipiv[i] - 1]);
+            for (uint64_t i = 0; i < N; ++i) p_ptr[static_cast<uint64_t>(p_idx[i]) * N + i] = 1.0f;
+
+            cudaFree(d_A); cudaFree(d_Ipiv); cudaFree(d_Info); cudaFree(d_Work);
+            return;
+        } catch (...) {
+            if (d_A) cudaFree(d_A);
+            if (d_Ipiv) cudaFree(d_Ipiv);
+            if (d_Info) cudaFree(d_Info);
+            if (d_Work) cudaFree(d_Work);
+            throw;
+        }
+    }
+
+    throw std::runtime_error("CudaDevice::lu only implemented for float/double");
 }
 
 void CudaDevice::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) {
