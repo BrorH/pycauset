@@ -1,127 +1,110 @@
-# PyCauset User Guide
+# User Guide
 
-## Overview
-**PyCauset** is a high-performance library for Causal Set Theory. It bridges the gap between abstract mathematical models and large-scale numerical simulations by using a hybrid storage model: small objects live in RAM, while massive datasets may automatically **spill** by switching to temporary memory-mapped backing files on disk.
+A walk through the main things PyCauset does.
 
-## Getting Started
+## Getting started
 
-### 1. Installation
-Ensure you have PyCauset installed. See [[guides/Installation|guides/Installation]] for details.
+### 1. Install
+
+See [[guides/Installation|Installation]].
 
 ```python
 import pycauset as pc
 ```
 
-### 2. Creating a Causal Set
-The primary workflow involves defining a spacetime region and "sprinkling" points into it to generate a Causal Set.
+### 2. Make a causal set
+
+Pick a spacetime, then sprinkle points into it.
 
 ```python
-# 1. Define a Spacetime (e.g., 4D Minkowski Diamond)
-# The library handles the geometry and causal relations.
 spacetime = pc.spacetime.MinkowskiDiamond(dimension=4)
 
-# 2. Generate a Causal Set
-# Sprinkle 1000 points into the spacetime.
 c = pc.CausalSet(1000, spacetime=spacetime)
 
-# Access properties
 print(f"Size: {c.N}")
 print(f"Dimension: {c.spacetime.dimension()}")
 ```
 
-### 3. Visualization
-PyCauset provides interactive 3D visualizations powered by Plotly.
+`CausalSet` builds the causal matrix and the coordinates for you.
+
+### 3. Plot it
 
 ```python
 from pycauset.vis import plot_embedding
 
-# Generate an interactive 3D plot of the causal set
 fig = plot_embedding(c)
 fig.show()
 ```
-See the [[Visualization]] guide for more options.
 
-### 5. Lazy Evaluation
-PyCauset uses lazy evaluation for matrix operations to optimize performance and memory usage.
-Operations like `A + B` or `A * scalar` return lightweight expression objects that are evaluated only when assigned to a matrix or converted to NumPy.
+See [[Visualization]] for more.
+
+### 4. Lazy evaluation
+
+Matrix operations like `A + B` and `A * scalar` return a lightweight expression
+instead of computing immediately. The work happens when you materialize the result
+(into a matrix, or into NumPy).
 
 ```python
-# Lazy addition (no computation yet)
-expr = A + B
-
-# Evaluation happens here
-C = expr
-
-# Or here
-C_np = pc.to_numpy(expr)
+expr = A + B        # no computation yet
+C = expr            # computed here
+C_np = pc.to_numpy(expr)   # or here
 ```
 
-### 6. Saving and Loading
-You can save your entire causal set (including the causal matrix, coordinates, and metadata) to a portable, single-file `.pycauset` container.
+### 5. Save and load
+
+Save a causal set (matrix, coordinates, metadata) to a single `.pycauset` file, and
+load it back later.
 
 ```python
-# Save to disk
 c.save("my_universe.pycauset")
-
-# Load it back later
 c_loaded = pc.load("my_universe.pycauset")
 ```
 
-## Physics & Analysis
+## Physics
 
-### Field Theory
-You can define quantum fields on your causal set background.
+### Fields
 
 ```python
 from pycauset.field import ScalarField
 
-# Define a massive scalar field on a causal set "c"
 field = ScalarField(c, mass=0.5)
-
-# Compute the Retarded Propagator (K)
-# This uses the highly optimized matrix engine under the hood.
-K = field.propagator()
+K = field.propagator()   # retarded propagator
 ```
-See the [[Field Theory]] guide for details.
 
-## Advanced Usage
+See [[Field Theory]].
 
-### The Matrix Engine
-Under the hood, PyCauset uses a powerful matrix engine that handles data larger than RAM. While `CausalSet` abstracts this away, you can use the matrix classes directly for linear algebra.
+## Matrices and vectors
 
-*   **[[docs/functions/pycauset.matrix.md|pycauset.matrix]]**: Construct a matrix from data.
-*   **[[docs/functions/pycauset.zeros.md|pycauset.zeros]]** / **[[docs/functions/pycauset.empty.md|pycauset.empty]]**: Allocate with an explicit `dtype`.
-*   **[[docs/functions/pycauset.matmul.md|pycauset.matmul]]**: Matrix multiplication.
+You can use the matrix engine directly, without a `CausalSet`. It is the same
+storage and dispatch the rest of the library uses.
 
-For a deep dive into matrix operations, see the **[[Matrix Guide]]**.
+- [[docs/functions/pycauset.matrix.md|pycauset.matrix]]: build from data.
+- [[docs/functions/pycauset.zeros.md|pycauset.zeros]] / [[docs/functions/pycauset.empty.md|pycauset.empty]]: allocate with a `dtype`.
+- [[docs/functions/pycauset.matmul.md|pycauset.matmul]]: multiply.
 
-### Vectors
-PyCauset supports efficient, disk-backed vectors that interoperate with its matrices.
-See the **[[Vector Guide]]**.
+Deeper coverage is in the [[Matrix Guide]] and [[Vector Guide]].
 
-### NumPy Integration
-PyCauset is designed to work seamlessly with the scientific Python ecosystem.
-*   Convert PyCauset objects to NumPy arrays: `np.array(matrix)`
-*   Create PyCauset objects from NumPy arrays: `pc.matrix(array)` or `pc.vector(array)`
+### NumPy
 
-See the **[[Numpy Integration]]** guide.
+- To NumPy: `np.array(matrix)`.
+- From NumPy: `pc.matrix(array)` or `pc.vector(array)`.
+
+See [[Numpy Integration]].
 
 ## Configuration
 
-### Memory Management
-PyCauset automatically manages memory. Small objects stay in RAM; large ones go to disk. You can control the threshold:
+### Memory threshold
+
+Small objects stay in RAM; large ones go to disk. The cutoff is 1 GB by default.
 
 ```python
-# Set threshold to 100 MB (default is 1 GB)
-pc.set_memory_threshold(100 * 1024 * 1024)
+pc.set_memory_threshold(100 * 1024 * 1024)   # 100 MB
 ```
 
-### Storage Location
-PyCauset may create temporary and/or backing files for disk-backed objects.
+### Where the files go
 
-By default, these files are stored in a `.pycauset` directory under your current working directory. To override this, call `pycauset.set_backing_dir(...)` once after import (and before allocating large matrices).
-
-Example (cross-platform):
+Disk-backed objects use a `.pycauset` directory under your working directory by
+default. Change it once after import, before allocating anything large:
 
 ```python
 from pathlib import Path
@@ -129,23 +112,15 @@ import pycauset as pc
 pc.set_backing_dir(Path.cwd() / "pycauset_storage")
 ```
 
-For details on what gets stored, when cleanup happens, and how persistence works, see [[Storage and Memory]].
+Two kinds of files:
 
-Rule of thumb:
+- Session temp files (`.tmp`) for spill/working storage.
+- `.pycauset` snapshots written explicitly by `save()`.
 
-- Spill/working storage uses temporary session files (for example `.tmp` under the backing directory).
-- Portable persistence is explicit: `save()` writes a `.pycauset` snapshot.
-
-Related knobs:
-
-- [[docs/functions/pycauset.set_memory_threshold.md|pycauset.set_memory_threshold]]
-- [[docs/parameters/pycauset.keep_temp_files.md|pycauset.keep_temp_files]]
-
----
+See [[Storage and Memory]] for the details.
 
 ## See also
 
 - [[docs/index|API Reference]]
-- [[internals/index|Internals]] (especially [[internals/DType System|DType System]])
-
-
+- [[internals/index|Internals]]
+- [[internals/DType System|DType System]]

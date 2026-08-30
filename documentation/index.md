@@ -1,4 +1,4 @@
-﻿---
+---
 title: PyCauset
 ---
 
@@ -21,10 +21,16 @@ title: PyCauset
 
 </div>
 
-## Welcome To PyCauset
-This is a tool made for researchers and those curious about causal set theory. It is no secret that causal sets are computationally demanding: for a set of size $N$, the causal matrix is $O(N^2)$, and modules like [NumPy](https://numpy.org/) or [SciPy](https://scipy.org/) are not equiped for working with humongous $N$.
+## Welcome to PyCauset
 
-PyCauset solves this with a **Disk-Backed Architecture**: Large matrices can automatically spill to disk, only limiting the size of your matrices by your storage and time. Small matrices behave exactly like NumPy arrays, so you can use PyCauset as a drop-in replacement for NumPy in most cases. See [philosophy](project/Philosophy/) for more details.
+PyCauset is a numerical tool for causal set theory. Causal sets are computationally
+demanding: a set of size $N$ has an $O(N^2)$ causal matrix, and
+[NumPy](https://numpy.org/) or [SciPy](https://scipy.org/) are not built for very
+large $N$.
+
+PyCauset handles that by spilling large matrices to disk automatically, so your
+matrix size is limited only by disk and time. Small matrices behave like NumPy
+arrays. See the [philosophy](project/Philosophy/) page.
 
 
 ## Documentation
