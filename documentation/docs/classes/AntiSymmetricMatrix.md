@@ -2,7 +2,7 @@
 
 The `AntiSymmetricMatrix` class represents a square matrix $A$ where $A_{ij} = -A_{ji}$.
 
-It is optimized for storage efficiency, storing only the upper triangular part in memory. This reduces memory usage by approximately 50% compared to a dense matrix.
+It stores only the upper triangle, so about half the memory of a dense matrix.
 
 ## Class Hierarchy
 

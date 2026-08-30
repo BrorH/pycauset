@@ -24,7 +24,7 @@ Generates an interactive 3D (or 2D) scatter plot of the Causal Set embedding.
 
 ## Description
 
-This function visualizes the causal set by regenerating the spacetime coordinates of its elements. It uses the `make_coordinates` backend to efficiently retrieve positions without storing them permanently.
+This function visualizes the causal set by regenerating the spacetime coordinates of its elements. It uses the `make_coordinates` backend to get the positions without keeping them around.
 
 For large causal sets, the function automatically downsamples the points to `sample_size` to ensure the visualization remains responsive. The points are colored according to their time coordinate.
 
