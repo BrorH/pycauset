@@ -1,6 +1,6 @@
 # Performance and Acceleration Guide
 
-PyCauset is designed to automatically optimize performance based on your hardware using a unified **Compute Context**. This guide explains how the GPU acceleration works, how precision (Float32 vs Float64) is handled, and how to achieve maximum throughput.
+PyCauset picks the fastest backend for your hardware through one **Compute Context**. This guide explains how the GPU acceleration works, how precision (Float32 vs Float64) is handled, and how to achieve maximum throughput.
 
 ## 1. GPU Acceleration
 
@@ -10,7 +10,7 @@ PyCauset has a CUDA backend. It needs no configuration: it detects a compatible 
 
 *   **Automatic Detection**: The ComputeContext checks for a CUDA-capable GPU at startup.
 *   **Dynamic Loading**: The GPU backend is a separate plugin (`pycauset_cuda.dll` / `.so`). You do not need CUDA installed to run PyCauset on a CPU-only machine.
-*   **Out-of-Core Processing**: Algorithms are designed to handle matrices larger than your GPU's VRAM by streaming data efficiently between Disk, RAM, and VRAM.
+*   **Out-of-Core Processing**: Operations handle matrices larger than the GPU's VRAM by streaming between disk, RAM, and VRAM.
 
 ### Requirements
 
