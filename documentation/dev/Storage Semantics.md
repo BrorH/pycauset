@@ -9,7 +9,7 @@ This page is the developer-facing hub for how storage works in Release 1. User-f
 
 ## Release 1 guarantees (storage)
 - Single-file `.pycauset` container, little-endian, with a 4096-byte header holding two slots (A/B). The valid slot with the highest generation is active; CRC mismatch or out-of-range pointers fail deterministically.
-- Payload offset is aligned (â‰¥4096) and never moves after creation. Metadata offset is aligned (â‰¥16). Updates append metadata and flip the inactive header slot; no scanning is required.
+- Payload offset is aligned (≥4096) and never moves after creation. Metadata offset is aligned (≥16). Updates append metadata and flip the inactive header slot; no scanning is required.
 - Typed metadata is a single sparse map with reserved namespaces: `view`, `properties`, `cached`, `provenance`, plus identity/header keys (`rows`, `cols`, `matrix_type`, `data_type`, `payload_layout`). Missing keys stay missing (tri-state semantics).
 - Block matrices persist as a base container plus a sidecar `<name>.pycauset.blocks/`; the manifest pins child `payload_uuid` values to avoid mixed snapshots.
 

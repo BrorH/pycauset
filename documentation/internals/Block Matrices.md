@@ -1,10 +1,10 @@
 ﻿# Block Matrices
 
-Block matrices provide a **storage-first** way to represent a large matrix as a 2D grid of smaller matrices (â€œblocksâ€), potentially with heterogeneous dtypes.
+Block matrices provide a **storage-first** way to represent a large matrix as a 2D grid of smaller matrices (“blocks”), potentially with heterogeneous dtypes.
 
 The core goals are:
 
-- Preserve structure and avoid global densification (â€œno silent densifyâ€).
+- Preserve structure and avoid global densification (“no silent densify”).
 - Keep compute routed through the existing leaf compute boundary (AutoSolver / device routing).
 - Support semi-lazy orchestration (thunked per-block results, evaluated only on triggers).
 - Persist block matrices as a snapshot without writing a single giant dense payload.
@@ -67,14 +67,14 @@ Staleness (snapshot-at-creation, R1):
 
 ## Orchestration semantics
 
-### â€œOnce block, always blockâ€
+### “Once block, always block”
 
 If either operand is a `BlockMatrix`, operations preserve block-ness by returning a `BlockMatrix` result (typically thunked):
 
 - Matmul: `A @ B` or `pycauset.matmul(A, B)`
 - Elementwise: `+`, `-`, `*`, `/`
 
-Mixed operands are handled by wrapping the non-block operand as a `1Ã—1` `BlockMatrix`, then refining partitions to align.
+Mixed operands are handled by wrapping the non-block operand as a `1×1` `BlockMatrix`, then refining partitions to align.
 
 ### Partition refinement
 
@@ -85,7 +85,7 @@ The refinement step creates `SubmatrixView` tiles when necessary.
 
 ### Leaf compute boundary
 
-When orchestration reaches â€œleaf Ã— leafâ€ matmul, it attempts to route through the public dispatch boundary (`pycauset.matmul`) for **any matrix-like operands** (not just native matrices) so property-aware conversions (diagonal/triangular) and streaming/IO routing still apply. If dispatch does not support the operands (e.g., a raw NumPy array), block orchestration falls back to the operandsâ€™ native `@` implementation.
+When orchestration reaches “leaf × leaf” matmul, it attempts to route through the public dispatch boundary (`pycauset.matmul`) for **any matrix-like operands** (not just native matrices) so property-aware conversions (diagonal/triangular) and streaming/IO routing still apply. If dispatch does not support the operands (e.g., a raw NumPy array), block orchestration falls back to the operands’ native `@` implementation.
 
 Device routing follows [[internals/Compute Architecture.md|Compute Architecture]] per leaf op: AutoSolver decides CPU vs GPU for each block independently. This means a single `BlockMatrix` can contain blocks routed to different backends. Complex matmul is CPU-only on CUDA builds today; mixed-dtype containers stay heterogeneous because routing is per leaf op.
 
@@ -99,7 +99,7 @@ Concurrency: each `ThunkBlock` uses single-eval locking (e.g., `once_flag`/`mute
 
 ### Deterministic accumulation per output block
 
-- Fixed `k` order for `Î£_k A_ik @ B_kj`.
+- Fixed `k` order for `Σ_k A_ik @ B_kj`.
 - Accumulator dtype is chosen from metadata before evaluation by folding the add-result dtype across term dtypes.
 - Local promotion is per-block; container stays heterogeneous.
 
