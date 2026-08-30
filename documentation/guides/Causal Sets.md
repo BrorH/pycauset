@@ -153,7 +153,7 @@ Q = phi.on(c)
 K = Q.retarded()
 ```
 
-## Analyzing the causal structure (R2)
+## Analyzing the causal structure
 
 The causal set is a partial order; its structure methods are first-class on `CausalSet`:
 

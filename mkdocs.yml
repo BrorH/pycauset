@@ -98,13 +98,15 @@ nav:
       - User Guide: guides/User Guide.md
     - Concepts:
       - Causal Sets: guides/Causal Sets.md
+      - Analyzing a Causal Set: guides/Analyzing a Causal Set.md
       - Spacetime: guides/Spacetime.md
       - Field Theory: guides/Field Theory.md
       - Visualization: guides/Visualization.md
     - Walkthroughs:
       - Tutorials: guides/Tutorials.md
       - Examples: guides/Examples.md
-    - NumPy and data:
+    - Data in and out:
+      - Saving and Loading Data: guides/Saving and Loading Data.md
       - NumPy Integration: guides/Numpy Integration.md
       - Storage and Memory: guides/Storage and Memory.md
     - The matrix engine:
@@ -115,9 +117,6 @@ nav:
     - Scale and tuning:
       - Performance Guide: guides/Performance Guide.md
       - Advanced Usage: guides/Advanced Usage.md
-    - Release history:
-      - Release 1: guides/release1/index.md
-      - R2 Feature Menu: guides/R2 Feature Menu.md
   - API Reference:
     - docs/index.md
     - Classes:

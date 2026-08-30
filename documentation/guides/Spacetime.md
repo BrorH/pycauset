@@ -1,6 +1,23 @@
 # Spacetime Manifolds
 
-`pycauset` provides a library of standard spacetime manifolds that can be used as the domain for sprinkling causal sets. These are available in the [[pycauset.spacetime]] module.
+A spacetime is the region you sprinkle points into. `pycauset` ships a library of
+standard ones, and you can define your own.
+
+## Try it
+
+```python
+import pycauset as pc
+
+for st in (pc.spacetime.MinkowskiDiamond(2),
+           pc.spacetime.MinkowskiCylinder(2, height=2.0, circumference=5.0),
+           pc.spacetime.MinkowskiBox(2, time_extent=2.0, space_extent=1.0),
+           pc.spacetime.DeSitter(2),
+           pc.spacetime.Schwarzschild(2)):
+    c = pc.causet(n=500, spacetime=st, seed=42)
+    print(type(st).__name__, c.coordinates().shape)
+```
+
+The rest of this page lists what each spacetime is and how to write your own.
 
 ## Available Spacetimes
 
@@ -98,7 +115,7 @@ where $V$ is the volume of the spacetime region.
 c = pycauset.causet(density=100, spacetime=st)
 ```
 
-## Defining Custom Spacetimes (R2)
+## Defining Custom Spacetimes
 
 `pycauset.spacetime.Spacetime` is the abstract base class that makes custom spacetimes
 first-class. Subclass it and implement four methods, `dimension()`, `volume()`,
@@ -142,7 +159,7 @@ Optional hooks: `scalar_coeffs(mass, density)` (authored field coefficients, the
 default raises, never guesses), `is_causal_batch(coords)` (fast path),
 `to_embedding(coords)` and `boundary()` (presentation).
 
-### Composition decorators (R2_CREATE)
+### Composition decorators
 
 Build new spacetimes by wrapping an existing one instead of writing a fresh
 subclass. Each decorator keeps `volume ↔ sample` consistent:
@@ -165,7 +182,7 @@ blown = spacetime.ConformalSpacetime(box, conformal_factor=lambda c: 2.0)
 ring  = spacetime.PeriodicSpacetime(box, periods={1: 5.0})
 ```
 
-### Curved spacetimes (R2_CURVED)
+### Curved spacetimes
 
 `spacetime.DeSitter`, `spacetime.AntiDeSitter`, and `spacetime.FLRW` ship as
 documented **parametrizations** (their samplers are not the invariant measure, and

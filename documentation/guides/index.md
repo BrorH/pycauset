@@ -24,7 +24,8 @@ flowchart LR
 
 Each of these introduces one idea and shows it working.
 
-- **[[guides/Causal Sets|Causal Sets]]** — sprinkle points, read the order, analyse the structure.
+- **[[guides/Causal Sets|Causal Sets]]** — sprinkle points and read the order.
+- **[[guides/Analyzing a Causal Set|Analyzing a Causal Set]]** — links, chains, dimension estimates, entropy.
 - **[[guides/Spacetime|Spacetime]]** — the built-in regions, and how to define your own.
 - **[[guides/Field Theory|Field Theory]]** — scalar fields, propagators, and the Sorkin-Johnston vacuum.
 - **[[guides/Visualization|Visualization]]** — embedding, Hasse, and causal-matrix plots.
@@ -34,8 +35,9 @@ Each of these introduces one idea and shows it working.
 - **[[guides/Tutorials|Tutorials]]** — end-to-end walkthroughs: dimension estimates, propagators, synthetic orders, and more.
 - **[[guides/Examples|Examples]]** — short, copy-paste recipes across the whole surface.
 
-## NumPy and data
+## Data in and out
 
+- **[[guides/Saving and Loading Data|Saving and Loading Data]]** — save, load, and convert `.pycauset` / `.npy` / `.npz`.
 - **[[guides/Numpy Integration|NumPy Integration]]** — moving data between PyCauset and NumPy.
 - **[[guides/Storage and Memory|Storage and Memory]]** — how large objects spill to disk and how to control it.
 
@@ -54,11 +56,6 @@ For large runs and when you need to control the machine.
 
 - **[[guides/Performance Guide|Performance Guide]]** — what is accelerated, and how to keep it that way.
 - **[[guides/Advanced Usage|Advanced Usage]]** — memory, threads, storage location, device routing.
-
-## Release history
-
-- **[[guides/release1/index|Release 1]]** — the foundations: NxM shapes, storage, dtypes, core linalg.
-- **[[guides/R2 Feature Menu|R2 Feature Menu]]** — what Release 2 ships, in one page.
 
 ---
 

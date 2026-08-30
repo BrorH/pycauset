@@ -1,4 +1,4 @@
-﻿# Storage and Memory
+# Storage and Memory
 
 PyCauset lets you work with matrices that don’t fit in RAM by storing their data on disk and letting the operating system load pieces as you touch them.
 
@@ -63,7 +63,7 @@ This specific format enables two user-facing behaviors:
 
 ## Semantic Properties (Metadata)
 
-In addition to physical metadata (shape/dtype), Release 1 allows attaching **Semantic Properties**. These are asserted facts about the matrix that are "gospel" (authoritative) and can drastically speed up computations.
+In addition to physical metadata (shape/dtype), you can attach **Semantic Properties**. These are asserted facts about the matrix that are "gospel" (authoritative) and can drastically speed up computations.
 
 ### What `properties` is
 
@@ -71,7 +71,7 @@ In addition to physical metadata (shape/dtype), Release 1 allows attaching **Sem
 - It stores **gospel assertions** (e.g., `is_upper_triangular=True`) which the system accepts without truth-validation.
 - It also stores **cached-derived values** (e.g., `determinant`) which are invalidated on mutation.
 
-### Common keys (Release 1)
+### Common keys
 
 These keys are treated as **semantic structure claims** (no truth validation):
 - **Structure:** `is_symmetric`, `is_hermitian`, `is_upper_triangular`, `is_lower_triangular`, `is_diagonal`

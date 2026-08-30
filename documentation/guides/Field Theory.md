@@ -125,12 +125,13 @@ It remains for back-compat. New code should use `pc.field(...).on(...)`, which
 separates the set-independent field from the correlated field and adds the
 Sorkin-Johnston Wightman vacuum, the correlator, state, and entanglement entropy.
 
-## Scope boundary
+## Scope
 
-Release 2 ships the free scalar field core: the retarded/advanced propagators, the
-Pauli-Jordan function $i\Delta$, and the Sorkin-Johnston Wightman vacuum. Massive
-Green's functions with Bessel kernels, the continuum Wightman log, higher-point Wick
-contractions, interacting fields, fermions, and gauge fields are future work, not R2.
+The shipped field core covers the free scalar field: the retarded/advanced
+propagators, the Pauli-Jordan function $i\Delta$, and the Sorkin-Johnston Wightman
+vacuum. Massive Green's functions with Bessel kernels, the continuum Wightman log,
+higher-point Wick contractions, interacting fields, fermions, and gauge fields are
+future work.
 
 See [[docs/classes/field/pycauset.field.CorrelatedField.md|CorrelatedField]] for the
 full method list.
