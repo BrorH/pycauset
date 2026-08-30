@@ -14,11 +14,13 @@ size_t ThreadPool::get_num_threads() {
 }
 
 ThreadPool& ThreadPool::instance() {
-    // Intentionally leaked: the destructor joins workers, which can block during
-    // interpreter finalization (workers may be mid-task or blocked on I/O). Never
-    // destroying the pool avoids that teardown hang; OS reclaims the threads.
-    static ThreadPool* pool = new ThreadPool();
-    return *pool;
+    // Keep this a normal (non-leaked) Meyers singleton. Its destructor notifies
+    // workers to stop and joins them, which is safe and keeps worker threads from
+    // leaking into forked children (macOS). The leaked singletons that matter for
+    // teardown ordering are MemoryGovernor/ComputeContext, whose destructors are
+    // reached from PersistentObject destructors during finalization.
+    static ThreadPool pool;
+    return pool;
 }
 
 ThreadPool::ThreadPool(size_t threads) : stop(false) {
