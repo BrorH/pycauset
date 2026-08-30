@@ -495,7 +495,12 @@ DoD: outputs pass R2_VALIDATE.
 
 ### R2_QA, Final Gate (Audit & Benchmarks)
 
-Status: - [ ] (in progress: public-surface audit written (`documentation/dev/R2_QA_AUDIT.md`), all R2 public symbols resolve and are test-covered (162 R2 tests + regression suites). Landed the continuum-limit benchmark (`benchmarks/r2_continuum_limit.py`: discrete-vs-continuum `iΔ` pin + SJ Wightman positive-spectrum growth) and the conference feature menu (`documentation/guides/R2 Feature Menu.md`); the correctness CI gate (`.github/workflows/ci.yml` → `pytest tests/python` on 3 OS) is in place. Remaining: CI parity thresholds, the deferred continuum-Wightman closed form (R2_CONV/R2_CMVP), and physics-sign-off for curved/entropy/vevs)
+Status: - [ ] (public-surface audit complete: `tools/audit_public_surface.py` verifies every
+`pycauset.__all__` symbol has a doc page (zero undocumented public API). CI parity visibility
+added: `ci.yml` runs `benchmarks/r2_parity.py` report-only after the tests (the `>= 0.90x` ratio
+is logged, not hard-gated, because shared-runner timing is noisy). The continuum-limit benchmark
+and conference feature menu are landed. Remaining: human physics-sign-off for curved/entropy/vevs
+and the deferred continuum-Wightman closed form (R2_CONV/R2_CMVP))
 
 Goal: verify that every node shipped its own in-step docs + tests (per the non-negotiable rule),
 and add the cross-cutting benchmark suite. This is an *audit*, **not** where docs/tests are written.
@@ -613,7 +618,10 @@ and recomputes; round-trip correctness pinned by test.
 Status: - [ ] (in progress: dead-code/deprecated-feature sweep started, removed the import-time-skipped `test_pauli_jordan_spectrum.py` (removed `.eigenvalues()` API) and stale `*.dll.stale` artifacts; `test_skew{,_comprehensive}.py` re-enabled after the R2_CATALOG skew eigensystem landed. Native concurrency thread-safety proven on Windows (`test_threaded_io_stress` re-enabled; 800+ concurrent construction/save/load/delete ops clean, the segfaults were the governor dangling-pointer bug, fixed). Ruff cleanup started, import-sorting (`I001`) auto-fixed across `python/pycauset`; remaining `E501`/`UP006`/`UP045` are mechanical follow-ups. Teardown-hang root cause fixed (2026-08): the `MemoryGovernor`/`ComputeContext`/`ThreadPool`/`OpRegistry` singletons were Meyers statics with undefined destruction order during finalization; converted to intentionally-leaked heap singletons so object destructors can always reach them. CMake warning audit done (2026-08): removed the obsolete `CMP0146` (FindCUDA) and
 `CMP0167` (FindBoost) policy shims; the project uses `CUDAToolkit`, not `FindCUDA`,
 and never uses Boost. Kept `CMP0135` (timestamps) and `CMP0169` (`FetchContent_Populate`,
-still used). Remaining: `__init__.py` slimming, macOS wheel portability)
+still used). `__init__.py` slimming started (2026-08): the import-time OpenBLAS thread
+setup and GPU install hint were extracted to `_internal/native_setup.py`. Remaining:
+macOS wheel portability (OpenBLAS/libomp from source against a fixed deployment target),
+full facade extraction, and the mechanical ruff `E501`/`UP006`/`UP045` pass)
 
 Goal: close the post-R1 bug/polish backlog tracked in `documentation/internals/plans/TODO.md` so R2
 ships professionally.
