@@ -540,8 +540,13 @@ Status: - [ ] (in progress: the CUDA build is unblocked (VS 2022 + CUDA 12.6, Pa
 `cuda.is_available()` is `True`; GPU `matmul`/`add`/`subtract`/`multiply_scalar`/`invert`/
 `batch_gemv`/`cholesky`/`eig`/`eigvals`/`lu`/`qr`/`svd` are wired with win-detection and CPU
 fallback, so the cuSOLVER factorization gap (qr/svd/lu) is closed for square dense matrices.
-Remaining: a shared `CudaLinalg` dispatch layer and CUDA wheel packaging. Intra-op hybrid
-CPU/GPU split execution is a stretch beyond R2 and is explicitly out of scope.)
+Remaining: a shared `CudaLinalg` dispatch layer and CUDA wheel packaging. On distribution:
+the compiled CUDA plugin (`pycauset_cuda`) is currently built from source with
+`-DENABLE_CUDA=ON`; the `pycauset[gpu]` extra only provides the NVIDIA runtime libraries
+(`nvidia-cuda-runtime/cublas/cusolver-cu12`), not the plugin itself, so a CUDA-enabled wheel
+(or a separate `pycauset-cuda` wheel) is the remaining packaging step before
+`pip install pycauset[gpu]` fully activates the backend. Intra-op hybrid CPU/GPU split
+execution is a stretch beyond R2 and is explicitly out of scope.)
 
 Goal: bring the CUDA backend to parity (or an explicit support status) across the op inventory.
 Absorbs `archive/R1_GPU_PLAN.md` (SRP-3).

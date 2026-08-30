@@ -1,12 +1,16 @@
 """One-time GPU-install hint.
 
-PyCauset ships CPU-only by default; the optional GPU backend (and its ~500 MB of
-CUDA runtime) is installed separately via ``pip install pycauset[gpu]``.
+PyCauset ships CPU-only by default. Enabling the GPU backend needs two pieces:
+
+1. the compiled CUDA plugin (``pycauset_cuda``), built from source with
+   ``-DENABLE_CUDA=ON``, and
+2. the ~500 MB of NVIDIA runtime it links against, installed via
+   ``pip install pycauset[gpu]``.
 
 To make the GPU backend *impossible to miss* without being annoying, we detect an
 NVIDIA GPU through the *driver* API (``libcuda``/``nvcuda``, present with any
 NVIDIA GPU, no CUDA runtime required) and, when a GPU is present but the backend
-is not installed, emit a single clear hint pointing at the one-command install.
+is not active, emit a single clear hint pointing at both steps.
 """
 
 from __future__ import annotations
@@ -53,9 +57,10 @@ def emit_gpu_install_hint(*, backend_available: Callable[[], bool]) -> None:
         return
 
     print(
-        "[PyCauset] NVIDIA GPU detected, but the GPU backend is not installed "
+        "[PyCauset] NVIDIA GPU detected, but the GPU backend is not active "
         "(running on CPU).\n"
-        "  Install it with:  pip install \"pycauset[gpu]\"\n"
+        "  Enable it with:  CMAKE_ARGS=\"-DENABLE_CUDA=ON\" pip install .\n"
+        "  (builds the compiled plugin) plus  pip install \"pycauset[gpu]\"\n"
         "  (adds ~500 MB of CUDA runtime; set PYCAUSET_GPU_HINT=0 to silence this message)",
         file=sys.stderr,
     )
