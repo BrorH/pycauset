@@ -5,6 +5,44 @@ This file documents discovered bugs per the `Testing and Bug Tracking Protocol`
 
 ---
 
+## [Date: 2026-08-30] macOS CI hang in matmul (OpenBLAS GEMM thread oversubscription)
+
+**Status**: Fixed
+**Severity**: High
+**Component**: Compute / CPU matmul (`CpuSolver.cpp`), import-time OpenBLAS setup (`python/pycauset/__init__.py`)
+
+**Description**:
+The macOS CI job hung deterministically at
+`test_io_consistency.py::test_direct_path_consistency`, a 500 by 500 float64
+`matmul` that runs right after a 98 MB test. The suite stopped at 47% and timed
+out after 10 minutes. Windows and Linux were unaffected.
+
+**Reproduction**:
+The hang was isolated with `tools/macos_hang_diagnose.py`, which prints a line
+between each step. On macOS the last line before the timeout was
+`STEP direct: matmul(a, b)`, so the stall was inside the OpenBLAS GEMM call, not
+matrix construction or `to_numpy`.
+
+**Root Cause**:
+`CpuSolver::attempt_direct_path` bumped the OpenBLAS thread count to a hardcoded
+20 threads before every double-precision GEMM, then restored it. On the macOS
+runner, which exposes only 3 vCPUs, asking OpenBLAS to grow its pthread pool to
+20 threads at runtime deadlocked inside `cblas_dgemm`. A secondary bug meant the
+import-time thread default (`openblas_set_num_threads(8)`) was never applied on
+macOS/Linux because the code probed only the Windows DLL name `libopenblas.dll`.
+
+**Fix**:
+Cap the GEMM thread bump to `std::thread::hardware_concurrency()` (at most 20)
+and skip the `openblas_set_num_threads` call entirely when the target already
+matches the current count, so no pool reconfiguration happens on machines whose
+global default already matches the hardware. Also probe the correct OpenBLAS
+library name per platform in `__init__.py` and cap the default to
+`os.cpu_count()`. The existing
+`test_io_consistency.py::test_direct_path_consistency` is the regression test;
+the macOS suite now completes 802 passed.
+
+---
+
 ## [Date: 2026-08-29] Wrong elementwise results on zero-offset submatrix views (SIMD fast paths)
 
 **Status**: Fixed
