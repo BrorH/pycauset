@@ -81,8 +81,8 @@ box = spacetime.MinkowskiBox(dimension=2, time_extent=2.0, space_extent=1.0)
 
 All standard spacetimes support the visualization interface used by [[docs/pycauset.vis/index.md|pycauset.vis]]. They declare three optional presentation hooks:
 
-*   `to_embedding(coords)`: Converts internal coordinates (like lightcone $u,v$) to visualization-friendly coordinates (like Cartesian $t,x$ or 3D cylindrical). `transform_coordinates` is accepted as an alias.
-*   `boundary()`: Returns the geometry of the spacetime boundary for plotting. `get_boundary` is accepted as an alias.
+*   `to_embedding(coords)`: Converts internal coordinates (like lightcone $u,v$) to visualization-friendly coordinates (like Cartesian $t,x$ or 3D cylindrical).
+*   `boundary()`: Returns the geometry of the spacetime boundary for plotting.
 *   `display_axes()`: Returns axis labels for the plot.
 
 See the [[guides/Visualization|Visualization Guide]] for more details.

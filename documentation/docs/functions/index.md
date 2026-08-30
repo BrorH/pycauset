@@ -64,7 +64,6 @@
 * **[[docs/functions/pycauset.eigvals_skew.md|eigvals_skew]]**
 * **[[docs/functions/pycauset.eig_skew.md|eig_skew]]**
 * **[[docs/functions/pycauset.load.md|load]]**
-* **[[docs/functions/pycauset.load_matrix.md|load_matrix]]**
 * **[[docs/functions/pycauset.load_npy.md|load_npy]]**
 * **[[docs/functions/pycauset.load_npz.md|load_npz]]**
 * **[[docs/functions/pycauset.save_npy.md|save_npy]]**

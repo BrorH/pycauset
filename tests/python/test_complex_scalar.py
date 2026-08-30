@@ -1,7 +1,6 @@
 import unittest
 import pycauset
 import os
-import numpy as np
 import tempfile
 from pathlib import Path
 
@@ -31,22 +30,6 @@ class TestComplexScalar(unittest.TestCase):
                 m2.close()
 
         m.close()
-
-    def test_pauli_jordan(self):
-        # Create a small field
-        field = pycauset.ScalarField(n=20, mass=0.1)
-        
-        # Compute Pauli-Jordan
-        Delta = field.pauli_jordan()
-        
-        # Check type
-        self.assertIsInstance(Delta, pycauset.AntiSymmetricFloat64Matrix)
-        
-        # Check scalar is 1j
-        self.assertEqual(Delta.scalar, 1j)
-        
-        # Check it is antisymmetric
-        self.assertTrue(Delta.is_antisymmetric())
 
 if __name__ == '__main__':
     unittest.main()

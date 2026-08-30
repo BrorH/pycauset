@@ -89,7 +89,7 @@ class TestEigenCaching(unittest.TestCase):
 
         # Persist and reload into a fresh object (simulates a program restart).
         pycauset.save(A, str(path))
-        A2 = pycauset.load_matrix(str(path))
+        A2 = pycauset.load(str(path))
 
         # Compute again, values must match (cache hit or recomputation).
         w2, v2 = pycauset.eigh(A2)
@@ -111,11 +111,11 @@ class TestEigenCaching(unittest.TestCase):
         # File-backed matrix so the big-blob cache can attach to its container.
         A0 = pycauset.matrix(A_np)
         pycauset.save(A0, str(path))
-        A = pycauset.load_matrix(str(path))
+        A = pycauset.load(str(path))
 
         w1, v1 = pycauset.eigh(A)  # compute + persist the eigen cache
 
-        A2 = pycauset.load_matrix(str(path))  # fresh reload (simulated restart)
+        A2 = pycauset.load(str(path))  # fresh reload (simulated restart)
 
         # If the cache is hit, np.linalg.eigh is never called.
         with mock.patch.object(np.linalg, "eigh",

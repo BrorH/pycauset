@@ -64,8 +64,8 @@ class TestVisualization(unittest.TestCase):
         
     def test_sampling(self):
         # Test that sampling works for "large" sets
-        # We set sample_size small to force sampling
-        fig = plot_embedding(self.c, sample_size=10)
+        # We set max_points small to force sampling
+        fig = plot_embedding(self.c, max_points=10)
         self.assertIsNotNone(fig)
 
 if __name__ == '__main__':

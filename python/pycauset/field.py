@@ -323,86 +323,8 @@ def field(kind: str = "scalar", *, mass: float = 0.0, spin: int = 0, scheme=None
     return Field(kind=kind, mass=mass, spin=spin, scheme=scheme)
 
 
-# --- back-compat: the R1 ScalarField (keeps the native-matrix return types) ---
-
-
-class ScalarField:
-    """A massive scalar field defined on a Causal Set (R1 API, kept for back-compat).
-
-    The retarded propagator is ``K_R = aC (I - baC)\u207b\u00b9``; the coefficients
-    ``a, b`` derive from the spacetime dimension, sprinkling density, and mass.
-    """
-
-    def __init__(
-        self,
-        causet: CausalSet | None = None,
-        mass: float = 0.0,
-        *,
-        n: int | None = None,
-        density: float | None = None,
-        spacetime=None,
-        seed=None,
-        matrix=None,
-    ):
-        if causet is None:
-            causet = CausalSet(n=n, density=density, spacetime=spacetime, seed=seed, matrix=matrix)
-        self._causet = causet
-        self._mass = float(mass)
-        self._cached_propagator = None
-
-    @property
-    def causet(self) -> CausalSet:
-        return self._causet
-
-    @property
-    def mass(self) -> float:
-        return self._mass
-
-    def _get_coeffs(self) -> Tuple[float, float]:
-        return _scalar_coeffs(self._causet, self._mass)
-
-    def compute_retarded_propagator(self, a: Optional[float] = None, b: Optional[float] = None):
-        if self._cached_propagator is not None and a is None and b is None:
-            return self._cached_propagator
-
-        if a is None or b is None:
-            calc_a, calc_b = self._get_coeffs()
-            if a is None:
-                a = calc_a
-            if b is None:
-                b = calc_b
-
-        C = self._causet.C
-
-        if abs(b) < 1e-15:
-            result = a * C
-        else:
-            alpha_eff = -1.0 / (a * b)
-            from . import compute_k
-            X = compute_k(C, alpha_eff)
-            result = (-1.0 / b) * X
-
-        if a is None and b is None:
-            self._cached_propagator = result
-
-        return result
-
-    def propagator(self, a: Optional[float] = None, b: Optional[float] = None):
-        """Alias for compute_retarded_propagator."""
-        return self.compute_retarded_propagator(a, b)
-
-    def pauli_jordan(self):
-        """Pauli-Jordan function ``i\u0394 = K_R - K_R\u1d40``, stored antisymmetrically."""
-        K = self.compute_retarded_propagator()
-        from . import AntiSymmetricFloat64Matrix
-        Delta = AntiSymmetricFloat64Matrix.from_triangular(K)
-        Delta.set_scalar(1j)
-        return Delta
-
-
-# Make `pycauset.field` callable (R2 string factory) while remaining a module, so
-# both `pc.field("scalar", mass=…)` and `from pycauset.field import ScalarField`
-# keep working.
+# Make `pycauset.field` callable while remaining a module, so
+# `pc.field("scalar", mass=…)` works.
 class _FieldModule(types.ModuleType):
     def __call__(self, kind: str = "scalar", **kwargs) -> Field:
         return field(kind, **kwargs)
@@ -410,4 +332,4 @@ class _FieldModule(types.ModuleType):
 
 sys.modules[__name__].__class__ = _FieldModule
 
-__all__ = ["Field", "CorrelatedField", "ContinuumCorrelatedField", "ScalarField", "State", "field"]
+__all__ = ["Field", "CorrelatedField", "ContinuumCorrelatedField", "State", "field"]

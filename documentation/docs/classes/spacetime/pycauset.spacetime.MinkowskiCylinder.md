@@ -48,24 +48,6 @@ def dimension(self) -> int
 
 Returns the dimension of the spacetime.
 
-### transform_coordinates
-
-```python
-def transform_coordinates(self, coords: np.ndarray) -> np.ndarray
-```
-
-*(Extension)* Transforms raw coordinates to a visualization-friendly basis.
-For 2D, this maps $(t, x)$ to 3D cylindrical coordinates $(z, x, y)$.
-
-### get_boundary
-
-```python
-def get_boundary(self) -> List[np.ndarray]
-```
-
-*(Extension)* Returns the boundary rings (top and bottom) of the cylinder in the transformed coordinate system.
-
-
 ### volume
 
 ```python
@@ -83,6 +65,6 @@ Returns the volume of the cylinder, calculated as $height \times circumference$.
 *   **is_causal** (*method*): `is_causal(u, v) -> bool`, the strict transitive causal order (wrap-aware on the circle).
 *   **is_causal_batch** (*method*): `is_causal_batch(coords) -> np.ndarray`, the vectorized `(n, n)` causal matrix.
 *   **scalar_coeffs** (*method*): `scalar_coeffs(mass, density) -> (a, b)`, the authored 2D field coefficients.
-*   **to_embedding** / **boundary** (*methods*): presentation hooks (equivalent to `transform_coordinates` / `get_boundary`).
+*   **to_embedding** / **boundary** (*methods*): presentation hooks.
 
 See [[docs/classes/spacetime/pycauset.spacetime.Spacetime.md|Spacetime]] for the full contract.

@@ -189,7 +189,6 @@ nav:
         - docs/classes/field/pycauset.field.CorrelatedField.md
         - docs/classes/field/pycauset.field.ContinuumCorrelatedField.md
         - docs/classes/field/pycauset.field.State.md
-        - docs/classes/field/pycauset.field.ScalarField.md
       - Core:
         - docs/classes/core/index.md
         - docs/classes/core/pycauset.PersistentObject.md

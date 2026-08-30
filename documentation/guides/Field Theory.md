@@ -95,36 +95,6 @@ Q = phi.on(c)
 K = Q.retarded()
 ```
 
-## Manual coefficients
-
-To override the derived coefficients, use the legacy `ScalarField`, whose
-`propagator(a=..., b=...)` accepts them directly:
-
-```python
-from pycauset.field import ScalarField
-
-field = ScalarField(c, mass=1.5)
-K = field.propagator(a=0.5, b=-0.02)
-```
-
-## Legacy ScalarField
-
-`ScalarField` predates the `field`/`CorrelatedField` split. It is a single object
-that wraps a causet plus a mass, and computes the retarded propagator and the
-Pauli-Jordan function:
-
-```python
-from pycauset.field import ScalarField
-
-field = ScalarField(c, mass=1.5)
-K   = field.propagator()        # TriangularFloatMatrix
-iD  = field.pauli_jordan()      # AntiSymmetricMatrix (Δ with scalar factor 1j)
-```
-
-It remains for back-compat. New code should use `pc.field(...).on(...)`, which
-separates the set-independent field from the correlated field and adds the
-Sorkin-Johnston Wightman vacuum, the correlator, state, and entanglement entropy.
-
 ## Scope
 
 The shipped field core covers the free scalar field: the retarded/advanced

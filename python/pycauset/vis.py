@@ -49,14 +49,13 @@ def _spacetime_of(causet: CausalSet):
 def _embedding(coords, st):
     """Apply the spacetime's authored embedding (default: identity).
 
-    Prefers the `Spacetime.to_embedding` hook; falls back to the native
-    `transform_coordinates` alias. If neither is present (geometry-free custom
+    Uses the `Spacetime.to_embedding` hook. If it is absent (geometry-free custom
     spacetime), the raw coordinates are used, never inferred.
     """
     coords = np.asarray(coords, dtype=float)
     if st is None:
         return coords
-    fn = getattr(st, "to_embedding", None) or getattr(st, "transform_coordinates", None)
+    fn = getattr(st, "to_embedding", None)
     if fn is None:
         return coords
     return np.asarray(fn(coords), dtype=float)
@@ -65,12 +64,12 @@ def _embedding(coords, st):
 def _boundary_paths(st):
     """Boundary paths in embedding coordinates (default: none).
 
-    Prefers the `Spacetime.boundary` hook; falls back to the native `get_boundary`
-    alias. The declared paths are already in display (embedding) coordinates.
+    Uses the `Spacetime.boundary` hook. The declared paths are already in display
+    (embedding) coordinates.
     """
     if st is None:
         return []
-    fn = getattr(st, "boundary", None) or getattr(st, "get_boundary", None)
+    fn = getattr(st, "boundary", None)
     if fn is None:
         return []
     paths = fn() or []
@@ -119,7 +118,6 @@ def _boundary_traces(paths, dim: int):
 def plot_embedding(
     causet: CausalSet,
     max_points: int = 50000,
-    sample_size: Optional[int] = None,
     force: bool = False,
     title: Optional[str] = None,
     marker_size: int = 2
@@ -132,9 +130,6 @@ def plot_embedding(
     as the first three axes with an explicit warning (never silently truncated).
     """
     _check_plotly()
-
-    if sample_size is not None:
-        max_points = sample_size
 
     n = causet.n
     indices, note = _subset(n, max_points, force, "plot_embedding")

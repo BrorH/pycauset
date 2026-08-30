@@ -61,9 +61,6 @@ c.plot_embedding(force=True)     # render every point
 c.plot_embedding(max_points=10_000)   # a smaller subset
 ```
 
-`sample_size` is an alias for `max_points`; it exists for back-compat with earlier
-call signatures.
-
 ## Customizing the plot
 
 ```python

@@ -29,14 +29,6 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-# The native (C++) spacetime classes are kept reachable for back-compat, but the
-# canonical Minkowski spacetimes below are pure-Python `Spacetime` subclasses so
-# the sprinkler can time-order points (fixing the R1 non-transitive order bug).
-try:
-    from . import _pycauset as _native  # noqa: F401  (back-compat accessor)
-except ImportError:  # pragma: no cover
-    _native = None
-
 __all__ = [
     "Spacetime",
     "register",
@@ -237,13 +229,6 @@ class MinkowskiDiamond(Spacetime):
             return ["t", "x"]
         return None
 
-    # back-compat aliases used by the visualization layer
-    def transform_coordinates(self, coords):
-        return self.to_embedding(coords)
-
-    def get_boundary(self):
-        return self.boundary()
-
 
 class MinkowskiCylinder(Spacetime):
     """Flat Minkowski cylinder ``S\u00b9 \u00d7 \u211d`` (periodic spatial dimension)."""
@@ -302,12 +287,6 @@ class MinkowskiCylinder(Spacetime):
     def display_axes(self):
         return ["t", "x", "y"]  # 3D cylindrical embedding
 
-    def transform_coordinates(self, coords):
-        return self.to_embedding(coords)
-
-    def get_boundary(self):
-        return self.boundary()
-
 
 class MinkowskiBox(Spacetime):
     """Rectangular block in flat Minkowski space (hard walls)."""
@@ -360,12 +339,6 @@ class MinkowskiBox(Spacetime):
         if self._dim == 2:
             return ["t", "x"]
         return None
-
-    def transform_coordinates(self, coords):
-        return self.to_embedding(coords)
-
-    def get_boundary(self):
-        return self.boundary()
 
 
 register("minkowski_diamond")(MinkowskiDiamond)

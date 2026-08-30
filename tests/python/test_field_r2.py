@@ -27,11 +27,6 @@ class TestFieldModel(unittest.TestCase):
         self.assertIs(Q.causet, self.c)
         self.assertEqual(Q.mass, 1.0)
 
-    def test_backcompat_scalarfield_import(self):
-        from pycauset.field import ScalarField
-        f = ScalarField(self.c, mass=1.0)
-        self.assertAlmostEqual(f.mass, 1.0)
-
 
 class TestPropagators(unittest.TestCase):
     def setUp(self):
@@ -45,6 +40,19 @@ class TestPropagators(unittest.TestCase):
         n = c.n
         rho = c.density  # 20 / 1.0
         a = 0.5
+        b = -(1.0 ** 2) / rho
+
+        K_ref = a * C @ np.linalg.inv(np.eye(n) - b * a * C)
+        np.testing.assert_allclose(Q.retarded(), K_ref, atol=1e-10)
+
+    def test_retarded_matches_formula_4d(self):
+        c = pc.CausalSet(n=20, spacetime=pc.MinkowskiDiamond(4), seed=1)
+        Q = pc.field("scalar", mass=1.0).on(c)
+
+        C = np.asarray(c.C, dtype=float)
+        n = c.n
+        rho = c.density
+        a = np.sqrt(rho) / (2 * np.pi * np.sqrt(6))
         b = -(1.0 ** 2) / rho
 
         K_ref = a * C @ np.linalg.inv(np.eye(n) - b * a * C)

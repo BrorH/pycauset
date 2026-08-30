@@ -3,19 +3,21 @@
 ```python
 pycauset.vis.plot_embedding(
     causet: CausalSet,
-    sample_size: int = 50000,
+    max_points: int = 50000,
+    force: bool = False,
     title: str = None,
     marker_size: int = 2
 ) -> plotly.graph_objects.Figure
 ```
 
-Generates an interactive 3D (or 2D) scatter plot of the Causal Set embedding.
+Visualize the spacetime embedding of a causal set.
 
 ## Parameters
 
 *   **causet** (*CausalSet*): The causal set to visualize.
-*   **sample_size** (*int*, optional): The maximum number of points to display. If `causet.n` > `sample_size`, a random subset is shown to maintain performance. Defaults to 50000.
-*   **title** (*str*, optional): The title of the plot. If None, a default title is generated.
+*   **max_points** (*int*, optional): Render at most this many elements. Above it, a seeded random subset is drawn and a `PyCausetPerformanceWarning` is emitted. Defaults to 50000.
+*   **force** (*bool*, optional): Render every element, ignoring `max_points`. Defaults to `False`.
+*   **title** (*str*, optional): The title of the plot. If `None`, a default title is generated.
 *   **marker_size** (*int*, optional): The size of the scatter points. Defaults to 2.
 
 ## Returns
@@ -24,11 +26,14 @@ Generates an interactive 3D (or 2D) scatter plot of the Causal Set embedding.
 
 ## Description
 
-This function visualizes the causal set by regenerating the spacetime coordinates of its elements. It uses the `make_coordinates` backend to get the positions without keeping them around.
-
-For large causal sets, the function automatically downsamples the points to `sample_size` to ensure the visualization remains responsive. The points are colored according to their time coordinate.
+The plot reads the spacetime's authored `to_embedding` / `boundary` / `display_axes`
+declarations to draw the shape; a geometry-free custom spacetime renders its raw
+coordinates with generic axis labels. Embedding dimensions beyond 3 are shown as the
+first three axes with an explicit warning. Points are colored by their time
+coordinate.
 
 ## See Also
 
 *   [[guides/Visualization|Visualization Guide]]: For a guide on visualizing causal sets.
-*   `pycauset.CausalSet.coordinates`: Method on [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]] used to retrieve coordinates.
+*   [[docs/pycauset.vis/plot_hasse.md|pycauset.vis.plot_hasse]]: For the Hasse diagram.
+*   [[docs/pycauset.vis/plot_causal_matrix.md|pycauset.vis.plot_causal_matrix]]: For the causal-matrix heatmap.

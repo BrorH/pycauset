@@ -34,24 +34,6 @@ def volume(self) -> float
 
 Returns the volume of the diamond. For the standard unit diamond in lightcone coordinates, the volume is normalized to 1.0.
 
-### transform_coordinates
-
-```python
-def transform_coordinates(self, coords: np.ndarray) -> np.ndarray
-```
-
-*(Extension)* Transforms raw lightcone coordinates to a visualization-friendly basis.
-For 2D, this rotates $(u, v)$ to Cartesian $(t, x)$.
-
-### get_boundary
-
-```python
-def get_boundary(self) -> List[np.ndarray]
-```
-
-*(Extension)* Returns the boundary of the spacetime region in the transformed coordinate system.
-Used by visualization functions to draw the diamond edges.
-
 ## Spacetime contract methods
 
 `MinkowskiDiamond` also implements the full `Spacetime` contract:
@@ -61,7 +43,7 @@ Used by visualization functions to draw the diamond edges.
 *   **is_causal** (*method*): `is_causal(u, v) -> bool`, the strict transitive causal order.
 *   **is_causal_batch** (*method*): `is_causal_batch(coords) -> np.ndarray`, the vectorized `(n, n)` causal matrix.
 *   **scalar_coeffs** (*method*): `scalar_coeffs(mass, density) -> (a, b)`, the authored 2D/4D field coefficients (raises `NotImplementedError` outside 2D/4D).
-*   **to_embedding** / **boundary** (*methods*): presentation hooks (equivalent to `transform_coordinates` / `get_boundary`).
+*   **to_embedding** / **boundary** (*methods*): presentation hooks.
 
 See [[docs/classes/spacetime/pycauset.spacetime.Spacetime.md|Spacetime]] for the full contract.
 

@@ -4,9 +4,9 @@
 pycauset.field(kind="scalar", *, mass=0.0, spin=0, scheme=None) -> Field
 ```
 
-String-factory sugar for the R2 field model: `pc.field("scalar", mass=…)` returns a set-independent [[docs/classes/field/pycauset.field.Field.md|Field]]. Unknown `kind` strings raise `NotImplementedError` (never guessed).
+String-factory sugar for the field model: `pc.field("scalar", mass=…)` returns a set-independent [[docs/classes/field/pycauset.field.Field.md|Field]]. Unknown `kind` strings raise `NotImplementedError` (never guessed).
 
-`pycauset.field` is a callable module, so both `pc.field("scalar", …)` and `from pycauset.field import ScalarField` work.
+`pycauset.field` is a callable module, so `pc.field("scalar", …)` works.
 
 ## Parameters
 

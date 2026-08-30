@@ -182,8 +182,6 @@ TriangularIntegerMatrix = _TriangularIntegerMatrix
 DenseBitMatrix = _DenseBitMatrix
 SymmetricMatrix = _SymmetricMatrix
 AntiSymmetricMatrix = _AntiSymmetricMatrix
-SymmetricFloat64Matrix = _SymmetricMatrix
-AntiSymmetricFloat64Matrix = _AntiSymmetricMatrix
 
 # Vector classes
 _FloatVector = getattr(_native, "FloatVector", None)
@@ -396,24 +394,6 @@ def clear_io_traces() -> None:
     """Clear recorded IO traces (observability/debug only)."""
 
     _IO_OBS.clear()
-
-
-# --- Deprecated configuration ---
-# Historically, users could set PYCAUSET_STORAGE_DIR before import.
-# This is now deprecated in favor of pycauset.set_backing_dir(...).
-_deprecated_env = os.environ.get("PYCAUSET_STORAGE_DIR")
-if _deprecated_env:
-    import warnings
-
-    warnings.warn(
-        "PYCAUSET_STORAGE_DIR is deprecated; use pycauset.set_backing_dir(...) instead.",
-        PyCausetStorageWarning,
-        stacklevel=2,
-    )
-    try:
-        set_backing_dir(_deprecated_env)
-    except Exception:
-        pass
 
 
 # Perform initial cleanup of temporary files from previous runs
@@ -649,11 +629,6 @@ def save(obj: Any, path: str | Path) -> None:
 
 
 def load(path: str | Path) -> Any:
-    return _persistence.load(path, deps=_PERSISTENCE_DEPS)
-
-
-def load_matrix(path: str | Path) -> Any:
-    """Load a matrix/vector from a .pycauset backing file (alias of load)."""
     return _persistence.load(path, deps=_PERSISTENCE_DEPS)
 
 
@@ -2161,7 +2136,6 @@ def show(causet):
 from .field import ContinuumCorrelatedField as ContinuumCorrelatedField
 from .field import CorrelatedField as CorrelatedField
 from .field import Field as Field
-from .field import ScalarField as ScalarField
 from .field import State as State
 
 
@@ -2208,7 +2182,6 @@ __all__ = [
 _extra_exports = [
     "save",
     "load",
-    "load_matrix",
     "to_numpy",
     "set_export_max_bytes",
     "set_backing_dir",
@@ -2289,7 +2262,6 @@ _extra_exports = [
     "MinkowskiBox",
     "MemoryHint",
     "AccessPattern",
-    "ScalarField",
     "Field",
     "CorrelatedField",
     "ContinuumCorrelatedField",
