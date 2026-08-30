@@ -21,7 +21,7 @@ Vectors expose `v.properties`, a typed mapping used for:
 
 Gospel assertions are authoritative (not truth-validated), and incompatible asserted states raise immediately (no payload scan).
 
-See [[guides/release1/properties.md|R1 Properties]] and [[guides/Storage and Memory.md|Storage and Memory]].
+See [[guides/release1/index.md|R1 Properties]] and [[guides/Storage and Memory.md|Storage and Memory]].
 
 ## Fill
 

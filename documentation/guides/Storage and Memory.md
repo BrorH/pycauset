@@ -349,7 +349,7 @@ See [[guides/Numpy Integration.md|Numpy Integration]] for details.
 - [[docs/functions/pycauset.save.md|pycauset.save]]
 - [[docs/functions/pycauset.load.md|pycauset.load]]
 - [[docs/functions/pycauset.convert_file.md|pycauset.convert_file]]
-- [[guides/release1/storage.md|R1 Storage]]
+- [[guides/release1/index.md|R1 Storage]]
 - [[dev/Storage Semantics.md|Storage Semantics]]
 - [[internals/Memory and Data.md|Memory and Data]]
 - [[internals/plans/archive/R1_STORAGE_PLAN.md|R1_STORAGE_PLAN]]

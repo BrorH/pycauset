@@ -26,11 +26,11 @@ Matrices and vectors expose `obj.properties`, a typed mapping used for:
 - gospel semantic assertions (e.g. `is_upper_triangular=True`), and
 - cached-derived values (e.g. `trace`, `determinant`, `norm`) with strict validity.
 
-See [[guides/release1/properties.md|R1 Properties]] for the user-facing contract.
+See [[guides/release1/index.md|R1 Properties]] for the user-facing contract.
 
 ## See also
 
 - [[docs/functions/pycauset.save.md|pycauset.save]]
 - [[docs/functions/pycauset.load.md|pycauset.load]]
 - [[guides/Storage and Memory.md|Storage and Memory]]
-- [[guides/release1/properties.md|R1 Properties]]
+- [[guides/release1/index.md|R1 Properties]]
