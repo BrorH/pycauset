@@ -60,6 +60,16 @@ import numpy as np
 dense = np.asarray(c.C)
 ```
 
+View the same matrix as a heatmap:
+
+```python
+c.plot_causal_matrix().show()
+```
+
+A bright cell means `i` is in the past of `j`; the upper-triangular pattern is the
+signature of a time-labelled causet. See [[guides/Visualization|Visualization]] for
+this and the other plots.
+
 `c.validate()` checks the order is reflexive-free, antisymmetric, and transitive. The
 constructor already did this, so it should pass.
 
