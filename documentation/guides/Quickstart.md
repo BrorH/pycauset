@@ -40,6 +40,8 @@ array with `np.asarray(c.C)`.
 pc.plot_embedding(c).show()
 ```
 
+![3000 points in a 2D Minkowski diamond](../docs/assets/gallery/diamond_embedding.png)
+
 This opens an interactive Plotly figure. Large causets are subsampled for the plot
 (and it tells you when it does); pass `force=True` to plot every point. `c.plot_embedding()`
 and `pc.show(c)` are the same thing.

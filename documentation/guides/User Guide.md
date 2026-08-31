@@ -66,9 +66,10 @@ View the same matrix as a heatmap:
 c.plot_causal_matrix().show()
 ```
 
+![Causal matrix heatmap](../docs/assets/gallery/causal_matrix.png)
+
 A bright cell means `i` is in the past of `j`; the upper-triangular pattern is the
-signature of a time-labelled causet. See [[guides/Visualization|Visualization]] for
-this and the other plots.
+signature of a time-labelled causet.
 
 `c.validate()` checks the order is reflexive-free, antisymmetric, and transitive. The
 constructor already did this, so it should pass.
@@ -109,7 +110,13 @@ c.plot_causal_matrix().show()  # the order as a heatmap
 pc.show(c)                     # embedding plot, then .show(), in one call
 ```
 
-See [[guides/Visualization|Visualization]] for what each looks like.
+![Embedding of a 2D diamond](../docs/assets/gallery/diamond_embedding.png)
+
+![Hasse diagram](../docs/assets/gallery/diamond_hasse.png)
+
+![Causal matrix heatmap](../docs/assets/gallery/causal_matrix.png)
+
+*The three views: points in spacetime, links only, and the causal matrix.*
 
 ## Put a field on it
 
