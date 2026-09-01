@@ -9,9 +9,9 @@ the script prints the results and skips the image).
 | Script | What it shows |
 | :--- | :--- |
 | `01_hello_causet.py` | Sprinkle a causal set, inspect it, plot it, save/load it. |
-| `02_dimension_from_order.py` | Recover the spacetime dimension from the order alone (Myrheim-Meyer). |
-| `03_scalar_field.py` | A scalar field: propagators, the Sorkin-Johnston vacuum, entanglement. |
-| `04_spacetimes.py` | The built-in spacetime library, plus a custom one. |
+| `02_dimension_from_order.py` | Recover the dimension from the order alone (one 3D causet). |
+| `03_scalar_field.py` | A scalar field: the Sorkin-Johnston vacuum, entanglement. |
+| `04_spacetimes.py` | Different spacetimes: a diamond and a 3D cylinder. |
 | `05_matrix_engine.py` | The matrix/vector engine on its own, and synthetic orders. |
 | `06_large_n.py` | 150,000 points whose causal matrix spills to disk (~1-2 min). |
 

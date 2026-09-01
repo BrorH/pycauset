@@ -1,14 +1,9 @@
-"""Recover the spacetime dimension from the order alone (Myrheim-Meyer).
-
-A causet sprinkled into a d-dimensional Minkowski diamond has a relation
-fraction that depends on d. Myrheim-Meyer inverts that: nothing but the order
-in, dimension estimate out.
-"""
+"""The dimension comes out of the order alone (Myrheim-Meyer)."""
 
 import pycauset as pc
 
-for d in (2, 3, 4):
-    st = pc.spacetime.MinkowskiDiamond(dimension=d)
-    c = pc.causet(n=400, spacetime=st, seed=42)
-    # c.relation_fraction() and c.myrheim_meyer_dimension() read the order only.
-    print(f"built in {d}D -> estimate {c.myrheim_meyer_dimension():.2f}")
+# Sprinkle into a 3D diamond. We never tell PyCauset the dimension.
+c = pc.causet(n=400, spacetime=pc.MinkowskiDiamond(3), seed=42)
+
+# Myrheim-Meyer reads nothing but the causal order and recovers ~3.
+print(f"estimated dimension: {c.myrheim_meyer_dimension():.2f}")
