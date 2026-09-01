@@ -8,14 +8,15 @@ c = pc.causet(n=500, spacetime=pc.MinkowskiDiamond(2), seed=11)
 phi = pc.field("scalar", mass=1.0)   # a set-independent field
 Q = phi.on(c)                        # correlated on this causet
 
-K = Q.retarded()       # retarded propagator K_R
-iD = Q.pauli_jordan()  # i*Delta = K_R - K_A
-W = Q.wightman()       # Sorkin-Johnston vacuum two-point function
-S = Q.entanglement_entropy([0, 1, 2, 3, 4, 5])
+# K = retarded propagator, iD = i*Delta = K - K^T, W = Sorkin-Johnston vacuum.
+K = Q.retarded()
+iD = Q.pauli_jordan()
+W = Q.wightman()
 
-print(f"retarded propagator shape: {K.shape}")
-print(f"i*Delta shape:            {iD.shape}")
-print(f"Wightman shape:           {W.shape}")
-print(f"entanglement entropy:     {S:.6f}")
-print(f"W is Hermitian:           {np.allclose(W, W.conj().T)}")
-print(f"i*Delta is Hermitian:     {np.allclose(iD, iD.conj().T)}")
+# Entanglement entropy of a small region (list of element indices).
+S = Q.entanglement_entropy([0, 1, 2, 3, 4, 5])
+print(f"entanglement entropy: {S:.6f}")
+
+# The vacuum and commutator functions must be Hermitian.
+print(f"W hermitian:        {np.allclose(W, W.conj().T)}")
+print(f"i*Delta hermitian:  {np.allclose(iD, iD.conj().T)}")
