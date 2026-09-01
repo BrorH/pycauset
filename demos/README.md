@@ -1,32 +1,18 @@
 # Demos
 
-Runnable scripts that show what PyCauset does, one idea at a time. Each one is
-self-contained: run it from the repo root with `python demos/<name>.py`.
+Short, runnable examples. Each is a few lines showing one thing.
 
-Plot images land in `demos/output/` (requires `kaleido` for static PNGs; without it
-the script prints the results and skips the image).
-
-| Script | What it shows |
+| Script | Shows |
 | :--- | :--- |
-| `01_hello_causet.py` | Sprinkle a causal set, inspect it, plot it, save/load it. |
-| `02_dimension_from_order.py` | Recover the dimension from the order alone (one 3D causet). |
-| `03_scalar_field.py` | A scalar field: the Sorkin-Johnston vacuum, entanglement. |
-| `04_spacetimes.py` | Different spacetimes: a diamond and a 3D cylinder. |
-| `05_matrix_engine.py` | The matrix/vector engine on its own, and synthetic orders. |
+| `01_hello_causet.py` | Sprinkle a causal set and plot it. |
+| `02_dimension_from_order.py` | Recover the dimension from the order alone. |
+| `03_scalar_field.py` | A scalar field and its entanglement entropy. |
+| `04_spacetimes.py` | A cylinder, rendered as a 3D tube. |
+| `05_matrix_engine.py` | The matrix engine: solve a linear system. |
 | `06_large_n.py` | 150,000 points whose causal matrix spills to disk (~1-2 min). |
 
-Run them all in order:
+Run one:
 
 ```bash
-pip install pycauset kaleido
 python demos/01_hello_causet.py
-python demos/02_dimension_from_order.py
-python demos/03_scalar_field.py
-python demos/04_spacetimes.py
-python demos/05_matrix_engine.py
-python demos/06_large_n.py
 ```
-
-`06_large_n.py` takes a minute or two, so start it early in its own terminal and
-come back to it — it prints progress as it sprinkles, then saves a plot and announces
-itself with a `DONE` banner when it finishes.
