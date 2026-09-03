@@ -10,6 +10,7 @@ Short, runnable examples. Each is a few lines showing one thing.
 | `04_spacetimes.py` | A cylinder, rendered as a 3D tube. |
 | `05_matrix_engine.py` | The matrix engine: solve a linear system. |
 | `06_large_n.py` | 150,000 points whose causal matrix spills to disk (~1-2 min). |
+| `07_relations.py` | The causal relations drawn as lines over the embedding. |
 
 Run one:
 

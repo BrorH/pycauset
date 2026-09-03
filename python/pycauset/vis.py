@@ -120,7 +120,9 @@ def plot_embedding(
     max_points: int = 50000,
     force: bool = False,
     title: Optional[str] = None,
-    marker_size: int = 2
+    marker_size: int = 2,
+    show_relations: bool = False,
+    max_relations: int = 20000
 ):
     """Visualize the spacetime embedding of the Causal Set.
 
@@ -128,6 +130,12 @@ def plot_embedding(
     declarations drive the plot; a geometry-free custom spacetime renders raw with
     generic axis labels (never inferred). Embedding dimensions beyond 3 are shown
     as the first three axes with an explicit warning (never silently truncated).
+
+    When ``show_relations`` is true, a faint line is drawn for every causal pair
+    ``A < B`` among the plotted points (the full relation, not just the Hasse
+    links). This materialises the dense causal matrix, so it is intended for
+    small/medium causets; if there are more than ``max_relations`` pairs, a seeded
+    random subset of them is drawn with a warning.
     """
     _check_plotly()
 
@@ -152,9 +160,51 @@ def plot_embedding(
 
     boundary_traces = _boundary_traces(_boundary_paths(st), dim)
 
+    # Optional causal-relation edges: a faint line for every pair A < B among the
+    # plotted points (the full relation, not the Hasse links).
+    edge_traces = []
+    if show_relations:
+        C = np.array(causet.C, dtype=bool)
+        if indices is not None:
+            C = C[np.ix_(indices, indices)]
+        src, dst = np.nonzero(np.triu(C, k=1))
+        if len(src) > max_relations:
+            warnings.warn(
+                f"plot_embedding: {len(src)} causal pairs exceed "
+                f"max_relations={max_relations}; drawing a seeded random subset.",
+                PyCausetPerformanceWarning,
+                stacklevel=2,
+            )
+            rng = np.random.default_rng(42)
+            sel = rng.choice(len(src), size=max_relations, replace=False)
+            src, dst = src[sel], dst[sel]
+
+        edge_x, edge_y, edge_z = [], [], []
+        for i, j in zip(src.tolist(), dst.tolist()):
+            if dim == 2:
+                edge_x.extend([coords[i, 1], coords[j, 1], None])
+                edge_y.extend([coords[i, 0], coords[j, 0], None])
+            else:
+                edge_x.extend([coords[i, 1], coords[j, 1], None])
+                edge_y.extend([coords[i, 2], coords[j, 2], None])
+                edge_z.extend([coords[i, 0], coords[j, 0], None])
+
+        if dim == 2:
+            edge_traces = [go.Scatter(
+                x=edge_x, y=edge_y, mode="lines",
+                line=dict(width=1, color="rgba(255, 255, 255, 0.15)"),
+                hoverinfo="none", name="Causal relations",
+            )]
+        else:
+            edge_traces = [go.Scatter3d(
+                x=edge_x, y=edge_y, z=edge_z, mode="lines",
+                line=dict(width=1, color="rgba(255, 255, 255, 0.15)"),
+                hoverinfo="none", name="Causal relations",
+            )]
+
     # Embedding contract: column 0 is time (vertical), columns 1.. are spatial.
     if dim == 2:
-        data = [go.Scatter(
+        data = edge_traces + [go.Scatter(
             x=coords[:, 1],
             y=coords[:, 0],
             mode="markers",
@@ -179,7 +229,7 @@ def plot_embedding(
         x_data = coords[:, 1]
         y_data = coords[:, 2]
         z_data = coords[:, 0]
-        data = [go.Scatter3d(
+        data = edge_traces + [go.Scatter3d(
             x=x_data,
             y=y_data,
             z=z_data,
