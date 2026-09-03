@@ -25,7 +25,7 @@ class TestBatchHook(unittest.TestCase):
         st = sp.MinkowskiBox(3, 2.0, 3.0)
         c = pc.CausalSet(n=60, spacetime=st, seed=7)
         C = np.asarray(c.C, dtype=bool)
-        coords = c.embedding  # time-sorted
+        coords = c.coordinates()  # time-sorted
         batch = st.is_causal_batch(coords)
         np.testing.assert_array_equal(C, np.triu(batch, 1))
 

@@ -37,7 +37,7 @@ def _dense(mat, n):
 
 def main():
     n = 256
-    sp = pc.MinkowskiDiamond(3)
+    sp = pc.spacetime.MinkowskiDiamond(3)
     C = pc.CausalSet(n, spacetime=sp, seed=1234).C
     B = pc.ones((n, n), dtype=pc.bool_)
     Cn = _dense(C, n)                 # int64 dense reference

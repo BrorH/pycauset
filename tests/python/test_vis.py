@@ -1,7 +1,8 @@
 import unittest
 import numpy as np
 import pycauset
-from pycauset import CausalSet, MinkowskiDiamond
+from pycauset import CausalSet
+from pycauset import spacetime
 
 # Mock plotly if not installed
 import sys
@@ -19,8 +20,8 @@ from pycauset.vis import plot_embedding
 
 class TestVisualization(unittest.TestCase):
     def setUp(self):
-        self.c = CausalSet(n=100, spacetime=MinkowskiDiamond(2))
-        self.c_large = CausalSet(n=1000, spacetime=MinkowskiDiamond(3))
+        self.c = CausalSet(n=100, spacetime=spacetime.MinkowskiDiamond(2))
+        self.c_large = CausalSet(n=1000, spacetime=spacetime.MinkowskiDiamond(3))
 
     def test_coordinates_retrieval(self):
         # Test getting all coordinates
@@ -39,7 +40,7 @@ class TestVisualization(unittest.TestCase):
 
     def test_coordinates_safety(self):
         # Create a small causet to avoid expensive sprinkling
-        c_huge = CausalSet(n=100, spacetime=MinkowskiDiamond(2))
+        c_huge = CausalSet(n=100, spacetime=spacetime.MinkowskiDiamond(2))
         # Hack the size to simulate a large set
         c_huge._n = 200000
         

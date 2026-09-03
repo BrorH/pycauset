@@ -14,7 +14,7 @@ import pycauset as pc
 
 class TestContinuumComparison(unittest.TestCase):
     def setUp(self):
-        self.st = pc.MinkowskiDiamond(2)
+        self.st = pc.spacetime.MinkowskiDiamond(2)
         self.c = pc.CausalSet(n=60, spacetime=self.st, seed=11)
 
     def test_on_spacetime_returns_continuum(self):
@@ -27,7 +27,7 @@ class TestContinuumComparison(unittest.TestCase):
         Q_c = pc.field("scalar", mass=0.0).on(self.c)
         Q_ct = pc.field("scalar", mass=0.0).on(self.st)
 
-        coords = self.st.to_embedding(self.c.embedding)
+        coords = self.st.to_embedding(self.c.coordinates())
         iD_discrete = Q_c.pauli_jordan()
         iD_continuum = Q_ct.at(coords, which="pauli_jordan")
 
@@ -37,7 +37,7 @@ class TestContinuumComparison(unittest.TestCase):
         Q_c = pc.field("scalar", mass=0.0).on(self.c)
         Q_ct = pc.field("scalar", mass=0.0).on(self.st)
 
-        coords = self.st.to_embedding(self.c.embedding)
+        coords = self.st.to_embedding(self.c.coordinates())
         KR_discrete = Q_c.retarded()
         GR_continuum = Q_ct.at(coords, which="retarded")
 

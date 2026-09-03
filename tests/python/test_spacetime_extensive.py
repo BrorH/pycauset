@@ -14,7 +14,8 @@ for _path in (_REPO_ROOT, _PYTHON_DIR):
         sys.path.insert(0, path_str)
 
 import pycauset
-from pycauset import CausalSet, MinkowskiDiamond
+from pycauset import CausalSet
+from pycauset import spacetime
 
 class TestSpacetimeExtensive(unittest.TestCase):
     def setUp(self):
@@ -26,7 +27,7 @@ class TestSpacetimeExtensive(unittest.TestCase):
         # 10D spacetime
         dim = 10
         n = 50
-        c = CausalSet(n=n, spacetime=MinkowskiDiamond(dim))
+        c = CausalSet(n=n, spacetime=spacetime.MinkowskiDiamond(dim))
         self.assertEqual(c.spacetime.dimension(), dim)
         self.assertEqual(len(c), n)
         
@@ -37,14 +38,14 @@ class TestSpacetimeExtensive(unittest.TestCase):
     def test_extreme_n_values(self):
         """Test very small and moderately large N."""
         # N = 1
-        c1 = CausalSet(n=1, spacetime=MinkowskiDiamond(2))
+        c1 = CausalSet(n=1, spacetime=spacetime.MinkowskiDiamond(2))
         self.assertEqual(len(c1), 1)
         self.assertEqual(c1.C.rows(), 1)
         self.assertEqual(c1.C.cols(), 1)
         
         # N = 0 (Should probably fail or produce empty)
         try:
-            c0 = CausalSet(n=0, spacetime=MinkowskiDiamond(2))
+            c0 = CausalSet(n=0, spacetime=spacetime.MinkowskiDiamond(2))
             self.assertEqual(len(c0), 0)
         except ValueError:
             # If 0 is not allowed, that's valid too
@@ -54,7 +55,7 @@ class TestSpacetimeExtensive(unittest.TestCase):
         """Verify strict determinism across multiple generations."""
         seed = 999
         n = 100
-        st = MinkowskiDiamond(3)
+        st = spacetime.MinkowskiDiamond(3)
         
         c1 = CausalSet(n=n, spacetime=st, seed=seed)
         c2 = CausalSet(n=n, spacetime=st, seed=seed)
@@ -73,7 +74,7 @@ class TestSpacetimeExtensive(unittest.TestCase):
         """Verify all sprinkled points lie within the diamond bounds."""
         n = 100
         dim = 2
-        c = CausalSet(n=n, spacetime=MinkowskiDiamond(dim))
+        c = CausalSet(n=n, spacetime=spacetime.MinkowskiDiamond(dim))
         coords = c.coordinates()
         
         # For Minkowski Diamond in 2D, bounds are typically related to lightcone intervals
@@ -87,7 +88,7 @@ class TestSpacetimeExtensive(unittest.TestCase):
         """Test performance/stability with larger N."""
         # N = 2000 is large enough to stress test but small enough for unit test
         n = 2000
-        c = CausalSet(n=n, spacetime=MinkowskiDiamond(4))
+        c = CausalSet(n=n, spacetime=spacetime.MinkowskiDiamond(4))
         self.assertEqual(len(c), n)
         self.assertEqual(c.C.rows(), n)
         self.assertEqual(c.C.cols(), n)

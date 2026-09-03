@@ -33,7 +33,7 @@ def _axis_title(fig, *path):
 
 class TestCausalSetPlotMethods(unittest.TestCase):
     def setUp(self):
-        self.c = pc.CausalSet(n=100, spacetime=pc.MinkowskiDiamond(2), seed=1)
+        self.c = pc.CausalSet(n=100, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=1)
 
     def test_plot_embedding_method(self):
         self.assertIsNotNone(self.c.plot_embedding())
@@ -55,7 +55,7 @@ class TestCausalSetPlotMethods(unittest.TestCase):
 
 class TestSubsetPolicy(unittest.TestCase):
     def setUp(self):
-        self.c = pc.CausalSet(n=100, spacetime=pc.MinkowskiDiamond(2), seed=1)
+        self.c = pc.CausalSet(n=100, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=1)
 
     def test_subsample_warns(self):
         with warnings.catch_warnings(record=True) as w:
@@ -74,13 +74,13 @@ class TestAuthoredShapes(unittest.TestCase):
     """The spacetime's to_embedding / boundary / display_axes drive the plot."""
 
     def test_diamond_axis_labels(self):
-        c = pc.CausalSet(n=20, spacetime=pc.MinkowskiDiamond(2), seed=1)
+        c = pc.CausalSet(n=20, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=1)
         fig = c.plot_embedding()
         self.assertEqual(_axis_title(fig, "xaxis"), "x")
         self.assertEqual(_axis_title(fig, "yaxis"), "t")
 
     def test_cylinder_3d_boundary(self):
-        c = pc.CausalSet(n=20, spacetime=pc.MinkowskiCylinder(2, 5.0, 3.0), seed=1)
+        c = pc.CausalSet(n=20, spacetime=pc.spacetime.MinkowskiCylinder(2, 5.0, 3.0), seed=1)
         fig = c.plot_embedding()
         # event trace + two boundary circles (top and bottom)
         self.assertGreaterEqual(len(fig.data), 3)
@@ -89,7 +89,7 @@ class TestAuthoredShapes(unittest.TestCase):
         self.assertEqual(_axis_title(fig, "scene", "zaxis"), "t")
 
     def test_higher_d_warns_not_silently_truncated(self):
-        c = pc.CausalSet(n=20, spacetime=pc.MinkowskiBox(4, 2.0, 1.0), seed=1)
+        c = pc.CausalSet(n=20, spacetime=pc.spacetime.MinkowskiBox(4, 2.0, 1.0), seed=1)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             fig = c.plot_embedding()

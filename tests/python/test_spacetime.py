@@ -3,7 +3,8 @@ import os
 import shutil
 import tempfile
 import pycauset
-from pycauset import CausalSet, MinkowskiDiamond
+from pycauset import CausalSet
+from pycauset import spacetime
 
 class TestSpacetimeStructure(unittest.TestCase):
     def setUp(self):
@@ -14,7 +15,7 @@ class TestSpacetimeStructure(unittest.TestCase):
 
     def test_sprinkling_by_n(self):
         n = 50
-        c = CausalSet(n=n, spacetime=MinkowskiDiamond(2))
+        c = CausalSet(n=n, spacetime=spacetime.MinkowskiDiamond(2))
         self.assertEqual(c.n, n)
         self.assertEqual(len(c), n)
         self.assertIsNotNone(c.C)
@@ -26,7 +27,7 @@ class TestSpacetimeStructure(unittest.TestCase):
 
     def test_sprinkling_by_density(self):
         density = 100.0
-        st = MinkowskiDiamond(2)
+        st = spacetime.MinkowskiDiamond(2)
         c = CausalSet(density=density, spacetime=st, seed=42)
         
         # n is Poisson distributed, so it might not be exactly density * volume
@@ -47,14 +48,14 @@ class TestSpacetimeStructure(unittest.TestCase):
         # Test 2D, 3D, 4D
         dims = [2, 3, 4]
         for d in dims:
-            c = CausalSet(n=20, spacetime=MinkowskiDiamond(d))
+            c = CausalSet(n=20, spacetime=spacetime.MinkowskiDiamond(d))
             self.assertEqual(c.spacetime.dimension(), d)
             self.assertEqual(c.C.rows(), 20)
             self.assertEqual(c.C.cols(), 20)
 
     def test_persistence(self):
         # Create a causet
-        c = CausalSet(n=50, spacetime=MinkowskiDiamond(2), seed=123)
+        c = CausalSet(n=50, spacetime=spacetime.MinkowskiDiamond(2), seed=123)
         file_path = os.path.join(self.test_dir, "test_causet.causet")
         
         # Save
@@ -80,7 +81,7 @@ class TestSpacetimeStructure(unittest.TestCase):
                 self.assertEqual(c.C[i, j], c_loaded.C[i, j])
 
     def test_matrix_properties(self):
-        c = CausalSet(n=10, spacetime=MinkowskiDiamond(2))
+        c = CausalSet(n=10, spacetime=spacetime.MinkowskiDiamond(2))
         matrix = c.C
         
         # Check it's a TriangularBitMatrix (or whatever the default is)
@@ -93,7 +94,7 @@ class TestSpacetimeStructure(unittest.TestCase):
     def test_invalid_init(self):
         # Must provide n or density
         with self.assertRaises(ValueError):
-            CausalSet(spacetime=MinkowskiDiamond(2))
+            CausalSet(spacetime=spacetime.MinkowskiDiamond(2))
 
 if __name__ == '__main__':
     unittest.main()

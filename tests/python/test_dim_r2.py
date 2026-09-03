@@ -24,7 +24,7 @@ class TestMyrheimMeyer(unittest.TestCase):
 
     def test_recovers_d2_diamond(self):
         # A 1+1 Minkowski diamond has relation fraction 1/4 -> Myrheim-Meyer d = 2.
-        c = pc.CausalSet(n=2000, spacetime=pc.MinkowskiDiamond(2), seed=3)
+        c = pc.CausalSet(n=2000, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=3)
         self.assertAlmostEqual(c.myrheim_meyer_dimension(), 2.0, delta=0.3)
 
 

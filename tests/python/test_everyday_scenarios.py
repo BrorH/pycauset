@@ -23,7 +23,7 @@ def _dense(mat, n):
 
 def _causal(n, *, seed, dim=3):
     """Build one causal set in a diamond and return its causal matrix C."""
-    return pc.CausalSet(n, spacetime=pc.MinkowskiDiamond(dim), seed=seed).C
+    return pc.CausalSet(n, spacetime=pc.spacetime.MinkowskiDiamond(dim), seed=seed).C
 
 
 class ScenarioCubeAndSum(unittest.TestCase):

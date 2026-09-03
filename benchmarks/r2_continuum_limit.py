@@ -27,7 +27,7 @@ import pycauset as pc
 
 
 def run(n: int, seed: int = 11):
-    st = pc.MinkowskiDiamond(2)
+    st = pc.spacetime.MinkowskiDiamond(2)
     c = pc.CausalSet(n=n, spacetime=st, seed=seed)
 
     phi = pc.field("scalar", mass=0.0)

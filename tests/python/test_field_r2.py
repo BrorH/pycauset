@@ -8,7 +8,7 @@ import pycauset as pc
 
 class TestFieldModel(unittest.TestCase):
     def setUp(self):
-        self.c = pc.CausalSet(n=30, spacetime=pc.MinkowskiDiamond(2), seed=3)
+        self.c = pc.CausalSet(n=30, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=3)
 
     def test_field_factory(self):
         phi = pc.field("scalar", mass=1.5)
@@ -30,10 +30,10 @@ class TestFieldModel(unittest.TestCase):
 
 class TestPropagators(unittest.TestCase):
     def setUp(self):
-        self.c = pc.CausalSet(n=30, spacetime=pc.MinkowskiDiamond(2), seed=3)
+        self.c = pc.CausalSet(n=30, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=3)
 
     def test_retarded_matches_formula(self):
-        c = pc.CausalSet(n=20, spacetime=pc.MinkowskiDiamond(2), seed=1)
+        c = pc.CausalSet(n=20, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=1)
         Q = pc.field("scalar", mass=1.0).on(c)
 
         C = np.asarray(c.C, dtype=float)
@@ -46,7 +46,7 @@ class TestPropagators(unittest.TestCase):
         np.testing.assert_allclose(Q.retarded(), K_ref, atol=1e-10)
 
     def test_retarded_matches_formula_4d(self):
-        c = pc.CausalSet(n=20, spacetime=pc.MinkowskiDiamond(4), seed=1)
+        c = pc.CausalSet(n=20, spacetime=pc.spacetime.MinkowskiDiamond(4), seed=1)
         Q = pc.field("scalar", mass=1.0).on(c)
 
         C = np.asarray(c.C, dtype=float)
@@ -64,7 +64,7 @@ class TestPropagators(unittest.TestCase):
 
     def test_massless_limit_is_aC(self):
         # R2_CATALOG shortcut: b -> 0 gives K_R = aC (no solve at all).
-        c = pc.CausalSet(n=10, spacetime=pc.MinkowskiDiamond(2), seed=1)
+        c = pc.CausalSet(n=10, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=1)
         Q = pc.field("scalar", mass=0.0).on(c)
         C = np.asarray(c.C, dtype=float)
         np.testing.assert_allclose(Q.retarded(), 0.5 * C, atol=1e-12)
@@ -83,7 +83,7 @@ class TestPropagators(unittest.TestCase):
 class TestWightman(unittest.TestCase):
     def setUp(self):
         self.Q = pc.field("scalar", mass=1.0).on(
-            pc.CausalSet(n=30, spacetime=pc.MinkowskiDiamond(2), seed=3)
+            pc.CausalSet(n=30, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=3)
         )
 
     def test_wightman_is_positive_part(self):

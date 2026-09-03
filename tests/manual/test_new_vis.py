@@ -1,12 +1,13 @@
 import numpy as np
 import plotly.graph_objects as go
-from pycauset import CausalSet, MinkowskiDiamond, MinkowskiCylinder
+from pycauset import CausalSet
+from pycauset import spacetime
 from pycauset.vis import plot_hasse, plot_causal_matrix
 
 def test_vis():
     print("Creating CausalSet...")
     # Create a small diamond
-    diamond = MinkowskiDiamond(2)
+    diamond = spacetime.MinkowskiDiamond(2)
     cset = CausalSet(n=50, spacetime=diamond, seed=42)
     
     print("Testing plot_hasse (2D)...")
@@ -20,7 +21,7 @@ def test_vis():
     
     # Test 3D Hasse (Cylinder)
     print("Creating Cylinder CausalSet...")
-    cylinder = MinkowskiCylinder(2, 2.0, 2.0)
+    cylinder = spacetime.MinkowskiCylinder(2, 2.0, 2.0)
     cset_cyl = CausalSet(n=50, spacetime=cylinder, seed=42)
     
     print("Testing plot_hasse (3D Cylinder)...")

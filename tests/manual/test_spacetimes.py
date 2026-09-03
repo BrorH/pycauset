@@ -1,11 +1,12 @@
 import numpy as np
-from pycauset import CausalSet, MinkowskiDiamond, MinkowskiCylinder, MinkowskiBox
+from pycauset import CausalSet
+from pycauset import spacetime
 from pycauset.vis import plot_embedding, plot_hasse
 
 def test_spacetimes():
     print("Testing MinkowskiBox...")
     # Create a Box (Block)
-    box = MinkowskiBox(2, 2.0, 1.0) # T=2, L=1
+    box = spacetime.MinkowskiBox(2, 2.0, 1.0) # T=2, L=1
     c_box = CausalSet(n=100, spacetime=box, seed=42)
 
     print(f"Box created with N={c_box.n}")

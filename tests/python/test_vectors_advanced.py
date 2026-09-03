@@ -1,6 +1,7 @@
 import unittest
 import pycauset
-from pycauset import CausalSet, MinkowskiDiamond
+from pycauset import CausalSet
+from pycauset import spacetime
 
 class TestVectorsAdvanced(unittest.TestCase):
     def test_large_vector(self):
@@ -22,7 +23,7 @@ class TestVectorsAdvanced(unittest.TestCase):
 
     def test_vector_from_causet(self):
         # Often we want vectors related to causets (e.g. labels, values)
-        c = CausalSet(n=10, spacetime=MinkowskiDiamond(2))
+        c = CausalSet(n=10, spacetime=spacetime.MinkowskiDiamond(2))
         
         # Create a vector of size n
         v = pycauset.empty(c.n, dtype="int")
@@ -41,7 +42,7 @@ class TestVectorsAdvanced(unittest.TestCase):
         # Since we can't easily create a custom matrix from scratch in Python yet (maybe?),
         # we'll use a small causet's matrix.
         
-        c = CausalSet(n=3, spacetime=MinkowskiDiamond(2))
+        c = CausalSet(n=3, spacetime=spacetime.MinkowskiDiamond(2))
         # C is a TriangularBitMatrix.
         # Let's try to multiply it by a vector.
         

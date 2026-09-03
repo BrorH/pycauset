@@ -30,7 +30,7 @@ class TestLinks(unittest.TestCase):
         self.assertFalse(L[0, 3])  # covered by a length-2 path
 
     def test_links_matches_formula(self):
-        c = CausalSet(n=60, spacetime=pc.MinkowskiDiamond(2), seed=5)
+        c = CausalSet(n=60, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=5)
         C = np.asarray(c.C, dtype=bool)
         L_ref = C & ~((C.astype(np.uint8) @ C.astype(np.uint8)) > 0)
         np.testing.assert_array_equal(c.links(), L_ref)

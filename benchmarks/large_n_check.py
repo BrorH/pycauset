@@ -18,7 +18,7 @@ import pycauset as pc
 
 def check(n, *, seed=2024, samples=40):
     t0 = time.perf_counter()
-    C = pc.CausalSet(n, spacetime=pc.MinkowskiDiamond(3), seed=seed).C
+    C = pc.CausalSet(n, spacetime=pc.spacetime.MinkowskiDiamond(3), seed=seed).C
     t_build = time.perf_counter() - t0
 
     t0 = time.perf_counter()

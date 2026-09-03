@@ -76,6 +76,75 @@ complex_float64 = "complex_float64"
 complex64 = "complex_float32"
 complex128 = "complex_float64"
 
+
+# ---------------------------------------------------------------------------
+# Debug mode
+# ---------------------------------------------------------------------------
+# When True, pycauset prints diagnostic information to stderr: matrix sizes and
+# storage placement (RAM vs disk), operation timings, sprinkling details, and
+# file I/O. Toggle it at runtime with ``pycauset.debug_mode = True`` (default
+# False). Every line is prefixed with ``[pycauset]``.
+debug_mode: bool = False
+
+import sys as _sys
+import time as _time
+
+
+def _debug(message: str) -> None:
+    """Emit one diagnostic line when ``pycauset.debug_mode`` is True."""
+    if debug_mode:
+        print(f"[pycauset] {message}", file=_sys.stderr, flush=True)
+
+
+def _debug_time(label: str):
+    """Context manager that logs the wall-clock time of the wrapped block."""
+    class _Timer:
+        def __enter__(self):
+            self._t0 = _time.perf_counter()
+            return self
+
+        def __exit__(self, *exc_info):
+            _debug(f"{label}: {_time.perf_counter() - self._t0:.3f}s")
+            return False
+
+    return _Timer()
+
+
+def _matrix_desc(matrix: Any) -> str:
+    """A compact ``name shape dtype storage`` summary of a matrix/vector."""
+    name = type(matrix).__name__
+    try:
+        rows = matrix.rows()
+    except Exception:
+        rows = None
+    try:
+        cols = matrix.cols()
+    except Exception:
+        cols = None
+
+    shape = ""
+    if rows is not None and cols is not None:
+        shape = f"{rows}x{cols}"
+    elif rows is not None:
+        shape = f"{rows}"
+
+    dtype = ""
+    try:
+        dtype = str(matrix.get_data_type())
+    except Exception:
+        pass
+
+    backing = ""
+    try:
+        bf = matrix.get_backing_file()
+    except Exception:
+        bf = None
+    if bf is not None:
+        backing = "RAM" if bf == ":memory:" else f"disk ({bf})"
+
+    return " ".join(part for part in (name, shape, dtype, backing) if part)
+
+
 _native_mod.configure_windows_dll_search_paths(package_dir=os.path.dirname(__file__))
 _native = _native_mod.import_native_extension(package=__name__)
 
@@ -91,9 +160,6 @@ from . import spacetime as spacetime
 from . import synthetic as synthetic
 from ._storage import cleanup_storage, set_temporary_file
 from .causet import CausalSet
-from .spacetime import MinkowskiBox as MinkowskiBox
-from .spacetime import MinkowskiCylinder as MinkowskiCylinder
-from .spacetime import MinkowskiDiamond as MinkowskiDiamond
 
 
 def _debug_resolve_promotion(
@@ -342,6 +408,7 @@ def set_backing_dir(path: str | Path) -> Path:
             stacklevel=2,
         )
 
+    _debug(f"set_backing_dir -> {new_root}")
     return _runtime.set_storage_root(new_root)
 
 
@@ -369,6 +436,7 @@ def set_memory_threshold(limit: int | None) -> int | None:
         raise RuntimeError("Native memory threshold default is unavailable")
 
     setter(int(target))
+    _debug(f"set_memory_threshold -> {int(target)} bytes")
     return int(getter()) if getter is not None else int(target)
 
 
@@ -402,6 +470,7 @@ _runtime.initial_cleanup()
 
 def _track_matrix(instance: Any) -> None:
     _runtime.track_matrix(instance)
+    _debug(f"allocated {_matrix_desc(instance)}")
 
 
 def _release_tracked_matrices() -> None:
@@ -625,11 +694,15 @@ _PERSISTENCE_DEPS = _SimpleNamespace(
 
 
 def save(obj: Any, path: str | Path) -> None:
-    return _persistence.save(obj, path, deps=_PERSISTENCE_DEPS)
+    _debug(f"save {_matrix_desc(obj)} -> {path}")
+    with _debug_time(f"save -> {path}"):
+        return _persistence.save(obj, path, deps=_PERSISTENCE_DEPS)
 
 
 def load(path: str | Path) -> Any:
-    return _persistence.load(path, deps=_PERSISTENCE_DEPS)
+    _debug(f"load {path}")
+    with _debug_time(f"load <- {path}"):
+        return _persistence.load(path, deps=_PERSISTENCE_DEPS)
 
 
 def _array_to_pycauset(arr: Any) -> Any:
@@ -869,6 +942,35 @@ _patching.apply_native_storage_patches(
     track_matrix=_track_matrix,
     mark_temporary_if_auto=_mark_temporary_if_auto,
 )
+
+
+# Debug-mode timing for the `@` operator, which calls the native
+# `MatrixBase.__matmul__` directly (bypassing the `pc.matmul` wrapper above).
+def _wrap_matmul_for_debug(cls: Any) -> None:
+    original = getattr(cls, "__matmul__", None)
+    if original is None:
+        return
+
+    def _timed(self: Any, other: Any) -> Any:
+        _debug(f"matmul {_matrix_desc(self)} @ {_matrix_desc(other)}")
+        with _debug_time("matmul @"):
+            return original(self, other)
+
+    try:
+        cls.__matmul__ = _timed
+    except Exception:
+        pass
+
+
+for _mcls in (
+    _IntegerMatrix, _Int8Matrix, _Int16Matrix, _Int64Matrix,
+    _UInt8Matrix, _UInt16Matrix, _UInt32Matrix, _UInt64Matrix,
+    _FloatMatrix, _Float16Matrix, _Float32Matrix,
+    _ComplexFloat16Matrix, _ComplexFloat32Matrix, _ComplexFloat64Matrix,
+    _TriangularFloatMatrix, _TriangularIntegerMatrix, _DenseBitMatrix,
+    _TriangularBitMatrix,
+):
+    _wrap_matmul_for_debug(_mcls)
 
 _properties.apply_properties_patches(
     classes=[
@@ -1534,7 +1636,13 @@ def causet(
     matrix=None,
 ) -> CausalSet:
     """Lower-case convenience factory that returns a CausalSet."""
-    return CausalSet(n=n, density=density, spacetime=spacetime, seed=seed, matrix=matrix)
+    st_name = type(spacetime).__name__ if spacetime is not None else "default"
+    if matrix is not None:
+        _debug(f"causet from matrix (n={n})")
+    else:
+        _debug(f"sprinkle n={n} density={density} spacetime={st_name} seed={seed}")
+    with _debug_time("causet"):
+        return CausalSet(n=n, density=density, spacetime=spacetime, seed=seed, matrix=matrix)
 
 _OPS_DEPS = _ops.OpsDeps(
     native=_native,
@@ -1555,7 +1663,9 @@ def matmul(a: Any, b: Any) -> Any:
     If both inputs are TriangularBitMatrices, uses the optimized C++ implementation.
     Otherwise, performs generic multiplication (slow).
     """
-    return _ops.matmul(a, b, deps=_OPS_DEPS)
+    _debug(f"matmul {_matrix_desc(a)} @ {_matrix_desc(b)}")
+    with _debug_time("matmul"):
+        return _ops.matmul(a, b, deps=_OPS_DEPS)
 
 
 def dot(a: Any, b: Any) -> Any:
@@ -1756,7 +1866,9 @@ def invert(matrix: Any) -> Any:
     Raises:
         RuntimeError: If the matrix is singular (e.g. strictly upper triangular).
     """
-    return _ops.invert(matrix, deps=_OPS_DEPS)
+    _debug(f"invert {_matrix_desc(matrix)}")
+    with _debug_time("invert"):
+        return _ops.invert(matrix, deps=_OPS_DEPS)
 
 
 def lstsq(a: Any, b: Any) -> Any:
@@ -1865,7 +1977,9 @@ def lu(a: Any) -> Any:
 
 def solve(a: Any, b: Any) -> Any:
     """Solve linear system AX = B."""
-    return _ops.solve(a, b, deps=_OPS_DEPS)
+    _debug(f"solve {_matrix_desc(a)} with RHS {_matrix_desc(b)}")
+    with _debug_time("solve"):
+        return _ops.solve(a, b, deps=_OPS_DEPS)
 
 
 def determinant(a: Any) -> Any:
@@ -2139,9 +2253,26 @@ from .field import Field as Field
 from .field import State as State
 
 
+_HIDDEN_NATIVE_NAMES = frozenset(
+    {
+        # Spacetimes live under pycauset.spacetime (public API), never at the
+        # top level. The native C++ classes stay reachable as pycauset._native.*.
+        "MinkowskiDiamond",
+        "MinkowskiCylinder",
+        "MinkowskiBox",
+        "CausalSpacetime",
+    }
+)
+
+
 def __getattr__(name):
     if name == "bool":
         return "bool"
+    if name in _HIDDEN_NATIVE_NAMES:
+        raise AttributeError(
+            f"module 'pycauset' has no attribute {name!r}; "
+            f"spacetimes live in pycauset.spacetime"
+        )
     return getattr(_native, name)
 
 
@@ -2173,7 +2304,9 @@ _INTERNAL_NATIVE_EXPORTS = frozenset(
 
 __all__ = [
     name for name in dir(_native)
-    if not name.startswith("_") and name not in _INTERNAL_NATIVE_EXPORTS
+    if not name.startswith("_")
+    and name not in _INTERNAL_NATIVE_EXPORTS
+    and name not in _HIDDEN_NATIVE_NAMES
 ]
 
 # Add pure-Python facade symbols (and any optional native symbols) to __all__.
@@ -2257,9 +2390,6 @@ _extra_exports = [
     "spacetime",
     "synthetic",
     "field",
-    "MinkowskiDiamond",
-    "MinkowskiCylinder",
-    "MinkowskiBox",
     "MemoryHint",
     "AccessPattern",
     "Field",
@@ -2270,6 +2400,7 @@ _extra_exports = [
     "plot_hasse",
     "plot_causal_matrix",
     "show",
+    "debug_mode",
 ]
 
 for _name in _extra_exports:

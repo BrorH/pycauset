@@ -3,7 +3,8 @@ import os
 import shutil
 from pathlib import Path
 import pycauset
-from pycauset import CausalSet, TriangularBitMatrix, IntegerMatrix, FloatMatrix, MinkowskiCylinder
+from pycauset import CausalSet, TriangularBitMatrix, IntegerMatrix, FloatMatrix
+from pycauset import spacetime
 
 from pycauset._internal import persistence as _persistence
 
@@ -123,7 +124,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_causet_spacetime_metadata(self):
         """Test CausalSet with specific spacetime configuration."""
         # Use a Cylinder spacetime
-        st = MinkowskiCylinder(dimension=2, height=10.0, circumference=5.0)
+        st = spacetime.MinkowskiCylinder(dimension=2, height=10.0, circumference=5.0)
         c = CausalSet(n=100, spacetime=st, seed=999)
         path = self.test_dir / "cylinder.causet"
         

@@ -8,7 +8,7 @@ import pycauset as pc
 
 class TestState(unittest.TestCase):
     def setUp(self):
-        self.c = pc.CausalSet(n=30, spacetime=pc.MinkowskiDiamond(2), seed=3)
+        self.c = pc.CausalSet(n=30, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=3)
         self.Q = pc.field("scalar", mass=1.0).on(self.c)
 
     def test_vacuum_state(self):
