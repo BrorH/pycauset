@@ -109,6 +109,21 @@ cd pycauset
 pip install .
 ```
 
+### Debug mode
+
+Set `pycauset.debug_mode = True` (default `False`) to print diagnostics to stderr:
+matrix shape/dtype and whether each is in RAM or spilled to disk, operation timings
+(`matmul`, `@`, `invert`, `solve`, …), sprinkling details, storage configuration
+changes, and file I/O. Every line is prefixed `[pycauset]`.
+
+```python
+import pycauset as pc
+pc.debug_mode = True
+
+A = pc.zeros((2000, 2000), dtype=pc.float64)   # [pycauset] allocated FloatMatrix 2000x2000 float64 RAM
+C = A @ A                                       # [pycauset] matmul ... : 1.2s
+```
+
 ### GPU acceleration (optional)
 
 The default install is CPU-only. To add GPU support:
