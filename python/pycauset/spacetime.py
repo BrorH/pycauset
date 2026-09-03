@@ -229,6 +229,11 @@ class MinkowskiDiamond(Spacetime):
             return ["t", "x"]
         return None
 
+    def _native_spacetime(self):
+        """Native C++ spacetime used for fast, memory-efficient sprinkling."""
+        from pycauset import _pycauset as _native
+        return _native.MinkowskiDiamond(self._dim)
+
 
 class MinkowskiCylinder(Spacetime):
     """Flat Minkowski cylinder ``S\u00b9 \u00d7 \u211d`` (periodic spatial dimension)."""
@@ -287,6 +292,11 @@ class MinkowskiCylinder(Spacetime):
     def display_axes(self):
         return ["t", "x", "y"]  # 3D cylindrical embedding
 
+    def _native_spacetime(self):
+        """Native C++ spacetime used for fast, memory-efficient sprinkling."""
+        from pycauset import _pycauset as _native
+        return _native.MinkowskiCylinder(self._dim, self.height, self.circumference)
+
 
 class MinkowskiBox(Spacetime):
     """Rectangular block in flat Minkowski space (hard walls)."""
@@ -340,6 +350,11 @@ class MinkowskiBox(Spacetime):
             return ["t", "x"]
         return None
 
+    def _native_spacetime(self):
+        """Native C++ spacetime used for fast, memory-efficient sprinkling."""
+        from pycauset import _pycauset as _native
+        return _native.MinkowskiBox(self._dim, self.time_extent, self.space_extent)
+
 
 register("minkowski_diamond")(MinkowskiDiamond)
 register("minkowski_cylinder")(MinkowskiCylinder)
@@ -347,7 +362,22 @@ register("minkowski_box")(MinkowskiBox)
 
 
 def _flat_scalar_coeffs(self, mass, density):
-    """2D/4D flat-Minkowski scalar coefficients (authored data, never guessed)."""
+    """Field coefficients ``(a, b)`` for the scalar propagator on flat Minkowski.
+
+    These enter the retarded Green's function ``K_R = aC (I - b a C)^-1``, where
+    ``C`` is the causal matrix and ``density`` is the sprinkling density ``rho``.
+
+    Authored, closed-form values exist only where the continuum theory gives them:
+
+    * ``d = 2``: ``a = 1/2``, ``b = -m^2 / rho``.
+    * ``d = 4``: ``a = sqrt(rho) / (2 pi sqrt(6))``, ``b = -m^2 / rho``.
+
+    Any other dimension is **not guessed**: the coefficients are physics data and
+    must be passed manually (``field(...).on(c).retarded(a=..., b=...)``) or added
+    here once derived. Note ``a, b`` are *field* parameters, not spacetime
+    definition parameters — sprinkling a d>2 diamond works fine; only field
+    operations need them.
+    """
     d = self.dimension()
     m = float(mass)
     if d == 2:

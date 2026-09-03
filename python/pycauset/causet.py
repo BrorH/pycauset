@@ -5,6 +5,15 @@ relations plus provenance (a `Spacetime` + seed, or an attached embedding). It a
 carries the R2 causal-structure methods (`links`, `past`/`future`, `interval`,
 chains/antichains, layering) and dimension estimators (Myrheim–Meyer), plus eager
 partial-order validation.
+
+**Natural ordering (a core invariant).** PyCauset labels causal-set elements by
+*time* — ascending coordinate 0 — so the causal matrix is always **strictly
+upper-triangular**: ``i ≺ j`` implies ``i < j``. That triangular structure is the
+storage/numerical invariant that makes the bit-packed engine fast, and every causet
+produced by ``sprinkle`` or the ``synthetic`` generators obeys it. Users who build
+their own labelled posets via the matrix engine may use any labels, but only the
+upper triangle is stored (lower-triangle/diagonal entries are ignored with a
+warning).
 """
 
 import os
@@ -146,6 +155,12 @@ class CausalSet:
         3. Custom spacetime: Provide a `pycauset.spacetime.Spacetime` subclass, which is
            sampled + causally ordered in Python.
 
+        Natural ordering (core invariant): elements are labelled by time (ascending
+        coordinate 0), so the causal matrix is strictly upper-triangular — ``i ≺ j``
+        only when ``i < j``. Every causet produced here obeys this; a manually
+        supplied ``matrix`` must already be in that form (only the upper triangle is
+        stored).
+
         Args:
             n (int, optional): Number of elements.
             density (float, optional): Density of sprinkling. If provided, n is calculated as Poisson(density * volume).
@@ -201,14 +216,29 @@ class CausalSet:
             self._matrix = matrix
             if validate:
                 validate_causal_matrix(matrix, context="CausalSet(matrix=...)")
-        elif _Spacetime is not None and isinstance(self._spacetime, _Spacetime):
-            # Custom Python spacetime: sample + build the order in Python.
-            self._matrix, self._embedding = _sprinkle_python(
-                self._spacetime, self._n, self._seed
-            )
         else:
-            # Native spacetime: use the stateless native sprinkler.
-            self._matrix = _native.sprinkle(self._spacetime, self._n, self._seed)
+            # Built-in spacetimes expose a native C++ equivalent: use the fast,
+            # memory-efficient native sprinkler (bit-packed + disk-spill) instead
+            # of the naive O(n^2) Python path. Custom `Spacetime` subclasses fall
+            # through to the Python sprinkler below.
+            native_st = None
+            try:
+                factory = getattr(self._spacetime, "_native_spacetime", None)
+                if callable(factory):
+                    native_st = factory()
+            except Exception:
+                native_st = None
+
+            if native_st is not None:
+                self._matrix = _native.sprinkle(native_st, self._n, self._seed)
+            elif _Spacetime is not None and isinstance(self._spacetime, _Spacetime):
+                # Custom Python spacetime: sample + build the order in Python.
+                self._matrix, self._embedding = _sprinkle_python(
+                    self._spacetime, self._n, self._seed
+                )
+            else:
+                # Native spacetime: use the stateless native sprinkler.
+                self._matrix = _native.sprinkle(self._spacetime, self._n, self._seed)
 
     @property
     def causal_matrix(self):
@@ -426,7 +456,16 @@ class CausalSet:
             indices = list(range(self.n))
 
         indices = [int(i) for i in indices]
-        coords = _native.make_coordinates(self._spacetime, self._n, self._seed, indices)
+        # Built-in spacetimes are sprinkled natively; regenerate coordinates from
+        # their native equivalent so the RNG stream matches the sprinkled order.
+        native_st = self._spacetime
+        factory = getattr(self._spacetime, "_native_spacetime", None)
+        if callable(factory):
+            try:
+                native_st = factory()
+            except Exception:
+                native_st = self._spacetime
+        coords = _native.make_coordinates(native_st, self._n, self._seed, indices)
 
         if _np:
             return _np.array(coords)
