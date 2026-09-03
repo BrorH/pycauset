@@ -43,10 +43,8 @@ fig.show()
 Define a field and compute a propagator:
 
 ```python
-from pycauset.field import ScalarField
-
-field = ScalarField(c, mass=1.5)    # a massive scalar field on the same causet
-K = field.propagator()              # retarded propagator K_R = aC(I - baC)^-1
+Q = pc.field("scalar", mass=1.5).on(c)   # a massive scalar field on the same causet
+K = Q.propagator()                       # retarded propagator K_R = aC(I - baC)^-1
 ```
 
 Or use the engine on its own:
@@ -56,8 +54,8 @@ A = pc.causal_matrix(10000, populate=True)
 B = pc.causal_matrix(10000, populate=True)
 Paths = pc.dot(A, B)                       # alternatively, use `A @ B` 
 
-M = pc.zeros((2000, 2000), dtype=pc.float32)
-M_inv = M.invert()                          # inversion
+M = pc.identity(2000)                       # a 2000x2000 identity matrix
+M_inv = pc.invert(M)                        # inversion
 ```
 
 ## Features
