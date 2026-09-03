@@ -3,129 +3,116 @@
 #include <vector>
 #include <random>
 #include <algorithm>
-#include <iostream>
+#include <numeric>
+#include <stdexcept>
 
 namespace pycauset {
 
-std::unique_ptr<MatrixBase> pycauset::Sprinkler::sprinkle(
-    const pycauset::CausalSpacetime& spacetime, 
-    uint64_t n, 
+namespace {
+
+// Distinct message used to signal an interrupt request up to the Python binding
+// (which then translates it into KeyboardInterrupt).
+constexpr const char* kInterrupted = "pycauset: interrupted";
+
+// Deterministic per-block seed (identical to the original scheme, so the RNG
+// stream for a given (spacetime, seed) is unchanged).
+uint64_t block_seed(uint64_t seed, uint64_t block_idx) {
+    uint64_t z = seed + block_idx * 0x9e3779b97f4a7c15;
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+    return z ^ (z >> 31);
+}
+
+void check_abort(const Sprinkler::AbortCheck& should_abort) {
+    if (should_abort && should_abort()) {
+        throw std::runtime_error(kInterrupted);
+    }
+}
+
+// Generate all n points and return their time-sorted order (ascending
+// coordinate 0). `order[k]` is the generation index of the k-th point in time
+// order, so the causal matrix (which stores the strictly-upper triangle) is
+// indexed by time, matching the causal-set labelling convention.
+//
+// This is essential: a causal relation u < v requires u[0] < v[0], so sorting
+// by coordinate 0 guarantees every relation lands in the upper triangle.
+// Without the sort, relations whose past endpoint happened to be generated
+// later are silently dropped (they would be in the lower triangle).
+std::vector<uint64_t> generate_time_sorted(
+    const CausalSpacetime& spacetime,
+    uint64_t n,
     uint64_t seed,
-    const std::string& saveas
+    std::vector<std::vector<double>>& coords,
+    const Sprinkler::AbortCheck& should_abort
 ) {
+    const uint64_t BLOCK_SIZE = 10000;
+    const uint64_t num_blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+    coords.resize(n);
+    for (uint64_t b = 0; b < num_blocks; ++b) {
+        check_abort(should_abort);
+        const uint64_t start = b * BLOCK_SIZE;
+        const uint64_t end = std::min(start + BLOCK_SIZE, n);
+        std::mt19937_64 rng(block_seed(seed, b));
+        for (uint64_t i = start; i < end; ++i) {
+            coords[i] = spacetime.generate_point(rng);
+        }
+    }
+
+    std::vector<uint64_t> order(n);
+    std::iota(order.begin(), order.end(), 0);
+    std::stable_sort(order.begin(), order.end(), [&](uint64_t a, uint64_t b) {
+        return coords[a][0] < coords[b][0];
+    });
+    return order;
+}
+
+} // namespace
+
+std::unique_ptr<MatrixBase> Sprinkler::sprinkle(
+    const CausalSpacetime& spacetime,
+    uint64_t n,
+    uint64_t seed,
+    const std::string& saveas,
+    const AbortCheck& should_abort
+) {
+    std::vector<std::vector<double>> coords;
+    const std::vector<uint64_t> order = generate_time_sorted(spacetime, n, seed, coords, should_abort);
+
     auto matrix = std::make_unique<TriangularMatrix<bool>>(n, saveas);
-    
-    // Block size for coordinate generation.
-    // 10,000 points * 2 doubles * 8 bytes = 160KB.
-    // This is small enough to fit in L2 cache.
-    const uint64_t BLOCK_SIZE = 10000; 
-    uint64_t num_blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
-
-    // Deterministic seed generator for blocks
-    auto get_block_seed = [seed](uint64_t block_idx) {
-        uint64_t z = seed + block_idx * 0x9e3779b97f4a7c15;
-        z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
-        z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
-        return z ^ (z >> 31);
-    };
-
-    for (uint64_t i_block = 0; i_block < num_blocks; ++i_block) {
-        uint64_t i_start = i_block * BLOCK_SIZE;
-        uint64_t i_end = std::min(i_start + BLOCK_SIZE, n);
-        
-        // Generate coordinates for block I
-        std::mt19937_64 rng_i(get_block_seed(i_block));
-        std::vector<std::vector<double>> coords_i(i_end - i_start);
-        for(auto& p : coords_i) p = spacetime.generate_point(rng_i);
-        
-        // Compare with block J (where J >= I)
-        for (uint64_t j_block = i_block; j_block < num_blocks; ++j_block) {
-            uint64_t j_start = j_block * BLOCK_SIZE;
-            uint64_t j_end = std::min(j_start + BLOCK_SIZE, n);
-            
-            std::vector<std::vector<double>> coords_j;
-            
-            if (i_block == j_block) {
-                // Same block, use coords_i
-            } else {
-                // Generate coords for block J
-                std::mt19937_64 rng_j(get_block_seed(j_block));
-                coords_j.resize(j_end - j_start);
-                for(auto& p : coords_j) p = spacetime.generate_point(rng_j);
-            }
-            
-            const auto& target_coords_j = (i_block == j_block) ? coords_i : coords_j;
-
-            for (uint64_t i = i_start; i < i_end; ++i) {
-                // If same block, start j from i+1
-                uint64_t j_loop_start = (i_block == j_block) ? (i + 1) : j_start;
-                
-                for (uint64_t j = j_loop_start; j < j_end; ++j) {
-                    const auto& p_i = coords_i[i - i_start];
-                    const auto& p_j = target_coords_j[j - j_start];
-                    
-                    if (spacetime.causality(p_i, p_j)) {
-                        matrix->set(i, j, true);
-                    }
-                }
+    for (uint64_t i = 0; i < n; ++i) {
+        // Poll the abort hook frequently (every 64 outer rows) so Ctrl+C stays
+        // responsive even while the O(n^2) causality loop is running.
+        if ((i & 0x3F) == 0) {
+            check_abort(should_abort);
+        }
+        for (uint64_t j = i + 1; j < n; ++j) {
+            if (spacetime.causality(coords[order[i]], coords[order[j]])) {
+                matrix->set(i, j, true);
             }
         }
     }
-    
     return matrix;
 }
 
-std::vector<std::vector<double>> pycauset::Sprinkler::make_coordinates(
-    const pycauset::CausalSpacetime& spacetime, 
-    uint64_t n, 
+std::vector<std::vector<double>> Sprinkler::make_coordinates(
+    const CausalSpacetime& spacetime,
+    uint64_t n,
     uint64_t seed,
-    std::vector<uint64_t> indices
+    std::vector<uint64_t> indices,
+    const AbortCheck& should_abort
 ) {
+    std::vector<std::vector<double>> coords;
+    const std::vector<uint64_t> order = generate_time_sorted(spacetime, n, seed, coords, should_abort);
+
     std::vector<std::vector<double>> results;
     results.reserve(indices.size());
-
-    // Sort indices to optimize block access
-    std::sort(indices.begin(), indices.end());
-
-    const uint64_t BLOCK_SIZE = 10000; 
-
-    auto get_block_seed = [seed](uint64_t block_idx) {
-        uint64_t z = seed + block_idx * 0x9e3779b97f4a7c15;
-        z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
-        z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
-        return z ^ (z >> 31);
-    };
-
-    uint64_t current_block_idx = (uint64_t)-1;
-    std::mt19937_64 rng;
-    uint64_t rng_offset = 0; // How many points generated in current block
-
-    for (uint64_t idx : indices) {
-        if (idx >= n) continue; // Safety check
-
-        uint64_t block_idx = idx / BLOCK_SIZE;
-        uint64_t offset = idx % BLOCK_SIZE;
-
-        if (block_idx != current_block_idx) {
-            // New block, reset RNG
-            current_block_idx = block_idx;
-            rng.seed(get_block_seed(block_idx));
-            rng_offset = 0;
+    for (const uint64_t idx : indices) {
+        if (idx < n) {
+            results.push_back(coords[order[idx]]);
         }
-
-        // Fast forward
-        while (rng_offset < offset) {
-            spacetime.generate_point(rng);
-            rng_offset++;
-        }
-
-        // Generate target
-        results.push_back(spacetime.generate_point(rng));
-        rng_offset++;
     }
-
     return results;
 }
 
-}
-
+} // namespace pycauset

@@ -5,18 +5,35 @@
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
 
 #include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <stdexcept>
 #include <vector>
 
 using namespace pycauset;
 
+// Poll Python's pending-signal flag (raises KeyboardInterrupt when SIGINT was
+// received). Passed into the sprinkle loop so Ctrl+C reliably halts it.
+static bool python_interrupt_pending() {
+    return PyErr_CheckSignals() != 0;
+}
+
 static std::shared_ptr<TriangularBitMatrix> sprinkle_to_tbm(
     const CausalSpacetime& spacetime,
     uint64_t n,
     uint64_t seed
 ) {
-    auto base = Sprinkler::sprinkle(spacetime, n, seed, "");
+    std::unique_ptr<MatrixBase> base;
+    try {
+        base = Sprinkler::sprinkle(spacetime, n, seed, "", &python_interrupt_pending);
+    } catch (const std::runtime_error& e) {
+        if (std::string(e.what()) == "pycauset: interrupted") {
+            // KeyboardInterrupt is already pending; propagate it.
+            throw pybind11::error_already_set();
+        }
+        throw;
+    }
+
     auto* tbm = dynamic_cast<TriangularBitMatrix*>(base.get());
     if (tbm == nullptr) {
         throw std::runtime_error("Sprinkler::sprinkle did not return a TriangularBitMatrix");
@@ -77,7 +94,14 @@ void bind_causet_classes(py::module_& m) {
             if (!spacetime) {
                 throw std::invalid_argument("spacetime must not be None");
             }
-            return Sprinkler::make_coordinates(*spacetime, n, seed, indices);
+            try {
+                return Sprinkler::make_coordinates(*spacetime, n, seed, indices, &python_interrupt_pending);
+            } catch (const std::runtime_error& e) {
+                if (std::string(e.what()) == "pycauset: interrupted") {
+                    throw pybind11::error_already_set();
+                }
+                throw;
+            }
         },
         py::arg("spacetime"),
         py::arg("n"),
