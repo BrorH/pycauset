@@ -51,7 +51,7 @@ else {
 }
 
 # Confirm
-$confirmation = Read-Host "Create and push tag $newTag? (y/n)"
+$confirmation = Read-Host "Create tag $newTag and publish it to PyPI (~270 MB of the 10 GB quota)? (y/n)"
 if ($confirmation -ne 'y') {
     Write-Host "Aborted."
     exit 0
@@ -60,7 +60,18 @@ if ($confirmation -ne 'y') {
 # Execute
 Write-Host "Tagging $newTag..."
 git tag $newTag
-Write-Host "Pushing..."
+Write-Host "Pushing tag..."
 git push origin $newTag
 
-Write-Host "Done! GitHub Actions should now trigger the release."
+# Publishing a GitHub Release is what triggers the PyPI upload
+# (.github/workflows/publish.yml). A bare tag push uploads nothing.
+if (Get-Command gh -ErrorAction SilentlyContinue) {
+    Write-Host "Creating GitHub Release $newTag (this starts the PyPI upload)..."
+    gh release create $newTag --title $newTag --generate-notes
+    Write-Host "Done! Follow the 'Publish to PyPI.' run in the Actions tab."
+}
+else {
+    Write-Host "Tag pushed. To upload to PyPI, publish a GitHub Release for $newTag:"
+    Write-Host "  https://github.com/BrorH/pycauset/releases/new?tag=$newTag"
+    Write-Host "(Mark it as a pre-release instead if you only want to test the build.)"
+}

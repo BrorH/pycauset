@@ -1,17 +1,72 @@
 name: Publish to PyPI.
 
+# What reaches PyPI, and when (PyPI caps the project at 10 GB in total; one
+# release is ~270 MB and deleted dev builds are the only way to free space):
+#
+#   * Publishing a GitHub Release (not marked pre-release) whose tag is vX.Y.Z
+#     -> builds wheels and uploads that exact version to PyPI.
+#   * Publishing a pre-release, or running this workflow by hand
+#     ("Run workflow" button) -> builds wheels as downloadable artifacts only.
+#     Nothing is uploaded. Use this to test the wheel build.
+#   * Pushes to main, tag pushes, and pull requests never run this workflow.
+#
+# A preflight job checks the tag and the PyPI quota before the ~25 min of wheel
+# builds, and the publish job refuses any file that is not exactly that version.
+# See documentation/project/protocols/Release Process.md.
+
 on:
   release:
     types: [published]
   workflow_dispatch:
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
+
+# Never run two publishes for the same ref at once.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  preflight:
+    name: Preflight (tag + PyPI quota)
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.decide.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Decide whether this run uploads to PyPI
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          if [ "$EVENT" = "release" ] && [ "$PRERELEASE" != "true" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "This run WILL upload to PyPI." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Build-only run: nothing will be uploaded to PyPI (event=$EVENT, prerelease=$PRERELEASE)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Check tag format and PyPI quota
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ "${{ steps.decide.outputs.publish }}" = "true" ]; then
+            python tools/check_pypi_release.py preflight --tag "$TAG"
+          else
+            python tools/check_pypi_release.py preflight
+          fi
+
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
+    needs: preflight
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -86,6 +141,7 @@ jobs:
 
   build_sdist:
     name: Build source distribution
+    needs: preflight
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -101,7 +157,9 @@ jobs:
           path: dist/*.tar.gz
 
   publish_to_pypi:
-    needs: [build_wheels, build_sdist]
+    needs: [preflight, build_wheels, build_sdist]
+    # Only a published, non-pre-release GitHub Release ever uploads.
+    if: needs.preflight.outputs.publish == 'true'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -109,11 +167,18 @@ jobs:
     permissions:
       id-token: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           pattern: cibw-*
           path: dist
           merge-multiple: true
+
+      - name: Refuse dev builds and oversized uploads
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: python3 tools/check_pypi_release.py verify-dist dist --tag "$TAG"
 
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
