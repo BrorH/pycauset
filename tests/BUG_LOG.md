@@ -5,6 +5,86 @@ This file documents discovered bugs per the `Testing and Bug Tracking Protocol`
 
 ---
 
+## [Date: 2026-11-11] Physics layer falls back to dense NumPy for every causal-set operation
+
+**Status**: Open (release blocker)
+**Severity**: Critical
+**Component**: Physics layer (`python/pycauset/causet.py`, `field.py`, `synthetic.py`, `vis.py`) and Python bindings (`TriangularBitMatrix`)
+
+**Description**:
+The engine stores causal matrices as bit-packed, disk-spillable `TriangularBitMatrix`
+objects, which is the reason PyCauset exists. The physics layer throws that away: every
+causal-structure method, the field layer, the synthetic generators and three plotting paths
+convert the whole n x n matrix to a dense NumPy array (`np.asarray(self._matrix)` /
+`np.array(causet.C)`) and then work in NumPy. This is not a to-NumPy export the user asked
+for; it is a silent fallback inside operations that should stay in the engine. Consequences:
+
+- Memory is O(n^2) bytes (bool) or 8-16x that (float64 / complex128), so large causets,
+  the headline use case, cannot be analysed at all.
+- The conversion itself is a per-element `get(i, j)` loop in `bind_matrix.cpp` (~4M
+  elements/s), so it is slow even when memory suffices.
+- Some operations repeat the conversion per call (e.g. `past(x)` converts n^2 elements to
+  return one column).
+
+Measured on Linux (4 cores), `MinkowskiDiamond(2)`:
+
+| n | sprinkle (native) | `relation_fraction()` | `past(x)` |
+| --: | --: | --: | --: |
+| 2,000 | 0.02 s | 1.1 s | 1.1 s |
+| 10,000 | 0.55 s | 27 s | 28 s |
+| 20,000 | 2.3 s | 105 s (835 MB peak) | 107 s |
+
+Extrapolated: ~45 min and ~10 GB per call at n = 100,000 (the `demos/06_large_n.py` size).
+
+**Affected operations** (each is a case in `tests/python/test_no_dense_fallback.py`):
+
+- `CausalSet`: `relation_fraction`, `myrheim_meyer_dimension`, `past`, `future`,
+  `interval`, `is_chain`, `is_antichain`, `longest_chain`, `layers`, `links`, `validate`
+  (`validate_causal_matrix` also does an O(n^3) dense `uint8` matmul; `links` likewise).
+- Plotting: `plot_hasse` and `plot_causal_matrix` densify the *whole* matrix before taking
+  their `max_points` subset; `plot_embedding(show_relations=True)` likewise.
+- Fields (`CorrelatedField`): `retarded` computes `K_R` natively (`compute_k`) then exports
+  it to dense float64; `pauli_jordan` builds a dense **complex128** matrix for a purely
+  imaginary antisymmetric operator; `wightman` uses `np.linalg.eigh` instead of the native
+  skew eigensolver (`eig_skew`, R2_CATALOG); `entanglement_entropy` recomputes `K_R`,
+  `iDelta` and `W` from scratch on every call. These return `np.ndarray` by design today.
+- `synthetic`: every generator builds a dense n x n NumPy order, and `transitive_percolation`
+  / `random_dag_order` / `poset` take the transitive closure with an O(n^3) NumPy loop.
+- Sprinkling into Python spacetimes (`_sprinkle_python`, used by de Sitter, FLRW,
+  Schwarzschild, the composition decorators and custom spacetimes) builds a dense n x n
+  boolean batch and then sets bits one at a time from Python; without `is_causal_batch` it
+  calls `is_causal` once per pair (de Sitter: 26 s at n = 2,000).
+
+Not affected (genuine outputs): `pycauset.to_numpy(...)`, `CausalSet.coordinates()` (n x d),
+and per-point coordinate math in `spacetime.py`.
+
+**Reproduction**:
+```python
+import time, pycauset as pc
+c = pc.CausalSet(n=20_000, seed=1)       # 2 s
+t = time.time(); c.relation_fraction(); print(time.time() - t)   # ~105 s
+
+pc.set_export_max_bytes(1)               # forbid dense NumPy export
+c.past(0)                                # RuntimeError: Export to NumPy exceeds ...
+```
+
+**Root Cause**:
+`TriangularBitMatrix` exposes only per-element `get`/`set` to Python: no relation count
+(popcount), no row/column access as index arrays or bitsets, no native transitive reduction,
+closure, or longest-chain/layering. The physics layer was therefore written against NumPy,
+and the test suite only uses small n, so nothing caught it.
+
+**Fix** (planned, R2 node `R2_NATIVE`):
+Add native bitset primitives and route the physics layer through them: relation count via
+popcount; `past`/`future` as column/row extraction; `links` via bit matmul (the popcount
+kernel already exists); `longest_chain`/`layers` as a DP over rows; transitive closure and
+validation natively; plots extract only the sampled submatrix; fields keep `K_R`/`iDelta`
+as engine matrices (antisymmetric real storage, scalar `i`) and use the native eigensolvers,
+with `W` cached. `tests/python/test_no_dense_fallback.py` holds a strict-xfail case per
+operation; remove the marker as each one moves into the engine.
+
+---
+
 ## [Date: 2026-08-30] matrix(storage="disk") silently ignored, benchmarks tested RAM instead of disk
 
 **Status**: Fixed

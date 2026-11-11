@@ -71,7 +71,38 @@ If the project genuinely needs more room, PyPI accepts quota increase requests:
 
 ## Reducing the size of each release
 
-Each wheel is about 14 MB, mostly the bundled OpenBLAS. The cheapest saving is building for
-fewer Python versions. Python 3.8 and 3.9 are past end of life; dropping them (the
-`CIBW_SKIP` setting in `publish.yml` plus `requires-python` in `pyproject.toml`) would cut a
-release from ~270 MB to ~180 MB.
+Measured on the v0.6.1 wheels (compressed sizes, as stored on PyPI). One set of three wheels
+(Linux, Windows, macOS) for one Python version is 43.7 MB, and 86% of it is the BLAS stack,
+not PyCauset:
+
+| Wheel | Total | OpenBLAS | Other bundled libraries | PyCauset itself |
+| :-- | --: | --: | :-- | --: |
+| Linux x86_64 | 18.9 MB | 11.0 MB (v0.3.15, 2021) | 4.4 MB reference LAPACK/LAPACKE/BLAS, 1.1 MB Fortran/OpenMP runtime | 2.4 MB |
+| Windows x64 | 15.0 MB | 12.6 MB | none | 2.4 MB |
+| macOS arm64 | 9.8 MB | 7.3 MB | 1.0 MB Fortran/OpenMP runtime | 1.5 MB |
+
+That set is repeated for each of the 6 Python versions (3.8 to 3.13), which gives ~262 MB,
+plus the sdist. The wheels contain no stray files, and the Linux binaries are already
+stripped of debug symbols.
+
+Options, from cheapest to largest saving:
+
+1. **Trim the sdist** (done): `sdist.exclude` in `pyproject.toml` leaves out docs, images
+   and demos. 3.8 MB to 0.5 MB.
+2. **Stop shipping a second LAPACK on Linux.** The Linux wheel links LAPACKE from the
+   reference netlib packages (`lapack-devel` in `CIBW_BEFORE_ALL_LINUX`) and bundles them
+   next to OpenBLAS, which already contains LAPACK and LAPACKE. Saves 4.4 MB per Linux
+   wheel, ~26 MB per release. It needs a LAPACKE header that matches OpenBLAS on the
+   manylinux image.
+3. **Build only supported Python versions.** Python 3.8, 3.9 and 3.10 are all past end of
+   life (3.10 ended October 2026). Building 3.11 to 3.13 halves a release to ~135 MB.
+   Change `CIBW_SKIP` in `publish.yml` and `requires-python` in `pyproject.toml`.
+4. **Stop bundling OpenBLAS.** Depend on `scipy-openblas32`, the OpenBLAS wheel the
+   NumPy/SciPy maintainers publish on PyPI for exactly this, and link against it, the way
+   NumPy and SciPy do. A PyCauset wheel drops to ~2.5 MB, so a release with 4 Python versions
+   is ~30 MB, about 9x smaller than today. It also replaces the 2021 OpenBLAS on Linux with
+   the current one on every OS. This is a build-system change: link against the package's
+   prefixed symbols, load its library before the extension at import time, and keep the
+   wheel-repair tools from re-bundling it. Do a spike first.
+
+With 3 and 4 together, the 10 GB quota holds roughly 300 releases instead of ~37.

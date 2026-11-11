@@ -100,6 +100,7 @@ R2.2, Advanced + Polish:
 - [x] R2_ENT
 - [x] R2_BATCH
 - [x] R2_SYNTH
+- [ ] R2_NATIVE (release blocker, physics layer must not fall back to dense NumPy; 0/24 ops, see node)
 - [ ] R2_QA
 
 R2E, Engine + Optimization (folded in from the post-R1 program):
@@ -164,6 +165,7 @@ flowchart TD
         R2_ENT["R2_ENT<br/>Entanglement<br/>Entropy"]
         R2_BATCH["R2_BATCH<br/>Tier-2 Batch<br/>Hooks"]
         R2_SYNTH["R2_SYNTH<br/>Synthetic Poset<br/>Generators"]
+        R2_NATIVE["R2_NATIVE<br/>No Dense NumPy<br/>Fallback (blocker)"]
         R2_QA["R2_QA<br/>Final Gate /<br/>Audit"]
     end
 
@@ -215,6 +217,9 @@ flowchart TD
     R2_STREAM --> R2_SJ
     R2_PERF --> R2_QA
     R2_HARDEN --> R2_QA
+    R2_STRUCT --> R2_NATIVE
+    R2_SJ --> R2_NATIVE
+    R2_NATIVE --> R2_QA
 
     %% Parked
     R2_QA --> R2_STUDIO
@@ -492,6 +497,32 @@ RandomDAGOrder, KleitmanRothschild, IntervalOrder, Dimension2Poset, ProductOrder
 Deliverables: each generator produces a valid `CausalSet` order (no geometry).
 
 DoD: outputs pass R2_VALIDATE.
+
+### R2_NATIVE, Physics Layer Stays in the Engine (release blocker)
+
+Status: - [ ] (opened 2026-11-11, **0/24 operations native**. Every `CausalSet` structure
+method, the field layer, the synthetic generators, and the subset plots convert the full
+n x n matrix to dense NumPy, so large causets cannot be analysed: at n = 20,000,
+`relation_fraction()` and `past(x)` take ~105 s each against a 2 s sprinkle. Full audit,
+measurements and fix plan in `tests/BUG_LOG.md` (2026-11-11). Several "done" nodes above
+(R2_VALIDATE, R2_VIZ, R2_FIELD, R2_KRD, R2_SJ, R2_STRUCT, R2_DIM, R2_ENT, R2_SYNTH) met
+their DoD at small n only.)
+
+Goal: PyCauset's reason to exist is causal sets larger than NumPy can handle. No physics
+operation may silently materialize a dense NumPy copy of a causal matrix or propagator;
+NumPy is only an explicit output (`pycauset.to_numpy`, `coordinates()`).
+
+Deliverables: native bitset primitives on `TriangularBitMatrix` (relation count via
+popcount, row/column extraction, transitive reduction via the existing popcount bit
+matmul, transitive closure, longest-chain/layer DP, validation); the physics layer routed
+through them; plots that extract only the sampled submatrix; fields that keep `K_R`/`iΔ`
+as engine matrices (real antisymmetric storage with scalar `i`) and use the native
+eigensolvers with `W` cached; batch causality for the curved spacetimes.
+
+DoD: every case in `tests/python/test_no_dense_fallback.py` passes with NumPy export
+disabled (strict xfail markers removed); a large-n benchmark (n = 100,000) for
+`relation_fraction`, `past`, `longest_chain`, `links` runs in bounded memory and is
+tracked in `benchmarks/`.
 
 ### R2_QA, Final Gate (Audit & Benchmarks)
 
