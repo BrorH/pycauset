@@ -125,12 +125,20 @@ class TestPromotionResolver(unittest.TestCase):
         self.assertEqual(d2["result_dtype"], "complex_float64")
         self.assertEqual(d2["float_underpromotion"], False)
 
-    def test_divide_on_integers_obeys_precision_mode(self):
-        d_low = pycauset._debug_resolve_promotion("divide", "int32", "int32", precision_mode="lowest")
-        self.assertEqual(d_low["result_dtype"], "float32")
+    def test_divide_on_integers_uses_a_float_that_holds_the_operands(self):
+        # F-034: int32 / int32 must not be computed in float32 (loses precision > 2**24).
+        for a, b, want in [("int32", "int32", "float64"), ("int64", "int8", "float64"),
+                           ("int16", "int16", "float32"), ("int8", "int8", "float32")]:
+            d = pycauset._debug_resolve_promotion("divide", a, b, precision_mode="lowest")
+            self.assertEqual(d["result_dtype"], want, (a, b))
 
-        d_high = pycauset._debug_resolve_promotion("divide", "int32", "int32", precision_mode="highest")
-        self.assertEqual(d_high["result_dtype"], "float64")
+    def test_int_with_float_result_holds_the_int_dtype(self):
+        # F-034: cross-kind results must be able to represent the integer operand.
+        for a, b, want in [("int32", "float16", "float64"), ("int16", "float16", "float32"),
+                           ("int8", "float16", "float16"), ("int32", "float32", "float64"),
+                           ("float32", "float64", "float32")]:  # within floats: under-promote
+            d = pycauset._debug_resolve_promotion("add", a, b, precision_mode="lowest")
+            self.assertEqual(d["result_dtype"], want, (a, b))
 
 
 if __name__ == "__main__":

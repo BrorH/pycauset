@@ -109,6 +109,33 @@ inline uint8_t float_rank(DataType dt) {
     }
 }
 
+// Smallest float rank (16/32/64) that can represent every value of an integer/bit
+// dtype. Cross-kind (int with float) results must be at least this wide, otherwise
+// e.g. int32(100000) + float16 silently overflows to inf (F-034). Under-promotion
+// still applies *within* floats (float32 with float64 -> float32).
+inline uint8_t float_rank_for_int(DataType dt) {
+    switch (dt) {
+        case DataType::BIT:
+        case DataType::INT8:
+        case DataType::UINT8:
+            return 16;
+        case DataType::INT16:
+        case DataType::UINT16:
+            return 32;
+        case DataType::INT32:
+        case DataType::UINT32:
+        case DataType::INT64:
+        case DataType::UINT64:
+            return 64;
+        default:
+            return 0;
+    }
+}
+
+inline DataType real_float_from_rank(uint8_t r) {
+    return r <= 16 ? DataType::FLOAT16 : (r <= 32 ? DataType::FLOAT32 : DataType::FLOAT64);
+}
+
 inline DataType complex_from_rank(uint8_t r) {
     switch (r) {
         case 16:
@@ -174,7 +201,9 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
                 if (ra && rb) {
                     r = choose_rank(ra, rb, mode);
                 } else {
-                    r = static_cast<uint8_t>(std::max(ra, rb));
+                    // One side is int/bit: it must fit too (F-034).
+                    const uint8_t need = std::max(float_rank_for_int(a), float_rank_for_int(b));
+                    r = static_cast<uint8_t>(std::max({ra, rb, need}));
                 }
                 if (r == 0) {
                     // One side is complex, so this should never happen.
@@ -191,7 +220,9 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
                 if (ra && rb) {
                     r = choose_rank(ra, rb, mode);
                 } else {
-                    r = static_cast<uint8_t>(std::max(ra, rb));
+                    // One side is int/bit: it must fit too (F-034).
+                    const uint8_t need = std::max(float_rank_for_int(a), float_rank_for_int(b));
+                    r = static_cast<uint8_t>(std::max({ra, rb, need}));
                 }
                 if (r == 0) {
                     r = 64;
@@ -218,15 +249,21 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
             return d;
         }
 
-        // Only one side is a real float; float kind dominates but there is no rank choice.
-        d.result_dtype = is_real_float(a) ? a : b;
+        // Only one side is a real float: the result float must also be able to hold the
+        // integer operand's values (F-034), otherwise e.g. int32 + float16 -> inf.
+        const DataType f = is_real_float(a) ? a : b;
+        const DataType other = is_real_float(a) ? b : a;
+        const uint8_t r = std::max(float_rank(f), float_rank_for_int(other));
+        d.result_dtype = real_float_from_rank(r);
         return d;
     }
 
-    // Division on non-float numeric types is not generally closed in the integer ring.
-    // NumPy-style behavior: promote to float64 when neither operand is float/complex.
+    // Division of integers/bits yields a float that must hold both operand types (F-034):
+    // float32 at least (int8/int16/bit), float64 for 32/64-bit integers. (Previously
+    // always float32, contradicting the comment here, so int32 / int32 lost precision.)
     if (op == BinaryOp::Divide) {
-        return Decision{(mode == PrecisionMode::Highest) ? DataType::FLOAT64 : DataType::FLOAT32, false, DataType::UNKNOWN};
+        const uint8_t need = std::max<uint8_t>(32, std::max(float_rank_for_int(a), float_rank_for_int(b)));
+        return Decision{(mode == PrecisionMode::Highest) ? DataType::FLOAT64 : real_float_from_rank(need), false, DataType::UNKNOWN};
     }
 
     // Fundamental kind rule: integer dominates bit for numeric ops.

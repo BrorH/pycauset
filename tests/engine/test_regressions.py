@@ -135,3 +135,17 @@ def test_F025_save_and_load_empty_matrix(tmp_path):
     pc.save(m, path)
     loaded = pc.load(path)
     assert to_np(loaded).shape == (0, 0)
+
+
+# ---------------------------------------------------------------- F-034
+def test_F034_int_plus_float16_does_not_overflow_to_inf():
+    a = pc.matrix(np.full((2, 2), 100_000, dtype=np.int32))
+    b = pc.matrix(np.zeros((2, 2), dtype=np.float16))
+    out = to_np(a + b)
+    assert np.isfinite(out).all() and out[0, 0] == 100_000
+
+
+def test_F034_int32_division_keeps_precision():
+    a = np.full((2, 2), 16_777_217, dtype=np.int32)  # 2**24 + 1: not representable in float32
+    out = to_np(pc.matrix(a) / pc.matrix(np.ones((2, 2), dtype=np.int32)))
+    assert out[0, 0] == 16_777_217

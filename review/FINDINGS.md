@@ -407,3 +407,27 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Fix: one generic native exporter for every dense dtype (`export_dense_any` in
   bind_matrix.cpp, replacing ~150 duplicated lines); the Python fallback reads integers
   through the exact typed `get`. Also asserts the F-001 invariant (no lazy scalar on ints).
+
+### F-034 int ⊕ float under-promoted across kinds: silent overflow / precision loss
+- **Status:** fixed (`fix(F-034)`)
+- `int32(100000) + float16(0)` returned **inf**, no warning: the resolver used the float
+  operand's dtype even when it can't hold the integer's values. Integer division also
+  returned float32 for int32/int64 (lossy above 2^24), while the code comment said float64.
+- The documented policy already said under-promotion applies *within* a kind, not
+  across kinds; the code didn't follow it. Fix (`PromotionResolver.cpp`): the cross-kind
+  result float must hold the integer dtype (bit/int8/uint8 → float16, 16-bit → float32,
+  32/64-bit → float64); integer division → max(float32, that). Within-float
+  under-promotion (float32 ⊕ float64 → float32) is unchanged. Value bounds (F1) will later
+  allow narrower floats when the values provably fit.
+- Found by the dtype-pair survey (980 combinations). Same survey, still open: mixed-dtype
+  matmul with float16/complex operands has no kernel (64 combos raise); signed int ⊕
+  uint64 raises (NumPy gives float64; 32 combos). See F-035.
+
+### F-035 Mixed-dtype gaps found by the dtype-pair survey
+- **Status:** open (S2)
+- (a) `A @ B` where one operand is float16 or complex and the dtypes differ raises
+  "CpuSolver::matmul currently only supports DenseMatrix<double> result for generic inputs"
+  (64 combinations, e.g. int32 @ complex64, float32 @ complex128, int8 @ float16).
+  Fix: promote (cast) operands to the resolved result dtype, then use the same-dtype kernel.
+- (b) Any signed int ⊕ uint64 raises "unsupported signed/unsigned mix" (32 combinations).
+  NumPy gives float64. It's loud, not silent, so lower priority; decide whether to follow NumPy.

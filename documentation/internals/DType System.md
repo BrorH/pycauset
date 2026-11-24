@@ -46,10 +46,18 @@ Rules:
 2) If a float participates, the result kind is float.
 3) Underpromotion applies **within** a kind, not across kinds.
 
+4) When an integer (or bit) meets a float, the result float must be able to represent
+   the integer operand's dtype: bit/int8/uint8 → at least float16, int16/uint16 → at
+   least float32, 32/64-bit integers → float64. Otherwise values silently overflow or
+   lose precision (e.g. int32 100000 + float16 would be inf).
+5) Integer ÷ integer gives at least float32, and float64 for 32/64-bit integers.
+
 Examples:
 
 - `matmul(bit, float64) -> float64`
 - `matmul(float32, float64) -> float32` (default underpromotion within float)
+- `add(int32, float16) -> float64`, `add(int8, float16) -> float16`
+- `divide(int32, int32) -> float64`, `divide(int16, int16) -> float32`
 
 This prevents nonsensical outcomes like “compute a float matmul but store the result as bit”.
 

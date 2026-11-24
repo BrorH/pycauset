@@ -143,7 +143,11 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.3 Single source of truth for operators and properties (RESTRUCTURE §3.1 items 1–2); delete the monkeypatch stack
 - [ ] 4.4 Python `_internal/` subpackages; `.pyi` generation (F-007)
 - [ ] 4.5 Retire the old test suite per TESTS.md §4 migration rules
-- [ ] 4.6 Naming sweep: milestone names out; class renames (§3.1 item 4)
+- [ ] 4.6 Naming sweep: milestone names out; class renames (§3.1 item 4). **Together with
+      F-032:** register a Python class for every instantiation the factory can create
+      (generated from one dtype×structure table: bindings, persistence class map, facade,
+      docs), named in the new scheme (e.g. `TriangularInt16Matrix`). Prerequisite for
+      value bounds (F1), which will produce int8/int16 triangular counts.
 - [ ] 4.7 One StreamingManager; one Minkowski implementation path
 - [ ] 4.8 Silent-exception sweep (126 sites)
 - [ ] 4.9 Per-directory README.md files (what lives here, what doesn't)
