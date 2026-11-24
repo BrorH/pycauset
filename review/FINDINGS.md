@@ -571,7 +571,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
   loop or in BLAS `alpha`), otherwise laziness trades a copy now for a slowdown later.
 
 ### F-044 `.T` copies Diagonal and Symmetric matrices
-- **Status:** open; LAZY.md phase L1.
+- **Status:** fixed (session 5). Symmetric/antisymmetric `.T` already shared storage (the probe's
+  "copy" flag was a false reading); Diagonal `.T` copied (27 ms for 5M) and is now an O(1) shared
+  clone.
 - Both are their own transpose; `.T` should return the same storage in O(1). Today it
   allocates and copies (probe: `review/probes/view_semantics_probe.py`).
 

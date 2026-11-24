@@ -163,8 +163,10 @@ public:
     }
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
-        // Diagonal matrices are symmetric. Just copy.
-        return multiply_scalar(1.0, result_file);
+        // A diagonal matrix is its own transpose: share storage (copy-on-write), O(1) (F-044).
+        if (!result_file.empty()) return multiply_scalar(1.0, result_file);  // explicit file: copy
+        auto c = this->clone();
+        return std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(c.release()));
     }
 
 protected:

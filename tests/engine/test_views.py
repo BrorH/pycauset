@@ -134,3 +134,30 @@ def test_scalar_op_on_view_matches_numpy(kind, dtype, view, op, rng):
     assert got.shape == expected.shape
     tol = 1e-2 if "16" in dtype else 1e-6
     np.testing.assert_allclose(got.astype(np.complex128), expected, rtol=tol, atol=tol)
+
+
+# --- writes into views read back what was written; the source is untouched (F-045) -------
+@pytest.mark.parametrize("kind", ["dense", "triangular", "symmetric", "antisymmetric", "diagonal"])
+@pytest.mark.parametrize("view", ["scaled", "T", "scaled_T"])
+def test_write_into_view_reads_back_and_leaves_source(kind, view, rng):
+    src = _structured(kind, "float64", rng)
+    before = to_np(src).copy()
+    v = {"scaled": lambda m: m * 2.5, "T": lambda m: m.T, "scaled_T": lambda m: (m * 2.5).T}[view](src)
+    expected = to_np(v).copy()
+    i, j = {"dense": (2, 5), "triangular": (5, 2) if "T" in view else (2, 5),
+            "symmetric": (2, 5), "antisymmetric": (2, 5), "diagonal": (3, 3)}[kind]
+    v[i, j] = 1.25
+    expected[i, j] = 1.25
+    if kind == "symmetric":
+        expected[j, i] = 1.25
+    if kind == "antisymmetric":
+        expected[j, i] = -1.25
+    np.testing.assert_array_equal(to_np(v), expected)
+    np.testing.assert_array_equal(to_np(src), before)
+
+
+def test_diagonal_transpose_is_free():
+    d = pc.DiagonalMatrix(1000)
+    d.set_diagonal(5, 3.0)
+    t = d.T
+    assert type(t) is pc.DiagonalMatrix and t[5, 5] == 3.0

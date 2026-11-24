@@ -1316,8 +1316,39 @@ inline void fold_value_view_for_write(MatrixBase& mat) {
     const bool conj = mat.is_conjugated();
     if (s == std::complex<double>(1.0, 0.0) && !conj) return;
     if (mat.get_structure() != pycauset::Structure::DENSE) {
-        throw py::type_error("can't write into a scaled view of a " + describe(mat) +
-                             "; make a copy first (e.g. pycauset.matrix(A))");
+        // Structured (real-valued) storage: read every stored element through the view, then
+        // rewrite it with the factor cleared. Positions follow the logical structure.
+        using S = pycauset::Structure;
+        const uint64_t n = mat.rows();
+        const auto st = mat.get_structure();
+        if (st == S::IDENTITY) throw py::type_error(describe(mat) + " is read-only");
+        bool lower = false, diag_too = false;
+        if (st == S::TRIANGULAR) {
+            lower = mat.is_transposed();
+            diag_too = dynamic_cast<const TriangularMatrixBase&>(mat).has_diagonal();
+        }
+        auto stored = [&](uint64_t i, uint64_t j) {
+            switch (st) {
+                case S::DIAGONAL: return i == j;
+                case S::SYMMETRIC: return j >= i;
+                case S::ANTISYMMETRIC: return j > i;
+                case S::TRIANGULAR: return lower ? (i > j || (diag_too && i == j)) : (j > i || (diag_too && i == j));
+                default: return false;
+            }
+        };
+        std::vector<std::tuple<uint64_t, uint64_t, double>> values;
+        for (uint64_t i = 0; i < n; ++i)
+            for (uint64_t j = 0; j < n; ++j)
+                if (stored(i, j)) values.emplace_back(i, j, mat.get_element_as_double(i, j));
+        mat.set_scalar(1.0);
+        mat.set_conjugated(false);
+        pycauset::visit_matrix(mat, [&](auto& typed) {
+            using E = element_of_t<std::decay_t<decltype(typed)>>;
+            if constexpr (requires { typed.set(uint64_t{0}, uint64_t{0}, E{}); }) {
+                for (const auto& [i, j, v] : values) typed.set(i, j, static_cast<E>(v));
+            }
+        });
+        return;
     }
     pycauset::visit_matrix(mat, [&](auto& typed) {
         using E = element_of_t<std::decay_t<decltype(typed)>>;
