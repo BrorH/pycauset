@@ -256,3 +256,15 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   Python, the internals page and lazy claims in 4 guides. The NumPy-ufunc section of the
   NumPy guide (false since before; F-008) now states the truth.
 - State: 2,787 passed / 32 xfailed (F-035b); ctest 7/7 (2 lazy test programs removed).
+- **F-026 resolved / F-040 fixed:** the C++ streaming engine is live but was unreachable
+  in tests (it keys off real free RAM, not `set_memory_threshold`). Added internal
+  safety-margin helpers and a trace to force and verify it: matmul and element-wise
+  streaming are correct for plain operands, but views (transpose, slices, scalar views)
+  silently produced wrong results and complex/mixed dtypes threw. Streaming is now
+  restricted to what it handles; everything else uses the direct kernels.
+  `tests/engine/test_streaming.py` (54 cases).
+- Sanitizer builds now use `-j1`: two parallel sanitized compiles of the monolith files
+  exceed the container's memory (OOM-killed twice). Another argument for splitting them.
+- F-041a: `pc.TriangularMatrix` was a constructible pure-Python toy matrix; now an abstract
+  isinstance type (its docs already said so); ~60 dead lines removed. F-041b (dtype-deferred
+  `zeros()` wrapper) left for the maintainer: it was a deliberate R1 product feature.

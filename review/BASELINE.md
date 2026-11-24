@@ -82,7 +82,7 @@ cmake -S . -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -Dpybind11_D
   -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
   -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined" \
   -DCMAKE_MODULE_LINKER_FLAGS="-fsanitize=address,undefined"
-cmake --build build/asan -j4
+cmake --build build/asan -j1   # -j2+ OOMs: one sanitized monolith TU needs ~9 GB
 # stage an instrumented copy of the package
 S=/tmp/asanpkg; mkdir -p $S && cp -r python/pycauset $S/ && rm -f $S/pycauset/*.so \
   && cp build/asan/_pycauset*.so build/asan/libpycauset_core.so $S/pycauset/

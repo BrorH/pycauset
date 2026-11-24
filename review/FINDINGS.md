@@ -315,7 +315,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
   Guard with `if (size)`.
 
 ### F-026 The C++ out-of-core engine (StreamingManager) never runs
-- **Status:** open (S2: headline feature unverified)
+- **Status:** resolved (session 3): **live, now tested.** It runs only when an operation
+  exceeds the governor's RAM budget (real free RAM minus a safety margin); the
+  user-facing `set_memory_threshold` doesn't affect that decision, so tests never reached
+  it. Internal helpers `_get/_set_ram_safety_margin` plus a `streaming.*` kernel trace
+  now let `tests/engine/test_streaming.py` force and verify it (54 cases). Findings from
+  that: F-040.
 - `src/compute/StreamingManager.cpp` and `CpuComputeWorker` have **0% line coverage**
   under the full pytest suite plus all demos (DEADCODE.md §3). "Work with matrices
   bigger than your RAM" is PyCauset's headline claim. Either out-of-core works purely
@@ -496,3 +501,33 @@ the entry (the history is useful). New findings go at the bottom with the next f
   result dtype (F-032), else dense. `MatrixTypeResolver.hpp` deleted. Diagonal/identity/
   symmetric structure propagation (previously lazy-only) now works on the eager path.
 - Tests: `test_regressions.py::test_F039_*` (causal and float triangles, + − *).
+
+### F-040 Out-of-core streaming ignored view metadata (silent wrong results)
+- **Status:** fixed (`fix(F-026,F-040)`)
+- `StreamingManager` copies tiles straight from raw row-major storage, ignoring
+  transpose, slice offsets, conjugation and the lazy float scalar. Under real memory
+  pressure, `A.T @ B` returned completely wrong values (100% mismatch in the forced test)
+  and `(A * 2.5) @ B` would have dropped the 2.5. Complex and mixed-dtype operands threw
+  mid-operation ("only supports Float32/Float64").
+- Fix (`CpuDevice.cpp`): stream only plain dense same-dtype operands of supported dtypes
+  (matmul: float32/64; element-wise: also int32/64); everything else takes the direct
+  kernels, which honour views and still work out of core via mmap paging.
+- Open follow-ups: (a) teach the tiler to read views (transposed/offset tiles) so views
+  stream too; (b) streaming for complex/other dtypes; (c) `pc.matrix(ndarray)` raises
+  "Import rejected by MemoryGovernor" when the array exceeds the RAM budget, rather than
+  writing straight to disk; (d) the streaming decision ignores `set_memory_threshold`.
+  Decide (d) as part of the storage review (PLAN 3.1/3.5).
+
+### F-041 Python-side second-class objects and dtype guessing
+- **Status:** (a) fixed; (b) open, awaiting the maintainer (product behaviour).
+- (a) `pc.TriangularMatrix(n)` built a pure-Python, list-of-lists toy matrix (no `@`, outside
+  the engine), contradicting its own docs ("abstract base class"). It's now abstract:
+  `isinstance(native_triangular, pc.TriangularMatrix)` still works; constructing it raises
+  a TypeError pointing to the real constructors. ~60 never-executed lines deleted from
+  `_internal/matrix_api.py`.
+- (b) `pc.zeros/ones/empty(shape)` without `dtype` return a dtype-deferred wrapper
+  (`_internal/lazy_allocation.py`, 200 lines) that decides its dtype later: int32 by default,
+  or from the first value written. That's a second-class object (like LazyMatrix) and a
+  guessed dtype, and NumPy's default is float64. It was a deliberate R1 feature
+  (CHANGELOG 0.6.1), so it's the maintainer's call. **Tech-lead recommendation:** default
+  to float64 like NumPy and delete the wrapper.

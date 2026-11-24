@@ -104,7 +104,13 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
 
     def __new__(cls, size_or_data: Any, dtype: Any = None, **kwargs: Any):
         if cls is not Matrix:
-            return super().__new__(cls)
+            # Subclasses such as TriangularMatrix are abstract types for isinstance checks
+            # (native classes are registered with them); they have no storage of their own.
+            raise TypeError(
+                f"pycauset.{cls.__name__} is an abstract type for isinstance checks; "
+                "create matrices with pycauset.matrix(...), pycauset.zeros(...) or "
+                "pycauset.causal_matrix(...)"
+            )
 
         if _warnings is None or _native is None or _coerce_general_matrix is None:
             raise RuntimeError("pycauset Matrix API not configured")
@@ -484,66 +490,18 @@ class Matrix(MatrixMixin, metaclass=abc.ABCMeta):
         except Exception:
             return super().__new__(cls)
 
-    def __init__(self, size_or_data: Any):
-        if _warnings is None or _track_matrix is None or _coerce_general_matrix is None:
-            raise RuntimeError("pycauset Matrix API not configured")
 
-        if isinstance(size_or_data, float):
-            size_or_data = int(size_or_data)
-
-        if isinstance(size_or_data, int):
-            if size_or_data < 0:
-                raise ValueError("Matrix dimension must be non-negative.")
-            self._size = size_or_data
-            self._data: list[list[Any]] = [
-                [0 for _ in range(size_or_data)] for _ in range(size_or_data)
-            ]
-        else:
-            size, rows = _coerce_general_matrix(size_or_data)
-            self._size = size
-            self._data = rows
-
-        _track_matrix(self)
-
-    def size(self) -> int:
-        return self._size
 
     @property
     def shape(self) -> tuple[int, int]:
         return (self._size, self._size)
 
-    def __len__(self) -> int:
-        return self._size
 
-    def _validate_indices(self, i: int, j: int) -> None:
-        if not (isinstance(i, int) and isinstance(j, int)):
-            raise TypeError("Matrix indices must be integers.")
-        if i < 0 or j < 0 or i >= self._size or j >= self._size:
-            raise IndexError("Matrix indices out of range.")
 
-    def get(self, i: int, j: int) -> Any:
-        self._validate_indices(i, j)
-        return self._data[i][j]
 
-    def set(self, i: int, j: int, value: Any) -> None:
-        self._validate_indices(i, j)
-        self._data[i][j] = value
 
-    def __getitem__(self, key: Any) -> Any:
-        if not (isinstance(key, tuple) and len(key) == 2):
-            raise TypeError("matrix indices must be provided as [row, col].")
-        i, j = key
-        return self.get(i, j)
 
-    def __setitem__(self, key: Any, value: Any) -> None:
-        if not (isinstance(key, tuple) and len(key) == 2):
-            raise TypeError("matrix indices must be provided as [row, col].")
-        i, j = key
-        self.set(i, j, value)
 
-    def close(self) -> None:
-        self._data = []
-        self._size = 0
 
 
 class TriangularMatrix(Matrix):

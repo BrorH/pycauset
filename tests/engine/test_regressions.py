@@ -184,3 +184,11 @@ def test_F039_float_upper_with_lower_triangle(op, rng):
     tu = pc.matrix(u)
     got = to_np(eval(f"tu {op} tu.T", {}, {"tu": tu}))
     np.testing.assert_allclose(got, eval(f"u {op} u.T", {}, {"u": u}))
+
+
+# ---------------------------------------------------------------- F-041 (TriangularMatrix)
+def test_triangular_matrix_is_an_abstract_isinstance_type():
+    c = pc.causal_matrix(5, populate=True)
+    assert isinstance(c, pc.TriangularMatrix)
+    with pytest.raises(TypeError, match="abstract type"):
+        pc.TriangularMatrix(4)

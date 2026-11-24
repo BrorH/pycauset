@@ -139,8 +139,9 @@ pybind lambda (bind_matrix.cpp)
 ### 2.4 Out-of-core streaming
 * C++: `compute/StreamingManager` plans tiles from MemoryGovernor budgets and runs
   them through a `ComputeWorker` (`cpu/CpuComputeWorker`). Only `CpuDevice` uses it.
-  **[F-026] It is 0% executed** by the test suite and demos. In practice, disk-backed
-  operands are processed through ordinary mmap paging by the normal kernels.
+  It engages only when an op exceeds the governor's RAM budget, and only for plain dense
+  same-dtype operands (F-040); views and other dtypes use the direct kernels (mmap
+  paging). Tested by forcing a huge safety margin (`tests/engine/test_streaming.py`).
 * Python: `_internal/streaming_manager.py` is a **separate** Python-side planner and
   observer (`last_io_trace`, IO traces). **[SMELL]** Two components with the same
   name and overlapping purpose.
@@ -246,7 +247,7 @@ F-002) and of elementwise ops running at 0.2–0.3× NumPy speed.
 | `persistence.py` | 1,664 | `.pycauset` container: header slots, metadata blocks, save/load, cached derived objects |
 | `properties.py` | 1,199 | user-visible property dict (`is_symmetric`, `is_upper_triangular`, ...), propagation rules, operator wrappers |
 | `blockmatrix.py` | 852 | Python BlockMatrix (tiles of native matrices) |
-| `matrix_api.py` | 618 | `Matrix` factory shim; contains a leftover **pure-Python list-backed matrix** reached only from `pc.matrix`/`zeros` fallback branches that never fire (DEADCODE Tier B); empty `TriangularMatrix` shim exported as `pc.TriangularMatrix` |
+| `matrix_api.py` | ~560 | `Matrix.__new__`: the dispatcher behind `pc.matrix(ndarray / nested lists)` and square `zeros/ones` (returns native classes). `pc.TriangularMatrix` is an abstract ABC for `isinstance` checks only (constructing it raises, F-041a) |
 | `io_observability.py` | 335 | IO trace records (`last_io_trace`) |
 | `export_guard.py` | 319 | refuse NumPy export of file-backed or huge objects |
 | `streaming_manager.py` | 288 | Python streaming planner (see 2.4) |
