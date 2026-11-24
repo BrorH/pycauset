@@ -188,8 +188,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   threaded test under ASan/TSan before trusting it.
 
 ### F-010 Three C++ test files are orphaned (never built)
-- **Status:** fixed locally: all three wired (ctest 9/9). CI still builds no C++ tests
-  (PLAN 1.2).
+- **Status:** fixed: all wired (ctest 9/9) and run in CI (`ci.yml` job `cpp-tests`).
 - `tests/test_cpu_worker_contract.cpp`, `tests/test_op_registry.cpp` and
   `tests/test_parallel_utils.cpp` are not in CMakeLists. The first two pass when
   built by hand; the third reveals F-004. CI builds **no** C++ tests at all.
@@ -325,7 +324,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   larger-than-RAM run (cgroup/ulimit-constrained) and decide keep vs delete.
 
 ### F-027 pytest output capture swallows sanitizer (UBSan) reports
-- **Status:** open (S3: CI hygiene)
+- **Status:** fixed in CI (`asan.yml`: UBSan with `-fno-sanitize-recover=undefined`, plus `-s`)
 - Non-fatal UBSan reports go to fd 2, which pytest captures. Without `-s` a
   sanitized run looks clean even when UB occurs (verified 2026-11-24). `asan.yml`
   passes `-s`, but it runs ASan only (no UBSan) and only on `main`. The new CI

@@ -48,10 +48,10 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
 - [ ] **1.1 Test harness:** single `tests/conftest.py`; remove the 15 `sys.path`
       hacks; run against an editable install (`pip install -e . --no-build-isolation`);
       stop copying `.so` files into `python/pycauset/` in CI (F-023).
-- [ ] **1.2 C++ tests in CI:** ~~wire the 3 orphaned gtests~~ (done, ctest 9/9);
-      `BUILD_TESTS=ON` job in `ci.yml` still to do.
-- [ ] **1.3 Sanitizers on PRs:** ASan+UBSan job (currently main-only, ASan-only);
-      UBSan with `-fno-sanitize-recover`. Add a TSan job for the threading tests.
+- [x] **1.2 C++ tests in CI:** all 9 gtests wired; `cpp-tests` job in `ci.yml` (session 2;
+      first GitHub run still to be observed).
+- [x] **1.3 Sanitizers on PRs:** `asan.yml` now runs ASan+UBSan (fatal) on pushes and PRs,
+      over both suites. *TSan job still to do.*
 - [ ] **1.4 Remove stale skips** (F-009); every remaining skip must carry a reason
       plus a FINDINGS id.
 - [ ] **1.5 New-suite core** (TESTS.md §3.2): `tests/conftest.py`, `tests/spec.py`,

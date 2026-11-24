@@ -48,7 +48,8 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 10
-        run: python -m pytest tests/python -v --tb=short
+        # testpaths in pyproject: the old suite (tests/python) and the new one (tests/engine)
+        run: python -m pytest -q --tb=short -rfEs
 
       - name: Benchmark (parity vs NumPy, report-only)
         # R2_PERF/R2_QA visibility: this reports the numpy_time/pycauset_time
@@ -56,3 +57,35 @@ jobs:
         # not a hard gate: shared CI runners are noisy and timing thresholds are
         # enforced locally/on a dedicated machine, not on the 3-OS CI matrix.
         run: python benchmarks/r2_parity.py
+
+  cpp-tests:
+    # C++ unit tests (gtest): ParallelUtils, MemoryGovernor, IOAccelerator, CoW,
+    # lazy expressions, op registry, CPU worker contract. Built with warnings on.
+    name: C++ unit tests · Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install toolchain and BLAS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopenblas-dev liblapacke-dev gfortran ninja-build
+          python -m pip install "pybind11==2.12.0"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build/cpp -G Ninja -DBUILD_TESTS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -Dpybind11_DIR="$(python -c 'import pybind11; print(pybind11.get_cmake_dir())')" \
+            -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wno-unused-parameter"
+
+      - name: Build
+        run: cmake --build build/cpp -j 4
+
+      - name: Run
+        run: ctest --test-dir build/cpp --output-on-failure --timeout 120
+
