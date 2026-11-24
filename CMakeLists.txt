@@ -506,80 +506,10 @@ if(OpenMP_CXX_FOUND)
     target_link_libraries(_pycauset PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
-# --- CUDA Acceleration (Optional) ---
-option(ENABLE_CUDA "Enable CUDA acceleration" OFF)
-
+# --- CUDA acceleration: on hold, lives in experimental/cuda (not built by default) ---
+option(ENABLE_CUDA "Build the experimental CUDA accelerator (experimental/cuda)" OFF)
 if(ENABLE_CUDA)
-    include(CheckLanguage)
-    check_language(CUDA)
-
-    if(CMAKE_CUDA_COMPILER)
-        # Default to the build machine's GPU ("native"), but allow distribution
-        # builds (CI) to override with a list of target compute capabilities
-        # (e.g. "61;70;75;80;86;89") so the wheel runs on a range of GPUs and
-        # does not require a GPU on the builder.
-        set(CMAKE_CUDA_ARCHITECTURES "native" CACHE STRING "CUDA compute capabilities to target")
-        enable_language(CUDA)
-        find_package(CUDAToolkit REQUIRED)
-        
-        message(STATUS "CUDA found. Building pycauset_cuda accelerator.")
-        
-        add_library(pycauset_cuda SHARED
-            src/accelerators/cuda/CudaDevice.cu
-            src/accelerators/cuda/CudaSolver.cu
-            src/accelerators/cuda/MatmulDriver.cu
-            src/accelerators/cuda/CholeskyDriver.cu
-            src/accelerators/cuda/ArnoldiDriver.cu
-        )
-        
-        target_include_directories(pycauset_cuda PRIVATE include)
-        
-        # Link against CUDA libraries
-        target_link_libraries(pycauset_cuda PRIVATE 
-            CUDA::cudart 
-            CUDA::cublas 
-            CUDA::cusolver
-            pycauset_core
-            Eigen3::Eigen
-        )
-        
-        # Set properties
-        set_target_properties(pycauset_cuda PROPERTIES 
-            WINDOWS_EXPORT_ALL_SYMBOLS ON
-            CUDA_SEPARABLE_COMPILATION ON
-        )
-
-        # Eigen's C++11 math detection mis-fires under nvcc's host compilation
-        # (EIGEN_USING_STD(arg) falls back to `using ::arg`, which does not exist),
-        # so force the std::arg path.
-        target_compile_definitions(pycauset_cuda PRIVATE EIGEN_HAS_CXX11_MATH=1)
-        
-        # Suppress specific NVCC warnings
-        # 611: overloaded virtual function is only partially overridden
-        # 177: variable was declared but never referenced
-        # Note: We pass these flags individually without SHELL: prefix because CMake 3.24+ handles them correctly
-        # and the SHELL: prefix combined with generator expressions can sometimes cause quoting issues with NVCC on Windows.
-        target_compile_options(pycauset_cuda PRIVATE 
-            $<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe>
-            $<$<COMPILE_LANGUAGE:CUDA>:--diag_suppress=611>
-            $<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe>
-            $<$<COMPILE_LANGUAGE:CUDA>:--diag_suppress=177>
-        )
-        
-        # --- Python Bindings for CUDA (Internal) ---
-        # Only meaningful if CUDA is enabled. This module provides discovery functions.
-        python_add_library(_pycauset_cuda MODULE src/bindings/bind_cuda.cpp)
-        target_include_directories(_pycauset_cuda PRIVATE include)
-        target_link_libraries(_pycauset_cuda PRIVATE pycauset_cuda pybind11::module pycauset_core CUDA::cudart)
-        set_target_properties(_pycauset_cuda PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
-        install(TARGETS _pycauset_cuda DESTINATION pycauset)
-
-        install(TARGETS pycauset_cuda DESTINATION pycauset)
-    else()
-        message(STATUS "CUDA not found. Skipping pycauset_cuda accelerator.")
-    endif()
-else()
-    message(STATUS "CUDA disabled by configuration.")
+    add_subdirectory(experimental/cuda)
 endif()
 
 # --- Installation ---

@@ -176,19 +176,19 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 
 | File | Lines | Review | Notes |
 |---|---:|:-:|---|
-| `src/accelerators/cuda/ArnoldiDriver.cu` | 195 | ☐ | |
-| `src/accelerators/cuda/ArnoldiDriver.hpp` | 20 | ☐ | |
-| `src/accelerators/cuda/AsyncStreamer.hpp` | 153 | ☐ | |
-| `src/accelerators/cuda/CholeskyDriver.cu` | 141 | ☐ | |
-| `src/accelerators/cuda/CholeskyDriver.hpp` | 19 | ☐ | |
-| `src/accelerators/cuda/CudaDevice.cu` | 2102 | ☐ | |
-| `src/accelerators/cuda/CudaDevice.hpp` | 172 | ☐ | |
-| `src/accelerators/cuda/CudaFuture.hpp` | 49 | ☐ | |
-| `src/accelerators/cuda/CudaSolver.cu` | 1429 | ☐ | |
-| `src/accelerators/cuda/CudaSolver.hpp` | 82 | ☐ | |
-| `src/accelerators/cuda/MatmulDriver.cu` | 27 | ☐ | |
-| `src/accelerators/cuda/MatmulDriver.hpp` | 30 | ☐ | |
-| `src/accelerators/cuda/ScopedPinner.hpp` | 44 | ☐ | |
+| `experimental/cuda/src/ArnoldiDriver.cu` | 195 | ☐ | |
+| `experimental/cuda/src/ArnoldiDriver.hpp` | 20 | ☐ | |
+| `experimental/cuda/src/AsyncStreamer.hpp` | 153 | ☐ | |
+| `experimental/cuda/src/CholeskyDriver.cu` | 141 | ☐ | |
+| `experimental/cuda/src/CholeskyDriver.hpp` | 19 | ☐ | |
+| `experimental/cuda/src/CudaDevice.cu` | 2102 | ☐ | |
+| `experimental/cuda/src/CudaDevice.hpp` | 172 | ☐ | |
+| `experimental/cuda/src/CudaFuture.hpp` | 49 | ☐ | |
+| `experimental/cuda/src/CudaSolver.cu` | 1429 | ☐ | |
+| `experimental/cuda/src/CudaSolver.hpp` | 82 | ☐ | |
+| `experimental/cuda/src/MatmulDriver.cu` | 27 | ☐ | |
+| `experimental/cuda/src/MatmulDriver.hpp` | 30 | ☐ | |
+| `experimental/cuda/src/ScopedPinner.hpp` | 44 | ☐ | |
 
 ### Python package
 

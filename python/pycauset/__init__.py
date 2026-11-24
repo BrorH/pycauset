@@ -148,11 +148,10 @@ def _matrix_desc(matrix: Any) -> str:
 _native_mod.configure_windows_dll_search_paths(package_dir=os.path.dirname(__file__))
 _native = _native_mod.import_native_extension(package=__name__)
 
-# One-shot native configuration (OpenBLAS thread default + GPU install hint).
-from ._internal.native_setup import configure_openblas_threads, emit_gpu_install_hint_once
+# One-shot native configuration (OpenBLAS thread default).
+from ._internal.native_setup import configure_openblas_threads
 
 configure_openblas_threads()
-emit_gpu_install_hint_once()
 
 # Import modules that depend on the native extension after it is loaded.
 from . import field as field

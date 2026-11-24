@@ -112,7 +112,7 @@ risk: storage and object model first, since everything rests on them.
 | 3.13 | Build, packaging, CI, release: CMakeLists, pyproject, workflows, tools/*.ps1 | | 1,000 |
 | 3.14 | Old tests: superseded by TESTS.md migration (no line-by-line review of old tests) | `tests/` | 16,700 |
 | 3.15 | Benchmarks, demos, scripts, tools | | 2,200 |
-| 3.16 | CUDA: **inventory only**, no review while on hold | `src/accelerators/cuda` | 4,300 |
+| 3.16 | CUDA: **inventory only**, no review while on hold | `experimental/cuda` (moved, session 4) | 4,300 |
 
 **Per-file review checklist** (copy into the area notes):
 1. Purpose: can you say in one sentence what this file is for? Is it in the right place?
@@ -132,6 +132,8 @@ risk: storage and object model first, since everything rests on them.
 
 ## Phase 4: Structural cleanup (after the RESTRUCTURE decisions)
 Behaviour-preserving moves in their own commits, then logic consolidation.
+- [x] 4.0 CUDA moved to `experimental/cuda` (code, bindings, `pycauset.cuda`, GPU tests, docs,
+      `[gpu]` extra). Dormant core hooks listed in `experimental/cuda/README.md`.
 - [ ] 4.1 Dead code Tiers B–D (DEADCODE.md) and debug leftovers (F-019)
 - [x] 4.1b Remove `precision_mode` / `set_precision_mode` / `get_precision_mode` end to end
       (code, C++ mode, docs, tests); update the under-promotion warning text
@@ -180,7 +182,8 @@ shares the `ViewSpec`), before Phase 6.
 - [ ] F1.6 Docs page + NumPy-divergence note
 
 ## Phase 5: Documentation truth pass
-- [ ] 5.1 Fix every broken snippet (F-008); the snippet test is green
+- [ ] 5.1 Fix every broken snippet (F-008); the snippet test is green. Includes removing GPU
+      prose from guides/internals (pages moved in 4.0; prose left for this pass)
 - [ ] 5.2 API reference generated from docstrings, one page per public function/class
       (NumPy-style); no pages for missing symbols. **Style rules:** lead with what it
       does in one sentence; signature, parameters, returns, raises; one minimal

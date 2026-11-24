@@ -6,9 +6,6 @@ import pycauset
 
 class TestScaleFirstBitGuard(unittest.TestCase):
     def setUp(self) -> None:
-        # Ensure CPU path so the CpuSolver trace is populated.
-        if hasattr(pycauset, "cuda"):
-            pycauset.cuda.disable()
 
         if not hasattr(pycauset, "_debug_clear_kernel_trace") or not hasattr(pycauset, "_debug_last_kernel_trace"):
             self.skipTest("Native debug trace helpers are not available")

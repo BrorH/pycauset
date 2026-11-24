@@ -4,7 +4,7 @@ docs_dir: documentation
 repo_url: https://github.com/BrorH/pycauset
 repo_name: BrorH/pycauset
 
-site_description: High-performance causal set simulation library (CPU/GPU, disk-backed matrices).
+site_description: High-performance causal set simulation library (disk-backed matrices).
 
 theme:
   name: material
@@ -251,24 +251,14 @@ nav:
       - docs/functions/pycauset.bool.md
       - docs/functions/pycauset.clear_io_traces.md
       - docs/functions/pycauset.get_io_streaming_threshold.md
-      - docs/functions/pycauset.is_gpu_available.md
       - docs/functions/pycauset.last_io_trace.md
       - docs/functions/pycauset.plot_causal_matrix.md
       - docs/functions/pycauset.plot_embedding.md
       - docs/functions/pycauset.plot_hasse.md
       - docs/functions/pycauset.set_io_streaming_threshold.md
-      - CUDA (pycauset.cuda):
-        - docs/functions/pycauset.cuda.is_available.md
-        - docs/functions/pycauset.cuda.enable.md
-        - docs/functions/pycauset.cuda.disable.md
-        - docs/functions/pycauset.cuda.current_device.md
-        - docs/functions/pycauset.cuda.force_backend.md
-        - docs/functions/pycauset.cuda.benchmark.md
-        - docs/functions/pycauset.cuda.set_pinning_budget.md
     - Parameters:
       - docs/parameters/index.md
       - docs/parameters/pycauset.keep_temp_files.md
-      - docs/parameters/pycauset.pinning_budget.md
       - docs/parameters/pycauset.seed.md
     - Visualization (pycauset.vis):
       - docs/pycauset.vis/index.md

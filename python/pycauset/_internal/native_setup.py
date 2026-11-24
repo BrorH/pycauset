@@ -52,21 +52,3 @@ def configure_openblas_threads() -> None:
                 setter(threads)
     except Exception:
         pass
-
-
-def emit_gpu_install_hint_once() -> None:
-    """Emit the one-time GPU install hint when appropriate (best-effort)."""
-    try:
-        from .gpu_hint import emit_gpu_install_hint
-
-        def backend_available() -> bool:
-            try:
-                from pycauset import _pycauset_cuda as mod  # noqa: PLC0415
-
-                return bool(mod.is_available())
-            except Exception:
-                return False
-
-        emit_gpu_install_hint(backend_available=backend_available)
-    except Exception:
-        pass

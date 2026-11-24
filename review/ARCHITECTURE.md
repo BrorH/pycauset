@@ -124,7 +124,7 @@ pybind lambda (bind_matrix.cpp)
                   │    └─> CpuSolver         src/compute/cpu/CpuSolver.cpp, 5,867 lines:
                   │                          ALL CPU kernels (matmul, elementwise, vector ops,
                   │                          LAPACK wrappers, eigensolvers, SIMD fast paths)
-                  └─> CudaDevice             src/accelerators/cuda/ (ON HOLD)
+                  └─> CudaDevice             experimental/cuda/ (ON HOLD, not built)
 ```
 * `ComputeDevice.hpp` is a fat interface: ~40 pure virtuals, one per op.
 * **[SMELL]** `CpuSolver.cpp` is a monolith. `matmul` alone is ~880 lines and
@@ -258,7 +258,7 @@ F-002) and of elementwise ops running at 0.2–0.3× NumPy speed.
 | `support_matrix.py` | 148 | executable dtype × op support table (tests/tools only) |
 | `submatrix_view.py`, `dense_python.py`, `thunks.py` | | block/view helpers |
 | `runtime.py`, `native.py`, `native_setup.py`, `native_threshold.py` | | process setup |
-| `formatting.py`, `coercion.py`, `warnings.py`, `gpu_hint.py` | | small utilities |
+| `formatting.py`, `coercion.py`, `warnings.py` | | small utilities |
 | `patching.py` | 102 | operator wrappers (temp-file tracking) |
 | `storage_debug.py` | 97 | debug tool, used only by its own test |
 
