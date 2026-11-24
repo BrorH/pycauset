@@ -533,7 +533,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   to float64 like NumPy and delete the wrapper.
 
 ### F-042 Scalar factor views exist only for float dtypes (wanted feature, R1)
-- **Status:** open, **next up** (maintainer: "definitely a wanted feature").
+- **Status:** open; designed in `features/LAZY.md` (phase L1, all dtypes × structures ×
+  vectors). Maintainer: "definitely a wanted feature … ALL dtypes and matrix types".
 - `k * M` is meant to be O(1): the result shares `M`'s storage and records `k` in the view
   metadata (`scalar_`), and chains such as `2 * 3 * 5 * M` fold into one factor. Measured on
   3000×3000, three chained multiplies: float64 0.2 ms (view, `scalar = 30`); int32 85 ms and
@@ -557,3 +558,14 @@ the entry (the history is useful). New findings go at the bottom with the next f
      an int32 view costs 1/32 of the memory of the eager result.
   4. Cases that can't be a view stay eager: int × float scalar (truncation per element),
      dtype-changing scalars.
+
+### F-043 Reading a scaled view costs 2× (views aren't free when consumed)
+- **Status:** open; LAZY.md phase L0.
+- 3000² float64, 4 cores: `A + B` 32 ms, `(2*A) + (3*B)` 62 ms. The scaled operands leave the
+  fast kernel path. A view must be free on read (the factor belongs in the kernel's inner
+  loop or in BLAS `alpha`), otherwise laziness trades a copy now for a slowdown later.
+
+### F-044 `.T` copies Diagonal and Symmetric matrices
+- **Status:** open; LAZY.md phase L1.
+- Both are their own transpose; `.T` should return the same storage in O(1). Today it
+  allocates and copies (probe: `review/probes/view_semantics_probe.py`).

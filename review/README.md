@@ -33,7 +33,7 @@ review/
   LOG.md            session log
   areas/            per-area deep-review notes (Phase 3), one file per area
   deadcode/         snapshots of dead-code/coverage reports (regenerate per DEADCODE.md §2)
-  features/         specs for new features accepted into the overhaul (VALUE_BOUNDS.md)
+  features/         specs for new features accepted into the overhaul (VALUE_BOUNDS.md, LAZY.md)
   probes/           runnable investigation scripts (candidates to become tests)
   scripts/          inventory generator, coverage analysers (Python + C++)
 ```
@@ -73,7 +73,8 @@ F-034, F-035a, F-036…F-040, F-041a; precision_mode removed; lazy expression en
 need -j1). **Open priorities:** F-041b (maintainer: zeros() default dtype); F-032 + renames
 (PLAN 4.6); F-040 follow-ups (views in the tiler, `set_memory_threshold` vs streaming);
 performance F-012 (profile the 13× element-wise gap); dead-code Tier B; docs F-008. All decisions answered (RESTRUCTURE §3); new feature
-accepted: value bounds (features/VALUE_BOUNDS.md, PLAN Phase F1).
+accepted: value bounds (features/VALUE_BOUNDS.md, PLAN Phase F1); lazy evaluation
+(features/LAZY.md, PLAN Phase L).
 
 ## When the overhaul is finished
 ARCHITECTURE.md moves into `documentation/internals/`, FINDINGS.md becomes the

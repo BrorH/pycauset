@@ -268,3 +268,9 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - F-041a: `pc.TriangularMatrix` was a constructible pure-Python toy matrix; now an abstract
   isinstance type (its docs already said so); ~60 dead lines removed. F-041b (dtype-deferred
   `zeros()` wrapper) left for the maintainer: it was a deliberate R1 product feature.
+
+## 2026-11-24 session 4
+- Maintainer: lazy evaluation is a wanted feature for ALL dtypes and structures; plan it thoroughly.
+- Probe `review/probes/view_semantics_probe.py`: views exist for float scale and all transposes; integer/bit/vector scaling copies (F-042); no mutation leaks; Diagonal/Symmetric .T copies (F-044).
+- Measured: 2A+3B costs 2x A+B (F-043); (A@B)@v 236 ms vs A@(B@v) 41 ms at n=3000.
+- Wrote features/LAZY.md (exactness tiers E/A, catalogue L1-L6, architecture ViewSpec/ExprNode, test oracle, phases). PLAN Phase L added.

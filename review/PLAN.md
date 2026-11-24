@@ -152,8 +152,26 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.8 Silent-exception sweep (126 sites)
 - [ ] 4.9 Per-directory README.md files (what lives here, what doesn't)
 
+## Phase L: Feature: Lazy evaluation (maintainer request; spec in `features/LAZY.md`)
+Views and deferred expressions for every dtype, structure and vector. Rule: laziness is
+unobservable except through speed and memory. Order: L0 is Phase 4.3 + 4.6 + F-043;
+then L1 → L2 → F1 → L3 → L4 → L5 (only if measured worthwhile) → L6.
+- [ ] L0 Prerequisites: generated dtype×structure table (4.6/F-032), single operator path
+      (4.3), views read at kernel speed (F-043)
+- [ ] L1 `ViewSpec`: typed exact factors, scale/negate/conj/transpose/cast views for all
+      16 dtypes × all structures × matrices and vectors; free transposes (F-044); streaming
+      reads views (F-040 follow-up); lazy≡eager oracle switch `_set_lazy(False)`
+- [ ] L2 Closures `A ± Aᵀ` over triangular storage, diagonal shift `A + cI`; eigensolvers
+      consume them without materializing (Pauli–Jordan)
+- [ ] L3 `ExprNode`: sums, products with chain ordering, powers, inverse-as-solve;
+      matvec/trace/sum/diag consumers; asymptotic tests via kernel trace
+- [ ] L4 Property propagation through views and nodes (needs C++-owned properties)
+- [ ] L5 Element-wise fusion via sum nodes (only after F-012; benchmark gate)
+- [ ] L6 Constant matrices, slice views
+
 ## Phase F1: Feature: Value bounds (maintainer request; spec in `features/VALUE_BOUNDS.md`)
-Runs after Phase 4.3 (single C++ operator/result-type path) and before Phase 6.
+Runs after Phase 4.3 (single C++ operator/result-type path) and after lazy L1/L2 (it
+shares the `ViewSpec`), before Phase 6.
 - [ ] F1.1 `ValueBounds` on PersistentObject + persistence + `A.value_bounds`
 - [ ] F1.2 Sources (bit=[0,1], factories, NumPy import min/max, setitem widening, unknown on opaque writes)
 - [ ] F1.3 Propagation rules for every op in the spec table
