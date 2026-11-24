@@ -217,10 +217,47 @@ or constant (bandwidth factor).
   offset fields.
 - **Exactness:** E.
 
+### L7 Causal-set-specific operators (maintainer request: "we know what the math will look like")
+The physics layer (`field.py`) computes K_R = aC(I − baC)⁻¹, iΔ = i(K − Kᵀ) and the SJ Wightman
+function W in dense complex NumPy, outside the engine. These are the forms worth building in.
+Each was checked on a real causal matrix (n = 600, `review/LOG.md` session 5).
+
+1. **Pauli–Jordan in real arithmetic.** K is strictly upper triangular (C is nilpotent), so
+   iΔ = i·(K − Kᵀ) is fully described by one real triangular K plus "antisymmetric closure × i".
+   Storage: 4n² bytes (float64 triangle) instead of 16n² (complex128 dense), so 4× less. Its
+   spectrum is ±λ pairs of the real antisymmetric A = K − Kᵀ: a real skew solver
+   (`eigvals_skew` exists) instead of complex Hermitian `eigh` (measured 22 ms real vs 87 ms
+   complex at n = 600), and only half the pairs are needed. Builds on L1 (complex factor `i`
+   on real storage) + L2 (closure).
+2. **SJ Wightman function without complex storage.** Exact identity (verified):
+   W = ½(|A| + iA) with |A| = √(AᵀA). The imaginary part is iΔ/2, already stored (item 1),
+   so W is a lazy sum of one real **symmetric** matrix |A| (packed: 4n² bytes) and a view of
+   K: 4× less memory than complex dense W, and |A| comes from the positive half of the skew
+   decomposition, computed in real arithmetic (use the skew decomposition, not √(AᵀA): squaring
+   loses digits). Restrictions to a region (entanglement entropy) are slice views (L6).
+3. **Matrix-free propagator.** K x = aC·(I − baC)⁻¹x = one triangular solve against the
+   **bit** matrix plus one bit matvec; K is never formed. Memory at n = 100,000: C as bits
+   0.6 GB versus K as a float64 triangle 40 GB. Top-k Pauli–Jordan / truncated SJ modes (a
+   standard truncation in the literature) then run by Arnoldi at 10–100× larger n. Needs a
+   bit-matrix triangular-solve kernel (y_i = x_i + β Σ_{j>i} C_ij y_j).
+4. **Interval statistics without forming C².** Interval sizes are (C²)_xy. The BD action and
+   d'Alembertian, link counts and Myrheim–Meyer dimension use them only through reductions:
+   histograms over relations, masks, row sums, or applying the BD operator to a field. A fused
+   "product + reduction" node computes C² tile by tile and reduces immediately: O(tile)
+   memory instead of 4n² bytes (int32 C² at n = 100,000 is 40 GB). Special case already
+   verified: Σ(C²) = (1ᵀC)(C1), two bit matvecs, O(n²) instead of O(n³). Exact (integers).
+5. **Causal matrix generated from coordinates** (sprinkled causets, lower priority): store the
+   n × d coordinates (16 MB at n = 10⁶, d = 2) instead of C (62 GB of bits) and recompute
+   relations inside matvecs with the same predicate (bit-identical). Trades compute for I/O;
+   worth it only beyond RAM. Measure before building.
+
 ### Rejected or not worth it
 - **Lazy element-wise functions in general** (`exp(A)`, `A ** 0.5` element-wise): a view
   would recompute the function on every read. Only kept as fusion inside L5.
-- **Lazy comparisons and masks** (`C & ~(C @ C)`): no algebra to exploit; eager.
+- **Lazy comparisons and masks** (`C & ~(C @ C)`) as standalone objects: eager. Their common
+  uses (link counts, BD operator) are covered by the fused reductions in L7.4.
+- **Laziness for small matrices** (below ~10⁴ elements): bookkeeping costs more than it saves;
+  the planner materializes them.
 - **Dtype-deferred allocation** (`pc.zeros` without dtype deciding its type later, F-041b):
   that's guessing a dtype, not laziness. Separate question, already with the maintainer.
 
@@ -306,6 +343,7 @@ or constant (bandwidth factor).
 | L4 | property propagation through views and nodes | L3, C++ properties (4.3) | — |
 | L5 | element-wise fusion via sum nodes | L3, F-012 | benchmark ≥ 1.3× or disk saving shown |
 | L6 | constants, slices | L1 | — |
+| L7 | causal-set operators: real Pauli–Jordan / SJ (7.1–7.2), matrix-free K (7.3), fused interval statistics (7.4); 7.5 after measurement | L2, L3 | SJ memory 4× lower; top-k PJ at n where K doesn't fit |
 
 ## 12. Lessons from the removed expression engine (`d564c7f`)
 1. It returned a second-class object (`LazyMatrix`). Rule 2 forbids that.

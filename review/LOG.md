@@ -281,3 +281,6 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   docs migrated. Findings: F-045 (view get/set wrong), F-046 (size-based float32 + structure
   inference), F-047 (eig float32 -> float64, open), F-048 (stale installed package in tests/probe).
 - Suite: 2,825 passed / 7 skipped / 33 xfailed; ctest 7/7; doc pages failing 70 -> 60 (F-008).
+
+## 2026-11-24 session 5
+- Causal-set lazy forms checked (n=600): K strictly upper triangular; W = (sqrt(AᵀA)+iA)/2 holds (rel 6e-8 via the squared route); real eigh 22 ms vs complex 87 ms; sum(C@C) = (1ᵀC)(C1) exactly. Added LAZY.md L7.
