@@ -15,11 +15,22 @@ promoting blindly. Two int8 matrices whose values are known to be ≤ 2 add to a
 result; a causal matrix (bits, range [0, 1]) squared gives path counts in [0, n], so
 for n = 3,000 the result fits int16 instead of int32 (half the memory and disk).
 
-**Name.** "Largest element" undersells it: we need the minimum too (signed types,
-subtraction), and for floats a dtype is as much about *resolution* as size. The
-concept is called **value bounds** (`ValueBounds` in C++, `A.value_bounds` →
-`(lo, hi)` or `None` in Python). Precision/resolution is a separate axis that bounds
-do *not* decide (§6).
+**Name (working names; final user-facing name is the maintainer's call).** The
+maintainer's intent is "the highest-resolution element": what dtype do the values
+actually need? Internally we track **value bounds**, a guaranteed `[lo, hi]`
+(`ValueBounds` in C++, `A.value_bounds` → `(lo, hi)` or `None`). Users see the
+consequence, **`A.minimal_dtype`**: the smallest dtype guaranteed to hold every
+element. We avoid the word "resolution" in the API because for floats it usually
+means spacing between values (significant digits), which bounds can't determine (§6).
+
+**Two kinds of knowledge (never mix them).**
+- **Guaranteed bound:** "every element lies in [lo, hi]". Only this may be used to
+  choose a *smaller* dtype.
+- **Observed values:** "we have seen at least x" (sampling, partial scans). This can
+  only ever argue for a *bigger* dtype or a warning. It can never prove a small dtype
+  safe, because one unseen element could overflow. **Decision: no sampling in R1.**
+  The existing sampled int32 matmul preflight is exactly this unsound kind, and it
+  is deleted when bounds land.
 
 ## 2. Rules that make it trustworthy
 1. **Sound, never optimistic.** The stored interval must always contain every
@@ -46,6 +57,25 @@ do *not* decide (§6).
 | Writes we can't see (NumPy buffer views, `write_block`, raw pointers) | set to **unknown** |
 | Loading an old/foreign file without bounds | unknown |
 | Explicit `pc.recompute_bounds(A)` (one pass) | exact; for when the user wants tight bounds back |
+
+## 3b. Predict, then measure (keeps long chains tight)
+Pure interval arithmetic stays sound through chains of operations but gets **looser
+at every step** (it can't see that `A - A` is zero, so it reports [-hi, hi]). After
+8 chained ops, bounds could force needlessly wide dtypes. So every op has two phases:
+1. **Predict** (before computing, O(1)): propagate input bounds with the §4 rules to
+   choose a result dtype that is *guaranteed* to fit, and allocate.
+2. **Measure** (while writing, ~free): the kernel already touches every result
+   element, so it keeps a running min/max in registers and stores the **exact**
+   bounds on the result. The next op predicts from exact bounds, so looseness never
+   accumulates.
+Measurement must cost ≤ 2% on memory-bound kernels (benchmark gate, §8). Where it
+can't be made free (e.g. inside BLAS GEMM, which we don't control), keep the
+predicted bounds; a later cheap op will tighten them.
+
+**Per-element writes** (`A[i, j] = v`): one comparison widens the bounds to include
+`v`. It never shrinks them (that would need a rescan), so it stays sound and may get
+loose. The cost is negligible next to the Python call. Bulk writes we can't observe
+(NumPy buffer views, raw pointers) set the bounds to unknown.
 
 ## 4. Propagation rules (interval arithmetic)
 For inputs `A ∈ [a_lo, a_hi]`, `B ∈ [b_lo, b_hi]`:
@@ -96,10 +126,18 @@ For complex numbers, track bounds on |z| only.
 - Cost of fused min/max in kernels: measure; only keep it where free.
 - Interaction with block matrices and out-of-core tiles: bounds per tile, merged.
 
+## 7b. Out of scope for R1
+- Sampling-based estimates (see "Two kinds of knowledge").
+- Per-row or per-block bounds (finer granularity); revisit if block matrices need it.
+- Symbolic tracking (knowing `A - A == 0`); predict-then-measure covers the practical cases.
+
 ## 8. Definition of done
 - `ValueBounds` on every object; persisted; exposed read-only as `A.value_bounds`.
 - Propagation for every op in the conformance spec table (TESTS.md), with
   "unknown" as the explicit fallback.
+- Measure phase in every kernel that writes a full result (except BLAS-internal),
+  so chained ops stay exact.
+- `A.minimal_dtype` exposed (final name per maintainer).
 - **Soundness invariant test** in `tests/engine/test_invariants.py`: for every
   generated case, the actual min/max of the result lies inside the reported bounds.
 - Dtype selection uses bounds for integer results; the heuristic preflight is deleted.

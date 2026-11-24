@@ -107,3 +107,14 @@ removing MemoryGovernor's pinning API.
   must-test items in Phase 2.
 - `precision_mode` (+ set/get) deferred out of R1: to be removed (PLAN 4.1b).
 - bool/bit addition counts into integers, documented (reconfirmed).
+
+## Session 1, part 5: 2026-11-24, value-bounds refinements (maintainer)
+
+- Maintainer's framing: track the "highest-resolution element" through chains of
+  ops, with rules for every op, cheap per-element writes, and "unknown" as an
+  allowed state. Working names: `value_bounds` internally, `A.minimal_dtype` user-facing
+  (final name is the maintainer's call).
+- Tech-lead decisions added to the spec: guaranteed bounds vs observed values are
+  kept separate; **no sampling for dtype choice** (unsound); a **predict-then-measure**
+  design (rules choose the dtype before the op; the kernel records exact min/max while
+  writing), so bounds don't loosen over long chains; out-of-scope list.
