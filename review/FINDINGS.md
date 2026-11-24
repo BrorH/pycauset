@@ -20,7 +20,10 @@ the entry (the history is useful). New findings go at the bottom with the next f
 ## S1 — critical
 
 ### F-001 Integer matrix × scalar silently returns the unscaled matrix
-- **Status:** open
+- **Status:** fixed (`fix(F-001,F-002,F-003)`): new `src/math/ScalarOps.cpp`. Scope was wider
+  than first recorded: every integer AND bit dtype (incl. the causal matrix) gave wrong
+  results for non-trivial scalars. Tests: `tests/engine/test_scalar_ops.py` (566 cases vs
+  NumPy, values + dtype), `test_regressions.py::test_F001_*`.
 - **Where:** `DenseMatrix<T>::multiply_scalar` (`include/pycauset/matrix/DenseMatrix.hpp:229`)
   makes an O(1) view with `scalar_ *= factor`. For `IntegerMatrix` (int32) the
   readers don't apply `scalar_`: `__getitem__`, NumPy export and matmul ignore it,
@@ -94,7 +97,11 @@ the entry (the history is useful). New findings go at the bottom with the next f
 ## S2 — major
 
 ### F-002 Scalar/operator coverage is inconsistent across dtypes
-- **Status:** open
+- **Status:** fixed (`fix(F-001,F-002,F-003)`). Root cause: pybind tries overloads in
+  registration order, and catch-all `py::object` overloads registered *before* the typed
+  ones returned NotImplemented for plain Python numbers (`A - 1`, `3 * A`). Also: the
+  `int64_t` caster accepted NumPy ints via `__index__`, discarding their strong dtype.
+  `__neg__`/`__pos__` added. The uint64 error was actually F-033 (export).
 - `-A` (`__neg__`) is not defined for **any** matrix type: `TypeError: bad operand type for unary -`.
 - `3 * A` (int on the left) raises `TypeError` for int8/16/32/64 and float32/64,
   while `2.0 * A` works.
@@ -107,7 +114,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   overloads per operator *and* two layers of Python wrappers (ARCHITECTURE §4.2).
 
 ### F-003 `pc.cond` uses the Frobenius norm; NumPy's default is the 2-norm
-- **Status:** open
+- **Status:** fixed (`fix(F-001,F-002,F-003)`): NumPy definition for all `p`; singular → inf.
+  An old test asserted the wrong (Frobenius) value and was corrected.
 - `pc.cond([[4,1],[2,3]])` = 3.0, `np.linalg.cond` = 2.618. Any `p=` raises
   NotImplementedError. This violates the "speaks NumPy" contract silently.
 - **Where:** `python/pycauset/_internal/ops.py:852`.
@@ -353,17 +361,50 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Fix: `[tool.pytest.ini_options] pythonpath = ["python"]`. The per-file `sys.path` hacks
   are now redundant and go away with the old suite (TESTS.md §4).
 
-### F-030 `pc.eigvals_arnoldi` never uses the C++ Arnoldi solver
-- **Status:** open (S2; maintainer needs Arnoldi for R1)
-- `python/pycauset/_internal/ops.py` (eigvals_arnoldi) says: "the native eigvals_arnoldi
-  (R1_CPU Phase 6) crashes with an access violation, so use the NumPy fallback until
-  fixed". So the public function computes **all** eigenvalues densely in RAM with NumPy
-  and keeps the top k. `CpuSolver::eigvals_arnoldi` is 0% executed (DEADCODE §3).
-- Fix: reproduce the crash under ASan, fix it, route `pc.eigvals_arnoldi` to native, and
-  test against NumPy on matrices where Arnoldi converges.
+### F-030 `pc.eigvals_arnoldi` never uses the C++ Arnoldi solver; the solver is unrestarted
+- **Status:** open (S2; maintainer needs Arnoldi for R1). Diagnosed session 1.
+- The public function computes **all** eigenvalues densely with NumPy (exact, but in RAM
+  and O(n³)) because a code comment says the native solver "crashes with an access
+  violation". **The crash no longer reproduces** (n = 50/200/500; likely fixed with F-004/F-005).
+- **Real problem:** `CpuSolver::eigvals_arnoldi` is a *single* Arnoldi pass of `m` steps
+  with **no restarts and no convergence check**. `tol` is only a breakdown threshold, so
+  it silently returns unconverged Ritz values: relative error 3e-5 … 2.5e-3 vs NumPy with
+  `tol=1e-10` on random symmetric matrices. Routing users to it now would violate
+  "guesses may inform, never decide".
+- **Fix plan (tech lead):** implement a restarted method with residual-based convergence
+  (`‖A x − θ x‖ ≤ tol·|θ|` per wanted Ritz pair) that **raises** on non-convergence (like
+  SciPy's ArpackNoConvergence). Options: (a) vendor **Spectra** (header-only, MPL-2.0,
+  ARPACK-style implicit restarts on Eigen, which we already use); preferred, but GitHub
+  archive downloads are blocked in the review sandbox, so do it where the network
+  allows; (b) hand-written Krylov–Schur (general) plus thick-restart Lanczos (symmetric).
+  Then route `pc.eigvals_arnoldi` to native, delete the stale crash comment, and test
+  against NumPy on symmetric, non-symmetric and skew-symmetric inputs, including clustered
+  spectra.
 
 ### F-031 `tests/test_symmetric_matrix.cpp` asserts nothing in release builds
 - **Status:** open (S3)
 - It uses plain `assert()` (no gtest macros). CMake builds the tests as RelWithDebInfo,
   which defines NDEBUG, so every check is compiled out and the test always "passes".
   Convert it to gtest `EXPECT_*` (or fold it into the new suite).
+
+### F-032 Unregistered template instantiations reach Python as bare `MatrixBase`
+- **Status:** open (S2; blocks the "every dtype works with every structure" gate, PLAN 4.1d)
+- The C++ factory creates `TriangularMatrix<T>`, `DiagonalMatrix<T>`, `IdentityMatrix<T>`
+  for ~10 dtypes each, but Python classes exist only for Triangular{bit,int32,float64},
+  Diagonal{float64} and Identity{float64}. Any op that yields another instantiation
+  (e.g. `C * np.int64(3)` before the ScalarOps guard) returns a bare `MatrixBase` with
+  almost no methods (no `get_data_type`, no export).
+- Interim: ScalarOps produces triangular results only for int32/float64. Fix: register
+  every instantiation the factory can create (generated binding table), or narrow the
+  factory to the registered set. Add an invariant test: every result's Python type is a
+  concrete registered class.
+
+### F-033 NumPy export: only 3 of 13 dense dtypes had a native path; 64-bit ints lost precision
+- **Status:** fixed (`fix(F-001,F-002,F-003)` batch)
+- `_to_numpy_fast` handled only float64/int32/complex128. All other dense dtypes fell back
+  to a per-element Python loop that read values through `get_element_as_double`, so
+  int64/uint64 values above 2^53 lost precision, and uint64 values near 2^64 raised
+  "Python int too large to convert to C long" (the "uint64 a-b" error in the first probe).
+- Fix: one generic native exporter for every dense dtype (`export_dense_any` in
+  bind_matrix.cpp, replacing ~150 duplicated lines); the Python fallback reads integers
+  through the exact typed `get`. Also asserts the F-001 invariant (no lazy scalar on ints).

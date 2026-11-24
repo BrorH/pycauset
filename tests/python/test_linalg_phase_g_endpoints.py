@@ -59,9 +59,9 @@ class TestPhaseGLinalgEndpoints(unittest.TestCase):
         self.assertEqual(sign, 1.0)
         self.assertAlmostEqual(logabs, float(np.log(abs(det))), places=10)
 
+        # F-003: NumPy's default (2-norm) condition number, not the Frobenius one.
         c = pc.cond(A)
-        expected = float(np.linalg.norm(np.asarray(A), ord="fro") * np.linalg.norm(np.linalg.inv(np.asarray(A)), ord="fro"))
-        self.assertAlmostEqual(c, expected, places=8)
+        self.assertAlmostEqual(c, float(np.linalg.cond(np.asarray(A))), places=8)
 
     def test_eigh_and_eigvalsh(self):
         A = pc.matrix(((2.0, 1.0), (1.0, 2.0)))

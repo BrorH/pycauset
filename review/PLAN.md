@@ -78,16 +78,15 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
 ## Phase 2: Critical correctness fixes
 Each fix: regression test first (from Phase 1), then fix, then FINDINGS status.
 - [x] F-024 eig/eig_skew results share `./_vals` (second call corrupts the first)
-- [ ] F-001 lazy scalar ignored for integer matrices: **design decided** (FINDINGS F-001):
-      integers never carry a lazy scalar; typed C++ kernel with NumPy result dtypes
+- [x] F-001 lazy scalar ignored for integer matrices (ScalarOps)
 - [x] F-004 nested ParallelFor deadlock; F-005 exception-path use-after-free
 - [x] F-006 signed-overflow UB in integer kernels (all widths, all ops)
 - [x] F-025 null memcpy for empty objects
 - [x] F-028 sampled overflow preflight removed (determinism policy)
-- [ ] F-002 operator coverage (`__neg__`, int `__rmul__`, `A - int`, uint64)
+- [x] F-002 operator coverage (`__neg__`, int `__rmul__`, `A - int`, uint64)
 - [ ] Skew/Arnoldi eigensolvers: tests that actually execute the C++ paths
       (`CpuSolver::eigvals_arnoldi` is 0% executed today); maintainer needs them for R1
-- [ ] F-003 `cond` NumPy default norm, plus other "silently differs from NumPy" defaults
+- [x] F-003 `cond` NumPy default norm, plus other "silently differs from NumPy" defaults
       (do a pass over every function's defaults against NumPy's signature)
 - [ ] Anything Phase 1 grids surface (log as new F-ids)
 

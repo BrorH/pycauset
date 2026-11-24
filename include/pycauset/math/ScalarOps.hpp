@@ -1,0 +1,62 @@
+#pragma once
+
+// Matrix ⊕ scalar operations with NumPy result-dtype semantics (F-001, F-002).
+//
+// One entry point for `A + s`, `A - s`, `s - A`, `A * s`, `A / s`, `s / A` and `-A`.
+// Rules (NumPy 2 / NEP 50, Python scalars are "weak"):
+//   integer A  op Python int   -> A's dtype, two's-complement wraparound; a Python int
+//                                 that does not fit A's dtype raises std::overflow_error
+//   integer A  op Python float -> float64          integer A / anything -> float64
+//   integer A  op complex      -> complex128
+//   bit A      op Python int   -> int32 (PyCauset counting policy, F-013)
+//   float/complex A op real    -> A's dtype (existing O(1) scalar-view paths)
+//   real float A op complex    -> complex of matching precision
+// Integer and bit inputs are computed exactly (typed element reads, no round trip
+// through double). Triangular inputs keep their structure when the op maps 0 -> 0.
+// Integer and bit matrices never receive a lazy `scalar_` (see FINDINGS F-001).
+
+#include <complex>
+#include <cstdint>
+#include <memory>
+
+#include "pycauset/core/Types.hpp"
+
+namespace pycauset {
+
+class MatrixBase;
+
+enum class ScalarOpKind { Add, Sub, RSub, Mul, TrueDiv, RTrueDiv };
+
+struct ScalarArg {
+    enum class Kind { Int, Float, Complex };
+    Kind kind = Kind::Int;
+    // Int: value in [INT64_MIN, UINT64_MAX]. `negative` selects which field holds it.
+    int64_t i = 0;
+    uint64_t u = 0;
+    bool negative = false;
+    double f = 0.0;
+    std::complex<double> c{0.0, 0.0};
+    // NumPy scalars are "strong": their dtype takes part in promotion.
+    bool strong = false;
+    DataType strong_dtype = DataType::UNKNOWN;
+
+    static ScalarArg from_int64(int64_t v);
+    static ScalarArg from_uint64(uint64_t v);
+    static ScalarArg from_double(double v);
+    static ScalarArg from_complex(std::complex<double> v);
+
+    std::complex<double> as_complex() const;
+};
+
+// True for every integer dtype and for bit/bool.
+bool is_integer_or_bit(DataType dt);
+
+// The dtype NumPy would produce for `a <op> s` (with PyCauset's bit->int32 rule).
+DataType scalar_result_dtype(DataType a, ScalarOpKind op, const ScalarArg& s);
+
+std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s);
+
+// -A. Raises std::invalid_argument for bit/bool (NumPy forbids boolean negation).
+std::unique_ptr<MatrixBase> negate(const MatrixBase& a);
+
+}  // namespace pycauset

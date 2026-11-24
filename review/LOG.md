@@ -180,3 +180,26 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   fixed, its test restored. F-028 tests now assert exactness whether or not it fires.
 - README rule 12, FINDINGS F-028, VALUE_BOUNDS spec, and the warnings/dtype developer
   docs updated to the clarified rule.
+
+## Session 2: 2026-11-24, scalar operators, export, cond, Arnoldi diagnosis
+
+- **ScalarOps** (`include/pycauset/math/ScalarOps.hpp`, `src/math/ScalarOps.cpp`): one C++
+  entry point for `A ⊕ s` (+ − * / and reversed, `-A`) with NumPy 2 result-dtype rules
+  (weak Python scalars, strong NumPy scalars), exact typed kernels for integer/bit
+  matrices, and triangular structure kept when 0 ↦ 0. Bindings: early exits in 17 typed
+  overloads, 7 catch-alls now understand numbers (the pybind overload-order bug behind
+  `A - 1` / `3 * A`), strict `py::int_` instead of `int64_t` (NumPy ints were losing their
+  strong dtype via `__index__`). Fixes F-001 (wider than recorded: every int AND bit dtype,
+  incl. causal matrices), F-002.
+- **F-003:** `cond` now follows NumPy for every `p`.
+- **F-033:** native NumPy export existed for only 3 of 13 dense dtypes; replaced ~150
+  duplicated lines with one generic exporter; the Python fallback reads ints exactly.
+- **F-032** found: unregistered template instantiations reach Python as bare `MatrixBase`.
+- Two old tests that **encoded bugs** were corrected (int32 × 3.5 "should remain
+  IntegerMatrix"; cond "should be Frobenius").
+- **F-030 diagnosed:** the native Arnoldi no longer crashes, but it's an unrestarted
+  single pass that ignores `tol` (silently inaccurate, ~1e-3). Plan: restarted method with
+  convergence check (Spectra or Krylov–Schur). Public function stays on the exact NumPy path.
+- New test file `tests/engine/test_scalar_ops.py`: 566 cases vs NumPy (values + dtypes).
+- State: 1,398 passed / 34 skipped / 0 xfail; ctest 9/9; ASan+UBSan clean; the dtype probe
+  is all "ok" except the documented bool counting policy.

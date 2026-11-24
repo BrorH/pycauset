@@ -18,7 +18,6 @@ open_bug = lambda fid: pytest.mark.xfail(strict=True, reason=f"{fid} open (revie
 
 
 # ---------------------------------------------------------------- F-001
-@open_bug("F-001")
 @pytest.mark.parametrize("scalar", [3, 3.0, 0, -1])
 def test_F001_int32_scalar_multiply_is_applied(scalar):
     a = np.array([[1, 2], [3, 4]], dtype=np.int32)
@@ -28,30 +27,37 @@ def test_F001_int32_scalar_multiply_is_applied(scalar):
 
 
 # ---------------------------------------------------------------- F-002
-@open_bug("F-002")
 def test_F002_unary_minus():
     a = np.array([[1.0, -2.0], [3.0, 4.0]])
     np.testing.assert_array_equal(to_np(-pc.matrix(a)), -a)
 
 
-@open_bug("F-002")
 @pytest.mark.parametrize("dtype", ["int32", "float64"])
 def test_F002_int_scalar_on_the_left(dtype):
     a = np.array([[1, 2], [3, 4]], dtype=dtype)
     np.testing.assert_array_equal(to_np(3 * pc.matrix(a)), 3 * a)
 
 
-@open_bug("F-002")
 def test_F002_int32_minus_int():
     a = np.array([[1, 2], [3, 4]], dtype=np.int32)
     np.testing.assert_array_equal(to_np(pc.matrix(a) - 1), a - 1)
 
 
 # ---------------------------------------------------------------- F-003
-@open_bug("F-003")
 def test_F003_cond_default_matches_numpy():
     a = np.array([[4.0, 1.0], [2.0, 3.0]])
     assert pc.cond(pc.matrix(a)) == pytest.approx(np.linalg.cond(a))
+
+
+@pytest.mark.parametrize("p", [None, 2, -2, 1, -1, np.inf, -np.inf, "fro"])
+def test_F003_cond_all_norms_match_numpy(p, rng):
+    a = rng.standard_normal((6, 6)) + 3 * np.eye(6)
+    assert pc.cond(pc.matrix(a), p) == pytest.approx(np.linalg.cond(a, p), rel=1e-10)
+
+
+def test_F003_cond_singular_is_inf():
+    a = np.array([[1.0, 2.0], [2.0, 4.0]])
+    assert np.isinf(pc.cond(pc.matrix(a), 1)) and np.isinf(np.linalg.cond(a, 1))
 
 
 # ---------------------------------------------------------------- F-024

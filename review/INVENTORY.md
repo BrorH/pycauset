@@ -125,6 +125,7 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `include/pycauset/compute/cpu/CpuDevice.hpp` | 76 | ☐ |CPU device adapter |
 | `include/pycauset/compute/cpu/CpuSolver.hpp` | 86 | ☐ |CPU kernel class decl |
 | `include/pycauset/math/Eigen.hpp` | 13 | ☐ |eigen helpers |
+| `include/pycauset/math/ScalarOps.hpp` | 68 | ☐ |Matrix ⊕ scalar with NumPy dtype rules (F-001/F-002) |
 | `include/pycauset/math/LinearAlgebra.hpp` | 68 | ☐ |pycauset::add/matmul/... entry points |
 | `include/pycauset/causet/Spacetime.hpp` | 169 | ☐ |native Minkowski spacetimes; stray #pragma message (F-019) |
 | `include/pycauset/causet/Sprinkler.hpp` | 41 | ☐ |native sprinkling |
@@ -163,6 +164,7 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `src/core/StorageUtils.cpp` | 48 | ☐ | |
 | `src/core/SystemUtils.cpp` | 91 | ☐ | |
 | `src/math/Eigen.cpp` | 17 | ☐ | |
+| `src/math/ScalarOps.cpp` | 400 | ☐ |exact scalar-op kernels for int/bit; result-dtype table |
 | `src/math/LinearAlgebra.cpp` | 1142 | ☐ |op entry: allocate result, dispatch |
 | `src/matrix/DenseBitMatrix.cpp` | 281 | ☐ | |
 | `src/matrix/MatrixBase.cpp` | 111 | ☐ | |

@@ -66,9 +66,9 @@ review/
    its never-executed list.
 
 ## Current status (update this line every session)
-**End of session 1 (2026-11-24):** Phase 0 complete; Tier-A dead code batch 1 removed;
-fixed F-004, F-005, F-006, F-024, F-025, F-028, F-029; F-001 designed. Sanitizers clean.
-Next steps: LOG.md, end of session 1. All decisions answered (RESTRUCTURE §3); new feature
+**After session 2 (2026-11-24):** fixed F-001/2/3/4/5/6/24/25/28/29/33; Tier-A dead code
+removed; sanitizers clean; 1,398 tests green. Open priorities: F-030 (restarted Arnoldi),
+F-032 (unregistered instantiations), conformance grid (TESTS.md), CI wiring, F-026. All decisions answered (RESTRUCTURE §3); new feature
 accepted: value bounds (features/VALUE_BOUNDS.md, PLAN Phase F1). Critical open bugs: F-024 (eig results corrupt each other), F-001 (int scalar
 multiply is a no-op), F-004 (nested ParallelFor deadlock), F-006 (UB).
 

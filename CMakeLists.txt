@@ -408,6 +408,7 @@ set(PYCAUSET_SOURCES
     src/compute/cpu/CpuComputeWorker.cpp
     src/math/Eigen.cpp
     src/math/LinearAlgebra.cpp
+    src/math/ScalarOps.cpp
     src/causet/Sprinkler.cpp
 )
 

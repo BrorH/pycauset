@@ -825,19 +825,27 @@ def slogdet(a: Any, *, deps: OpsDeps) -> tuple[float, float]:
 
 
 def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
-    """Compute a condition number estimate using ||A|| * ||A^{-1}||.
+    """Condition number of a matrix, with NumPy's definition and default (F-003).
 
-    Currently uses Frobenius norm for matrices (matches `pycauset.norm`).
+    p = None or 2: ratio of largest to smallest singular value; p = -2: the inverse
+    ratio; p in {1, -1, inf, -inf, 'fro', 'nuc'}: ||A||_p * ||A^-1||_p. A singular
+    matrix gives inf, as in NumPy.
     """
-    if p is not None:
-        raise NotImplementedError("cond(p=...) is not implemented; only default norm is supported")
-
-    norm_fn = getattr(deps.native, "norm", None)
-    if norm_fn is None:
-        raise RuntimeError("native norm is not available")
-
-    inv_a = invert(a, deps=deps)
-    return float(norm_fn(a) * norm_fn(inv_a))
+    np_module = deps.np_module
+    if p is None or p == 2 or p == -2:
+        # Singular values via NumPy (same path as svdvals; native SVD routing is F-011).
+        s = np_module.linalg.svd(_to_numpy_matrix(a, deps=deps), compute_uv=False)
+        if s.size == 0:
+            raise ValueError("cond of an empty matrix is undefined")
+        smax, smin = float(s.max()), float(s.min())
+        if p == -2:
+            return smin / smax if smax != 0 else float("inf")
+        return smax / smin if smin != 0 else float("inf")
+    try:
+        inv_a = invert(a, deps=deps)
+    except Exception:  # singular: NumPy returns inf here too
+        return float("inf")
+    return float(norm(a, p, deps=deps) * norm(inv_a, p, deps=deps))
 
 
 def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:

@@ -267,6 +267,10 @@ def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool
     getter = get_fn
     if use_complex and callable(get_complex):
         getter = get_complex
+    elif np.issubdtype(target_dtype, np.integer) and callable(get_fn):
+        # Integers: read exactly. Through get_element_as_double, int64/uint64 values
+        # beyond 2**53 lose precision (and near 2**64 overflow on conversion).
+        getter = get_fn
     elif callable(get_double):
         getter = get_double
 

@@ -97,10 +97,12 @@ PersistentObject            (global namespace, include/pycauset/core/PersistentO
 * Python sees ~41 concrete classes (one per structure × dtype), named
   inconsistently: `FloatMatrix` = float64 and `IntegerMatrix` = int32, but
   `Float32Matrix`, `Int8Matrix`, `UInt64Matrix`, and so on.
-* **[BUG F-001]** `scalar_` is lazy: `A * 3` on int32 creates a view with
-  `scalar_ = 3`. Some readers apply it (`sum`) and others don't (`__getitem__`,
-  NumPy export, matmul). Every reader of a `PersistentObject` must honour all view
-  metadata, and that contract is not enforced anywhere.
+* **Invariant (F-001):** integer and bit matrices never carry a lazy `scalar_`; scalar ops
+  on them are computed by `ScalarOps` with NumPy result dtypes. Float/complex matrices may
+  carry a lazy scalar, and every reader of them must apply it.
+* **[F-032]** Python classes exist only for some template instantiations
+  (Triangular{bit,int32,float64}, Diagonal/Identity{float64}); others reach Python as a
+  bare `MatrixBase`.
 
 ### 2.2 Construction: ObjectFactory [OK]
 `core/ObjectFactory.cpp` creates matrices and vectors from `(rows, cols, DataType,
@@ -187,7 +189,7 @@ pybind lambda (bind_matrix.cpp)
 |---|---|---|
 | `bindings.cpp` | small | `PYBIND11_MODULE`, calls the `bind_*` functions |
 | `bind_core.cpp` | 273 | storage config, threads, memory threshold, IOAccelerator, hints |
-| `bind_matrix.cpp` | **4,719** | every matrix class, operators (~8 overloads per operator), NumPy buffer protocol, construction from NumPy |
+| `bind_matrix.cpp` | **~4,700** | every matrix class, operators (~8 overloads per operator; scalar overloads delegate to ScalarOps for int/bit), NumPy buffer protocol and generic native export (`export_dense_any`), construction from NumPy |
 | `bind_vector.cpp` | 1,371 | vector classes |
 | `bind_complex.cpp` | 174 | complex16 extras |
 | `bind_expression.cpp` | 260 | `LazyMatrix` |
@@ -284,6 +286,12 @@ clauses, 126 of which silently `pass`. Many failure modes are invisible by desig
 → its native mirror → `_native.sprinkle(st, n, seed)` → Sprinkler.cpp sprinkles,
 sorts by time, fills the `TriangularBitMatrix` bits → MemoryGovernor decides RAM or
 disk.
+
+**`A * 3` / `A - 1` / `-A` (any scalar op)** → pybind overload (typed or catch-all;
+`to_scalar_arg` classifies Python/NumPy numbers) → integer/bit matrices, and any case
+where the result dtype changes, go to `pycauset::scalar_op` (`src/math/ScalarOps.cpp`):
+NumPy result dtypes, exact typed kernel, triangular kept when 0 ↦ 0. Same-dtype float ops
+keep the O(1) lazy-scalar/LazyMatrix paths.
 
 **`A @ B` (float64 dense)** → Python debug wrapper → pybind `__matmul__` →
 `pycauset::matmul` → ComputeContext → AutoSolver → CpuDevice → `CpuSolver::matmul`
