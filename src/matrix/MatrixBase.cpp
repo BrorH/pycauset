@@ -9,16 +9,16 @@
 namespace pycauset {
 
 MatrixBase::MatrixBase(uint64_t n, 
-                       pycauset::MatrixType matrix_type,
+                       pycauset::Structure structure,
                        pycauset::DataType data_type)
-    : MatrixBase(n, n, matrix_type, data_type) {}
+    : MatrixBase(n, n, structure, data_type) {}
 
 MatrixBase::MatrixBase(uint64_t rows,
                        uint64_t cols,
-                       pycauset::MatrixType matrix_type,
+                       pycauset::Structure structure,
                        pycauset::DataType data_type)
     : PersistentObject() {
-    matrix_type_ = matrix_type;
+    structure_ = structure;
     data_type_ = data_type;
     rows_ = rows;
     cols_ = cols;
@@ -30,24 +30,24 @@ MatrixBase::MatrixBase(uint64_t rows,
 
 MatrixBase::MatrixBase(uint64_t n, 
                        std::shared_ptr<MemoryMapper> mapper,
-                       pycauset::MatrixType matrix_type,
+                       pycauset::Structure structure,
                        pycauset::DataType data_type,
                        uint64_t seed,
                        std::complex<double> scalar,
                        bool is_transposed,
                        bool is_temporary)
-    : MatrixBase(n, n, std::move(mapper), matrix_type, data_type, seed, scalar, is_transposed, is_temporary) {}
+    : MatrixBase(n, n, std::move(mapper), structure, data_type, seed, scalar, is_transposed, is_temporary) {}
 
 MatrixBase::MatrixBase(uint64_t rows,
                        uint64_t cols,
                        std::shared_ptr<MemoryMapper> mapper,
-                       pycauset::MatrixType matrix_type,
+                       pycauset::Structure structure,
                        pycauset::DataType data_type,
                        uint64_t seed,
                        std::complex<double> scalar,
                        bool is_transposed,
                        bool is_temporary)
-    : PersistentObject(std::move(mapper), matrix_type, data_type, rows, cols, seed, scalar, is_transposed, is_temporary) {
+    : PersistentObject(std::move(mapper), structure, data_type, rows, cols, seed, scalar, is_transposed, is_temporary) {
     logical_rows_ = rows;
     logical_cols_ = cols;
     row_offset_ = 0;
@@ -55,7 +55,7 @@ MatrixBase::MatrixBase(uint64_t rows,
 }
 
 std::unique_ptr<PersistentObject> MatrixBase::clone() const {
-    auto out = ObjectFactory::clone_matrix(mapper_, base_rows(), base_cols(), data_type_, matrix_type_, seed_, scalar_, is_transposed_);
+    auto out = ObjectFactory::clone_matrix(mapper_, base_rows(), base_cols(), data_type_, structure_, seed_, scalar_, is_transposed_);
     out->set_conjugated(is_conjugated());
     if (auto* m = dynamic_cast<MatrixBase*>(out.get())) {
         m->set_view(logical_rows_, logical_cols_, row_offset_, col_offset_);

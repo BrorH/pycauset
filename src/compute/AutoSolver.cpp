@@ -431,8 +431,8 @@ void AutoSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
         if (prefers_cpu_for_properties(a) || prefers_cpu_for_properties(b)) {
             use_gpu = false;
         }
-        bool a_ok = (a.get_matrix_type() == MatrixType::DENSE_FLOAT);
-        bool b_ok = (b.get_matrix_type() == MatrixType::DENSE_FLOAT);
+        bool a_ok = (a.get_structure() == Structure::DENSE);
+        bool b_ok = (b.get_structure() == Structure::DENSE);
 
         DataType dt_a = a.get_data_type();
         DataType dt_b = b.get_data_type();
@@ -477,7 +477,7 @@ void AutoSolver::inverse(const MatrixBase& in, MatrixBase& out) {
 
     bool use_gpu = false;
     if (is_gpu_active()) {
-        if (in.get_matrix_type() == MatrixType::DENSE_FLOAT) {
+        if (in.get_structure() == Structure::DENSE) {
             DataType dt = in.get_data_type();
             if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
                 if (prefers_cpu_for_properties(in)) {
@@ -515,7 +515,7 @@ void AutoSolver::cholesky(const MatrixBase& in, MatrixBase& out) {
 
     bool use_gpu = false;
     if (is_gpu_active()) {
-        if (in.get_matrix_type() == MatrixType::DENSE_FLOAT) {
+        if (in.get_structure() == Structure::DENSE) {
             DataType dt = in.get_data_type();
             if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
                 if (prefers_cpu_for_properties(in)) {
@@ -600,9 +600,9 @@ void AutoSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& resul
 
     bool use_gpu = false;
     if (is_gpu_active()) {
-        bool type_ok = (a.get_matrix_type() == MatrixType::DENSE_FLOAT) &&
-                       (b.get_matrix_type() == MatrixType::DENSE_FLOAT) &&
-                       (result.get_matrix_type() == MatrixType::DENSE_FLOAT);
+        bool type_ok = (a.get_structure() == Structure::DENSE) &&
+                       (b.get_structure() == Structure::DENSE) &&
+                       (result.get_structure() == Structure::DENSE);
 
         DataType dt_a = a.get_data_type();
         DataType dt_b = b.get_data_type();
@@ -652,9 +652,9 @@ void AutoSolver::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& 
 
     bool use_gpu = false;
     if (is_gpu_active()) {
-        bool type_ok = (a.get_matrix_type() == MatrixType::DENSE_FLOAT) &&
-                       (b.get_matrix_type() == MatrixType::DENSE_FLOAT) &&
-                       (result.get_matrix_type() == MatrixType::DENSE_FLOAT);
+        bool type_ok = (a.get_structure() == Structure::DENSE) &&
+                       (b.get_structure() == Structure::DENSE) &&
+                       (result.get_structure() == Structure::DENSE);
 
         DataType dt_a = a.get_data_type();
         DataType dt_b = b.get_data_type();
@@ -714,8 +714,8 @@ void AutoSolver::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase&
 
     bool use_gpu = false;
     if (is_gpu_active()) {
-        bool type_ok = (a.get_matrix_type() == MatrixType::DENSE_FLOAT) &&
-                       (result.get_matrix_type() == MatrixType::DENSE_FLOAT);
+        bool type_ok = (a.get_structure() == Structure::DENSE) &&
+                       (result.get_structure() == Structure::DENSE);
 
         DataType dt_a = a.get_data_type();
         DataType dt_r = result.get_data_type();
@@ -831,7 +831,7 @@ void AutoSolver::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
     bool use_gpu = false;
     // The GPU path handles square dense float/double only; rectangular input
     // routes straight to the CPU (no wasted dispatch + throw).
-    if (is_gpu_active() && in.get_matrix_type() == MatrixType::DENSE_FLOAT && in.rows() == in.cols()) {
+    if (is_gpu_active() && in.get_structure() == Structure::DENSE && in.rows() == in.cols()) {
         DataType dt = in.get_data_type();
         if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
             if (prefers_cpu_for_properties(in)) {
@@ -869,7 +869,7 @@ void AutoSolver::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBa
     bool use_gpu = false;
     // The GPU path handles square dense float/double only; rectangular input
     // routes straight to the CPU (no wasted dispatch + throw).
-    if (is_gpu_active() && in.get_matrix_type() == MatrixType::DENSE_FLOAT && in.rows() == in.cols()) {
+    if (is_gpu_active() && in.get_structure() == Structure::DENSE && in.rows() == in.cols()) {
         DataType dt = in.get_data_type();
         if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
             if (prefers_cpu_for_properties(in)) {
@@ -907,7 +907,7 @@ void AutoSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixB
     bool use_gpu = false;
     // The GPU path handles square dense float/double only; rectangular input
     // routes straight to the CPU (no wasted dispatch + throw).
-    if (is_gpu_active() && in.get_matrix_type() == MatrixType::DENSE_FLOAT && in.rows() == in.cols()) {
+    if (is_gpu_active() && in.get_structure() == Structure::DENSE && in.rows() == in.cols()) {
         DataType dt = in.get_data_type();
         if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
             if (prefers_cpu_for_properties(in)) {
@@ -1000,7 +1000,7 @@ void AutoSolver::eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& 
     double ops = 10.0 * static_cast<double>(n) * static_cast<double>(n) * static_cast<double>(n);
 
     bool use_gpu = false;
-    if (is_gpu_active() && in.get_matrix_type() == MatrixType::DENSE_FLOAT) {
+    if (is_gpu_active() && in.get_structure() == Structure::DENSE) {
         DataType dt = in.get_data_type();
         if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
             if (prefers_cpu_for_properties(in)) {
@@ -1035,7 +1035,7 @@ void AutoSolver::eigvals(const MatrixBase& in, VectorBase& eigenvalues) {
     double ops = 10.0 * static_cast<double>(n) * static_cast<double>(n) * static_cast<double>(n);
 
     bool use_gpu = false;
-    if (is_gpu_active() && in.get_matrix_type() == MatrixType::DENSE_FLOAT) {
+    if (is_gpu_active() && in.get_structure() == Structure::DENSE) {
         DataType dt = in.get_data_type();
         if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
             if (prefers_cpu_for_properties(in)) {

@@ -30,13 +30,13 @@ public:
         : DenseMatrix(n, n, backing_file) {}
 
     DenseMatrix(uint64_t rows, uint64_t cols, const std::string& backing_file = "")
-        : MatrixBase(rows, cols, pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {
+        : MatrixBase(rows, cols, pycauset::Structure::DENSE, MatrixTraits<T>::data_type) {
         const uint64_t size_in_bytes = rows * cols * sizeof(T);
         initialize_storage(size_in_bytes,
                            backing_file,
                            std::string("dense_") + MatrixTraits<T>::name,
                            sizeof(T),
-                           pycauset::MatrixType::DENSE_FLOAT,
+                           pycauset::Structure::DENSE,
                            MatrixTraits<T>::data_type,
                            rows,
                            cols);
@@ -57,13 +57,13 @@ public:
                 uint64_t seed,
                 std::complex<double> scalar,
                 bool is_transposed)
-        : MatrixBase(rows, cols, pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {
+        : MatrixBase(rows, cols, pycauset::Structure::DENSE, MatrixTraits<T>::data_type) {
         const uint64_t size_in_bytes = rows * cols * sizeof(T);
         initialize_storage(size_in_bytes,
                            backing_file,
                            "",
                            sizeof(T),
-                           pycauset::MatrixType::DENSE_FLOAT,
+                           pycauset::Structure::DENSE,
                            MatrixTraits<T>::data_type,
                            rows,
                            cols,
@@ -79,7 +79,7 @@ public:
         : DenseMatrix(n, n, std::move(mapper)) {}
 
     DenseMatrix(uint64_t rows, uint64_t cols, std::shared_ptr<MemoryMapper> mapper)
-        : MatrixBase(rows, cols, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {}
+        : MatrixBase(rows, cols, std::move(mapper), pycauset::Structure::DENSE, MatrixTraits<T>::data_type) {}
 
     DenseMatrix(uint64_t view_rows,
                 uint64_t view_cols,
@@ -93,7 +93,7 @@ public:
                 bool is_transposed,
                 bool is_conjugated,
                 bool is_temporary)
-        : MatrixBase(base_rows, base_cols, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type, seed, scalar, is_transposed, is_temporary) {
+        : MatrixBase(base_rows, base_cols, std::move(mapper), pycauset::Structure::DENSE, MatrixTraits<T>::data_type, seed, scalar, is_transposed, is_temporary) {
         set_view(view_rows, view_cols, row_offset, col_offset);
         set_conjugated(is_conjugated);
     }

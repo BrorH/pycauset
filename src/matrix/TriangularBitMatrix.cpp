@@ -16,11 +16,11 @@ namespace pycauset {
 // Explicit template instantiation if needed, but we are defining the specialization here.
 
 TriangularMatrix<bool>::TriangularMatrix(uint64_t n, const std::string& backing_file)
-    : TriangularMatrixBase(n, pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT) {
+    : TriangularMatrixBase(n, pycauset::Structure::TRIANGULAR, pycauset::DataType::BIT) {
     // Calculate offsets for bits (1 bit per element), aligned to 64 bits
     uint64_t size_in_bytes = calculate_triangular_offsets(1, 64);
     initialize_storage(size_in_bytes, backing_file, "causal_matrix", 8, 
-                      pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT,
+                      pycauset::Structure::TRIANGULAR, pycauset::DataType::BIT,
                       n, n);
 }
 
@@ -30,11 +30,11 @@ TriangularMatrix<bool>::TriangularMatrix(uint64_t n,
                                          uint64_t seed,
                                          std::complex<double> scalar,
                                          bool is_transposed)
-    : TriangularMatrixBase(n, pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT) {
+    : TriangularMatrixBase(n, pycauset::Structure::TRIANGULAR, pycauset::DataType::BIT) {
     
     uint64_t size_in_bytes = calculate_triangular_offsets(1, 64);
     initialize_storage(size_in_bytes, backing_file, "", 8, 
-                      pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT,
+                      pycauset::Structure::TRIANGULAR, pycauset::DataType::BIT,
                       n, n, offset, false);
     
     set_seed(seed);
@@ -43,7 +43,7 @@ TriangularMatrix<bool>::TriangularMatrix(uint64_t n,
 }
 
 TriangularMatrix<bool>::TriangularMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-    : TriangularMatrixBase(n, std::move(mapper), pycauset::MatrixType::CAUSAL, pycauset::DataType::BIT) {
+    : TriangularMatrixBase(n, std::move(mapper), pycauset::Structure::TRIANGULAR, pycauset::DataType::BIT) {
     // Calculate offsets for bits (1 bit per element), aligned to 64 bits
     calculate_triangular_offsets(1, 64);
 }

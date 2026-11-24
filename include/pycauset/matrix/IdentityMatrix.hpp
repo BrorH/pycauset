@@ -17,14 +17,14 @@ public:
         : IdentityMatrix(n, n, backing_file) {}
 
     IdentityMatrix(uint64_t rows, uint64_t cols, const std::string& backing_file)
-        : MatrixBase(rows, cols, pycauset::MatrixType::IDENTITY, MatrixTraits<T>::data_type) {
+        : MatrixBase(rows, cols, pycauset::Structure::IDENTITY, MatrixTraits<T>::data_type) {
         // Identity matrices have no data payload; they only need metadata.
         initialize_storage(
             /*size_in_bytes=*/0,
             backing_file,
             /*fallback_prefix=*/"identity",
             /*min_size_bytes=*/0,
-            pycauset::MatrixType::IDENTITY,
+            pycauset::Structure::IDENTITY,
             MatrixTraits<T>::data_type,
             rows,
             cols);
@@ -47,13 +47,13 @@ public:
                    uint64_t seed,
                    std::complex<double> scalar,
                    bool is_transposed)
-        : MatrixBase(rows, cols, pycauset::MatrixType::IDENTITY, MatrixTraits<T>::data_type) {
+        : MatrixBase(rows, cols, pycauset::Structure::IDENTITY, MatrixTraits<T>::data_type) {
         initialize_storage(
             /*size_in_bytes=*/0,
             backing_file,
             /*fallback_prefix=*/"",
             /*min_size_bytes=*/0,
-            pycauset::MatrixType::IDENTITY,
+            pycauset::Structure::IDENTITY,
             MatrixTraits<T>::data_type,
             rows,
             cols,
@@ -72,7 +72,7 @@ public:
         : MatrixBase(rows,
                      cols,
                      std::move(mapper),
-                     pycauset::MatrixType::IDENTITY,
+                     pycauset::Structure::IDENTITY,
                      MatrixTraits<T>::data_type) {}
 
     void set(uint64_t /*i*/, uint64_t /*j*/, T /*value*/) {

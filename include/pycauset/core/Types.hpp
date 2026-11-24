@@ -4,18 +4,18 @@
 
 namespace pycauset {
 
-enum class MatrixType : uint32_t {
+// How a matrix or vector stores its elements. Independent of the element type (DataType):
+// a causal matrix is TRIANGULAR with DataType::BIT.
+enum class Structure : uint32_t {
     UNKNOWN = 0,
-    CAUSAL = 1,
-    INTEGER = 2,
-    TRIANGULAR_FLOAT = 3,
-    DENSE_FLOAT = 4,
-    IDENTITY = 5,
-    VECTOR = 6,
-    DIAGONAL = 7,
-    UNIT_VECTOR = 8,
-    SYMMETRIC = 9,
-    ANTISYMMETRIC = 10
+    DENSE = 1,
+    TRIANGULAR = 2,      // strictly upper triangular storage (transposed views read as lower)
+    DIAGONAL = 3,
+    IDENTITY = 4,
+    SYMMETRIC = 5,       // packed upper triangle, A == A^T
+    ANTISYMMETRIC = 6,   // packed strict upper triangle, A == -A^T
+    VECTOR = 7,
+    UNIT_VECTOR = 8
 };
 
 enum class DataType : uint32_t {

@@ -35,14 +35,14 @@ template <typename T>
 class TriangularMatrix : public TriangularMatrixBase {
 public:
     TriangularMatrix(uint64_t n, const std::string& backing_file = "", bool has_diagonal = false)
-        : TriangularMatrixBase(n, pycauset::MatrixType::TRIANGULAR_FLOAT, MatrixTraits<T>::data_type) {
+        : TriangularMatrixBase(n, pycauset::Structure::TRIANGULAR, MatrixTraits<T>::data_type) {
         has_diagonal_ = has_diagonal;
         // Calculate offsets for T (sizeof(T)*8 bits per element), aligned to 64 bits
         uint64_t size_in_bytes = calculate_triangular_offsets(sizeof(T) * 8, 64);
         initialize_storage(size_in_bytes, backing_file, 
                          std::string("triangular_") + MatrixTraits<T>::name, 
                          8,
-                         pycauset::MatrixType::TRIANGULAR_FLOAT, 
+                         pycauset::Structure::TRIANGULAR, 
                          MatrixTraits<T>::data_type,
                          n, n);
     }
@@ -55,13 +55,13 @@ public:
                      std::complex<double> scalar,
                      bool is_transposed,
                      bool has_diagonal = false)
-        : TriangularMatrixBase(n, pycauset::MatrixType::TRIANGULAR_FLOAT, MatrixTraits<T>::data_type) {
+        : TriangularMatrixBase(n, pycauset::Structure::TRIANGULAR, MatrixTraits<T>::data_type) {
         has_diagonal_ = has_diagonal;
         uint64_t size_in_bytes = calculate_triangular_offsets(sizeof(T) * 8, 64);
         initialize_storage(size_in_bytes, backing_file, 
                          "", 
                          8,
-                         pycauset::MatrixType::TRIANGULAR_FLOAT, 
+                         pycauset::Structure::TRIANGULAR, 
                          MatrixTraits<T>::data_type,
                          n, n,
                          offset,
@@ -73,7 +73,7 @@ public:
     }
 
     TriangularMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper, bool has_diagonal = false)
-        : TriangularMatrixBase(n, std::move(mapper), pycauset::MatrixType::TRIANGULAR_FLOAT, MatrixTraits<T>::data_type) {
+        : TriangularMatrixBase(n, std::move(mapper), pycauset::Structure::TRIANGULAR, MatrixTraits<T>::data_type) {
         has_diagonal_ = has_diagonal;
         calculate_triangular_offsets(sizeof(T) * 8, 64);
     }

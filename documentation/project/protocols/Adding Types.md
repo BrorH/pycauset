@@ -6,7 +6,7 @@
 
 ### 1) Core definitions (`include/pycauset/core/Types.hpp`)
 
-- Add a new enum value to `MatrixType`.
+- Add a new enum value to `Structure` (structures) or `DataType` (dtypes), both in `include/pycauset/core/Types.hpp`.
 - Decide whether the new type is a matrix-like (`rows x cols`) or a vector-like (`n x 1`) object.
 
 ### 2) Define the class

@@ -2438,7 +2438,7 @@ void bind_matrix_classes(py::module_& m) {
                     return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release()));
                 }
                 const double sv = s.cast<double>();
-                if (a.get_matrix_type() == pycauset::MatrixType::TRIANGULAR_FLOAT) {
+                if (a.get_structure() == pycauset::Structure::TRIANGULAR) {
                     auto out = a.multiply_scalar(sv, "");
                     return py::cast(std::shared_ptr<MatrixBase>(out.release()));
                 }
@@ -2454,7 +2454,7 @@ void bind_matrix_classes(py::module_& m) {
                     return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release()));
                 }
                 const int64_t sv = s.cast<int64_t>();
-                if (a.get_matrix_type() == pycauset::MatrixType::TRIANGULAR_FLOAT) {
+                if (a.get_structure() == pycauset::Structure::TRIANGULAR) {
                     auto out = a.multiply_scalar(static_cast<double>(sv), "");
                     return py::cast(std::shared_ptr<MatrixBase>(out.release()));
                 }
@@ -2504,7 +2504,7 @@ void bind_matrix_classes(py::module_& m) {
                     return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release()));
                 }
                 const double sv = s.cast<double>();
-                if (a.get_matrix_type() == pycauset::MatrixType::TRIANGULAR_FLOAT) {
+                if (a.get_structure() == pycauset::Structure::TRIANGULAR) {
                     auto out = a.multiply_scalar(sv, "");
                     return py::cast(std::shared_ptr<MatrixBase>(out.release()));
                 }
@@ -2555,7 +2555,7 @@ void bind_matrix_classes(py::module_& m) {
                     return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release()));
                 }
                 const int64_t sv = s.cast<int64_t>();
-                if (a.get_matrix_type() == pycauset::MatrixType::TRIANGULAR_FLOAT) {
+                if (a.get_structure() == pycauset::Structure::TRIANGULAR) {
                     auto out = a.multiply_scalar(static_cast<double>(sv), "");
                     return py::cast(std::shared_ptr<MatrixBase>(out.release()));
                 }

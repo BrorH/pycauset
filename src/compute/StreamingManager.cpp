@@ -51,9 +51,9 @@ void StreamingManager::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBa
 
     // Identify DataType and dispatch
     // Currently only supporting dense floating point for streaming
-    if (a.get_matrix_type() != MatrixType::DENSE_FLOAT || 
-        b.get_matrix_type() != MatrixType::DENSE_FLOAT || 
-        c.get_matrix_type() != MatrixType::DENSE_FLOAT) {
+    if (a.get_structure() != Structure::DENSE || 
+        b.get_structure() != Structure::DENSE || 
+        c.get_structure() != Structure::DENSE) {
          throw std::runtime_error("StreamingManager currently only supports Dense Float/Double matrices");
     }
 

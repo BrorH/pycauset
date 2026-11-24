@@ -20,7 +20,7 @@ public:
         : ComplexFloat16Matrix(n, n, backing_file) {}
 
     ComplexFloat16Matrix(uint64_t rows, uint64_t cols, const std::string& backing_file = "")
-        : MatrixBase(rows, cols, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::COMPLEX_FLOAT16) {
+        : MatrixBase(rows, cols, pycauset::Structure::DENSE, pycauset::DataType::COMPLEX_FLOAT16) {
         const uint64_t plane_elems = rows * cols;
         const uint64_t size_in_bytes = 2ULL * plane_elems * sizeof(pycauset::float16_t);
         initialize_storage(
@@ -28,7 +28,7 @@ public:
             backing_file,
             std::string("dense_complex_float16"),
             sizeof(pycauset::float16_t),
-            pycauset::MatrixType::DENSE_FLOAT,
+            pycauset::Structure::DENSE,
             pycauset::DataType::COMPLEX_FLOAT16,
             rows,
             cols);
@@ -49,7 +49,7 @@ public:
                          uint64_t seed,
                          std::complex<double> scalar,
                          bool is_transposed)
-        : MatrixBase(rows, cols, pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::COMPLEX_FLOAT16) {
+        : MatrixBase(rows, cols, pycauset::Structure::DENSE, pycauset::DataType::COMPLEX_FLOAT16) {
         const uint64_t plane_elems = rows * cols;
         const uint64_t size_in_bytes = 2ULL * plane_elems * sizeof(pycauset::float16_t);
         initialize_storage(
@@ -57,7 +57,7 @@ public:
             backing_file,
             "",
             sizeof(pycauset::float16_t),
-            pycauset::MatrixType::DENSE_FLOAT,
+            pycauset::Structure::DENSE,
             pycauset::DataType::COMPLEX_FLOAT16,
             rows,
             cols,
@@ -73,7 +73,7 @@ public:
         : ComplexFloat16Matrix(n, n, std::move(mapper)) {}
 
     ComplexFloat16Matrix(uint64_t rows, uint64_t cols, std::shared_ptr<MemoryMapper> mapper)
-        : MatrixBase(rows, cols, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::COMPLEX_FLOAT16) {}
+        : MatrixBase(rows, cols, std::move(mapper), pycauset::Structure::DENSE, pycauset::DataType::COMPLEX_FLOAT16) {}
 
     ~ComplexFloat16Matrix() override = default;
 

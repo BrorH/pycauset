@@ -145,11 +145,11 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.3 Single source of truth for operators and properties (RESTRUCTURE §3.1 items 1–2); delete the monkeypatch stack
 - [ ] 4.4 Python `_internal/` subpackages; `.pyi` generation (F-007)
 - [ ] 4.5 Retire the old test suite per TESTS.md §4 migration rules
-- [ ] 4.6 Naming sweep: milestone names out; class renames (§3.1 item 4). **Together with
-      F-032:** register a Python class for every instantiation the factory can create
-      (generated from one dtype×structure table: bindings, persistence class map, facade,
-      docs), named in the new scheme (e.g. `TriangularInt16Matrix`). Prerequisite for
-      value bounds (F1), which will produce int8/int16 triangular counts.
+- [ ] 4.6 Naming sweep: milestone names out; **structure classes** (§3.1 item 4, revised):
+      `MatrixType`→`Structure` enum ✅; one Python class per structure with `.dtype`
+      (fixes F-032 by construction); persistence keyed by (structure, dtype); old
+      per-dtype class names removed everywhere (code, tests, docs). Prerequisite for
+      value bounds (F1) and lazy views (L1).
 - [ ] 4.7 One StreamingManager; one Minkowski implementation path
 - [ ] 4.8 Silent-exception sweep (126 sites)
 - [ ] 4.9 Per-directory README.md files (what lives here, what doesn't)
@@ -158,7 +158,7 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
 Views and deferred expressions for every dtype, structure and vector. Rule: laziness is
 unobservable except through speed and memory. Order: L0 is Phase 4.3 + 4.6 + F-043;
 then L1 → L2 → F1 → L3 → L4 → L5 (only if measured worthwhile) → L6.
-- [ ] L0 Prerequisites: generated dtype×structure table (4.6/F-032), single operator path
+- [ ] L0 Prerequisites: structure classes (4.6/F-032), single operator path
       (4.3), views read at kernel speed (F-043)
 - [ ] L1 `ViewSpec`: typed exact factors, scale/negate/conj/transpose/cast views for all
       16 dtypes × all structures × matrices and vectors; free transposes (F-044); streaming

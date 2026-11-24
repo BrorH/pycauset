@@ -17,19 +17,19 @@ class MatrixBase : public PersistentObject {
 public:
     // Constructor for creating new matrix (square)
     MatrixBase(uint64_t n,
-               pycauset::MatrixType matrix_type,
+               pycauset::Structure structure,
                pycauset::DataType data_type);
 
     // Constructor for creating new matrix (rectangular)
     MatrixBase(uint64_t rows,
                uint64_t cols,
-               pycauset::MatrixType matrix_type,
+               pycauset::Structure structure,
                pycauset::DataType data_type);
 
     // Constructor for loading/wrapping existing storage (square)
     MatrixBase(uint64_t n,
                std::shared_ptr<MemoryMapper> mapper,
-               pycauset::MatrixType matrix_type,
+               pycauset::Structure structure,
                pycauset::DataType data_type,
                uint64_t seed = 0,
                std::complex<double> scalar = 1.0,
@@ -40,7 +40,7 @@ public:
     MatrixBase(uint64_t rows,
                uint64_t cols,
                std::shared_ptr<MemoryMapper> mapper,
-               pycauset::MatrixType matrix_type,
+               pycauset::Structure structure,
                pycauset::DataType data_type,
                uint64_t seed = 0,
                std::complex<double> scalar = 1.0,

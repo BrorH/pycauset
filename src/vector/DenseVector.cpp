@@ -13,7 +13,7 @@ DenseVector<bool>::DenseVector(uint64_t n, const std::string& backing_file)
     uint64_t size_in_bytes = words * 8;
     
     initialize_storage(size_in_bytes, backing_file, "vector_bit", 8, 
-                      pycauset::MatrixType::VECTOR, pycauset::DataType::BIT,
+                      pycauset::Structure::VECTOR, pycauset::DataType::BIT,
                       n, 1);
 }
 
@@ -28,7 +28,7 @@ DenseVector<bool>::DenseVector(uint64_t n,
     uint64_t size_in_bytes = words * 8;
     
     initialize_storage(size_in_bytes, backing_file, "", 8, 
-                      pycauset::MatrixType::VECTOR, pycauset::DataType::BIT,
+                      pycauset::Structure::VECTOR, pycauset::DataType::BIT,
                       n, 1,
                       offset,
                       false);
@@ -39,7 +39,7 @@ DenseVector<bool>::DenseVector(uint64_t n,
 }
 
 DenseVector<bool>::DenseVector(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-    : VectorBase(n, std::move(mapper), pycauset::MatrixType::VECTOR, pycauset::DataType::BIT) {}
+    : VectorBase(n, std::move(mapper), pycauset::Structure::VECTOR, pycauset::DataType::BIT) {}
 
 void DenseVector<bool>::set(uint64_t i, bool value) {
     if (i >= n_) throw std::out_of_range("Index out of bounds");

@@ -21,7 +21,7 @@ namespace {
 bool plain_view(const MatrixBase& m) {
     return !m.is_transposed() && !m.has_view_offset() && !m.is_conjugated() &&
            m.get_scalar() == std::complex<double>(1.0, 0.0) &&
-           m.get_matrix_type() == MatrixType::DENSE_FLOAT;
+           m.get_structure() == Structure::DENSE;
 }
 bool same_dtype_plain(const MatrixBase& a, const MatrixBase& b, const MatrixBase& c) {
     return plain_view(a) && plain_view(b) && plain_view(c) && a.get_data_type() == b.get_data_type() &&

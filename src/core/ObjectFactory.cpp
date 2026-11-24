@@ -21,7 +21,7 @@ namespace pycauset {
 std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
     uint64_t n, 
     DataType dtype, 
-    MatrixType mtype, 
+    Structure mtype, 
     const std::string& backing_file
 ) {
     return create_matrix(n, n, dtype, mtype, backing_file);
@@ -31,18 +31,17 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
     uint64_t rows,
     uint64_t cols,
     DataType dtype,
-    MatrixType mtype,
+    Structure mtype,
     const std::string& backing_file
 ) {
     const bool must_be_square =
-        (mtype == MatrixType::DIAGONAL || mtype == MatrixType::SYMMETRIC ||
-         mtype == MatrixType::ANTISYMMETRIC || mtype == MatrixType::TRIANGULAR_FLOAT ||
-         mtype == MatrixType::CAUSAL);
+        (mtype == Structure::DIAGONAL || mtype == Structure::SYMMETRIC ||
+         mtype == Structure::ANTISYMMETRIC || mtype == Structure::TRIANGULAR);
     if (must_be_square && rows != cols) {
-        throw std::invalid_argument("MatrixType requires square dimensions");
+        throw std::invalid_argument("Structure requires square dimensions");
     }
 
-    if (mtype == MatrixType::IDENTITY) {
+    if (mtype == Structure::IDENTITY) {
         switch (dtype) {
             case DataType::BIT:
                 return std::make_unique<IdentityMatrix<bool>>(rows, cols, backing_file);
@@ -69,7 +68,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
         }
     }
 
-    if (mtype == MatrixType::DIAGONAL) {
+    if (mtype == Structure::DIAGONAL) {
         const uint64_t n = rows;
         switch (dtype) {
             case DataType::BIT:
@@ -97,9 +96,9 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
         }
     }
 
-    if (mtype == MatrixType::SYMMETRIC || mtype == MatrixType::ANTISYMMETRIC) {
+    if (mtype == Structure::SYMMETRIC || mtype == Structure::ANTISYMMETRIC) {
         const uint64_t n = rows;
-        const bool is_anti = (mtype == MatrixType::ANTISYMMETRIC);
+        const bool is_anti = (mtype == Structure::ANTISYMMETRIC);
         switch (dtype) {
             case DataType::BIT:
                 return std::make_unique<SymmetricMatrix<bool>>(n, backing_file, is_anti);
@@ -130,7 +129,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
         }
     }
 
-    const bool is_triangular = (mtype == MatrixType::TRIANGULAR_FLOAT || mtype == MatrixType::CAUSAL);
+    const bool is_triangular = (mtype == Structure::TRIANGULAR);
     if (is_triangular) {
         const uint64_t n = rows;
         switch (dtype) {
@@ -205,10 +204,10 @@ std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
 std::unique_ptr<VectorBase> ObjectFactory::create_vector(
     uint64_t n, 
     DataType dtype, 
-    MatrixType mtype, 
+    Structure mtype, 
     const std::string& backing_file
 ) {
-    if (mtype == MatrixType::VECTOR) {
+    if (mtype == Structure::VECTOR) {
         switch (dtype) {
             case DataType::BIT:
                 return std::make_unique<DenseVector<bool>>(n, backing_file);
@@ -245,7 +244,7 @@ std::unique_ptr<VectorBase> ObjectFactory::create_vector(
         }
     }
     
-    if (mtype == MatrixType::UNIT_VECTOR) {
+    if (mtype == Structure::UNIT_VECTOR) {
         throw std::runtime_error("UnitVector requires an active index for creation");
     }
 
@@ -257,23 +256,22 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
     uint64_t rows,
     uint64_t cols,
     DataType dtype,
-    MatrixType mtype,
+    Structure mtype,
     uint64_t seed,
     std::complex<double> scalar,
     bool is_transposed
 ) {
     const bool must_be_square =
-        (mtype == MatrixType::DIAGONAL || mtype == MatrixType::SYMMETRIC ||
-         mtype == MatrixType::ANTISYMMETRIC || mtype == MatrixType::TRIANGULAR_FLOAT ||
-         mtype == MatrixType::CAUSAL);
+        (mtype == Structure::DIAGONAL || mtype == Structure::SYMMETRIC ||
+         mtype == Structure::ANTISYMMETRIC || mtype == Structure::TRIANGULAR);
     if (must_be_square && rows != cols) {
-        throw std::invalid_argument("MatrixType requires square dimensions");
+        throw std::invalid_argument("Structure requires square dimensions");
     }
 
     const uint64_t n = rows;
     std::unique_ptr<MatrixBase> mat;
 
-    if (mtype == MatrixType::IDENTITY) {
+    if (mtype == Structure::IDENTITY) {
         switch (dtype) {
             case DataType::BIT: mat = std::make_unique<IdentityMatrix<bool>>(rows, cols, mapper); break;
             case DataType::INT8: mat = std::make_unique<IdentityMatrix<int8_t>>(rows, cols, mapper); break;
@@ -287,7 +285,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
             case DataType::FLOAT64: mat = std::make_unique<IdentityMatrix<double>>(rows, cols, mapper); break;
             default: throw std::runtime_error("Unsupported DataType for IdentityMatrix clone");
         }
-    } else if (mtype == MatrixType::DIAGONAL) {
+    } else if (mtype == Structure::DIAGONAL) {
         switch (dtype) {
             case DataType::BIT: mat = std::make_unique<DiagonalMatrix<bool>>(n, mapper); break;
             case DataType::INT8: mat = std::make_unique<DiagonalMatrix<int8_t>>(n, mapper); break;
@@ -301,7 +299,7 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
             case DataType::FLOAT64: mat = std::make_unique<DiagonalMatrix<double>>(n, mapper); break;
             default: throw std::runtime_error("Unsupported DataType for DiagonalMatrix clone");
         }
-    } else if (mtype == MatrixType::TRIANGULAR_FLOAT || mtype == MatrixType::CAUSAL) {
+    } else if (mtype == Structure::TRIANGULAR) {
         switch (dtype) {
             case DataType::BIT: mat = std::make_unique<TriangularMatrix<bool>>(n, mapper); break;
             case DataType::INT8: mat = std::make_unique<TriangularMatrix<int8_t>>(n, mapper); break;
@@ -317,8 +315,8 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
             case DataType::FLOAT32: mat = std::make_unique<TriangularMatrix<float>>(n, mapper); break;
             default: throw std::runtime_error("Unsupported DataType for TriangularMatrix clone");
         }
-    } else if (mtype == MatrixType::SYMMETRIC || mtype == MatrixType::ANTISYMMETRIC) {
-        bool is_anti = (mtype == MatrixType::ANTISYMMETRIC);
+    } else if (mtype == Structure::SYMMETRIC || mtype == Structure::ANTISYMMETRIC) {
+        bool is_anti = (mtype == Structure::ANTISYMMETRIC);
         switch (dtype) {
             case DataType::BIT: mat = std::make_unique<SymmetricMatrix<bool>>(n, mapper, is_anti); break;
             case DataType::INT8: mat = std::make_unique<SymmetricMatrix<int8_t>>(n, mapper, is_anti); break;
@@ -368,7 +366,7 @@ std::unique_ptr<VectorBase> ObjectFactory::clone_vector(
     uint64_t rows,
     uint64_t cols,
     DataType dtype,
-    MatrixType mtype,
+    Structure mtype,
     uint64_t seed,
     std::complex<double> scalar,
     bool is_transposed
@@ -376,7 +374,7 @@ std::unique_ptr<VectorBase> ObjectFactory::clone_vector(
     uint64_t n = rows;
     std::unique_ptr<VectorBase> vec;
 
-    if (mtype == MatrixType::UNIT_VECTOR) {
+    if (mtype == Structure::UNIT_VECTOR) {
         vec = std::make_unique<UnitVector>(n, mapper);
     } else {
         switch (dtype) {

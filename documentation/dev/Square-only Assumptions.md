@@ -14,7 +14,7 @@ Some matrix families are inherently square:
 
 Identity matrices are **shape-flexible** in PyCauset: `IdentityMatrix(rows, cols)` (and `pycauset.identity([rows, cols])`) creates an identity-like matrix with ones on the diagonal up to `min(rows, cols)`.
 
-The factory enforces this at creation time: these `MatrixType`s reject `rows != cols` (triangular/causal, diagonal, symmetric/antisymmetric).
+The factory enforces this at creation time: these `Structure`s reject `rows != cols` (triangular/causal, diagonal, symmetric/antisymmetric).
 
 ### DenseBitMatrix is bit-packed (implementation detail)
 

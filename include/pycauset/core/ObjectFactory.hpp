@@ -16,7 +16,7 @@ public:
     static std::unique_ptr<MatrixBase> create_matrix(
         uint64_t n, 
         DataType dtype, 
-        MatrixType mtype, 
+        Structure mtype, 
         const std::string& backing_file = ""
     );
 
@@ -25,7 +25,7 @@ public:
         uint64_t rows,
         uint64_t cols,
         DataType dtype,
-        MatrixType mtype,
+        Structure mtype,
         const std::string& backing_file = ""
     );
 
@@ -35,7 +35,7 @@ public:
         uint64_t rows,
         uint64_t cols,
         DataType dtype,
-        MatrixType mtype,
+        Structure mtype,
         uint64_t seed = 0,
         std::complex<double> scalar = 1.0,
         bool is_transposed = false
@@ -46,7 +46,7 @@ public:
     static std::unique_ptr<VectorBase> create_vector(
         uint64_t n, 
         DataType dtype, 
-        MatrixType mtype, 
+        Structure mtype, 
         const std::string& backing_file = ""
     );
 
@@ -55,7 +55,7 @@ public:
         uint64_t rows,
         uint64_t cols,
         DataType dtype,
-        MatrixType mtype,
+        Structure mtype,
         uint64_t seed = 0,
         std::complex<double> scalar = 1.0,
         bool is_transposed = false

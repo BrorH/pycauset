@@ -65,7 +65,7 @@ namespace {
 }
 
 bool is_identity(const MatrixBase& m) {
-    return m.get_matrix_type() == MatrixType::IDENTITY;
+    return m.get_structure() == Structure::IDENTITY;
 }
 
 // --- Matrix Operations ---
@@ -93,7 +93,7 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
     DataType type_b = b.get_data_type();
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::Add, type_a, type_b).result_dtype;
-    MatrixType res_mtype = structure::resolve_result_structure(promotion::BinaryOp::Add, a, b, res_dtype);
+    Structure res_mtype = structure::resolve_result_structure(promotion::BinaryOp::Add, a, b, res_dtype);
 
     auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     
@@ -125,7 +125,7 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
     DataType type_b = b.get_data_type();
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::Subtract, type_a, type_b).result_dtype;
-    MatrixType res_mtype = structure::resolve_result_structure(promotion::BinaryOp::Subtract, a, b, res_dtype);
+    Structure res_mtype = structure::resolve_result_structure(promotion::BinaryOp::Subtract, a, b, res_dtype);
 
     auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     
@@ -157,7 +157,7 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
     DataType type_b = b.get_data_type();
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, type_a, type_b).result_dtype;
-    MatrixType res_mtype = structure::resolve_result_structure(promotion::BinaryOp::ElementwiseMultiply, a, b, res_dtype);
+    Structure res_mtype = structure::resolve_result_structure(promotion::BinaryOp::ElementwiseMultiply, a, b, res_dtype);
 
     auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     
@@ -174,7 +174,7 @@ std::unique_ptr<MatrixBase> elementwise_divide(const MatrixBase& a, const Matrix
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::Divide, type_a, type_b).result_dtype;
     // Division is not generally structure-preserving (e.g., implicit 0/0 off-triangle).
     // Materialize a dense result for correctness.
-    MatrixType res_mtype = MatrixType::DENSE_FLOAT;
+    Structure res_mtype = Structure::DENSE;
 
     auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
 
@@ -486,7 +486,7 @@ std::unique_ptr<MatrixBase> outer_product(const VectorBase& a, const VectorBase&
     // Determine result type
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::OuterProduct, a.get_data_type(), b.get_data_type()).result_dtype;
     
-    auto result = ObjectFactory::create_matrix(n, res_dtype, MatrixType::DENSE_FLOAT, result_file);
+    auto result = ObjectFactory::create_matrix(n, res_dtype, Structure::DENSE, result_file);
     
     ComputeContext::instance().get_device()->outer_product(a, b, *result);
     
@@ -618,8 +618,8 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     auto* a_fm16 = dynamic_cast<const Float16Matrix2*>(&a);
     auto* b_fm16 = dynamic_cast<const Float16Matrix2*>(&b);
 
-    bool a_is_id = (a.get_matrix_type() == MatrixType::IDENTITY);
-    bool b_is_id = (b.get_matrix_type() == MatrixType::IDENTITY);
+    bool a_is_id = (a.get_structure() == Structure::IDENTITY);
+    bool b_is_id = (b.get_structure() == Structure::IDENTITY);
 
     // Identity x Identity -> Identity
     if (a_is_id && b_is_id) {
@@ -627,7 +627,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             promotion::BinaryOp::Matmul,
             a.get_data_type(),
             b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::IDENTITY, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::IDENTITY, saveas);
         res->set_scalar(a.get_scalar() * b.get_scalar());
         return res;
     }
@@ -725,7 +725,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             promotion::BinaryOp::Matmul,
             a.get_data_type(),
             b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::DENSE, saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -750,7 +750,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             promotion::BinaryOp::Matmul,
             a.get_data_type(),
             b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::DENSE, saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -769,7 +769,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             promotion::BinaryOp::Matmul,
             a.get_data_type(),
             b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::DENSE, saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -832,7 +832,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             promotion::BinaryOp::Matmul,
             a.get_data_type(),
             b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::DENSE, saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -863,7 +863,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             promotion::BinaryOp::Matmul,
             a_dt,
             b_dt).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, MatrixType::DENSE_FLOAT, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::DENSE, saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -914,7 +914,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
         if (!real_supported) {
             throw std::runtime_error("Unsupported matrix multiplication types.");
         }
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dt, MatrixType::DENSE_FLOAT, saveas);
+        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dt, Structure::DENSE, saveas);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -930,7 +930,7 @@ std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& res
         throw std::runtime_error("cholesky: only float32/float64 are supported");
     }
 
-    auto out = ObjectFactory::create_matrix(a.rows(), a.cols(), dtype, MatrixType::DENSE_FLOAT, result_file);
+    auto out = ObjectFactory::create_matrix(a.rows(), a.cols(), dtype, Structure::DENSE, result_file);
     ComputeContext::instance().get_device()->cholesky(a, *out);
     return out;
 }
@@ -956,9 +956,9 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique
     
     DataType dtype = a.get_data_type();
     
-    auto p = ObjectFactory::create_matrix(m, m, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_p");
-    auto l = ObjectFactory::create_matrix(m, k, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_l");
-    auto u = ObjectFactory::create_matrix(k, n, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_u");
+    auto p = ObjectFactory::create_matrix(m, m, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_p");
+    auto l = ObjectFactory::create_matrix(m, k, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_l");
+    auto u = ObjectFactory::create_matrix(k, n, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_u");
 
     ComputeContext::instance().get_device()->lu(a, *p, *l, *u);
     
@@ -974,8 +974,8 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const Ma
     DataType dtype = a.get_data_type();
 
     // Mode 'reduced' is typical default. Q is (M, K), R is (K, N).
-    auto q = ObjectFactory::create_matrix(m, k, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_q");
-    auto r = ObjectFactory::create_matrix(k, n, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_r");
+    auto q = ObjectFactory::create_matrix(m, k, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_q");
+    auto r = ObjectFactory::create_matrix(k, n, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_r");
 
     ComputeContext::instance().get_device()->qr(a, *q, *r);
     
@@ -990,7 +990,7 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique
     DataType dtype = a.get_data_type();
 
     // U: (M, K)
-    auto u = ObjectFactory::create_matrix(m, k, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_u");
+    auto u = ObjectFactory::create_matrix(m, k, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_u");
     
     // S: (K,) - Real values even if input is complex
     DataType s_dtype = (dtype == DataType::COMPLEX_FLOAT32 || dtype == DataType::COMPLEX_FLOAT64) ? 
@@ -999,10 +999,10 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique
     // If input is int, we probably upgraded to float/double elsewhere or should throw. 
     // Assuming float/double here.
     
-    auto s = ObjectFactory::create_vector(k, s_dtype, MatrixType::VECTOR, result_file.empty() ? "" : result_file + "_s");
+    auto s = ObjectFactory::create_vector(k, s_dtype, Structure::VECTOR, result_file.empty() ? "" : result_file + "_s");
     
     // VT: (K, N)
-    auto vt = ObjectFactory::create_matrix(k, n, dtype, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_vt");
+    auto vt = ObjectFactory::create_matrix(k, n, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_vt");
 
     ComputeContext::instance().get_device()->svd(a, *u, *s, *vt);
     
@@ -1019,7 +1019,7 @@ std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, cons
     }
 
     // X has same shape as B
-    auto x = ObjectFactory::create_matrix(b.rows(), b.cols(), a.get_data_type(), MatrixType::DENSE_FLOAT, result_file);
+    auto x = ObjectFactory::create_matrix(b.rows(), b.cols(), a.get_data_type(), Structure::DENSE, result_file);
     
     // We assume A and B have compatible types or rely on device dispatch to handle/throw.
     // Ideally we'd resolve types, but solve typically expects float/double.
@@ -1036,8 +1036,8 @@ static bool is_exactly_symmetric(const MatrixBase& a) {
     if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
         return false;
     }
-    if (a.get_matrix_type() == MatrixType::SYMMETRIC || a.get_matrix_type() == MatrixType::IDENTITY ||
-        a.get_matrix_type() == MatrixType::DIAGONAL) {
+    if (a.get_structure() == Structure::SYMMETRIC || a.get_structure() == Structure::IDENTITY ||
+        a.get_structure() == Structure::DIAGONAL) {
         return true;
     }
     const uint64_t n = a.rows();
@@ -1068,7 +1068,7 @@ std::unique_ptr<VectorBase> eigvals_arnoldi(
     const bool symmetric = is_exactly_symmetric(a);
     auto out = ObjectFactory::create_vector(static_cast<uint64_t>(k),
                                             symmetric ? DataType::FLOAT64 : DataType::COMPLEX_FLOAT64,
-                                            MatrixType::VECTOR, result_file);
+                                            Structure::VECTOR, result_file);
     ComputeContext::instance().get_device()->eigvals_arnoldi(a, *out, k, m, tol);
     return out;
 }
@@ -1087,7 +1087,7 @@ std::unique_ptr<VectorBase> eigvals_skew(
 
     const uint64_t n = a.rows();
     const int kk = std::min(k, static_cast<int>(n));
-    auto out = ObjectFactory::create_vector(static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file);
+    auto out = ObjectFactory::create_vector(static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, Structure::VECTOR, result_file);
     ComputeContext::instance().get_device()->eigvals_skew(a, *out, kk);
     return out;
 }
@@ -1106,8 +1106,8 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig_skew(
 
     const uint64_t n = a.rows();
     const int kk = std::min(k, static_cast<int>(n));
-    auto w = ObjectFactory::create_vector(static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file.empty() ? "" : result_file + "_vals");
-    auto v = ObjectFactory::create_matrix(n, static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_vecs");
+    auto w = ObjectFactory::create_vector(static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, Structure::VECTOR, result_file.empty() ? "" : result_file + "_vals");
+    auto v = ObjectFactory::create_matrix(n, static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, Structure::DENSE, result_file.empty() ? "" : result_file + "_vecs");
 
     ComputeContext::instance().get_device()->eig_skew(a, *w, *v, kk);
     return std::make_pair(std::move(w), std::move(v));
@@ -1118,8 +1118,8 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const Ma
         throw std::invalid_argument("eig: matrix must be square");
     }
     uint64_t n = in.rows();
-    auto w = ObjectFactory::create_vector(n, DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file.empty() ? "" : result_file + "_vals");
-    auto v = ObjectFactory::create_matrix(n, n, DataType::COMPLEX_FLOAT64, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_vecs");
+    auto w = ObjectFactory::create_vector(n, DataType::COMPLEX_FLOAT64, Structure::VECTOR, result_file.empty() ? "" : result_file + "_vals");
+    auto v = ObjectFactory::create_matrix(n, n, DataType::COMPLEX_FLOAT64, Structure::DENSE, result_file.empty() ? "" : result_file + "_vecs");
     
     ComputeContext::instance().get_device()->eig(in, *w, *v);
     return std::make_pair(std::move(w), std::move(v));
@@ -1130,7 +1130,7 @@ std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string& res
         throw std::invalid_argument("eigvals: matrix must be square");
     }
     uint64_t n = in.rows();
-    auto w = ObjectFactory::create_vector(n, DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file);
+    auto w = ObjectFactory::create_vector(n, DataType::COMPLEX_FLOAT64, Structure::VECTOR, result_file);
     ComputeContext::instance().get_device()->eigvals(in, *w);
     return w;
 }
@@ -1141,13 +1141,13 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const M
     }
     uint64_t n = in.rows();
     // eigh returns real eigenvalues for Hermitian matrices
-    auto w = ObjectFactory::create_vector(n, DataType::FLOAT64, MatrixType::VECTOR, result_file.empty() ? "" : result_file + "_vals");
+    auto w = ObjectFactory::create_vector(n, DataType::FLOAT64, Structure::VECTOR, result_file.empty() ? "" : result_file + "_vals");
     // Check if input is complex to determine eigenvector type
     // If input is real/symmetric, eigenvectors are real. If complex/hermitian, complex.
     DataType v_type = (in.get_data_type() == DataType::COMPLEX_FLOAT32 || in.get_data_type() == DataType::COMPLEX_FLOAT64) 
                       ? DataType::COMPLEX_FLOAT64 : DataType::FLOAT64;
 
-    auto v = ObjectFactory::create_matrix(n, n, v_type, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_vecs");
+    auto v = ObjectFactory::create_matrix(n, n, v_type, Structure::DENSE, result_file.empty() ? "" : result_file + "_vecs");
     
     ComputeContext::instance().get_device()->eigh(in, *w, *v, 'L');
     return std::make_pair(std::move(w), std::move(v));
@@ -1158,7 +1158,7 @@ std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string& re
         throw std::invalid_argument("eigvalsh: matrix must be square");
     }
     uint64_t n = in.rows();
-    auto w = ObjectFactory::create_vector(n, DataType::FLOAT64, MatrixType::VECTOR, result_file);
+    auto w = ObjectFactory::create_vector(n, DataType::FLOAT64, Structure::VECTOR, result_file);
     ComputeContext::instance().get_device()->eigvalsh(in, *w, 'L');
     return w;
 }

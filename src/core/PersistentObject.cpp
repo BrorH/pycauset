@@ -15,14 +15,14 @@
 
 PersistentObject::PersistentObject() 
     : mapper_(nullptr), 
-      matrix_type_(pycauset::MatrixType::UNKNOWN), 
+      structure_(pycauset::Structure::UNKNOWN), 
       data_type_(pycauset::DataType::UNKNOWN), 
       rows_(0), cols_(0), seed_(0), scalar_(1.0), 
     is_transposed_(false), is_conjugated_(false), is_temporary_(false),
       storage_state_(pycauset::core::StorageState::DISK_BACKED) {}
 
 PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
-                                   pycauset::MatrixType matrix_type,
+                                   pycauset::Structure structure,
                                    pycauset::DataType data_type,
                                    uint64_t rows,
                                    uint64_t cols,
@@ -31,7 +31,7 @@ PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
                                    bool is_transposed,
                                    bool is_temporary)
     : mapper_(std::move(mapper)),
-      matrix_type_(matrix_type),
+      structure_(structure),
       data_type_(data_type),
       rows_(rows),
       cols_(cols),
@@ -202,7 +202,7 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
                                    const std::string& backing_file,
                                    const std::string& fallback_prefix,
                                    uint64_t min_size_bytes,
-                                   pycauset::MatrixType matrix_type,
+                                   pycauset::Structure structure,
                                    pycauset::DataType data_type,
                                    uint64_t rows,
                                    uint64_t cols,
@@ -249,7 +249,7 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
 #endif
 
     // Initialize members
-    matrix_type_ = matrix_type;
+    structure_ = structure;
     data_type_ = data_type;
     rows_ = rows;
     cols_ = cols;

@@ -17,7 +17,7 @@ public:
                      0, // No storage
                      backing_file, 
                      "unit_vector", 
-                     pycauset::MatrixType::UNIT_VECTOR, 
+                     pycauset::Structure::UNIT_VECTOR, 
                      pycauset::DataType::FLOAT64), // Unit vectors are conceptually float/double
           active_index_(active_index) {
         
@@ -43,13 +43,13 @@ public:
                      seed,
                      scalar,
                      is_transposed,
-                     pycauset::MatrixType::UNIT_VECTOR, 
+                     pycauset::Structure::UNIT_VECTOR, 
                      pycauset::DataType::FLOAT64),
           active_index_(active_index) {
     }
 
     UnitVector(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-        : VectorBase(n, std::move(mapper), pycauset::MatrixType::UNIT_VECTOR, pycauset::DataType::FLOAT64) {
+        : VectorBase(n, std::move(mapper), pycauset::Structure::UNIT_VECTOR, pycauset::DataType::FLOAT64) {
         // Recover active index from seed
         active_index_ = get_seed();
     }

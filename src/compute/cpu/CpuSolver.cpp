@@ -2446,7 +2446,7 @@ namespace {
             // 3. DiagonalMatrix Result
             if (auto* res_diag = dynamic_cast<DiagonalMatrix<T>*>(&result)) {
                 // Special case for IdentityMatrix (which is a DiagonalMatrix but immutable/special)
-                if (result.get_matrix_type() == MatrixType::IDENTITY) {
+                if (result.get_structure() == Structure::IDENTITY) {
                      if (rows > 0 && cols > 0) {
                          const uint64_t ia = broadcast_index(0, a.rows());
                          const uint64_t ja = broadcast_index(0, a.cols());
@@ -3013,7 +3013,7 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
     if (result.size() != rows) throw std::invalid_argument("Dimension mismatch");
 
     // Identity Optimization
-    if (m.get_matrix_type() == MatrixType::IDENTITY) {
+    if (m.get_structure() == Structure::IDENTITY) {
         if (rows != cols) throw std::invalid_argument("Dimension mismatch");
         const DataType res_dt = result.get_data_type();
         if (res_dt == DataType::COMPLEX_FLOAT16 || res_dt == DataType::COMPLEX_FLOAT32 || res_dt == DataType::COMPLEX_FLOAT64) {
@@ -3502,7 +3502,7 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
     if (result.size() != cols) throw std::invalid_argument("Dimension mismatch");
 
     // Identity Optimization
-    if (m.get_matrix_type() == MatrixType::IDENTITY) {
+    if (m.get_structure() == Structure::IDENTITY) {
         if (rows != cols) throw std::invalid_argument("Dimension mismatch");
         const DataType res_dt = result.get_data_type();
         if (res_dt == DataType::COMPLEX_FLOAT16 || res_dt == DataType::COMPLEX_FLOAT32 || res_dt == DataType::COMPLEX_FLOAT64) {
@@ -4905,8 +4905,8 @@ double CpuSolver::trace(const MatrixBase& matrix) {
     const uint64_t cols = matrix.cols();
     const uint64_t n = std::min(rows, cols);
 
-    const auto type = matrix.get_matrix_type();
-    if (type == MatrixType::IDENTITY) {
+    const auto type = matrix.get_structure();
+    if (type == Structure::IDENTITY) {
         return matrix.get_scalar().real() * static_cast<double>(n);
     }
 
@@ -4934,15 +4934,15 @@ double CpuSolver::determinant(const MatrixBase& matrix) {
     }
 
     const uint64_t n = rows;
-    const auto type = matrix.get_matrix_type();
+    const auto type = matrix.get_structure();
     const auto dt = matrix.get_data_type();
     const bool is_complex = (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64);
 
-    if (type == MatrixType::IDENTITY) {
+    if (type == Structure::IDENTITY) {
         return std::pow(matrix.get_scalar(), n).real();
     }
 
-    if (type == MatrixType::DIAGONAL) {
+    if (type == Structure::DIAGONAL) {
         if (is_complex) {
             std::complex<double> det = 1.0;
             for (uint64_t i = 0; i < n; ++i) {
@@ -4958,7 +4958,7 @@ double CpuSolver::determinant(const MatrixBase& matrix) {
         return det;
     }
 
-    if (type == MatrixType::TRIANGULAR_FLOAT || type == MatrixType::CAUSAL) {
+    if (type == Structure::TRIANGULAR) {
         bool has_diag = false;
         if (auto* m = dynamic_cast<const TriangularMatrix<double>*>(&matrix)) {
             has_diag = m->has_diagonal();

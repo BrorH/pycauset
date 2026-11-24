@@ -23,7 +23,7 @@ public:
             backing_file,
             std::string("vector_complex_float16"),
             sizeof(pycauset::float16_t),
-            pycauset::MatrixType::DENSE_FLOAT,
+            pycauset::Structure::DENSE,
             pycauset::DataType::COMPLEX_FLOAT16,
             n,
             1);
@@ -42,7 +42,7 @@ public:
             backing_file,
             "",
             sizeof(pycauset::float16_t),
-            pycauset::MatrixType::DENSE_FLOAT,
+            pycauset::Structure::DENSE,
             pycauset::DataType::COMPLEX_FLOAT16,
             n,
             1,
@@ -55,7 +55,7 @@ public:
     }
 
     ComplexFloat16Vector(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-        : VectorBase(n, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, pycauset::DataType::COMPLEX_FLOAT16) {}
+        : VectorBase(n, std::move(mapper), pycauset::Structure::DENSE, pycauset::DataType::COMPLEX_FLOAT16) {}
 
     ~ComplexFloat16Vector() override = default;
 

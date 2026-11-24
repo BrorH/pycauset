@@ -31,7 +31,7 @@ class PersistentObject {
 public:
     // Constructor for loading/creating with explicit metadata
     PersistentObject(std::shared_ptr<MemoryMapper> mapper,
-                     pycauset::MatrixType matrix_type,
+                     pycauset::Structure structure,
                      pycauset::DataType data_type,
                      uint64_t rows,
                      uint64_t cols,
@@ -90,7 +90,7 @@ public:
     void set_conjugated(bool conjugated);
 
     pycauset::DataType get_data_type() const { return data_type_; }
-    pycauset::MatrixType get_matrix_type() const { return matrix_type_; }
+    pycauset::Structure get_structure() const { return structure_; }
 
     // --- Property flags (fast C++ mirror of Python properties) ---
     uint64_t get_properties_flags() const { return properties_flags_; }
@@ -127,7 +127,7 @@ protected:
                            const std::string& backing_file,
                            const std::string& fallback_prefix,
                            uint64_t min_size_bytes,
-                           pycauset::MatrixType matrix_type,
+                           pycauset::Structure structure,
                            pycauset::DataType data_type,
                            uint64_t rows,
                            uint64_t cols,
@@ -143,7 +143,7 @@ protected:
     std::shared_ptr<MemoryMapper> mapper_;
     
     // Metadata members
-    pycauset::MatrixType matrix_type_ = pycauset::MatrixType::UNKNOWN;
+    pycauset::Structure structure_ = pycauset::Structure::UNKNOWN;
     pycauset::DataType data_type_ = pycauset::DataType::UNKNOWN;
     uint64_t rows_ = 0;
     uint64_t cols_ = 0;

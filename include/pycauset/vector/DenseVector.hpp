@@ -24,7 +24,7 @@ public:
         initialize_storage(size_in_bytes, backing_file, 
                          std::string("vector_") + MatrixTraits<T>::name, 
                          sizeof(T),
-                         pycauset::MatrixType::DENSE_FLOAT, // Reusing MatrixType for now, or add VectorType
+                         pycauset::Structure::DENSE, // Reusing Structure for now, or add VectorType
                          MatrixTraits<T>::data_type,
                          n, 1);
     }
@@ -42,7 +42,7 @@ public:
         initialize_storage(size_in_bytes, backing_file, 
                          "", 
                          sizeof(T),
-                         pycauset::MatrixType::DENSE_FLOAT, 
+                         pycauset::Structure::DENSE, 
                          MatrixTraits<T>::data_type,
                          n, 1,
                          offset,
@@ -54,7 +54,7 @@ public:
     }
 
     DenseVector(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-        : VectorBase(n, std::move(mapper), pycauset::MatrixType::DENSE_FLOAT, MatrixTraits<T>::data_type) {}
+        : VectorBase(n, std::move(mapper), pycauset::Structure::DENSE, MatrixTraits<T>::data_type) {}
 
     void set(uint64_t i, T value) {
         ensure_unique();

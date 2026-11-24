@@ -16,14 +16,14 @@ public:
 
     VectorBase(uint64_t n, 
                std::shared_ptr<::MemoryMapper> mapper,
-               pycauset::MatrixType matrix_type,
+               pycauset::Structure structure,
                pycauset::DataType data_type);
 
     VectorBase(uint64_t n, 
                uint64_t size_in_bytes, 
                const std::string& backing_file, 
                const std::string& default_prefix, 
-               pycauset::MatrixType matrix_type, 
+               pycauset::Structure structure, 
                pycauset::DataType data_type);
 
     VectorBase(uint64_t n, 
@@ -33,7 +33,7 @@ public:
                uint64_t seed,
                std::complex<double> scalar,
                bool is_transposed,
-               pycauset::MatrixType matrix_type, 
+               pycauset::Structure structure, 
                pycauset::DataType data_type);
 
     virtual ~VectorBase() = default;

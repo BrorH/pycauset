@@ -142,9 +142,28 @@ engine and everything behind it is C++.* Python is a thin packaging layer.
 3. **[Confirmed]** **CUDA moves to `experimental/cuda/`** (code, bindings, Python facade, GPU
    tests), excluded from the default build, CI and docs nav. *Why:* keeps the
    maintained tree honest and out of agents' context, without losing the work.
-4. **[Confirmed]** **Renames in one sweep:** `IntegerMatrix→Int32Matrix`, `FloatMatrix→Float64Matrix`
-   (vectors likewise); `MatrixType` split into Structure × DType. *Why:* names
-   should say what they are; pre-alpha is the cheapest time.
+4. **[Revised by tech lead, session 4; maintainer may veto]** **One Python class per
+   structure; dtype is an attribute (NumPy model).** Classes: `DenseMatrix`,
+   `TriangularMatrix`, `DiagonalMatrix`, `SymmetricMatrix`, `AntiSymmetricMatrix`,
+   `IdentityMatrix`, `DenseVector`, `UnitVector`, each covering all 16 dtypes, with
+   `A.dtype` (NumPy dtype name). C++: `MatrixType` became `Structure` (DENSE, TRIANGULAR,
+   …); a causal matrix is TRIANGULAR with dtype bit.
+   *Supersedes* the earlier confirmed plan of per-dtype class names (`Int32Matrix`,
+   `TriangularInt16Matrix`, ~110 classes). *Why:*
+   (a) lazy cast views (features/LAZY.md L1): `2 * C` is an int32 matrix backed by bit
+   storage, which a dtype-in-the-class-name model can't express without copying;
+   (b) value bounds (F1) pick small dtypes at run time; with per-dtype classes every
+   combination needs a registered class, and a missing one surfaces as a bare
+   `MatrixBase` (F-032). Structure classes make F-032 impossible by construction;
+   (c) bind_matrix.cpp/bind_vector.cpp have 40 near-identical per-dtype class blocks
+   (~3,000 lines) that collapse into one generic implementation per structure (4.3);
+   (d) one API page per class instead of ~110.
+   *User-visible change:* `isinstance(C, pc.TriangularBitMatrix)` →
+   `isinstance(C, pc.TriangularMatrix) and C.dtype == "bool"`.
+   *Mechanism:* non-template structure bases in C++ plus a pybind11
+   `polymorphic_type_hook<MatrixBase>` that maps every object to its structure class
+   from its `Structure` tag. Every packed (anti)symmetric object derives both markers, so
+   the hook's pointer cast is always valid.
 5. **[Confirmed]** **API reference generated from docstrings** (mkdocstrings), one
    page per public function and class (like NumPy's reference); guides stay
    hand-written. Maintainer's bar: short, direct and comprehensive. Page count isn't

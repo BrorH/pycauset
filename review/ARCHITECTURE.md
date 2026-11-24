@@ -91,10 +91,10 @@ PersistentObject            (global namespace, include/pycauset/core/PersistentO
                   ComplexFloat16Vector
 ```
 
-* `Types.hpp` has two enums: `DataType` (16 dtypes) and `MatrixType`. **[SMELL]**
-  `MatrixType` mixes *structure* (CAUSAL, TRIANGULAR_FLOAT, IDENTITY, SYMMETRIC,
-  DIAGONAL) with *dtype* (INTEGER, DENSE_FLOAT), so structure × dtype is encoded
-  inconsistently.
+* `Types.hpp` has two independent enums: `DataType` (16 dtypes) and `Structure`
+  (DENSE, TRIANGULAR, DIAGONAL, IDENTITY, SYMMETRIC, ANTISYMMETRIC, VECTOR, UNIT_VECTOR).
+  A causal matrix is TRIANGULAR + BIT. (Was `MatrixType`, which mixed the two; renamed
+  in session 4.)
 * Python sees ~41 concrete classes (one per structure × dtype), named
   inconsistently: `FloatMatrix` = float64 and `IntegerMatrix` = int32, but
   `Float32Matrix`, `Int8Matrix`, `UInt64Matrix`, and so on.
@@ -107,8 +107,8 @@ PersistentObject            (global namespace, include/pycauset/core/PersistentO
 
 ### 2.2 Construction: ObjectFactory [OK]
 `core/ObjectFactory.cpp` creates matrices and vectors from `(rows, cols, DataType,
-MatrixType)` and re-creates them on load from explicit metadata. Result types for
-binary ops come from `MatrixTypeResolver.hpp` (structure) and `PromotionResolver.cpp`
+Structure)` and re-creates them on load from explicit metadata. Result types for
+binary ops come from `StructureResolver.cpp` (structure) and `PromotionResolver.cpp`
 (dtype promotion, including the float-underpromotion warning). `StructureResolver.hpp`
 does structure algebra (e.g. diag ∘ X → diag).
 
