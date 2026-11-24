@@ -445,3 +445,26 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Knock-on: `matrix_power` seeded its loop with a float64 identity, so causal powers became
   float once dtypes were respected. The loop no longer uses an identity seed (which also
   saves one matmul); `matrix_power(C, k)` stays `TriangularIntegerMatrix`.
+
+### F-037 save → load silently un-transposed matrices (data corruption)
+- **Status:** fixed (`fix(F-037)`)
+- `pc.save(A.T, p); pc.load(p)` returned **A** (wrong shape, wrong data), with no error.
+  Save records the logical shape plus `is_transposed`; load passed that shape to
+  `_from_storage`, which expects the *storage* shape and applies the transpose again.
+- Fix in `persistence.load`: derive the storage shape (swap for transposed views) for the 16
+  rectangular constructors. Fixing it on load means already-saved files load correctly too.
+- Found by `tests/engine/test_invariants.py` (save/load round-trip over the object catalog).
+  Regression: `test_regressions.py::test_F037_*`.
+
+### F-038 `LazyMatrix` is a second-class object
+- **Status:** open (S2; PLAN 4.3)
+- For float matrices most element-wise ops return a lazy expression (`A + B`, `A - B`,
+  `A / B`, every scalar op, `(A + B) * 2.0`), but `A * B` returns a concrete matrix.
+  `LazyMatrix` is not a `MatrixBase`: `pc.sum` rejects it, it has no `.T`/conj/properties,
+  and `pc.save` fails ("missing copy_storage"). Users hit this constantly with ordinary
+  arithmetic. (Concrete form of F-015.)
+- Fix direction (tech lead): keep lazy fusion (valuable out-of-core), but make the lazy
+  object a full citizen: every API that needs a concrete matrix materializes it
+  automatically (one C++ `materialize()` used by the operator table, `sum`, save, views),
+  and `A * B` follows the same rule as its siblings. Decide with the operator-table
+  consolidation (PLAN 4.3). Tests waiting: invariants marked `F-038`.

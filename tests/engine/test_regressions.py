@@ -149,3 +149,13 @@ def test_F034_int32_division_keeps_precision():
     a = np.full((2, 2), 16_777_217, dtype=np.int32)  # 2**24 + 1: not representable in float32
     out = to_np(pc.matrix(a) / pc.matrix(np.ones((2, 2), dtype=np.int32)))
     assert out[0, 0] == 16_777_217
+
+
+# ---------------------------------------------------------------- F-037
+@pytest.mark.parametrize("dtype", ["float64", "int32", "bool", "complex128"])
+def test_F037_save_load_keeps_transposed_views(dtype, tmp_path):
+    a = np.arange(12).reshape(3, 4).astype(dtype)
+    m = pc.matrix(a).T  # 4x3 view of 3x4 storage
+    pc.save(m, tmp_path / "t.pycauset")
+    loaded = pc.load(tmp_path / "t.pycauset")
+    np.testing.assert_array_equal(to_np(loaded), a.T)

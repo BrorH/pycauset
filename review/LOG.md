@@ -223,3 +223,8 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   with a float64 identity. F-035b (signed ⊕ uint64) keeps raising by decision until value
   bounds. Gap cases in the grid now *run* under xfail so fixes surface as XPASS.
 - State: 2,368 passed / 33 skipped / 32 xfailed (F-035b); ctest 9/9; ASan+UBSan clean.
+- `tests/engine/test_invariants.py`: 400 cases (catalog of dtypes, views, causal powers,
+  structured types × RAM/disk): element access, export, sum, transpose, @I, save/load agree.
+  It found **F-037** (save/load of transposed views returned the untransposed matrix:
+  silent corruption), fixed, and **F-038** (LazyMatrix lacks sum/.T/save), open.
+- State: 2,760 passed / 33 skipped / 44 xfailed (F-035b, F-038).

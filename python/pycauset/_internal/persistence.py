@@ -1098,6 +1098,11 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         scalar=scalar,
     )
 
+    # The header records the *logical* shape plus the view flags, while the rectangular
+    # `_from_storage` constructors take the *storage* shape and then apply the transpose.
+    # Swap for transposed views, otherwise A.T loaded back as A (F-037).
+    storage_rows, storage_cols = (cols, rows) if is_transposed else (rows, cols)
+
     def _require_square_dims_for_type(type_name: str) -> None:
         if rows != cols:
             raise ValueError(f"{type_name} requires rows == cols (got rows={rows}, cols={cols})")
@@ -1107,39 +1112,39 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         _require_square_dims_for_type("CAUSAL")
         obj = deps.TriangularBitMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
     elif matrix_type == "IDENTITY" and deps.IdentityMatrix is not None:
-        obj = deps.IdentityMatrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+        obj = deps.IdentityMatrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
     elif matrix_type == "DENSE_FLOAT":
         if data_type == "BIT" and deps.DenseBitMatrix is not None:
-            obj = deps.DenseBitMatrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.DenseBitMatrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "FLOAT16" and deps.Float16Matrix is not None:
-            obj = deps.Float16Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.Float16Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "FLOAT32" and deps.Float32Matrix is not None:
-            obj = deps.Float32Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.Float32Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "FLOAT64" and deps.FloatMatrix is not None:
-            obj = deps.FloatMatrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.FloatMatrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "COMPLEX_FLOAT16" and deps.ComplexFloat16Matrix is not None:
-            obj = deps.ComplexFloat16Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.ComplexFloat16Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "COMPLEX_FLOAT32" and deps.ComplexFloat32Matrix is not None:
-            obj = deps.ComplexFloat32Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.ComplexFloat32Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "COMPLEX_FLOAT64" and deps.ComplexFloat64Matrix is not None:
-            obj = deps.ComplexFloat64Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.ComplexFloat64Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
     elif matrix_type == "INTEGER":
         if data_type == "INT8" and deps.Int8Matrix is not None:
-            obj = deps.Int8Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.Int8Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "INT16" and deps.Int16Matrix is not None:
-            obj = deps.Int16Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.Int16Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "INT32" and deps.IntegerMatrix is not None:
-            obj = deps.IntegerMatrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.IntegerMatrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "INT64" and deps.Int64Matrix is not None:
-            obj = deps.Int64Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.Int64Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "UINT8" and deps.UInt8Matrix is not None:
-            obj = deps.UInt8Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.UInt8Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "UINT16" and deps.UInt16Matrix is not None:
-            obj = deps.UInt16Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.UInt16Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "UINT32" and deps.UInt32Matrix is not None:
-            obj = deps.UInt32Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.UInt32Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
         elif data_type == "UINT64" and deps.UInt64Matrix is not None:
-            obj = deps.UInt64Matrix._from_storage(rows, cols, str(path), data_offset, seed, scalar, is_transposed)
+            obj = deps.UInt64Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
     elif matrix_type == "TRIANGULAR_FLOAT" and deps.TriangularFloatMatrix is not None:
         _require_square_dims_for_type("TRIANGULAR_FLOAT")
         obj = deps.TriangularFloatMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
