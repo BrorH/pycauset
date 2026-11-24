@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pycauset/matrix/TriangularMatrix.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/core/MatrixTraits.hpp"
 #include <algorithm>
 #include <stdexcept>
@@ -177,12 +178,30 @@ public:
         return multiply_scalar(static_cast<double>(scalar), result_file);
     }
 
+    // S + s stays symmetric; an antisymmetric A + s is not antisymmetric, so it becomes dense.
+    // Values are read through the view (factor applied).
     std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        throw std::runtime_error("add_scalar not implemented for SymmetricMatrix");
+        const uint64_t n = this->rows();
+        if (!is_antisymmetric_) {
+            auto out = std::make_unique<SymmetricMatrix<T>>(n, result_file, false);
+            for (uint64_t i = 0; i < n; ++i) {
+                for (uint64_t j = i; j < n; ++j) {
+                    out->set(i, j, static_cast<T>(this->get_element_as_double(i, j) + scalar));
+                }
+            }
+            return out;
+        }
+        auto out = std::make_unique<DenseMatrix<T>>(n, n, result_file);
+        for (uint64_t i = 0; i < n; ++i) {
+            for (uint64_t j = 0; j < n; ++j) {
+                out->set(i, j, static_cast<T>(this->get_element_as_double(i, j) + scalar));
+            }
+        }
+        return out;
     }
 
     std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const override {
-        throw std::runtime_error("add_scalar not implemented for SymmetricMatrix");
+        return add_scalar(static_cast<double>(scalar), result_file);
     }
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
@@ -203,7 +222,14 @@ public:
 
     std::unique_ptr<PersistentObject> clone() const override {
         // Create a new object sharing the same mapper (CoW handled by PersistentObject/MemoryMapper)
-        return std::make_unique<SymmetricMatrix<T>>(base_rows(), mapper_, is_antisymmetric_);
+        // Keep the view metadata: transpose/negation and scaling are stored in it (the factor
+        // used to be dropped here, so A.T * 3 gave 3A and A.T.T gave -A for antisymmetric A).
+        auto out = std::make_unique<SymmetricMatrix<T>>(base_rows(), mapper_, is_antisymmetric_);
+        out->set_scalar(this->get_scalar());
+        out->set_conjugated(this->is_conjugated());
+        out->set_transposed(this->is_transposed());
+        out->set_seed(this->get_seed());
+        return out;
     }
 
     static std::unique_ptr<SymmetricMatrix<T>> from_triangular(const TriangularMatrix<T>& source, const std::string& backing_file = "") {
@@ -241,7 +267,12 @@ public:
         : SymmetricMatrix<T>(n, std::move(mapper), true) {}
 
     std::unique_ptr<PersistentObject> clone() const override {
-        return std::make_unique<AntiSymmetricMatrix<T>>(this->base_rows(), this->mapper_);
+        auto out = std::make_unique<AntiSymmetricMatrix<T>>(this->base_rows(), this->mapper_);
+        out->set_scalar(this->get_scalar());
+        out->set_conjugated(this->is_conjugated());
+        out->set_transposed(this->is_transposed());
+        out->set_seed(this->get_seed());
+        return out;
     }
 
     static std::unique_ptr<AntiSymmetricMatrix<T>> from_triangular(const TriangularMatrix<T>& source, const std::string& backing_file = "") {

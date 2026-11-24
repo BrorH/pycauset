@@ -267,7 +267,10 @@ public:
     std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
         auto result = std::make_unique<DenseMatrix<T>>(rows(), cols(), result_file);
 
-        const bool full_span = row_offset() == 0 && col_offset() == 0 && !is_transposed() && rows() == base_rows() && cols() == base_cols();
+        // Reads honour the view (transpose, offsets, factor, conjugation); the result is a plain
+        // matrix in logical order, so it carries no view flags (F-050).
+        const bool full_span = row_offset() == 0 && col_offset() == 0 && !is_transposed() && !is_conjugated() &&
+                               rows() == base_rows() && cols() == base_cols();
 
         if (full_span) {
             const T* src_data = data();
@@ -296,7 +299,9 @@ public:
                 for (uint64_t j = 0; j < cols(); ++j) {
                     const auto v = get(i, j);
                     if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
-                        const std::complex<double> z = pycauset::scalar::to_complex_double(v) * scalar_ + std::complex<double>{scalar, 0.0};
+                        std::complex<double> x = pycauset::scalar::to_complex_double(v);
+                        if (is_conjugated()) x = std::conj(x);
+                        const std::complex<double> z = x * scalar_ + std::complex<double>{scalar, 0.0};
                         result->set(i, j, pycauset::scalar::from_complex_double<T>(z));
                     } else {
                         const double z = static_cast<double>(v) * scalar_.real() + scalar;
@@ -308,7 +313,6 @@ public:
 
         result->set_scalar(1.0);
         result->set_seed(seed_);
-        result->set_transposed(is_transposed());
         if (result_file.empty()) {
             result->set_temporary(true);
         }

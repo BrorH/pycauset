@@ -562,7 +562,10 @@ the entry (the history is useful). New findings go at the bottom with the next f
      dtype-changing scalars.
 
 ### F-043 Reading a scaled view costs 2× (views aren't free when consumed)
-- **Status:** open; LAZY.md phase L0.
+- **Status:** fixed for element-wise ops (session 5): a strided row reader applies transpose,
+  offsets, broadcasting, factor and conjugation in the kernel's inner loop (CpuSolver.cpp
+  `StridedReader`). 3000² float64: `2A+3B` 64 → 37 ms (A+B 31 ms), `A.T+B` 75 → 36 ms
+  (NumPy 27 ms). Matmul already absorbed the factor via BLAS alpha.
 - 3000² float64, 4 cores: `A + B` 32 ms, `(2*A) + (3*B)` 62 ms. The scaled operands leave the
   fast kernel path. A view must be free on read (the factor belongs in the kernel's inner
   loop or in BLAS `alpha`), otherwise laziness trades a copy now for a slowdown later.
@@ -604,3 +607,22 @@ the entry (the history is useful). New findings go at the bottom with the next f
   site-packages copy (from an earlier `pip install`), so they tested old code (same class as
   F-029). Both now put the source tree on PYTHONPATH; the stale install was removed from the
   dev container. Rule (TESTS.md): never rely on an installed pycauset in tests or probes.
+
+### F-049 Element-wise ops on integer views went through double (int64 precision loss)
+- **Status:** fixed (with F-043). Any view operand (transpose, slice) took a per-element path that
+  read integers via `get_element_as_double`: `A.T + B` on int64 values near 2^62 was off by 1.
+  Now read exactly in the operand's own type. Test: `tests/engine/test_views.py` (int64/uint64
+  values beyond 2^53, every view kind).
+
+### F-050 Conjugation and transposition lost in several view paths (silent wrong results)
+- **Status:** fixed (session 5). Found by the new view × structure × scalar-op grid
+  (`test_views.py`, 326 cases vs NumPy):
+  - the element-wise fast path and the scalar-op fast path didn't check `is_conjugated`:
+    `Z.conj() + Z` returned `2·Z` instead of `2·Re Z`;
+  - `DenseMatrix::add_scalar` ignored conjugation and re-applied the transpose flag to an
+    already-transposed result: float `A.T + 1.5` returned the untransposed matrix (wrong shape);
+  - `SymmetricMatrix`/`AntiSymmetricMatrix::clone` dropped the view metadata, so for an
+    antisymmetric A: `A.T * 3 == 3A`, `-A.T == -A`, `A.T.T == -A`;
+  - `SymmetricMatrix + s` was unimplemented (raised); now symmetric, and antisymmetric + s dense.
+- Complex products differ from NumPy by <= 1 ulp (multiplication formula, not views): noted, tested
+  with a 1-ulp tolerance.

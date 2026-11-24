@@ -2354,6 +2354,109 @@ void CpuSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_
 }
 
 namespace {
+    // Reads element (i, j) of a dense operand as the result type T, honouring the view
+    // (transpose, offsets, broadcasting, scale factor, conjugation). Built once per operation.
+    template <typename T>
+    struct StridedReader {
+        using RowFn = void (*)(const StridedReader&, uint64_t, uint64_t, uint64_t, T*);
+        const void* data = nullptr;
+        int64_t base = 0, si = 0, sj = 0;
+        std::complex<double> scalar = 1.0;
+        bool scaled = false, conj = false;
+        RowFn row_fn = nullptr;
+        // Fills out[0 .. j1-j0) with elements (i, j0) .. (i, j1-1).
+        void row(uint64_t i, uint64_t j0, uint64_t j1, T* out) const { row_fn(*this, i, j0, j1, out); }
+    };
+
+    template <typename T, typename U>
+    void strided_row(const StridedReader<T>& r, uint64_t i, uint64_t j0, uint64_t j1, T* out) {
+        const U* src = static_cast<const U*>(r.data) + r.base + static_cast<int64_t>(i) * r.si;
+        const int64_t sj = r.sj;
+        const uint64_t n = j1 - j0;
+        src += static_cast<int64_t>(j0) * sj;
+        if constexpr (is_std_complex_v<T>) {
+            const bool conj = r.conj, scaled = r.scaled;
+            const std::complex<double> s = r.scalar;
+            for (uint64_t k = 0; k < n; ++k) {
+                std::complex<double> z = pycauset::scalar::to_complex_double(src[static_cast<int64_t>(k) * sj]);
+                if (conj) z = std::conj(z);
+                if (scaled) z *= s;
+                out[k] = static_cast<T>(z);
+            }
+        } else if constexpr (std::is_integral_v<T>) {
+            for (uint64_t k = 0; k < n; ++k) out[k] = static_cast<T>(src[static_cast<int64_t>(k) * sj]);
+        } else {
+            if (r.scaled) {
+                const double s = r.scalar.real();
+                for (uint64_t k = 0; k < n; ++k) out[k] = static_cast<T>(static_cast<double>(src[static_cast<int64_t>(k) * sj]) * s);
+            } else if constexpr (std::is_same_v<T, U>) {
+                if (sj == 1) {
+                    std::memcpy(out, src, n * sizeof(T));
+                } else {
+                    for (uint64_t k = 0; k < n; ++k) out[k] = src[static_cast<int64_t>(k) * sj];
+                }
+            } else {
+                for (uint64_t k = 0; k < n; ++k) out[k] = static_cast<T>(static_cast<double>(src[static_cast<int64_t>(k) * sj]));
+            }
+        }
+    }
+
+    // Which (result T, operand U) pairs the strided path handles: any operand into a complex
+    // result; real operands into a real float result; integer operands into an integer result.
+    template <typename T, typename U>
+    constexpr bool strided_supported_v =
+        is_std_complex_v<T> || (!is_std_complex_v<U> && (!std::is_integral_v<T> || std::is_integral_v<U>));
+
+    template <typename T, typename U>
+    bool try_strided(const MatrixBase& m, uint64_t rows, uint64_t cols, StridedReader<T>& r) {
+        if constexpr (!strided_supported_v<T, U>) {
+            return false;
+        } else {
+            const auto* d = dynamic_cast<const DenseMatrix<U>*>(&m);
+            if (d == nullptr) return false;
+            if constexpr (std::is_integral_v<T>) {
+                if (m.get_scalar() != std::complex<double>(1.0, 0.0)) return false;
+            }
+            if constexpr (!is_std_complex_v<T>) {
+                if (m.get_scalar().imag() != 0.0) return false;
+            }
+            const int64_t bc = static_cast<int64_t>(d->base_cols());
+            const bool tr = d->is_transposed();
+            int64_t si = tr ? 1 : bc, sj = tr ? bc : 1;
+            if (d->rows() == 1 && rows != 1) si = 0;  // broadcasting
+            if (d->cols() == 1 && cols != 1) sj = 0;
+            r.data = d->data();
+            r.base = static_cast<int64_t>(d->row_offset()) * bc + static_cast<int64_t>(d->col_offset());
+            r.si = si;
+            r.sj = sj;
+            r.scalar = m.get_scalar();
+            r.scaled = r.scalar != std::complex<double>(1.0, 0.0);
+            r.conj = m.is_conjugated();
+            r.row_fn = &strided_row<T, U>;
+            return true;
+        }
+    }
+
+    template <typename T>
+    bool make_strided_reader(const MatrixBase& m, uint64_t rows, uint64_t cols, StridedReader<T>& r) {
+        if (m.get_structure() != Structure::DENSE) return false;
+        switch (m.get_data_type()) {
+            case DataType::INT8: return try_strided<T, int8_t>(m, rows, cols, r);
+            case DataType::INT16: return try_strided<T, int16_t>(m, rows, cols, r);
+            case DataType::INT32: return try_strided<T, int32_t>(m, rows, cols, r);
+            case DataType::INT64: return try_strided<T, int64_t>(m, rows, cols, r);
+            case DataType::UINT8: return try_strided<T, uint8_t>(m, rows, cols, r);
+            case DataType::UINT16: return try_strided<T, uint16_t>(m, rows, cols, r);
+            case DataType::UINT32: return try_strided<T, uint32_t>(m, rows, cols, r);
+            case DataType::UINT64: return try_strided<T, uint64_t>(m, rows, cols, r);
+            case DataType::FLOAT32: return try_strided<T, float>(m, rows, cols, r);
+            case DataType::FLOAT64: return try_strided<T, double>(m, rows, cols, r);
+            case DataType::COMPLEX_FLOAT32: return try_strided<T, std::complex<float>>(m, rows, cols, r);
+            case DataType::COMPLEX_FLOAT64: return try_strided<T, std::complex<double>>(m, rows, cols, r);
+            default: return false;  // bit, float16, complex16: per-element path
+        }
+    }
+
     template <typename T, typename Op>
     void binary_op_impl(const MatrixBase& a, const MatrixBase& b, MatrixBase& result, Op op) {
         const uint64_t rows = result.rows();
@@ -2386,8 +2489,11 @@ namespace {
                 a_dense->rows() == a_dense->base_rows() && a_dense->cols() == a_dense->base_cols() &&
                 b_dense->rows() == b_dense->base_rows() && b_dense->cols() == b_dense->base_cols() &&
                 res_dense->get_scalar() == 1.0 && !res_dense->is_transposed() && !res_dense->has_view_offset() &&
+                !res_dense->is_conjugated() &&
                 a_dense->get_scalar() == 1.0 && !a_dense->is_transposed() && !a_dense->has_view_offset() &&
-                b_dense->get_scalar() == 1.0 && !b_dense->is_transposed() && !b_dense->has_view_offset()) {
+                !a_dense->is_conjugated() &&
+                b_dense->get_scalar() == 1.0 && !b_dense->is_transposed() && !b_dense->has_view_offset() &&
+                !b_dense->is_conjugated()) {
                 
                 const T* a_data = a_dense->data();
                 const T* b_data = b_dense->data();
@@ -2399,7 +2505,41 @@ namespace {
                 return;
             }
             
-            // Generic Dense path
+            // View-aware dense path (F-043, F-049): each operand is read straight from storage,
+            // with transpose / offsets / broadcasting as index arithmetic and the scale factor and
+            // conjugation applied in the inner loop. Exact for integers (no detour through
+            // double), as fast as the plain path, tiled so transposed reads stay in cache.
+            // Operands that aren't dense numeric storage take the per-element path below.
+            StridedReader<T> ra, rb;
+            const bool res_plain = res_dense->rows() == res_dense->base_rows() &&
+                                   res_dense->cols() == res_dense->base_cols() &&
+                                   res_dense->get_scalar() == 1.0 && !res_dense->is_transposed() &&
+                                   !res_dense->has_view_offset() && !res_dense->is_conjugated();
+            if (res_plain && make_strided_reader(a, rows, cols, ra) && make_strided_reader(b, rows, cols, rb)) {
+                T* res_data = res_dense->data();
+                constexpr uint64_t TILE = 64;
+                const uint64_t row_tiles = (rows + TILE - 1) / TILE;
+                ParallelFor(0, row_tiles, [&](size_t rt) {
+                    const uint64_t i0 = rt * TILE, i1 = std::min<uint64_t>(rows, i0 + TILE);
+                    for (uint64_t j0 = 0; j0 < cols; j0 += TILE) {
+                        const uint64_t j1 = std::min<uint64_t>(cols, j0 + TILE);
+                        T bufa[TILE];
+                        T bufb[TILE];
+                        const uint64_t w = j1 - j0;
+                        for (uint64_t i = i0; i < i1; ++i) {
+                            ra.row(i, j0, j1, bufa);
+                            rb.row(i, j0, j1, bufb);
+                            T* out = res_data + i * cols + j0;
+                            for (uint64_t k = 0; k < w; ++k) {
+                                out[k] = op(bufa[k], bufb[k]);
+                            }
+                        }
+                    }
+                });
+                return;
+            }
+
+            // Per-element fallback (bit / float16 / complex16 / structured operands).
             ParallelFor(0, rows, [&](size_t i) {
                 for (size_t j = 0; j < cols; ++j) {
                     T val_a;
@@ -2512,6 +2652,7 @@ namespace {
             res->get_scalar() == 1.0 && !res->is_transposed() && !res->has_view_offset() &&
             res->rows() == res->base_rows() && res->cols() == res->base_cols() &&
             a_dense->get_scalar() == 1.0 && !a_dense->is_transposed() && !a_dense->has_view_offset() &&
+            !a_dense->is_conjugated() &&
             a_dense->rows() == a_dense->base_rows() && a_dense->cols() == a_dense->base_cols()) {
             const T* a_data = a_dense->data();
             T* res_data = res->data();
