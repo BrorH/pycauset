@@ -66,9 +66,12 @@ review/
    its never-executed list.
 
 ## Current status (update this line every session)
-**After session 2 (2026-11-24):** fixed F-001/2/3/4/5/6/24/25/28/29/33; Tier-A dead code
-removed; sanitizers clean; 1,398 tests green. Open priorities: F-030 (restarted Arnoldi),
-F-032 (unregistered instantiations), conformance grid (TESTS.md), CI wiring, F-026. All decisions answered (RESTRUCTURE §3); new feature
+**After session 2 (2026-11-24):** fixed F-001…F-006, F-024, F-025, F-028, F-029, F-033,
+F-034, F-035a, F-036, F-037; CI runs C++ tests and fatal UBSan; new suite has regressions,
+scalar-op grid, dtype-pair grid and invariants (2,760 passed / 44 xfailed in ~21 s);
+sanitizers clean. **Open priorities:** F-038 (LazyMatrix full citizen) and F-032
+(unregistered instantiations), both with PLAN 4.3/4.6; F-030 (restarted Arnoldi);
+F-026 (C++ StreamingManager live or dead); remove precision_mode (4.1b); dead-code Tier B. All decisions answered (RESTRUCTURE §3); new feature
 accepted: value bounds (features/VALUE_BOUNDS.md, PLAN Phase F1). Critical open bugs: F-024 (eig results corrupt each other), F-001 (int scalar
 multiply is a no-op), F-004 (nested ParallelFor deadlock), F-006 (UB).
 
