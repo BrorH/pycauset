@@ -128,39 +128,58 @@ them here with a reason. The maintainer can veto any of them. Product questions
 (what PyCauset *is* and *offers*) stay with the maintainer and are asked in plain
 language.
 
-### 3.1 Technical decisions (decided 2026-11-24 by technical lead; maintainer may veto)
-1. **Operator semantics live in C++ only.** One operator table in the bindings,
+### 3.1 Technical decisions (2026-11-24; items 1, 3, 4, 5, 7 confirmed by the maintainer)
+
+Guiding principle (maintainer): *the whole module is used from Python, but the
+engine and everything behind it is C++.* Python is a thin packaging layer.
+1. **[Confirmed]** **Operator semantics live in C++ only.** One operator table in the bindings,
    no Python per-op wrappers. The monkeypatch stack (`patching.py` plus the
    operator wrappers in `properties.py`) is deleted. Temp-file registration
    happens in C++ at allocation. *Why:* one source of truth; removes the
    inconsistency behind F-001/F-002 and the overhead behind F-012.
-2. **Properties: C++ owns the flags and propagation rules**; Python exposes a view
+2. **[Delegated to tech lead]** **Properties: C++ owns the flags and propagation rules**; Python exposes a view
    plus explicit setters. *Why:* two sources of truth today.
-3. **CUDA moves to `experimental/cuda/`** (code, bindings, Python facade, GPU
+3. **[Confirmed]** **CUDA moves to `experimental/cuda/`** (code, bindings, Python facade, GPU
    tests), excluded from the default build, CI and docs nav. *Why:* keeps the
    maintained tree honest and out of agents' context, without losing the work.
-4. **Renames in one sweep:** `IntegerMatrix→Int32Matrix`, `FloatMatrix→Float64Matrix`
+4. **[Confirmed]** **Renames in one sweep:** `IntegerMatrix→Int32Matrix`, `FloatMatrix→Float64Matrix`
    (vectors likewise); `MatrixType` split into Structure × DType. *Why:* names
    should say what they are; pre-alpha is the cheapest time.
-5. **API reference generated from docstrings** (mkdocstrings); guides stay
-   hand-written. *Why:* 96 hand pages already drift (F-008).
+5. **[Confirmed]** **API reference generated from docstrings** (mkdocstrings), one
+   page per public function and class (like NumPy's reference); guides stay
+   hand-written. Maintainer's bar: short, direct and comprehensive. Page count isn't
+   a metric; content quality is. **No filler or AI slop** (see PLAN Phase 5 style
+   rules). *Why:* 96 hand pages already drift (F-008).
 6. **Python ≥ 3.10**; CI on 3.10 and 3.13. *Why:* the code already needs it.
-7. **Export guard by size only.** Small disk-backed results convert to NumPy
+7. **[Confirmed]** **Export guard by size only.** Small disk-backed results convert to NumPy
    freely; the guard trips only above the size ceiling. *Why:* spilling is
    automatic, so the user can't predict it (F-016).
-8. **Default spill directory = the OS temp/cache dir** (overridable with
-   `set_backing_dir`), not `./.pycauset`. *Why:* don't litter the user's working
-   directory (F-017).
+8. **[Maintainer decision, reverses the tech lead's proposal]** **Spill directory stays
+   `./.pycauset`** (overridable with `set_backing_dir`). *Why:* PyCauset keeps full
+   control over the lifetime of its files; the OS temp dir would cede that. Action:
+   document it prominently; keep F-024 (stray `_vals` files) as a bug regardless.
 9. **The old test suite is retired only after the new one proves equal or better
    coverage** (TESTS.md §4). *Why:* the old tests are the only written record of
    intended behaviour in some corners.
+10. **Dtype set = NumPy's numeric dtypes + bit-packed.** Keep bool/bit, int8–64,
+   uint8–64, float16/32/64, complex64/128. **Drop `complex_float16`** (NumPy has no
+   complex32, so no native round-trip; it is the only dtype needing two hand-written
+   C++ classes, `ComplexFloat16Matrix/Vector`). **Add none:** bfloat16 is an ML format,
+   float128 isn't portable; both would be feature creep. (Maintainer asked for this
+   check and delegated the call.)
+11. **Structures for R1:** keep all current structures for now; each is judged
+   individually in Phase 3 by coverage and usefulness (DEADCODE Tier B), not cut
+   wholesale.
 
 ### 3.2 Product questions for the creative director (open)
-A. **Scope for R1:** which dtypes, structures and rarely used features ship?
-   (DEADCODE.md §5; the biggest dead-code lever we have.)
-B. **Adding two causal (boolean) matrices:** "logical OR, like NumPy" or "count
-   relations, giving integers"? Same for multiplying them (today it counts paths,
-   which suits causal sets but differs from NumPy). (F-013)
+A. **Scope for R1:** dtypes delegated → decided in §3.1 item 10. Rarely used
+   features (DEADCODE §5.3) are judged per feature during Phase 3; ask the maintainer
+   only about user-visible features with real users.
+B. **[Decided by maintainer 2026-11-24]** bit/bool `A + B` **adds into integers**
+   (counting), *not* logical OR. Multiplication keeps counting paths. Documented as a
+   deliberate NumPy divergence. (F-013)
+C. **[New feature requested by maintainer 2026-11-24]** value bounds and
+   bounds-aware dtype selection → `review/features/VALUE_BOUNDS.md`.
 
 ## 4. Sequencing
 Don't restructure before the safety net exists (PLAN phase 1). Moves that change no

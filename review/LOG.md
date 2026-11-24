@@ -82,3 +82,19 @@ existing tools; (4) R1 = the engine; physics is deprioritized.
 **Next:** Phase 1 (new-suite core, CI wiring) and Phase 1b (Tier-A removals), in
 parallel. The C++ coverage run should be repeated with the gtests included before
 removing MemoryGovernor's pinning API.
+
+## Session 1, part 3: 2026-11-24, maintainer answers the decisions
+
+- Confirmed: operators in C++ only (Python stays a thin packaging layer: "the module
+  is Python, the engine is C++"); CUDA → `experimental/`; renames; generated API
+  reference, one page per function like NumPy, short and slop-free; export guard by
+  size only.
+- Delegated to the tech lead: properties ownership (→ C++); dtype scope (→ NumPy's
+  numeric set + bit; drop complex_float16; add none).
+- Reversed: spill dir stays `./.pycauset` (maintainer wants full control over file
+  lifetime). F-017 → wontfix.
+- bit/bool addition = integer counting (F-013 decided).
+- **New feature accepted:** value bounds and bounds-aware dtype selection.
+  Spec: `features/VALUE_BOUNDS.md`; PLAN Phase F1. It replaces the existing
+  heuristic int32 matmul overflow preflight (`bind_matrix.cpp:231-305`), which
+  samples a few elements and is therefore unsound.

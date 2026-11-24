@@ -33,6 +33,7 @@ review/
   LOG.md            session log
   areas/            per-area deep-review notes (Phase 3), one file per area
   deadcode/         snapshots of dead-code/coverage reports (regenerate per DEADCODE.md §2)
+  features/         specs for new features accepted into the overhaul (VALUE_BOUNDS.md)
   probes/           runnable investigation scripts (candidates to become tests)
   scripts/          inventory generator, coverage analysers (Python + C++)
 ```
@@ -61,7 +62,8 @@ review/
 ## Current status (update this line every session)
 **2026-11-24:** Phase 0 complete, including the sanitizer pass, the dead-code
 pipeline and the test-redesign strategy. Next: Phase 1 (new test-suite core) and
-Phase 1b (Tier-A dead code). Open product questions: RESTRUCTURE §3.2. Critical open bugs: F-024 (eig results corrupt each other), F-001 (int scalar
+Phase 1b (Tier-A dead code). All decisions answered (RESTRUCTURE §3); new feature
+accepted: value bounds (features/VALUE_BOUNDS.md, PLAN Phase F1). Critical open bugs: F-024 (eig results corrupt each other), F-001 (int scalar
 multiply is a no-op), F-004 (nested ParallelFor deadlock), F-006 (UB).
 
 ## When the overhaul is finished

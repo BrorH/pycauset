@@ -185,7 +185,10 @@ the entry (the history is useful). New findings go at the bottom with the next f
   startup per call.
 
 ### F-013 bool dtype semantics diverge from NumPy without documentation
-- **Status:** open (it may be intentional for causal matrices, but it must be documented)
+- **Status:** open. **Decision (maintainer, 2026-11-24): counting semantics.** bool/bit
+  `A + B` adds into integers; matmul counts paths. Document it as a deliberate NumPy
+  divergence. With value bounds (features/VALUE_BOUNDS.md) the result is the smallest
+  int that fits (bit + bit → int8).
 - bool `A + B` → int32 (NumPy: bool OR). bool `A @ B` → int32 (NumPy: bool).
   bool `A * 3` → bool with values unchanged (NumPy: int64 ×3). The last one is wrong
   under any policy.
@@ -202,14 +205,15 @@ the entry (the history is useful). New findings go at the bottom with the next f
   behaviour depend on whether the scalar is a Python float or int.
 
 ### F-016 The export guard blocks even tiny disk-backed matrices
-- **Status:** open (UX decision)
+- **Status:** open. **Decided: guard by size only** (RESTRUCTURE §3.1 item 7).
 - `np.asarray(M)` raises for any file-backed object, regardless of size. A 300×300
   matrix spilled by the governor can't be printed or converted without
   `pc.to_numpy(M, allow_huge=True)`. The spill decision is automatic, so the user
   can't predict when this will happen.
 
 ### F-017 Default spill directory is `./.pycauset` in the current working directory
-- **Status:** open (UX decision)
+- **Status:** wontfix (maintainer, 2026-11-24): `.pycauset` stays, for full control of
+  file lifetime. Document it prominently instead.
 - Running a script from a repo or home directory creates spill files there.
 
 ## S4 — hygiene

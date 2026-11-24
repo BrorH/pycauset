@@ -127,6 +127,10 @@ code across ~40 C++ classes and their bindings.
 Record answers here with a date. Anything cut is removed completely (code, tests,
 docs, plans).
 
+**Answers (2026-11-24):** dtype scope delegated to the tech lead → drop
+`complex_float16`, add none (RESTRUCTURE §3.1 item 10). Structures: judged one by one
+in Phase 3. Rarely used features: tech lead proposes per feature in Phase 3.
+
 ## 6. Removal procedure (for agents)
 1. Pick one tier and one area. Small batches; one commit per logical removal.
 2. Grep for the symbol across `src include python tests benchmarks tools demos

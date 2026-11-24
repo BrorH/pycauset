@@ -130,7 +130,8 @@ risk: storage and object model first, since everything rests on them.
 ## Phase 4: Structural cleanup (after the RESTRUCTURE decisions)
 Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.1 Dead code Tiers B–D (DEADCODE.md) and debug leftovers (F-019)
-- [ ] 4.1b Scope pruning per the creative director's R1 dtype/structure answers
+- [ ] 4.1b Scope pruning: remove `complex_float16` end to end (RESTRUCTURE §3.1 item 10)
+- [ ] 4.1c bit/bool arithmetic = integer counting everywhere (RESTRUCTURE §3.2 B, F-013)
 - [ ] 4.2 Split CpuSolver.cpp, bind_matrix.cpp and `__init__.py` (pure moves)
 - [ ] 4.3 Single source of truth for operators and properties (RESTRUCTURE §3.1 items 1–2); delete the monkeypatch stack
 - [ ] 4.4 Python `_internal/` subpackages; `.pyi` generation (F-007)
@@ -140,9 +141,23 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.8 Silent-exception sweep (126 sites)
 - [ ] 4.9 Per-directory README.md files (what lives here, what doesn't)
 
+## Phase F1: Feature: Value bounds (maintainer request; spec in `features/VALUE_BOUNDS.md`)
+Runs after Phase 4.3 (single C++ operator/result-type path) and before Phase 6.
+- [ ] F1.1 `ValueBounds` on PersistentObject + persistence + `A.value_bounds`
+- [ ] F1.2 Sources (bit=[0,1], factories, NumPy import min/max, setitem widening, unknown on opaque writes)
+- [ ] F1.3 Propagation rules for every op in the spec table
+- [ ] F1.4 Bounds-aware integer result dtype in PromotionResolver; delete the heuristic overflow preflight
+- [ ] F1.5 Soundness invariant in the conformance grid; memory benchmark on causal `C @ C`
+- [ ] F1.6 Docs page + NumPy-divergence note
+
 ## Phase 5: Documentation truth pass
 - [ ] 5.1 Fix every broken snippet (F-008); the snippet test is green
-- [ ] 5.2 API reference regenerated or verified (§3.1 item 5); no pages for missing symbols
+- [ ] 5.2 API reference generated from docstrings, one page per public function/class
+      (NumPy-style); no pages for missing symbols. **Style rules:** lead with what it
+      does in one sentence; signature, parameters, returns, raises; one minimal
+      runnable example; NumPy differences called out explicitly. No marketing words,
+      no restating the name as a sentence, no "powerful/seamless/robust", no padding
+      sections. Every example is executed in CI.
 - [ ] 5.3 Delete historical plans/archive; one ROADMAP; merge dev/ + internals/
 - [ ] 5.4 README and BENCHMARKS claims re-measured ("≥0.90× NumPy", "bigger than RAM")
 - [ ] 5.5 ARCHITECTURE.md moves into `documentation/internals/` as the canonical map
