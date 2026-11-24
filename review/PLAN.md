@@ -134,7 +134,7 @@ risk: storage and object model first, since everything rests on them.
 ## Phase 4: Structural cleanup (after the RESTRUCTURE decisions)
 Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.1 Dead code Tiers B–D (DEADCODE.md) and debug leftovers (F-019)
-- [ ] 4.1b Remove `precision_mode` / `set_precision_mode` / `get_precision_mode` end to end
+- [x] 4.1b Remove `precision_mode` / `set_precision_mode` / `get_precision_mode` end to end
       (code, C++ mode, docs, tests); update the under-promotion warning text
 - [ ] 4.1d Dtype matrix completeness: every one of the 16 dtypes works with every other
       in every op of the spec table (the conformance grid is the gate)

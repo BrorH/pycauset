@@ -87,16 +87,4 @@ debugging.
 pc.keep_temp_files = True
 ```
 
-## 8. Precision mode
-
-Temporarily override the promotion precision mode with a context manager:
-
-```python
-with pc.precision_mode("highest"):
-    C = A @ B
-```
-
-This controls storage-dtype promotion decisions, not the accelerator's internal
-compute dtype.
-
 See [[docs/index|API Reference]] for exact signatures.

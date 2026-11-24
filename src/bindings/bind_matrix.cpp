@@ -336,7 +336,7 @@ inline void maybe_warn_float_underpromotion(const char* op_name, promotion::Bina
     message += "pycauset ";
     message += op_name;
     message += ": mixed float32/float64 underpromotes to float32 (compute and storage in float32). ";
-    message += "Cast inputs to float64 or use pycauset.precision_mode('highest') to promote.";
+    message += "Cast both inputs to float64 to compute in float64.";
 
     bindings_warn::warn_once_with_category(key, message, "PyCausetDTypeWarning", /*stacklevel=*/3);
 }

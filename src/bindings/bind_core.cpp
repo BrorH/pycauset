@@ -67,21 +67,6 @@ inline std::string dtype_to_string(pycauset::DataType dt) {
     }
 }
 
-inline pycauset::promotion::PrecisionMode parse_precision_mode(const std::string& s_raw) {
-    const std::string s = to_lower(s_raw);
-    if (s == "lowest" || s == "low" || s == "min") return pycauset::promotion::PrecisionMode::Lowest;
-    if (s == "highest" || s == "high" || s == "max") return pycauset::promotion::PrecisionMode::Highest;
-    throw std::invalid_argument("Unknown precision mode: " + s_raw);
-}
-
-inline std::string precision_mode_to_string(pycauset::promotion::PrecisionMode mode) {
-    switch (mode) {
-        case pycauset::promotion::PrecisionMode::Lowest: return "lowest";
-        case pycauset::promotion::PrecisionMode::Highest: return "highest";
-        default: return "lowest";
-    }
-}
-
 inline pycauset::promotion::BinaryOp parse_op(const std::string& s_raw) {
     const std::string s = to_lower(s_raw);
     if (s == "add") return pycauset::promotion::BinaryOp::Add;
@@ -123,15 +108,6 @@ void bind_core_classes(py::module_& m) {
         []() { return pycauset::get_storage_root().string(); });
 
     m.def("is_gpu_available", []() { return pycauset::ComputeContext::instance().is_gpu_active(); });
-
-    m.def(
-        "set_precision_mode",
-        [](const std::string& mode) { pycauset::promotion::set_precision_mode(parse_precision_mode(mode)); },
-        py::arg("mode"));
-
-    m.def(
-        "get_precision_mode",
-        []() { return precision_mode_to_string(pycauset::promotion::get_precision_mode()); });
 
     m.def(
         "norm",
@@ -219,11 +195,7 @@ void bind_core_classes(py::module_& m) {
     // Exposes the promotion resolver without running kernels.
     m.def(
         "_debug_resolve_promotion",
-        [](const std::string& op, const std::string& a_dtype, const std::string& b_dtype, py::object precision_mode) {
-            std::optional<pycauset::promotion::ScopedPrecisionMode> guard;
-            if (!precision_mode.is_none()) {
-                guard.emplace(parse_precision_mode(precision_mode.cast<std::string>()));
-            }
+        [](const std::string& op, const std::string& a_dtype, const std::string& b_dtype) {
             auto decision = pycauset::promotion::resolve(parse_op(op), parse_dtype(a_dtype), parse_dtype(b_dtype));
             py::dict out;
             out["result_dtype"] = dtype_to_string(decision.result_dtype);
@@ -233,8 +205,7 @@ void bind_core_classes(py::module_& m) {
         },
         py::arg("op"),
         py::arg("a_dtype"),
-        py::arg("b_dtype"),
-        py::arg("precision_mode") = py::none());
+        py::arg("b_dtype"));
 
     m.def("_debug_last_kernel_trace", []() { return pycauset::debug_trace::get_last(); });
     m.def("_debug_clear_kernel_trace", []() { pycauset::debug_trace::clear(); });

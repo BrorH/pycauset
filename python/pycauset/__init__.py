@@ -166,13 +166,12 @@ def _debug_resolve_promotion(
     op: str,
     a_dtype: str,
     b_dtype: str,
-    precision_mode: str | None = None,
 ) -> dict[str, object]:
     """Internal/test helper: return promotion resolver decision without running kernels."""
     fn = getattr(_native, "_debug_resolve_promotion", None)
     if fn is None:
         raise RuntimeError("Native helper _debug_resolve_promotion is not available")
-    return fn(op, a_dtype, b_dtype, precision_mode)
+    return fn(op, a_dtype, b_dtype)
 
 
 def _debug_last_kernel_trace() -> str:
@@ -2186,31 +2185,6 @@ def diagonal(data: Any) -> Any:
     return out
 
 
-@contextmanager
-def precision_mode(mode: str):
-    """Temporarily override the thread-local promotion precision mode.
-
-    Examples:
-        with pycauset.precision_mode("highest"):
-            c = a @ b
-
-    Notes:
-        This controls promotion decisions (storage dtype selection). It does not
-        directly control accelerator internal compute dtype.
-    """
-    get_fn = getattr(_native, "get_precision_mode", None)
-    set_fn = getattr(_native, "set_precision_mode", None)
-    if get_fn is None or set_fn is None:
-        raise RuntimeError("Native precision mode controls are not available")
-
-    previous = str(get_fn())
-    set_fn(mode)
-    try:
-        yield
-    finally:
-        set_fn(previous)
-
-
 # Alias for IdentityMatrix
 I = getattr(_native, "IdentityMatrix", None)  # noqa: E741 (public identity alias, NumPy convention)
 
@@ -2377,7 +2351,6 @@ _extra_exports = [
     "diagonal",
     "symmetric",
     "antisymmetric",
-    "precision_mode",
     "I",
     "causet",
     "CausalSet",

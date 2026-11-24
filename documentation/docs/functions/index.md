@@ -38,7 +38,6 @@
 * **[[docs/functions/pycauset.trace.md|trace]]**
 * **[[docs/functions/pycauset.determinant.md|determinant]]**
 * **[[docs/functions/pycauset.det.md|det]]**
-* **[[docs/functions/pycauset.get_precision_mode.md|get_precision_mode]]**
 * **[[docs/functions/pycauset.get_memory_threshold.md|get_memory_threshold]]**
 * **[[docs/functions/pycauset.get_num_threads.md|get_num_threads]]**
 * **[[docs/functions/pycauset.invert.md|invert]]**
@@ -75,9 +74,7 @@
 * **[[docs/functions/pycauset.set_backing_dir.md|set_backing_dir]]**
 * **[[docs/functions/pycauset.set_export_max_bytes.md|set_export_max_bytes]]**
 * **[[docs/functions/pycauset.set_memory_threshold.md|set_memory_threshold]]**
-* **[[docs/functions/pycauset.set_precision_mode.md|set_precision_mode]]**
 * **[[docs/functions/pycauset.set_num_threads.md|set_num_threads]]**
-* **[[docs/functions/pycauset.precision_mode.md|precision_mode]]**
 * **[[docs/functions/pycauset.cuda.is_available.md|pycauset.cuda.is_available]]**
 * **[[docs/functions/pycauset.cuda.enable.md|pycauset.cuda.enable]]**
 * **[[docs/functions/pycauset.cuda.disable.md|pycauset.cuda.disable]]**

@@ -6,7 +6,6 @@
 namespace pycauset::promotion {
 
 namespace {
-thread_local PrecisionMode g_precision_mode = PrecisionMode::Lowest;
 
 inline bool is_real_float(DataType dt) {
     return dt == DataType::FLOAT16 || dt == DataType::FLOAT32 || dt == DataType::FLOAT64;
@@ -163,28 +162,16 @@ inline DataType largest_float(DataType a, DataType b) {
     return DataType::FLOAT16;
 }
 
-inline uint8_t choose_rank(uint8_t ra, uint8_t rb, PrecisionMode mode) {
-    if (mode == PrecisionMode::Highest) {
-        return static_cast<uint8_t>(std::max(ra, rb));
-    }
+// Under-promotion within floats: the smaller participating precision wins.
+inline uint8_t choose_rank(uint8_t ra, uint8_t rb) {
     return static_cast<uint8_t>(std::min(ra, rb));
 }
-}
-
-PrecisionMode get_precision_mode() {
-    return g_precision_mode;
-}
-
-void set_precision_mode(PrecisionMode mode) {
-    g_precision_mode = mode;
 }
 
 Decision resolve(BinaryOp op, DataType a, DataType b) {
     if (a == DataType::UNKNOWN || b == DataType::UNKNOWN) {
         throw std::invalid_argument("resolve_promotion: UNKNOWN dtype");
     }
-
-    const PrecisionMode mode = get_precision_mode();
 
     // Complex dominates real float/int/bit for supported matrix-matrix ops.
     // Precision rule: underpromote to the smallest participating float precision.
@@ -199,7 +186,7 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
                 const uint8_t rb = float_rank(b);
                 uint8_t r = 0;
                 if (ra && rb) {
-                    r = choose_rank(ra, rb, mode);
+                    r = choose_rank(ra, rb);
                 } else {
                     // One side is int/bit: it must fit too (F-034).
                     const uint8_t need = std::max(float_rank_for_int(a), float_rank_for_int(b));
@@ -218,7 +205,7 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
                 const uint8_t rb = float_rank(b);
                 uint8_t r = 0;
                 if (ra && rb) {
-                    r = choose_rank(ra, rb, mode);
+                    r = choose_rank(ra, rb);
                 } else {
                     // One side is int/bit: it must fit too (F-034).
                     const uint8_t need = std::max(float_rank_for_int(a), float_rank_for_int(b));
@@ -236,7 +223,7 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
     if (is_real_float(a) || is_real_float(b)) {
         Decision d;
         if (is_real_float(a) && is_real_float(b)) {
-            d.result_dtype = (mode == PrecisionMode::Highest) ? largest_float(a, b) : smallest_float(a, b);
+            d.result_dtype = smallest_float(a, b);
 
             // Underpromotion is only meaningful for mixed-float ops.
             if (a != b) {
@@ -263,7 +250,7 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
     // always float32, contradicting the comment here, so int32 / int32 lost precision.)
     if (op == BinaryOp::Divide) {
         const uint8_t need = std::max<uint8_t>(32, std::max(float_rank_for_int(a), float_rank_for_int(b)));
-        return Decision{(mode == PrecisionMode::Highest) ? DataType::FLOAT64 : real_float_from_rank(need), false, DataType::UNKNOWN};
+        return Decision{real_float_from_rank(need), false, DataType::UNKNOWN};
     }
 
     // Fundamental kind rule: integer dominates bit for numeric ops.

@@ -228,3 +228,11 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   It found **F-037** (save/load of transposed views returned the untransposed matrix:
   silent corruption), fixed, and **F-038** (LazyMatrix lacks sum/.T/save), open.
 - State: 2,760 passed / 33 skipped / 44 xfailed (F-035b, F-038).
+
+## Session 3: 2026-11-24
+
+- **precision_mode removed end to end** (R1 scope): C++ mode enum, thread-local and scoped
+  guard; `set/get_precision_mode` bindings; `pc.precision_mode`; the `precision_mode` argument
+  of `_debug_resolve_promotion`; 3 tests; 3 API pages, nav and index entries; guide
+  sections. The under-promotion warning now says "Cast both inputs to float64". Also fixed a
+  guide that claimed float32+float64 → float64 (it's float32, documented under-promotion).

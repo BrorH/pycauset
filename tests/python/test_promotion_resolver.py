@@ -71,16 +71,6 @@ class TestPromotionResolver(unittest.TestCase):
         self.assertEqual(d2["result_dtype"], "float32")
         self.assertEqual(d2["float_underpromotion"], True)
 
-    def test_matmul_mixed_float_highest_promotes_to_float64(self):
-        d = pycauset._debug_resolve_promotion("matmul", "float32", "float64", precision_mode="highest")
-        self.assertEqual(d["result_dtype"], "float64")
-        self.assertEqual(d["float_underpromotion"], False)
-        self.assertEqual(d["chosen_float_dtype"], "unknown")
-
-        d2 = pycauset._debug_resolve_promotion("matmul", "float64", "float32", precision_mode="highest")
-        self.assertEqual(d2["result_dtype"], "float64")
-        self.assertEqual(d2["float_underpromotion"], False)
-
     def test_add_kind_rules(self):
         self.assertEqual(pycauset._debug_resolve_promotion("add", "bit", "bit")["result_dtype"], "int32")
         self.assertEqual(pycauset._debug_resolve_promotion("add", "bit", "int32")["result_dtype"], "int32")
@@ -116,20 +106,11 @@ class TestPromotionResolver(unittest.TestCase):
         self.assertEqual(d2["result_dtype"], "complex_float32")
         self.assertEqual(d2["float_underpromotion"], False)
 
-    def test_matmul_mixed_complex_highest_promotes_to_complex_float64(self):
-        d = pycauset._debug_resolve_promotion("matmul", "complex_float32", "complex_float64", precision_mode="highest")
-        self.assertEqual(d["result_dtype"], "complex_float64")
-        self.assertEqual(d["float_underpromotion"], False)
-
-        d2 = pycauset._debug_resolve_promotion("matmul", "complex_float64", "complex_float32", precision_mode="highest")
-        self.assertEqual(d2["result_dtype"], "complex_float64")
-        self.assertEqual(d2["float_underpromotion"], False)
-
     def test_divide_on_integers_uses_a_float_that_holds_the_operands(self):
         # F-034: int32 / int32 must not be computed in float32 (loses precision > 2**24).
         for a, b, want in [("int32", "int32", "float64"), ("int64", "int8", "float64"),
                            ("int16", "int16", "float32"), ("int8", "int8", "float32")]:
-            d = pycauset._debug_resolve_promotion("divide", a, b, precision_mode="lowest")
+            d = pycauset._debug_resolve_promotion("divide", a, b)
             self.assertEqual(d["result_dtype"], want, (a, b))
 
     def test_int_with_float_result_holds_the_int_dtype(self):
@@ -137,7 +118,7 @@ class TestPromotionResolver(unittest.TestCase):
         for a, b, want in [("int32", "float16", "float64"), ("int16", "float16", "float32"),
                            ("int8", "float16", "float16"), ("int32", "float32", "float64"),
                            ("float32", "float64", "float32")]:  # within floats: under-promote
-            d = pycauset._debug_resolve_promotion("add", a, b, precision_mode="lowest")
+            d = pycauset._debug_resolve_promotion("add", a, b)
             self.assertEqual(d["result_dtype"], want, (a, b))
 
 

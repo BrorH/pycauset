@@ -28,9 +28,9 @@ When mixing a matrix with a **1D NumPy array** in an elementwise operation, the 
 ## Dtype behavior
 
 - If either operand is float/complex, the result is a float/complex type.
-- If neither operand is float/complex (e.g. int/uint/bit), the result promotes to a float dtype based on the current promotion precision mode:
-  - `lowest` (default): `float32`
-  - `highest`: `float64`
+- If neither operand is float/complex (e.g. int/uint/bit), the result is a float that can
+  hold both operand dtypes: `float32` for bit/8-bit/16-bit integers, `float64` for 32/64-bit
+  integers.
 
 ## Exceptions
 
@@ -52,6 +52,5 @@ C = A / row             # equivalent
 
 ## See also
 
-- [[docs/functions/pycauset.precision_mode.md|pycauset.precision_mode]]
 - [[docs/functions/pycauset.matmul.md|pycauset.matmul]]
 - [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]

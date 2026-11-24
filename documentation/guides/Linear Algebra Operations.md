@@ -111,8 +111,9 @@ val, logabsdet = pc.slogdet(A)
 
 ## Dtype, precision, and device routing
 
-- Respect user dtype; no silent promotion except documented mixes (e.g., float32+float64 → float64, int32 matmul accumulator warnings, bit→int32 promotions where necessary).
-- Precision policy: set via [[docs/functions/pycauset.precision_mode.md|pycauset.precision_mode]] / [[docs/functions/pycauset.set_precision_mode.md|pycauset.set_precision_mode]].
+- Respect user dtype; no silent promotion except documented mixes (float32 with float64 →
+  float32 with a `PyCausetDTypeWarning`, integer with float → a float wide enough for the
+  integer, bit arithmetic → int32 counts). Cast inputs to float64 to compute in float64.
 - GPU routing is op- and dtype-dependent; when unsupported, the call falls back to CPU or raises a deterministic error. See [[guides/Performance Guide.md|Performance Guide]].
 
 ## Indexing/slicing recap
