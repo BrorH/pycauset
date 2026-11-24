@@ -4,7 +4,9 @@
 new, smarter, more compact one. Old tests may be outdated or may not reflect what
 we're trying to do. Test runs cost CPU **and agent tokens**.
 
-**Status:** strategy written; measurements in §2; nothing migrated yet.
+**Status:** skeleton started (session 1): `tests/conftest.py`, `tests/engine/conftest.py`,
+`tests/engine/test_regressions.py`. pytest runs `tests/python` + `tests/engine` from
+the source tree (F-029).
 
 ---
 

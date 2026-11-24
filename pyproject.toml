@@ -71,7 +71,11 @@ write_to = "python/pycauset/_version.py"
 local_scheme = "no-local-version"
 
 [tool.pytest.ini_options]
-testpaths = ["tests/python"]
+# Always import the package from the source tree (python/), never a stale copy in
+# site-packages. The compiled extension must sit next to the sources (CI copies it;
+# locally: build, then copy _pycauset*.so / libpycauset_core.so into python/pycauset/).
+pythonpath = ["python"]
+testpaths = ["tests/python", "tests/engine"]
 norecursedirs = [
   "build",
   "build_*",

@@ -12,7 +12,7 @@ date) whenever a phase lands, and keep the old row so the trend is visible.
 
 | Metric | 2026-11-24 |
 |---|---|
-| Python tests (`pytest tests/python`) | **799 passed, 34 skipped**, 21 s |
+| Python tests (`pytest tests/python`) | **799 passed, 34 skipped**, 21 s (⚠ measured against the pip-installed build, see F-029; same code at that point) |
 | … of the skips: GPU-only | 27 |
 | … of the skips: stale (pass when un-skipped) | 3 (F-009) |
 | C++ gtests wired in CMake | 6/6 pass |
@@ -46,14 +46,15 @@ Gotchas:
   `_GNU_SOURCE redefined` warning. Both are harmless and pending removal.
 
 ### Python tests
-The tests import from `python/` (sys.path hacks, F-023), so the compiled artifacts
-must be copied next to the sources, exactly as CI does:
+pytest always imports from `python/` (`pythonpath` in pyproject; F-029), so the compiled
+artifacts must sit next to the sources, as CI does. Fast dev loop (incremental, ~1 min
+after a C++ edit) using the `build/cpp` tree from the next section:
 ```bash
-cp "$(python -c 'import pycauset,os;print(os.path.dirname(pycauset.__file__))')"/*.so python/pycauset/
-python -m pytest tests/python -q -p no:cacheprovider --timeout=300 -rfEs
+cmake --build build/cpp --target _pycauset -j4
+cp build/cpp/_pycauset*.so build/cpp/libpycauset_core.so python/pycauset/
+python -m pytest -q -p no:cacheprovider --timeout=300      # old + new suites
 ```
-(Run the `cp` from a directory other than the repo root, or the source tree shadows
-the installed package. The `*.so` files are gitignored.)
+(The `*.so` files are gitignored. Never rely on a pip-installed copy for testing.)
 
 ### C++ tests (with stricter warnings)
 ```bash
