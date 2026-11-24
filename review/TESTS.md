@@ -4,8 +4,12 @@
 new, smarter, more compact one. Old tests may be outdated or may not reflect what
 we're trying to do. Test runs cost CPU **and agent tokens**.
 
-**Status:** skeleton started (session 1): `tests/conftest.py`, `tests/engine/conftest.py`,
-`tests/engine/test_regressions.py`. pytest runs `tests/python` + `tests/engine` from
+**Status (session 2):** `tests/conftest.py`, `tests/engine/conftest.py`,
+`test_regressions.py` (one test per F-id), `test_scalar_ops.py` (566 cases),
+`test_conformance.py` (998 cases: every dtype pair × + − * / @, dtype vs resolver, values vs
+NumPy, registered class; disk vs RAM; rectangular matmul). Total suite 2,295 passed / 104
+xfail (F-035) in ~20 s. Not yet: `spec.py` table, invariants file, linalg identities,
+persistence round-trips, docs snippets. pytest runs `tests/python` + `tests/engine` from
 the source tree (F-029).
 
 ---

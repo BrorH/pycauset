@@ -54,7 +54,8 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
       over both suites. *TSan job still to do.*
 - [ ] **1.4 Remove stale skips** (F-009); every remaining skip must carry a reason
       plus a FINDINGS id.
-- [ ] **1.5 New-suite core** (TESTS.md §3.2): `tests/conftest.py`, `tests/spec.py`,
+- [~] **1.5 New-suite core** (TESTS.md §3.2), in progress: regressions, scalar ops and the
+      dtype-pair conformance grid are done (session 2). Original item: `tests/conftest.py`, `tests/spec.py`,
       `engine/test_conformance.py`, `engine/test_invariants.py`, `engine/test_regressions.py`.
       Details of the grid: promote `review/probes/dtype_matrix_probe.py`
       into a parametrized pytest grid (dtype × op × structure × storage

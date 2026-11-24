@@ -203,3 +203,17 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - New test file `tests/engine/test_scalar_ops.py`: 566 cases vs NumPy (values + dtypes).
 - State: 1,398 passed / 34 skipped / 0 xfail; ctest 9/9; ASan+UBSan clean; the dtype probe
   is all "ok" except the documented bool counting policy.
+
+## Session 2, continued: CI, F-034, conformance grid
+
+- CI: `cpp-tests` job; ASan+UBSan (fatal) on PRs; both suites run (not yet observed on
+  GitHub: workflows trigger on main/PRs only).
+- Dtype-pair survey (980 combos) → **F-034 fixed**: int ⊕ float could overflow to inf
+  (int32 100000 + float16 = inf) and int32 / int32 was float32; cross-kind results now hold
+  the integer dtype; within-float under-promotion unchanged. **F-035 recorded**: mixed
+  matmul with float16/complex has no kernel (64 combos); signed int ⊕ uint64 raises (32).
+- `tests/engine/test_conformance.py`: every dtype pair × 5 ops; 894 pass, 104 xfail (F-035).
+  Two of my own test-reference mistakes were fixed along the way (unsigned wraparound,
+  complex16 export name); the library was right in both cases.
+- F-032 (unregistered instantiations) scheduled with the rename sweep (PLAN 4.6).
+- State: 2,295 passed / 34 skipped / 104 xfailed in ~20 s; ctest 9/9.
