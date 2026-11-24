@@ -10,7 +10,7 @@ mixed-dtype pairs to catch asymmetric dispatch bugs.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import List
 
 
 @dataclass(frozen=True)
@@ -45,15 +45,9 @@ _MATRIX_OPS_MM_MIXED: List[str] = ["add", "sub", "mul"]
 _VECTOR_OPS_VV: List[str] = ["add", "sub", "dot", "outer"]
 _MV_OPS: List[str] = ["matvec", "vecmat"]
 _UNARY_OPS: List[str] = ["H", "conj"]
-_VECTOR_SCALAR_OPS: List[str] = ["add_scalar", "mul_scalar"]
 
 # Scalar tokens are intentionally distinct from DTYPES. They model Python scalar
 # inputs to vector operators, not vector storage types.
-SCALAR_DTYPES: List[str] = [
-    "scalar_int64",
-    "scalar_float64",
-    "scalar_complex128",
-]
 
 
 def _same_dtype_cases() -> List[SupportCase]:
@@ -140,9 +134,3 @@ def _vector_scalar_cases() -> List[SupportCase]:
 SUPPORTED: List[SupportCase] = _same_dtype_cases() + _mixed_dtype_cases() + _vector_scalar_cases()
 
 
-def summarize() -> Dict[str, int]:
-    out: Dict[str, int] = {}
-    for c in SUPPORTED:
-        key = f"{c.kind}:{c.op}"
-        out[key] = out.get(key, 0) + 1
-    return out

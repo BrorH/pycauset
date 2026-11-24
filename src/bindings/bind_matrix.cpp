@@ -666,7 +666,7 @@ inline std::shared_ptr<MatrixBase> matrix_from_numpy(const py::array& array) {
 
         if (buf.strides[1] == static_cast<py::ssize_t>(sizeof(uint16_t)) &&
             buf.strides[0] == static_cast<py::ssize_t>(cols * sizeof(uint16_t))) {
-            std::memcpy(dst_ptr, src_ptr, rows * cols * sizeof(uint16_t));
+            std::memcpy(static_cast<void*>(dst_ptr), src_ptr, rows * cols * sizeof(uint16_t));
         } else {
             const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
             const ptrdiff_t stride1 = static_cast<ptrdiff_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(uint16_t)));
@@ -755,7 +755,7 @@ inline std::shared_ptr<MatrixBase> elementwise_operand_matrix_from_numpy(const p
         pycauset::float16_t* dst_ptr = result->data();
 
         if (buf.strides[0] == static_cast<py::ssize_t>(sizeof(uint16_t))) {
-            std::memcpy(dst_ptr, src_ptr, cols * sizeof(uint16_t));
+            std::memcpy(static_cast<void*>(dst_ptr), src_ptr, cols * sizeof(uint16_t));
         } else {
             const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
             for (uint64_t j = 0; j < cols; ++j) {
@@ -4327,7 +4327,7 @@ void bind_matrix_classes(py::module_& m) {
                 const uint16_t* src_ptr = static_cast<const uint16_t*>(b.ptr);
                 pycauset::float16_t* dst_ptr = result->data();
                 if (b.strides[0] == static_cast<py::ssize_t>(sizeof(uint16_t))) {
-                    std::memcpy(dst_ptr, src_ptr, n * sizeof(uint16_t));
+                    std::memcpy(static_cast<void*>(dst_ptr), src_ptr, n * sizeof(uint16_t));
                 } else {
                     const ptrdiff_t stride0 = static_cast<ptrdiff_t>(b.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
                     for (uint64_t i = 0; i < n; ++i) {

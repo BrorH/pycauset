@@ -80,7 +80,6 @@ public:
     void eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBase& eigenvectors, int k);
 
 private:
-    void matmul_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
 };
 
 } // namespace pycauset

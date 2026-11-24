@@ -60,7 +60,7 @@ Python-level linalg endpoints (`solve`, `lstsq`, `slogdet`, `cond`, `eigh`, `eig
 
 | Mechanism | Where | Notes |
 |---|---|---|
-| **OpenBLAS** (`cblas_dgemm`/`sgemm`) | `CpuSolver::matmul`, `matmul_dense`, bit→int accumulation | Multithreaded; the workhorse for dense GEMM. |
+| **OpenBLAS** (`cblas_dgemm`/`sgemm`) | `CpuSolver::matmul`, bit→int accumulation | Multithreaded; the workhorse for dense GEMM. |
 | **LAPACK** (`dgetrf`/`dgetri`, `dpotrf`, `dgeqrf`/`dorgqr`, `dgesvd`, `dsyev`) | inverse, cholesky, qr, svd, eigh | Real float/double only in most paths; complex routed to NumPy fallback at Python level. |
 | **AVX2 elementwise** (runtime-dispatched via `has_avx2()` cpuid, scalar fallback) | `avx2_add/sub/mul/div_f32`, `avx2_add/sub/mul/div_f64` | f32 and f64 fully covered (f64 sub/mul/div added R2_CPU). |
 | **AVX-512 popcount** (cpuid `has_avx512_vpopcntdq` + `vpopcntdq`; `target` attr on GCC/Clang) | bit-matmul `dot_product_avx512` | Runtime-dispatched; baseline-safe. |

@@ -13,16 +13,12 @@ if(POLICY CMP0169)
   cmake_policy(SET CMP0169 OLD) # Allow FetchContent_Populate
 endif()
 
-project(pycauset VERSION 0.1.0 LANGUAGES CXX)
-
-set(CMAKE_UNITY_BUILD OFF)
+project(pycauset LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# --- Optimization: Unity Build (Jumbo Build) ---
-# Merges source files into larger batches to reduce compiler overhead and link times.
-# This is often the single most effective way to speed up C++ builds.
+# Unity (jumbo) builds stay off: the largest TUs already need ~9 GB RAM to compile.
 set(CMAKE_UNITY_BUILD OFF)
 
 # --- Compiler Options ---
@@ -141,7 +137,6 @@ endif()
 
 # 3.5 OpenBLAS (Required for high-performance matrix ops)
 # Try to find it on the system first
-message(STATUS "--- Debugging OpenBLAS Detection Start ---")
 find_package(OpenBLAS)
 
 if(OpenBLAS_FOUND)
@@ -460,7 +455,6 @@ endif()
 
 # --- Extension Module ---
 # Note: The module name must match what is defined in PYBIND11_MODULE in bindings.cpp (which is "_pycauset")
-# Touch 2
 python_add_library(_pycauset MODULE
     src/bindings.cpp
     src/bindings/bind_core.cpp
@@ -630,13 +624,17 @@ if(BUILD_TESTS)
     target_link_libraries(test_lazy_comprehensive PRIVATE GTest::gtest_main pycauset_core)
     add_test(NAME LazyComprehensiveTests COMMAND test_lazy_comprehensive)
 
-    # Other tests disabled for now as source files are missing in this context
-    # add_executable(causal_tests tests/test_main.cpp tests/test_parallel.cpp tests/test_gpu.cpp)
-    # ...
+    # Op registry contract
+    add_executable(test_op_registry tests/test_op_registry.cpp)
+    target_include_directories(test_op_registry PRIVATE include)
+    target_link_libraries(test_op_registry PRIVATE GTest::gtest_main pycauset_core)
+    add_test(NAME OpRegistryTests COMMAND test_op_registry)
+
+    # CPU compute-worker contract
+    add_executable(test_cpu_worker_contract tests/test_cpu_worker_contract.cpp)
+    target_include_directories(test_cpu_worker_contract PRIVATE include)
+    target_link_libraries(test_cpu_worker_contract PRIVATE GTest::gtest_main pycauset_core)
+    add_test(NAME CpuWorkerContractTests COMMAND test_cpu_worker_contract)
 
 endif()
 
-# --- Benchmarks ---
-# add_executable(benchmark_native benchmarks/benchmark_native.cpp)
-# target_include_directories(benchmark_native PRIVATE include)
-# target_link_libraries(benchmark_native PRIVATE pycauset_core)

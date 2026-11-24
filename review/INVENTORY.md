@@ -121,7 +121,6 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `include/pycauset/compute/HardwareProfile.hpp` | 36 | ☐ |device benchmark profile |
 | `include/pycauset/compute/MatrixPropertyTraits.hpp` | 61 | ☐ |property traits for kernels |
 | `include/pycauset/compute/StreamingManager.hpp` | 56 | ☐ |C++ tiled out-of-core driver (vs Python one) |
-| `include/pycauset/compute/WorkloadPartitioner.hpp` | 25 | ☐ |DEAD (F-018) |
 | `include/pycauset/compute/cpu/CpuComputeWorker.hpp` | 38 | ☐ |CPU tile worker |
 | `include/pycauset/compute/cpu/CpuDevice.hpp` | 76 | ☐ |CPU device adapter |
 | `include/pycauset/compute/cpu/CpuSolver.hpp` | 86 | ☐ |CPU kernel class decl |
@@ -149,7 +148,6 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `src/compute/AutoSolver.cpp` | 1100 | ☐ |router impl |
 | `src/compute/ComputeContext.cpp` | 170 | ☐ | |
 | `src/compute/StreamingManager.cpp` | 333 | ☐ | |
-| `src/compute/WorkloadPartitioner.cpp` | 70 | ☐ |DEAD, not compiled (F-018) |
 | `src/compute/cpu/CpuComputeWorker.cpp` | 45 | ☐ | |
 | `src/compute/cpu/CpuDevice.cpp` | 229 | ☐ | |
 | `src/compute/cpu/CpuSolver.cpp` | 5867 | ☐ |ALL CPU kernels, monolith (F-006 UB at :165). Split candidate |
@@ -164,7 +162,6 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `src/core/PromotionResolver.cpp` | 297 | ☐ | |
 | `src/core/StorageUtils.cpp` | 48 | ☐ | |
 | `src/core/SystemUtils.cpp` | 91 | ☐ | |
-| `src/main.cpp` | 6 | ☐ |DEAD (F-018) |
 | `src/math/Eigen.cpp` | 17 | ☐ | |
 | `src/math/LinearAlgebra.cpp` | 1142 | ☐ |op entry: allocate result, dispatch |
 | `src/matrix/DenseBitMatrix.cpp` | 281 | ☐ | |
@@ -230,10 +227,8 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `python/pycauset/_internal/factories.py` | 247 | ☐ | |
 | `python/pycauset/_internal/formatting.py` | 104 | ☐ | |
 | `python/pycauset/_internal/gpu_hint.py` | 66 | ☐ | |
-| `python/pycauset/_internal/interop.py` | 47 | ☐ |patch_interop DEAD (F-018) |
 | `python/pycauset/_internal/io_observability.py` | 335 | ☐ | |
 | `python/pycauset/_internal/lazy_allocation.py` | 200 | ☐ | |
-| `python/pycauset/_internal/lazy_ufunc.py` | 72 | ☐ |DEAD: never imported (F-018) |
 | `python/pycauset/_internal/linalg_cache.py` | 140 | ☐ | |
 | `python/pycauset/_internal/matrix_api.py` | 618 | ☐ |TriangularMatrix front etc. |
 | `python/pycauset/_internal/native.py` | 141 | ☐ | |

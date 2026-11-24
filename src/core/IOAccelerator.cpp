@@ -49,21 +49,6 @@ void IOAccelerator::discard(size_t offset, size_t size) {
     discard_impl(base + offset, actual_size);
 }
 
-std::future<void> IOAccelerator::flush_async(size_t offset, size_t size) {
-    return std::async(std::launch::async, [this, offset, size]() {
-        if (mapper_) {
-            uint8_t* base = static_cast<uint8_t*>(mapper_->get_data());
-            if (base) {
-                size_t max_size = mapper_->get_data_size();
-                if (offset < max_size) {
-                    size_t actual_size = std::min(size, max_size - offset);
-                    mapper_->flush(base + offset, actual_size);
-                }
-            }
-        }
-    });
-}
-
 void IOAccelerator::process_hint(const MemoryHint& hint) {
     if (!mapper_) return;
     uint8_t* base = static_cast<uint8_t*>(mapper_->get_data());

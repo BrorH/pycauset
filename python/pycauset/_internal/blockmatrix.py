@@ -541,7 +541,7 @@ class BlockMatrix:
         shown = 0
         for r, row in enumerate(self._blocks):
             row_cells: list[str] = []
-            for c, blk in enumerate(row):
+            for blk in row:
                 if shown >= max_blocks:
                     row_cells.append("…")
                     continue

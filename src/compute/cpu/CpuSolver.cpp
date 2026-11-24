@@ -83,8 +83,8 @@ namespace {
         // Check for AVX-512 Foundation (bit 16 of EBX in leaf 7, subleaf 0)
         // Check for VPOPCNTDQ (bit 14 of ECX in leaf 7, subleaf 0)
         
-        int cpuInfo[4];
 #ifdef _WIN32
+        int cpuInfo[4];
         __cpuid(cpuInfo, 0);
         int nIds = cpuInfo[0];
         if (nIds >= 7) {
@@ -136,8 +136,8 @@ namespace {
         static bool available = false;
         if (checked) return available;
         
-        int cpuInfo[4];
 #ifdef _WIN32
+        int cpuInfo[4];
         __cpuid(cpuInfo, 0);
         if (cpuInfo[0] >= 7) {
             __cpuidex(cpuInfo, 7, 0);
@@ -732,11 +732,6 @@ namespace {
             }
         }
         
-        // --- Lookahead Protocol: Send Memory Hints ---
-        using namespace pycauset::core;
-        size_t total_bytes = m * n * sizeof(T);
-        size_t stride_bytes = n * sizeof(T);
-        size_t block_bytes = sizeof(T);
         size_t block_size = 64;
 
         ParallelBlockMap(m, n, block_size, [&](size_t i_start, size_t i_end, size_t j_start, size_t j_end) {
@@ -1933,19 +1928,6 @@ void CpuSolver::gemm(const MatrixBase& a, const MatrixBase& b, MatrixBase& c, do
     throw std::runtime_error("CpuSolver::gemm fallback not implemented for these dtypes");
 }
 
-void CpuSolver::matmul_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    // Legacy wrapper for double precision
-    auto* a_dense = dynamic_cast<const DenseMatrix<double>*>(&a);
-    auto* b_dense = dynamic_cast<const DenseMatrix<double>*>(&b);
-    auto* c_dense = dynamic_cast<DenseMatrix<double>*>(&result);
-
-    if (a_dense && b_dense && c_dense) {
-        matmul_impl(a_dense, b_dense, c_dense);
-    } else {
-        throw std::invalid_argument("matmul_dense called with non-double matrices");
-    }
-}
-
 namespace {
     void invert_triangular(const TriangularMatrix<double>* a_tri, TriangularMatrix<double>* b_tri) {
         if (!a_tri->has_diagonal()) {
@@ -2105,9 +2087,9 @@ void CpuSolver::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int
     }
 
     bool out_is_complex = false;
-    if (auto* out_c = dynamic_cast<DenseVector<std::complex<double>>*>(&out)) {
+    if (dynamic_cast<DenseVector<std::complex<double>>*>(&out) != nullptr) {
         out_is_complex = true;
-    } else if (auto* out_d = dynamic_cast<DenseVector<double>*>(&out)) {
+    } else if (dynamic_cast<DenseVector<double>*>(&out) != nullptr) {
         out_is_complex = false;
     } else {
         throw std::runtime_error("CpuSolver::eigvals_arnoldi output must be DenseVector<double> or DenseVector<complex<double>>");
@@ -2244,7 +2226,7 @@ void CpuSolver::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int
     });
 
     for (int i = 0; i < k; ++i) {
-         std::complex<double> val = (i < ranked.size()) ? ranked[i].second : 0.0;
+         std::complex<double> val = (static_cast<size_t>(i) < ranked.size()) ? ranked[i].second : 0.0;
          if (out_is_complex) {
              auto* out_c = static_cast<DenseVector<std::complex<double>>*>(&out);
              out_c->set(i, val);
@@ -5515,7 +5497,6 @@ void CpuSolver::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
          // Let's just do a manual copy for general rectangular.
          
          std::vector<double> a_buf(m * n);
-         const double* src = in_d->data(); // Assuming contiguous for simplicity or use elementwise
          // We must handle strides properly
          ParallelFor(0, m, [&](size_t i) {
              for(size_t j=0; j<n; ++j) {
@@ -5588,7 +5569,6 @@ void CpuSolver::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
     // Fallback for float
     if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
          std::vector<float> a_buf(m * n);
-         const float* src = in_f->data();
          for(size_t i=0; i<m; ++i) {
              for(size_t j=0; j<n; ++j) {
                  a_buf[i * n + j] = in_f->get(i, j);

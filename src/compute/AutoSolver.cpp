@@ -415,38 +415,6 @@ void AutoSolver::unregister_host_memory(void* ptr) {
 
 // --- Device Selection Logic ---
 
-ComputeDevice* AutoSolver::select_device(uint64_t n_elements) const {
-    if (backend_preference_ == BackendPreference::CPU) return cpu_device_.get();
-    if (backend_preference_ == BackendPreference::GPU && is_gpu_active()) return gpu_device_.get();
-
-    if (is_gpu_active() && n_elements >= gpu_threshold_elements_) {
-        if (gpu_speedup_factor_ < 0.9) {
-            return cpu_device_.get();
-        }
-        return gpu_device_.get();
-    }
-    return cpu_device_.get();
-}
-
-ComputeDevice* AutoSolver::select_device_for_matrix(const MatrixBase& m) const {
-    if (backend_preference_ == BackendPreference::CPU) return cpu_device_.get();
-    if (backend_preference_ == BackendPreference::GPU && is_gpu_active()) return gpu_device_.get();
-
-    uint64_t elements = m.size();
-    if (elements < gpu_threshold_elements_) {
-        return cpu_device_.get();
-    }
-
-    if (is_gpu_active()) {
-        if (gpu_speedup_factor_ < 0.9) {
-            return cpu_device_.get();
-        }
-        return gpu_device_.get();
-    }
-
-    return cpu_device_.get();
-}
-
 // --- Operations ---
 
 void AutoSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {

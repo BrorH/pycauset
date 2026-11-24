@@ -118,3 +118,29 @@ removing MemoryGovernor's pinning API.
   kept separate; **no sampling for dtype choice** (unsound); a **predict-then-measure**
   design (rules choose the dtype before the op; the kernel records exact min/max while
   writing), so bounds don't loosen over long chains; out-of-scope list.
+
+## Session 1, part 6: 2026-11-24, execution begins (maintainer: "start executing")
+
+**Policy added:** deterministic only, no sampling/guessing in R1 (README rule 12).
+
+**Commits / changes**
+1. `fix(F-028)`: removed the sampled int32 matmul overflow preflight (the exact
+   int64-accumulator overflow check remains). Full guesswork audit in FINDINGS F-028;
+   float reductions verified bit-identical across runs.
+2. New suite started: `tests/conftest.py`, `tests/engine/` (isolated storage and cwd),
+   `test_regressions.py` (F-024 and F-028 tests; strict-xfail for open F-001/2/3).
+3. **F-029 found and fixed:** the old suite imported a stale site-packages copy, so
+   local runs weren't testing the source tree. pyproject now sets `pythonpath = ["python"]`.
+4. `fix(F-024)`: eig/eig_skew results get unique backing files; `.gitignore` masking removed.
+5. Tier-A dead code batch 1 (Python + C++), see DEADCODE.md: lazy_ufunc.py,
+   interop.py, WorkloadPartitioner, main.cpp, unused AutoSolver/CpuSolver/SystemUtils/
+   binding_warnings functions, test-only ObjectFactory load_* / flush_async /
+   promote_to_ram (and their test cases), unused Python helpers, unreachable code.
+   CMake leftovers, `#pragma message`, `_GNU_SOURCE` redefinition, all 15 `src/`
+   compiler warnings (incl. a zombie "Send Memory Hints" block that sent nothing).
+   Wired 2 orphaned gtests (ctest 8/8).
+6. New findings: F-030 (eigvals_arnoldi silently uses dense NumPy; the native solver
+   reportedly crashes), F-031 (a C++ test file asserts nothing in release builds).
+
+**State:** old+new Python suites 802 passed / 34 skipped / 9 xfailed; ctest 8/8;
+0 compiler warnings in `src/`.

@@ -63,10 +63,6 @@ namespace {
     }
 }
 
-bool is_triangular(const MatrixBase& m) {
-    return dynamic_cast<const TriangularMatrixBase*>(&m) != nullptr;
-}
-
 bool is_identity(const MatrixBase& m) {
     return m.get_matrix_type() == MatrixType::IDENTITY;
 }

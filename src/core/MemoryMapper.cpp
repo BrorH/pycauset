@@ -1,4 +1,6 @@
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include "pycauset/core/MemoryMapper.hpp"
 
 #include "pycauset/compute/ComputeContext.hpp"

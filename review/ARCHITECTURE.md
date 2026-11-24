@@ -141,8 +141,6 @@ pybind lambda (bind_matrix.cpp)
 * Python: `_internal/streaming_manager.py` is a **separate** Python-side planner and
   observer (`last_io_trace`, IO traces). **[SMELL]** Two components with the same
   name and overlapping purpose.
-* **[DEAD]** `compute/WorkloadPartitioner.{hpp,cpp}`: referenced by nothing, and
-  the .cpp is not in the CMake source list.
 
 ### 2.5 Storage [OK design]
 * `MemoryMapper` owns the bytes: an anonymous RAM buffer or an mmapped file
@@ -179,8 +177,7 @@ pybind lambda (bind_matrix.cpp)
 ### 2.8 Physics in C++
 `causet/Spacetime.hpp` (native MinkowskiDiamond, Cylinder, Box) and `Sprinkler.cpp`
 (seeded sprinkling that builds the TriangularBitMatrix directly, interruptible).
-Contains a leftover `#pragma message("Spacetime.hpp included")` that prints on every
-build.
+
 
 ---
 
@@ -258,8 +255,6 @@ F-002) and of elementwise ops running at 0.2–0.3× NumPy speed.
 | `runtime.py`, `native.py`, `native_setup.py`, `native_threshold.py` | | process setup |
 | `formatting.py`, `coercion.py`, `warnings.py`, `gpu_hint.py` | | small utilities |
 | `patching.py` | 102 | operator wrappers (temp-file tracking) |
-| `interop.py` | 47 | **[DEAD]** `patch_interop` never called |
-| `lazy_ufunc.py` | 72 | **[DEAD]** never imported |
 | `storage_debug.py` | 97 | debug tool, used only by its own test |
 
 Exception handling: the Python package has 257 broad `except`/`except Exception`

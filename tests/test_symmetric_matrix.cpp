@@ -47,30 +47,6 @@ void test_antisymmetric_access() {
     std::cout << "  Passed." << std::endl;
 }
 
-void test_persistence() {
-    std::cout << "Testing Persistence..." << std::endl;
-    std::string filename = "test_sym.pycauset";
-    
-    {
-        SymmetricMatrix<double> mat(10, filename, true); // Anti-Symmetric
-        mat.set(1, 2, 42.0);
-        mat.set_temporary(false); // Keep file
-    }
-
-    // Load back
-    auto loaded = ObjectFactory::load_matrix(filename, 0, 10, 10, DataType::FLOAT64, MatrixType::ANTISYMMETRIC);
-    auto* sym = dynamic_cast<SymmetricMatrix<double>*>(loaded.get());
-    
-    assert(sym != nullptr);
-    assert(sym->is_antisymmetric());
-    assert(std::abs(sym->get(1, 2) - 42.0) < 1e-9);
-    assert(std::abs(sym->get(2, 1) - (-42.0)) < 1e-9);
-
-    loaded->close();
-    std::filesystem::remove(filename);
-    std::cout << "  Passed." << std::endl;
-}
-
 void test_clone() {
     std::cout << "Testing Clone..." << std::endl;
     SymmetricMatrix<double> mat(10, "", true);
@@ -109,7 +85,6 @@ int main() {
         test_symmetric_access();
         test_antisymmetric_access();
         test_antisymmetric_class();
-        test_persistence();
         test_clone();
         std::cout << "All SymmetricMatrix tests passed!" << std::endl;
     } catch (const std::exception& e) {

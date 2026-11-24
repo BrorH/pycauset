@@ -269,31 +269,6 @@ def _streaming_eigvalsh(matrix: Any, *, deps: OpsDeps, rec: Any) -> Any | None:
     return out
 
 
-def _streaming_eigh(matrix: Any, *, deps: OpsDeps, rec: Any) -> tuple[Any, Any] | None:
-    np_module = deps.np_module
-    if np_module is None:
-        return None
-
-    shape = _safe_rows_cols(matrix)
-    if shape is None:
-        return None
-
-    try:
-        data = np_module.array([[matrix.get(i, j) for j in range(shape[1])] for i in range(shape[0])])
-    except Exception:
-        return None
-
-    try:
-        w, v = np_module.linalg.eigh(data)
-    except Exception:
-        return None
-
-    w_out = _as_pycauset_array(w, deps=deps)
-    v_out = _as_pycauset_array(v, deps=deps)
-    _annotate_impl(rec, "streaming_python", deps=deps)
-    return w_out, v_out
-
-
 def _streaming_eigvals_arnoldi(matrix: Any, k: int, m: int, tol: float, *, deps: OpsDeps, rec: Any) -> Any | None:
     np_module = deps.np_module
     if np_module is None:
@@ -1118,10 +1093,6 @@ def eigvals(a: Any, *, deps: OpsDeps) -> Any:
     _discard_if_streaming(rec, [a], result_w, deps=deps)
     return result_w
 
-    w = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
-    w_out = _as_pycauset_array(w, deps=deps)
-    _discard_if_streaming(rec, [a], w_out, deps=deps)
-    return w_out
 
 
 def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any:

@@ -134,7 +134,7 @@ TEST_F(MemoryGovernorTest, EvictionLogic) {
     }
 }
 
-TEST_F(MemoryGovernorTest, ManualSpillAndPromote) {
+TEST_F(MemoryGovernorTest, ManualSpill) {
     MemoryGovernor& gov = MemoryGovernor::instance();
     
     // Set a small safety margin to ensure request_ram succeeds
@@ -154,12 +154,6 @@ TEST_F(MemoryGovernorTest, ManualSpillAndPromote) {
     EXPECT_EQ(obj.get_storage_state(), StorageState::DISK_BACKED);
     EXPECT_EQ(gov.get_tracked_ram_usage(), 0);
     EXPECT_NE(obj.get_backing_file(), ":memory:");
-
-    // Promote
-    EXPECT_TRUE(obj.promote_to_ram());
-    EXPECT_EQ(obj.get_storage_state(), StorageState::RAM_ONLY);
-    EXPECT_EQ(gov.get_tracked_ram_usage(), 1024);
-    EXPECT_EQ(obj.get_backing_file(), ":memory:");
 
     // Restore margin
     gov.set_safety_margin(old_margin);

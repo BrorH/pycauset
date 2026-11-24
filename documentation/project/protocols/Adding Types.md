@@ -23,15 +23,15 @@ If the type is intended for GPU/BLAS interoperability, it must expose contiguous
 
 ### 3) Update the factory (`include/pycauset/core/ObjectFactory.hpp`, `src/core/ObjectFactory.cpp`)
 
-The factory is the central registry for creating, loading, and cloning persistent objects.
+The factory is the central registry for creating and cloning persistent objects.
+(Loading from a `.pycauset` container goes through each class's `_from_storage`
+binding, driven by `python/pycauset/_internal/persistence.py`.)
 
 - Matrices:
     - `create_matrix`
-    - `load_matrix`
     - `clone_matrix`
 - Vectors:
     - `create_vector`
-    - `load_vector`
     - `clone_vector`
 
 ### 4) Update compute support

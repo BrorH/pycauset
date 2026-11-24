@@ -1,7 +1,6 @@
 #ifndef PYCAUSET_SPACETIME_HPP
 #define PYCAUSET_SPACETIME_HPP
 
-#pragma message("Spacetime.hpp included")
 #include <vector>
 #include <random>
 #include <cmath>

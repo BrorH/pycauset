@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Iterable, List, Set
+from typing import Iterable, Set
 
 _TEMP_TRACKER: Set[Path] = set()
 
@@ -45,15 +45,6 @@ def record_temporary_file(path: Path) -> None:
     except Exception:
         return
     _TEMP_TRACKER.add(normalized)
-
-
-def tracked_temp_files(root: Path | None = None) -> List[Path]:
-    """Return known temporary files (optionally filtered by root)."""
-    _prune_tracker()
-    if root is None:
-        return sorted(_TEMP_TRACKER)
-    normalized_root = _normalize(root)
-    return sorted(p for p in _TEMP_TRACKER if _is_under_root(p, normalized_root))
 
 
 def clear_tracked_temp_files(root: Path | None = None) -> None:
@@ -106,25 +97,3 @@ def set_temporary_file(path: Path, is_temp: bool) -> None:
         return
 
 
-class StorageRegistry:
-    """Registry for storage management and cleanup."""
-
-    def __init__(self, storage_root: Path) -> None:
-        self._root = _normalize(storage_root)
-
-    def register_auto_file(self, path: str) -> None:
-        try:
-            candidate = _normalize(Path(path))
-        except Exception:
-            return
-        if not _is_under_root(candidate, self._root):
-            return
-        if not is_temporary_file(candidate):
-            return
-        record_temporary_file(candidate)
-
-    def finalize(self, keep_files: bool) -> None:
-        if not keep_files:
-            cleanup_storage(self._root)
-        else:
-            _prune_tracker()

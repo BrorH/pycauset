@@ -57,24 +57,6 @@ TEST_F(IOAcceleratorTest, PrefetchDoesNotCrash) {
     accelerator.prefetch(file_size + 100, 100);
 }
 
-TEST_F(IOAcceleratorTest, FlushAsync) {
-    auto mapper = std::make_unique<MemoryMapper>(temp_file, file_size);
-    IOAccelerator accelerator(mapper.get());
-
-    // Modify data
-    char* data = static_cast<char*>(mapper->get_data());
-    data[0] = 'X';
-
-    // Flush async
-    auto future = accelerator.flush_async(0, 4096);
-    future.wait();
-
-    // Verify flush happened (by re-reading file)
-    // Note: MemoryMapper might keep file open, so we might need to close it to be sure,
-    // or just trust the OS cache coherence.
-    // But flush() calls FlushViewOfFile which ensures it's written to disk/cache.
-}
-
 TEST_F(IOAcceleratorTest, DiscardDoesNotCrash) {
     auto mapper = std::make_unique<MemoryMapper>(temp_file, file_size);
     IOAccelerator accelerator(mapper.get());

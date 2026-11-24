@@ -15,7 +15,7 @@ namespace pycauset {
 typedef ComputeDevice* (*CreateDeviceFunc)(const AcceleratorConfig*);
 
 // Guards against re-entrancy during ComputeContext::instance() construction.
-// MemoryMapper::open_file() consults ComputeContext::instance().is_gpu_active()
+// GPU pinning queries (is_gpu_active/allocate_pinned below) consult this flag:
 // to decide whether to allocate pinned memory for ":memory:" backing. During the
 // first instance() call, the CUDA device-load path runs a CPU benchmark that
 // constructs DenseMatrix objects, which in turn construct MemoryMappers, i.e.
@@ -38,10 +38,6 @@ ComputeContext& ComputeContext::instance() {
     // reclaims on process exit anyway, removing a second teardown-hang source.
     static ComputeContext* ctx = new ComputeContext();
     return *ctx;
-}
-
-bool compute_context_is_constructing() {
-    return g_constructing.load(std::memory_order_acquire);
 }
 
 ComputeContext::ComputeContext() {

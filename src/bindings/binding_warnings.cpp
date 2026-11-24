@@ -50,14 +50,6 @@ void warn(const char* message, int stacklevel) {
     warn_impl(message, "PyCausetWarning", stacklevel);
 }
 
-void warn_with_category(const char* message, const char* category_name, int stacklevel) {
-    warn_impl(message, category_name, stacklevel);
-}
-
-void warn_once(const std::string& key, const std::string& message, int stacklevel) {
-    warn_once_with_category(key, message, "PyCausetWarning", stacklevel);
-}
-
 void warn_once_with_category(
     const std::string& key,
     const std::string& message,

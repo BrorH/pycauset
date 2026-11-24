@@ -197,12 +197,10 @@ def _safe_get(name):
 _TriangularBitMatrix = _safe_get("TriangularBitMatrix")
 if _TriangularBitMatrix:
     _original_triangular_bit_matrix_init = getattr(_TriangularBitMatrix, "__init__", None)
-    _original_triangular_bit_matrix_random = getattr(_TriangularBitMatrix, "random", None)
 else:
     class _TriangularBitMatrix:  # pragma: no cover
         pass
     _original_triangular_bit_matrix_init = None
-    _original_triangular_bit_matrix_random = None
 
 # Private aliases for native classes
 _IntegerMatrix = _safe_get("IntegerMatrix")
@@ -471,10 +469,6 @@ _runtime.initial_cleanup()
 def _track_matrix(instance: Any) -> None:
     _runtime.track_matrix(instance)
     _debug(f"allocated {_matrix_desc(instance)}")
-
-
-def _release_tracked_matrices() -> None:
-    _runtime.release_tracked_matrices()
 
 
 def _register_cleanup() -> None:

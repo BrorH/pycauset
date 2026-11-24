@@ -163,7 +163,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   threaded test under ASan/TSan before trusting it.
 
 ### F-010 Three C++ test files are orphaned (never built)
-- **Status:** open
+- **Status:** partly fixed: op_registry and cpu_worker_contract are wired (ctest 8/8);
+  parallel_utils waits for F-004. CI still builds no C++ tests (PLAN 1.2).
 - `tests/test_cpu_worker_contract.cpp`, `tests/test_op_registry.cpp` and
   `tests/test_parallel_utils.cpp` are not in CMakeLists. The first two pass when
   built by hand; the third reveals F-004. CI builds **no** C++ tests at all.
@@ -219,7 +220,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
 ## S4 — hygiene
 
 ### F-018 Dead code
-- **Status:** open
+- **Status:** partly fixed (Tier-A batch 1, session 1; see DEADCODE.md §4 ticks). Remaining:
+  tests/manual, tests/stability, debug_load.py, phase3_4_verification.py, mockups/
 - `include/pycauset/compute/WorkloadPartitioner.hpp`, `src/compute/WorkloadPartitioner.cpp`
   (unreferenced, not compiled).
 - `src/main.cpp` (prints "pycauset Initialized", not compiled).
@@ -235,12 +237,14 @@ the entry (the history is useful). New findings go at the bottom with the next f
   OpenBLAS "Debugging Start" status spam.
 
 ### F-019 Debug leftovers in the build
-- **Status:** open
+- **Status:** fixed (`#pragma message` removed; `_GNU_SOURCE` guarded; CMake debug spam removed)
 - `#pragma message("Spacetime.hpp included")` prints on every compile.
 - `_GNU_SOURCE` is redefined in `src/core/MemoryMapper.cpp:1`.
 
 ### F-020 Compiler warnings under `-Wall -Wextra`
-- **Status:** open
+- **Status:** fixed for `src/` (0 warnings under -Wall -Wextra -Wno-unused-parameter);
+  test files still have 3 (they go with the old suite). One was zombie code: a "Send
+  Memory Hints" block computed sizes but never sent the hint.
 - 18 unique: unused variables in `CpuSolver.cpp` (cpuInfo ×2, out_c, out_d,
   total_bytes, stride_bytes, block_bytes, src ×2), one sign-compare, and
   `-Wclass-memaccess` memcpy into `float16_t` in `bind_matrix.cpp` (×3). The default
@@ -324,3 +328,18 @@ the entry (the history is useful). New findings go at the bottom with the next f
   (it installs and copies the same build).
 - Fix: `[tool.pytest.ini_options] pythonpath = ["python"]`. The per-file `sys.path` hacks
   are now redundant and go away with the old suite (TESTS.md §4).
+
+### F-030 `pc.eigvals_arnoldi` never uses the C++ Arnoldi solver
+- **Status:** open (S2; maintainer needs Arnoldi for R1)
+- `python/pycauset/_internal/ops.py` (eigvals_arnoldi) says: "the native eigvals_arnoldi
+  (R1_CPU Phase 6) crashes with an access violation, so use the NumPy fallback until
+  fixed". So the public function computes **all** eigenvalues densely in RAM with NumPy
+  and keeps the top k. `CpuSolver::eigvals_arnoldi` is 0% executed (DEADCODE §3).
+- Fix: reproduce the crash under ASan, fix it, route `pc.eigvals_arnoldi` to native, and
+  test against NumPy on matrices where Arnoldi converges.
+
+### F-031 `tests/test_symmetric_matrix.cpp` asserts nothing in release builds
+- **Status:** open (S3)
+- It uses plain `assert()` (no gtest macros). CMake builds the tests as RelWithDebInfo,
+  which defines NDEBUG, so every check is compiled out and the test always "passes".
+  Convert it to gtest `EXPECT_*` (or fold it into the new suite).

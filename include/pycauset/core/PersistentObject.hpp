@@ -68,12 +68,6 @@ public:
     bool spill_to_disk();
 
     /**
-     * @brief Moves the object from Disk to RAM for performance.
-     * @return true if successful, false if RAM is full or already in RAM.
-     */
-    bool promote_to_ram();
-
-    /**
      * @brief Returns the current storage state.
      */
     pycauset::core::StorageState get_storage_state() const { return storage_state_; }

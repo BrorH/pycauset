@@ -41,12 +41,6 @@ public:
     void discard(size_t offset, size_t size);
 
     /**
-     * @brief Flushes the specified range to disk asynchronously.
-     * Returns a future that completes when the flush is done.
-     */
-    std::future<void> flush_async(size_t offset, size_t size);
-
-    /**
      * @brief Processes a high-level memory access hint.
      * Translates the hint into specific prefetch/discard commands.
      */

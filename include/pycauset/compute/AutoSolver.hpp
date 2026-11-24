@@ -126,9 +126,6 @@ private:
     bool load_cached_profile(const HardwareProfile& device_profile);
     void apply_dynamic_pinning_budget();
 
-    // Helper to decide device
-    ComputeDevice* select_device(uint64_t n_elements) const;
-    ComputeDevice* select_device_for_matrix(const MatrixBase& m) const;
 };
 
 } // namespace pycauset

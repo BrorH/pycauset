@@ -198,61 +198,6 @@ bool PersistentObject::spill_to_disk() {
     }
 }
 
-bool PersistentObject::promote_to_ram() {
-    if (storage_state_ != pycauset::core::StorageState::DISK_BACKED || !mapper_) {
-        return false;
-    }
-
-    size_t size = mapper_->get_data_size();
-
-    // 1. Ask Governor for RAM
-    if (!pycauset::core::MemoryGovernor::instance().request_ram(size)) {
-        return false;
-    }
-
-    try {
-        storage_state_ = pycauset::core::StorageState::TRANSITIONING;
-
-        // 2. Create new RAM-backed mapper
-        auto new_mapper = std::make_unique<MemoryMapper>(":memory:", size, 0, true);
-
-        // 3. Copy data
-        std::memcpy(new_mapper->get_data(), mapper_->get_data(), size);
-
-        // 4. Swap mappers
-        // Note: Old file is closed when unique_ptr is overwritten.
-        // If it was temporary, it will be deleted by close() logic if we didn't move it out.
-        // Wait, mapper_ is overwritten. The old mapper's destructor runs.
-        // If is_temporary_ is true, we want the old file deleted.
-        // But PersistentObject::close() handles deletion based on is_temporary_.
-        // MemoryMapper destructor just unmaps. It doesn't delete files.
-        // So we need to manually delete the old file if it was temporary.
-        
-        std::string old_path = mapper_->get_filename();
-        bool was_temp = is_temporary_;
-
-        mapper_ = std::move(new_mapper);
-        accelerator_.reset();
-
-        if (was_temp && old_path != ":memory:") {
-             std::filesystem::remove(reinterpret_cast<const char8_t*>(old_path.c_str()));
-        }
-
-        // 5. Update state
-        storage_state_ = pycauset::core::StorageState::RAM_ONLY;
-        
-        // 6. Register with Governor
-        pycauset::core::MemoryGovernor::instance().register_object(this, size);
-
-        return true;
-    } catch (const std::exception& e) {
-        std::cerr << "Failed to promote object to RAM: " << e.what() << std::endl;
-        storage_state_ = pycauset::core::StorageState::DISK_BACKED;
-        // Also unregister if we failed after registering? No, we register at end.
-        return false;
-    }
-}
-
 void PersistentObject::initialize_storage(uint64_t size_in_bytes,
                                    const std::string& backing_file,
                                    const std::string& fallback_prefix,

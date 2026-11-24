@@ -284,5 +284,3 @@ class StreamingManager:
         return isinstance(record, dict) and record.get("route") == "streaming"
 
 
-def default_manager() -> StreamingManager:
-    return StreamingManager(io_observer=io_observability.default_instance())

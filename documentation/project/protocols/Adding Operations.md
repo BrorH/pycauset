@@ -90,7 +90,9 @@ virtual void my_new_op_vector(const VectorBase& a, const VectorBase& b, VectorBa
 
 Update `include/pycauset/compute/AutoSolver.hpp` and `src/compute/AutoSolver.cpp`.
 
-- Default: route by size with `select_device(elements)->my_new_op(...)`.
+- Default: run on the CPU device. Each AutoSolver method decides GPU eligibility inline
+  (`is_gpu_active()` plus dtype/structure/size checks), e.g. `AutoSolver::add`. (GPU work
+  is on hold; new ops should be CPU-only unless GPU support is explicitly in scope.)
 - If GPU does not support the op/dtypes/structures, either:
   - enforce “CPU only” in AutoSolver for that op, or
   - keep GPU routing but ensure GPU throws a clear error.

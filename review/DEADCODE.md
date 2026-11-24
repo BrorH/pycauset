@@ -76,6 +76,13 @@ Python suite + demos, **without** gtests).
 ## 4. Candidate tiers
 
 ### Tier A: remove now (unreferenced AND never executed, or clearly obsolete)
+**Batch 1 done (session 1, 2026-11-24)** ✅: everything below except where marked.
+Lessons: (1) a candidate flagged by tools can still have a live reader in the same
+file (`g_constructing`, kept); (2) code used only by its own unit test is dead
+(`load_matrix`, `load_vector`, `flush_async`, `promote_to_ram` removed with their tests);
+(3) never use blind text substitution for removals (a duplicated line broke 47 tests
+until reverted); use the AST/brace-matching helpers.
+
 Python: `_internal/lazy_ufunc.py`; `_internal/interop.py` (`patch_interop`,
 `_array_ufunc`); `ops._streaming_eigh`; unreachable code after `return` in
 `ops.eigvals`; `_storage.StorageRegistry`, `tracked_temp_files`;
@@ -87,7 +94,9 @@ C++ (cppcheck ∩ coverage, 24): `WorkloadPartitioner.{hpp,cpp}`, `src/main.cpp`
 `SystemUtils get_available_ram/get_total_ram`, `LinearAlgebra is_triangular`,
 `binding_warnings warn_with_category/warn_once`, `ObjectFactory::load_matrix/load_vector`
 (check the persistence path first), `PersistentObject::promote_to_ram`.
-Re-check `MemoryGovernor`'s pinning API with the gtests included before removing it.
+**Not yet done:** `MemoryGovernor`'s pinning API is GPU infrastructure; it moves with
+CUDA to `experimental/` rather than being deleted. `set_temporary_file` (never executed,
+but wired into Runtime) is Tier B.
 
 ### Tier B: referenced but never executed (decide: test it or delete it)
 - `matrix_api.Matrix` pure-Python matrix implementation (~60 lines, reached from
