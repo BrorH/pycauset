@@ -294,7 +294,9 @@ std::string PersistentObject::copy_storage(const std::string& result_file_hint) 
             char* dst_data = static_cast<char*>(dest_mapper.get_data());
             
             // Explicitly flush source if needed (assumed coherent)
-            std::memcpy(dst_data, src_data, size);
+            if (size > 0) {  // empty objects have null data pointers (F-025)
+                std::memcpy(dst_data, src_data, size);
+            }
             dest_mapper.flush();
         } catch (const std::exception& e) {
              throw std::runtime_error("Failed to copy storage to " + dest_path + ": " + e.what());

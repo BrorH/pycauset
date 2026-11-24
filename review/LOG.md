@@ -144,3 +144,28 @@ removing MemoryGovernor's pinning API.
 
 **State:** old+new Python suites 802 passed / 34 skipped / 9 xfailed; ctest 8/8;
 0 compiler warnings in `src/`.
+
+## Session 1, part 7: 2026-11-24, critical fixes
+
+- `fix(F-004,F-005)`: ParallelFor no longer deadlocks when nested (runs inline on pool
+  workers) and waits for all tasks before rethrowing. Atomic thread count. New gtests
+  verified to hang/fail on the old code. ctest 9/9.
+- `fix(F-006,F-025)`: integer + - * wrap without UB (one set of wrapping functors in
+  ScalarUtils.hpp); null memcpy guarded. **ASan+UBSan: 0 errors, 0 UB** (811 tests).
+- F-001 root-caused; design decided and written into FINDINGS (integers never carry a
+  lazy scalar; typed kernel with NumPy result dtypes). Implementation deferred to the
+  next session because it belongs with the C++ operator-table consolidation (PLAN 4.3).
+- **Benchmark correction:** the first parity baseline was taken under build load and is
+  invalid. Quiet-machine numbers: only 2/8 ops at ≥0.90× NumPy; dot is ~100× slower
+  (F-012). BENCHMARKS.md's "8/8" claim must be re-measured on the maintainer's machine.
+
+**State at end of session 1:** Python 811 passed / 34 skipped / 9 strict-xfail (open bugs
+F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
+
+**Next session, suggested order:**
+1. F-001 (typed integer scalar kernel), then F-002 (`-A`, `int * A`, `A - int`) and
+   F-003 (`cond`), which flips the 9 strict-xfails.
+2. F-030: native Arnoldi crash (needed for R1); then skew eigensolver tests.
+3. TESTS.md core: `tests/spec.py` and the conformance grid over all 16 dtypes.
+4. CI: build and run the gtests; a UBSan job with `-s`; ruff-F and Skylos gates.
+5. F-026: decide whether the C++ StreamingManager lives or dies (real larger-than-RAM run).

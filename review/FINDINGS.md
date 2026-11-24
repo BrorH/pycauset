@@ -36,11 +36,23 @@ the entry (the history is useful). New findings go at the bottom with the next f
   ```
 - **Why tests missed it:** the suite never compares int32 scalar-multiply results
   element by element. Found by `review/probes/dtype_matrix_probe.py`.
-- **Fix direction:** decide one rule. Either (a) all readers honour `scalar_`,
-  `is_conjugated_` and `is_transposed_` through one accessor, or (b) integer types
-  materialize on scale. Then audit every `get_element*`, export and kernel entry for
-  view metadata. Add a property test: for every dtype and op, element access ==
-  export == NumPy.
+- **Root cause (session 1):** every integer dtype scales via `DenseMatrix<T>::multiply_scalar`,
+  which only sets the lazy `scalar_` field (`allow_lazy_scalar` is false for ints, so the
+  binding takes the "eager" branch, which isn't eager). Some integer classes' readers
+  apply `scalar_` (int8/16/64 export) and others don't (int32 `__getitem__`, export, matmul).
+- **Decided design (tech lead, session 1):** a lazy `scalar_` cannot express NumPy's result
+  dtypes for integers (int32×3 → int32, int32×3.0 → float64, int32/2 → float64), so
+  **integer and bit matrices never carry a lazy scalar**. Scalar ops on them compute the
+  result for real, with NumPy result dtypes:
+  - int dtype × Python int → same dtype, wrapping multiply (`scalar::WrapMultiplies`, F-006);
+  - int dtype × Python float, and int / anything → float64;
+  - int × complex → complex128;
+  - bit × int → integer counting dtype (F-013), bit × float → float64.
+  Implement it as a typed C++ kernel (no round-trip through `double`, which loses
+  int64 precision above 2^53) that honours transposed/triangular/bit views, inside the
+  single C++ operator table (PLAN 4.3) or just before it. `set_scalar()` on integer
+  classes must raise. Float and complex matrices keep the O(1) lazy scalar.
+- **Tests waiting:** `tests/engine/test_regressions.py::test_F001_*` (strict xfail).
 
 ### F-004 Nested `ParallelFor` deadlocks
 - **Status:** fixed (`fix(F-004,F-005)`): nested calls run inline on pool workers;
@@ -111,7 +123,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Also: `ThreadPool::global_num_threads` is a non-atomic static read across threads.
 
 ### F-006 Signed-integer-overflow UB in int32 elementwise add
-- **Status:** open
+- **Status:** fixed (`fix(F-006,F-025)`): `scalar::WrapPlus/WrapMinus/WrapMultiplies`
+  (ScalarUtils.hpp) do integer math in the unsigned type; used by all 42 functor sites and
+  the scalar fallbacks in CpuSolver. UBSan run: 0 reports. Tests `test_F006_*`.
 - **Where:** `src/compute/cpu/CpuSolver.cpp:165` (`scalar_add<int>`), reached from
   `test_edge_cases_core.py::TestIntegerOverflowPolicy::test_elementwise_int32_add_wraps`.
 - The project's policy is NumPy-style wrapping, but it relies on signed overflow,
@@ -288,7 +302,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   editable install), with one `conftest.py`.
 
 ### F-025 `memcpy` from a null pointer when copying an empty object's storage
-- **Status:** open (S4: UB, harmless in practice)
+- **Status:** fixed (`fix(F-006,F-025)`); test `test_F025_save_and_load_empty_matrix`
 - `src/core/PersistentObject.cpp:352`: `std::memcpy(dst, src, size)` with
   `src == nullptr` when `size == 0`. UBSan flags it during the persistence tests.
   Guard with `if (size)`.

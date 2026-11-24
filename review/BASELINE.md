@@ -18,6 +18,7 @@ date) whenever a phase lands, and keep the old row so the trend is visible.
 | C++ gtests wired in CMake | 6/6 pass |
 | C++ gtests orphaned | 3 (2 pass, 1 hangs, F-004) |
 | ASan+UBSan Python suite (with `-s`) | **no memory errors**; 3 UB sites: int32 add & mul overflow (F-006), null memcpy (F-025) |
+| ASan+UBSan, after session-1 fixes | **0 memory errors, 0 UB reports**, 811 passed / 34 skipped / 9 xfailed |
 | Python line coverage (suite) | 76%; 87 functions never executed |
 | C++ line / function coverage (suite + demos, no gtests) | 35% / 45%; 489 of 1,562 source functions never executed; StreamingManager 0% |
 | Test files with 0 unique Python lines | 47 of 121 |

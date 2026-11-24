@@ -48,9 +48,8 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
 - [ ] **1.1 Test harness:** single `tests/conftest.py`; remove the 15 `sys.path`
       hacks; run against an editable install (`pip install -e . --no-build-isolation`);
       stop copying `.so` files into `python/pycauset/` in CI (F-023).
-- [ ] **1.2 C++ tests in CI:** wire the 3 orphaned gtests (F-010; the
-      ParallelFor nested test will fail until F-004 is fixed, so mark it
-      expected-failure with a link); `BUILD_TESTS=ON` job in `ci.yml`.
+- [ ] **1.2 C++ tests in CI:** ~~wire the 3 orphaned gtests~~ (done, ctest 9/9);
+      `BUILD_TESTS=ON` job in `ci.yml` still to do.
 - [ ] **1.3 Sanitizers on PRs:** ASan+UBSan job (currently main-only, ASan-only);
       UBSan with `-fno-sanitize-recover`. Add a TSan job for the threading tests.
 - [ ] **1.4 Remove stale skips** (F-009); every remaining skip must carry a reason
@@ -73,15 +72,18 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
       to find untested files and functions → record in INVENTORY.md.
 
 ## Phase 1b: Dead code, Tier A (cheap, early; shrinks context for everything after)
-- [ ] Remove DEADCODE.md §4 Tier A items in small commits, guarded by the current suite + gtests
+- [x] Remove DEADCODE.md §4 Tier A items, batch 1 (session 1: 43 files, −832 lines)
 - [ ] Add Skylos and ruff-F to CI so new dead code is flagged on PRs
 
 ## Phase 2: Critical correctness fixes
 Each fix: regression test first (from Phase 1), then fix, then FINDINGS status.
-- [ ] F-024 eig/eig_skew results share `./_vals` (second call corrupts the first)
-- [ ] F-001 lazy scalar ignored for integer matrices (and audit every reader of view metadata)
-- [ ] F-004 nested ParallelFor deadlock; F-005 exception-path use-after-free
-- [ ] F-006 signed-overflow UB in integer kernels (all widths, all ops)
+- [x] F-024 eig/eig_skew results share `./_vals` (second call corrupts the first)
+- [ ] F-001 lazy scalar ignored for integer matrices: **design decided** (FINDINGS F-001):
+      integers never carry a lazy scalar; typed C++ kernel with NumPy result dtypes
+- [x] F-004 nested ParallelFor deadlock; F-005 exception-path use-after-free
+- [x] F-006 signed-overflow UB in integer kernels (all widths, all ops)
+- [x] F-025 null memcpy for empty objects
+- [x] F-028 sampled overflow preflight removed (determinism policy)
 - [ ] F-002 operator coverage (`__neg__`, int `__rmul__`, `A - int`, uint64)
 - [ ] Skew/Arnoldi eigensolvers: tests that actually execute the C++ paths
       (`CpuSolver::eigvals_arnoldi` is 0% executed today); maintainer needs them for R1

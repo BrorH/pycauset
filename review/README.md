@@ -64,9 +64,9 @@ review/
    its never-executed list.
 
 ## Current status (update this line every session)
-**2026-11-24:** Phase 0 complete, including the sanitizer pass, the dead-code
-pipeline and the test-redesign strategy. Next: Phase 1 (new test-suite core) and
-Phase 1b (Tier-A dead code). All decisions answered (RESTRUCTURE §3); new feature
+**End of session 1 (2026-11-24):** Phase 0 complete; Tier-A dead code batch 1 removed;
+fixed F-004, F-005, F-006, F-024, F-025, F-028, F-029; F-001 designed. Sanitizers clean.
+Next steps: LOG.md, end of session 1. All decisions answered (RESTRUCTURE §3); new feature
 accepted: value bounds (features/VALUE_BOUNDS.md, PLAN Phase F1). Critical open bugs: F-024 (eig results corrupt each other), F-001 (int scalar
 multiply is a no-op), F-004 (nested ParallelFor deadlock), F-006 (UB).
 

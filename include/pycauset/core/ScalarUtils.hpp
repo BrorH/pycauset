@@ -50,4 +50,39 @@ inline T from_complex_double(const std::complex<double>& z) {
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// Wrapping arithmetic (F-006). Integer + - * use two's-complement wraparound,
+// matching NumPy and the documented PyCauset policy, but WITHOUT signed-overflow
+// undefined behaviour: the operation is carried out in the unsigned type of the
+// (promoted) result, where wraparound is defined, then converted back (well
+// defined modulo 2^N since C++20). This also covers small types promoted to int
+// (e.g. uint16 * uint16). Floating-point and complex operands are unaffected.
+// ---------------------------------------------------------------------------
+namespace detail {
+template <typename A, typename B, typename Op>
+constexpr auto wrapping_apply(A a, B b, Op op) {
+    using R = decltype(op(a, b));
+    if constexpr (std::is_integral_v<R> && !std::is_same_v<R, bool>) {
+        using U = std::make_unsigned_t<R>;
+        return static_cast<R>(op(static_cast<U>(static_cast<R>(a)), static_cast<U>(static_cast<R>(b))));
+    } else {
+        return op(a, b);
+    }
+}
+}  // namespace detail
+
+struct WrapPlus {
+    template <typename A, typename B>
+    constexpr auto operator()(A a, B b) const { return detail::wrapping_apply(a, b, [](auto x, auto y) { return x + y; }); }
+};
+struct WrapMinus {
+    template <typename A, typename B>
+    constexpr auto operator()(A a, B b) const { return detail::wrapping_apply(a, b, [](auto x, auto y) { return x - y; }); }
+};
+struct WrapMultiplies {
+    template <typename A, typename B>
+    constexpr auto operator()(A a, B b) const { return detail::wrapping_apply(a, b, [](auto x, auto y) { return x * y; }); }
+};
+
 } // namespace pycauset::scalar

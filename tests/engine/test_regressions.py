@@ -82,3 +82,38 @@ def test_F028_int32_matmul_overflow_is_exact_and_unsampled():
         warnings.simplefilter("error", pc.PyCausetOverflowRiskWarning)
         with pytest.raises(OverflowError):
             pc.matrix(big) @ ones
+
+
+# ---------------------------------------------------------------- F-006
+# Integer elementwise + - * wrap (two's complement, like NumPy) without relying on
+# signed-overflow UB. Values are checked here; UB-freedom is checked by the UBSan job.
+@pytest.mark.parametrize(
+    "dtype, a, b, op",
+    [
+        ("int32", 2**31 - 1, 1, "add"),
+        ("int32", -(2**31), 1, "sub"),
+        ("int32", 46341, 46341, "mul"),
+        ("int64", 2**63 - 1, 1, "add"),
+        ("int16", 32767, 1, "add"),
+        ("int8", 127, 1, "add"),
+        ("uint16", 65535, 65535, "mul"),   # promoted-to-int multiply: classic UB trap
+        ("uint8", 255, 1, "add"),
+    ],
+)
+def test_F006_integer_elementwise_wraps_like_numpy(dtype, a, b, op):
+    x = np.full((3, 3), a, dtype=dtype)
+    y = np.full((3, 3), b, dtype=dtype)
+    with np.errstate(over="ignore"):
+        expected = {"add": x + y, "sub": x - y, "mul": x * y}[op]
+    px, py_ = pc.matrix(x), pc.matrix(y)
+    got = {"add": lambda: px + py_, "sub": lambda: px - py_, "mul": lambda: px * py_}[op]()
+    np.testing.assert_array_equal(to_np(got), expected)
+
+
+# ---------------------------------------------------------------- F-025
+def test_F025_save_and_load_empty_matrix(tmp_path):
+    m = pc.zeros((0, 0), dtype="float64")
+    path = tmp_path / "empty.pycauset"
+    pc.save(m, path)
+    loaded = pc.load(path)
+    assert to_np(loaded).shape == (0, 0)

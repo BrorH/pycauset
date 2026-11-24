@@ -1,3 +1,4 @@
+#include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/compute/cpu/CpuSolver.hpp"
 #include <complex>
 #define lapack_complex_float std::complex<float>
@@ -161,14 +162,14 @@ namespace {
     using SimdKernel = void(*)(T* dst, const T* a, const T* b, size_t n);
 
     // Scalar fallbacks (Auto-vectorizable)
-    template<typename T> void scalar_add(T* dst, const T* a, const T* b, size_t n) { 
-        for(size_t i=0; i<n; ++i) dst[i] = a[i] + b[i]; 
+    template<typename T> void scalar_add(T* dst, const T* a, const T* b, size_t n) {
+        for(size_t i=0; i<n; ++i) dst[i] = static_cast<T>(scalar::WrapPlus{}(a[i], b[i]));
     }
-    template<typename T> void scalar_sub(T* dst, const T* a, const T* b, size_t n) { 
-        for(size_t i=0; i<n; ++i) dst[i] = a[i] - b[i]; 
+    template<typename T> void scalar_sub(T* dst, const T* a, const T* b, size_t n) {
+        for(size_t i=0; i<n; ++i) dst[i] = static_cast<T>(scalar::WrapMinus{}(a[i], b[i]));
     }
-    template<typename T> void scalar_mul(T* dst, const T* a, const T* b, size_t n) { 
-        for(size_t i=0; i<n; ++i) dst[i] = a[i] * b[i]; 
+    template<typename T> void scalar_mul(T* dst, const T* a, const T* b, size_t n) {
+        for(size_t i=0; i<n; ++i) dst[i] = static_cast<T>(scalar::WrapMultiplies{}(a[i], b[i]));
     }
     template<typename T> void scalar_div(T* dst, const T* a, const T* b, size_t n) { 
         for(size_t i=0; i<n; ++i) dst[i] = a[i] / b[i]; 
@@ -2594,63 +2595,63 @@ void CpuSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result
     if (dtype == DataType::COMPLEX_FLOAT16) {
         debug_trace::set_last("cpu.add.cf16");
         if (auto* out = dynamic_cast<ComplexFloat16Matrix*>(&result)) {
-            binary_op_complex16_impl(a, b, *out, std::plus<>());
+            binary_op_complex16_impl(a, b, *out, scalar::WrapPlus{});
             return;
         }
         throw std::runtime_error("CpuSolver::add complex_float16 result type mismatch");
     }
     if (dtype == DataType::COMPLEX_FLOAT32) {
         debug_trace::set_last("cpu.add.c32");
-        binary_op_impl<std::complex<float>>(a, b, result, std::plus<>());
+        binary_op_impl<std::complex<float>>(a, b, result, scalar::WrapPlus{});
         return;
     }
     if (dtype == DataType::COMPLEX_FLOAT64) {
         debug_trace::set_last("cpu.add.c64");
-        binary_op_impl<std::complex<double>>(a, b, result, std::plus<>());
+        binary_op_impl<std::complex<double>>(a, b, result, scalar::WrapPlus{});
         return;
     }
 
     if (dtype == DataType::FLOAT64) {
         debug_trace::set_last("cpu.add.f64");
         if (try_fast_simd<double>(a, b, result, get_add_kernel<double>())) return;
-        binary_op_impl<double>(a, b, result, std::plus<>());
+        binary_op_impl<double>(a, b, result, scalar::WrapPlus{});
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.add.f16");
         if (try_fast_simd<pycauset::float16_t>(a, b, result, get_add_kernel<pycauset::float16_t>())) return;
-        binary_op_impl<pycauset::float16_t>(a, b, result, std::plus<>());
+        binary_op_impl<pycauset::float16_t>(a, b, result, scalar::WrapPlus{});
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.add.f32");
         if (try_fast_simd<float>(a, b, result, get_add_kernel<float>())) return;
-        binary_op_impl<float>(a, b, result, std::plus<>());
+        binary_op_impl<float>(a, b, result, scalar::WrapPlus{});
     } else if (dtype == DataType::INT8) {
         debug_trace::set_last("cpu.add.i8");
         if (try_fast_simd<int8_t>(a, b, result, get_add_kernel<int8_t>())) return;
-        binary_op_impl<int8_t>(a, b, result, std::plus<>());
+        binary_op_impl<int8_t>(a, b, result, scalar::WrapPlus{});
     } else if (dtype == DataType::INT16) {
         debug_trace::set_last("cpu.add.i16");
         if (try_fast_simd<int16_t>(a, b, result, get_add_kernel<int16_t>())) return;
-        binary_op_impl<int16_t>(a, b, result, std::plus<>());
+        binary_op_impl<int16_t>(a, b, result, scalar::WrapPlus{});
     } else if (dtype == DataType::INT32) {
         debug_trace::set_last("cpu.add.i32");
         if (try_fast_simd<int32_t>(a, b, result, get_add_kernel<int32_t>())) return;
-        binary_op_impl<int32_t>(a, b, result, std::plus<>());
+        binary_op_impl<int32_t>(a, b, result, scalar::WrapPlus{});
     } else if (dtype == DataType::INT64) {
         debug_trace::set_last("cpu.add.i64");
         if (try_fast_simd<int64_t>(a, b, result, get_add_kernel<int64_t>())) return;
-        binary_op_impl<int64_t>(a, b, result, std::plus<>());
+        binary_op_impl<int64_t>(a, b, result, scalar::WrapPlus{});
     } else if (dtype == DataType::UINT8) {
         debug_trace::set_last("cpu.add.u8");
         if (try_fast_simd<uint8_t>(a, b, result, get_add_kernel<uint8_t>())) return;
-        binary_op_impl<uint8_t>(a, b, result, std::plus<>());
+        binary_op_impl<uint8_t>(a, b, result, scalar::WrapPlus{});
     } else if (dtype == DataType::UINT16) {
         debug_trace::set_last("cpu.add.u16");
-        binary_op_impl<uint16_t>(a, b, result, std::plus<>());
+        binary_op_impl<uint16_t>(a, b, result, scalar::WrapPlus{});
     } else if (dtype == DataType::UINT32) {
         debug_trace::set_last("cpu.add.u32");
-        binary_op_impl<uint32_t>(a, b, result, std::plus<>());
+        binary_op_impl<uint32_t>(a, b, result, scalar::WrapPlus{});
     } else if (dtype == DataType::UINT64) {
         debug_trace::set_last("cpu.add.u64");
-        binary_op_impl<uint64_t>(a, b, result, std::plus<>());
+        binary_op_impl<uint64_t>(a, b, result, scalar::WrapPlus{});
     } else {
         throw std::runtime_error("CpuSolver::add result data type not supported");
     }
@@ -2661,57 +2662,57 @@ void CpuSolver::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& r
     if (dtype == DataType::COMPLEX_FLOAT16) {
         debug_trace::set_last("cpu.subtract.cf16");
         if (auto* out = dynamic_cast<ComplexFloat16Matrix*>(&result)) {
-            binary_op_complex16_impl(a, b, *out, std::minus<>());
+            binary_op_complex16_impl(a, b, *out, scalar::WrapMinus{});
             return;
         }
         throw std::runtime_error("CpuSolver::subtract complex_float16 result type mismatch");
     }
     if (dtype == DataType::COMPLEX_FLOAT32) {
         debug_trace::set_last("cpu.subtract.c32");
-        binary_op_impl<std::complex<float>>(a, b, result, std::minus<>());
+        binary_op_impl<std::complex<float>>(a, b, result, scalar::WrapMinus{});
         return;
     }
     if (dtype == DataType::COMPLEX_FLOAT64) {
         debug_trace::set_last("cpu.subtract.c64");
-        binary_op_impl<std::complex<double>>(a, b, result, std::minus<>());
+        binary_op_impl<std::complex<double>>(a, b, result, scalar::WrapMinus{});
         return;
     }
 
     if (dtype == DataType::FLOAT64) {
         debug_trace::set_last("cpu.subtract.f64");
         if (try_fast_simd<double>(a, b, result, get_sub_kernel<double>())) return;
-        binary_op_impl<double>(a, b, result, std::minus<>());
+        binary_op_impl<double>(a, b, result, scalar::WrapMinus{});
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.subtract.f16");
-        binary_op_impl<pycauset::float16_t>(a, b, result, std::minus<>());
+        binary_op_impl<pycauset::float16_t>(a, b, result, scalar::WrapMinus{});
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.subtract.f32");
         if (try_fast_simd<float>(a, b, result, get_sub_kernel<float>())) return;
-        binary_op_impl<float>(a, b, result, std::minus<>());
+        binary_op_impl<float>(a, b, result, scalar::WrapMinus{});
     } else if (dtype == DataType::INT8) {
         debug_trace::set_last("cpu.subtract.i8");
-        binary_op_impl<int8_t>(a, b, result, std::minus<>());
+        binary_op_impl<int8_t>(a, b, result, scalar::WrapMinus{});
     } else if (dtype == DataType::INT16) {
         debug_trace::set_last("cpu.subtract.i16");
-        binary_op_impl<int16_t>(a, b, result, std::minus<>());
+        binary_op_impl<int16_t>(a, b, result, scalar::WrapMinus{});
     } else if (dtype == DataType::INT32) {
         debug_trace::set_last("cpu.subtract.i32");
-        binary_op_impl<int32_t>(a, b, result, std::minus<>());
+        binary_op_impl<int32_t>(a, b, result, scalar::WrapMinus{});
     } else if (dtype == DataType::INT64) {
         debug_trace::set_last("cpu.subtract.i64");
-        binary_op_impl<int64_t>(a, b, result, std::minus<>());
+        binary_op_impl<int64_t>(a, b, result, scalar::WrapMinus{});
     } else if (dtype == DataType::UINT8) {
         debug_trace::set_last("cpu.subtract.u8");
-        binary_op_impl<uint8_t>(a, b, result, std::minus<>());
+        binary_op_impl<uint8_t>(a, b, result, scalar::WrapMinus{});
     } else if (dtype == DataType::UINT16) {
         debug_trace::set_last("cpu.subtract.u16");
-        binary_op_impl<uint16_t>(a, b, result, std::minus<>());
+        binary_op_impl<uint16_t>(a, b, result, scalar::WrapMinus{});
     } else if (dtype == DataType::UINT32) {
         debug_trace::set_last("cpu.subtract.u32");
-        binary_op_impl<uint32_t>(a, b, result, std::minus<>());
+        binary_op_impl<uint32_t>(a, b, result, scalar::WrapMinus{});
     } else if (dtype == DataType::UINT64) {
         debug_trace::set_last("cpu.subtract.u64");
-        binary_op_impl<uint64_t>(a, b, result, std::minus<>());
+        binary_op_impl<uint64_t>(a, b, result, scalar::WrapMinus{});
     } else {
         throw std::runtime_error("CpuSolver::subtract result data type not supported");
     }
@@ -2722,19 +2723,19 @@ void CpuSolver::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, M
     if (dtype == DataType::COMPLEX_FLOAT16) {
         debug_trace::set_last("cpu.mul.cf16");
         if (auto* out = dynamic_cast<ComplexFloat16Matrix*>(&result)) {
-            binary_op_complex16_impl(a, b, *out, std::multiplies<>());
+            binary_op_complex16_impl(a, b, *out, scalar::WrapMultiplies{});
             return;
         }
         throw std::runtime_error("CpuSolver::elementwise_multiply complex_float16 result type mismatch");
     }
     if (dtype == DataType::COMPLEX_FLOAT32) {
         debug_trace::set_last("cpu.mul.c32");
-        binary_op_impl<std::complex<float>>(a, b, result, std::multiplies<>());
+        binary_op_impl<std::complex<float>>(a, b, result, scalar::WrapMultiplies{});
         return;
     }
     if (dtype == DataType::COMPLEX_FLOAT64) {
         debug_trace::set_last("cpu.mul.c64");
-        binary_op_impl<std::complex<double>>(a, b, result, std::multiplies<>());
+        binary_op_impl<std::complex<double>>(a, b, result, scalar::WrapMultiplies{});
         return;
     }
 
@@ -2770,38 +2771,38 @@ void CpuSolver::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, M
     if (dtype == DataType::FLOAT64) {
         debug_trace::set_last("cpu.mul.f64");
         if (try_fast_simd<double>(a, b, result, get_mul_kernel<double>())) return;
-        binary_op_impl<double>(a, b, result, std::multiplies<>());
+        binary_op_impl<double>(a, b, result, scalar::WrapMultiplies{});
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.mul.f16");
-        binary_op_impl<pycauset::float16_t>(a, b, result, std::multiplies<>());
+        binary_op_impl<pycauset::float16_t>(a, b, result, scalar::WrapMultiplies{});
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.mul.f32");
         if (try_fast_simd<float>(a, b, result, get_mul_kernel<float>())) return;
-        binary_op_impl<float>(a, b, result, std::multiplies<>());
+        binary_op_impl<float>(a, b, result, scalar::WrapMultiplies{});
     } else if (dtype == DataType::INT8) {
         debug_trace::set_last("cpu.mul.i8");
-        binary_op_impl<int8_t>(a, b, result, std::multiplies<>());
+        binary_op_impl<int8_t>(a, b, result, scalar::WrapMultiplies{});
     } else if (dtype == DataType::INT16) {
         debug_trace::set_last("cpu.mul.i16");
-        binary_op_impl<int16_t>(a, b, result, std::multiplies<>());
+        binary_op_impl<int16_t>(a, b, result, scalar::WrapMultiplies{});
     } else if (dtype == DataType::INT32) {
         debug_trace::set_last("cpu.mul.i32");
-        binary_op_impl<int32_t>(a, b, result, std::multiplies<>());
+        binary_op_impl<int32_t>(a, b, result, scalar::WrapMultiplies{});
     } else if (dtype == DataType::INT64) {
         debug_trace::set_last("cpu.mul.i64");
-        binary_op_impl<int64_t>(a, b, result, std::multiplies<>());
+        binary_op_impl<int64_t>(a, b, result, scalar::WrapMultiplies{});
     } else if (dtype == DataType::UINT8) {
         debug_trace::set_last("cpu.mul.u8");
-        binary_op_impl<uint8_t>(a, b, result, std::multiplies<>());
+        binary_op_impl<uint8_t>(a, b, result, scalar::WrapMultiplies{});
     } else if (dtype == DataType::UINT16) {
         debug_trace::set_last("cpu.mul.u16");
-        binary_op_impl<uint16_t>(a, b, result, std::multiplies<>());
+        binary_op_impl<uint16_t>(a, b, result, scalar::WrapMultiplies{});
     } else if (dtype == DataType::UINT32) {
         debug_trace::set_last("cpu.mul.u32");
-        binary_op_impl<uint32_t>(a, b, result, std::multiplies<>());
+        binary_op_impl<uint32_t>(a, b, result, scalar::WrapMultiplies{});
     } else if (dtype == DataType::UINT64) {
         debug_trace::set_last("cpu.mul.u64");
-        binary_op_impl<uint64_t>(a, b, result, std::multiplies<>());
+        binary_op_impl<uint64_t>(a, b, result, scalar::WrapMultiplies{});
     } else {
         throw std::runtime_error("CpuSolver::elementwise_multiply result data type not supported");
     }
