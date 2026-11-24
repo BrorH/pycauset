@@ -236,3 +236,13 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   of `_debug_resolve_promotion`; 3 tests; 3 API pages, nav and index entries; guide
   sections. The under-promotion warning now says "Cast both inputs to float64". Also fixed a
   guide that claimed float32+float64 → float64 (it's float32, documented under-promotion).
+- **F-030 fixed:** `eigvals_arnoldi` rewritten on Spectra (new dependency, header-only,
+  MPL-2.0, system or fetched; THIRD_PARTY_NOTICES updated). Symmetric → Lanczos (float64),
+  general → Arnoldi (complex128), raises on non-convergence, deterministic, works on
+  disk-backed matrices via our matvec. Public function routed to native; NumPy fallback,
+  stale crash comment and the Python streaming variant deleted. Accuracy 1e-3 → 1e-14.
+  New `tests/engine/test_eigensolvers.py` (14 cases incl. skew solvers on causal matrices).
+  API page rewritten (example verified by the snippet runner).
+- Note: a "must raise on non-convergence" test proved unreliable (Spectra's residual
+  estimate can underflow to 0 after many restarts), so it was replaced by a clustered-
+  spectrum accuracy test. The raise path is covered by code review only.

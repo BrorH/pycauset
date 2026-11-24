@@ -56,7 +56,8 @@ Stack, top to bottom:
                 IOAccelerator                            madvise/prefetch hints
    physics      Sprinkler.cpp + causet/Spacetime.hpp     native Minkowski sprinkling
  ─────────────────────────────────────────────────────────────────────────────────
- BLAS/LAPACK: OpenBLAS + LAPACKE (system or fetched); Eigen 3.4 (fetched); OpenMP
+ BLAS/LAPACK: OpenBLAS + LAPACKE (system or fetched); Eigen 3.4 (fetched); OpenMP;
+ Spectra 1.0.1 (header-only, system or fetched): restarted Krylov eigensolvers
  OPTIONAL: pycauset_cuda.so + _pycauset_cuda.so (cuBLAS/cuSOLVER). ON HOLD.
 ```
 
@@ -297,6 +298,11 @@ keep the O(1) lazy-scalar/LazyMatrix paths.
 `pycauset::matmul` → ComputeContext → AutoSolver → CpuDevice → `CpuSolver::matmul`
 → OpenBLAS `cblas_dgemm` (thread count bumped then restored). If an operand is
 disk-backed and the result exceeds budget → StreamingManager tiles it.
+
+**`pc.eigvals_arnoldi(A, k, m, tol)`** → ops.py → native `pycauset::eigvals_arnoldi`
+(LinearAlgebra.cpp: exact symmetry check picks float64 vs complex128 output) →
+`CpuSolver::eigvals_arnoldi`: Spectra restarted Lanczos/Arnoldi driving
+`CpuSolver::matrix_vector_multiply` (works out-of-core), raises on non-convergence.
 
 **`pc.eigh(A)`** → ops.py → **`numpy.linalg.eigh`** on a full in-RAM copy (native
 `CpuSolver::eigh` exists but is not the path taken). It cannot run out-of-core.

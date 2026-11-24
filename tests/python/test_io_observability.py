@@ -164,12 +164,16 @@ class TestIOObservability(unittest.TestCase):
         for i in range(8):
             m.set(i, i, float(10 - i))
 
-        _ = pycauset.eigvals_arnoldi(m, 2, 4, 1e-6)
+        w = pycauset.eigvals_arnoldi(m, 2, 4, 1e-6)
 
         trace = pycauset.last_io_trace("eigvals_arnoldi")
         self.assertIsNotNone(trace)
         self.assertEqual(trace.get("route"), "streaming")
-        self.assertEqual(trace.get("impl"), "streaming_python")
+        # Native restarted Lanczos (F-030) runs on matvecs, so it handles the streaming
+        # route itself; the old pure-Python "streaming_python" implementation is gone.
+        got = sorted(float(x) for x in pycauset.to_numpy(w, allow_huge=True))
+        for g, want in zip(got, [9.0, 10.0]):
+            self.assertAlmostEqual(g, want, delta=1e-6 * want)
 
 
 if __name__ == "__main__":

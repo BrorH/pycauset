@@ -1034,6 +1034,27 @@ std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, cons
     return x;
 }
 
+// Exact symmetry test for real matrices (no tolerance: a "nearly symmetric" matrix is
+// treated as general, which is always correct, just slower).
+static bool is_exactly_symmetric(const MatrixBase& a) {
+    if (a.rows() != a.cols()) return false;
+    const DataType dt = a.get_data_type();
+    if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
+        return false;
+    }
+    if (a.get_matrix_type() == MatrixType::SYMMETRIC || a.get_matrix_type() == MatrixType::IDENTITY ||
+        a.get_matrix_type() == MatrixType::DIAGONAL) {
+        return true;
+    }
+    const uint64_t n = a.rows();
+    for (uint64_t i = 0; i < n; ++i) {
+        for (uint64_t j = i + 1; j < n; ++j) {
+            if (a.get_element_as_double(i, j) != a.get_element_as_double(j, i)) return false;
+        }
+    }
+    return true;
+}
+
 std::unique_ptr<VectorBase> eigvals_arnoldi(
     const MatrixBase& a,
     int k,
@@ -1048,7 +1069,12 @@ std::unique_ptr<VectorBase> eigvals_arnoldi(
         throw std::invalid_argument("eigvals_arnoldi: matrix must be square");
     }
 
-    auto out = ObjectFactory::create_vector(static_cast<uint64_t>(k), DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file);
+    // Symmetric input -> real eigenvalues (Lanczos path, float64 output); otherwise
+    // complex128. Symmetry is decided exactly (structure, then an element check).
+    const bool symmetric = is_exactly_symmetric(a);
+    auto out = ObjectFactory::create_vector(static_cast<uint64_t>(k),
+                                            symmetric ? DataType::FLOAT64 : DataType::COMPLEX_FLOAT64,
+                                            MatrixType::VECTOR, result_file);
     ComputeContext::instance().get_device()->eigvals_arnoldi(a, *out, k, m, tol);
     return out;
 }

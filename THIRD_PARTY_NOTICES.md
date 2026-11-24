@@ -14,6 +14,13 @@ by those licenses. For PyCauset's own license, see `LICENSE` (MIT).
   MPL2/BSD-permissive subset.
 - Source: fetched via CMake FetchContent (`eigen-3.4.0.zip`).
 
+
+### Spectra (1.0.1)
+- **License:** Mozilla Public License 2.0.
+- **Attribution:** © Yixuan Qiu and contributors, <https://spectralib.org>
+- **Use:** header-only, compiled into `pycauset_core` for `eigvals_arnoldi`
+  (restarted Lanczos/Arnoldi eigensolvers).
+
 ### OpenBLAS (0.3.26)
 - **License:** BSD-3-Clause (with some permissive components under other
   BSD-style licenses).

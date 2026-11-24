@@ -361,7 +361,16 @@ the entry (the history is useful). New findings go at the bottom with the next f
   are now redundant and go away with the old suite (TESTS.md §4).
 
 ### F-030 `pc.eigvals_arnoldi` never uses the C++ Arnoldi solver; the solver is unrestarted
-- **Status:** open (S2; maintainer needs Arnoldi for R1). Diagnosed session 1.
+- **Status:** fixed (`fix(F-030)`, session 3): `CpuSolver::eigvals_arnoldi` now uses
+  **Spectra** (header-only, MPL-2.0; system `libspectra-dev` or fetched v1.0.1): implicitly
+  restarted Lanczos for symmetric input (float64 output), Arnoldi otherwise (complex128),
+  matvecs through `CpuSolver::matrix_vector_multiply` (any structure, disk-backed), raises
+  on non-convergence, deterministic start vector, dense fallback for tiny problems. Public
+  `pc.eigvals_arnoldi` routes to it; the NumPy fallback, the stale crash comment and the
+  Python "streaming" variant (which materialized the matrix) are deleted. Accuracy vs NumPy
+  now ~1e-14 (was ~1e-3). Tests: `tests/engine/test_eigensolvers.py` (also covers
+  `eigvals_skew`/`eig_skew` on causal-derived matrices).
+- Original diagnosis, kept for history:
 - The public function computes **all** eigenvalues densely with NumPy (exact, but in RAM
   and O(n³)) because a code comment says the native solver "crashes with an access
   violation". **The crash no longer reproduces** (n = 50/200/500; likely fixed with F-004/F-005).

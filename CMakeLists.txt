@@ -380,6 +380,25 @@ if(NOT OpenMP_CXX_FOUND AND APPLE)
     endforeach()
 endif()
 
+# Spectra (header-only, MPL-2.0): ARPACK-style restarted Lanczos/Arnoldi eigensolvers
+# on top of Eigen, used by eigvals_arnoldi. Use a system copy if present (e.g. Debian/Ubuntu
+# libspectra-dev), otherwise fetch the pinned release headers. Only the headers are used;
+# Spectra's own CMake (which would look for a system Eigen) is not run.
+find_path(SPECTRA_INCLUDE_DIR NAMES Spectra/SymEigsSolver.h)
+if(NOT SPECTRA_INCLUDE_DIR)
+    include(FetchContent)
+    FetchContent_Declare(
+        spectra
+        URL https://github.com/yixuan/spectra/archive/refs/tags/v1.0.1.zip
+    )
+    FetchContent_GetProperties(spectra)
+    if(NOT spectra_POPULATED)
+        FetchContent_Populate(spectra)
+    endif()
+    set(SPECTRA_INCLUDE_DIR "${spectra_SOURCE_DIR}/include")
+endif()
+message(STATUS "Spectra headers: ${SPECTRA_INCLUDE_DIR}")
+
 # --- Source Files ---
 set(PYCAUSET_SOURCES
     src/core/MemoryMapper.cpp
@@ -415,6 +434,7 @@ set(PYCAUSET_SOURCES
 # Create a shared library for the core functionality to avoid recompiling for every test
 add_library(pycauset_core SHARED ${PYCAUSET_SOURCES})
 target_include_directories(pycauset_core PUBLIC include)
+target_include_directories(pycauset_core SYSTEM PRIVATE ${SPECTRA_INCLUDE_DIR})
 
 # Change linkage to PRIVATE to avoid propagating bad interface paths if OpenBLAS has them
 target_link_libraries(pycauset_core PRIVATE Eigen3::Eigen OpenBLAS::OpenBLAS)

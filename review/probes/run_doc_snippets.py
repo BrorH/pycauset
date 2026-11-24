@@ -57,7 +57,7 @@ print(json.dumps({"ok": len(blocks) - skipped, "skipped": skipped}))
 
 def pages(args):
     if args:
-        yield from (pathlib.Path(a) for a in args)
+        yield from (pathlib.Path(a).resolve() for a in args)
         return
     yield ROOT / "README.md"
     for sub in ("documentation/guides", "documentation/docs"):

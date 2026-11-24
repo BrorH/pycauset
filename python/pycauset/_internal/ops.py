@@ -269,36 +269,6 @@ def _streaming_eigvalsh(matrix: Any, *, deps: OpsDeps, rec: Any) -> Any | None:
     return out
 
 
-def _streaming_eigvals_arnoldi(matrix: Any, k: int, m: int, tol: float, *, deps: OpsDeps, rec: Any) -> Any | None:
-    np_module = deps.np_module
-    if np_module is None:
-        return None
-
-    shape = _safe_rows_cols(matrix)
-    if shape is None:
-        return None
-
-    try:
-        data = np_module.array([[matrix.get(i, j) for j in range(shape[1])] for i in range(shape[0])])
-    except Exception:
-        return None
-
-    try:
-        eigs = np_module.linalg.eigvals(data)
-        if np_module.iscomplexobj(eigs):
-            if not np_module.allclose(eigs.imag, 0.0, atol=tol):
-                return None
-            eigs = eigs.real
-        eigs_sorted = sorted(eigs, key=lambda x: abs(x), reverse=True)
-        top = np_module.array(eigs_sorted[:k])
-    except Exception:
-        return None
-
-    out = _as_pycauset_array(top, deps=deps)
-    _annotate_impl(rec, "streaming_python", deps=deps)
-    return out
-
-
 def _streaming_matmul_tiles(a: Any, b: Any, *, deps: OpsDeps, rec: Any) -> Any | None:
     np_module = deps.np_module
     if np_module is None:
@@ -1104,35 +1074,18 @@ def eigvals(a: Any, *, deps: OpsDeps) -> Any:
 
 
 def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any:
-    """Top-k eigenvalues via Arnoldi/Lanczos-style iteration (when available).
+    """Top-k eigenvalues by magnitude via restarted Lanczos/Arnoldi (native, Spectra).
 
-    - Prefers native `eigvals_arnoldi` when provided by the extension.
-    - Falls back to NumPy eigvals and returns the top-|k| by magnitude.
-    - Records IO observability trace for parity with other eigen ops.
+    Symmetric input returns real (float64) eigenvalues, otherwise complex128. The
+    matrix is only touched through matrix-vector products, so disk-backed matrices
+    work without materializing. Raises RuntimeError if the iteration does not converge
+    to `tol` (increase `m`). `m` is the Krylov subspace size (raised to at least 2k+1).
     """
-
     rec = _record_io_trace("eigvals_arnoldi", [a], deps=deps)
-    _prefetch_if_streaming(rec, [a], deps=deps)
-
-    try:
-        if isinstance(rec, dict) and rec.get("route") == "streaming":
-            streaming_res = _streaming_eigvals_arnoldi(a, k, m, tol, deps=deps, rec=rec)
-            if streaming_res is not None:
-                _discard_if_streaming(rec, [a], streaming_res, deps=deps)
-                return streaming_res
-    except Exception:
-        pass
-
-    # Correctness-first (2026-08-24): the native eigvals_arnoldi (R1_CPU Phase 6)
-    # crashes with an access violation, so use the NumPy fallback until fixed.
-    np_module = deps.np_module
-    if np_module is None:
-        raise NotImplementedError("eigvals_arnoldi is not available (no native/NumPy fallback)")
-
-    eigs = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
-    eigs_sorted = sorted(eigs, key=lambda x: abs(x), reverse=True)
-    top = np_module.array(eigs_sorted[:k])
-    out = _as_pycauset_vector(top, deps=deps)
+    native_fn = getattr(deps.native, "eigvals_arnoldi", None)
+    if native_fn is None:
+        raise NotImplementedError("eigvals_arnoldi requires the native extension")
+    out = native_fn(a, int(k), int(m), float(tol))
     _discard_if_streaming(rec, [a], out, deps=deps)
     return out
 

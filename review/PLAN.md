@@ -85,8 +85,7 @@ Each fix: regression test first (from Phase 1), then fix, then FINDINGS status.
 - [x] F-025 null memcpy for empty objects
 - [x] F-028 sampled overflow preflight removed (determinism policy)
 - [x] F-002 operator coverage (`__neg__`, int `__rmul__`, `A - int`, uint64)
-- [ ] Skew/Arnoldi eigensolvers: tests that actually execute the C++ paths
-      (`CpuSolver::eigvals_arnoldi` is 0% executed today); maintainer needs them for R1
+- [x] Skew/Arnoldi eigensolvers: Arnoldi rewritten on Spectra (F-030); both tested against NumPy
 - [x] F-003 `cond` NumPy default norm, plus other "silently differs from NumPy" defaults
       (do a pass over every function's defaults against NumPy's signature)
 - [ ] Anything Phase 1 grids surface (log as new F-ids)

@@ -1,3 +1,5 @@
+#include <Spectra/SymEigsSolver.h>
+#include <Spectra/GenEigsSolver.h>
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/compute/cpu/CpuSolver.hpp"
 #include <complex>
@@ -2079,6 +2081,39 @@ void CpuSolver::cholesky(const MatrixBase& matrix_in, MatrixBase& matrix_out) {
     throw std::runtime_error("CpuSolver::cholesky only supports DenseMatrix<double> or DenseMatrix<float>");
 }
 
+namespace {
+
+// y = A x through CpuSolver::matrix_vector_multiply, so every structure, dtype and
+// storage (RAM or disk-backed) that matvec supports works here. Spectra drives it.
+class MatVecOperator {
+public:
+    using Scalar = double;
+    MatVecOperator(CpuSolver& solver, const MatrixBase& a)
+        : solver_(solver), a_(a), n_(a.rows()), x_(n_, ""), y_(n_, "") {}
+    Eigen::Index rows() const { return static_cast<Eigen::Index>(n_); }
+    Eigen::Index cols() const { return static_cast<Eigen::Index>(n_); }
+    void perform_op(const double* x_in, double* y_out) const {
+        std::memcpy(x_.data(), x_in, n_ * sizeof(double));
+        solver_.matrix_vector_multiply(a_, x_, y_);
+        std::memcpy(y_out, y_.data(), n_ * sizeof(double));
+    }
+
+private:
+    CpuSolver& solver_;
+    const MatrixBase& a_;
+    uint64_t n_;
+    mutable DenseVector<double> x_;
+    mutable DenseVector<double> y_;
+};
+
+}  // namespace
+
+// Top-k eigenvalues by magnitude via ARPACK-style restarted Krylov methods (Spectra):
+// symmetric input -> implicitly restarted Lanczos (real), otherwise implicitly restarted
+// Arnoldi (complex). Convergence is checked against `tol`; non-convergence raises instead
+// of returning approximations (F-030). Small problems where Krylov parameters can't be
+// satisfied fall back to a dense eigensolver. `out` is DenseVector<double> for the
+// symmetric path and DenseVector<complex<double>> otherwise.
 void CpuSolver::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) {
     if (k <= 0 || m <= 0) {
         throw std::invalid_argument("CpuSolver::eigvals_arnoldi requires positive k and m");
@@ -2086,159 +2121,80 @@ void CpuSolver::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int
     if (a.rows() != a.cols()) {
         throw std::invalid_argument("CpuSolver::eigvals_arnoldi requires a square matrix");
     }
-
-    bool out_is_complex = false;
-    if (dynamic_cast<DenseVector<std::complex<double>>*>(&out) != nullptr) {
-        out_is_complex = true;
-    } else if (dynamic_cast<DenseVector<double>*>(&out) != nullptr) {
-        out_is_complex = false;
-    } else {
-        throw std::runtime_error("CpuSolver::eigvals_arnoldi output must be DenseVector<double> or DenseVector<complex<double>>");
+    const int64_t n = static_cast<int64_t>(a.rows());
+    if (k > n) {
+        throw std::invalid_argument("CpuSolver::eigvals_arnoldi: k exceeds the matrix size");
     }
-
-    const uint64_t n = a.rows();
     if (out.size() < static_cast<uint64_t>(k)) {
         throw std::invalid_argument("CpuSolver::eigvals_arnoldi output vector is too small");
     }
+    auto* out_real = dynamic_cast<DenseVector<double>*>(&out);
+    auto* out_cplx = dynamic_cast<DenseVector<std::complex<double>>*>(&out);
+    if (!out_real && !out_cplx) {
+        throw std::runtime_error("CpuSolver::eigvals_arnoldi output must be a float64 or complex128 vector");
+    }
+    const bool symmetric = out_real != nullptr;
+    constexpr int kMaxRestarts = 1000;
 
-    const int max_steps = std::min<int>(m, static_cast<int>(n));
-
-    // Arnoldi Iteration for General Real Matrices
-    // Uses matrix_vector_multiply to support out-of-core matrices.
-    // Basis V stored in RAM (Arnoldi implies V fits in memory, A does not).
-    std::vector<std::vector<double>> V;
-    V.reserve(max_steps + 1);
-
-    // Initial random vector
-    std::vector<double> v_init(n);
-    std::mt19937 rng(42);
-    std::uniform_real_distribution<double> dist(-1.0, 1.0);
-    for (uint64_t i = 0; i < n; ++i) v_init[i] = dist(rng);
-
-    // Normalize v_init
-    double norm = 0.0;
-    for (double x : v_init) norm += x * x;
-    norm = std::sqrt(norm);
-    if (norm < 1e-14) norm = 1.0; 
-    for (double& x : v_init) x /= norm;
-    
-    V.push_back(v_init);
-
-    // Hessenberg matrix H (max_steps+1 x max_steps)
-    // We'll store it in an Eigen matrix for the final small solve
-    Eigen::MatrixXd H = Eigen::MatrixXd::Zero(max_steps + 1, max_steps);
-
-    // Temp buffers for MVM
-    DenseVector<double> w_vec(n);
-    DenseVector<double> v_curr_vec(n);
-
-    // Helpers to transfer data between std::vector and DenseVector
-    // We assume DenseVector is contiguous or we use get/set.
-    // Using parallel set/get is safer and reasonably fast.
-    auto set_dense_from_std = [&](DenseVector<double>& dv, const std::vector<double>& sv) {
-        ParallelFor(0, n, [&](size_t i) {
-            dv.set(i, sv[i]);
+    // Sort by |lambda| descending; ties broken by real then imaginary part (deterministic).
+    auto write_sorted = [&](std::vector<std::complex<double>> vals) {
+        std::stable_sort(vals.begin(), vals.end(), [](const auto& x, const auto& y) {
+            if (std::abs(x) != std::abs(y)) return std::abs(x) > std::abs(y);
+            if (x.real() != y.real()) return x.real() > y.real();
+            return x.imag() > y.imag();
         });
+        for (int i = 0; i < k; ++i) {
+            if (symmetric) out_real->set(i, vals[i].real());
+            else out_cplx->set(i, vals[i]);
+        }
     };
-    auto set_std_from_dense = [&](std::vector<double>& sv, const DenseVector<double>& dv) {
-         ParallelFor(0, n, [&](size_t i) {
-            sv[i] = dv.get(i);
-         });
-    };
 
-    int j = 0;
-    for (; j < max_steps; ++j) {
-        // v_curr_vec <- V[j]
-        set_dense_from_std(v_curr_vec, V[j]);
-        
-        // w <- A * v_curr
-        // This is the key "Anti-Nanny" step: utilizing the engine's MVM
-        // which handles paging, tiling, and disk I/O for 'a'.
-        matrix_vector_multiply(a, v_curr_vec, w_vec);
-
-        // Read w back to RAM for Gram-Schmidt
-        std::vector<double> w_host(n);
-        set_std_from_dense(w_host, w_vec);
-
-        // Modified Gram-Schmidt
-        for (int i = 0; i <= j; ++i) {
-            double h_ij = 0.0;
-            // Dot product (can use CBLAS/Parallel logic if needed)
-            const double* vi_ptr = V[i].data();
-            const double* w_ptr = w_host.data();
-            for (uint64_t idx = 0; idx < n; ++idx) {
-                h_ij += vi_ptr[idx] * w_ptr[idx];
-            }
-            
-            H(i, j) = h_ij;
-
-            // w = w - h_ij * V[i]
-            for (uint64_t idx = 0; idx < n; ++idx) {
-                w_host[idx] -= h_ij * vi_ptr[idx];
-            }
+    // Krylov constraints: Lanczos needs k < ncv <= n, Arnoldi needs k + 2 <= ncv <= n.
+    const int64_t min_ncv = symmetric ? k + 1 : k + 2;
+    const int64_t ncv = std::min<int64_t>(n, std::max<int64_t>(m, std::max<int64_t>(min_ncv, 2 * k + 1)));
+    if (ncv < min_ncv || n <= 2) {
+        // Too small for a Krylov method: dense eigensolver on the materialized matrix.
+        Eigen::MatrixXd dense(n, n);
+        for (int64_t i = 0; i < n; ++i)
+            for (int64_t j = 0; j < n; ++j) dense(i, j) = a.get_element_as_double(i, j);
+        std::vector<std::complex<double>> vals;
+        if (symmetric) {
+            Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(dense, Eigen::EigenvaluesOnly);
+            for (int64_t i = 0; i < n; ++i) vals.emplace_back(es.eigenvalues()(i), 0.0);
+        } else {
+            Eigen::EigenSolver<Eigen::MatrixXd> es(dense, false);
+            for (int64_t i = 0; i < n; ++i) vals.push_back(es.eigenvalues()(i));
         }
+        write_sorted(std::move(vals));
+        return;
+    }
 
-        // Compute norm of w
-        double h_next = 0.0;
-        for (double x : w_host) h_next += x * x;
-        h_next = std::sqrt(h_next);
-
-        H(j + 1, j) = h_next;
-
-        if (h_next < tol) {
-            // Krylov subspace invariant subspace found
-            j++; 
-            break;
+    MatVecOperator op(*this, a);
+    std::vector<std::complex<double>> vals;
+    if (symmetric) {
+        Spectra::SymEigsSolver<MatVecOperator> eigs(op, k, ncv);
+        eigs.init();
+        eigs.compute(Spectra::SortRule::LargestMagn, kMaxRestarts, tol, Spectra::SortRule::LargestMagn);
+        if (eigs.info() != Spectra::CompInfo::Successful) {
+            throw std::runtime_error("eigvals_arnoldi did not converge to tol=" + std::to_string(tol) +
+                                     " (Lanczos, k=" + std::to_string(k) + ", m=" + std::to_string(ncv) +
+                                     "); increase m or tol");
         }
-
-        // Normalize w to get v_{j+1}
-        const double inv_h = 1.0 / h_next;
-        for (double& x : w_host) x *= inv_h;
-        
-        if (j + 1 < max_steps) {
-             V.push_back(w_host);
+        const Eigen::VectorXd ev = eigs.eigenvalues();
+        for (Eigen::Index i = 0; i < ev.size(); ++i) vals.emplace_back(ev(i), 0.0);
+    } else {
+        Spectra::GenEigsSolver<MatVecOperator> eigs(op, k, ncv);
+        eigs.init();
+        eigs.compute(Spectra::SortRule::LargestMagn, kMaxRestarts, tol, Spectra::SortRule::LargestMagn);
+        if (eigs.info() != Spectra::CompInfo::Successful) {
+            throw std::runtime_error("eigvals_arnoldi did not converge to tol=" + std::to_string(tol) +
+                                     " (Arnoldi, k=" + std::to_string(k) + ", m=" + std::to_string(ncv) +
+                                     "); increase m or tol");
         }
+        const Eigen::VectorXcd ev = eigs.eigenvalues();
+        for (Eigen::Index i = 0; i < ev.size(); ++i) vals.push_back(ev(i));
     }
-
-    if (j == 0) {
-         throw std::runtime_error("CpuSolver::eigvals_arnoldi failed early");
-    }
-
-    // Solve the small eigenvalue problem for H(0..j, 0..j-1) which is essentially j x j
-    // H is (j+1) x j. We take the j x j principal submatrix.
-    Eigen::MatrixXd H_small = H.block(0, 0, j, j);
-
-    Eigen::EigenSolver<Eigen::MatrixXd> solver(H_small, false);
-    if (solver.info() != Eigen::Success) {
-        throw std::runtime_error("CpuSolver::eigvals_arnoldi H-matrix solve failed");
-    }
-
-    auto evals = solver.eigenvalues();
-    
-    // Sort and Output
-    std::vector<std::pair<double, std::complex<double>>> ranked;
-    ranked.reserve(evals.size());
-    for (int i = 0; i < evals.size(); ++i) {
-        std::complex<double> z(evals[i].real(), evals[i].imag());
-        ranked.emplace_back(std::abs(z), z);
-    }
-    std::sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) {
-        return a.first > b.first;
-    });
-
-    for (int i = 0; i < k; ++i) {
-         std::complex<double> val = (static_cast<size_t>(i) < ranked.size()) ? ranked[i].second : 0.0;
-         if (out_is_complex) {
-             auto* out_c = static_cast<DenseVector<std::complex<double>>*>(&out);
-             out_c->set(i, val);
-         } else {
-             if (std::abs(val.imag()) > tol) {
-                 throw std::runtime_error("CpuSolver::eigvals_arnoldi converged to complex eigenvalue, but output is real.");
-             }
-             auto* out_d = static_cast<DenseVector<double>*>(&out);
-             out_d->set(i, val.real());
-         }
-    }
+    write_sorted(std::move(vals));
 }
 
 void CpuSolver::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {

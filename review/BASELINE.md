@@ -36,6 +36,7 @@ date) whenever a phase lands, and keep the old row so the trend is visible.
 ### Build (pip, the way users install)
 ```bash
 apt-get install -y libopenblas-dev liblapacke-dev        # system BLAS/LAPACK
+apt-get install -y libspectra-dev                         # optional: else fetched from GitHub
 pip install "scikit-build-core>=0.3.3" "pybind11==2.12.0" setuptools_scm plotly psutil pytest pytest-timeout
 pip install --no-build-isolation -v -Cbuild-dir=build/wheel .
 ```

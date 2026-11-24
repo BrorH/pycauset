@@ -105,8 +105,8 @@ but wired into Runtime) is Tier B.
 - `lazy_allocation` dtype-less `zeros()` wrapper: 18 operator methods never run.
 - `pc.divide`: public, never called by any test.
 - `CpuSolver`: `gemm` (80 lines), `multiply_scalar` (36), several `matmul`
-  type-combination branches, `batch_gemv`. (`eigvals_arnoldi` is **kept by maintainer
-  decision**: test it, don't delete it.)
+  type-combination branches, `batch_gemv`. (`eigvals_arnoldi` was rewritten on
+  Spectra in session 3 and is now live and tested.)
 - `StreamingManager.cpp` + `CpuComputeWorker` (see §3).
 - All of `review/deadcode/cpp_never_executed.txt` and `py_never_executed.txt`,
   reviewed file by file during PLAN Phase 3. Each reviewer records keep/test/delete.
