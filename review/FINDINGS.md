@@ -424,10 +424,24 @@ the entry (the history is useful). New findings go at the bottom with the next f
   uint64 raises (NumPy gives float64; 32 combos). See F-035.
 
 ### F-035 Mixed-dtype gaps found by the dtype-pair survey
-- **Status:** open (S2)
+- **Status:** (a) fixed (`fix(F-035a)`): `dispatch_matmul` promotes mixed float16/complex
+  operands to the resolved dtype via `pycauset::cast_to` (72 grid cases now pass; an old
+  self-skipping block-matrix test now runs). (b) open.
 - (a) `A @ B` where one operand is float16 or complex and the dtypes differ raises
   "CpuSolver::matmul currently only supports DenseMatrix<double> result for generic inputs"
   (64 combinations, e.g. int32 @ complex64, float32 @ complex128, int8 @ float16).
   Fix: promote (cast) operands to the resolved result dtype, then use the same-dtype kernel.
 - (b) Any signed int ⊕ uint64 raises "unsupported signed/unsigned mix" (32 combinations).
-  NumPy gives float64. It's loud, not silent, so lower priority; decide whether to follow NumPy.
+  NumPy gives float64, which silently loses precision above 2^53. **Decision (tech lead,
+  session 2): keep raising** (loud beats silently approximate, README rule 12). Resolve
+  with value bounds (F1): when the uint64 operand's bounds fit int64, the exact result is int64.
+
+### F-036 Identity-matmul shortcut bypassed dtype rules (and F-001's invariant)
+- **Status:** fixed (`fix(F-035a)`)
+- `dispatch_matmul`'s "Identity × A → A * scalar" shortcut called the class's
+  `multiply_scalar` directly: for integer A it created a lazy-scalar view (the F-001 bug
+  class) and the result dtype ignored the resolver (float64 identity @ int32 stayed int32).
+  Now routed through `scalar_op` + `cast_to` with the resolver's dtype.
+- Knock-on: `matrix_power` seeded its loop with a float64 identity, so causal powers became
+  float once dtypes were respected. The loop no longer uses an identity seed (which also
+  saves one matmul); `matrix_power(C, k)` stays `TriangularIntegerMatrix`.

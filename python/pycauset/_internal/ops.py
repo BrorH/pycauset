@@ -1463,14 +1463,16 @@ def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
         inv = invert(a, deps=deps)
         return matrix_power(inv, -n, deps=deps)
 
-    # Binary exponentiation via matmul.
-    result = _identity_like(a, shape, deps)
+    # Binary exponentiation via matmul. No identity seed: multiplying by a float64
+    # identity would promote integer/causal powers to float (and costs one extra matmul).
+    result = None
     base = a
     while n > 0:
         if n & 1:
-            result = matmul(result, base, deps=deps)
-        base = matmul(base, base, deps=deps)
+            result = base if result is None else matmul(result, base, deps=deps)
         n >>= 1
+        if n:
+            base = matmul(base, base, deps=deps)
     _track_and_mark_temporary_if_native(result, deps=deps)
     return result
 

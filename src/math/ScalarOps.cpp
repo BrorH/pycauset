@@ -10,6 +10,7 @@
 #include "pycauset/core/ObjectFactory.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
+#include "pycauset/matrix/ComplexFloat16Matrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
@@ -457,4 +458,26 @@ std::unique_ptr<MatrixBase> negate(const MatrixBase& a) {
     return a.multiply_scalar(-1.0);
 }
 
+std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt) {
+    const uint64_t rows = a.rows(), cols = a.cols();
+    if (dt == DataType::FLOAT16) {
+        auto out = std::make_unique<DenseMatrix<pycauset::float16_t>>(rows, cols, std::string());
+        pycauset::float16_t* dst = out->data();
+        ParallelFor(0, rows, [&](size_t i) {
+            for (uint64_t j = 0; j < cols; ++j) dst[i * cols + j] = pycauset::float16_t(a.get_element_as_double(i, j));
+        });
+        return out;
+    }
+    if (dt == DataType::COMPLEX_FLOAT16) {
+        auto out = std::make_unique<ComplexFloat16Matrix>(rows, cols, std::string());
+        for (uint64_t i = 0; i < rows; ++i) {
+            for (uint64_t j = 0; j < cols; ++j) out->set(i, j, a.get_element_as_complex(i, j));
+        }
+        return out;
+    }
+    // Multiplying by one in the target type is an exact conversion (ints, floats, complex).
+    return run_exact(a, dt, ScalarOpKind::Mul, ScalarArg::from_int64(1));
+}
+
 }  // namespace pycauset
+

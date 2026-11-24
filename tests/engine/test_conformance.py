@@ -41,11 +41,9 @@ def _operand(dtype: str, seed: int) -> np.ndarray:
 
 def _known_gap(op: str, da: str, db: str) -> str | None:
     pair = {da, db}
-    if op == "@" and da != db and (pair & {"float16", "complex64", "complex128"}):
-        return "F-035a mixed-dtype matmul with float16/complex has no kernel"
     signed = {"int8", "int16", "int32", "int64"}
     if op != "/" and "uint64" in pair and pair & signed:
-        return "F-035b signed int with uint64 is rejected"
+        return "F-035b signed int with uint64 raises by design until value bounds (F1)"
     if op == "-" and da == db == "bool":
         return None  # PyCauset counts; NumPy raises for bool subtraction. Checked below.
     return None
@@ -55,10 +53,11 @@ CASES = [(op, da, db) for op in OPS for da in DTYPES for db in DTYPES]
 
 
 @pytest.mark.parametrize("op,da,db", CASES, ids=[f"{da}{op}{db}" for op, da, db in CASES])
-def test_binary_matrix_op(op, da, db):
+def test_binary_matrix_op(op, da, db, request):
     gap = _known_gap(op, da, db)
     if gap:
-        pytest.xfail(gap)  # non-strict: these are recorded findings, flip to pass when fixed
+        # Run it anyway: when a gap gets fixed it shows up as XPASS (then drop the entry).
+        request.applymarker(pytest.mark.xfail(reason=gap, strict=False))
     fn, resolver_op = OPS[op]
     a, b = _operand(da, 1), _operand(db, 2)
 

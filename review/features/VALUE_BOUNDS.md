@@ -127,6 +127,9 @@ For complex numbers, track bounds on |z| only.
 - Cost of fused min/max in kernels: measure; only keep it where free.
 - Interaction with block matrices and out-of-core tiles: bounds per tile, merged.
 
+- Signed int ⊕ uint64 (F-035b): today it raises. With bounds, a uint64 operand whose
+  bounds fit int64 can be combined exactly in int64.
+
 ## 7b. Out of scope for R1
 - Sampling-based estimates for anything other than warnings (see "Two kinds of knowledge").
 - Per-row or per-block bounds (finer granularity); revisit if block matrices need it.

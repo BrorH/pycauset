@@ -1,3 +1,4 @@
+#include "pycauset/math/ScalarOps.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include <utility>
 #include "pycauset/matrix/TriangularMatrix.hpp"
@@ -637,22 +638,40 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
         return res;
     }
 
-    // Identity x Any -> Any * scalar
+    // Identity x Any -> Any * scalar, and Any x Identity -> Any * scalar. Routed through
+    // scalar_op so integer/bit operands never get a lazy scalar (F-001) and the result
+    // dtype follows the promotion rules (e.g. float64 identity with int32 -> float64).
+    auto identity_times = [&](const MatrixBase& id, const MatrixBase& other) {
+        const std::complex<double> s = id.get_scalar();
+        const ScalarArg arg = s.imag() == 0.0 ? ScalarArg::from_double(s.real()) : ScalarArg::from_complex(s);
+        const DataType want =
+            promotion::resolve(promotion::BinaryOp::Matmul, id.get_data_type(), other.get_data_type()).result_dtype;
+        auto out = scalar_op(other, ScalarOpKind::Mul, arg);
+        if (out->get_data_type() != want) out = cast_to(*out, want);
+        return out;
+    };
     if (a_is_id && a.rows() == a.cols()) {
-        std::complex<double> s = a.get_scalar();
-        if (s.imag() == 0.0) {
-            return b.multiply_scalar(s.real(), saveas);
-        }
-        return b.multiply_scalar(s, saveas);
+        return identity_times(a, b);
+    }
+    if (b_is_id && b.rows() == b.cols()) {
+        return identity_times(b, a);
     }
 
-    // Any x Identity -> Any * scalar
-    if (b_is_id && b.rows() == b.cols()) {
-        std::complex<double> s = b.get_scalar();
-        if (s.imag() == 0.0) {
-            return a.multiply_scalar(s.real(), saveas);
+    // Mixed dtypes involving float16 or complex have no direct kernels (F-035a): promote
+    // both operands to the resolved result dtype and use the same-dtype kernel.
+    {
+        const DataType da = a.get_data_type(), db = b.get_data_type();
+        auto needs_promotion = [](DataType d) {
+            return d == DataType::FLOAT16 || d == DataType::COMPLEX_FLOAT16 ||
+                   d == DataType::COMPLEX_FLOAT32 || d == DataType::COMPLEX_FLOAT64;
+        };
+        if (da != db && (needs_promotion(da) || needs_promotion(db))) {
+            const DataType r = promotion::resolve(promotion::BinaryOp::Matmul, da, db).result_dtype;
+            std::unique_ptr<MatrixBase> ca, cb;
+            if (da != r) ca = cast_to(a, r);
+            if (db != r) cb = cast_to(b, r);
+            return dispatch_matmul(ca ? *ca : a, cb ? *cb : b, saveas);
         }
-        return a.multiply_scalar(s, saveas);
     }
 
     // --- Structured float64 matrices (Diagonal / TriangularFloat64) ---

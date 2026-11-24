@@ -217,3 +217,9 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   complex16 export name); the library was right in both cases.
 - F-032 (unregistered instantiations) scheduled with the rename sweep (PLAN 4.6).
 - State: 2,295 passed / 34 skipped / 104 xfailed in ~20 s; ctest 9/9.
+- `fix(F-035a)`: mixed-dtype matmul with float16/complex promotes operands via new
+  `pycauset::cast_to` (72 grid cases now pass). F-036: the identity-matmul shortcut
+  bypassed dtype rules and F-001's invariant; fixed, and `matrix_power` no longer seeds
+  with a float64 identity. F-035b (signed ⊕ uint64) keeps raising by decision until value
+  bounds. Gap cases in the grid now *run* under xfail so fixes surface as XPASS.
+- State: 2,368 passed / 33 skipped / 32 xfailed (F-035b); ctest 9/9; ASan+UBSan clean.

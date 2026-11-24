@@ -59,4 +59,8 @@ std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, cons
 // -A. Raises std::invalid_argument for bit/bool (NumPy forbids boolean negation).
 std::unique_ptr<MatrixBase> negate(const MatrixBase& a);
 
+// A converted to a dense matrix of dtype `dt` (exact where the target can represent the
+// values). Used to promote operands of mixed-dtype ops to the resolved result dtype.
+std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt);
+
 }  // namespace pycauset
