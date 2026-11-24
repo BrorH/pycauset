@@ -12,6 +12,32 @@
 
 namespace pycauset {
 
+namespace {
+// The StreamingManager copies tiles straight from raw row-major storage of dense
+// same-dtype operands, so it is only correct and supported for plain views: no transpose,
+// slice offset, lazy scalar or conjugation (F-040). Everything else falls back to the
+// direct kernels, which honour view metadata and still work out of core through mmap
+// paging (slower), instead of producing wrong values or throwing mid-operation.
+bool plain_view(const MatrixBase& m) {
+    return !m.is_transposed() && !m.has_view_offset() && !m.is_conjugated() &&
+           m.get_scalar() == std::complex<double>(1.0, 0.0) &&
+           m.get_matrix_type() == MatrixType::DENSE_FLOAT;
+}
+bool same_dtype_plain(const MatrixBase& a, const MatrixBase& b, const MatrixBase& c) {
+    return plain_view(a) && plain_view(b) && plain_view(c) && a.get_data_type() == b.get_data_type() &&
+           b.get_data_type() == c.get_data_type();
+}
+bool can_stream_matmul(const MatrixBase& a, const MatrixBase& b, const MatrixBase& c) {
+    const DataType dt = c.get_data_type();
+    return same_dtype_plain(a, b, c) && (dt == DataType::FLOAT64 || dt == DataType::FLOAT32);
+}
+bool can_stream_elementwise(const MatrixBase& a, const MatrixBase& b, const MatrixBase& c) {
+    const DataType dt = c.get_data_type();
+    return same_dtype_plain(a, b, c) && (dt == DataType::FLOAT64 || dt == DataType::FLOAT32 ||
+                                         dt == DataType::INT32 || dt == DataType::INT64);
+}
+}  // namespace
+
 void CpuDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     auto& governor = core::MemoryGovernor::instance();
     // Check if we should stream
@@ -24,7 +50,8 @@ void CpuDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     
     size_t required = (a.size() + b.size() + result.size()) * bytes_per_elem;
     
-    if (!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) {
+    if ((!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) &&
+        can_stream_matmul(a, b, result)) {
         // Use Streaming Manager
         CpuComputeWorker worker(solver_);
         StreamingManager manager(worker);
@@ -62,7 +89,8 @@ void CpuDevice::outer_product(const VectorBase& a, const VectorBase& b, MatrixBa
 void CpuDevice::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     auto& governor = core::MemoryGovernor::instance();
     size_t required = (a.size() + b.size() + result.size()) * 8; 
-    if (!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) {
+    if ((!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) &&
+        can_stream_elementwise(a, b, result)) {
          CpuComputeWorker worker(solver_);
          StreamingManager manager(worker);
          manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::ADD);
@@ -74,7 +102,8 @@ void CpuDevice::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result
 void CpuDevice::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     auto& governor = core::MemoryGovernor::instance();
     size_t required = (a.size() + b.size() + result.size()) * 8;
-    if (!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) {
+    if ((!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) &&
+        can_stream_elementwise(a, b, result)) {
          CpuComputeWorker worker(solver_);
          StreamingManager manager(worker);
          manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::SUBTRACT);
@@ -86,7 +115,8 @@ void CpuDevice::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& r
 void CpuDevice::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     auto& governor = core::MemoryGovernor::instance();
     size_t required = (a.size() + b.size() + result.size()) * 8;
-    if (!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) {
+    if ((!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) &&
+        can_stream_elementwise(a, b, result)) {
          CpuComputeWorker worker(solver_);
          StreamingManager manager(worker);
          manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::MULTIPLY);
@@ -98,7 +128,8 @@ void CpuDevice::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, M
 void CpuDevice::elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     auto& governor = core::MemoryGovernor::instance();
     size_t required = (a.size() + b.size() + result.size()) * 8;
-    if (!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) {
+    if ((!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) &&
+        can_stream_elementwise(a, b, result)) {
          CpuComputeWorker worker(solver_);
          StreamingManager manager(worker);
          manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::DIVIDE);

@@ -226,6 +226,8 @@ void StreamingManager::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBa
     
     // Propagate scalar properties
     c.set_scalar(a.get_scalar() * b.get_scalar());
+    // Test-only trace, set last: per-tile kernels overwrite earlier traces.
+    debug_trace::set_last("streaming.matmul");
 }
 
 void StreamingManager::elementwise(
@@ -328,6 +330,8 @@ void StreamingManager::elementwise(
         // For now, throw for unimplemented types.
         throw std::runtime_error("StreamingManager: unsupported dtype for elementwise (ints/floats only)");
     }
+    // Test-only trace, set last: per-tile kernels overwrite earlier traces.
+    debug_trace::set_last("streaming.elementwise");
 }
 
 } // namespace pycauset

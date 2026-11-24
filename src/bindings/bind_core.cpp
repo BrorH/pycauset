@@ -207,6 +207,14 @@ void bind_core_classes(py::module_& m) {
         py::arg("a_dtype"),
         py::arg("b_dtype"));
 
+    // Test-only: the governor's RAM safety margin. A huge margin makes every operation
+    // "not fit in RAM", forcing the out-of-core StreamingManager path (F-026).
+    m.def("_get_ram_safety_margin", []() { return pycauset::core::MemoryGovernor::instance().get_safety_margin(); });
+    m.def(
+        "_set_ram_safety_margin",
+        [](uint64_t bytes) { pycauset::core::MemoryGovernor::instance().set_safety_margin(bytes); },
+        py::arg("bytes"));
+
     m.def("_debug_last_kernel_trace", []() { return pycauset::debug_trace::get_last(); });
     m.def("_debug_clear_kernel_trace", []() { pycauset::debug_trace::clear(); });
 
