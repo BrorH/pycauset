@@ -43,7 +43,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   export == NumPy.
 
 ### F-004 Nested `ParallelFor` deadlocks
-- **Status:** open
+- **Status:** fixed (`fix(F-004,F-005)`): nested calls run inline on pool workers;
+  gtests `NestedParallelism`, `NestedParallelismManyLevels` (verified to hang on old code)
 - **Where:** `include/pycauset/core/ParallelUtils.hpp`. Outer tasks occupy every
   pool worker and block in `fut.get()` on inner tasks queued behind them.
 - **Repro:** `tests/test_parallel_utils.cpp::NestedParallelism` hangs forever. That
@@ -100,7 +101,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - **Where:** `python/pycauset/_internal/ops.py:852`.
 
 ### F-005 `ParallelFor` exception path can use-after-free
-- **Status:** open (found by reading the code; not reproduced)
+- **Status:** fixed (`fix(F-004,F-005)`): waits for all tasks, then rethrows the first
+  error; stops handing out chunks after a failure; `global_num_threads` is atomic.
+  gtest `ExceptionWaitsForAllWorkers` (verified to fail on old code)
 - When one chunk throws, `fut.get()` rethrows in the caller while other workers keep
   running `func`, which usually captures the caller's stack by reference. The caller
   unwinds and those references dangle. Fix: wait for all futures, then rethrow the
@@ -163,8 +166,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   threaded test under ASan/TSan before trusting it.
 
 ### F-010 Three C++ test files are orphaned (never built)
-- **Status:** partly fixed: op_registry and cpu_worker_contract are wired (ctest 8/8);
-  parallel_utils waits for F-004. CI still builds no C++ tests (PLAN 1.2).
+- **Status:** fixed locally: all three wired (ctest 9/9). CI still builds no C++ tests
+  (PLAN 1.2).
 - `tests/test_cpu_worker_contract.cpp`, `tests/test_op_registry.cpp` and
   `tests/test_parallel_utils.cpp` are not in CMakeLists. The first two pass when
   built by hand; the third reveals F-004. CI builds **no** C++ tests at all.
@@ -177,13 +180,20 @@ the entry (the history is useful). New findings go at the bottom with the next f
   copy) even though `CpuSolver` implements `eigh`/`eigvalsh`/`svd`. They cannot run
   out-of-core. See `review/probes/numpy_fallback_probe.py`.
 
-### F-012 Elementwise and vector ops are 2–5× slower than NumPy
-- **Status:** open
-- `benchmarks/r2_parity.py` on this machine (4 vCPU): add 0.22×, multiply 0.29×,
-  dot 0.47×. matmul, solve and eigh are at parity; invert and det are 3× faster.
-  The project's own bar is ≥ 0.90×. Suspects: the Python wrapper stack (§4.2),
-  allocating a fresh result plus temp-file registration per op, and thread-pool
-  startup per call.
+### F-012 Most core ops are well below NumPy speed (README claims ≥ 0.90×)
+- **Status:** open (S2 for R1 credibility; Phase 6)
+- Quiet-machine measurement, `benchmarks/r2_parity.py`, N=1024, 4 vCPU, pip Release
+  build: matmul **0.32×**, invert 0.72×, determinant 0.60×, add 0.24×, multiply 0.32×,
+  **dot 0.01×** (≈100× slower: 11 ms vs 0.1 ms for a 1M-element dot), solve 1.00×,
+  eigh 0.95×. Only 2/8 at parity. `BENCHMARKS.md` claims **8/8** ("R2.2 parity gate"),
+  probably measured on the maintainer's machine. Re-measure there before editing the
+  claim (PLAN 5.4); a 4-vCPU Linux container may not be representative for BLAS ops,
+  but dot at 0.01× cannot be explained by hardware.
+- The first session-1 measurement (1.01× matmul, 3× invert) was taken under build load
+  and is invalid (BASELINE.md).
+- Suspects: the Python wrapper stack (ARCHITECTURE §4.2), per-call allocation and
+  temp-file registration, OpenBLAS thread juggling in `CpuSolver::matmul`, and for `dot` a
+  non-BLAS path. Profile before changing anything.
 
 ### F-013 bool dtype semantics diverge from NumPy without documentation
 - **Status:** open. **Decision (maintainer, 2026-11-24, reconfirmed): counting semantics, documented.** bool/bit

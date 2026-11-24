@@ -2,15 +2,23 @@
 
 namespace pycauset {
 
-size_t ThreadPool::global_num_threads = std::thread::hardware_concurrency();
+std::atomic<size_t> ThreadPool::global_num_threads{std::thread::hardware_concurrency()};
+
+namespace {
+thread_local bool t_is_pool_worker = false;
+}
 
 void ThreadPool::set_num_threads(size_t n) {
     if (n == 0) n = 1;
-    global_num_threads = n;
+    global_num_threads.store(n);
 }
 
 size_t ThreadPool::get_num_threads() {
-    return global_num_threads;
+    return global_num_threads.load();
+}
+
+bool ThreadPool::on_worker_thread() {
+    return t_is_pool_worker;
 }
 
 ThreadPool& ThreadPool::instance() {
@@ -30,6 +38,7 @@ ThreadPool::ThreadPool(size_t threads) : stop(false) {
     for(size_t i = 0; i < threads; ++i)
         workers.emplace_back(
             [this] {
+                t_is_pool_worker = true;
                 for(;;) {
                     std::function<void()> task;
 

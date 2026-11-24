@@ -36,6 +36,11 @@ public:
     static void set_num_threads(size_t n);
     static size_t get_num_threads();
 
+    // True on threads owned by the pool. Parallel helpers called from a worker run
+    // inline instead of enqueueing: a worker blocking on tasks queued behind it can
+    // deadlock a fixed-size pool (nested ParallelFor, F-004).
+    static bool on_worker_thread();
+
 private:
     // Private constructor for Singleton
     ThreadPool(size_t threads = std::thread::hardware_concurrency());
@@ -51,8 +56,8 @@ private:
     std::condition_variable condition;
     bool stop;
     
-    // Concurrency setting
-    static size_t global_num_threads;
+    // Concurrency setting (read concurrently by every ParallelFor caller)
+    static std::atomic<size_t> global_num_threads;
 };
 
 // Template implementation must be in header
@@ -90,8 +95,9 @@ void ParallelFor(size_t start, size_t end, Func func) {
     size_t num_threads = ThreadPool::get_num_threads();
     if (num_threads == 0) num_threads = 1;
 
-    // If range is small or single thread requested, run sequentially
-    if (range < num_threads || num_threads == 1) {
+    // Run sequentially if the range is small, one thread was requested, or we are
+    // already inside a pool worker (nested parallelism would deadlock the pool).
+    if (range < num_threads || num_threads == 1 || ThreadPool::on_worker_thread()) {
         for (size_t i = start; i < end; ++i) {
             func(i);
         }
@@ -106,33 +112,52 @@ void ParallelFor(size_t start, size_t end, Func func) {
     // but avoid excessive atomic contention.
     size_t grain_size = std::max(size_t(1), range / (num_threads * 4));
     
-    // Shared atomic counter for the next index to process
+    // Shared atomic counter for the next index to process; `failed` stops other
+    // workers from claiming new chunks once any chunk has thrown.
     auto next_idx = std::make_shared<std::atomic<size_t>>(start);
+    auto failed = std::make_shared<std::atomic<bool>>(false);
     
     std::vector<std::future<void>> futures;
     
     for (size_t i = 0; i < num_threads; ++i) {
         futures.emplace_back(ThreadPool::instance().enqueue([=]() {
-            while (true) {
-                // Claim a chunk
-                size_t chunk_start = next_idx->fetch_add(grain_size);
-                
-                if (chunk_start >= end) {
-                    break;
-                }
+            try {
+                while (!failed->load(std::memory_order_relaxed)) {
+                    // Claim a chunk
+                    size_t chunk_start = next_idx->fetch_add(grain_size);
 
-                size_t chunk_end = std::min(end, chunk_start + grain_size);
-                
-                for (size_t j = chunk_start; j < chunk_end; ++j) {
-                    func(j);
+                    if (chunk_start >= end) {
+                        break;
+                    }
+
+                    size_t chunk_end = std::min(end, chunk_start + grain_size);
+
+                    for (size_t j = chunk_start; j < chunk_end; ++j) {
+                        func(j);
+                    }
                 }
+            } catch (...) {
+                failed->store(true, std::memory_order_relaxed);
+                throw;
             }
         }));
     }
 
-    // Wait for all threads to complete and propagate exceptions
+    // Wait for ALL tasks before returning or rethrowing: `func` usually captures the
+    // caller's stack by reference, so no task may still be running when we unwind
+    // (F-005). Rethrow the first exception afterwards.
+    std::exception_ptr first_error;
     for (auto& fut : futures) {
-        fut.get(); 
+        try {
+            fut.get();
+        } catch (...) {
+            if (!first_error) {
+                first_error = std::current_exception();
+            }
+        }
+    }
+    if (first_error) {
+        std::rethrow_exception(first_error);
     }
 }
 

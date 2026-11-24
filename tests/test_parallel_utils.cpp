@@ -61,3 +61,37 @@ TEST(ParallelUtilsTest, NestedParallelism) {
     
     EXPECT_EQ(count.load(), N * N);
 }
+
+TEST(ParallelUtilsTest, ExceptionWaitsForAllWorkers) {
+    // F-005: when a chunk throws, ParallelFor must not return (rethrow) while other
+    // workers are still running the body, which references this stack frame.
+    const size_t N = 4000;
+    std::atomic<int> running{0};
+    std::atomic<int> max_after_return{0};
+    try {
+        ParallelFor(0, N, [&](size_t i) {
+            running++;
+            if (i == 0) {
+                running--;
+                throw std::runtime_error("boom");
+            }
+            std::this_thread::sleep_for(std::chrono::microseconds(200));
+            running--;
+        });
+        FAIL() << "expected exception";
+    } catch (const std::runtime_error&) {
+        max_after_return = running.load();
+    }
+    EXPECT_EQ(max_after_return.load(), 0) << "workers still running after ParallelFor rethrew";
+}
+
+TEST(ParallelUtilsTest, NestedParallelismManyLevels) {
+    // F-004: nesting must never deadlock, even three levels deep.
+    std::atomic<int> count{0};
+    ParallelFor(0, 8, [&](size_t) {
+        ParallelFor(0, 8, [&](size_t) {
+            ParallelFor(0, 8, [&](size_t) { count++; });
+        });
+    });
+    EXPECT_EQ(count.load(), 8 * 8 * 8);
+}

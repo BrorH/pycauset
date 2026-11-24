@@ -636,5 +636,12 @@ if(BUILD_TESTS)
     target_link_libraries(test_cpu_worker_contract PRIVATE GTest::gtest_main pycauset_core)
     add_test(NAME CpuWorkerContractTests COMMAND test_cpu_worker_contract)
 
+    # ThreadPool / ParallelFor (nesting, exceptions)
+    add_executable(test_parallel_utils tests/test_parallel_utils.cpp)
+    target_include_directories(test_parallel_utils PRIVATE include)
+    target_link_libraries(test_parallel_utils PRIVATE GTest::gtest_main pycauset_core)
+    add_test(NAME ParallelUtilsTests COMMAND test_parallel_utils)
+    set_tests_properties(ParallelUtilsTests PROPERTIES TIMEOUT 60)
+
 endif()
 
