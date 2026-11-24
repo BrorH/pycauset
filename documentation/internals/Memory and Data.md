@@ -215,5 +215,4 @@ call). See [[internals/DType System]].
 
 - [[guides/Storage and Memory]] — the user-facing guide.
 - [[internals/DType System]]
-- [[internals/LazyEvaluation]]
 - [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]

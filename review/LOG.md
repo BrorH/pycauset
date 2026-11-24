@@ -246,3 +246,13 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Note: a "must raise on non-convergence" test proved unreliable (Spectra's residual
   estimate can underflow to 0 after many restarts), so it was replaced by a clustered-
   spectrum accuracy test. The raise path is covered by code review only.
+- **F-038/F-039:** measured lazy vs eager (no benefit) → operators eager; found and fixed
+  `C + C.T` / `C - C.T` silently dropping the lower half (two inconsistent structure
+  resolvers, neither orientation-aware; now one). Then **deleted the expression engine**:
+  `include/pycauset/matrix/expression/` (8 headers), `MatrixOps.{hpp,cpp}`,
+  `bind_expression.cpp`, `MatrixBase`'s expression-based assignment operators (the compiler
+  confirmed no other users; they also copied through a double buffer, which drops imaginary
+  parts), 2 C++ lazy test files, the lazy-only Python test file, `LazyMatrix` names in
+  Python, the internals page and lazy claims in 4 guides. The NumPy-ufunc section of the
+  NumPy guide (false since before; F-008) now states the truth.
+- State: 2,787 passed / 32 xfailed (F-035b); ctest 7/7 (2 lazy test programs removed).

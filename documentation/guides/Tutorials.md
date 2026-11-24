@@ -142,7 +142,7 @@ print(pc.to_numpy(x).ravel())
 print(pc.to_numpy(vals))
 ```
 
-`pc.to_numpy(...)` materializes a result (or a lazy expression) as a NumPy array. See
+`pc.to_numpy(...)` materializes a result as a NumPy array. See
 [[guides/Linear Algebra Operations|Linear Algebra Operations]] for the full surface.
 
 ## Where next

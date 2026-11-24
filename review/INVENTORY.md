@@ -65,7 +65,6 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `include/pycauset/core/Float16.hpp` | 168 | ☐ |software float16_t |
 | `include/pycauset/core/IOAccelerator.hpp` | 65 | ☐ |prefetch/madvise from MemoryHints |
 | `include/pycauset/core/MatrixTraits.hpp` | 96 | ☐ |type traits per matrix class |
-| `include/pycauset/core/MatrixTypeResolver.hpp` | 21 | ☐ |result structure for binary ops |
 | `include/pycauset/core/MemoryGovernor.hpp` | 219 | ☐ |global RAM budget + LRU spill (leaked singleton) |
 | `include/pycauset/core/MemoryHints.hpp` | 59 | ☐ |Lookahead Protocol hint types |
 | `include/pycauset/core/MemoryMapper.hpp` | 58 | ☐ |RAM buffer or mmap; pinning; offset maps into containers |
@@ -78,7 +77,8 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `include/pycauset/core/PropertyFlags.hpp` | 35 | ☐ |bit flags mirroring Python properties (2 sources of truth) |
 | `include/pycauset/core/ScalarUtils.hpp` | 53 | ☐ |scalar helpers |
 | `include/pycauset/core/StorageUtils.hpp` | 22 | ☐ |global storage root + memory threshold |
-| `include/pycauset/core/StructureResolver.hpp` | 57 | ☐ |structure algebra (diag∘X→diag ...) |
+| `include/pycauset/core/StructureResolver.hpp` | ~70 | ☐ |result structure for element-wise ops (orientation-aware, F-039) |
+| `src/core/StructureResolver.cpp` | ~100 | ☐ |implementation of resolve_result_structure |
 | `include/pycauset/core/SystemUtils.hpp` | 32 | ☐ |available RAM detection |
 | `include/pycauset/core/Types.hpp` | 42 | ☐ |DataType + MatrixType enums (MatrixType mixes structure & dtype) |
 
@@ -92,17 +92,9 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `include/pycauset/matrix/DiagonalMatrix.hpp` | 218 | ☐ |O(n) diagonal |
 | `include/pycauset/matrix/IdentityMatrix.hpp` | 186 | ☐ |O(1) identity |
 | `include/pycauset/matrix/MatrixBase.hpp` | 193 | ☐ |abstract matrix interface |
-| `include/pycauset/matrix/MatrixOps.hpp` | 194 | ☐ |free-function op helpers |
 | `include/pycauset/matrix/SymmetricMatrix.hpp` | 248 | ☐ |packed sym/antisym |
 | `include/pycauset/matrix/TriangularBitMatrix.hpp` | 92 | ☐ |alias header for causal matrix |
 | `include/pycauset/matrix/TriangularMatrix.hpp` | 280 | ☐ |TriangularMatrix<T>, base; <bool> = causal matrix |
-| `include/pycauset/matrix/expression/BinaryExpression.hpp` | 85 | ☐ | |
-| `include/pycauset/matrix/expression/Functors.hpp` | 75 | ☐ | |
-| `include/pycauset/matrix/expression/MatrixExpression.hpp` | 116 | ☐ | |
-| `include/pycauset/matrix/expression/MatrixExpressionWrapper.hpp` | 145 | ☐ | |
-| `include/pycauset/matrix/expression/MatrixRefExpression.hpp` | 48 | ☐ | |
-| `include/pycauset/matrix/expression/ScalarExpression.hpp` | 46 | ☐ | |
-| `include/pycauset/matrix/expression/UnaryExpression.hpp` | 72 | ☐ | |
 | `include/pycauset/vector/ComplexFloat16Vector.hpp` | 171 | ☐ |complex16 vector |
 | `include/pycauset/vector/DenseVector.hpp` | 186 | ☐ |DenseVector<T> + BitVector |
 | `include/pycauset/vector/UnitVector.hpp` | 116 | ☐ |one-hot vector |
@@ -138,7 +130,6 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `src/bindings/bind_complex.cpp` | 174 | ☐ | |
 | `src/bindings/bind_core.cpp` | 273 | ☐ |storage/threads/IO config |
 | `src/bindings/bind_cuda.cpp` | 53 | ☐ |_pycauset_cuda module (on hold) |
-| `src/bindings/bind_expression.cpp` | 260 | ☐ |LazyMatrix |
 | `src/bindings/bind_math.cpp` | 52 | ☐ | |
 | `src/bindings/bind_matrix.cpp` | 4719 | ☐ |ALL matrix classes + operators + NumPy buffer. Split candidate |
 | `src/bindings/bind_op_registry.cpp` | 23 | ☐ | |
@@ -168,7 +159,6 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `src/math/LinearAlgebra.cpp` | 1142 | ☐ |op entry: allocate result, dispatch |
 | `src/matrix/DenseBitMatrix.cpp` | 281 | ☐ | |
 | `src/matrix/MatrixBase.cpp` | 111 | ☐ | |
-| `src/matrix/MatrixOps.cpp` | 10 | ☐ | |
 | `src/matrix/TriangularBitMatrix.cpp` | 482 | ☐ | |
 | `src/matrix/TriangularMatrix.cpp` | 44 | ☐ | |
 | `src/vector/DenseVector.cpp` | 123 | ☐ | |

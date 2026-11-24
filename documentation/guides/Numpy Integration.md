@@ -46,22 +46,18 @@ vec_bool = pc.vector(arr_bool)  # Returns [[pycauset.BitVector]]
 
 **Note**: This operation creates a **copy** of the data. Depending on the size and the configured memory threshold, the new object will be stored in RAM or on disk. See [[guides/Storage and Memory|guides/Storage and Memory]].
 
-## NumPy UFunc Support
+## NumPy UFuncs
 
-PyCauset matrices support NumPy universal functions (ufuncs) like `np.sin`, `np.add`, etc.
-These operations return lazy expressions that are evaluated efficiently.
+NumPy universal functions (`np.sin`, `np.exp`, ...) are **not** supported on PyCauset
+matrices: they raise `TypeError` rather than silently pulling a possibly huge matrix into
+RAM. Use PyCauset's own operators and functions, or convert explicitly:
 
 ```python
 import numpy as np
 import pycauset as pc
 
 A = pc.matrix(np.random.rand(100, 100))
-
-# Element-wise sine
-B = np.sin(A)
-
-# Element-wise addition
-C = np.add(A, A)
+B = pc.matrix(np.sin(pc.to_numpy(A)))   # explicit, in RAM
 ```
 
 ## Mixed Arithmetic and Ergonomics

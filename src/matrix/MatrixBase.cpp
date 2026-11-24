@@ -1,8 +1,6 @@
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
-#include "pycauset/matrix/expression/MatrixRefExpression.hpp"
-#include "pycauset/matrix/MatrixOps.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/compute/AutoSolver.hpp"
 #include <memory>
@@ -65,26 +63,10 @@ std::unique_ptr<PersistentObject> MatrixBase::clone() const {
     return out;
 }
 
-MatrixBase& MatrixBase::operator=(const MatrixBase& other) {
-    if (this == &other) return *this;
-    return *this = MatrixRefExpression(other);
-}
 
-MatrixBase& MatrixBase::operator+=(const MatrixBase& other) {
-    return *this = *this + other;
-}
 
-MatrixBase& MatrixBase::operator-=(const MatrixBase& other) {
-    return *this = *this - other;
-}
 
-MatrixBase& MatrixBase::operator*=(double scalar) {
-    return *this = *this * scalar;
-}
 
-MatrixBase& MatrixBase::operator/=(double scalar) {
-    return *this = *this / scalar;
-}
 
 void MatrixBase::spill_to_disk(const std::string& filename) {
     if (!mapper_) return;

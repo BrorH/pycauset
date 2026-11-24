@@ -20,12 +20,6 @@ pc.set_backing_dir(_STORAGE_TMP.name)
 # pycauset.<name> via __getattr__).
 _INTERNAL = frozenset(
     {
-        "LazyMatrix",
-        "lazy_add",
-        "lazy_cos",
-        "lazy_mul_scalar",
-        "lazy_sin",
-        "lazy_sub",
         "MemoryGovernor",
         "IOAccelerator",
         "OpContract",

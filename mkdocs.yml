@@ -281,7 +281,6 @@ nav:
     - DType Complex Overflow Plan: internals/plans/archive/DTYPE_COMPLEX_OVERFLOW_PLAN.md
     - Compute Architecture: internals/Compute Architecture.md
     - Block Matrices: internals/Block Matrices.md
-    - Lazy Evaluation: internals/LazyEvaluation.md
     - Memory and Data: internals/Memory and Data.md
     - Streaming Manager: internals/Streaming Manager.md
     - Algorithms: internals/Algorithms.md

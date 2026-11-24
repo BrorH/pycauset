@@ -158,8 +158,8 @@ pc.to_numpy(x)               # -> NumPy array
 vals, vecs = pc.eigh(A)      # symmetric eigenvalues/vectors
 ```
 
-Operations are lazy where it matters: `A + B` builds an expression, and the work runs
-when you materialize it (element access, `pc.to_numpy(...)`, or `pc.save(...)`).
+Operations return ordinary matrices. Transposes and float scalar multiples are O(1)
+views that share storage; everything else is computed when you call it.
 
 ## Work with NumPy
 

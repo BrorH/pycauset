@@ -219,7 +219,6 @@ _ComplexFloat64Matrix = _safe_get("ComplexFloat64Matrix")
 _TriangularFloatMatrix = _safe_get("TriangularFloatMatrix")
 _TriangularIntegerMatrix = _safe_get("TriangularIntegerMatrix")
 _DenseBitMatrix = _safe_get("DenseBitMatrix")
-_LazyMatrix = _safe_get("LazyMatrix")
 _UnitVector = _safe_get("UnitVector")
 _SymmetricMatrix = getattr(_native, "SymmetricMatrix", None)
 _AntiSymmetricMatrix = getattr(_native, "AntiSymmetricMatrix", None)
@@ -967,7 +966,6 @@ for _mcls in (
 
 _properties.apply_properties_patches(
     classes=[
-        _LazyMatrix,
         _IntegerMatrix,
         _Int8Matrix,
         _Int16Matrix,
@@ -2249,13 +2247,6 @@ def __getattr__(name):
 # `from pycauset import *` does not surface implementation details.
 _INTERNAL_NATIVE_EXPORTS = frozenset(
     {
-        # Lazy expression-template machinery.
-        "LazyMatrix",
-        "lazy_add",
-        "lazy_cos",
-        "lazy_mul_scalar",
-        "lazy_sin",
-        "lazy_sub",
         # Memory / I/O / op-registry machinery.
         "MemoryGovernor",
         "IOAccelerator",

@@ -221,29 +221,10 @@ If you believe you have a GPU but PyCauset is using the CPU:
 - [[internals/Compute Architecture.md|Compute Architecture]]
 - [[internals/Streaming Manager.md|Streaming Manager]]
 
-## 7. Lazy Evaluation
+## 7. Evaluation and O(1) views
 
-PyCauset employs **Lazy Evaluation** to optimize complex mathematical expressions. When you perform operations like `C = A + B`, the result is not computed immediately. Instead, a lightweight "Expression" object is created.
-
-### How it Works
-
-*   **Fusion**: Operations are fused together. `D = A + B + C` is computed in a single pass, avoiding the creation of a temporary matrix for `A + B`. This reduces memory bandwidth usage by 50% or more.
-*   **Just-In-Time**: Computation happens only when you access the data (e.g., `print(C[0,0])`) or explicitly request it (e.g., `C.eval()`).
-*   **Memory Efficiency**: Since intermediate results are not materialized, you can perform complex chains of operations on matrices that would otherwise exceed your RAM if all intermediates were stored.
-
-### Manual Control
-
-While the system handles this automatically, you can force evaluation or manage memory manually:
-
-*   **`.eval()`**: Forces a lazy expression to compute and return a materialized matrix.
-    ```python
-    expr = A + B
-    result = expr.eval() # 'result' is a real Matrix
-    ```
-*   **`spill_to_disk()`**: If you have a large materialized matrix in RAM and need to free up space for other computations without deleting the data, you can force it to move to disk.
-    ```python
-    A = pycauset.FloatMatrix(10000, 10000)
-    # ... fill A ...
-    A.spill_to_disk() # Moves A's data to a temp file, freeing RAM
-    ```
+Arithmetic is evaluated eagerly: `C = A + B` computes `C` and returns an ordinary matrix.
+Some operations are O(1) metadata views instead of computations: transposition (`A.T`),
+conjugation, and multiplying a float/complex matrix by a scalar (`A * 3.5`) share storage
+with `A`. Integer and bit matrices are scaled for real, so their results have NumPy's dtypes.
 

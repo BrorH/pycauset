@@ -170,12 +170,14 @@ pybind lambda (bind_matrix.cpp)
 * Nested `ParallelFor` deadlocks, and the exception path can use-after-free (see
   FINDINGS).
 
-### 2.7 Lazy expressions
-`include/pycauset/matrix/expression/*`: expression templates (`BinaryExpression`,
-`UnaryExpression`, `ScalarExpression`, `MatrixRefExpression`) wrapped for Python as
-`LazyMatrix` (`bind_expression.cpp`). Some float-scalar operations return a
-`LazyMatrix` instead of a concrete matrix, and it does not support item assignment.
-**[SMELL]**: users get different result types for `A*2.0` versus `A*2`.
+### 2.7 Evaluation model (no lazy expressions)
+Operators evaluate eagerly and return concrete matrices. The expression-template engine
+(`matrix/expression/*`, `MatrixOps.hpp`, `LazyMatrix`) was removed in session 3 (F-038): it
+was float-only, slower than eager evaluation in measurement, copied through `double`
+buffers, and produced a second-class object. O(1) work still exists as **views**: transpose,
+conjugation and float/complex scalar multiples share storage (view metadata on
+`PersistentObject`). Result structure for element-wise ops comes from one resolver,
+`structure::resolve_result_structure` (`src/core/StructureResolver.cpp`, F-039).
 
 ### 2.8 Physics in C++
 `causet/Spacetime.hpp` (native MinkowskiDiamond, Cylinder, Box) and `Sprinkler.cpp`
@@ -193,7 +195,6 @@ pybind lambda (bind_matrix.cpp)
 | `bind_matrix.cpp` | **~4,700** | every matrix class, operators (~8 overloads per operator; scalar overloads delegate to ScalarOps for int/bit), NumPy buffer protocol and generic native export (`export_dense_any`), construction from NumPy |
 | `bind_vector.cpp` | 1,371 | vector classes |
 | `bind_complex.cpp` | 174 | complex16 extras |
-| `bind_expression.cpp` | 260 | `LazyMatrix` |
 | `bind_math.cpp` | | free functions (linalg) |
 | `bind_causet.cpp` | | native spacetimes, `sprinkle`, `make_coordinates` |
 | `bind_op_registry.cpp` | | OpRegistry introspection |

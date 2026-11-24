@@ -213,7 +213,6 @@ class TestMatrixOperations(unittest.TestCase):
         a = pycauset.matrix(a_np)
         
         # Test np.sin
-        # Note: np.sin(a) calls a.__array_ufunc__ which calls _native.lazy_sin
         # b = np.sin(a)
         # b_np = pycauset.to_numpy(b, allow_huge=True)
         # self.assertTrue(np.allclose(b_np, np.sin(a_np)))

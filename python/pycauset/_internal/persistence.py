@@ -1329,7 +1329,6 @@ def _save_blockmatrix(
     except Exception:  # pragma: no cover
         SubmatrixView = None  # type: ignore[assignment]
 
-    LazyMatrix = getattr(deps.native, "LazyMatrix", None)
 
     def _numpy_dtype_hint_for(obj: Any) -> Any | None:
         name = type(obj).__name__
@@ -1454,11 +1453,6 @@ def _save_blockmatrix(
             if ThunkBlock is not None and isinstance(blk, ThunkBlock):
                 blk = blk.materialize()
 
-            # Materialize lazy expressions so payload storage exists.
-            if LazyMatrix is not None and isinstance(blk, LazyMatrix):
-                eval_fn = getattr(blk, "eval", None)
-                if callable(eval_fn):
-                    blk = eval_fn()
 
             # Persisting a view requires writing stable storage. In Phase E we
             # materialize the view block-locally (no global densification).
