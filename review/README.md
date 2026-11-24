@@ -66,12 +66,13 @@ review/
    its never-executed list.
 
 ## Current status (update this line every session)
-**After session 2 (2026-11-24):** fixed F-001…F-006, F-024, F-025, F-028, F-029, F-033,
-F-034, F-035a, F-036, F-037; CI runs C++ tests and fatal UBSan; new suite has regressions,
-scalar-op grid, dtype-pair grid and invariants (2,760 passed / 44 xfailed in ~21 s);
-sanitizers clean. **Open priorities:** F-038 (LazyMatrix full citizen) and F-032
-(unregistered instantiations), both with PLAN 4.3/4.6; F-030 (restarted Arnoldi);
-F-026 (C++ StreamingManager live or dead); remove precision_mode (4.1b); dead-code Tier B. All decisions answered (RESTRUCTURE §3); new feature
+**After session 3 (2026-11-24):** fixed F-001…F-006, F-024, F-025, F-028…F-030, F-033,
+F-034, F-035a, F-036…F-040, F-041a; precision_mode removed; lazy expression engine removed
+(eager operators, one structure resolver); Arnoldi on Spectra; streaming engine tested.
+2,842 passed / 32 xfailed (F-035b by design) in ~22 s; ASan+UBSan clean (sanitizer builds
+need -j1). **Open priorities:** F-041b (maintainer: zeros() default dtype); F-032 + renames
+(PLAN 4.6); F-040 follow-ups (views in the tiler, `set_memory_threshold` vs streaming);
+performance F-012 (profile the 13× element-wise gap); dead-code Tier B; docs F-008. All decisions answered (RESTRUCTURE §3); new feature
 accepted: value bounds (features/VALUE_BOUNDS.md, PLAN Phase F1).
 
 ## When the overhaul is finished
