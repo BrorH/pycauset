@@ -55,7 +55,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   or let the caller participate in the work. Wire the test into CMake.
 
 ### F-024 `eig` / `eig_skew` results all share one file `./_vals`; a second call corrupts the first
-- **Status:** open
+- **Status:** fixed (`fix(F-024)`); regression tests `tests/engine/test_regressions.py::test_F024_*`
 - **Where:** `src/math/LinearAlgebra.cpp:1074-1115` builds backing names as
   `result_file + "_vals"` / `"_vecs"`. With the default `result_file = ""` that is
   the literal file `_vals` (and `_vecs`) **in the current working directory**,
@@ -313,3 +313,14 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Related inconsistency: int32 **matmul raises** on overflow, while int32 **elementwise
   ops wrap** (F-006). One overflow policy is needed; it arrives with value bounds
   (features/VALUE_BOUNDS.md). Interim: elementwise must at least stop relying on UB.
+
+### F-029 The old test suite imports an arbitrary copy of pycauset
+- **Status:** fixed (pyproject `pythonpath = ["python"]`)
+- pytest puts the repo root on `sys.path` (because `tests/python/__init__.py` exists), and
+  only some test files insert `python/`. The **first file to import pycauset decides**
+  which copy every test uses. In practice that was the pip-installed copy in
+  site-packages, so local runs silently tested a **stale build**, not the source tree.
+  Found when a fixed bug (F-024) still reproduced in the old suite. CI was unaffected
+  (it installs and copies the same build).
+- Fix: `[tool.pytest.ini_options] pythonpath = ["python"]`. The per-file `sys.path` hacks
+  are now redundant and go away with the old suite (TESTS.md §4).

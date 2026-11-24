@@ -1071,8 +1071,8 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig_skew(
 
     const uint64_t n = a.rows();
     const int kk = std::min(k, static_cast<int>(n));
-    auto w = ObjectFactory::create_vector(static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file + "_vals");
-    auto v = ObjectFactory::create_matrix(n, static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, MatrixType::DENSE_FLOAT, result_file + "_vecs");
+    auto w = ObjectFactory::create_vector(static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file.empty() ? "" : result_file + "_vals");
+    auto v = ObjectFactory::create_matrix(n, static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_vecs");
 
     ComputeContext::instance().get_device()->eig_skew(a, *w, *v, kk);
     return std::make_pair(std::move(w), std::move(v));
@@ -1083,8 +1083,8 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const Ma
         throw std::invalid_argument("eig: matrix must be square");
     }
     uint64_t n = in.rows();
-    auto w = ObjectFactory::create_vector(n, DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file + "_vals");
-    auto v = ObjectFactory::create_matrix(n, n, DataType::COMPLEX_FLOAT64, MatrixType::DENSE_FLOAT, result_file + "_vecs");
+    auto w = ObjectFactory::create_vector(n, DataType::COMPLEX_FLOAT64, MatrixType::VECTOR, result_file.empty() ? "" : result_file + "_vals");
+    auto v = ObjectFactory::create_matrix(n, n, DataType::COMPLEX_FLOAT64, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_vecs");
     
     ComputeContext::instance().get_device()->eig(in, *w, *v);
     return std::make_pair(std::move(w), std::move(v));
@@ -1106,13 +1106,13 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const M
     }
     uint64_t n = in.rows();
     // eigh returns real eigenvalues for Hermitian matrices
-    auto w = ObjectFactory::create_vector(n, DataType::FLOAT64, MatrixType::VECTOR, result_file + "_vals");
+    auto w = ObjectFactory::create_vector(n, DataType::FLOAT64, MatrixType::VECTOR, result_file.empty() ? "" : result_file + "_vals");
     // Check if input is complex to determine eigenvector type
     // If input is real/symmetric, eigenvectors are real. If complex/hermitian, complex.
     DataType v_type = (in.get_data_type() == DataType::COMPLEX_FLOAT32 || in.get_data_type() == DataType::COMPLEX_FLOAT64) 
                       ? DataType::COMPLEX_FLOAT64 : DataType::FLOAT64;
 
-    auto v = ObjectFactory::create_matrix(n, n, v_type, MatrixType::DENSE_FLOAT, result_file + "_vecs");
+    auto v = ObjectFactory::create_matrix(n, n, v_type, MatrixType::DENSE_FLOAT, result_file.empty() ? "" : result_file + "_vecs");
     
     ComputeContext::instance().get_device()->eigh(in, *w, *v, 'L');
     return std::make_pair(std::move(w), std::move(v));
