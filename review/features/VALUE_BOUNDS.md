@@ -26,11 +26,12 @@ means spacing between values (significant digits), which bounds can't determine 
 **Two kinds of knowledge (never mix them).**
 - **Guaranteed bound:** "every element lies in [lo, hi]". Only this may be used to
   choose a *smaller* dtype.
-- **Observed values:** "we have seen at least x" (sampling, partial scans). This can
-  only ever argue for a *bigger* dtype or a warning. It can never prove a small dtype
-  safe, because one unseen element could overflow. **Decision: no sampling in R1.**
-  The existing sampled int32 matmul preflight is exactly this unsound kind, and it
-  is deleted when bounds land.
+- **Observed values:** "we have seen at least x" (sampling, partial scans). Per the
+  project rule *guesses may inform, never decide*, observed values may only produce
+  **warnings**. They never choose a dtype, not even a bigger one, because the result
+  dtype is part of the result and must be deterministic. The existing sampled int32
+  matmul preflight is exactly such an advisory warning. When guaranteed bounds are
+  known, the warning uses them instead (exact, not estimated); otherwise it keeps sampling.
 
 ## 2. Rules that make it trustworthy
 1. **Sound, never optimistic.** The stored interval must always contain every
@@ -100,8 +101,8 @@ integer results:
    contains the bounds, but never smaller than the narrowest input dtype (no
    surprise shrinking; see §7 for opt-in shrinking).
 3. If even int64 can't be proven to hold the bounds: keep int64 and emit a
-   `PyCausetOverflowRiskWarning` that states the proven bound (replaces today's
-   heuristic sampled preflight in `bind_matrix.cpp:231-305`).
+   `PyCausetOverflowRiskWarning` that states the proven bound (the advisory preflight
+   switches from sampled to proven bounds whenever they're known).
 
 Policy change this implies: **integer arithmetic stops wrapping silently.** Today
 int32 `2147483647 + 1` wraps to `-2147483648` (NumPy behaviour, and relies on UB,
@@ -127,7 +128,7 @@ For complex numbers, track bounds on |z| only.
 - Interaction with block matrices and out-of-core tiles: bounds per tile, merged.
 
 ## 7b. Out of scope for R1
-- Sampling-based estimates (see "Two kinds of knowledge").
+- Sampling-based estimates for anything other than warnings (see "Two kinds of knowledge").
 - Per-row or per-block bounds (finer granularity); revisit if block matrices need it.
 - Symbolic tracking (knowing `A - A == 0`); predict-then-measure covers the practical cases.
 
@@ -140,6 +141,6 @@ For complex numbers, track bounds on |z| only.
 - `A.minimal_dtype` exposed (final name per maintainer).
 - **Soundness invariant test** in `tests/engine/test_invariants.py`: for every
   generated case, the actual min/max of the result lies inside the reported bounds.
-- Dtype selection uses bounds for integer results; the heuristic preflight is deleted.
+- Dtype selection uses bounds for integer results; the advisory preflight uses guaranteed bounds when known.
 - Benchmarks: causal `C @ C` memory before and after; no slowdown > 2% on parity ops.
 - One concise docs page: what bounds are, how they choose dtypes, how this differs from NumPy.

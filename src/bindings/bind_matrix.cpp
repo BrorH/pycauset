@@ -228,6 +228,87 @@ inline void maybe_warn_integer_matmul_accumulator_widen(const MatrixBase& a, con
         /*stacklevel=*/3);
 }
 
+inline void maybe_warn_integer_matmul_overflow_risk_preflight(const MatrixBase& a, const MatrixBase& b) {
+    // ADVISORY ONLY (policy: guesses may inform, never decide). Samples a fixed,
+    // deterministic set of entries to estimate max|A|, max|B| and warns early when the
+    // result may overflow int32. It never changes the result: the matmul kernel uses an
+    // int64 accumulator and raises OverflowError exactly when a value doesn't fit.
+    // Value bounds (review/features/VALUE_BOUNDS.md) will make this exact when known.
+    auto* ai = dynamic_cast<const DenseMatrix<int32_t>*>(&a);
+    auto* bi = dynamic_cast<const DenseMatrix<int32_t>*>(&b);
+    if (!ai || !bi) {
+        return;
+    }
+
+    const uint64_t m = a.rows();
+    const uint64_t k = a.cols();
+    const uint64_t n = b.cols();
+    if (m < 128 || k < 128 || n < 128) {
+        return;
+    }
+
+    const uint64_t sample_count = std::min<uint64_t>(std::min<uint64_t>(std::min<uint64_t>(m, k), n), 64);
+    int64_t max_abs_a = 0;
+    int64_t max_abs_b = 0;
+
+    auto update_max_abs = [](int64_t& dst, int32_t v) {
+        int64_t av = static_cast<int64_t>(v);
+        if (av < 0) av = -av;
+        if (av > dst) dst = av;
+    };
+
+    // Always include a few fixed positions for determinism.
+    update_max_abs(max_abs_a, ai->get(0, 0));
+    update_max_abs(max_abs_b, bi->get(0, 0));
+    update_max_abs(max_abs_a, ai->get(m - 1, k - 1));
+    update_max_abs(max_abs_b, bi->get(k - 1, n - 1));
+    update_max_abs(max_abs_a, ai->get(0, k - 1));
+    update_max_abs(max_abs_b, bi->get(k - 1, 0));
+    update_max_abs(max_abs_a, ai->get(m - 1, 0));
+    update_max_abs(max_abs_b, bi->get(0, n - 1));
+
+    // Stride-based sample (no RNG; stable across runs).
+    // Uses Knuth multiplicative hashing to spread indices.
+    for (uint64_t s = 0; s < sample_count; ++s) {
+        uint64_t i = (s * 2654435761u) % m;
+        uint64_t j = (s * 805459861u + 1u) % k;
+        uint64_t l = (s * 11400714819323198485ull + 2u) % n;
+        update_max_abs(max_abs_a, ai->get(i, j));
+        update_max_abs(max_abs_b, bi->get(j, l));
+    }
+
+    if (max_abs_a == 0 || max_abs_b == 0) {
+        return;
+    }
+
+    const double scalar_factor = std::abs(a.get_scalar()) * std::abs(b.get_scalar());
+    const double bound = static_cast<double>(k) *
+                         static_cast<double>(max_abs_a) *
+                         static_cast<double>(max_abs_b) *
+                         scalar_factor;
+
+    const double out_max = static_cast<double>((std::numeric_limits<int32_t>::max)());
+    if (!(bound > out_max)) {
+        return;
+    }
+
+    std::string message;
+    message.reserve(512);
+    message += "pycauset matmul: int32 @ int32 may overflow the int32 output (advisory estimate from sampled entries). ";
+    message += "m=" + std::to_string(m);
+    message += ", k=" + std::to_string(k);
+    message += ", n=" + std::to_string(n);
+    message += ", sampled max|A|=" + std::to_string(max_abs_a);
+    message += ", sampled max|B|=" + std::to_string(max_abs_b);
+    message += ", estimated bound ~" + std::to_string(bound);
+    message += ". The result is computed exactly; PyCauset raises OverflowError if a value does not fit.";
+    bindings_warn::warn_once_with_category(
+        "pycauset.matmul.overflow_risk_preflight.int32",
+        message,
+        "PyCausetOverflowRiskWarning",
+        /*stacklevel=*/3);
+}
+
 inline void maybe_warn_float_underpromotion(const char* op_name, promotion::BinaryOp op, const MatrixBase& a, const MatrixBase& b) {
     DataType da = a.get_data_type();
     DataType db = b.get_data_type();
@@ -1521,6 +1602,7 @@ void bind_matrix_classes(py::module_& m) {
                         a.get_data_type(),
                         b->get_data_type());
                     maybe_warn_integer_matmul_accumulator_widen(a, *b);
+                    maybe_warn_integer_matmul_overflow_risk_preflight(a, *b);
                     auto out = pycauset::dispatch_matmul(a, *b, "");
                     return std::shared_ptr<MatrixBase>(out.release());
                 });
@@ -1898,6 +1980,7 @@ void bind_matrix_classes(py::module_& m) {
                         a.get_data_type(),
                         b->get_data_type());
                     maybe_warn_integer_matmul_accumulator_widen(a, *b);
+                    maybe_warn_integer_matmul_overflow_risk_preflight(a, *b);
                     auto out = pycauset::dispatch_matmul(a, *b, "");
                     return std::shared_ptr<MatrixBase>(out.release());
                 });
@@ -1940,6 +2023,7 @@ void bind_matrix_classes(py::module_& m) {
                         a.get_data_type(),
                         mb->get_data_type());
                     maybe_warn_integer_matmul_accumulator_widen(a, *mb);
+                    maybe_warn_integer_matmul_overflow_risk_preflight(a, *mb);
                     auto out = pycauset::dispatch_matmul(a, *mb, "");
                     return py::cast(std::shared_ptr<MatrixBase>(out.release()));
                 }
@@ -4518,6 +4602,7 @@ void bind_matrix_classes(py::module_& m) {
                     a->get_data_type(),
                     b->get_data_type());
                 maybe_warn_integer_matmul_accumulator_widen(*a, *b);
+                maybe_warn_integer_matmul_overflow_risk_preflight(*a, *b);
                 auto out = pycauset::dispatch_matmul(*a, *b, "");
                 return std::shared_ptr<MatrixBase>(out.release());
             });

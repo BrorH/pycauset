@@ -16,9 +16,10 @@ Warnings are for cases where execution can continue correctly, but the user shou
 
 - **Policy surprises** (e.g., underpromotion within floats, reduction accumulator widening)
 - **Lossy assignments** (e.g., narrowing or float→int casts)
+- **Advisory risk estimates** (e.g., the int32 matmul overflow estimate from sampled entries)
 
-Never warn (or decide anything) based on *sampling* the data: every warning must follow
-deterministically from dtypes, shapes, or values the engine has fully checked.
+Guesses may inform, never decide: a warning may be based on sampling or a heuristic,
+but no result (values, dtype, success/failure) may depend on one.
 - **Performance hazards** (e.g., a fallback that will be much slower than expected)
   - Example: a cached-derived value (including a “big blob cache” like an inverse) cannot be loaded because its referenced storage object is missing/corrupt; the runtime will warn and ignore the cached entry (no implicit recompute).
 
@@ -46,7 +47,8 @@ Defined in `python/pycauset/_internal/warnings.py` and re-exported from `pycause
 
 - `pycauset.PyCausetWarning` (base)
 - `pycauset.PyCausetDTypeWarning` (promotion/accumulator dtype notifications)
-- `pycauset.PyCausetOverflowRiskWarning` (narrowing or float→int casts on assignment)
+- `pycauset.PyCausetOverflowRiskWarning` (narrowing or float→int casts on assignment;
+  advisory int32 matmul overflow estimate)
 - `pycauset.PyCausetPerformanceWarning` (slow-path / performance notifications)
 - `pycauset.PyCausetStorageWarning` (storage/mmap/cache notifications)
 
@@ -132,8 +134,8 @@ Policy notes:
 - `int32 @ int32` matmul accumulator notification (`PyCausetDTypeWarning`)
 - mixed `float32/float64` underpromotion notification (`PyCausetDTypeWarning`)
 - narrowing / float→int cast on assignment (`PyCausetOverflowRiskWarning`)
-
-PyCauset never warns or decides based on sampling the data: integer matmul overflow is
-detected exactly (int64 accumulator, `OverflowError` when a result doesn't fit).
+- int32 @ int32 overflow estimate from sampled entries (`PyCausetOverflowRiskWarning`,
+  advisory). Overflow itself is detected exactly (int64 accumulator, `OverflowError`
+  when a result doesn't fit), whether or not the advisory fired.
 
 As dtype expansion progresses, these will generalize to the resolver-selected dtype tuples.

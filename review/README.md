@@ -56,10 +56,12 @@ review/
    RESTRUCTURE §3.1. Ask the maintainer only product questions, in plain language.
 10. **R1 priority is the engine** (linear algebra, NumPy parity, storage). Physics
    gets smoke tests and glaring-bug fixes only until after R1.
-12. **Deterministic only (maintainer, 2026-11-24).** No heuristics that guess from
-   samples of the data, and no decisions that can differ between runs on the same
-   input. If a value can't be guaranteed, accept the larger dtype or raise. Guessing
-   features may come later as explicit opt-ins, never in R1.
+12. **Guesses may inform, never decide (maintainer, 2026-11-24, clarified).** Results
+   (values, dtypes, success/failure) must be deterministic and exact: no sampling or
+   heuristic may change them. Guesswork *is* welcome where it can't make a result wrong:
+   warnings ("this may overflow"), advice, diagnostics, and explicit statistical
+   operations whose documented purpose is to sample (a future `pc.sample_mean`, say).
+   If a value can't be guaranteed, accept the larger dtype or raise.
 11. **Dead code is a first-class target** (DEADCODE.md). If you touch a file, check
    its never-executed list.
 

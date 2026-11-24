@@ -169,3 +169,14 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 3. TESTS.md core: `tests/spec.py` and the conformance grid over all 16 dtypes.
 4. CI: build and run the gtests; a UBSan job with `-s`; ruff-F and Skylos gates.
 5. F-026: decide whether the C++ StreamingManager lives or dies (real larger-than-RAM run).
+
+## Session 1, part 8: 2026-11-24, policy clarification: guesses may inform, never decide
+
+- Maintainer clarified: guesswork is fine for warnings, advice and explicitly
+  statistical operations; it must never change results (values, dtype, success/failure).
+- The sampled int32 matmul overflow preflight (removed in `fix(F-028)`) was therefore
+  allowed after all, and useful (an early warning before a long run ends in
+  OverflowError). **Restored**, labelled advisory in code and message, garbled "≈"
+  fixed, its test restored. F-028 tests now assert exactness whether or not it fires.
+- README rule 12, FINDINGS F-028, VALUE_BOUNDS spec, and the warnings/dtype developer
+  docs updated to the clarified rule.

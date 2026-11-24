@@ -74,14 +74,26 @@ def test_F024_eig_writes_nothing_into_cwd(_isolated_cwd, rng):
 
 
 # ---------------------------------------------------------------- F-028
-def test_F028_int32_matmul_overflow_is_exact_and_unsampled():
-    big = np.zeros((200, 200), dtype=np.int32)
-    big[57, 113] = 50_000  # a position no sampling scheme is guaranteed to hit
-    ones = pc.matrix(np.full((200, 200), 50_000, dtype=np.int32))
+# Policy: guesses may inform (warnings), never decide (results). The sampled int32
+# matmul preflight is advisory; whether or not it fires, overflow detection is exact.
+@pytest.mark.parametrize("big_at", [(0, 0), (57, 113)])  # sampled corner vs. unsampled spot
+def test_F028_int32_matmul_overflow_detection_is_exact(big_at):
+    a = np.zeros((200, 200), dtype=np.int32)
+    a[big_at] = 50_000
+    b = pc.matrix(np.full((200, 200), 50_000, dtype=np.int32))
     with warnings.catch_warnings():
-        warnings.simplefilter("error", pc.PyCausetOverflowRiskWarning)
+        warnings.simplefilter("ignore")
         with pytest.raises(OverflowError):
-            pc.matrix(big) @ ones
+            pc.matrix(a) @ b
+
+
+def test_F028_advisory_warning_never_changes_the_result():
+    rng = np.random.default_rng(0)
+    a = rng.integers(-3, 4, size=(200, 200)).astype(np.int32)
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        got = to_np(pc.matrix(a) @ pc.matrix(a))
+    np.testing.assert_array_equal(got, a.astype(np.int64) @ a.astype(np.int64))
 
 
 # ---------------------------------------------------------------- F-006
