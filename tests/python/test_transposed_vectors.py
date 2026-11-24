@@ -4,7 +4,7 @@ import os
 
 class TestTransposedVectors(unittest.TestCase):
     def test_transpose_properties(self):
-        v = pycauset.FloatVector(5)
+        v = pycauset.DenseVector(5, dtype="float64")
         for i in range(5):
             v[i] = i
             
@@ -26,10 +26,10 @@ class TestTransposedVectors(unittest.TestCase):
         self.assertEqual(vt[4], 4.0)
 
     def test_outer_product(self):
-        v1 = pycauset.FloatVector(3)
+        v1 = pycauset.DenseVector(3, dtype="float64")
         v1[0] = 1; v1[1] = 2; v1[2] = 3
         
-        v2 = pycauset.FloatVector(3)
+        v2 = pycauset.DenseVector(3, dtype="float64")
         v2[0] = 4; v2[1] = 5; v2[2] = 6
         
         # v1 @ v2.T -> Outer Product
@@ -52,10 +52,10 @@ class TestTransposedVectors(unittest.TestCase):
         self.assertEqual(m[2, 2], 18.0) # 3*6
 
     def test_outer_product_bits(self):
-        v1 = pycauset.BitVector(3)
+        v1 = pycauset.DenseVector(3, dtype="bool")
         v1[0] = 1; v1[1] = 0; v1[2] = 1
 
-        v2 = pycauset.BitVector(3)
+        v2 = pycauset.DenseVector(3, dtype="bool")
         v2[0] = 0; v2[1] = 1; v2[2] = 1
 
         m = v1 @ v2.T
@@ -67,7 +67,7 @@ class TestTransposedVectors(unittest.TestCase):
         self.assertEqual(m[2, 2], True)   # 1 & 1
 
     def test_inner_product(self):
-        v1 = pycauset.FloatVector(3)
+        v1 = pycauset.DenseVector(3, dtype="float64")
         v1[0] = 1; v1[1] = 2; v1[2] = 3
         
         # v1.T @ v1 -> Scalar
@@ -79,11 +79,11 @@ class TestTransposedVectors(unittest.TestCase):
         self.assertEqual(s2, 14.0)
 
     def test_matrix_vector_mul(self):
-        m = pycauset.FloatMatrix(2)
+        m = pycauset.DenseMatrix(2, dtype="float64")
         m[0,0] = 1; m[0,1] = 2
         m[1,0] = 3; m[1,1] = 4
         
-        v = pycauset.FloatVector(2)
+        v = pycauset.DenseVector(2, dtype="float64")
         v[0] = 1; v[1] = 2
         
         # M @ v -> Col Vector
@@ -105,7 +105,7 @@ class TestTransposedVectors(unittest.TestCase):
         self.assertEqual(res3[1], 10.0)
 
     def test_persistence(self):
-        v = pycauset.FloatVector(3)
+        v = pycauset.DenseVector(3, dtype="float64")
         v[0] = 10
         vt = v.T
         

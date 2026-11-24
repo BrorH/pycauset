@@ -192,124 +192,27 @@ def _debug_clear_kernel_trace() -> None:
 def _safe_get(name):
     return _native_mod.safe_get(_native, name)
 
-_TriangularBitMatrix = _safe_get("TriangularBitMatrix")
-if _TriangularBitMatrix:
-    _original_triangular_bit_matrix_init = getattr(_TriangularBitMatrix, "__init__", None)
-else:
-    class _TriangularBitMatrix:  # pragma: no cover
-        pass
-    _original_triangular_bit_matrix_init = None
+# One class per structure; the dtype is an attribute (A.dtype). See review/RESTRUCTURE.md 3.1 item 4.
+DenseMatrix = _native.DenseMatrix
+TriangularMatrix = _native.TriangularMatrix
+DiagonalMatrix = _native.DiagonalMatrix
+IdentityMatrix = _native.IdentityMatrix
+SymmetricMatrix = _native.SymmetricMatrix
+AntiSymmetricMatrix = _native.AntiSymmetricMatrix
+DenseVector = _native.DenseVector
+UnitVector = _native.UnitVector
 
-# Private aliases for native classes
-_IntegerMatrix = _safe_get("IntegerMatrix")
-_Int8Matrix = _safe_get("Int8Matrix")
-_Int16Matrix = _safe_get("Int16Matrix")
-_Int64Matrix = _safe_get("Int64Matrix")
-_UInt8Matrix = _safe_get("UInt8Matrix")
-_UInt16Matrix = _safe_get("UInt16Matrix")
-_UInt32Matrix = _safe_get("UInt32Matrix")
-_UInt64Matrix = _safe_get("UInt64Matrix")
-_FloatMatrix = _safe_get("FloatMatrix")
-_Float16Matrix = _safe_get("Float16Matrix")
-_Float32Matrix = _safe_get("Float32Matrix")
-_ComplexFloat16Matrix = _safe_get("ComplexFloat16Matrix")
-_ComplexFloat32Matrix = _safe_get("ComplexFloat32Matrix")
-_ComplexFloat64Matrix = _safe_get("ComplexFloat64Matrix")
-_TriangularFloatMatrix = _safe_get("TriangularFloatMatrix")
-_TriangularIntegerMatrix = _safe_get("TriangularIntegerMatrix")
-_DenseBitMatrix = _safe_get("DenseBitMatrix")
-_UnitVector = _safe_get("UnitVector")
-_SymmetricMatrix = getattr(_native, "SymmetricMatrix", None)
-_AntiSymmetricMatrix = getattr(_native, "AntiSymmetricMatrix", None)
-_DiagonalMatrix = getattr(_native, "DiagonalMatrix", None)
-
-# Public exports
-IntegerMatrix = _IntegerMatrix
-Int8Matrix = _Int8Matrix
-Int16Matrix = _Int16Matrix
-Int64Matrix = _Int64Matrix
-UInt8Matrix = _UInt8Matrix
-UInt16Matrix = _UInt16Matrix
-UInt32Matrix = _UInt32Matrix
-UInt64Matrix = _UInt64Matrix
-FloatMatrix = _FloatMatrix
-Float16Matrix = _Float16Matrix
-Float32Matrix = _Float32Matrix
-ComplexFloat16Matrix = _ComplexFloat16Matrix
-ComplexFloat32Matrix = _ComplexFloat32Matrix
-ComplexFloat64Matrix = _ComplexFloat64Matrix
-TriangularFloatMatrix = _TriangularFloatMatrix
-TriangularIntegerMatrix = _TriangularIntegerMatrix
-DenseBitMatrix = _DenseBitMatrix
-SymmetricMatrix = _SymmetricMatrix
-AntiSymmetricMatrix = _AntiSymmetricMatrix
-
-# Vector classes
-_FloatVector = getattr(_native, "FloatVector", None)
-_Float32Vector = getattr(_native, "Float32Vector", None)
-_Float16Vector = getattr(_native, "Float16Vector", None)
-_ComplexFloat16Vector = getattr(_native, "ComplexFloat16Vector", None)
-_ComplexFloat32Vector = getattr(_native, "ComplexFloat32Vector", None)
-_ComplexFloat64Vector = getattr(_native, "ComplexFloat64Vector", None)
-_Int8Vector = getattr(_native, "Int8Vector", None)
-_IntegerVector = getattr(_native, "IntegerVector", None)
-_Int16Vector = getattr(_native, "Int16Vector", None)
-_Int64Vector = getattr(_native, "Int64Vector", None)
-_UInt8Vector = getattr(_native, "UInt8Vector", None)
-_UInt16Vector = getattr(_native, "UInt16Vector", None)
-_UInt32Vector = getattr(_native, "UInt32Vector", None)
-_UInt64Vector = getattr(_native, "UInt64Vector", None)
-_BitVector = getattr(_native, "BitVector", None)
-
-FloatVector = _FloatVector
-Float32Vector = _Float32Vector
-Float16Vector = _Float16Vector
-ComplexFloat16Vector = _ComplexFloat16Vector
-ComplexFloat32Vector = _ComplexFloat32Vector
-ComplexFloat64Vector = _ComplexFloat64Vector
-Int8Vector = _Int8Vector
-IntegerVector = _IntegerVector
-Int16Vector = _Int16Vector
-Int64Vector = _Int64Vector
-UInt8Vector = _UInt8Vector
-UInt16Vector = _UInt16Vector
-UInt32Vector = _UInt32Vector
-UInt64Vector = _UInt64Vector
-BitVector = _BitVector
-
-
-def _vector_fill(self: Any, value: Any) -> Any:
-    for i in range(len(self)):
-        self[i] = value
-    return self
-
-
-def _install_vector_fill(*classes: Any) -> None:
-    for cls in classes:
-        if cls is None:
-            continue
-        if hasattr(cls, "fill"):
-            continue
-        cls.fill = _vector_fill  # type: ignore[attr-defined]
-
-
-_install_vector_fill(
-    FloatVector,
-    Float32Vector,
-    Float16Vector,
-    ComplexFloat16Vector,
-    ComplexFloat32Vector,
-    ComplexFloat64Vector,
-    Int8Vector,
-    IntegerVector,
-    Int16Vector,
-    Int64Vector,
-    UInt8Vector,
-    UInt16Vector,
-    UInt32Vector,
-    UInt64Vector,
-    BitVector,
+_MATRIX_CLASSES = (
+    DenseMatrix,
+    TriangularMatrix,
+    DiagonalMatrix,
+    IdentityMatrix,
+    SymmetricMatrix,
+    AntiSymmetricMatrix,
 )
+_VECTOR_CLASSES = (DenseVector, UnitVector)
+
+
 
 _runtime = _runtime_mod.Runtime(
     cleanup_storage=cleanup_storage,
@@ -571,38 +474,8 @@ except Exception:
 # Ensure NumPy scalar coercion also applies to concrete native classes that
 # may override __setitem__.
 for _cls in (
-    _Float16Matrix,
-    _Float32Matrix,
-    _FloatMatrix,
-    _IntegerMatrix,
-    _Int8Matrix,
-    _Int16Matrix,
-    _Int64Matrix,
-    _UInt8Matrix,
-    _UInt16Matrix,
-    _UInt32Matrix,
-    _UInt64Matrix,
-    _ComplexFloat16Matrix,
-    _ComplexFloat32Matrix,
-    _ComplexFloat64Matrix,
-    _TriangularFloatMatrix,
-    _TriangularIntegerMatrix,
-    _DenseBitMatrix,
-    _Float16Vector,
-    _Float32Vector,
-    _FloatVector,
-    _IntegerVector,
-    _Int8Vector,
-    _Int16Vector,
-    _Int64Vector,
-    _UInt8Vector,
-    _UInt16Vector,
-    _UInt32Vector,
-    _UInt64Vector,
-    _ComplexFloat16Vector,
-    _ComplexFloat32Vector,
-    _ComplexFloat64Vector,
-    _BitVector,
+    *_MATRIX_CLASSES,
+    *_VECTOR_CLASSES,
 ):
     _install_array_export_hook(_cls)
     _wrap_setitem_for_scalars(_cls)
@@ -640,48 +513,7 @@ def to_numpy(obj: Any, *, allow_huge: bool = False, dtype: Any = None, copy: boo
 
     return _export_guard.export_to_numpy(obj, allow_huge=allow_huge, dtype=dtype, copy=copy)
 
-_PERSISTENCE_DEPS = _SimpleNamespace(
-    CausalSet=CausalSet,
-    TriangularBitMatrix=_TriangularBitMatrix,
-    DenseBitMatrix=_DenseBitMatrix,
-    FloatMatrix=_FloatMatrix,
-    Float16Matrix=_Float16Matrix,
-    Float32Matrix=_Float32Matrix,
-    ComplexFloat16Matrix=_ComplexFloat16Matrix,
-    ComplexFloat32Matrix=_ComplexFloat32Matrix,
-    ComplexFloat64Matrix=_ComplexFloat64Matrix,
-    IntegerMatrix=_IntegerMatrix,
-    Int8Matrix=_Int8Matrix,
-    Int16Matrix=_Int16Matrix,
-    Int64Matrix=_Int64Matrix,
-    UInt8Matrix=_UInt8Matrix,
-    UInt16Matrix=_UInt16Matrix,
-    UInt32Matrix=_UInt32Matrix,
-    UInt64Matrix=_UInt64Matrix,
-    TriangularFloatMatrix=_TriangularFloatMatrix,
-    TriangularIntegerMatrix=_TriangularIntegerMatrix,
-    DiagonalMatrix=_DiagonalMatrix,
-    SymmetricMatrix=_SymmetricMatrix,
-    AntiSymmetricMatrix=_AntiSymmetricMatrix,
-    FloatVector=_FloatVector,
-    Float32Vector=_Float32Vector,
-    Float16Vector=_Float16Vector,
-    ComplexFloat16Vector=_ComplexFloat16Vector,
-    ComplexFloat32Vector=_ComplexFloat32Vector,
-    ComplexFloat64Vector=_ComplexFloat64Vector,
-    Int8Vector=_Int8Vector,
-    IntegerVector=_IntegerVector,
-    Int16Vector=_Int16Vector,
-    Int64Vector=_Int64Vector,
-    UInt8Vector=_UInt8Vector,
-    UInt16Vector=_UInt16Vector,
-    UInt32Vector=_UInt32Vector,
-    UInt64Vector=_UInt64Vector,
-    BitVector=_BitVector,
-    UnitVector=_UnitVector,
-    IdentityMatrix=getattr(_native, "IdentityMatrix", None),
-    native=_native,
-)
+_PERSISTENCE_DEPS = _SimpleNamespace(CausalSet=CausalSet, native=_native)
 
 
 def save(obj: Any, path: str | Path) -> None:
@@ -817,24 +649,9 @@ def convert_file(
 
 
 _linalg_cache.patch_matrixbase_save(_native, save)
-if _FloatMatrix is not None:
-    _linalg_cache.patch_inverse(
-        FloatMatrix=_FloatMatrix,
-        classes=[
-            _FloatMatrix,
-            _IntegerMatrix,
-            _TriangularFloatMatrix,
-            _TriangularIntegerMatrix,
-            _DenseBitMatrix,
-            _TriangularBitMatrix,
-        ],
-    )
+_linalg_cache.patch_inverse(native=_native, classes=list(_MATRIX_CLASSES))
 
 _formatting.configure(np_module=_np, edge_items=4)
-if _TriangularBitMatrix and callable(getattr(_TriangularBitMatrix, "size", None)) and callable(
-    getattr(_TriangularBitMatrix, "get", None)
-):
-    _TriangularBitMatrix.__str__ = _formatting.matrix_str
 
 
 def _mark_temporary_if_auto(matrix: Any) -> None:
@@ -844,91 +661,15 @@ def _mark_temporary_if_auto(matrix: Any) -> None:
 def _coerce_general_matrix(candidate: Any) -> tuple[int, list[list[Any]]]:
     return _coercion.coerce_general_matrix(candidate, np_module=_np)
 
-_matrix_api.configure(
-    np_module=_np,
-    warnings_module=warnings,
-    native=_native,
-    track_matrix=_track_matrix,
-    coerce_general_matrix=_coerce_general_matrix,
-    IntegerMatrix=_IntegerMatrix,
-    Int8Matrix=_Int8Matrix,
-    Int16Matrix=_Int16Matrix,
-    Int64Matrix=_Int64Matrix,
-    UInt8Matrix=_UInt8Matrix,
-    UInt16Matrix=_UInt16Matrix,
-    UInt32Matrix=_UInt32Matrix,
-    UInt64Matrix=_UInt64Matrix,
-    FloatMatrix=_FloatMatrix,
-    Float16Matrix=_Float16Matrix,
-    Float32Matrix=_Float32Matrix,
-    ComplexFloat16Matrix=_ComplexFloat16Matrix,
-    ComplexFloat32Matrix=_ComplexFloat32Matrix,
-    ComplexFloat64Matrix=_ComplexFloat64Matrix,
-    TriangularFloatMatrix=_TriangularFloatMatrix,
-    TriangularIntegerMatrix=_TriangularIntegerMatrix,
-    DenseBitMatrix=_DenseBitMatrix,
-    TriangularBitMatrix=_TriangularBitMatrix,
-)
-
-TriangularMatrix = _matrix_api.TriangularMatrix
-
-_matrix_api.register_native_matrices(
-    TriangularBitMatrix=_TriangularBitMatrix,
-    IntegerMatrix=_IntegerMatrix,
-    Int8Matrix=_Int8Matrix,
-    Int16Matrix=_Int16Matrix,
-    Int64Matrix=_Int64Matrix,
-    UInt8Matrix=_UInt8Matrix,
-    UInt16Matrix=_UInt16Matrix,
-    UInt32Matrix=_UInt32Matrix,
-    UInt64Matrix=_UInt64Matrix,
-    FloatMatrix=_FloatMatrix,
-    Float16Matrix=_Float16Matrix,
-    Float32Matrix=_Float32Matrix,
-    ComplexFloat16Matrix=_ComplexFloat16Matrix,
-    ComplexFloat32Matrix=_ComplexFloat32Matrix,
-    ComplexFloat64Matrix=_ComplexFloat64Matrix,
-    TriangularFloatMatrix=_TriangularFloatMatrix,
-    TriangularIntegerMatrix=_TriangularIntegerMatrix,
-    DenseBitMatrix=_DenseBitMatrix,
-)
+_matrix_api.configure(np_module=_np, native=_native, track_matrix=_track_matrix)
+_matrix_api.register_native_matrices(*_MATRIX_CLASSES)
 
 _patching.apply_native_storage_patches(
     matrix_classes=[
-        (_IntegerMatrix, "backing_file"),
-        (_Int8Matrix, "backing_file"),
-        (_Int16Matrix, "backing_file"),
-        (_Int64Matrix, "backing_file"),
-        (_UInt8Matrix, "backing_file"),
-        (_UInt16Matrix, "backing_file"),
-        (_UInt32Matrix, "backing_file"),
-        (_UInt64Matrix, "backing_file"),
-        (_FloatMatrix, "backing_file"),
-        (_Float16Matrix, "backing_file"),
-        (_Float32Matrix, "backing_file"),
-        (_ComplexFloat16Matrix, "backing_file"),
-        (_ComplexFloat32Matrix, "backing_file"),
-        (_ComplexFloat64Matrix, "backing_file"),
-        (_TriangularFloatMatrix, "backing_file"),
-        (_TriangularIntegerMatrix, "backing_file"),
-        (_DenseBitMatrix, "backing_file"),
+        *((c, "backing_file") for c in _MATRIX_CLASSES),
     ],
     vector_classes=[
-        (_FloatVector, "backing_file"),
-        (_Float32Vector, "backing_file"),
-        (_Float16Vector, "backing_file"),
-        (_ComplexFloat16Vector, "backing_file"),
-        (_ComplexFloat32Vector, "backing_file"),
-        (_ComplexFloat64Vector, "backing_file"),
-        (_Int8Vector, "backing_file"),
-        (_IntegerVector, "backing_file"),
-        (_Int16Vector, "backing_file"),
-        (_Int64Vector, "backing_file"),
-        (_UInt8Vector, "backing_file"),
-        (_UInt16Vector, "backing_file"),
-        (_UInt32Vector, "backing_file"),
-        (_UInt64Vector, "backing_file"),
-        (_BitVector, "backing_file"),
+        *((c, "backing_file") for c in _VECTOR_CLASSES),
     ],
     track_matrix=_track_matrix,
     mark_temporary_if_auto=_mark_temporary_if_auto,
@@ -954,132 +695,28 @@ def _wrap_matmul_for_debug(cls: Any) -> None:
 
 
 for _mcls in (
-    _IntegerMatrix, _Int8Matrix, _Int16Matrix, _Int64Matrix,
-    _UInt8Matrix, _UInt16Matrix, _UInt32Matrix, _UInt64Matrix,
-    _FloatMatrix, _Float16Matrix, _Float32Matrix,
-    _ComplexFloat16Matrix, _ComplexFloat32Matrix, _ComplexFloat64Matrix,
-    _TriangularFloatMatrix, _TriangularIntegerMatrix, _DenseBitMatrix,
-    _TriangularBitMatrix,
+    *_MATRIX_CLASSES,
 ):
     _wrap_matmul_for_debug(_mcls)
 
 _properties.apply_properties_patches(
     classes=[
-        _IntegerMatrix,
-        _Int8Matrix,
-        _Int16Matrix,
-        _Int64Matrix,
-        _UInt8Matrix,
-        _UInt16Matrix,
-        _UInt32Matrix,
-        _UInt64Matrix,
-        _FloatMatrix,
-        _Float16Matrix,
-        _Float32Matrix,
-        _ComplexFloat16Matrix,
-        _ComplexFloat32Matrix,
-        _ComplexFloat64Matrix,
-        _TriangularFloatMatrix,
-        _TriangularIntegerMatrix,
-        _DenseBitMatrix,
-        _TriangularBitMatrix,
-        _FloatVector,
-        _Float32Vector,
-        _Float16Vector,
-        _ComplexFloat16Vector,
-        _ComplexFloat32Vector,
-        _ComplexFloat64Vector,
-        _Int8Vector,
-        _IntegerVector,
-        _Int16Vector,
-        _Int64Vector,
-        _UInt8Vector,
-        _UInt16Vector,
-        _UInt32Vector,
-        _UInt64Vector,
-        _BitVector,
-        _UnitVector,
-        _DiagonalMatrix,
-        _SymmetricMatrix,
-        _AntiSymmetricMatrix,
+        *_MATRIX_CLASSES,
+        *_VECTOR_CLASSES,
     ]
 )
 
 _properties.apply_properties_mutation_patches(
     classes=[
-        _IntegerMatrix,
-        _Int8Matrix,
-        _Int16Matrix,
-        _Int64Matrix,
-        _UInt8Matrix,
-        _UInt16Matrix,
-        _UInt32Matrix,
-        _UInt64Matrix,
-        _FloatMatrix,
-        _Float16Matrix,
-        _Float32Matrix,
-        _ComplexFloat16Matrix,
-        _ComplexFloat32Matrix,
-        _ComplexFloat64Matrix,
-        _TriangularFloatMatrix,
-        _TriangularIntegerMatrix,
-        _DenseBitMatrix,
-        _TriangularBitMatrix,
-        _FloatVector,
-        _Float32Vector,
-        _Float16Vector,
-        _ComplexFloat16Vector,
-        _ComplexFloat32Vector,
-        _ComplexFloat64Vector,
-        _Int8Vector,
-        _IntegerVector,
-        _Int16Vector,
-        _Int64Vector,
-        _UInt8Vector,
-        _UInt16Vector,
-        _UInt32Vector,
-        _UInt64Vector,
-        _BitVector,
-        _UnitVector,
+        *_MATRIX_CLASSES,
+        *_VECTOR_CLASSES,
     ]
 )
 
 _properties.apply_properties_view_patches(
     classes=[
-        _IntegerMatrix,
-        _Int8Matrix,
-        _Int16Matrix,
-        _Int64Matrix,
-        _UInt8Matrix,
-        _UInt16Matrix,
-        _UInt32Matrix,
-        _UInt64Matrix,
-        _FloatMatrix,
-        _Float16Matrix,
-        _Float32Matrix,
-        _ComplexFloat16Matrix,
-        _ComplexFloat32Matrix,
-        _ComplexFloat64Matrix,
-        _TriangularFloatMatrix,
-        _TriangularIntegerMatrix,
-        _DenseBitMatrix,
-        _TriangularBitMatrix,
-        _FloatVector,
-        _Float32Vector,
-        _Float16Vector,
-        _ComplexFloat16Vector,
-        _ComplexFloat32Vector,
-        _ComplexFloat64Vector,
-        _Int8Vector,
-        _IntegerVector,
-        _Int16Vector,
-        _Int64Vector,
-        _UInt8Vector,
-        _UInt16Vector,
-        _UInt32Vector,
-        _UInt64Vector,
-        _BitVector,
-        _UnitVector,
+        *_MATRIX_CLASSES,
+        *_VECTOR_CLASSES,
     ],
     track_matrix=_track_matrix,
     mark_temporary_if_auto=_mark_temporary_if_auto,
@@ -1087,67 +724,17 @@ _properties.apply_properties_view_patches(
 
 _properties.apply_properties_operator_patches(
     classes=[
-        _IntegerMatrix,
-        _Int8Matrix,
-        _Int16Matrix,
-        _Int64Matrix,
-        _UInt8Matrix,
-        _UInt16Matrix,
-        _UInt32Matrix,
-        _UInt64Matrix,
-        _FloatMatrix,
-        _Float16Matrix,
-        _Float32Matrix,
-        _ComplexFloat16Matrix,
-        _ComplexFloat32Matrix,
-        _ComplexFloat64Matrix,
-        _TriangularFloatMatrix,
-        _TriangularIntegerMatrix,
-        _DenseBitMatrix,
-        _TriangularBitMatrix,
+        *_MATRIX_CLASSES,
     ]
 )
 
 _properties.apply_properties_arithmetic_patches(
     classes=[
-        _IntegerMatrix,
-        _Int8Matrix,
-        _Int16Matrix,
-        _Int64Matrix,
-        _UInt8Matrix,
-        _UInt16Matrix,
-        _UInt32Matrix,
-        _UInt64Matrix,
-        _FloatMatrix,
-        _Float16Matrix,
-        _Float32Matrix,
-        _ComplexFloat16Matrix,
-        _ComplexFloat32Matrix,
-        _ComplexFloat64Matrix,
-        _TriangularFloatMatrix,
-        _TriangularIntegerMatrix,
-        _DenseBitMatrix,
-        _TriangularBitMatrix,
-        _FloatVector,
-        _Float32Vector,
-        _Float16Vector,
-        _ComplexFloat16Vector,
-        _ComplexFloat32Vector,
-        _ComplexFloat64Vector,
-        _Int8Vector,
-        _IntegerVector,
-        _Int16Vector,
-        _Int64Vector,
-        _UInt8Vector,
-        _UInt16Vector,
-        _UInt32Vector,
-        _UInt64Vector,
-        _BitVector,
-        _UnitVector,
+        *_MATRIX_CLASSES,
+        *_VECTOR_CLASSES,
     ]
 )
 
-TriangularBitMatrix = _TriangularBitMatrix
 
 
 def _is_scalar_0d(value: Any) -> bool:
@@ -1209,21 +796,6 @@ def vector(
         dtype=dtype,
         np_module=_np,
         native=_native,
-        Float16Vector=_Float16Vector,
-        Float32Vector=_Float32Vector,
-        FloatVector=_FloatVector,
-        ComplexFloat16Vector=_ComplexFloat16Vector,
-        ComplexFloat32Vector=_ComplexFloat32Vector,
-        ComplexFloat64Vector=_ComplexFloat64Vector,
-        Int8Vector=_Int8Vector,
-        Int64Vector=_Int64Vector,
-        UInt8Vector=_UInt8Vector,
-        UInt16Vector=_UInt16Vector,
-        UInt32Vector=_UInt32Vector,
-        UInt64Vector=_UInt64Vector,
-        IntegerVector=_IntegerVector,
-        Int16Vector=_Int16Vector,
-        BitVector=_BitVector,
         kwargs=kwargs,
         max_in_ram_bytes=max_in_ram_bytes,
     )
@@ -1398,82 +970,7 @@ def _allocate_dense_matrix_by_shape(rows: int, cols: int, *, dtype: Any, kwargs:
     dtype_norm = _normalize_dtype(dtype, np_module=_np)
     if dtype_norm is None:
         raise TypeError("Unsupported dtype")
-
-    if dtype_norm == "int8":
-        if _Int8Matrix is None:
-            raise ImportError("Int8Matrix is not available in the native extension")
-        return _Int8Matrix(rows, cols, **kwargs)
-    if dtype_norm == "int16":
-        if _Int16Matrix is None:
-            raise ImportError("Int16Matrix is not available in the native extension")
-        return _Int16Matrix(rows, cols, **kwargs)
-    if dtype_norm == "int32":
-        if _IntegerMatrix is None:
-            raise ImportError("IntegerMatrix is not available in the native extension")
-        return _IntegerMatrix(rows, cols, **kwargs)
-    if dtype_norm == "int64":
-        if _Int64Matrix is None:
-            raise ImportError("Int64Matrix is not available in the native extension")
-        return _Int64Matrix(rows, cols, **kwargs)
-    if dtype_norm == "uint8":
-        if _UInt8Matrix is None:
-            raise ImportError("UInt8Matrix is not available in the native extension")
-        return _UInt8Matrix(rows, cols, **kwargs)
-    if dtype_norm == "uint16":
-        if _UInt16Matrix is None:
-            raise ImportError("UInt16Matrix is not available in the native extension")
-        return _UInt16Matrix(rows, cols, **kwargs)
-    if dtype_norm == "uint32":
-        if _UInt32Matrix is None:
-            raise ImportError("UInt32Matrix is not available in the native extension")
-        return _UInt32Matrix(rows, cols, **kwargs)
-    if dtype_norm == "uint64":
-        if _UInt64Matrix is None:
-            raise ImportError("UInt64Matrix is not available in the native extension")
-        return _UInt64Matrix(rows, cols, **kwargs)
-
-    if dtype_norm == "bool":
-        if _DenseBitMatrix is not None:
-            return _DenseBitMatrix(rows, cols, **kwargs)
-        if _IntegerMatrix is None:
-            raise ImportError("DenseBitMatrix/IntegerMatrix are not available in the native extension")
-        return _IntegerMatrix(rows, cols, **kwargs)
-
-    if dtype_norm == "float16":
-        if _Float16Matrix is not None:
-            return _Float16Matrix(rows, cols, **kwargs)
-        if _Float32Matrix is not None:
-            return _Float32Matrix(rows, cols, **kwargs)
-        if _FloatMatrix is None:
-            raise ImportError("Float matrix classes are not available in the native extension")
-        return _FloatMatrix(rows, cols, **kwargs)
-
-    if dtype_norm == "float32":
-        if _Float32Matrix is not None:
-            return _Float32Matrix(rows, cols, **kwargs)
-        if _FloatMatrix is None:
-            raise ImportError("Float matrix classes are not available in the native extension")
-        return _FloatMatrix(rows, cols, **kwargs)
-
-    if dtype_norm == "float64":
-        if _FloatMatrix is None:
-            raise ImportError("FloatMatrix is not available in the native extension")
-        return _FloatMatrix(rows, cols, **kwargs)
-
-    if dtype_norm == "complex_float16":
-        if _ComplexFloat16Matrix is None:
-            raise ImportError("ComplexFloat16Matrix is not available in the native extension")
-        return _ComplexFloat16Matrix(rows, cols, **kwargs)
-    if dtype_norm == "complex_float32":
-        if _ComplexFloat32Matrix is None:
-            raise ImportError("ComplexFloat32Matrix is not available in the native extension")
-        return _ComplexFloat32Matrix(rows, cols, **kwargs)
-    if dtype_norm == "complex_float64":
-        if _ComplexFloat64Matrix is None:
-            raise ImportError("ComplexFloat64Matrix is not available in the native extension")
-        return _ComplexFloat64Matrix(rows, cols, **kwargs)
-
-    raise TypeError("Unsupported dtype")
+    return DenseMatrix(rows, cols, dtype=dtype_norm, **kwargs)
 
 
 def _allocate_like(shape: Any, kind: str, dtype: Any, kwargs: dict[str, Any]) -> Any:
@@ -1486,21 +983,7 @@ def _allocate_like(shape: Any, kind: str, dtype: Any, kwargs: dict[str, Any]) ->
             int(shape),
             dtype=dtype,
             np_module=_np,
-            Float16Vector=_Float16Vector,
-            Float32Vector=_Float32Vector,
-            FloatVector=_FloatVector,
-            ComplexFloat16Vector=_ComplexFloat16Vector,
-            ComplexFloat32Vector=_ComplexFloat32Vector,
-            ComplexFloat64Vector=_ComplexFloat64Vector,
-            Int8Vector=_Int8Vector,
-            Int64Vector=_Int64Vector,
-            UInt8Vector=_UInt8Vector,
-            UInt16Vector=_UInt16Vector,
-            UInt32Vector=_UInt32Vector,
-            UInt64Vector=_UInt64Vector,
-            IntegerVector=_IntegerVector,
-            Int16Vector=_Int16Vector,
-            BitVector=_BitVector,
+            native=_native,
             kwargs=kwargs,
         )
         if kind == "zeros":
@@ -1592,29 +1075,22 @@ def empty(shape: Any, *, dtype: Any = None, **kwargs: Any) -> Any:
 
 
 def causal_matrix(source: Any, populate: bool = True, **kwargs: Any) -> Any:
-    """Factory function for creating TriangularBitMatrix instances (lower-case API)."""
-    if _original_triangular_bit_matrix_init is None:
-        raise ImportError(
-            "TriangularBitMatrix is not available in the native extension. "
-            "Rebuild the extension with causal-matrix support enabled."
-        )
-    if populate and getattr(TriangularBitMatrix, "random", None) is None:
-        raise ImportError(
-            "TriangularBitMatrix.random is not available in the native extension. "
-            "Rebuild the extension with random generation support enabled."
-        )
+    """Causal matrix: a strictly upper-triangular TriangularMatrix of dtype 'bool'.
+
+    `source` is a size n (random with p=0.5 when populate=True, else empty) or 2-D data whose
+    strict upper triangle is used.
+    """
     return _factories.causal_matrix_factory(
         source,
         populate=populate,
         np_module=_np,
-        TriangularBitMatrix=TriangularBitMatrix,
+        TriangularMatrix=TriangularMatrix,
         coerce_general_matrix=_coerce_general_matrix,
         kwargs=kwargs,
     )
 
 
-if getattr(TriangularBitMatrix, "random", None) is not None:
-    causal_matrix.random = TriangularBitMatrix.random
+causal_matrix.random = TriangularMatrix.random
 
 
 def causet(
@@ -1638,7 +1114,6 @@ _OPS_DEPS = _ops.OpsDeps(
     native=_native,
     np_module=_np,
     Matrix=_matrix_api.Matrix,
-    TriangularBitMatrix=_TriangularBitMatrix,
     track_matrix=_track_matrix,
     mark_temporary_if_auto=_mark_temporary_if_auto,
     warnings_module=warnings,
@@ -1786,16 +1261,16 @@ def sum(x: Any) -> complex:
 
     return out
 
-def compute_k(matrix: TriangularBitMatrix, a: float):
+def compute_k(matrix: Any, a: float):
     """
     Compute K = C(aI + C)^-1.
     
     Args:
-        matrix: The TriangularBitMatrix C.
+        matrix: The causal matrix C (bit TriangularMatrix).
         a: The scalar a.
         
     Returns:
-        A TriangularFloatMatrix representing K.
+        A float64 TriangularMatrix representing K.
     """
     return _ops.compute_k(matrix, a, deps=_OPS_DEPS)
 
@@ -1805,7 +1280,7 @@ def bitwise_not(matrix: Any) -> Any:
     Compute the bitwise inversion (NOT) of a matrix.
     
     Args:
-        matrix: The matrix to invert. Must be a TriangularBitMatrix or IntegerMatrix.
+        matrix: The matrix to invert. Must have an integer or bit dtype.
         
     Returns:
         A new matrix with inverted bits.
@@ -2015,14 +1490,17 @@ def identity(x: Any) -> Any:
     - sequence [rows, cols]: returns a rows×cols rectangular identity (ones on the diagonal, zeros elsewhere).
     - Matrix/Vector: returns an identity-like matrix sized to the input (matrix: rows×cols, vector: N×N).
     """
-    I_cls = getattr(_native, "IdentityMatrix", None)
-    if I_cls is None:
-        raise ImportError("IdentityMatrix is not available in the native extension")
-
-    try:
-        return I_cls(x)
-    except Exception as e:
-        raise TypeError("identity(x) expects an int, [rows, cols], or a matrix/vector") from e
+    if isinstance(x, bool):
+        raise TypeError("identity(x): bool is not a valid size")
+    if isinstance(x, int):
+        return IdentityMatrix(x)
+    if isinstance(x, _native.MatrixBase):
+        return IdentityMatrix(x.rows(), x.cols())
+    if isinstance(x, _native.VectorBase):
+        return IdentityMatrix(len(x))
+    if _is_sequence_like(x) and len(x) == 2 and all(isinstance(d, int) and not isinstance(d, bool) for d in x):
+        return IdentityMatrix(int(x[0]), int(x[1]))
+    raise TypeError("identity(x) expects an int, [rows, cols], or a matrix/vector")
 
 
 def _as_square_array(data: Any, *, name: str) -> Any:
@@ -2296,8 +1774,14 @@ _extra_exports = [
     "save_npz",
     "convert_file",
     "causal_matrix",
-    "TriangularBitMatrix",
+    "DenseMatrix",
     "TriangularMatrix",
+    "DiagonalMatrix",
+    "IdentityMatrix",
+    "SymmetricMatrix",
+    "AntiSymmetricMatrix",
+    "DenseVector",
+    "UnitVector",
     "matmul",
     "dot",
     "divide",

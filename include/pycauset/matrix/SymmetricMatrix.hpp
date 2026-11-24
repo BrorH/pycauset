@@ -7,11 +7,24 @@
 
 namespace pycauset {
 
+// Structure bases (see MatrixBase.hpp). Symmetric and antisymmetric matrices share one
+// implementation (SymmetricMatrix<T> with a runtime flag), so every packed (anti)symmetric
+// object derives BOTH bases; the Python type hook picks the class from the flag.
+class SymmetricMatrixBase : public TriangularMatrixBase {
+public:
+    using TriangularMatrixBase::TriangularMatrixBase;
+};
+
+class AntiSymmetricMatrixBase : public SymmetricMatrixBase {
+public:
+    using SymmetricMatrixBase::SymmetricMatrixBase;
+};
+
 template <typename T>
-class SymmetricMatrix : public TriangularMatrixBase {
+class SymmetricMatrix : public AntiSymmetricMatrixBase {
 public:
     SymmetricMatrix(uint64_t n, const std::string& backing_file = "", bool is_antisymmetric = false)
-        : TriangularMatrixBase(n, is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
+        : AntiSymmetricMatrixBase(n, is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
           is_antisymmetric_(is_antisymmetric) {
         
         has_diagonal_ = true; // Symmetric matrices always have a diagonal (even if 0 for antisymmetric)
@@ -37,7 +50,7 @@ public:
                      std::complex<double> scalar,
                      bool is_transposed,
                      bool is_antisymmetric)
-        : TriangularMatrixBase(n, is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
+        : AntiSymmetricMatrixBase(n, is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
           is_antisymmetric_(is_antisymmetric) {
         
         has_diagonal_ = true;
@@ -58,7 +71,7 @@ public:
     }
 
     SymmetricMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper, bool is_antisymmetric = false)
-        : TriangularMatrixBase(n, std::move(mapper), is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
+        : AntiSymmetricMatrixBase(n, std::move(mapper), is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
           is_antisymmetric_(is_antisymmetric) {
         has_diagonal_ = true;
         calculate_triangular_offsets(sizeof(T) * 8, 64);

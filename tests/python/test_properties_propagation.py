@@ -4,7 +4,7 @@ import pycauset
 
 class TestPropertiesPropagation(unittest.TestCase):
     def test_transpose_propagates_properties(self):
-        m = pycauset.ComplexFloat64Matrix(2)
+        m = pycauset.DenseMatrix(2, dtype="complex_float64")
         mt = None
         try:
             m.properties = {
@@ -46,7 +46,7 @@ class TestPropertiesPropagation(unittest.TestCase):
             m.close()
 
     def test_conj_propagates_properties(self):
-        m = pycauset.ComplexFloat64Matrix(2)
+        m = pycauset.DenseMatrix(2, dtype="complex_float64")
         mc = None
         try:
             m.properties = {
@@ -79,7 +79,7 @@ class TestPropertiesPropagation(unittest.TestCase):
             m.close()
 
     def test_adjoint_propagates_properties_with_exceptions(self):
-        m = pycauset.ComplexFloat64Matrix(2)
+        m = pycauset.DenseMatrix(2, dtype="complex_float64")
         mh = None
         try:
             m.properties = {

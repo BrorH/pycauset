@@ -18,8 +18,8 @@ class TestLazyEvaluation(unittest.TestCase):
     def test_basic_lazy_addition(self):
         """Test A + B returns a lazy expression and evaluates correctly."""
         n = 10
-        A = pycauset.FloatMatrix(n, n)
-        B = pycauset.FloatMatrix(n, n)
+        A = pycauset.DenseMatrix(n, n, dtype="float64")
+        B = pycauset.DenseMatrix(n, n, dtype="float64")
         
         for i in range(n):
             A[i, i] = 1.0
@@ -41,9 +41,9 @@ class TestLazyEvaluation(unittest.TestCase):
     def test_chained_expression(self):
         """Test A + B + C evaluates correctly."""
         n = 5
-        A = pycauset.FloatMatrix(n, n)
-        B = pycauset.FloatMatrix(n, n)
-        C = pycauset.FloatMatrix(n, n)
+        A = pycauset.DenseMatrix(n, n, dtype="float64")
+        B = pycauset.DenseMatrix(n, n, dtype="float64")
+        C = pycauset.DenseMatrix(n, n, dtype="float64")
         
         A[0,0] = 1.0
         B[0,0] = 2.0
@@ -61,7 +61,7 @@ class TestLazyEvaluation(unittest.TestCase):
     def test_scalar_broadcasting(self):
         """Test Matrix + Scalar and Scalar + Matrix."""
         n = 5
-        A = pycauset.FloatMatrix(n, n)
+        A = pycauset.DenseMatrix(n, n, dtype="float64")
         A[0,0] = 10.0
         
         B = A + 5.0
@@ -141,12 +141,12 @@ class TestLazyEvaluation(unittest.TestCase):
         """Test Sym + Dense -> Dense."""
         n = 10
         A = pycauset.IdentityMatrix(n) # Symmetric
-        B = pycauset.FloatMatrix(n, n)
+        B = pycauset.DenseMatrix(n, n, dtype="float64")
         
         B[0, 1] = 100.0 # Make it non-symmetric
         
         C = (A + B)
-        self.assertIsInstance(C, pycauset.FloatMatrix)
+        self.assertTrue(isinstance(C, pycauset.DenseMatrix) and C.dtype == "float64")
 
     def test_unary_property_propagation(self):
         """Test sin(Sym) -> Sym."""
@@ -186,8 +186,8 @@ class TestLazyEvaluation(unittest.TestCase):
     def test_aliasing_safety(self):
         """Test A = A + B handles aliasing correctly."""
         n = 5
-        A = pycauset.FloatMatrix(n, n)
-        B = pycauset.FloatMatrix(n, n)
+        A = pycauset.DenseMatrix(n, n, dtype="float64")
+        B = pycauset.DenseMatrix(n, n, dtype="float64")
         
         A[0, 0] = 1.0
         B[0, 0] = 2.0
@@ -210,8 +210,8 @@ class TestLazyEvaluation(unittest.TestCase):
         self.addCleanup(pycauset.set_memory_threshold, 1024 * 1024 * 1024)
 
         n = 100 # 100x100 doubles = 80KB > 1KB
-        A = pycauset.FloatMatrix(n, n)
-        B = pycauset.FloatMatrix(n, n)
+        A = pycauset.DenseMatrix(n, n, dtype="float64")
+        B = pycauset.DenseMatrix(n, n, dtype="float64")
         
         # Fill with data
         # This should already trigger spills for A and B individually
@@ -232,7 +232,7 @@ class TestLazyEvaluation(unittest.TestCase):
     def test_numpy_ufunc_interop(self):
         """Test numpy ufuncs work with lazy matrices."""
         n = 5
-        A = pycauset.FloatMatrix(n, n)
+        A = pycauset.DenseMatrix(n, n, dtype="float64")
         A[0, 0] = 0.0
         A[1, 1] = math.pi
         
@@ -245,8 +245,8 @@ class TestLazyEvaluation(unittest.TestCase):
     def test_large_matrix_stress(self):
         """Test with a larger matrix to ensure no stack overflows or O(N^3) regressions."""
         n = 1000 # 1000x1000 = 1M elements = 8MB
-        A = pycauset.FloatMatrix(n, n)
-        B = pycauset.FloatMatrix(n, n)
+        A = pycauset.DenseMatrix(n, n, dtype="float64")
+        B = pycauset.DenseMatrix(n, n, dtype="float64")
         
         # Sparse fill to be fast
         A[0, 0] = 1.0
@@ -263,8 +263,8 @@ class TestLazyEvaluation(unittest.TestCase):
             return
 
         n = 5
-        A = pycauset.Float32Matrix(n, n)
-        B = pycauset.FloatMatrix(n, n) # Float64
+        A = pycauset.DenseMatrix(n, n, dtype="float32")
+        B = pycauset.DenseMatrix(n, n, dtype="float64") # Float64
         
         A[0, 0] = 1.5
         B[0, 0] = 2.5

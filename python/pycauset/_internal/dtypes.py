@@ -110,7 +110,7 @@ def normalize_dtype(dtype: Any, *, np_module: Any | None) -> str | None:
         except Exception:
             pass
 
-        # Any other float kind -> float64-backed FloatMatrix/Vector
+        # Any other float kind -> float64
         if getattr(np_dtype, "kind", None) == "f":
             return "float64"
 

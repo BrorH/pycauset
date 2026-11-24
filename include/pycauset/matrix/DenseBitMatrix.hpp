@@ -10,7 +10,7 @@
 namespace pycauset {
 
 template <>
-class DenseMatrix<bool> : public MatrixBase {
+class DenseMatrix<bool> : public DenseMatrixBase {
 public:
     // Constructors: create a new dense bit-packed matrix.
     // If backingFile is provided, it uses disk storage.

@@ -32,7 +32,7 @@ class TestKnownBugs(unittest.TestCase):
     def test_triangular_bit_matrix_random_shape(self):
         # size() returns rows*cols (consistent with dense matrices), not the
         # dimension. Sanity-check the shape, not a dimension-style size().
-        tbm = native.TriangularBitMatrix.random(5, p=0.5)
+        tbm = native.TriangularMatrix.random(5, p=0.5)
         self.assertEqual(tbm.rows(), 5)
         self.assertEqual(tbm.cols(), 5)
         self.assertEqual(tbm.size(), 25)

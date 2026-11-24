@@ -116,7 +116,7 @@ class TestStorageCrashConsistency(unittest.TestCase):
             shutil.rmtree(self.test_dir)
 
     def test_slot_fallback_to_b_when_a_corrupted(self):
-        m = pycauset.FloatMatrix(4)
+        m = pycauset.DenseMatrix(4, dtype="float64")
         path = self.test_dir / "m.pycauset"
         try:
             pycauset.save(m, path)
@@ -133,7 +133,7 @@ class TestStorageCrashConsistency(unittest.TestCase):
             m.close()
 
     def test_appending_garbage_does_not_change_load(self):
-        m = pycauset.IntegerMatrix(8)
+        m = pycauset.DenseMatrix(8, dtype="int32")
         path = self.test_dir / "i.pycauset"
         try:
             pycauset.save(m, path)
@@ -146,7 +146,7 @@ class TestStorageCrashConsistency(unittest.TestCase):
             m.close()
 
     def test_corrupt_new_metadata_block_causes_failure(self):
-        m = pycauset.FloatMatrix(3)
+        m = pycauset.DenseMatrix(3, dtype="float64")
         path = self.test_dir / "bad_meta.pycauset"
         try:
             pycauset.save(m, path)
@@ -161,7 +161,7 @@ class TestStorageCrashConsistency(unittest.TestCase):
             m.close()
 
     def test_both_slots_invalid_fails(self):
-        m = pycauset.FloatMatrix(2)
+        m = pycauset.DenseMatrix(2, dtype="float64")
         path = self.test_dir / "both_bad.pycauset"
         try:
             pycauset.save(m, path)

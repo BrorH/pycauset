@@ -2,13 +2,13 @@ import unittest
 import os
 import numpy as np
 import pycauset
-from pycauset import Float16Matrix, Float32Matrix, save, load
+from pycauset import DenseMatrix, save, load
 
 class TestFloatTypes(unittest.TestCase):
     def test_00_float16_matrix(self):
         print("\nTesting Float16Matrix...")
         n = 4
-        m = Float16Matrix(n)
+        m = DenseMatrix(n, dtype="float16")
         m.set(0, 0, 3.5)
         self.assertAlmostEqual(float(m.get(0, 0)), 3.5, places=3)
 
@@ -18,7 +18,7 @@ class TestFloatTypes(unittest.TestCase):
         self.assertAlmostEqual(float(m_np[0, 0]), 3.5, places=3)
 
         # Matmul should work end-to-end (float32 compute, float16 storage)
-        m2 = Float16Matrix(n)
+        m2 = DenseMatrix(n, dtype="float16")
         m2.set(0, 0, 2.0)
         res = m.multiply(m2)
         self.assertAlmostEqual(float(res.get(0, 0)), 7.0, places=2)
@@ -28,7 +28,7 @@ class TestFloatTypes(unittest.TestCase):
         try:
             save(m, tmp_path)
             m_loaded = load(tmp_path)
-            self.assertEqual(m_loaded.__class__.__name__, "Float16Matrix")
+            self.assertEqual((type(m_loaded).__name__, m_loaded.dtype), ("DenseMatrix", "float16"))
             self.assertAlmostEqual(float(m_loaded.get(0, 0)), 3.5, places=3)
             m_loaded.close()
         finally:
@@ -44,13 +44,13 @@ class TestFloatTypes(unittest.TestCase):
     def test_01_float32_matrix(self):
         print("\nTesting Float32Matrix...")
         n = 100
-        m = Float32Matrix(n)
+        m = DenseMatrix(n, dtype="float32")
         m.set(0, 0, 3.14159)
         val = m.get(0, 0)
         self.assertAlmostEqual(val, 3.14159, places=5)
         
         # Test multiplication
-        m2 = Float32Matrix(n)
+        m2 = DenseMatrix(n, dtype="float32")
         m2.set(0, 0, 2.0)
         
         res = m.multiply(m2)
@@ -68,11 +68,11 @@ class TestFloatTypes(unittest.TestCase):
     def test_03_smart_defaults(self):
         print("\nTesting Explicit Allocation DTypes...")
         m_f64 = pycauset.empty((100, 100), dtype="float64")
-        self.assertEqual(m_f64.__class__.__name__, "FloatMatrix")
+        self.assertEqual((type(m_f64).__name__, m_f64.dtype), ("DenseMatrix", "float64"))
         m_f64.close()
 
         m_f32 = pycauset.empty((100, 100), dtype="float32")
-        self.assertEqual(m_f32.__class__.__name__, "Float32Matrix")
+        self.assertEqual((type(m_f32).__name__, m_f32.dtype), ("DenseMatrix", "float32"))
         m_f32.close()
 
     def test_04_matrix_from_numpy_float16(self):
@@ -80,7 +80,7 @@ class TestFloatTypes(unittest.TestCase):
         a = np.zeros((4, 4), dtype=np.float16)
         a[0, 0] = np.float16(1.25)
         m = pycauset.matrix(a)
-        self.assertEqual(m.__class__.__name__, "Float16Matrix")
+        self.assertEqual((type(m).__name__, m.dtype), ("DenseMatrix", "float16"))
         self.assertAlmostEqual(float(m.get(0, 0)), 1.25, places=3)
         m.close()
 

@@ -42,8 +42,9 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
         alpha = pycauset.causal_matrix(3)
         alpha[0, 1] = True
         value = alpha[0, 1]
-        self.assertEqual(value, 1.0)
-        self.assertIs(type(value), float)
+        # Bit (dtype "bool") elements read back as Python bools, like NumPy bool arrays.
+        self.assertEqual(value, 1)
+        self.assertIs(type(value), bool)
         # expected_path = self.storage_dir / "alpha.pycauset"
         # self.assertTrue(expected_path.exists())
         alpha = None
@@ -73,7 +74,7 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
         mat[0, 1] = 1
         mat[1, 2] = 1
         product = pycauset.matmul(mat, mat)
-        self.assertIsInstance(product, pycauset.TriangularIntegerMatrix)
+        self.assertTrue(isinstance(product, pycauset.TriangularMatrix) and product.dtype == "int32")
         self.assertEqual(product[0, 2], 1)
         mat = None
         product = None
@@ -87,7 +88,7 @@ class CausalMatrixBehaviourTests(unittest.TestCase):
         rhs[1, 2] = 1
         
         # Use elementwise_multiply explicitly
-        product = lhs.elementwise_multiply(rhs)
+        product = lhs * rhs
         
         # Result should be a BitMatrix (or IntegerMatrix depending on implementation)
         # Elementwise: 

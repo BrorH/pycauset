@@ -24,7 +24,7 @@ class TestTypesExtensive(unittest.TestCase):
     def test_integer_limits(self):
         """Test IntegerMatrix with boundary integer values."""
         n = 2
-        m = pycauset.IntegerMatrix(n)
+        m = pycauset.DenseMatrix(n, dtype="int32")
         
         # Max int32
         max_int = 2**31 - 1
@@ -50,7 +50,7 @@ class TestTypesExtensive(unittest.TestCase):
     def test_float_special_values(self):
         """Test FloatMatrix with NaN and Infinity."""
         n = 2
-        m = pycauset.FloatMatrix(n)
+        m = pycauset.DenseMatrix(n, dtype="float64")
         
         # Infinity
         m[0, 1] = float('inf')
@@ -68,7 +68,7 @@ class TestTypesExtensive(unittest.TestCase):
     def test_bit_matrix_logic(self):
         """Test boolean logic in BitMatrices."""
         n = 2
-        m = pycauset.DenseBitMatrix(n)
+        m = pycauset.DenseMatrix(n, dtype="bool")
         
         # True/False
         m[0, 1] = True
@@ -95,7 +95,7 @@ class TestTypesExtensive(unittest.TestCase):
     def test_triangular_constraints(self):
         """Test strict triangularity enforcement."""
         n = 3
-        m = pycauset.TriangularBitMatrix(n)
+        m = pycauset.TriangularMatrix(n, dtype="bool")
         
         # Setting diagonal (i == j) -> Should fail or be ignored?
         # Usually strictly upper triangular means diagonal is 0

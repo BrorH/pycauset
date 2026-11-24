@@ -55,8 +55,8 @@ class ScenarioCubeAndSum(unittest.TestCase):
 
     def test_matrix_power_stays_triangular(self):
         # Powers of a triangular causal matrix should stay triangular, not densify.
-        self.assertIsInstance(pc.matrix_power(self.C[0], 2), pc.TriangularIntegerMatrix)
-        self.assertIsInstance(pc.matrix_power(self.C[0], 4), pc.TriangularIntegerMatrix)
+        self.assertTrue(isinstance(pc.matrix_power(self.C[0], 2), pc.TriangularMatrix) and pc.matrix_power(self.C[0], 2).dtype == "int32")
+        self.assertTrue(isinstance(pc.matrix_power(self.C[0], 4), pc.TriangularMatrix) and pc.matrix_power(self.C[0], 4).dtype == "int32")
 
 
 class ScenarioTwoPathCounts(unittest.TestCase):

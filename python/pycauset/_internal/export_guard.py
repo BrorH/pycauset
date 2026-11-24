@@ -135,9 +135,6 @@ def _infer_numpy_dtype(obj: Any, requested: Any, np_module: Any) -> Any:
         return _resolve_numpy_dtype(requested, np_module)
 
     token = _normalize_dtype_token(getattr(obj, "dtype", None))
-    if token is None:
-        name = type(obj).__name__
-        token = _normalize_dtype_token(name.replace("Matrix", "").replace("Vector", ""))
     token = "bool" if token == "bit" else token
     return _resolve_numpy_dtype(token, np_module)
 
@@ -148,8 +145,6 @@ def estimate_materialized_bytes(obj: Any) -> int | None:
         return None
 
     dtype = _normalize_dtype_token(getattr(obj, "dtype", None))
-    if dtype is None:
-        dtype = _normalize_dtype_token(type(obj).__name__.replace("Matrix", "").replace("Vector", ""))
 
     size_per = _DTYPE_SIZE_BYTES.get(dtype)
     if size_per is None:

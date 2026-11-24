@@ -6,11 +6,9 @@ import pycauset
 
 class TestFloatUnderpromotionWarning(unittest.TestCase):
     def test_mixed_float_matmul_warns_once(self):
-        if not hasattr(pycauset, "Float32Matrix") or pycauset.Float32Matrix is None:
-            self.skipTest("Float32Matrix not available")
 
-        a = pycauset.Float32Matrix(2)
-        b = pycauset.FloatMatrix(2)
+        a = pycauset.DenseMatrix(2, dtype="float32")
+        b = pycauset.DenseMatrix(2, dtype="float64")
 
         a[0, 0] = 1.0
         a[1, 1] = 1.0
@@ -34,12 +32,12 @@ class TestFloatUnderpromotionWarning(unittest.TestCase):
 
         # Regardless of whether the warning fired here, mixed float matmul should
         # produce a float32 matrix by default.
-        self.assertIn("Float32Matrix", str(type(c1)))
+        self.assertTrue(isinstance(c1, pycauset.DenseMatrix) and c1.dtype == "float32")
         self.assertAlmostEqual(c1.get(0, 0), 2.0, places=5)
         self.assertAlmostEqual(c1.get(1, 1), 3.0, places=5)
 
         # Ensure repeated call still works.
-        self.assertIn("Float32Matrix", str(type(c2)))
+        self.assertTrue(isinstance(c2, pycauset.DenseMatrix) and c2.dtype == "float32")
 
 
 if __name__ == "__main__":

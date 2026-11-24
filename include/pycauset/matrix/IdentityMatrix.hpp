@@ -11,13 +11,13 @@
 namespace pycauset {
 
 template <typename T>
-class IdentityMatrix : public MatrixBase {
+class IdentityMatrix : public IdentityMatrixBase {
 public:
     IdentityMatrix(uint64_t n, const std::string& backing_file = "")
         : IdentityMatrix(n, n, backing_file) {}
 
     IdentityMatrix(uint64_t rows, uint64_t cols, const std::string& backing_file)
-        : MatrixBase(rows, cols, pycauset::Structure::IDENTITY, MatrixTraits<T>::data_type) {
+        : IdentityMatrixBase(rows, cols, pycauset::Structure::IDENTITY, MatrixTraits<T>::data_type) {
         // Identity matrices have no data payload; they only need metadata.
         initialize_storage(
             /*size_in_bytes=*/0,
@@ -47,7 +47,7 @@ public:
                    uint64_t seed,
                    std::complex<double> scalar,
                    bool is_transposed)
-        : MatrixBase(rows, cols, pycauset::Structure::IDENTITY, MatrixTraits<T>::data_type) {
+        : IdentityMatrixBase(rows, cols, pycauset::Structure::IDENTITY, MatrixTraits<T>::data_type) {
         initialize_storage(
             /*size_in_bytes=*/0,
             backing_file,
@@ -69,7 +69,7 @@ public:
         : IdentityMatrix(n, n, std::move(mapper)) {}
 
     IdentityMatrix(uint64_t rows, uint64_t cols, std::shared_ptr<MemoryMapper> mapper)
-        : MatrixBase(rows,
+        : IdentityMatrixBase(rows,
                      cols,
                      std::move(mapper),
                      pycauset::Structure::IDENTITY,

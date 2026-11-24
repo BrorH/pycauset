@@ -35,7 +35,7 @@ class TestUnitVector(unittest.TestCase):
         # Note: In Python bindings, the type might be exposed as pycauset.UnitVector
         # But generic addition returns FloatVector (DenseVector)
         # self.assertTrue(isinstance(v3, UnitVector), f"Expected UnitVector, got {type(v3)}")
-        self.assertTrue("FloatVector" in str(v3) or "DenseVector" in str(v3) or isinstance(v3, pycauset.FloatVector), f"Expected FloatVector, got {type(v3)}")
+        self.assertTrue("FloatVector" in str(v3) or "DenseVector" in str(v3) or ((isinstance(v3, pycauset.DenseVector) and v3.dtype == "float64")), f"Expected FloatVector, got {type(v3)}")
         self.assertEqual(v3[2], 2.0)
         self.assertEqual(v3[0], 0.0)
 

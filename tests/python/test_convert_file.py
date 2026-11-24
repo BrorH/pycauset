@@ -3,15 +3,7 @@ import pycauset
 import pytest
 
 
-def _maybe_skip_matrix(cls_name: str):
-    cls = getattr(pycauset, cls_name, None)
-    if cls is None:
-        pytest.skip(f"{cls_name} not available in native extension")
-    return cls
-
-
 def test_convert_pycauset_to_npy_and_back_matrix(tmp_path):
-    _maybe_skip_matrix("FloatMatrix")
     arr = np.arange(9, dtype=np.float32).reshape(3, 3)
     m = pycauset.matrix(arr)
     src = tmp_path / "a.pycauset"
@@ -33,7 +25,6 @@ def test_convert_pycauset_to_npy_and_back_matrix(tmp_path):
 
 
 def test_convert_npz_to_pycauset_vector(tmp_path):
-    _maybe_skip_matrix("FloatVector")
     vec = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float64)
     npz = tmp_path / "v.npz"
     dst = tmp_path / "v.pycauset"
@@ -49,7 +40,6 @@ def test_convert_npz_to_pycauset_vector(tmp_path):
 
 
 def test_load_npy_and_save_npz_helpers(tmp_path):
-    _maybe_skip_matrix("FloatMatrix")
     arr = np.arange(16, dtype=np.float32).reshape(4, 4)
     npy = tmp_path / "m.npy"
     np.save(npy, arr)

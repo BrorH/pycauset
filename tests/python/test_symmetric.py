@@ -90,7 +90,7 @@ class TestSymmetricFactory(unittest.TestCase):
     def test_symmetric_integer_dense_with_property(self):
         A = np.array([[1, 2], [2, 3]], dtype=np.int32)
         m = pc.symmetric(A)
-        self.assertIsInstance(m, pc.IntegerMatrix)
+        self.assertTrue(isinstance(m, pc.DenseMatrix) and m.dtype == "int32")
         self.assertTrue(m.properties["is_symmetric"])
         self.assertTrue(np.array_equal(pc.to_numpy(m), A))
 
@@ -114,7 +114,7 @@ class TestSymmetricFactory(unittest.TestCase):
     def test_packed_storage_is_half_of_dense(self):
         n = 2000
         s = pc.SymmetricMatrix(n)
-        d = pc.FloatMatrix(n)
+        d = pc.DenseMatrix(n, dtype="float64")
         try:
             with tempfile.TemporaryDirectory() as td:
                 sp = Path(td) / "s.raw"

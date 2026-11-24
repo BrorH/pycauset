@@ -5,10 +5,10 @@ import warnings
 
 class TestInnerProductTypes(unittest.TestCase):
     def test_integer_inner_product(self):
-        v1 = pycauset.IntegerVector(3)
+        v1 = pycauset.DenseVector(3, dtype="int32")
         v1[0] = 1; v1[1] = 2; v1[2] = 3
         
-        v2 = pycauset.IntegerVector(3)
+        v2 = pycauset.DenseVector(3, dtype="int32")
         v2[0] = 4; v2[1] = 5; v2[2] = 6
         
         # v1 @ v2 -> Scalar
@@ -21,15 +21,13 @@ class TestInnerProductTypes(unittest.TestCase):
         self.assertEqual(s, 32) # 4+10+18
 
     def test_int16_inner_product(self):
-        if getattr(pycauset, "Int16Vector", None) is None:
-            self.skipTest("Int16Vector is not available")
 
-        v1 = pycauset.Int16Vector(3)
+        v1 = pycauset.DenseVector(3, dtype="int16")
         v1[0] = 1
         v1[1] = 2
         v1[2] = 3
 
-        v2 = pycauset.Int16Vector(3)
+        v2 = pycauset.DenseVector(3, dtype="int16")
         v2[0] = 4
         v2[1] = 5
         v2[2] = 6
@@ -42,10 +40,10 @@ class TestInnerProductTypes(unittest.TestCase):
         self.assertEqual(s, 32)
 
     def test_bit_inner_product(self):
-        v1 = pycauset.BitVector(3)
+        v1 = pycauset.DenseVector(3, dtype="bool")
         v1[0] = 1; v1[1] = 1; v1[2] = 0
         
-        v2 = pycauset.BitVector(3)
+        v2 = pycauset.DenseVector(3, dtype="bool")
         v2[0] = 1; v2[1] = 0; v2[2] = 1
         
         # v1 @ v2 -> Scalar (1*1 + 1*0 + 0*1 = 1)
@@ -58,10 +56,10 @@ class TestInnerProductTypes(unittest.TestCase):
         self.assertEqual(s, 1)
 
     def test_mixed_inner_product(self):
-        v1 = pycauset.IntegerVector(3)
+        v1 = pycauset.DenseVector(3, dtype="int32")
         v1[0] = 1; v1[1] = 2; v1[2] = 3
         
-        v2 = pycauset.FloatVector(3)
+        v2 = pycauset.DenseVector(3, dtype="float64")
         v2[0] = 1.5; v2[1] = 2.5; v2[2] = 3.5
         
         # v1 @ v2 -> Scalar

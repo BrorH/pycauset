@@ -14,10 +14,10 @@
 namespace pycauset {
 
 template <typename T>
-class DiagonalMatrix : public MatrixBase {
+class DiagonalMatrix : public DiagonalMatrixBase {
 public:
     DiagonalMatrix(uint64_t n, const std::string& backing_file = "")
-        : MatrixBase(n, pycauset::Structure::DIAGONAL, MatrixTraits<T>::data_type) {
+        : DiagonalMatrixBase(n, pycauset::Structure::DIAGONAL, MatrixTraits<T>::data_type) {
         uint64_t size_in_bytes = n * sizeof(T);
         initialize_storage(size_in_bytes, backing_file, 
                          std::string("diagonal_") + MatrixTraits<T>::name, 
@@ -34,7 +34,7 @@ public:
                 uint64_t seed,
                 std::complex<double> scalar,
                 bool is_transposed)
-        : MatrixBase(n, pycauset::Structure::DIAGONAL, MatrixTraits<T>::data_type) {
+        : DiagonalMatrixBase(n, pycauset::Structure::DIAGONAL, MatrixTraits<T>::data_type) {
         
         uint64_t size_in_bytes = n * sizeof(T);
         initialize_storage(size_in_bytes, backing_file, 
@@ -52,7 +52,7 @@ public:
     }
 
     DiagonalMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-        : MatrixBase(n, std::move(mapper), pycauset::Structure::DIAGONAL, MatrixTraits<T>::data_type) {}
+        : DiagonalMatrixBase(n, std::move(mapper), pycauset::Structure::DIAGONAL, MatrixTraits<T>::data_type) {}
 
     virtual void set(uint64_t i, uint64_t j, T value) {
         ensure_unique();
@@ -175,7 +175,7 @@ protected:
                    const std::string& fallback_name,
                    pycauset::Structure mtype,
                    pycauset::DataType dtype)
-        : MatrixBase(n, mtype, dtype) {
+        : DiagonalMatrixBase(n, mtype, dtype) {
         
         initialize_storage(size_in_bytes, backing_file, 
                          fallback_name, 
@@ -195,7 +195,7 @@ protected:
                    bool is_transposed,
                    pycauset::Structure mtype,
                    pycauset::DataType dtype)
-        : MatrixBase(n, mtype, dtype) {
+        : DiagonalMatrixBase(n, mtype, dtype) {
             
         initialize_storage(size_in_bytes, backing_file, 
                          "", 
@@ -212,7 +212,7 @@ protected:
     }
 
     DiagonalMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper, pycauset::Structure mtype, pycauset::DataType dtype)
-        : MatrixBase(n, std::move(mapper), mtype, dtype) {}
+        : DiagonalMatrixBase(n, std::move(mapper), mtype, dtype) {}
 };
 
 } // namespace pycauset

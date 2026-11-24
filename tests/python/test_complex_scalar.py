@@ -8,7 +8,7 @@ class TestComplexScalar(unittest.TestCase):
     def test_complex_scalar_storage(self):
         n = 10
         # Create a matrix
-        m = pycauset.FloatMatrix(n)
+        m = pycauset.DenseMatrix(n, dtype="float64")
         
         # Set a complex scalar
         z = 1.5 + 2.5j

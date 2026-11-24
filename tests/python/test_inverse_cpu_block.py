@@ -7,7 +7,7 @@ class TestCpuInverseBlock(unittest.TestCase):
         # Create a block matrix
         # A = [ [I, 0], [0, 2I] ]
         N = 100
-        A = pycauset.FloatMatrix(2*N, 2*N)
+        A = pycauset.DenseMatrix(2*N, 2*N, dtype="float64")
         # Block 1
         for i in range(N):
             A[i, i] = 1.0

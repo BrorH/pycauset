@@ -60,4 +60,10 @@ protected:
     uint64_t n_;
 };
 
+// Structure base for dense vectors of every dtype (see the note in MatrixBase.hpp).
+class DenseVectorBase : public VectorBase {
+public:
+    using VectorBase::VectorBase;
+};
+
 } // namespace pycauset

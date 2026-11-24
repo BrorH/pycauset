@@ -51,6 +51,9 @@ def test_storage_invalid_value_raises():
         pycauset.matrix(np.random.rand(4, 4), storage="bogus")
 
 
-def test_storage_disk_requires_numpy_input():
-    with pytest.raises(TypeError, match="storage='disk' requires NumPy-array input"):
-        pycauset.matrix([[1.0, 2.0], [3.0, 4.0]], storage="disk")
+def test_storage_disk_accepts_nested_lists():
+    # Lists take the same path as NumPy arrays (RESTRUCTURE 3.1 item 4), so storage="disk" works.
+    m = pycauset.matrix([[1.0, 2.0], [3.0, 4.0]], storage="disk")
+    assert m.get_backing_file() != ":memory:"
+    assert m[1, 0] == 3.0
+

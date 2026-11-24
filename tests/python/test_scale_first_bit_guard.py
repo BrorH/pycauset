@@ -14,8 +14,8 @@ class TestScaleFirstBitGuard(unittest.TestCase):
 
     def test_bitbit_matmul_uses_popcount_kernel(self):
         n = 64
-        a = pycauset.DenseBitMatrix(n)
-        b = pycauset.DenseBitMatrix(n)
+        a = pycauset.DenseMatrix(n, dtype="bool")
+        b = pycauset.DenseMatrix(n, dtype="bool")
 
         a.set(0, 0, 1)
         b.set(0, 0, 1)
@@ -28,8 +28,8 @@ class TestScaleFirstBitGuard(unittest.TestCase):
         self.assertIn("cpu.matmul.bitbit_popcount", trace)
 
     def test_bitbit_matmul_rectangular_uses_popcount_kernel(self):
-        a = pycauset.DenseBitMatrix(2, 3)
-        b = pycauset.DenseBitMatrix(3, 4)
+        a = pycauset.DenseMatrix(2, 3, dtype="bool")
+        b = pycauset.DenseMatrix(3, 4, dtype="bool")
 
         # Make C[0,0] = 1 via k=1
         a.set(0, 1, 1)
@@ -48,8 +48,8 @@ class TestScaleFirstBitGuard(unittest.TestCase):
 
     def test_bitbit_dot_uses_popcount_kernel(self):
         n = 256
-        a = pycauset.BitVector(n)
-        b = pycauset.BitVector(n)
+        a = pycauset.DenseVector(n, dtype="bool")
+        b = pycauset.DenseVector(n, dtype="bool")
 
         a.set(0, 1)
         a.set(63, 1)

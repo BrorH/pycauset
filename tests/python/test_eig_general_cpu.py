@@ -8,7 +8,7 @@ class TestEigGeneralCpu(unittest.TestCase):
     def test_eig_real_eigenvalues(self):
         # 1. Symmetric matrix (should have real eigvals)
         n = 5
-        A = pycauset.FloatMatrix(n, n)
+        A = pycauset.DenseMatrix(n, n, dtype="float64")
         A_np = np.random.randn(n, n)
         A_np = A_np + A_np.T # Symmetric
         
@@ -50,7 +50,7 @@ class TestEigGeneralCpu(unittest.TestCase):
         # [[0, -1], [1, 0]]
         # Eigenvalues: i, -i
         
-        A = pycauset.FloatMatrix(2, 2)
+        A = pycauset.DenseMatrix(2, 2, dtype="float64")
         A.set(0, 0, 0.0)
         A.set(0, 1, -1.0)
         A.set(1, 0, 1.0)
@@ -71,7 +71,7 @@ class TestEigGeneralCpu(unittest.TestCase):
     def test_eig_full(self):
         # A matrix with known complex eigvals
         # [[1, -1], [1, 1]] -> 1 +/- i
-        A = pycauset.FloatMatrix(2, 2)
+        A = pycauset.DenseMatrix(2, 2, dtype="float64")
         A.set(0, 0, 1.0); A.set(0, 1, -1.0)
         A.set(1, 0, 1.0); A.set(1, 1, 1.0)
         

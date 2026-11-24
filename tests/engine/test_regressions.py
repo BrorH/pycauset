@@ -187,8 +187,11 @@ def test_F039_float_upper_with_lower_triangle(op, rng):
 
 
 # ---------------------------------------------------------------- F-041 (TriangularMatrix)
-def test_triangular_matrix_is_an_abstract_isinstance_type():
+def test_triangular_matrix_is_the_native_structure_class():
+    # F-041a, superseded by the structure classes (RESTRUCTURE 3.1 item 4): pc.TriangularMatrix
+    # is the real native class for every dtype; a causal matrix is one of dtype "bool".
     c = pc.causal_matrix(5, populate=True)
-    assert isinstance(c, pc.TriangularMatrix)
-    with pytest.raises(TypeError, match="abstract type"):
-        pc.TriangularMatrix(4)
+    assert type(c) is pc.TriangularMatrix and c.dtype == "bool"
+    t = pc.TriangularMatrix(4, dtype="int16")
+    t[0, 3] = -7
+    assert type(t) is pc.TriangularMatrix and t.dtype == "int16" and t[0, 3] == -7 and t[3, 0] == 0

@@ -4,7 +4,7 @@ import pytest
 
 def test_mixed_op_add():
     """Test A(pycauset) + B(numpy) and B(numpy) + A(pycauset)."""
-    A = pycauset.FloatMatrix(5, 5)
+    A = pycauset.DenseMatrix(5, 5, dtype="float64")
     A.fill(10.0)
     B = np.full((5, 5), 2.0, dtype=np.float64)
 
@@ -12,18 +12,18 @@ def test_mixed_op_add():
     print("  A + B...", flush=True)
     C1 = A + B
     print(f"  A + B result type: {type(C1)}", flush=True)
-    assert isinstance(C1, pycauset.FloatMatrix)
+    assert ((isinstance(C1, pycauset.DenseMatrix) and C1.dtype == "float64"))
     assert C1[0, 0] == 12.0
 
     # B + A (NumPy + PyCauset)
     print("  B + A...", flush=True)
     C2 = B + A
     print(f"  B + A result type: {type(C2)}", flush=True)
-    assert isinstance(C2, pycauset.FloatMatrix)
+    assert ((isinstance(C2, pycauset.DenseMatrix) and C2.dtype == "float64"))
     assert C2[0, 0] == 12.0
 
 def test_mixed_op_sub():
-    A = pycauset.FloatMatrix(5, 5)
+    A = pycauset.DenseMatrix(5, 5, dtype="float64")
     A.fill(10.0)
     B = np.full((5, 5), 2.0, dtype=np.float64)
 
@@ -37,22 +37,22 @@ def test_mixed_op_sub():
     assert C2[0, 0] == -8.0
 
 def test_mixed_op_mul_scalar():
-    A = pycauset.FloatMatrix(5, 5)
+    A = pycauset.DenseMatrix(5, 5, dtype="float64")
     A.fill(10.0)
     s = np.float64(2.0)
 
     # A * scalar
     C3 = A * s
-    assert isinstance(C3, pycauset.FloatMatrix)
+    assert ((isinstance(C3, pycauset.DenseMatrix) and C3.dtype == "float64"))
     assert C3[0, 0] == 20.0
 
     # scalar * A
     C4 = s * A
-    assert isinstance(C4, pycauset.FloatMatrix)
+    assert ((isinstance(C4, pycauset.DenseMatrix) and C4.dtype == "float64"))
     assert C4[0, 0] == 20.0
 
 def test_mixed_op_div():
-    A = pycauset.FloatMatrix(5, 5)
+    A = pycauset.DenseMatrix(5, 5, dtype="float64")
     A.fill(10.0)
     B = np.full((5, 5), 2.0, dtype=np.float64)
 

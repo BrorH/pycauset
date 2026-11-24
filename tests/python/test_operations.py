@@ -32,14 +32,14 @@ class TestMatrixOperations(unittest.TestCase):
     def test_float_matrix_scalar_multiplication(self):
         # Regression test for crash in scalar multiplication
         n = 5
-        m = pycauset.TriangularFloatMatrix(n)
+        m = pycauset.TriangularMatrix(n, dtype="float64")
         m[0, 1] = 0.5
         m[2, 4] = 1.5
         
         # This used to crash
         m2 = m * 2.0
         
-        self.assertIsInstance(m2, pycauset.TriangularFloatMatrix)
+        self.assertTrue(isinstance(m2, pycauset.TriangularMatrix) and m2.dtype == "float64")
         self.assertEqual(m2.shape, (n, n))
         self.assertAlmostEqual(m2[0, 1], 1.0)
         self.assertAlmostEqual(m2[2, 4], 3.0)
@@ -51,12 +51,12 @@ class TestMatrixOperations(unittest.TestCase):
 
     def test_bitwise_not_bit_matrix(self):
         n = 4
-        m = pycauset.TriangularBitMatrix(n)
+        m = pycauset.TriangularMatrix(n, dtype="bool")
         m[0, 1] = 1
         
         inv = ~m
         
-        self.assertIsInstance(inv, pycauset.TriangularBitMatrix)
+        self.assertTrue(isinstance(inv, pycauset.TriangularMatrix) and inv.dtype == "bool")
         # (0,1) was 1, should be 0
         self.assertEqual(inv[0, 1], 0)
         # (0,2) was 0, should be 1
@@ -70,37 +70,24 @@ class TestMatrixOperations(unittest.TestCase):
 
     def test_bitwise_not_integer_matrix(self):
         n = 3
-        m = pycauset.IntegerMatrix(n)
+        m = pycauset.DenseMatrix(n, dtype="int32")
         m[0, 1] = 5
         
         inv = ~m
         
-        self.assertIsInstance(inv, pycauset.IntegerMatrix)
+        self.assertTrue(isinstance(inv, pycauset.DenseMatrix) and inv.dtype == "int32")
         # IntegerMatrix uses int32_t. ~5 is -6.
         self.assertEqual(inv[0, 1], -6)
         # ~0 is -1
         self.assertEqual(inv[0, 2], -1)
 
     def test_bitwise_not_float_matrix(self):
-        n = 3
-        m = pycauset.TriangularFloatMatrix(n)
+        # ~ is bitwise NOT; like NumPy it is a TypeError for float dtypes (it used to flip
+        # the raw bits of the IEEE doubles).
+        m = pycauset.TriangularMatrix(3, dtype="float64")
         m[0, 1] = 0.5
-        
-        inv = ~m
-        
-        self.assertIsInstance(inv, pycauset.TriangularFloatMatrix)
-        
-        # Invert on float matrix does bitwise NOT on the double representation
-        val = m[0, 1]
-        import struct
-        val_bytes = struct.pack('d', val)
-        val_int = struct.unpack('Q', val_bytes)[0]
-        
-        inv_val = inv[0, 1]
-        inv_val_bytes = struct.pack('d', inv_val)
-        inv_val_int = struct.unpack('Q', inv_val_bytes)[0]
-        
-        self.assertEqual(inv_val_int, ~val_int & 0xFFFFFFFFFFFFFFFF)
+        with self.assertRaises(TypeError):
+            ~m
 
     def test_matrix_inverse_singular(self):
         # Triangular matrices are strictly upper triangular, so they are singular.
@@ -108,30 +95,30 @@ class TestMatrixOperations(unittest.TestCase):
         n = 3
         
         # TriangularBitMatrix
-        m_bit = pycauset.TriangularBitMatrix(n)
+        m_bit = pycauset.TriangularMatrix(n, dtype="bool")
         with self.assertRaises(RuntimeError):
             m_bit.invert()
             
         # TriangularFloatMatrix
-        m_float = pycauset.TriangularFloatMatrix(n)
+        m_float = pycauset.TriangularMatrix(n, dtype="float64")
         with self.assertRaises(RuntimeError):
             m_float.invert()
             
         # IntegerMatrix (also strictly upper triangular in this implementation)
-        m_int = pycauset.IntegerMatrix(n)
+        m_int = pycauset.DenseMatrix(n, dtype="int32")
         with self.assertRaises(RuntimeError):
             m_int.invert()
 
     def test_matrix_inverse_not_implemented(self):
         # FloatMatrix is dense, but inverse is not yet implemented
         n = 3
-        m_dense = pycauset.FloatMatrix(n)
+        m_dense = pycauset.DenseMatrix(n, dtype="float64")
         with self.assertRaises(RuntimeError):
             m_dense.invert()
 
     def test_toplevel_functions(self):
         n = 3
-        m = pycauset.TriangularBitMatrix(n)
+        m = pycauset.TriangularMatrix(n, dtype="bool")
         m[0, 1] = 1
         
         # Test bitwise_not

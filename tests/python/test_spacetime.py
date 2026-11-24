@@ -85,7 +85,7 @@ class TestSpacetimeStructure(unittest.TestCase):
         matrix = c.C
         
         # Check it's a TriangularBitMatrix (or whatever the default is)
-        self.assertTrue("BitMatrix" in str(type(matrix)) or "BitMatrix" in str(matrix))
+        self.assertTrue(isinstance(matrix, pycauset.TriangularMatrix) and matrix.dtype == "bool")
         
         # Check size
         self.assertEqual(matrix.shape[0], 10)

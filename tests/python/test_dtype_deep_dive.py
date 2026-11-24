@@ -105,8 +105,8 @@ class TestLazyAllocation(unittest.TestCase):
         self.assertTrue(bool((got == 1).all()))
 
     def test_explicit_dtype_still_works(self):
-        self.assertIsInstance(pc.ones((2, 2), dtype="float64"), pc.FloatMatrix)
-        self.assertIsInstance(pc.ones((2, 2), dtype="bool"), pc.DenseBitMatrix)
+        self.assertTrue(isinstance(pc.ones((2, 2), dtype="float64"), pc.DenseMatrix) and pc.ones((2, 2), dtype="float64").dtype == "float64")
+        self.assertTrue(isinstance(pc.ones((2, 2), dtype="bool"), pc.DenseMatrix) and pc.ones((2, 2), dtype="bool").dtype == "bool")
 
     def test_empty_use_before_write_raises(self):
         with self.assertRaises(TypeError):

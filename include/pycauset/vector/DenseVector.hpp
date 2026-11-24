@@ -16,15 +16,15 @@
 namespace pycauset {
 
 template <typename T>
-class DenseVector : public VectorBase {
+class DenseVector : public DenseVectorBase {
 public:
     DenseVector(uint64_t n, const std::string& backing_file = "")
-        : VectorBase(n) {
+        : DenseVectorBase(n) {
         uint64_t size_in_bytes = n * sizeof(T);
         initialize_storage(size_in_bytes, backing_file, 
                          std::string("vector_") + MatrixTraits<T>::name, 
                          sizeof(T),
-                         pycauset::Structure::DENSE, // Reusing Structure for now, or add VectorType
+                         pycauset::Structure::VECTOR,
                          MatrixTraits<T>::data_type,
                          n, 1);
     }
@@ -36,13 +36,13 @@ public:
                 uint64_t seed,
                 std::complex<double> scalar,
                 bool is_transposed)
-        : VectorBase(n) {
+        : DenseVectorBase(n) {
         
         uint64_t size_in_bytes = n * sizeof(T);
         initialize_storage(size_in_bytes, backing_file, 
                          "", 
                          sizeof(T),
-                         pycauset::Structure::DENSE, 
+                         pycauset::Structure::VECTOR, 
                          MatrixTraits<T>::data_type,
                          n, 1,
                          offset,
@@ -54,7 +54,7 @@ public:
     }
 
     DenseVector(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-        : VectorBase(n, std::move(mapper), pycauset::Structure::DENSE, MatrixTraits<T>::data_type) {}
+        : DenseVectorBase(n, std::move(mapper), pycauset::Structure::VECTOR, MatrixTraits<T>::data_type) {}
 
     void set(uint64_t i, T value) {
         ensure_unique();
@@ -157,7 +157,7 @@ public:
 };
 
 template <>
-class DenseVector<bool> : public VectorBase {
+class DenseVector<bool> : public DenseVectorBase {
 public:
     DenseVector(uint64_t n, const std::string& backing_file = "");
     

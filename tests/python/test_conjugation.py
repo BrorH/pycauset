@@ -22,8 +22,8 @@ class TestConjugation(unittest.TestCase):
                 pass
 
     def test_vector_conj_dot(self):
-        v = pycauset.ComplexFloat64Vector(2)
-        w = pycauset.ComplexFloat64Vector(2)
+        v = pycauset.DenseVector(2, dtype="complex_float64")
+        w = pycauset.DenseVector(2, dtype="complex_float64")
         vc = None
         vt = None
         vh = None
@@ -59,7 +59,7 @@ class TestConjugation(unittest.TestCase):
             w.close()
 
     def test_matrix_H_conjugate_transpose(self):
-        m = pycauset.ComplexFloat64Matrix(2)
+        m = pycauset.DenseMatrix(2, dtype="complex_float64")
         mh = None
         try:
             m.set(0, 0, 1 + 2j)
@@ -81,7 +81,7 @@ class TestConjugation(unittest.TestCase):
             m.close()
 
     def test_persistence_roundtrip_conjugated_vector(self):
-        v = pycauset.ComplexFloat64Vector(3)
+        v = pycauset.DenseVector(3, dtype="complex_float64")
         v.set(0, 1 + 2j)
         v.set(1, 3 - 4j)
         v.set(2, -5 + 6j)

@@ -22,7 +22,7 @@
 namespace pycauset {
 
 template <typename T>
-class DenseMatrix : public MatrixBase {
+class DenseMatrix : public DenseMatrixBase {
 public:
     using MatrixBase::operator=;
 
@@ -30,7 +30,7 @@ public:
         : DenseMatrix(n, n, backing_file) {}
 
     DenseMatrix(uint64_t rows, uint64_t cols, const std::string& backing_file = "")
-        : MatrixBase(rows, cols, pycauset::Structure::DENSE, MatrixTraits<T>::data_type) {
+        : DenseMatrixBase(rows, cols, pycauset::Structure::DENSE, MatrixTraits<T>::data_type) {
         const uint64_t size_in_bytes = rows * cols * sizeof(T);
         initialize_storage(size_in_bytes,
                            backing_file,
@@ -57,7 +57,7 @@ public:
                 uint64_t seed,
                 std::complex<double> scalar,
                 bool is_transposed)
-        : MatrixBase(rows, cols, pycauset::Structure::DENSE, MatrixTraits<T>::data_type) {
+        : DenseMatrixBase(rows, cols, pycauset::Structure::DENSE, MatrixTraits<T>::data_type) {
         const uint64_t size_in_bytes = rows * cols * sizeof(T);
         initialize_storage(size_in_bytes,
                            backing_file,
@@ -79,7 +79,7 @@ public:
         : DenseMatrix(n, n, std::move(mapper)) {}
 
     DenseMatrix(uint64_t rows, uint64_t cols, std::shared_ptr<MemoryMapper> mapper)
-        : MatrixBase(rows, cols, std::move(mapper), pycauset::Structure::DENSE, MatrixTraits<T>::data_type) {}
+        : DenseMatrixBase(rows, cols, std::move(mapper), pycauset::Structure::DENSE, MatrixTraits<T>::data_type) {}
 
     DenseMatrix(uint64_t view_rows,
                 uint64_t view_cols,
@@ -93,7 +93,7 @@ public:
                 bool is_transposed,
                 bool is_conjugated,
                 bool is_temporary)
-        : MatrixBase(base_rows, base_cols, std::move(mapper), pycauset::Structure::DENSE, MatrixTraits<T>::data_type, seed, scalar, is_transposed, is_temporary) {
+        : DenseMatrixBase(base_rows, base_cols, std::move(mapper), pycauset::Structure::DENSE, MatrixTraits<T>::data_type, seed, scalar, is_transposed, is_temporary) {
         set_view(view_rows, view_cols, row_offset, col_offset);
         set_conjugated(is_conjugated);
     }
@@ -384,7 +384,7 @@ public:
             throw std::runtime_error("inverse on views with offsets is not supported; materialize with copy() first");
         }
         if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
-            throw std::runtime_error("Inverse only supported for FloatMatrix (double) or Float32Matrix (float)");
+            throw std::runtime_error("inverse is only supported for dense float64 and float32 matrices");
         } else {
             if (rows() != cols()) {
                 throw std::runtime_error("Inverse requires a square matrix");
@@ -402,7 +402,7 @@ public:
             throw std::runtime_error("inverse on views with offsets is not supported; materialize with copy() first");
         }
         if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
-            throw std::runtime_error("Inverse only supported for FloatMatrix (double) or Float32Matrix (float)");
+            throw std::runtime_error("inverse is only supported for dense float64 and float32 matrices");
         } else {
             if (rows() != cols()) {
                 throw std::runtime_error("Inverse requires a square matrix");
@@ -419,7 +419,7 @@ public:
             throw std::runtime_error("QR on views with offsets is not supported; materialize with copy() first");
         }
         if constexpr (!std::is_same_v<T, double>) {
-            throw std::runtime_error("QR only supported for FloatMatrix");
+            throw std::runtime_error("QR is only supported for dense float64 matrices");
         } else {
             if (rows() != cols()) {
                 throw std::runtime_error("QR requires a square matrix");
@@ -440,7 +440,7 @@ public:
                                                                                  const std::string& vecs_file = "") const {
         
         if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
-             throw std::runtime_error("eigh only supported for FloatMatrix/Float32Matrix");
+             throw std::runtime_error("eigh is only supported for dense float64 and float32 matrices");
         } else {
              // For eigh, eigenvalues are real, so we use DenseVector<T>.
              auto vals = std::make_unique<DenseVector<T>>(rows(), vals_file);
@@ -453,7 +453,7 @@ public:
 
     std::unique_ptr<VectorBase> eigvalsh(const std::string& vals_file = "") const {
         if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
-             throw std::runtime_error("eigvalsh only supported for FloatMatrix/Float32Matrix");
+             throw std::runtime_error("eigvalsh is only supported for dense float64 and float32 matrices");
         } else {
              auto vals = std::make_unique<DenseVector<T>>(rows(), vals_file);
              pycauset::ComputeContext::instance().get_device()->eigvalsh(*this, *vals);
@@ -504,7 +504,7 @@ public:
             throw std::runtime_error("LU on views with offsets is not supported; materialize with copy() first");
         }
         if constexpr (!std::is_same_v<T, double>) {
-            throw std::runtime_error("LU only supported for FloatMatrix");
+            throw std::runtime_error("LU is only supported for dense float64 matrices");
         } else {
             if (rows() != cols()) {
                 throw std::runtime_error("LU requires a square matrix");

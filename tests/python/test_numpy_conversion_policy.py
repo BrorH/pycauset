@@ -34,7 +34,7 @@ class TestNumpyConversionPolicy(unittest.TestCase):
 
     def test_file_backed_export_blocked_without_allow_huge(self) -> None:
         pycauset.set_memory_threshold(1)
-        m = pycauset.TriangularBitMatrix(64)
+        m = pycauset.TriangularMatrix(64, dtype="bool")
         try:
             backing = m.get_backing_file()
             self.assertNotEqual(backing, ":memory:")
@@ -45,7 +45,7 @@ class TestNumpyConversionPolicy(unittest.TestCase):
 
     def test_file_backed_export_allowed_with_flag(self) -> None:
         pycauset.set_memory_threshold(1)
-        m = pycauset.TriangularBitMatrix(64)
+        m = pycauset.TriangularMatrix(64, dtype="bool")
         try:
             arr = pycauset.to_numpy(m, allow_huge=True)
             self.assertIsInstance(arr, np.ndarray)
@@ -55,7 +55,7 @@ class TestNumpyConversionPolicy(unittest.TestCase):
 
     def test_snapshot_export_allowed_without_huge_flag(self) -> None:
         pycauset.set_memory_threshold(1)
-        m = pycauset.FloatMatrix(128)
+        m = pycauset.DenseMatrix(128, dtype="float64")
         m.set(0, 0, 1.0)
         snap = Path(self._tmpdir.name) / "snapshot.pycauset"
         try:
@@ -73,7 +73,7 @@ class TestNumpyConversionPolicy(unittest.TestCase):
                 snap.unlink()
 
     def test_export_ceiling_blocks_in_memory_exports(self) -> None:
-        m = pycauset.FloatMatrix(64)
+        m = pycauset.DenseMatrix(64, dtype="float64")
         m.set(0, 0, 1.0)
         try:
             pycauset.set_export_max_bytes(1)
@@ -86,7 +86,7 @@ class TestNumpyConversionPolicy(unittest.TestCase):
             pycauset.set_export_max_bytes(None)
 
     def test_allow_huge_overrides_export_ceiling(self) -> None:
-        m = pycauset.FloatMatrix(64)
+        m = pycauset.DenseMatrix(64, dtype="float64")
         m.set(0, 0, 1.0)
         try:
             pycauset.set_export_max_bytes(1)

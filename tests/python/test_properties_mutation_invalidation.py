@@ -4,7 +4,7 @@ import pycauset
 
 class TestPropertiesMutationInvalidation(unittest.TestCase):
     def test_trace_cache_is_cleared_on_set(self):
-        m = pycauset.FloatMatrix(2)
+        m = pycauset.DenseMatrix(2, dtype="float64")
         try:
             m.set(0, 0, 1.0)
             m.set(1, 1, 2.0)
@@ -19,7 +19,7 @@ class TestPropertiesMutationInvalidation(unittest.TestCase):
             m.close()
 
     def test_determinant_cache_is_cleared_on_set(self):
-        m = pycauset.FloatMatrix(2)
+        m = pycauset.DenseMatrix(2, dtype="float64")
         try:
             m.set(0, 0, 1.0)
             m.set(1, 1, 2.0)
@@ -34,7 +34,7 @@ class TestPropertiesMutationInvalidation(unittest.TestCase):
             m.close()
 
     def test_inverse_cache_attribute_is_cleared_on_set_best_effort(self):
-        m = pycauset.FloatMatrix(2)
+        m = pycauset.DenseMatrix(2, dtype="float64")
         try:
             try:
                 m._cached_inverse = object()

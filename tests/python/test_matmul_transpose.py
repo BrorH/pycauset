@@ -5,7 +5,7 @@ import os
 class TestMatmulTranspose(unittest.TestCase):
     def test_dense_matmul_transpose(self):
         n = 2
-        A = pycauset.FloatMatrix(n)
+        A = pycauset.DenseMatrix(n, dtype="float64")
         # [[1, 2], [3, 4]]
         A[0, 0] = 1.0
         A[0, 1] = 2.0

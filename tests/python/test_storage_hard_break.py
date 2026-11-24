@@ -38,7 +38,7 @@ class TestStorageHardBreak(unittest.TestCase):
         self.assertIn("unsupported file format", str(ctx.exception))
 
     def test_invalid_header_slot_is_distinct_error(self):
-        m = pycauset.FloatMatrix(4)
+        m = pycauset.DenseMatrix(4, dtype="float64")
         path = self.test_dir / "bad_header.pycauset"
         try:
             pycauset.save(m, path)
@@ -54,7 +54,7 @@ class TestStorageHardBreak(unittest.TestCase):
             m.close()
 
     def test_invalid_metadata_block_is_distinct_error(self):
-        m = pycauset.IntegerMatrix(4)
+        m = pycauset.DenseMatrix(4, dtype="int32")
         path = self.test_dir / "bad_metadata.pycauset"
         try:
             pycauset.save(m, path)

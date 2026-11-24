@@ -41,13 +41,13 @@ class TestVector(unittest.TestCase):
     def test_auto_dtype(self):
         v1 = pycauset.vector([1.1, 2.2])
         # Check if it's a FloatVector (by checking repr or behavior)
-        self.assertTrue("FloatVector" in str(v1))
+        self.assertEqual(v1.dtype, "float64")
         
         v2 = pycauset.vector([1, 2, 3])
-        self.assertTrue("IntegerVector" in str(v2))
+        self.assertEqual(v2.dtype, "int32")
         
         v3 = pycauset.vector([True, False])
-        self.assertTrue("BitVector" in str(v3))
+        self.assertEqual(v3.dtype, "bool")
 
     def test_arithmetic(self):
         v1 = pycauset.vector([1, 2, 3], dtype="float")
@@ -83,11 +83,11 @@ class TestVector(unittest.TestCase):
         v_int_add = v_int + 5
         self.assertEqual(v_int_add[0], 6)
         # Currently returns FloatVector
-        # self.assertTrue("IntegerVector" in str(v_int_add))
+        # self.assertEqual(v_int_add.dtype, "int32")
         
         v_int_mul = v_int * 2
         self.assertEqual(v_int_mul[0], 2)
-        # self.assertTrue("IntegerVector" in str(v_int_mul))
+        # self.assertEqual(v_int_mul.dtype, "int32")
         
         d = v1.dot(v2)
         self.assertEqual(d, 32.0)
@@ -101,7 +101,7 @@ class TestVector(unittest.TestCase):
         v3 = v1 + v2
         self.assertEqual(v3[0], 1.5)
         # Result should be float vector
-        self.assertTrue("FloatVector" in str(v3))
+        self.assertEqual(v3.dtype, "float64")
 
     def test_persistence(self):
         v = pycauset.vector([1, 2, 3], dtype="int")
@@ -115,7 +115,7 @@ class TestVector(unittest.TestCase):
         self.assertEqual(v2[0], 1)
         self.assertEqual(v2[1], 2)
         self.assertEqual(v2[2], 3)
-        self.assertTrue("IntegerVector" in str(v2))
+        self.assertEqual(v2.dtype, "int32")
         v2.close()
 
 if __name__ == '__main__':

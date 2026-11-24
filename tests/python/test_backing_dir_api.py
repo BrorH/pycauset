@@ -32,7 +32,7 @@ class TestBackingDirAPI(unittest.TestCase):
                 root2 = Path(d2).resolve()
 
                 pycauset.set_backing_dir(root1)
-                m1 = pycauset.TriangularBitMatrix(64)
+                m1 = pycauset.TriangularMatrix(64, dtype="bool")
                 try:
                     bf1 = m1.get_backing_file()
                     self.assertNotEqual(bf1, ":memory:")
@@ -43,7 +43,7 @@ class TestBackingDirAPI(unittest.TestCase):
                     m1.close()
 
                 pycauset.set_backing_dir(root2)
-                m2 = pycauset.TriangularBitMatrix(64)
+                m2 = pycauset.TriangularMatrix(64, dtype="bool")
                 try:
                     bf2 = m2.get_backing_file()
                     self.assertNotEqual(bf2, ":memory:")

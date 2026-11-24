@@ -68,7 +68,7 @@ def test_binary_matrix_op(op, da, db, request):
                       "complex_float64": "complex128", "bit": "bool"}.get(native, native)
 
     result = fn(pc.matrix(a), pc.matrix(b))
-    assert type(result).__name__ != "MatrixBase", "unregistered result class (F-032)"
+    assert type(result).__name__ != "MatrixBase", "result without a structure class (F-032)"
     got = to_np(result)
     assert str(got.dtype) == expected_dtype, f"result dtype {got.dtype}, resolver promised {expected_dtype}"
 

@@ -54,18 +54,18 @@ class TestInteropExtensive(unittest.TestCase):
         # Float64 -> FloatMatrix
         arr_f64 = np.eye(3, dtype=np.float64)
         m_f64 = pycauset.matrix(arr_f64)
-        self.assertIsInstance(m_f64, pycauset.FloatMatrix)
+        self.assertTrue(isinstance(m_f64, pycauset.DenseMatrix) and m_f64.dtype == "float64")
         
         # Int32 -> IntegerMatrix
         arr_i32 = np.eye(3, dtype=np.int32)
         m_i32 = pycauset.matrix(arr_i32)
-        self.assertIsInstance(m_i32, pycauset.IntegerMatrix)
+        self.assertTrue(isinstance(m_i32, pycauset.DenseMatrix) and m_i32.dtype == "int32")
         
         # Bool -> DenseBitMatrix (or TriangularBitMatrix if triangular)
         arr_bool = np.eye(3, dtype=bool)
         m_bool = pycauset.matrix(arr_bool)
         # Could be DenseBitMatrix or TriangularBitMatrix depending on implementation preference
-        self.assertTrue("BitMatrix" in str(type(m_bool)))
+        self.assertTrue(isinstance(m_bool, pycauset.DenseMatrix) and m_bool.dtype == "bool")
 
     def test_round_trip(self):
         """Test NumPy -> PyCauset -> NumPy round trip."""

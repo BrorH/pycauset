@@ -5,7 +5,7 @@ import pycauset
 
 class TestPropertiesEffectSummaryMutations(unittest.TestCase):
     def test_set_off_diagonal_clears_diagonal_claim(self):
-        m = pycauset.FloatMatrix(3)
+        m = pycauset.DenseMatrix(3, dtype="float64")
         try:
             m.properties = {"is_diagonal": True}
             m.set(0, 1, 1.0)
@@ -14,7 +14,7 @@ class TestPropertiesEffectSummaryMutations(unittest.TestCase):
             m.close()
 
     def test_set_below_diagonal_clears_upper_triangular_claim(self):
-        m = pycauset.FloatMatrix(3)
+        m = pycauset.DenseMatrix(3, dtype="float64")
         try:
             m.properties = {"is_upper_triangular": True}
             m.set(2, 0, 1.0)  # below diagonal
@@ -23,7 +23,7 @@ class TestPropertiesEffectSummaryMutations(unittest.TestCase):
             m.close()
 
     def test_set_identity_sets_identity_properties(self):
-        m = pycauset.FloatMatrix(3)
+        m = pycauset.DenseMatrix(3, dtype="float64")
         try:
             m.properties = {}
             m.set_identity()

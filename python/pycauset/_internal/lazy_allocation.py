@@ -27,8 +27,7 @@ from typing import Any, Callable
 
 
 def _is_bit_matrix(obj: Any) -> bool:
-    name = type(obj).__name__
-    return name == "DenseBitMatrix" or name == "TriangularBitMatrix"
+    return getattr(obj, "dtype", None) == "bool"
 
 
 class LazyAllocated:

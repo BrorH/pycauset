@@ -14,13 +14,13 @@
 
 namespace pycauset {
 
-class ComplexFloat16Matrix : public MatrixBase {
+class ComplexFloat16Matrix : public DenseMatrixBase {
 public:
     ComplexFloat16Matrix(uint64_t n, const std::string& backing_file = "")
         : ComplexFloat16Matrix(n, n, backing_file) {}
 
     ComplexFloat16Matrix(uint64_t rows, uint64_t cols, const std::string& backing_file = "")
-        : MatrixBase(rows, cols, pycauset::Structure::DENSE, pycauset::DataType::COMPLEX_FLOAT16) {
+        : DenseMatrixBase(rows, cols, pycauset::Structure::DENSE, pycauset::DataType::COMPLEX_FLOAT16) {
         const uint64_t plane_elems = rows * cols;
         const uint64_t size_in_bytes = 2ULL * plane_elems * sizeof(pycauset::float16_t);
         initialize_storage(
@@ -49,7 +49,7 @@ public:
                          uint64_t seed,
                          std::complex<double> scalar,
                          bool is_transposed)
-        : MatrixBase(rows, cols, pycauset::Structure::DENSE, pycauset::DataType::COMPLEX_FLOAT16) {
+        : DenseMatrixBase(rows, cols, pycauset::Structure::DENSE, pycauset::DataType::COMPLEX_FLOAT16) {
         const uint64_t plane_elems = rows * cols;
         const uint64_t size_in_bytes = 2ULL * plane_elems * sizeof(pycauset::float16_t);
         initialize_storage(
@@ -73,7 +73,7 @@ public:
         : ComplexFloat16Matrix(n, n, std::move(mapper)) {}
 
     ComplexFloat16Matrix(uint64_t rows, uint64_t cols, std::shared_ptr<MemoryMapper> mapper)
-        : MatrixBase(rows, cols, std::move(mapper), pycauset::Structure::DENSE, pycauset::DataType::COMPLEX_FLOAT16) {}
+        : DenseMatrixBase(rows, cols, std::move(mapper), pycauset::Structure::DENSE, pycauset::DataType::COMPLEX_FLOAT16) {}
 
     ~ComplexFloat16Matrix() override = default;
 

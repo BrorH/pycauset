@@ -72,8 +72,8 @@ class TempStorageLifecycleTests(unittest.TestCase):
             pycauset.set_io_streaming_threshold(16)
             pycauset.clear_io_traces()
 
-            a = pycauset.TriangularBitMatrix(8)
-            b = pycauset.TriangularBitMatrix(8)
+            a = pycauset.TriangularMatrix(8, dtype="bool")
+            b = pycauset.TriangularMatrix(8, dtype="bool")
             out = pycauset.matmul(a, b)
 
             trace = pycauset.last_io_trace("matmul")

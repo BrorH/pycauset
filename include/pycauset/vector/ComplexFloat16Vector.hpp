@@ -13,17 +13,17 @@
 
 namespace pycauset {
 
-class ComplexFloat16Vector : public VectorBase {
+class ComplexFloat16Vector : public DenseVectorBase {
 public:
     ComplexFloat16Vector(uint64_t n, const std::string& backing_file = "")
-        : VectorBase(n) {
+        : DenseVectorBase(n) {
         const uint64_t size_in_bytes = 2ULL * n * sizeof(pycauset::float16_t);
         initialize_storage(
             size_in_bytes,
             backing_file,
             std::string("vector_complex_float16"),
             sizeof(pycauset::float16_t),
-            pycauset::Structure::DENSE,
+            pycauset::Structure::VECTOR,
             pycauset::DataType::COMPLEX_FLOAT16,
             n,
             1);
@@ -35,14 +35,14 @@ public:
                          uint64_t seed,
                          std::complex<double> scalar,
                          bool is_transposed)
-        : VectorBase(n) {
+        : DenseVectorBase(n) {
         const uint64_t size_in_bytes = 2ULL * n * sizeof(pycauset::float16_t);
         initialize_storage(
             size_in_bytes,
             backing_file,
             "",
             sizeof(pycauset::float16_t),
-            pycauset::Structure::DENSE,
+            pycauset::Structure::VECTOR,
             pycauset::DataType::COMPLEX_FLOAT16,
             n,
             1,
@@ -55,7 +55,7 @@ public:
     }
 
     ComplexFloat16Vector(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-        : VectorBase(n, std::move(mapper), pycauset::Structure::DENSE, pycauset::DataType::COMPLEX_FLOAT16) {}
+        : DenseVectorBase(n, std::move(mapper), pycauset::Structure::VECTOR, pycauset::DataType::COMPLEX_FLOAT16) {}
 
     ~ComplexFloat16Vector() override = default;
 

@@ -39,6 +39,18 @@ _METADATA_BLOCK_MAGIC = b"PCMB"
 _METADATA_BLOCK_VERSION = 1
 _METADATA_ENCODING_VERSION = 1
 
+# On-disk payload layout per structure (metadata "payload_layout.kind").
+_PAYLOAD_LAYOUT = {
+    "dense": "raw_dense",
+    "vector": "raw_dense",
+    "unit_vector": "raw_dense",
+    "identity": "raw_dense",
+    "triangular": "raw_triangular",
+    "symmetric": "raw_triangular",
+    "antisymmetric": "raw_triangular",
+    "diagonal": "raw_diagonal",
+}
+
 _CACHED_DERIVED_PROPERTY_KEYS = {"trace", "determinant", "norm", "sum", "eigenvalues"}
 
 
@@ -624,47 +636,6 @@ class PersistenceDeps(Protocol):
     # Types
     CausalSet: type
 
-    TriangularBitMatrix: type | None
-    DenseBitMatrix: type | None
-    FloatMatrix: type | None
-    Float16Matrix: type | None
-    Float32Matrix: type | None
-    ComplexFloat16Matrix: type | None
-    ComplexFloat32Matrix: type | None
-    ComplexFloat64Matrix: type | None
-    IntegerMatrix: type | None
-    Int8Matrix: type | None
-    Int16Matrix: type | None
-    Int64Matrix: type | None
-    UInt8Matrix: type | None
-    UInt16Matrix: type | None
-    UInt32Matrix: type | None
-    UInt64Matrix: type | None
-    TriangularFloatMatrix: type | None
-    TriangularIntegerMatrix: type | None
-    DiagonalMatrix: type | None
-    SymmetricMatrix: type | None
-    AntiSymmetricMatrix: type | None
-
-    FloatVector: type | None
-    Float16Vector: type | None
-    Float32Vector: type | None
-    ComplexFloat16Vector: type | None
-    ComplexFloat32Vector: type | None
-    ComplexFloat64Vector: type | None
-    Int8Vector: type | None
-    IntegerVector: type | None
-    Int16Vector: type | None
-    Int64Vector: type | None
-    UInt8Vector: type | None
-    UInt16Vector: type | None
-    UInt32Vector: type | None
-    UInt64Vector: type | None
-    BitVector: type | None
-    UnitVector: type | None
-
-    IdentityMatrix: type | None
-
     # Native module
     native: Any
 
@@ -765,161 +736,11 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             meta["spacetime"] = {"type": st_type, "args": st_args}
             meta["seed"] = int(getattr(causet_obj, "_seed", meta["seed"]))
 
-        # Determine matrix_type and data_type based on class
-        if deps.TriangularBitMatrix is not None and isinstance(payload_obj, deps.TriangularBitMatrix):
-            meta["matrix_type"] = "CAUSAL"
-            meta["data_type"] = "BIT"
-            meta["payload_layout"]["kind"] = "raw_triangular"
-        elif deps.DenseBitMatrix is not None and isinstance(payload_obj, deps.DenseBitMatrix):
-            meta["matrix_type"] = "DENSE_FLOAT"
-            meta["data_type"] = "BIT"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.Float16Matrix is not None and isinstance(payload_obj, deps.Float16Matrix):
-            meta["matrix_type"] = "DENSE_FLOAT"
-            meta["data_type"] = "FLOAT16"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.Float32Matrix is not None and isinstance(payload_obj, deps.Float32Matrix):
-            meta["matrix_type"] = "DENSE_FLOAT"
-            meta["data_type"] = "FLOAT32"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.FloatMatrix is not None and isinstance(payload_obj, deps.FloatMatrix):
-            meta["matrix_type"] = "DENSE_FLOAT"
-            meta["data_type"] = "FLOAT64"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.ComplexFloat16Matrix is not None and isinstance(payload_obj, deps.ComplexFloat16Matrix):
-            meta["matrix_type"] = "DENSE_FLOAT"
-            meta["data_type"] = "COMPLEX_FLOAT16"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.ComplexFloat32Matrix is not None and isinstance(payload_obj, deps.ComplexFloat32Matrix):
-            meta["matrix_type"] = "DENSE_FLOAT"
-            meta["data_type"] = "COMPLEX_FLOAT32"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.ComplexFloat64Matrix is not None and isinstance(payload_obj, deps.ComplexFloat64Matrix):
-            meta["matrix_type"] = "DENSE_FLOAT"
-            meta["data_type"] = "COMPLEX_FLOAT64"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.Int8Matrix is not None and isinstance(payload_obj, deps.Int8Matrix):
-            meta["matrix_type"] = "INTEGER"
-            meta["data_type"] = "INT8"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.IntegerMatrix is not None and isinstance(payload_obj, deps.IntegerMatrix):
-            meta["matrix_type"] = "INTEGER"
-            meta["data_type"] = "INT32"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.Int16Matrix is not None and isinstance(payload_obj, deps.Int16Matrix):
-            meta["matrix_type"] = "INTEGER"
-            meta["data_type"] = "INT16"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.Int64Matrix is not None and isinstance(payload_obj, deps.Int64Matrix):
-            meta["matrix_type"] = "INTEGER"
-            meta["data_type"] = "INT64"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.UInt8Matrix is not None and isinstance(payload_obj, deps.UInt8Matrix):
-            meta["matrix_type"] = "INTEGER"
-            meta["data_type"] = "UINT8"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.UInt16Matrix is not None and isinstance(payload_obj, deps.UInt16Matrix):
-            meta["matrix_type"] = "INTEGER"
-            meta["data_type"] = "UINT16"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.UInt32Matrix is not None and isinstance(payload_obj, deps.UInt32Matrix):
-            meta["matrix_type"] = "INTEGER"
-            meta["data_type"] = "UINT32"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.UInt64Matrix is not None and isinstance(payload_obj, deps.UInt64Matrix):
-            meta["matrix_type"] = "INTEGER"
-            meta["data_type"] = "UINT64"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.TriangularFloatMatrix is not None and isinstance(payload_obj, deps.TriangularFloatMatrix):
-            meta["matrix_type"] = "TRIANGULAR_FLOAT"
-            meta["data_type"] = "FLOAT64"
-            meta["payload_layout"]["kind"] = "raw_triangular"
-        elif deps.TriangularIntegerMatrix is not None and isinstance(payload_obj, deps.TriangularIntegerMatrix):
-            meta["matrix_type"] = "TRIANGULAR_INTEGER"
-            meta["data_type"] = "INT32"
-            meta["payload_layout"]["kind"] = "raw_triangular"
-        elif deps.DiagonalMatrix is not None and isinstance(payload_obj, deps.DiagonalMatrix):
-            meta["matrix_type"] = "DIAGONAL"
-            meta["data_type"] = "FLOAT64"
-            meta["payload_layout"]["kind"] = "raw_diagonal"
-        elif deps.AntiSymmetricMatrix is not None and isinstance(payload_obj, deps.AntiSymmetricMatrix):
-            # AntiSymmetricMatrix derives from SymmetricMatrix in the native
-            # hierarchy, so it must be matched first.
-            meta["matrix_type"] = "ANTISYMMETRIC"
-            meta["data_type"] = "FLOAT64"
-            meta["payload_layout"]["kind"] = "raw_triangular"
-        elif deps.SymmetricMatrix is not None and isinstance(payload_obj, deps.SymmetricMatrix):
-            meta["matrix_type"] = "SYMMETRIC"
-            meta["data_type"] = "FLOAT64"
-            meta["payload_layout"]["kind"] = "raw_triangular"
-        elif deps.FloatVector is not None and isinstance(payload_obj, deps.FloatVector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "FLOAT64"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.Float32Vector is not None and isinstance(payload_obj, deps.Float32Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "FLOAT32"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.Float16Vector is not None and isinstance(payload_obj, deps.Float16Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "FLOAT16"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.ComplexFloat16Vector is not None and isinstance(payload_obj, deps.ComplexFloat16Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "COMPLEX_FLOAT16"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.ComplexFloat32Vector is not None and isinstance(payload_obj, deps.ComplexFloat32Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "COMPLEX_FLOAT32"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.ComplexFloat64Vector is not None and isinstance(payload_obj, deps.ComplexFloat64Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "COMPLEX_FLOAT64"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.Int8Vector is not None and isinstance(payload_obj, deps.Int8Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "INT8"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.IntegerVector is not None and isinstance(payload_obj, deps.IntegerVector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "INT32"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.Int16Vector is not None and isinstance(payload_obj, deps.Int16Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "INT16"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.Int64Vector is not None and isinstance(payload_obj, deps.Int64Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "INT64"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.UInt8Vector is not None and isinstance(payload_obj, deps.UInt8Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "UINT8"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.UInt16Vector is not None and isinstance(payload_obj, deps.UInt16Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "UINT16"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.UInt32Vector is not None and isinstance(payload_obj, deps.UInt32Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "UINT32"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.UInt64Vector is not None and isinstance(payload_obj, deps.UInt64Vector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "UINT64"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.BitVector is not None and isinstance(payload_obj, deps.BitVector):
-            meta["matrix_type"] = "VECTOR"
-            meta["data_type"] = "BIT"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.UnitVector is not None and isinstance(payload_obj, deps.UnitVector):
-            meta["matrix_type"] = "UNIT_VECTOR"
-            meta["data_type"] = "FLOAT64"
-            meta["payload_layout"]["kind"] = "raw_dense"
-        elif deps.IdentityMatrix is not None and isinstance(payload_obj, deps.IdentityMatrix):
-            meta["matrix_type"] = "IDENTITY"
-            meta["data_type"] = "FLOAT64"
-            meta["payload_layout"]["kind"] = "raw_dense"
+        # Structure and dtype come straight from the object (one class per structure).
+        structure = deps.native._structure_of(payload_obj)
+        meta["structure"] = structure
+        meta["dtype"] = str(payload_obj.dtype)
+        meta["payload_layout"]["kind"] = _PAYLOAD_LAYOUT[structure]
 
         # Persist gospel properties (excluding cached-derived keys).
         props_all = _extract_properties_for_persistence(payload_obj)
@@ -1061,7 +882,6 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
     metadata, data_offset = _read_new_container_metadata_and_offset(path)
 
     matrix_type = metadata.get("matrix_type")
-    data_type = metadata.get("data_type")
 
     if matrix_type == "BLOCK":
         try:
@@ -1103,99 +923,17 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
     # Swap for transposed views, otherwise A.T loaded back as A (F-037).
     storage_rows, storage_cols = (cols, rows) if is_transposed else (rows, cols)
 
-    def _require_square_dims_for_type(type_name: str) -> None:
-        if rows != cols:
-            raise ValueError(f"{type_name} requires rows == cols (got rows={rows}, cols={cols})")
-
-    obj = None
-    if matrix_type == "CAUSAL" and deps.TriangularBitMatrix is not None:
-        _require_square_dims_for_type("CAUSAL")
-        obj = deps.TriangularBitMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "IDENTITY" and deps.IdentityMatrix is not None:
-        obj = deps.IdentityMatrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "DENSE_FLOAT":
-        if data_type == "BIT" and deps.DenseBitMatrix is not None:
-            obj = deps.DenseBitMatrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "FLOAT16" and deps.Float16Matrix is not None:
-            obj = deps.Float16Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "FLOAT32" and deps.Float32Matrix is not None:
-            obj = deps.Float32Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "FLOAT64" and deps.FloatMatrix is not None:
-            obj = deps.FloatMatrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "COMPLEX_FLOAT16" and deps.ComplexFloat16Matrix is not None:
-            obj = deps.ComplexFloat16Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "COMPLEX_FLOAT32" and deps.ComplexFloat32Matrix is not None:
-            obj = deps.ComplexFloat32Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "COMPLEX_FLOAT64" and deps.ComplexFloat64Matrix is not None:
-            obj = deps.ComplexFloat64Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "INTEGER":
-        if data_type == "INT8" and deps.Int8Matrix is not None:
-            obj = deps.Int8Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "INT16" and deps.Int16Matrix is not None:
-            obj = deps.Int16Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "INT32" and deps.IntegerMatrix is not None:
-            obj = deps.IntegerMatrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "INT64" and deps.Int64Matrix is not None:
-            obj = deps.Int64Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "UINT8" and deps.UInt8Matrix is not None:
-            obj = deps.UInt8Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "UINT16" and deps.UInt16Matrix is not None:
-            obj = deps.UInt16Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "UINT32" and deps.UInt32Matrix is not None:
-            obj = deps.UInt32Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "UINT64" and deps.UInt64Matrix is not None:
-            obj = deps.UInt64Matrix._from_storage(storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "TRIANGULAR_FLOAT" and deps.TriangularFloatMatrix is not None:
-        _require_square_dims_for_type("TRIANGULAR_FLOAT")
-        obj = deps.TriangularFloatMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "TRIANGULAR_INTEGER" and deps.TriangularIntegerMatrix is not None:
-        _require_square_dims_for_type("TRIANGULAR_INTEGER")
-        obj = deps.TriangularIntegerMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "DIAGONAL" and deps.DiagonalMatrix is not None:
-        _require_square_dims_for_type("DIAGONAL")
-        obj = deps.DiagonalMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "SYMMETRIC" and deps.SymmetricMatrix is not None:
-        _require_square_dims_for_type("SYMMETRIC")
-        obj = deps.SymmetricMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "ANTISYMMETRIC" and deps.AntiSymmetricMatrix is not None:
-        _require_square_dims_for_type("ANTISYMMETRIC")
-        obj = deps.AntiSymmetricMatrix._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "VECTOR":
-        if data_type == "FLOAT64" and deps.FloatVector is not None:
-            obj = deps.FloatVector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "FLOAT32" and deps.Float32Vector is not None:
-            obj = deps.Float32Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "FLOAT16" and deps.Float16Vector is not None:
-            obj = deps.Float16Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "COMPLEX_FLOAT16" and deps.ComplexFloat16Vector is not None:
-            obj = deps.ComplexFloat16Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "COMPLEX_FLOAT32" and deps.ComplexFloat32Vector is not None:
-            obj = deps.ComplexFloat32Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "COMPLEX_FLOAT64" and deps.ComplexFloat64Vector is not None:
-            obj = deps.ComplexFloat64Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "INT8" and deps.Int8Vector is not None:
-            obj = deps.Int8Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "INT32" and deps.IntegerVector is not None:
-            obj = deps.IntegerVector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "INT16" and deps.Int16Vector is not None:
-            obj = deps.Int16Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "INT64" and deps.Int64Vector is not None:
-            obj = deps.Int64Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "UINT8" and deps.UInt8Vector is not None:
-            obj = deps.UInt8Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "UINT16" and deps.UInt16Vector is not None:
-            obj = deps.UInt16Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "UINT32" and deps.UInt32Vector is not None:
-            obj = deps.UInt32Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "UINT64" and deps.UInt64Vector is not None:
-            obj = deps.UInt64Vector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-        elif data_type == "BIT" and deps.BitVector is not None:
-            obj = deps.BitVector._from_storage(rows, str(path), data_offset, seed, scalar, is_transposed)
-    elif matrix_type == "UNIT_VECTOR" and deps.UnitVector is not None:
-        obj = deps.UnitVector._from_storage(rows, seed, str(path), data_offset, seed, scalar, is_transposed)
-
-    if obj is None:
-        raise ValueError(f"Unknown matrix type: {matrix_type}")
+    structure = metadata.get("structure")
+    dtype = metadata.get("dtype")
+    if structure not in _PAYLOAD_LAYOUT or not isinstance(dtype, str):
+        raise ValueError(f"invalid file: unknown structure/dtype {structure!r}/{dtype!r}")
+    if structure in ("vector", "unit_vector"):
+        storage_rows, storage_cols = rows, 1
+    elif structure not in ("dense", "identity") and rows != cols:
+        raise ValueError(f"{structure} matrix requires rows == cols (got rows={rows}, cols={cols})")
+    obj = deps.native._open_storage(
+        structure, dtype, storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed
+    )
 
     if is_transposed and hasattr(obj, "set_transposed"):
         try:
@@ -1331,39 +1069,10 @@ def _save_blockmatrix(
 
 
     def _numpy_dtype_hint_for(obj: Any) -> Any | None:
-        name = type(obj).__name__
-        if name == "Float16Matrix":
-            return "float16"
-        if name == "Float32Matrix":
-            return "float32"
-        if name == "FloatMatrix" or name.endswith("FloatMatrix"):
-            return "float64"
-        if name == "ComplexFloat16Matrix":
-            # NumPy has no complex16; fall back to complex64.
-            return "complex64"
-        if name == "ComplexFloat32Matrix":
-            return "complex64"
-        if name == "ComplexFloat64Matrix":
-            return "complex128"
-        if name == "Int8Matrix":
-            return "int8"
-        if name == "Int16Matrix":
-            return "int16"
-        if name == "IntegerMatrix":
-            return "int32"
-        if name == "Int64Matrix":
-            return "int64"
-        if name == "UInt8Matrix":
-            return "uint8"
-        if name == "UInt16Matrix":
-            return "uint16"
-        if name == "UInt32Matrix":
-            return "uint32"
-        if name == "UInt64Matrix":
-            return "uint64"
-        if name == "DenseBitMatrix":
-            return "bool"
-        return None
+        dt = getattr(obj, "dtype", None)
+        # NumPy has no complex16; complex_float16 blocks materialize as complex64.
+        return {"complex_float16": "complex64", "complex_float32": "complex64",
+                "complex_float64": "complex128"}.get(dt, dt)
 
     def _materialize_view_block(view_obj: Any) -> Any:
         # Materialize to a small numpy array (block-local) and convert to a native matrix.

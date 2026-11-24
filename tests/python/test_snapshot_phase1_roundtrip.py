@@ -9,49 +9,48 @@ from pycauset._internal import persistence as _persistence
 
 
 MATRIX_CASES = [
-    ("FloatMatrix", np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float64)),
-    ("Float32Matrix", np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float32)),
-    ("Float16Matrix", np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float16)),
-    ("IntegerMatrix", np.array([[1, 2], [3, 4]], dtype=np.int32)),
-    ("Int8Matrix", np.array([[1, -2], [3, -4]], dtype=np.int8)),
-    ("Int16Matrix", np.array([[1, -2], [3, -4]], dtype=np.int16)),
-    ("Int64Matrix", np.array([[1, -2], [3, -4]], dtype=np.int64)),
-    ("UInt8Matrix", np.array([[1, 2], [3, 4]], dtype=np.uint8)),
-    ("UInt16Matrix", np.array([[1, 2], [3, 4]], dtype=np.uint16)),
-    ("UInt32Matrix", np.array([[1, 2], [3, 4]], dtype=np.uint32)),
-    ("UInt64Matrix", np.array([[1, 2], [3, 4]], dtype=np.uint64)),
-    ("ComplexFloat32Matrix", np.array([[1 + 2j, 3 - 4j], [5 + 0j, -6 + 1j]], dtype=np.complex64)),
-    ("ComplexFloat64Matrix", np.array([[1 + 2j, 3 - 4j], [5 + 0j, -6 + 1j]], dtype=np.complex128)),
-    ("DenseBitMatrix", np.array([[True, False], [False, True]], dtype=bool)),
+    ("float64", np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float64)),
+    ("float32", np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float32)),
+    ("float16", np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float16)),
+    ("int32", np.array([[1, 2], [3, 4]], dtype=np.int32)),
+    ("int8", np.array([[1, -2], [3, -4]], dtype=np.int8)),
+    ("int16", np.array([[1, -2], [3, -4]], dtype=np.int16)),
+    ("int64", np.array([[1, -2], [3, -4]], dtype=np.int64)),
+    ("uint8", np.array([[1, 2], [3, 4]], dtype=np.uint8)),
+    ("uint16", np.array([[1, 2], [3, 4]], dtype=np.uint16)),
+    ("uint32", np.array([[1, 2], [3, 4]], dtype=np.uint32)),
+    ("uint64", np.array([[1, 2], [3, 4]], dtype=np.uint64)),
+    ("complex_float32", np.array([[1 + 2j, 3 - 4j], [5 + 0j, -6 + 1j]], dtype=np.complex64)),
+    ("complex_float64", np.array([[1 + 2j, 3 - 4j], [5 + 0j, -6 + 1j]], dtype=np.complex128)),
+    ("bool", np.array([[True, False], [False, True]], dtype=bool)),
 ]
 
 
 VECTOR_CASES = [
-    ("FloatVector", np.array([1.5, 2.5, 3.5, 4.5], dtype=np.float64)),
-    ("Float32Vector", np.array([1.5, 2.5, 3.5, 4.5], dtype=np.float32)),
-    ("Float16Vector", np.array([1.5, 2.5, 3.5, 4.5], dtype=np.float16)),
-    ("IntegerVector", np.array([1, 2, 3, 4], dtype=np.int32)),
-    ("Int8Vector", np.array([1, -2, 3, -4], dtype=np.int8)),
-    ("Int16Vector", np.array([1, -2, 3, -4], dtype=np.int16)),
-    ("Int64Vector", np.array([1, -2, 3, -4], dtype=np.int64)),
-    ("UInt8Vector", np.array([1, 2, 3, 4], dtype=np.uint8)),
-    ("UInt16Vector", np.array([1, 2, 3, 4], dtype=np.uint16)),
-    ("UInt32Vector", np.array([1, 2, 3, 4], dtype=np.uint32)),
-    ("UInt64Vector", np.array([1, 2, 3, 4], dtype=np.uint64)),
-    ("ComplexFloat32Vector", np.array([1 + 2j, 3 - 4j, 5 + 0j, -6 + 1j], dtype=np.complex64)),
-    ("ComplexFloat64Vector", np.array([1 + 2j, 3 - 4j, 5 + 0j, -6 + 1j], dtype=np.complex128)),
-    ("BitVector", np.array([True, False, True, False], dtype=bool)),
+    ("float64", np.array([1.5, 2.5, 3.5, 4.5], dtype=np.float64)),
+    ("float32", np.array([1.5, 2.5, 3.5, 4.5], dtype=np.float32)),
+    ("float16", np.array([1.5, 2.5, 3.5, 4.5], dtype=np.float16)),
+    ("int32", np.array([1, 2, 3, 4], dtype=np.int32)),
+    ("int8", np.array([1, -2, 3, -4], dtype=np.int8)),
+    ("int16", np.array([1, -2, 3, -4], dtype=np.int16)),
+    ("int64", np.array([1, -2, 3, -4], dtype=np.int64)),
+    ("uint8", np.array([1, 2, 3, 4], dtype=np.uint8)),
+    ("uint16", np.array([1, 2, 3, 4], dtype=np.uint16)),
+    ("uint32", np.array([1, 2, 3, 4], dtype=np.uint32)),
+    ("uint64", np.array([1, 2, 3, 4], dtype=np.uint64)),
+    ("complex_float32", np.array([1 + 2j, 3 - 4j, 5 + 0j, -6 + 1j], dtype=np.complex64)),
+    ("complex_float64", np.array([1 + 2j, 3 - 4j, 5 + 0j, -6 + 1j], dtype=np.complex128)),
+    ("bool", np.array([True, False, True, False], dtype=bool)),
 ]
 
 
 @pytest.mark.parametrize("class_name,data", MATRIX_CASES)
 def test_matrix_roundtrip_all_public_dtypes(tmp_path: Path, class_name: str, data: np.ndarray) -> None:
-    cls = getattr(pycauset, class_name, None)
-    if cls is None:
-        pytest.skip(f"{class_name} not available in native extension")
+    dtype = class_name
+    cls = pycauset.DenseMatrix
 
     rows, cols = data.shape
-    m = cls(rows, cols)
+    m = cls(rows, cols, dtype=dtype)
     for i in range(rows):
         for j in range(cols):
             m[i, j] = data[i, j]
@@ -61,7 +60,7 @@ def test_matrix_roundtrip_all_public_dtypes(tmp_path: Path, class_name: str, dat
         pycauset.save(m, path)
         loaded = pycauset.load(path)
         try:
-            assert isinstance(loaded, cls)
+            assert isinstance(loaded, cls) and loaded.dtype == dtype
             np.testing.assert_array_equal(np.array(loaded), data)
         finally:
             loaded.close()
@@ -71,12 +70,11 @@ def test_matrix_roundtrip_all_public_dtypes(tmp_path: Path, class_name: str, dat
 
 @pytest.mark.parametrize("class_name,data", VECTOR_CASES)
 def test_vector_roundtrip_all_public_dtypes(tmp_path: Path, class_name: str, data: np.ndarray) -> None:
-    cls = getattr(pycauset, class_name, None)
-    if cls is None:
-        pytest.skip(f"{class_name} not available in native extension")
+    dtype = class_name
+    cls = pycauset.DenseVector
 
     n = data.shape[0]
-    v = cls(n)
+    v = cls(n, dtype=dtype)
     for i in range(n):
         v[i] = data[i]
 
@@ -85,7 +83,7 @@ def test_vector_roundtrip_all_public_dtypes(tmp_path: Path, class_name: str, dat
         pycauset.save(v, path)
         loaded = pycauset.load(path)
         try:
-            assert isinstance(loaded, cls)
+            assert isinstance(loaded, cls) and loaded.dtype == dtype
             np.testing.assert_array_equal(np.array(loaded), data)
         finally:
             loaded.close()
@@ -94,7 +92,7 @@ def test_vector_roundtrip_all_public_dtypes(tmp_path: Path, class_name: str, dat
 
 
 def test_metadata_only_update_does_not_rewrite_payload(tmp_path: Path) -> None:
-    m = pycauset.FloatMatrix(3)
+    m = pycauset.DenseMatrix(3, dtype="float64")
     for i in range(3):
         for j in range(3):
             m[i, j] = float(i * 3 + j + 1)
@@ -128,7 +126,7 @@ def test_metadata_only_update_does_not_rewrite_payload(tmp_path: Path) -> None:
 
 
 def test_properties_and_cached_values_roundtrip(tmp_path: Path) -> None:
-    m = pycauset.FloatMatrix(2)
+    m = pycauset.DenseMatrix(2, dtype="float64")
     m[0, 0] = 1.0
     m[1, 1] = 2.0
 
@@ -167,7 +165,7 @@ def test_temp_backing_roundtrip_matches_snapshot(tmp_path: Path) -> None:
     pycauset.set_backing_dir(tmp_path)
     pycauset.set_memory_threshold(1)
 
-    m = pycauset.TriangularBitMatrix(8)
+    m = pycauset.TriangularMatrix(8, dtype="bool")
     m[0, 1] = 1
     m[2, 5] = 1
     path = tmp_path / "temp_roundtrip.pycauset"
@@ -194,7 +192,7 @@ def test_temp_backing_roundtrip_matches_snapshot(tmp_path: Path) -> None:
 
 
 def test_corrupt_metadata_fails_loudly(tmp_path: Path) -> None:
-    m = pycauset.FloatMatrix(2)
+    m = pycauset.DenseMatrix(2, dtype="float64")
     m[0, 0] = 1.0
     m[1, 1] = 2.0
     path = tmp_path / "corrupt.pycauset"

@@ -10,7 +10,7 @@ def test_ram_backed_small_object():
     
     # Create a small matrix (100x100 bits is very small)
     # 100*100 bits = 10000 bits = 1250 bytes << 1MB
-    m = pycauset.TriangularBitMatrix(100)
+    m = pycauset.TriangularMatrix(100, dtype="bool")
     
     # Check if it's temporary
     assert m.is_temporary
@@ -41,7 +41,7 @@ def test_disk_backed_large_object():
     pycauset.set_memory_threshold(1)
     
     # Create a matrix larger than 1 byte
-    m = pycauset.TriangularBitMatrix(100)
+    m = pycauset.TriangularMatrix(100, dtype="bool")
     
     print(f"Backing file: {m.get_backing_file()}")
     try:
@@ -54,7 +54,7 @@ def test_disk_backed_large_object():
 def test_save_ram_object():
     orig_threshold = pycauset.get_memory_threshold()
     pycauset.set_memory_threshold(1000000)
-    m = pycauset.TriangularBitMatrix(100)
+    m = pycauset.TriangularMatrix(100, dtype="bool")
     m.set(0, 1, True)
     
     save_path = "test_ram_save.pycauset"

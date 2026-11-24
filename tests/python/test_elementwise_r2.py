@@ -188,22 +188,22 @@ class TestElementwiseMixedType(unittest.TestCase):
     """Mixed-dtype elementwise ops must not crash and must promote correctly."""
 
     def test_float64_plus_int32(self):
-        f = pycauset.FloatMatrix(5)
-        i = pycauset.IntegerMatrix(5)
+        f = pycauset.DenseMatrix(5, dtype="float64")
+        i = pycauset.DenseMatrix(5, dtype="int32")
         f[0, 1], i[0, 1] = 2.5, 3
         res = f + i
         self.assertAlmostEqual(res[0, 1], 5.5)
 
     def test_float64_minus_int32(self):
-        f = pycauset.FloatMatrix(5)
-        i = pycauset.IntegerMatrix(5)
+        f = pycauset.DenseMatrix(5, dtype="float64")
+        i = pycauset.DenseMatrix(5, dtype="int32")
         f[0, 1], i[0, 1] = 2.5, 3
         res = f - i
         self.assertAlmostEqual(res[0, 1], -0.5)
 
     def test_float64_times_int32(self):
-        f = pycauset.FloatMatrix(5)
-        i = pycauset.IntegerMatrix(5)
+        f = pycauset.DenseMatrix(5, dtype="float64")
+        i = pycauset.DenseMatrix(5, dtype="int32")
         f[0, 1], i[0, 1] = 2.5, 4
         res = f * i
         self.assertAlmostEqual(res[0, 1], 10.0)
@@ -213,8 +213,8 @@ class TestElementwiseBoundary(unittest.TestCase):
     """Empty, 1x1, zero-division, and in-place edge cases."""
 
     def test_empty_no_crash(self):
-        a = pycauset.FloatMatrix(0)
-        b = pycauset.FloatMatrix(0)
+        a = pycauset.DenseMatrix(0, dtype="float64")
+        b = pycauset.DenseMatrix(0, dtype="float64")
         self.assertEqual((a + b).size(), 0)
         self.assertEqual((a * b).size(), 0)
 
@@ -233,9 +233,9 @@ class TestElementwiseBoundary(unittest.TestCase):
         np.testing.assert_array_equal(got, ref)
 
     def test_inplace_add_and_scalar_mul(self):
-        A = pycauset.FloatMatrix(4)
+        A = pycauset.DenseMatrix(4, dtype="float64")
         A[0, 1] = 10.0
-        B = pycauset.FloatMatrix(4)
+        B = pycauset.DenseMatrix(4, dtype="float64")
         B[0, 1] = 2.0
         A += B
         self.assertAlmostEqual(A[0, 1], 12.0)

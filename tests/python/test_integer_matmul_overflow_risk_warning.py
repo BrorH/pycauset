@@ -8,8 +8,8 @@ class TestIntegerMatmulOverflowRiskWarning(unittest.TestCase):
     def test_overflow_risk_preflight_warns(self):
         # Large enough to trigger the "large matmul" preflight path.
         n = 256
-        a = pycauset.IntegerMatrix(n)
-        b = pycauset.IntegerMatrix(n)
+        a = pycauset.DenseMatrix(n, dtype="int32")
+        b = pycauset.DenseMatrix(n, dtype="int32")
 
         # Pick values that do NOT overflow int32 for this sparse case,
         # but are large enough that the heuristic bound n*max|A|*max|B|

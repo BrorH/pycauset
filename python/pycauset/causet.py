@@ -1,6 +1,6 @@
 """CausalSet, the primary object of PyCauset.
 
-A `CausalSet` is a discrete partial order: a `TriangularBitMatrix` of causal
+A `CausalSet` is a discrete partial order: a bit (dtype "bool") `TriangularMatrix` of causal
 relations plus provenance (a `Spacetime` + seed, or an attached embedding). It also
 carries the R2 causal-structure methods (`links`, `past`/`future`, `interval`,
 chains/antichains, layering) and dimension estimators (Myrheim–Meyer), plus eager
@@ -88,7 +88,7 @@ def validate_causal_matrix(matrix, *, context: str = "causal matrix") -> None:
 
 
 def _sprinkle_python(spacetime, n: int, seed: int):
-    """Sample a Python `Spacetime` and build a `TriangularBitMatrix`.
+    """Sample a Python `Spacetime` and build its causal matrix (bit `TriangularMatrix`).
 
     Points are labelled by time (coordinate index 0) so the stored matrix is
     strictly upper-triangular, matching the causal-set storage convention. The
@@ -117,7 +117,7 @@ def _sprinkle_python(spacetime, n: int, seed: int):
     except NotImplementedError:
         batch = None
 
-    matrix = _native.TriangularBitMatrix(n)
+    matrix = _native.TriangularMatrix(n, dtype="bool")
     if batch is not None:
         batch = _np.asarray(batch, dtype=bool)
         if batch.shape != (n, n):
@@ -167,7 +167,7 @@ class CausalSet:
             spacetime (CausalSpacetime | Spacetime, optional): The spacetime to sprinkle into.
                 Defaults to 2D MinkowskiDiamond.
             seed (int | str, optional): Random seed. Defaults to random.
-            matrix (TriangularBitMatrix, optional): Pre-existing matrix. If provided, sprinkling is skipped.
+            matrix (TriangularMatrix of dtype "bool", optional): Pre-existing matrix. If provided, sprinkling is skipped.
             validate (bool): When True (default), a supplied `matrix` is validated as a
                 strict partial order (reflexive-free, antisymmetric, transitive).
         """
@@ -242,7 +242,7 @@ class CausalSet:
 
     @property
     def causal_matrix(self):
-        """The causal matrix (TriangularBitMatrix) representing the causal relations."""
+        """The causal matrix (bit TriangularMatrix) representing the causal relations."""
         return self._matrix
 
     @property

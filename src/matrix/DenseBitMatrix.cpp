@@ -29,7 +29,7 @@ DenseMatrix<bool>::DenseMatrix(uint64_t n, const std::string& backing_file)
     : DenseMatrix(n, n, backing_file) {}
 
 DenseMatrix<bool>::DenseMatrix(uint64_t rows, uint64_t cols, const std::string& backing_file)
-    : MatrixBase(rows, cols, pycauset::Structure::DENSE, pycauset::DataType::BIT) {
+    : DenseMatrixBase(rows, cols, pycauset::Structure::DENSE, pycauset::DataType::BIT) {
     calculate_stride();
     const uint64_t size_in_bytes = base_rows() * stride_bytes_;
 
@@ -58,7 +58,7 @@ DenseMatrix<bool>::DenseMatrix(uint64_t rows,
                                uint64_t seed,
                                std::complex<double> scalar,
                                bool is_transposed)
-    : MatrixBase(rows, cols, pycauset::Structure::DENSE, pycauset::DataType::BIT) {
+    : DenseMatrixBase(rows, cols, pycauset::Structure::DENSE, pycauset::DataType::BIT) {
     calculate_stride();
     const uint64_t size_in_bytes = base_rows() * stride_bytes_;
 
@@ -82,7 +82,7 @@ DenseMatrix<bool>::DenseMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
     : DenseMatrix(n, n, std::move(mapper)) {}
 
 DenseMatrix<bool>::DenseMatrix(uint64_t rows, uint64_t cols, std::shared_ptr<MemoryMapper> mapper)
-    : MatrixBase(rows, cols, std::move(mapper), pycauset::Structure::DENSE, pycauset::DataType::BIT) {
+    : DenseMatrixBase(rows, cols, std::move(mapper), pycauset::Structure::DENSE, pycauset::DataType::BIT) {
     calculate_stride();
 }
 

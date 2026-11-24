@@ -128,4 +128,26 @@ protected:
     uint64_t col_offset_ = 0;
 };
 
+// ---------------------------------------------------------------------------
+// Structure bases. One per user-visible structure; no data, no behaviour. They exist
+// so Python can expose ONE class per structure (DenseMatrix, DiagonalMatrix, ...) with
+// the dtype as an attribute: the polymorphic type hook in
+// src/bindings/bindings_common.hpp maps every concrete template instantiation to its
+// structure class. (review/RESTRUCTURE.md 3.1 item 4.)
+// ---------------------------------------------------------------------------
+class DenseMatrixBase : public MatrixBase {
+public:
+    using MatrixBase::MatrixBase;
+};
+
+class DiagonalMatrixBase : public MatrixBase {
+public:
+    using MatrixBase::MatrixBase;
+};
+
+class IdentityMatrixBase : public MatrixBase {
+public:
+    using MatrixBase::MatrixBase;
+};
+
 } // namespace pycauset

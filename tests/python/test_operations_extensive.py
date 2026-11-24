@@ -24,7 +24,7 @@ class TestOperationsExtensive(unittest.TestCase):
     def test_scalar_multiplication_edge_cases(self):
         """Test scalar multiplication with edge case values."""
         n = 10
-        m = pycauset.TriangularFloatMatrix(n)
+        m = pycauset.TriangularMatrix(n, dtype="float64")
         m[0, 1] = 5.5
         m[2, 3] = -2.0
         
@@ -50,8 +50,8 @@ class TestOperationsExtensive(unittest.TestCase):
     def test_mixed_type_arithmetic(self):
         """Test arithmetic between different matrix types."""
         n = 5
-        f_mat = pycauset.FloatMatrix(n)
-        i_mat = pycauset.IntegerMatrix(n)
+        f_mat = pycauset.DenseMatrix(n, dtype="float64")
+        i_mat = pycauset.DenseMatrix(n, dtype="int32")
         
         f_mat[0, 1] = 2.5
         i_mat[0, 1] = 3
@@ -60,7 +60,7 @@ class TestOperationsExtensive(unittest.TestCase):
         # Note: If not supported, this should raise TypeError or be handled
         try:
             res = f_mat + i_mat
-            self.assertIsInstance(res, pycauset.FloatMatrix)
+            self.assertTrue(isinstance(res, pycauset.DenseMatrix) and res.dtype == "float64")
             self.assertEqual(res[0, 1], 5.5)
         except TypeError:
             # If mixed arithmetic isn't implemented yet, document it
@@ -69,8 +69,8 @@ class TestOperationsExtensive(unittest.TestCase):
     def test_empty_matrix_operations(self):
         """Test operations on 0x0 matrices."""
         n = 0
-        m1 = pycauset.FloatMatrix(n)
-        m2 = pycauset.FloatMatrix(n)
+        m1 = pycauset.DenseMatrix(n, dtype="float64")
+        m2 = pycauset.DenseMatrix(n, dtype="float64")
         
         # Should not crash
         res_add = m1 + m2
@@ -82,9 +82,9 @@ class TestOperationsExtensive(unittest.TestCase):
     def test_chained_operations(self):
         """Test chained arithmetic operations."""
         n = 5
-        A = pycauset.FloatMatrix(n)
-        B = pycauset.FloatMatrix(n)
-        C = pycauset.FloatMatrix(n)
+        A = pycauset.DenseMatrix(n, dtype="float64")
+        B = pycauset.DenseMatrix(n, dtype="float64")
+        C = pycauset.DenseMatrix(n, dtype="float64")
         
         A[0, 1] = 1.0
         B[0, 1] = 2.0
@@ -103,7 +103,7 @@ class TestOperationsExtensive(unittest.TestCase):
     def test_inplace_operations(self):
         """Test in-place operators (if supported)."""
         n = 5
-        A = pycauset.FloatMatrix(n)
+        A = pycauset.DenseMatrix(n, dtype="float64")
         A[0, 1] = 10.0
         
         expected = 10.0
@@ -113,7 +113,7 @@ class TestOperationsExtensive(unittest.TestCase):
         expected += 5.0
         self.assertEqual(A[0, 1], expected)
             
-        B = pycauset.FloatMatrix(n)
+        B = pycauset.DenseMatrix(n, dtype="float64")
         B[0, 1] = 2.0
         
         # Matrix +=
@@ -127,7 +127,7 @@ class TestOperationsExtensive(unittest.TestCase):
     def test_scalar_addition(self):
         """Test scalar addition."""
         n = 5
-        A = pycauset.FloatMatrix(n)
+        A = pycauset.DenseMatrix(n, dtype="float64")
         A[0, 1] = 10.0
         
         # A + 5.0
@@ -145,7 +145,7 @@ class TestOperationsExtensive(unittest.TestCase):
         self.assertEqual(D[0, 1], 12.0)
         
         # BitMatrix + scalar
-        BM = pycauset.DenseBitMatrix(n)
+        BM = pycauset.DenseMatrix(n, dtype="bool")
         BM[0, 1] = 1
         E = BM + 1
         # 1 + 1 = 2
@@ -157,8 +157,8 @@ class TestOperationsExtensive(unittest.TestCase):
         """Test matrix multiplication (matmul) with compatible and incompatible shapes."""
         # Square matrices for now as pycauset seems to focus on square
         n = 4
-        A = pycauset.FloatMatrix(n)
-        B = pycauset.FloatMatrix(n)
+        A = pycauset.DenseMatrix(n, dtype="float64")
+        B = pycauset.DenseMatrix(n, dtype="float64")
         
         # Identity-like behavior check
         for i in range(n):
@@ -171,7 +171,7 @@ class TestOperationsExtensive(unittest.TestCase):
         self.assertEqual(C[0, 1], 5.0)
         
         # Incompatible sizes (if non-square supported, or just different n)
-        D = pycauset.FloatMatrix(n + 1)
+        D = pycauset.DenseMatrix(n + 1, dtype="float64")
         with self.assertRaises(ValueError):
             A @ D
 

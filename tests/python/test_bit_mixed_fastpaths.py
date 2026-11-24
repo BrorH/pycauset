@@ -14,8 +14,8 @@ class TestBitMixedFastPaths(unittest.TestCase):
 
     def test_bit_x_int32_matmul_uses_fastpath(self):
         n = 64
-        a = pycauset.DenseBitMatrix(n)
-        b = pycauset.IntegerMatrix(n)
+        a = pycauset.DenseMatrix(n, dtype="bool")
+        b = pycauset.DenseMatrix(n, dtype="int32")
 
         # A row0 selects rows 0 and 1 from B
         a.set(0, 0, 1)
@@ -38,12 +38,10 @@ class TestBitMixedFastPaths(unittest.TestCase):
         self.assertIn("cpu.matmul.bit_x_i32", trace)
 
     def test_bit_x_int16_matmul_uses_fastpath(self):
-        if getattr(pycauset, "Int16Matrix", None) is None:
-            self.skipTest("Int16Matrix is not available")
 
         n = 64
-        a = pycauset.DenseBitMatrix(n)
-        b = pycauset.Int16Matrix(n)
+        a = pycauset.DenseMatrix(n, dtype="bool")
+        b = pycauset.DenseMatrix(n, dtype="int16")
 
         # A row0 selects rows 0 and 1 from B
         a.set(0, 0, 1)
@@ -67,8 +65,8 @@ class TestBitMixedFastPaths(unittest.TestCase):
 
     def test_bit_x_float64_matmul_uses_fastpath(self):
         n = 64
-        a = pycauset.DenseBitMatrix(n)
-        b = pycauset.FloatMatrix(n)
+        a = pycauset.DenseMatrix(n, dtype="bool")
+        b = pycauset.DenseMatrix(n, dtype="float64")
 
         a.set(0, 0, 1)
         a.set(0, 1, 1)
@@ -87,8 +85,8 @@ class TestBitMixedFastPaths(unittest.TestCase):
         self.assertIn("cpu.matmul.bit_x_f64", trace)
 
     def test_bit_x_float64_matmul_rectangular_uses_fastpath(self):
-        a = pycauset.DenseBitMatrix(3, 4)
-        b = pycauset.FloatMatrix(4, 2)
+        a = pycauset.DenseMatrix(3, 4, dtype="bool")
+        b = pycauset.DenseMatrix(4, 2, dtype="float64")
 
         # A row0 selects rows 0 and 2 from B
         a.set(0, 0, 1)
@@ -113,8 +111,8 @@ class TestBitMixedFastPaths(unittest.TestCase):
 
     def test_bit_x_int32_matvec_uses_fastpath(self):
         n = 128
-        m = pycauset.DenseBitMatrix(n)
-        v = pycauset.IntegerVector(n)
+        m = pycauset.DenseMatrix(n, dtype="bool")
+        v = pycauset.DenseVector(n, dtype="int32")
 
         # Row0 selects indices 0, 1, 64
         m.set(0, 0, 1)
@@ -136,12 +134,10 @@ class TestBitMixedFastPaths(unittest.TestCase):
         self.assertIn("cpu.matvec.bit_x_i32", trace)
 
     def test_bit_x_int16_matvec_uses_fastpath(self):
-        if getattr(pycauset, "Int16Vector", None) is None:
-            self.skipTest("Int16Vector is not available")
 
         n = 128
-        m = pycauset.DenseBitMatrix(n)
-        v = pycauset.Int16Vector(n)
+        m = pycauset.DenseMatrix(n, dtype="bool")
+        v = pycauset.DenseVector(n, dtype="int16")
 
         # Row0 selects indices 0, 1, 64
         m.set(0, 0, 1)
@@ -164,8 +160,8 @@ class TestBitMixedFastPaths(unittest.TestCase):
 
     def test_bit_x_float64_matvec_uses_fastpath(self):
         n = 128
-        m = pycauset.DenseBitMatrix(n)
-        v = pycauset.FloatVector(n)
+        m = pycauset.DenseMatrix(n, dtype="bool")
+        v = pycauset.DenseVector(n, dtype="float64")
 
         m.set(0, 0, 1)
         m.set(0, 1, 1)

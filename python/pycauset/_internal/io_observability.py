@@ -127,11 +127,7 @@ def _dtype_label(obj: Any) -> str | None:
             return str(dtype_attr)
     except Exception:
         pass
-    try:
-        name = type(obj).__name__
-    except Exception:
-        return None
-    return name
+    return None
 
 
 def _shape(obj: Any) -> Tuple[int, int] | None:

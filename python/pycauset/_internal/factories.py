@@ -13,25 +13,11 @@ def vector_factory(
     *,
     dtype: Any,
     np_module: Any | None,
-    Float16Vector: Any | None,
-    Float32Vector: Any | None,
-    FloatVector: Any | None,
-    ComplexFloat16Vector: Any | None,
-    ComplexFloat32Vector: Any | None,
-    ComplexFloat64Vector: Any | None,
-    Int8Vector: Any | None,
-    Int64Vector: Any | None,
-    UInt8Vector: Any | None,
-    UInt16Vector: Any | None,
-    UInt32Vector: Any | None,
-    UInt64Vector: Any | None,
-    IntegerVector: Any | None,
-    Int16Vector: Any | None,
-    BitVector: Any | None,
+    native: Any,
     kwargs: dict[str, Any],
-    native: Any | None = None,
     max_in_ram_bytes: int | None = None,
 ) -> Any:
+    """Build a DenseVector from a size or 1-D data (dtype inferred when not given)."""
     dtype_norm = _normalize_dtype(dtype, np_module=np_module)
     ctor_kwargs: dict[str, Any] = dict(kwargs)
     limit = ctor_kwargs.pop("max_in_ram_bytes", max_in_ram_bytes)
@@ -40,66 +26,13 @@ def vector_factory(
     if isinstance(size_or_data, (int, float)) and (
         isinstance(size_or_data, int) or size_or_data.is_integer()
     ):
-        n = int(size_or_data)
-        if dtype_norm == "int8" and Int8Vector:
-            return Int8Vector(n, **ctor_kwargs)
-        if dtype_norm == "int16" and Int16Vector:
-            return Int16Vector(n, **ctor_kwargs)
-        if dtype_norm == "int32" and IntegerVector:
-            return IntegerVector(n, **ctor_kwargs)
-        if dtype_norm == "int64" and Int64Vector:
-            return Int64Vector(n, **ctor_kwargs)
-        if dtype_norm == "uint8" and UInt8Vector:
-            return UInt8Vector(n, **ctor_kwargs)
-        if dtype_norm == "uint16" and UInt16Vector:
-            return UInt16Vector(n, **ctor_kwargs)
-        if dtype_norm == "uint32" and UInt32Vector:
-            return UInt32Vector(n, **ctor_kwargs)
-        if dtype_norm == "uint64" and UInt64Vector:
-            return UInt64Vector(n, **ctor_kwargs)
-        if dtype_norm == "bool" and BitVector:
-            return BitVector(n, **ctor_kwargs)
-        if dtype_norm == "float16" and Float16Vector:
-            return Float16Vector(n, **ctor_kwargs)
-        if dtype_norm == "float32" and Float32Vector:
-            return Float32Vector(n, **ctor_kwargs)
-        if dtype_norm == "float64" and FloatVector:
-            return FloatVector(n, **ctor_kwargs)
-        if dtype_norm == "complex_float16" and ComplexFloat16Vector:
-            return ComplexFloat16Vector(n, **ctor_kwargs)
-        if dtype_norm == "complex_float32" and ComplexFloat32Vector:
-            return ComplexFloat32Vector(n, **ctor_kwargs)
-        if dtype_norm == "complex_float64" and ComplexFloat64Vector:
-            return ComplexFloat64Vector(n, **ctor_kwargs)
-        raise ImportError("Vector classes not available in native extension.")
+        return native.DenseVector(int(size_or_data), dtype=dtype_norm or "float64", **ctor_kwargs)
 
     data: Any = size_or_data
 
-    # 2) Normalize NumPy
+    # 2) NumPy: real dtypes go through the native bulk import; complex is copied element-wise
     if np_module is not None and isinstance(data, np_module.ndarray):
-        # Complex vectors are supported via the dedicated native vector types,
-        # but native.asarray currently only supports complex for 2D.
-        if getattr(np_module, "complex64", None) is not None and data.dtype == np_module.complex64:
-            if ComplexFloat32Vector is not None:
-                return ComplexFloat32Vector(data, **ctor_kwargs)
-        if getattr(np_module, "complex128", None) is not None and data.dtype == np_module.complex128:
-            if ComplexFloat64Vector is not None:
-                return ComplexFloat64Vector(data, **ctor_kwargs)
-
-        if native is not None and hasattr(native, "asarray") and data.dtype in (
-            getattr(np_module, "int8", object()),
-            np_module.int16,
-            np_module.int32,
-            np_module.int64,
-            getattr(np_module, "uint8", object()),
-            getattr(np_module, "uint16", object()),
-            getattr(np_module, "uint32", object()),
-            getattr(np_module, "uint64", object()),
-            getattr(np_module, "bool_", object()),
-            getattr(np_module, "float16", object()),
-            np_module.float32,
-            np_module.float64,
-        ):
+        if dtype_norm is None and data.dtype.kind != "c":
             if limit is not None:
                 est = _export_guard.estimate_materialized_bytes(data)
                 if est is not None and est > limit:
@@ -110,7 +43,7 @@ def vector_factory(
             dtype_norm = _normalize_dtype(data.dtype, np_module=np_module)
         data = data.tolist()
 
-    # 3) Infer dtype
+    # 3) Infer dtype from Python values
     if dtype_norm is None:
         dtype_norm = "float64"
         if any(isinstance(x, complex) for x in data):
@@ -120,44 +53,9 @@ def vector_factory(
         if all(isinstance(x, bool) for x in data):
             dtype_norm = "bool"
 
-    n = len(data)
-
-    if dtype_norm == "int8" and Int8Vector:
-        vec = Int8Vector(n, **ctor_kwargs)
-    elif dtype_norm == "int16" and Int16Vector:
-        vec = Int16Vector(n, **ctor_kwargs)
-    elif dtype_norm == "int32" and IntegerVector:
-        vec = IntegerVector(n, **ctor_kwargs)
-    elif dtype_norm == "int64" and Int64Vector:
-        vec = Int64Vector(n, **ctor_kwargs)
-    elif dtype_norm == "uint8" and UInt8Vector:
-        vec = UInt8Vector(n, **ctor_kwargs)
-    elif dtype_norm == "uint16" and UInt16Vector:
-        vec = UInt16Vector(n, **ctor_kwargs)
-    elif dtype_norm == "uint32" and UInt32Vector:
-        vec = UInt32Vector(n, **ctor_kwargs)
-    elif dtype_norm == "uint64" and UInt64Vector:
-        vec = UInt64Vector(n, **ctor_kwargs)
-    elif dtype_norm == "bool" and BitVector:
-        vec = BitVector(n, **ctor_kwargs)
-    elif dtype_norm == "float16" and Float16Vector:
-        vec = Float16Vector(n, **ctor_kwargs)
-    elif dtype_norm == "float32" and Float32Vector:
-        vec = Float32Vector(n, **ctor_kwargs)
-    elif dtype_norm == "float64" and FloatVector:
-        vec = FloatVector(n, **ctor_kwargs)
-    elif dtype_norm == "complex_float16" and ComplexFloat16Vector:
-        vec = ComplexFloat16Vector(n, **ctor_kwargs)
-    elif dtype_norm == "complex_float32" and ComplexFloat32Vector:
-        vec = ComplexFloat32Vector(n, **ctor_kwargs)
-    elif dtype_norm == "complex_float64" and ComplexFloat64Vector:
-        vec = ComplexFloat64Vector(n, **ctor_kwargs)
-    else:
-        raise ImportError("Vector classes not available in native extension.")
-
+    vec = native.DenseVector(len(data), dtype=dtype_norm, **ctor_kwargs)
     for i, val in enumerate(data):
         vec[i] = val
-
     return vec
 
 
@@ -166,7 +64,7 @@ def causal_matrix_factory(
     *,
     populate: bool,
     np_module: Any | None,
-    TriangularBitMatrix: Any,
+    TriangularMatrix: Any,
     coerce_general_matrix: Callable[[Any], tuple[int, list[list[Any]]]],
     kwargs: dict[str, Any],
 ) -> Any:
@@ -178,8 +76,8 @@ def causal_matrix_factory(
     ):
         n = int(source_obj)
         if populate:
-            return TriangularBitMatrix.random(n, p=0.5, **kwargs)
-        return TriangularBitMatrix(n, **kwargs)
+            return TriangularMatrix.random(n, p=0.5, **kwargs)
+        return TriangularMatrix(n, dtype="bool", **kwargs)
 
     # Case 2: numpy fast-path
     if np_module is not None and isinstance(source_obj, np_module.ndarray):
@@ -194,21 +92,23 @@ def causal_matrix_factory(
         if np_module.any(np_module.tril(source_obj) != 0):
             warnings.warn(
                 "Input data contains non-zero values in the lower triangle or diagonal. "
-                "TriangularBitMatrix is strictly upper triangular; these values will be ignored.",
+                "A causal matrix is strictly upper triangular; these values will be ignored.",
                 UserWarning,
                 stacklevel=2,
             )
 
-        try:
-            if source_obj.dtype != bool:  # type: ignore[attr-defined]
-                source_obj = source_obj.astype(bool)  # type: ignore[attr-defined]
-            return TriangularBitMatrix(source_obj, **kwargs)
-        except Exception:
-            pass
+        if source_obj.dtype != bool:  # type: ignore[attr-defined]
+            source_obj = source_obj.astype(bool)  # type: ignore[attr-defined]
+        size = int(source_obj.shape[0])
+        matrix = TriangularMatrix(size, dtype="bool", **kwargs)
+        rows_idx, cols_idx = np_module.nonzero(np_module.triu(source_obj, 1))
+        for i, j in zip(rows_idx.tolist(), cols_idx.tolist()):
+            matrix.set(i, j, True)
+        return matrix
 
     # Case 3: generic coercion
     size, rows = coerce_general_matrix(source_obj)
-    matrix = TriangularBitMatrix(size, **kwargs)
+    matrix = TriangularMatrix(size, dtype="bool", **kwargs)
 
     has_non_binary = False
     has_lower_triangular = False
@@ -239,7 +139,7 @@ def causal_matrix_factory(
     if has_lower_triangular:
         warnings.warn(
             "Input data contains non-zero values in the lower triangle or diagonal. "
-            "TriangularBitMatrix is strictly upper triangular; these values will be ignored.",
+            "A causal matrix is strictly upper triangular; these values will be ignored.",
             UserWarning,
             stacklevel=2,
         )

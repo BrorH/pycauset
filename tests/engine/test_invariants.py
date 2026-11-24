@@ -105,4 +105,4 @@ def test_save_load_roundtrip(name, storage, tmp_path):
     pc.save(m, path)
     loaded = pc.load(path)
     np.testing.assert_array_equal(to_np(loaded), to_np(m))
-    assert type(loaded).__name__ == type(m).__name__
+    assert type(loaded) is type(m) and loaded.dtype == m.dtype

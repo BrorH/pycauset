@@ -36,14 +36,11 @@ def test_python_interface():
         print(f"Shape: {mat_rnd.shape}")
 
         print("\n--- Guardrails Test ---")
-        print("Attempting to set diagonal element (should warn)...")
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        # Writing on or below the diagonal of a causal matrix is an error (it used to warn
+        # and silently drop the write).
+        import pytest
+        with pytest.raises(ValueError):
             mat[0, 0] = True
-            if w:
-                print(f"Caught warning: {w[-1].message}")
-            else:
-                print("FAILURE: No warning caught!")
 
         print("\n--- Advanced Indexing Test ---")
         rows = np.array([0, 1, 2])

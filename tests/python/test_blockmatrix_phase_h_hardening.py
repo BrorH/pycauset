@@ -16,9 +16,7 @@ class TestBlockMatrixPhaseHHardening(unittest.TestCase):
     def test_complex_matmul_matches_dense(self):
         from pycauset._internal.blockmatrix import BlockMatrix
 
-        Complex64 = getattr(pycauset, "ComplexFloat64Matrix", None)
-        if Complex64 is None:
-            self.skipTest("ComplexFloat64Matrix is not available")
+        Complex64 = lambda *shape: pycauset.DenseMatrix(*shape, dtype="complex_float64")
 
         A = B = expected = None
         try:
@@ -50,9 +48,7 @@ class TestBlockMatrixPhaseHHardening(unittest.TestCase):
     def test_float16_block_matmul_matches_dense(self):
         from pycauset._internal.blockmatrix import BlockMatrix
 
-        Float16 = getattr(pycauset, "Float16Matrix", None)
-        if Float16 is None:
-            self.skipTest("Float16Matrix is not available")
+        Float16 = lambda *shape: pycauset.DenseMatrix(*shape, dtype="float16")
 
         A = B = expected = None
         try:
@@ -87,7 +83,7 @@ class TestBlockMatrixPhaseHHardening(unittest.TestCase):
         for i in range(3):  # shape 3x2 (blocks are 1x1)
             row = []
             for j in range(2):
-                m = pycauset.FloatMatrix(1, 1)
+                m = pycauset.DenseMatrix(1, 1, dtype="float64")
                 m.set(0, 0, float(i * 2 + j + 1))
                 row.append(m)
             blocks_a.append(row)
@@ -96,7 +92,7 @@ class TestBlockMatrixPhaseHHardening(unittest.TestCase):
         for i in range(2):  # shape 2x3 (blocks are 1x1)
             row = []
             for j in range(3):
-                m = pycauset.FloatMatrix(1, 1)
+                m = pycauset.DenseMatrix(1, 1, dtype="float64")
                 m.set(0, 0, float((i + 1) * (j + 1)))
                 row.append(m)
             blocks_b.append(row)
@@ -142,16 +138,14 @@ class TestBlockMatrixPhaseHHardening(unittest.TestCase):
         from pathlib import Path
         import tempfile
 
-        Complex64 = getattr(pycauset, "ComplexFloat64Matrix", None)
-        if Complex64 is None:
-            self.skipTest("ComplexFloat64Matrix is not available")
+        Complex64 = lambda *shape: pycauset.DenseMatrix(*shape, dtype="complex_float64")
 
         tmpdir = None
         inner = outer = loaded = None
         try:
             tmpdir = tempfile.TemporaryDirectory()
             base_a = Complex64(1, 1)
-            base_b = pycauset.FloatMatrix(1, 1)
+            base_b = pycauset.DenseMatrix(1, 1, dtype="float64")
             base_a.set(0, 0, 1.0 + 1.0j)
             base_b.set(0, 0, 2.0)
 
@@ -196,7 +190,7 @@ class TestBlockMatrixPhaseHHardening(unittest.TestCase):
 
         def _compute():
             calls.append(1)
-            m = pycauset.FloatMatrix(1, 1)
+            m = pycauset.DenseMatrix(1, 1, dtype="float64")
             m.set(0, 0, 7.0)
             return m
 
@@ -223,8 +217,8 @@ class TestBlockMatrixPhaseHHardening(unittest.TestCase):
 
         a1 = b1 = a2 = None
         try:
-            a1 = pycauset.FloatMatrix(1, 1)
-            b1 = pycauset.FloatMatrix(1, 1)
+            a1 = pycauset.DenseMatrix(1, 1, dtype="float64")
+            b1 = pycauset.DenseMatrix(1, 1, dtype="float64")
             a1.set(0, 0, 1.0)
             b1.set(0, 0, 2.0)
 
@@ -236,7 +230,7 @@ class TestBlockMatrixPhaseHHardening(unittest.TestCase):
             self.assertEqual(out.get(0, 0), 3.0)
 
             # Replace a block to bump version and stale cached thunks.
-            a2 = pycauset.FloatMatrix(1, 1)
+            a2 = pycauset.DenseMatrix(1, 1, dtype="float64")
             a2.set(0, 0, 5.0)
             left.set_block(0, 0, a2)
 

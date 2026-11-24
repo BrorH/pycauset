@@ -5318,7 +5318,7 @@ void CpuSolver::eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& e
              }
              return;
          }
-         throw std::runtime_error("eig requires ComplexFloat64Matrix output for Double input");
+         throw std::runtime_error("eig requires a complex_float64 output for float64 input");
      }
      
      // Float Implementation
@@ -5373,7 +5373,7 @@ void CpuSolver::eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& e
              }
              return;
          }
-         throw std::runtime_error("eig requires ComplexFloat32Matrix output for Float input");
+         throw std::runtime_error("eig requires a complex_float32 output for float32 input");
      }
 
     throw std::runtime_error("eig not implemented for these types");

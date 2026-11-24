@@ -19,7 +19,7 @@ class TestStorageDebugTool(unittest.TestCase):
             shutil.rmtree(self.test_dir)
 
     def test_summarize_container_on_known_good_file(self):
-        m = pycauset.IntegerMatrix(8)
+        m = pycauset.DenseMatrix(8, dtype="int32")
         path = self.test_dir / "ok.pycauset"
         try:
             pycauset.save(m, path)

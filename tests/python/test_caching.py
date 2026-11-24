@@ -27,7 +27,7 @@ class TestCaching(unittest.TestCase):
         m2 = None
         try:
             # Create a matrix
-            m = pycauset.FloatMatrix(3)
+            m = pycauset.DenseMatrix(3, dtype="float64")
             m.set(0, 0, 2.0)
             m.set(1, 1, 3.0)
             m.set(2, 2, 4.0)
@@ -76,7 +76,7 @@ class TestCaching(unittest.TestCase):
         inv = None
         inv3 = None
         try:
-            m = pycauset.FloatMatrix(2)
+            m = pycauset.DenseMatrix(2, dtype="float64")
             m.set(0, 0, 1.0)
             m.set(1, 1, 2.0)
 
@@ -122,7 +122,7 @@ class TestCaching(unittest.TestCase):
         inv = None
         inv3 = None
         try:
-            m = pycauset.FloatMatrix(2)
+            m = pycauset.DenseMatrix(2, dtype="float64")
             m.set(0, 0, 1.0)
             m.set(1, 1, 2.0)
 

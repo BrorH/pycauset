@@ -33,15 +33,16 @@ def _as_pycauset_vector(obj: Any, *, deps: OpsDeps) -> Any:
     """Convert a 1-D NumPy array to a native vector, handling complex dtypes.
 
     native.asarray only supports real dtypes for 1-D arrays; complex 1-D
-    (e.g. general eigenvalues) must go through the ComplexFloat64Vector ctor.
+    (e.g. general eigenvalues) is copied into a complex_float64 DenseVector.
     """
     np_module = deps.np_module
     if np_module is not None and np_module.iscomplexobj(obj):
-        cls = getattr(deps.native, "ComplexFloat64Vector", None)
-        if cls is not None:
-            out = cls(obj)
-            _track_and_mark_temporary_if_native(out, deps=deps)
-            return out
+        flat = np_module.asarray(obj, dtype=np_module.complex128).reshape(-1)
+        out = deps.native.DenseVector(int(flat.shape[0]), dtype="complex_float64")
+        for i, z in enumerate(flat.tolist()):
+            out[i] = z
+        _track_and_mark_temporary_if_native(out, deps=deps)
+        return out
     return _as_pycauset_array(obj, deps=deps)
 
 
@@ -64,7 +65,6 @@ class OpsDeps:
         native: Any,
         np_module: Any | None,
         Matrix: Any,
-        TriangularBitMatrix: Any,
         track_matrix: Any,
         mark_temporary_if_auto: Any,
         warnings_module: Any,
@@ -74,7 +74,6 @@ class OpsDeps:
         self.native = native
         self.np_module = np_module
         self.Matrix = Matrix
-        self.TriangularBitMatrix = TriangularBitMatrix
         self.track_matrix = track_matrix
         self.mark_temporary_if_auto = mark_temporary_if_auto
         self.warnings = warnings_module
@@ -344,9 +343,7 @@ def _try_convert_to_diagonal_f64(obj: Any, *, deps: OpsDeps) -> Any | None:
 
 
 def _try_convert_to_triangular_f64(obj: Any, *, which: str, deps: OpsDeps) -> Any | None:
-    tri_cls = getattr(deps.native, "TriangularFloatMatrix", None)
-    if tri_cls is None:
-        return None
+    tri_cls = deps.native.TriangularMatrix
 
     shape = _safe_rows_cols(obj)
     if shape is None:
@@ -361,7 +358,7 @@ def _try_convert_to_triangular_f64(obj: Any, *, which: str, deps: OpsDeps) -> An
         return None
 
     try:
-        out = tri_cls(rows, True)
+        out = tri_cls(rows, dtype="float64", has_diagonal=True)
         if lower:
             try:
                 out.set_transposed(True)
@@ -394,9 +391,7 @@ def _try_convert_to_dense_f64(obj: Any, *, deps: OpsDeps) -> Any | None:
     The native matmul dispatch does not accept SymmetricMatrix/AntiSymmetricMatrix
     operands, so correctness-first matmul routes through a dense materialization.
     """
-    dense_cls = getattr(deps.native, "FloatMatrix", None)
-    if dense_cls is None:
-        return None
+    dense_cls = deps.native.DenseMatrix
 
     shape = _safe_rows_cols(obj)
     if shape is None:
@@ -535,12 +530,14 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
             b_eff = b
 
             # Diagonal × Dense and Dense × Diagonal fast paths (float64 only).
-            float_matrix = getattr(deps.native, "FloatMatrix", None)
-            if a_struct == "diagonal" and float_matrix is not None and isinstance(b, float_matrix):
+            def _dense_f64(x: Any) -> bool:
+                return isinstance(x, deps.native.DenseMatrix) and x.dtype == "float64"
+
+            if a_struct == "diagonal" and _dense_f64(b):
                 converted = _try_convert_to_diagonal_f64(a, deps=deps)
                 if converted is not None:
                     a_eff = converted
-            elif b_struct == "diagonal" and float_matrix is not None and isinstance(a, float_matrix):
+            elif b_struct == "diagonal" and _dense_f64(a):
                 converted = _try_convert_to_diagonal_f64(b, deps=deps)
                 if converted is not None:
                     b_eff = converted
@@ -827,18 +824,9 @@ def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     _prefetch_if_streaming(rec, [a], deps=deps)
     
     # Check Cache
-    ctx_w = _try_load_eigen_cache(a, "eigenvalues", getattr(deps.native, "FloatVector", None), deps)
+    ctx_w = _try_load_eigen_cache(a, "eigenvalues", deps)
     
-    # Eigenvectors: Real -> FloatMatrix, Complex -> ComplexFloat64Matrix
-    vec_cls = getattr(deps.native, "FloatMatrix", None)
-    complex_types = (
-        getattr(deps.native, "ComplexFloat64Matrix", type(None)),
-        getattr(deps.native, "ComplexFloat32Matrix", type(None)),
-    )
-    if isinstance(a, complex_types):
-        vec_cls = getattr(deps.native, "ComplexFloat64Matrix", None)
-
-    ctx_v = _try_load_eigen_cache(a, "eigenvectors", vec_cls, deps)
+    ctx_v = _try_load_eigen_cache(a, "eigenvectors", deps)
     
     if ctx_w is not None and ctx_v is not None:
         _discard_if_streaming(rec, [a], None, deps=deps)
@@ -903,7 +891,7 @@ def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
 
         # Preferred: Big Blob Cache (supports full vectors)
         # We try this first before the small property list
-        ctx_w = _try_load_eigen_cache(a, "eigenvalues", getattr(deps.native, "FloatVector", None), deps)
+        ctx_w = _try_load_eigen_cache(a, "eigenvalues", deps)
         if ctx_w is not None:
              _discard_if_streaming(rec, [a], ctx_w, deps=deps)
              return ctx_w
@@ -946,7 +934,7 @@ def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
 
 
 
-def _try_load_eigen_cache(a: Any, name: str, cls: Any, deps: OpsDeps) -> Any | None:
+def _try_load_eigen_cache(a: Any, name: str, deps: OpsDeps) -> Any | None:
     try:
         backing = getattr(a, "get_backing_file", lambda: None)()
         if not backing:
@@ -958,14 +946,11 @@ def _try_load_eigen_cache(a: Any, name: str, cls: Any, deps: OpsDeps) -> Any | N
 
         view_sig = _big_blob_cache.compute_view_signature(a)
         
-        if cls is None: 
-             return None
-
         res = _big_blob_cache.try_load_cached_matrix(
             backing,
             name=name,
             view_signature=view_sig,
-            MatrixClass=cls
+            native=deps.native,
         )
         if res is not None:
              _track_and_mark_temporary_if_native(res, deps=deps)
@@ -983,8 +968,8 @@ def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     _prefetch_if_streaming(rec, [a], deps=deps)
     
     # Check Cache
-    ctx_w = _try_load_eigen_cache(a, "eigenvalues", getattr(deps.native, "ComplexFloat64Vector", None), deps)
-    ctx_v = _try_load_eigen_cache(a, "eigenvectors", getattr(deps.native, "ComplexFloat64Matrix", None), deps)
+    ctx_w = _try_load_eigen_cache(a, "eigenvalues", deps)
+    ctx_v = _try_load_eigen_cache(a, "eigenvectors", deps)
     
     if ctx_w is not None and ctx_v is not None:
         _discard_if_streaming(rec, [a], None, deps=deps)
@@ -1036,7 +1021,7 @@ def eigvals(a: Any, *, deps: OpsDeps) -> Any:
     _prefetch_if_streaming(rec, [a], deps=deps)
 
     # Check Cache
-    ctx_w = _try_load_eigen_cache(a, "eigenvalues", getattr(deps.native, "ComplexFloat64Vector", None), deps)
+    ctx_w = _try_load_eigen_cache(a, "eigenvalues", deps)
     if ctx_w is not None:
          _discard_if_streaming(rec, [a], ctx_w, deps=deps)
          return ctx_w
@@ -1167,7 +1152,7 @@ def solve_triangular(*_args: Any, **_kwargs: Any) -> Any:
     This endpoint exists primarily to enable Phase E property-aware shortcuts.
     Current implementation:
     - Diagonal: elementwise divide.
-    - Upper/lower triangular: convert to TriangularFloatMatrix and use native triangular inversion.
+    - Upper/lower triangular: convert to a float64 TriangularMatrix and use native triangular inversion.
     """
 
     if len(_args) < 2:

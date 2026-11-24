@@ -18,11 +18,9 @@ import pycauset
 
 class TestComplexFloatDTypes(unittest.TestCase):
     def test_construct_set_get_complex_float32(self):
-        if getattr(pycauset, "ComplexFloat32Matrix", None) is None:
-            self.skipTest("ComplexFloat32Matrix is not available")
 
         a = pycauset.empty((2, 2), dtype=pycauset.complex_float32)
-        self.assertIsInstance(a, pycauset.ComplexFloat32Matrix)
+        self.assertTrue(isinstance(a, pycauset.DenseMatrix) and a.dtype == "complex_float32")
 
         a[0, 0] = 1 + 2j
         a[1, 1] = 3 - 4j
@@ -30,32 +28,26 @@ class TestComplexFloatDTypes(unittest.TestCase):
         self.assertEqual(a[1, 1], 3 - 4j)
 
     def test_numpy_roundtrip_complex64(self):
-        if getattr(pycauset, "ComplexFloat32Matrix", None) is None:
-            self.skipTest("ComplexFloat32Matrix is not available")
 
         arr = np.array([[1 + 2j, 0 + 0j], [0 + 0j, 3 - 4j]], dtype=np.complex64)
         m = pycauset.matrix(arr)
-        self.assertIsInstance(m, pycauset.ComplexFloat32Matrix)
+        self.assertTrue(isinstance(m, pycauset.DenseMatrix) and m.dtype == "complex_float32")
 
         out = np.array(m)
         self.assertEqual(out.dtype, np.dtype(np.complex64))
         self.assertTrue(np.allclose(out, arr))
 
     def test_numpy_roundtrip_complex128(self):
-        if getattr(pycauset, "ComplexFloat64Matrix", None) is None:
-            self.skipTest("ComplexFloat64Matrix is not available")
 
         arr = np.array([[1 + 2j, 0 + 0j], [0 + 0j, 3 - 4j]], dtype=np.complex128)
         m = pycauset.matrix(arr)
-        self.assertIsInstance(m, pycauset.ComplexFloat64Matrix)
+        self.assertTrue(isinstance(m, pycauset.DenseMatrix) and m.dtype == "complex_float64")
 
         out = np.array(m)
         self.assertEqual(out.dtype, np.dtype(np.complex128))
         self.assertTrue(np.allclose(out, arr))
 
     def test_ops_match_numpy_complex64(self):
-        if getattr(pycauset, "ComplexFloat32Matrix", None) is None:
-            self.skipTest("ComplexFloat32Matrix is not available")
 
         a0 = np.array([[1 + 2j, 2 - 1j], [0.5 + 0j, -3 + 4j]], dtype=np.complex64)
         b0 = np.array([[5 + 0j, 0 + 6j], [7 - 2j, 1 + 0j]], dtype=np.complex64)
@@ -72,11 +64,9 @@ class TestComplexFloatDTypes(unittest.TestCase):
         self.assertTrue(np.allclose(mm_out, a0 @ b0))
 
     def test_complex_float16_array_protocol(self):
-        if getattr(pycauset, "ComplexFloat16Matrix", None) is None:
-            self.skipTest("ComplexFloat16Matrix is not available")
 
         m = pycauset.empty((2, 2), dtype=pycauset.complex_float16)
-        self.assertIsInstance(m, pycauset.ComplexFloat16Matrix)
+        self.assertTrue(isinstance(m, pycauset.DenseMatrix) and m.dtype == "complex_float16")
 
         m[0, 0] = 1.5 + 2.25j
         m[1, 1] = -3.0 + 4.0j
@@ -95,8 +85,6 @@ class TestComplexFloatDTypes(unittest.TestCase):
         self.assertTrue(np.allclose(out[1, 1], np.complex64(-3.0 + 4.0j), atol=1e-2, rtol=1e-2))
 
     def test_ops_match_numpy_complex_float16(self):
-        if getattr(pycauset, "ComplexFloat16Matrix", None) is None:
-            self.skipTest("ComplexFloat16Matrix is not available")
 
         a0 = np.array(
             [[1.25 + 2.5j, 2.0 - 1.0j], [0.5 + 0.0j, -3.0 + 4.0j]],

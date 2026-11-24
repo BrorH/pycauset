@@ -101,4 +101,4 @@ class MatrixMixin:
 
     def __repr__(self) -> str:
         shape = getattr(self, "shape", None)
-        return f"<{self.__class__.__name__} shape={shape}>"
+        return f"<{self.__class__.__name__} shape={shape} dtype={getattr(self, 'dtype', None)}>"

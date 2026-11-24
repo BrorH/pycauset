@@ -113,7 +113,7 @@ class TestIOObservability(unittest.TestCase):
         pycauset.set_io_streaming_threshold(64)  # bytes
         pycauset.clear_io_traces()
 
-        m = pycauset.FloatMatrix(32)  # 32x32 ~ 8 KB with float64
+        m = pycauset.DenseMatrix(32, dtype="float64")  # 32x32 ~ 8 KB with float64
         # Touch a single element to avoid unused warnings; rest can stay zero.
         m.set(0, 0, 1.0)
 
@@ -130,7 +130,7 @@ class TestIOObservability(unittest.TestCase):
         pycauset.set_io_streaming_threshold(64)
         pycauset.clear_io_traces()
 
-        m = pycauset.FloatMatrix(8)
+        m = pycauset.DenseMatrix(8, dtype="float64")
         for i in range(8):
             m.set(i, i, 2.0)
 
@@ -145,7 +145,7 @@ class TestIOObservability(unittest.TestCase):
         pycauset.set_io_streaming_threshold(64)
         pycauset.clear_io_traces()
 
-        m = pycauset.FloatMatrix(8)
+        m = pycauset.DenseMatrix(8, dtype="float64")
         for i in range(8):
             m.set(i, i, float(i + 1))
 
@@ -160,7 +160,7 @@ class TestIOObservability(unittest.TestCase):
         pycauset.set_io_streaming_threshold(64)
         pycauset.clear_io_traces()
 
-        m = pycauset.FloatMatrix(8)
+        m = pycauset.DenseMatrix(8, dtype="float64")
         for i in range(8):
             m.set(i, i, float(10 - i))
 

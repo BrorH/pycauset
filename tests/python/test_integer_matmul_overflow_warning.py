@@ -6,8 +6,8 @@ import pycauset
 
 class TestIntegerMatmulOverflowWarning(unittest.TestCase):
     def test_int32_matmul_warns_once(self):
-        a = pycauset.IntegerMatrix(2)
-        b = pycauset.IntegerMatrix(2)
+        a = pycauset.DenseMatrix(2, dtype="int32")
+        b = pycauset.DenseMatrix(2, dtype="int32")
 
         # Identity
         a[0, 0] = 1
@@ -33,8 +33,8 @@ class TestIntegerMatmulOverflowWarning(unittest.TestCase):
             self.assertIn("output stored as int32", hits[0])
 
     def test_int32_matmul_raises_on_output_overflow(self):
-        a = pycauset.IntegerMatrix(2)
-        b = pycauset.IntegerMatrix(2)
+        a = pycauset.DenseMatrix(2, dtype="int32")
+        b = pycauset.DenseMatrix(2, dtype="int32")
 
         max_int32 = 2**31 - 1
         a[0, 0] = max_int32

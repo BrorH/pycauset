@@ -540,8 +540,7 @@ def apply_properties_patches(*, classes: list[Any]) -> None:
 
 
 def _is_real_dtype(obj: Any) -> bool:
-    name = type(obj).__name__
-    return "Complex" not in name and "complex" not in name
+    return "complex" not in str(getattr(obj, "dtype", ""))
 
 
 def _conj_value(value: Any) -> Any:

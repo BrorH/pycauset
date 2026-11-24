@@ -95,14 +95,14 @@ def test_causal_matrix_scaling_stays_triangular_and_exact(opname):
     expected = OPS[opname](dense, 3)
     np.testing.assert_allclose(to_np(out), expected)
     if opname != "A/s":
-        assert type(out).__name__ == "TriangularIntegerMatrix"
+        assert type(out) is pc.TriangularMatrix and out.dtype == "int32"
 
 
 def test_causal_matrix_plus_scalar_becomes_dense():
     c = pc.causal_matrix(10, populate=True)
     out = c + 2
     np.testing.assert_array_equal(to_np(out), to_np(c).astype(np.int32) + 2)
-    assert "Triangular" not in type(out).__name__
+    assert type(out) is pc.DenseMatrix
 
 
 def test_scalar_ops_on_disk_backed_integer_matrix(force_disk):

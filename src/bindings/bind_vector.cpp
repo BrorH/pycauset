@@ -1,4 +1,7 @@
 ﻿#include "bindings_common.hpp"
+#include "element_conversion.hpp"
+#include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/core/ObjectFactory.hpp"
 
 #include "binding_warnings.hpp"
 
@@ -39,105 +42,6 @@ inline bool u64_to_py_ssize(uint64_t v, Py_ssize_t* out) {
     return true;
 }
 
-template <typename ScalarT>
-inline const char* dense_vector_buffer_format() {
-    static const std::string fmt = py::format_descriptor<ScalarT>::format();
-    return fmt.c_str();
-}
-
-template <>
-inline const char* dense_vector_buffer_format<pycauset::float16_t>() {
-    return "e"; // PEP 3118: float16
-}
-
-template <typename ScalarT>
-int dense_vector_getbuffer(PyObject* obj, Py_buffer* view, int flags) {
-    if (view == nullptr) {
-        PyErr_SetString(PyExc_BufferError, "NULL view in getbuffer");
-        return -1;
-    }
-
-    DenseVector<ScalarT>* v = nullptr;
-    try {
-        v = &py::handle(obj).cast<DenseVector<ScalarT>&>();
-    } catch (const std::exception& e) {
-        PyErr_SetString(PyExc_RuntimeError, e.what());
-        return -1;
-    }
-
-    try {
-        pycauset::bindings::ensure_numpy_export_allowed(static_cast<const VectorBase&>(*v));
-    } catch (const std::exception& e) {
-        PyErr_SetString(PyExc_RuntimeError, e.what());
-        return -1;
-    }
-
-    // Buffer exports expose raw storage; they are only correct for unscaled, unconjugated views.
-    if (v->get_scalar() != std::complex<double>(1.0, 0.0) || v->is_conjugated()) {
-        PyErr_SetString(PyExc_BufferError, "Buffer export requires scalar==1 and not conjugated");
-        return -1;
-    }
-
-    Py_ssize_t n_ss = 0;
-    if (!u64_to_py_ssize(v->size(), &n_ss)) {
-        PyErr_SetString(PyExc_OverflowError, "Vector too large for Python buffer protocol");
-        return -1;
-    }
-
-    const bool as_row = v->is_transposed();
-    const int ndim = as_row ? 2 : 1;
-    const Py_ssize_t itemsize = static_cast<Py_ssize_t>(sizeof(ScalarT));
-
-    uint64_t len_u64 = 0;
-    if (v->size() == 0) {
-        len_u64 = 0;
-    } else {
-        len_u64 = static_cast<uint64_t>(v->size()) * static_cast<uint64_t>(sizeof(ScalarT));
-    }
-    if (len_u64 > static_cast<uint64_t>(PY_SSIZE_T_MAX)) {
-        PyErr_SetString(PyExc_OverflowError, "Buffer too large for Python buffer protocol");
-        return -1;
-    }
-
-    if (PyBuffer_FillInfo(view, obj, static_cast<void*>(v->data()), static_cast<Py_ssize_t>(len_u64), /*readonly=*/0, flags) != 0) {
-        return -1;
-    }
-
-    auto* state = new DenseVectorBufferState();
-    state->shape[0] = as_row ? static_cast<Py_ssize_t>(1) : n_ss;
-    state->shape[1] = n_ss;
-    state->strides[0] = as_row ? static_cast<Py_ssize_t>(static_cast<uint64_t>(n_ss) * sizeof(ScalarT)) : itemsize;
-    state->strides[1] = itemsize;
-
-    view->internal = state;
-    view->itemsize = itemsize;
-    view->ndim = ndim;
-    view->suboffsets = nullptr;
-
-    view->format = (flags & PyBUF_FORMAT) ? const_cast<char*>(dense_vector_buffer_format<ScalarT>()) : nullptr;
-    view->shape = (flags & PyBUF_ND) ? state->shape : nullptr;
-    view->strides = (flags & PyBUF_STRIDES) ? state->strides : nullptr;
-
-    return 0;
-}
-
-template <typename ScalarT>
-void dense_vector_releasebuffer(PyObject* /*obj*/, Py_buffer* view) {
-    auto* state = reinterpret_cast<DenseVectorBufferState*>(view->internal);
-    delete state;
-    view->internal = nullptr;
-}
-
-template <typename ScalarT>
-void install_dense_vector_buffer(py::handle type_handle) {
-    auto* type = reinterpret_cast<PyTypeObject*>(type_handle.ptr());
-    static PyBufferProcs procs{dense_vector_getbuffer<ScalarT>, dense_vector_releasebuffer<ScalarT>};
-    type->tp_as_buffer = &procs;
-#ifdef Py_TPFLAGS_HAVE_NEWBUFFER
-    type->tp_flags |= Py_TPFLAGS_HAVE_NEWBUFFER;
-#endif
-    PyType_Modified(type);
-}
 
 inline bool is_numpy_float16(const py::array& array) {
     try {
@@ -297,6 +201,91 @@ inline auto translate_invalid_argument(Fn&& fn) {
     }
 }
 
+// ---------------------------------------------------------------------------------------
+// Generic (all dtypes) element access for DenseVector / UnitVector. Mirrors the matrix
+// helpers in bind_matrix.cpp: floats and complex read through the view-aware readers,
+// integers and bits exactly; writes fold a scale/conjugation view first (F-045).
+// ---------------------------------------------------------------------------------------
+template <typename V>
+struct vec_element { using type = std::decay_t<decltype(std::declval<const V&>().get(uint64_t{0}))>; };
+template <>
+struct vec_element<UnitVector> { using type = double; };  // read via get_element_as_double
+template <typename V>
+using vec_element_t = typename vec_element<V>::type;
+
+inline py::object vector_element_get(const VectorBase& v, uint64_t i) {
+    const DataType dt = v.get_data_type();
+    if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
+        return py::cast(v.get_element_as_complex(i));
+    }
+    if (dt == DataType::FLOAT16 || dt == DataType::FLOAT32 || dt == DataType::FLOAT64) {
+        return py::float_(v.get_element_as_double(i));
+    }
+    if (v.get_scalar() != std::complex<double>(1.0, 0.0)) {
+        throw std::logic_error("integer vector carries a scale factor");
+    }
+    return pycauset::visit_vector(v, [&](const auto& typed) -> py::object {
+        using V = std::decay_t<decltype(typed)>;
+        if constexpr (std::is_same_v<V, UnitVector>) {
+            return py::float_(typed.get_element_as_double(i));
+        } else {
+        using E = vec_element_t<V>;
+        const E x = typed.get(i);
+        if constexpr (std::is_same_v<E, bool>) return py::bool_(x);
+        else if constexpr (std::is_integral_v<E>) return py::int_(x);
+        else throw std::logic_error("unreachable: non-integer dtype in the exact read path");
+        }
+    });
+}
+
+inline void vector_fold_value_view(VectorBase& v) {
+    const std::complex<double> s = v.get_scalar();
+    const bool conj = v.is_conjugated();
+    if (s == std::complex<double>(1.0, 0.0) && !conj) return;
+    pycauset::visit_vector(v, [&](auto& typed) {
+        using V = std::decay_t<decltype(typed)>;
+        using E = vec_element_t<V>;
+        if constexpr (std::is_same_v<V, UnitVector>) {
+            throw py::type_error("UnitVector is read-only");
+        } else if constexpr (std::is_integral_v<E>) {
+            throw std::logic_error("integer vector carries a scale factor");
+        } else {
+            for (uint64_t i = 0; i < typed.size(); ++i) {
+                std::complex<double> x = pycauset::scalar::to_complex_double(typed.get(i)) * s;
+                if (conj) x = std::conj(x);
+                if constexpr (std::is_same_v<E, std::complex<double>> || std::is_same_v<E, std::complex<float>>) {
+                    typed.set(i, static_cast<E>(x));
+                } else if constexpr (std::is_same_v<V, ComplexFloat16Vector>) {
+                    typed.set(i, x);
+                } else {
+                    typed.set(i, static_cast<E>(x.real()));
+                }
+            }
+        }
+    });
+    v.set_scalar(1.0);
+    v.set_conjugated(false);
+}
+
+inline void vector_element_set(VectorBase& v, uint64_t i, const py::object& value) {
+    vector_fold_value_view(v);
+    pycauset::visit_vector(v, [&](auto& typed) {
+        using V = std::decay_t<decltype(typed)>;
+        if constexpr (std::is_same_v<V, UnitVector>) {
+            throw py::type_error("UnitVector is read-only");
+        } else {
+            typed.set(i, pycauset_bindings::py_to_element<vec_element_t<V>>(value));
+        }
+    });
+}
+
+inline uint64_t vector_index(const VectorBase& v, py::ssize_t i) {
+    const auto n = static_cast<py::ssize_t>(v.size());
+    if (i < 0) i += n;
+    if (i < 0 || i >= n) throw py::index_error("vector index out of range");
+    return static_cast<uint64_t>(i);
+}
+
 } // namespace
 
 void bind_vector_classes(py::module_& m) {
@@ -322,15 +311,20 @@ void bind_vector_classes(py::module_& m) {
         .def("_set_property_flag", &VectorBase::set_property_flag, py::arg("flag"), py::arg("value"))
         .def("get_element_as_double", &VectorBase::get_element_as_double)
         .def("get_element_as_complex", &VectorBase::get_element_as_complex)
-        .def(
-            "__getitem__",
-            [](const VectorBase& v, uint64_t i) -> py::object {
-                const DataType dt = v.get_data_type();
-                if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
-                    return py::cast(v.get_element_as_complex(i));
-                }
-                return py::float_(v.get_element_as_double(i));
-            })
+        .def_property_readonly(
+            "dtype",
+            [](const VectorBase& v) { return std::string(pycauset::dtype_name(v.get_data_type())); },
+            "Element type, e.g. 'float64', 'int32', 'bool' (bit), 'complex_float64'.")
+        .def("get", [](const VectorBase& v, uint64_t i) { return vector_element_get(v, i); }, py::arg("i"))
+        .def("set", [](VectorBase& v, uint64_t i, const py::object& value) { vector_element_set(v, i, value); },
+             py::arg("i"), py::arg("value"))
+        .def("__getitem__", [](const VectorBase& v, py::ssize_t i) { return vector_element_get(v, vector_index(v, i)); })
+        .def("__setitem__", [](VectorBase& v, py::ssize_t i, const py::object& value) {
+            vector_element_set(v, vector_index(v, i), value);
+        })
+        .def("fill", [](VectorBase& v, const py::object& value) {
+            for (uint64_t i = 0; i < v.size(); ++i) vector_element_set(v, i, value);
+        }, py::arg("value"))
         .def(
             "__repr__",
             [](py::object self) {
@@ -339,9 +333,9 @@ void bind_vector_classes(py::module_& m) {
 
                 std::ostringstream oss;
                 if (v.is_transposed()) {
-                    oss << "<" << type_name << " shape=(1, " << v.size() << ") transposed=True>";
+                    oss << "<" << type_name << " shape=(1, " << v.size() << ") dtype=" << pycauset::dtype_name(v.get_data_type()) << " transposed=True>";
                 } else {
-                    oss << "<" << type_name << " shape=(" << v.size() << ",) transposed=False>";
+                    oss << "<" << type_name << " shape=(" << v.size() << ",) dtype=" << pycauset::dtype_name(v.get_data_type()) << " transposed=False>";
                 }
                 return oss.str();
             })
@@ -813,557 +807,21 @@ void bind_vector_classes(py::module_& m) {
             },
             py::is_operator());
 
-    py::class_<DenseVector<double>, VectorBase, std::shared_ptr<DenseVector<double>>>(m, "FloatVector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<double>>(array)) {
-                    throw py::type_error("FloatVector(np_array): expected dtype float64 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<double>(array.cast<py::array_t<double>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<double>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<double>::get)
-        .def("set", &DenseVector<double>::set)
-        .def("__getitem__", [](const DenseVector<double>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<double>& v, uint64_t i, double val) { v.set(i, val); });
+    // One Python class per structure; dtype is an attribute (RESTRUCTURE 3.1 item 4).
+    py::class_<pycauset::DenseVectorBase, VectorBase, std::shared_ptr<pycauset::DenseVectorBase>>(
+        m, "DenseVector", "Dense vector of any dtype. Prefer pycauset.vector / zeros to construct.")
+        .def(py::init([](uint64_t n, const std::string& dtype) {
+                 auto obj = pycauset::ObjectFactory::create_vector(n, pycauset::parse_dtype_name(dtype), pycauset::Structure::VECTOR, "");
+                 auto* typed = dynamic_cast<pycauset::DenseVectorBase*>(obj.get());
+                 if (typed == nullptr) throw std::logic_error("factory returned the wrong vector structure");
+                 obj.release();
+                 return std::shared_ptr<pycauset::DenseVectorBase>(typed);
+             }),
+             py::arg("n"), py::arg("dtype") = "float64");
 
-    install_dense_vector_buffer<double>(m.attr("FloatVector"));
-
-    py::class_<DenseVector<float>, VectorBase, std::shared_ptr<DenseVector<float>>>(m, "Float32Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<float>>(array)) {
-                    throw py::type_error("Float32Vector(np_array): expected dtype float32 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<float>(array.cast<py::array_t<float>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<float>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<float>::get)
-        .def("set", &DenseVector<float>::set)
-        .def("__getitem__", [](const DenseVector<float>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<float>& v, uint64_t i, float val) { v.set(i, val); });
-
-    install_dense_vector_buffer<float>(m.attr("Float32Vector"));
-
-    py::class_<DenseVector<pycauset::float16_t>, VectorBase, std::shared_ptr<DenseVector<pycauset::float16_t>>>(m, "Float16Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!is_numpy_float16(array)) {
-                    throw py::type_error("Float16Vector(np_array): expected dtype float16 and rank-1");
-                }
-                auto buf = array.request();
-                require_1d(buf);
-                const uint64_t n = static_cast<uint64_t>(buf.shape[0]);
-                auto result = std::make_shared<DenseVector<pycauset::float16_t>>(n);
-                const uint16_t* src_ptr = static_cast<const uint16_t*>(buf.ptr);
-                pycauset::float16_t* dst_ptr = result->data();
-                const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
-                for (uint64_t i = 0; i < n; ++i) {
-                    dst_ptr[i] = pycauset::float16_t(static_cast<uint16_t>(src_ptr[i * stride0]));
-                }
-                return result;
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<pycauset::float16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def(
-            "get",
-            [](const DenseVector<pycauset::float16_t>& v, uint64_t i) { return static_cast<float>(v.get(i)); })
-        .def(
-            "set",
-            [](DenseVector<pycauset::float16_t>& v, uint64_t i, double val) { v.set(i, pycauset::float16_t(val)); })
-        .def("__getitem__", [](const DenseVector<pycauset::float16_t>& v, uint64_t i) { return static_cast<float>(v.get(i)); })
-        .def("__setitem__", [](DenseVector<pycauset::float16_t>& v, uint64_t i, double val) { v.set(i, pycauset::float16_t(val)); });
-
-    install_dense_vector_buffer<pycauset::float16_t>(m.attr("Float16Vector"));
-
-    py::class_<ComplexFloat16Vector, VectorBase, std::shared_ptr<ComplexFloat16Vector>>(m, "ComplexFloat16Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                auto buf = array.request();
-                require_1d(buf);
-                const uint64_t n = static_cast<uint64_t>(buf.shape[0]);
-                auto out = std::make_shared<ComplexFloat16Vector>(n);
-                auto* rdst = out->real_data();
-                auto* idst = out->imag_data();
-
-                if (py::isinstance<py::array_t<std::complex<float>>>(array)) {
-                    const auto* src = static_cast<const std::complex<float>*>(buf.ptr);
-                    const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(std::complex<float>)));
-                    for (uint64_t i = 0; i < n; ++i) {
-                        const std::complex<float> z = src[i * stride0];
-                        rdst[i] = pycauset::float16_t(static_cast<double>(z.real()));
-                        idst[i] = pycauset::float16_t(static_cast<double>(z.imag()));
-                    }
-                    return out;
-                }
-
-                if (py::isinstance<py::array_t<std::complex<double>>>(array)) {
-                    const auto* src = static_cast<const std::complex<double>*>(buf.ptr);
-                    const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(std::complex<double>)));
-                    for (uint64_t i = 0; i < n; ++i) {
-                        const std::complex<double> z = src[i * stride0];
-                        rdst[i] = pycauset::float16_t(z.real());
-                        idst[i] = pycauset::float16_t(z.imag());
-                    }
-                    return out;
-                }
-
-                throw py::type_error("ComplexFloat16Vector(np_array): expected dtype complex64 or complex128 and rank-1");
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<ComplexFloat16Vector>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", [](const ComplexFloat16Vector& v, uint64_t i) { return v.get(i); })
-        .def("set", [](ComplexFloat16Vector& v, uint64_t i, std::complex<double> val) { v.set(i, val); })
-        .def("__getitem__", [](const ComplexFloat16Vector& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](ComplexFloat16Vector& v, uint64_t i, std::complex<double> val) { v.set(i, val); });
-
-    py::class_<DenseVector<std::complex<float>>, VectorBase, std::shared_ptr<DenseVector<std::complex<float>>>>(m, "ComplexFloat32Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<std::complex<float>>>(array)) {
-                    throw py::type_error("ComplexFloat32Vector(np_array): expected dtype complex64 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<std::complex<float>>(array.cast<py::array_t<std::complex<float>>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<std::complex<float>>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<std::complex<float>>::get)
-        .def("set", &DenseVector<std::complex<float>>::set)
-        .def("__getitem__", [](const DenseVector<std::complex<float>>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<std::complex<float>>& v, uint64_t i, std::complex<double> val) {
-            v.set(i, std::complex<float>(static_cast<float>(val.real()), static_cast<float>(val.imag())));
-        });
-
-    install_dense_vector_buffer<std::complex<float>>(m.attr("ComplexFloat32Vector"));
-
-    py::class_<DenseVector<std::complex<double>>, VectorBase, std::shared_ptr<DenseVector<std::complex<double>>>>(m, "ComplexFloat64Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<std::complex<double>>>(array)) {
-                    throw py::type_error("ComplexFloat64Vector(np_array): expected dtype complex128 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<std::complex<double>>(array.cast<py::array_t<std::complex<double>>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<std::complex<double>>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<std::complex<double>>::get)
-        .def("set", &DenseVector<std::complex<double>>::set)
-        .def("__getitem__", [](const DenseVector<std::complex<double>>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<std::complex<double>>& v, uint64_t i, std::complex<double> val) { v.set(i, val); });
-
-    install_dense_vector_buffer<std::complex<double>>(m.attr("ComplexFloat64Vector"));
-
-    py::class_<DenseVector<int32_t>, VectorBase, std::shared_ptr<DenseVector<int32_t>>>(m, "IntegerVector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<int32_t>>(array)) {
-                    throw py::type_error("IntegerVector(np_array): expected dtype int32 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<int32_t>(array.cast<py::array_t<int32_t>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<int32_t>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<int32_t>::get)
-        .def("set", &DenseVector<int32_t>::set)
-        .def("__getitem__", [](const DenseVector<int32_t>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<int32_t>& v, uint64_t i, int32_t val) { v.set(i, val); });
-
-    install_dense_vector_buffer<int32_t>(m.attr("IntegerVector"));
-
-    py::class_<DenseVector<int16_t>, VectorBase, std::shared_ptr<DenseVector<int16_t>>>(m, "Int16Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<int16_t>>(array)) {
-                    throw py::type_error("Int16Vector(np_array): expected dtype int16 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<int16_t>(array.cast<py::array_t<int16_t>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<int16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<int16_t>::get)
-        .def("set", &DenseVector<int16_t>::set)
-        .def("__getitem__", [](const DenseVector<int16_t>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<int16_t>& v, uint64_t i, int16_t val) { v.set(i, val); });
-
-    install_dense_vector_buffer<int16_t>(m.attr("Int16Vector"));
-
-    py::class_<DenseVector<int8_t>, VectorBase, std::shared_ptr<DenseVector<int8_t>>>(m, "Int8Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<int8_t>>(array)) {
-                    throw py::type_error("Int8Vector(np_array): expected dtype int8 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<int8_t>(array.cast<py::array_t<int8_t>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<int8_t>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<int8_t>::get)
-        .def("set", &DenseVector<int8_t>::set)
-        .def("__getitem__", [](const DenseVector<int8_t>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<int8_t>& v, uint64_t i, int8_t val) { v.set(i, val); });
-
-    install_dense_vector_buffer<int8_t>(m.attr("Int8Vector"));
-
-    py::class_<DenseVector<int64_t>, VectorBase, std::shared_ptr<DenseVector<int64_t>>>(m, "Int64Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<int64_t>>(array)) {
-                    throw py::type_error("Int64Vector(np_array): expected dtype int64 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<int64_t>(array.cast<py::array_t<int64_t>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<int64_t>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<int64_t>::get)
-        .def("set", &DenseVector<int64_t>::set)
-        .def("__getitem__", [](const DenseVector<int64_t>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<int64_t>& v, uint64_t i, int64_t val) { v.set(i, val); });
-
-    install_dense_vector_buffer<int64_t>(m.attr("Int64Vector"));
-
-    py::class_<DenseVector<uint8_t>, VectorBase, std::shared_ptr<DenseVector<uint8_t>>>(m, "UInt8Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<uint8_t>>(array)) {
-                    throw py::type_error("UInt8Vector(np_array): expected dtype uint8 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<uint8_t>(array.cast<py::array_t<uint8_t>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<uint8_t>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<uint8_t>::get)
-        .def("set", &DenseVector<uint8_t>::set)
-        .def("__getitem__", [](const DenseVector<uint8_t>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<uint8_t>& v, uint64_t i, uint8_t val) { v.set(i, val); });
-
-    install_dense_vector_buffer<uint8_t>(m.attr("UInt8Vector"));
-
-    py::class_<DenseVector<uint16_t>, VectorBase, std::shared_ptr<DenseVector<uint16_t>>>(m, "UInt16Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<uint16_t>>(array)) {
-                    throw py::type_error("UInt16Vector(np_array): expected dtype uint16 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<uint16_t>(array.cast<py::array_t<uint16_t>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<uint16_t>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<uint16_t>::get)
-        .def("set", &DenseVector<uint16_t>::set)
-        .def("__getitem__", [](const DenseVector<uint16_t>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<uint16_t>& v, uint64_t i, uint16_t val) { v.set(i, val); });
-
-    install_dense_vector_buffer<uint16_t>(m.attr("UInt16Vector"));
-
-    py::class_<DenseVector<uint32_t>, VectorBase, std::shared_ptr<DenseVector<uint32_t>>>(m, "UInt32Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<uint32_t>>(array)) {
-                    throw py::type_error("UInt32Vector(np_array): expected dtype uint32 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<uint32_t>(array.cast<py::array_t<uint32_t>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<uint32_t>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<uint32_t>::get)
-        .def("set", &DenseVector<uint32_t>::set)
-        .def("__getitem__", [](const DenseVector<uint32_t>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<uint32_t>& v, uint64_t i, uint32_t val) { v.set(i, val); });
-
-    install_dense_vector_buffer<uint32_t>(m.attr("UInt32Vector"));
-
-    py::class_<DenseVector<uint64_t>, VectorBase, std::shared_ptr<DenseVector<uint64_t>>>(m, "UInt64Vector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def(
-            py::init([](const py::array& array) {
-                if (!py::isinstance<py::array_t<uint64_t>>(array)) {
-                    throw py::type_error("UInt64Vector(np_array): expected dtype uint64 and rank-1");
-                }
-                return dense_vector_from_numpy_1d<uint64_t>(array.cast<py::array_t<uint64_t>>());
-            }),
-            py::arg("array"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<uint64_t>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<uint64_t>::get)
-        .def("set", &DenseVector<uint64_t>::set)
-        .def("__getitem__", [](const DenseVector<uint64_t>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<uint64_t>& v, uint64_t i, uint64_t val) { v.set(i, val); });
-
-    install_dense_vector_buffer<uint64_t>(m.attr("UInt64Vector"));
-
-    py::class_<DenseVector<bool>, VectorBase, std::shared_ptr<DenseVector<bool>>>(m, "BitVector")
-        .def(py::init<uint64_t>(), py::arg("n"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<DenseVector<bool>>(n, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def("get", &DenseVector<bool>::get)
-        .def("set", &DenseVector<bool>::set)
-        .def("__getitem__", [](const DenseVector<bool>& v, uint64_t i) { return v.get(i); })
-        .def("__setitem__", [](DenseVector<bool>& v, uint64_t i, bool val) { v.set(i, val); });
-
-    py::class_<UnitVector, VectorBase, std::shared_ptr<UnitVector>>(m, "UnitVector")
-        .def(
-            py::init<uint64_t, uint64_t>(),
-            py::arg("n"),
-            py::arg("active_index"))
-        .def_static(
-            "_from_storage",
-            [](uint64_t n,
-               uint64_t active_index,
-               const std::string& backing_file,
-               size_t offset,
-               uint64_t seed,
-               std::complex<double> scalar,
-               bool is_transposed) {
-                return std::make_shared<UnitVector>(n, active_index, backing_file, offset, seed, scalar, is_transposed);
-            },
-            py::arg("n"),
-            py::arg("active_index"),
-            py::arg("backing_file"),
-            py::arg("offset"),
-            py::arg("seed"),
-            py::arg("scalar"),
-            py::arg("is_transposed"))
-        .def_property_readonly("active_index", &UnitVector::get_active_index)
-        .def("get", [](const UnitVector& v, uint64_t i) { return v.get_element_as_double(i); })
-        .def("__getitem__", [](const UnitVector& v, uint64_t i) { return v.get_element_as_double(i); });
+    py::class_<UnitVector, VectorBase, std::shared_ptr<UnitVector>>(m, "UnitVector", "Standard basis vector e_k (read-only).")
+        .def(py::init<uint64_t, uint64_t>(), py::arg("n"), py::arg("active_index"))
+        .def_property_readonly("active_index", &UnitVector::get_active_index);
 
     // Encourage NumPy to prefer VectorBase's reverse ops over coercion.
     py::object vb_cls = m.attr("VectorBase");

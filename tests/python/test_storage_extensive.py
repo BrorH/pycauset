@@ -3,7 +3,7 @@ import os
 import shutil
 from pathlib import Path
 import pycauset
-from pycauset import CausalSet, TriangularBitMatrix, IntegerMatrix, FloatMatrix
+from pycauset import CausalSet, TriangularMatrix, DenseMatrix
 from pycauset import spacetime
 
 from pycauset._internal import persistence as _persistence
@@ -30,7 +30,7 @@ class TestStorageExtensive(unittest.TestCase):
         """Test saving and loading a moderately large matrix."""
         n = 1000
         print(f"Generating {n}x{n} matrix...")
-        matrix = TriangularBitMatrix.random(n, 0.1, seed=12345)
+        matrix = TriangularMatrix.random(n, 0.1, seed=12345)
         path = self.test_dir / "large.pycauset"
         
         try:
@@ -40,7 +40,7 @@ class TestStorageExtensive(unittest.TestCase):
             try:
                 self.assertEqual(loaded.rows(), n)
                 self.assertEqual(loaded.cols(), n)
-                self.assertIsInstance(loaded, TriangularBitMatrix)
+                self.assertTrue(isinstance(loaded, TriangularMatrix) and loaded.dtype == "bool")
                 # Check a few values if possible, or just rely on no crash
             finally:
                 loaded.close()
@@ -50,7 +50,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_transposed_matrix(self):
         """Test that transposition flag is preserved."""
         n = 100
-        matrix = TriangularBitMatrix.random(n, 0.1, seed=42)
+        matrix = TriangularMatrix.random(n, 0.1, seed=42)
         transposed = matrix.transpose()
         path = self.test_dir / "transposed.pycauset"
         
@@ -72,7 +72,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_float_matrix(self):
         """Test FloatMatrix storage."""
         n = 50
-        matrix = FloatMatrix(n)
+        matrix = DenseMatrix(n, dtype="float64")
         # Fill diagonal
         for i in range(n):
             matrix.set(i, i, 3.14)
@@ -87,7 +87,7 @@ class TestStorageExtensive(unittest.TestCase):
             
             loaded = pycauset.load(path)
             try:
-                self.assertIsInstance(loaded, FloatMatrix)
+                self.assertTrue(isinstance(loaded, DenseMatrix) and loaded.dtype == "float64")
                 self.assertAlmostEqual(loaded.get(0, 0), 3.14)
                 self.assertAlmostEqual(loaded.get(n-1, n-1), 3.14)
                 self.assertEqual(loaded.get(0, 1), 0.0)
@@ -99,7 +99,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_integer_matrix(self):
         """Test IntegerMatrix storage."""
         n = 50
-        matrix = IntegerMatrix(n)
+        matrix = DenseMatrix(n, dtype="int32")
         matrix.set(0, 0, 42)
         matrix.set(1, 2, -7)
         
@@ -113,7 +113,7 @@ class TestStorageExtensive(unittest.TestCase):
             
             loaded = pycauset.load(path)
             try:
-                self.assertIsInstance(loaded, IntegerMatrix)
+                self.assertTrue(isinstance(loaded, DenseMatrix) and loaded.dtype == "int32")
                 self.assertEqual(loaded.get(0, 0), 42)
                 self.assertEqual(loaded.get(1, 2), -7)
             finally:
@@ -150,7 +150,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_overwrite(self):
         """Test overwriting an existing file."""
         n = 10
-        matrix = IntegerMatrix(n)
+        matrix = DenseMatrix(n, dtype="int32")
         path = self.test_dir / "overwrite.pycauset"
         
         try:
@@ -171,7 +171,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_nested_directory(self):
         """Test saving to a non-existent nested directory."""
         n = 10
-        matrix = IntegerMatrix(n)
+        matrix = DenseMatrix(n, dtype="int32")
         path = self.test_dir / "subdir" / "nested" / "matrix.pycauset"
         
         try:
@@ -183,7 +183,7 @@ class TestStorageExtensive(unittest.TestCase):
     def test_unicode_path(self):
         """Test saving to a path with unicode characters."""
         n = 10
-        matrix = IntegerMatrix(n)
+        matrix = DenseMatrix(n, dtype="int32")
         # "Fire" emoji and some non-ascii chars
         path = self.test_dir / "🔥_folder" / "mätrix.pycauset"
         

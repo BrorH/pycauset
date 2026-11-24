@@ -5,7 +5,7 @@ import os
 class TestMatrixTranspose(unittest.TestCase):
     def test_dense_matrix_transpose(self):
         n = 10
-        m = pycauset.FloatMatrix(n)
+        m = pycauset.DenseMatrix(n, dtype="float64")
         for i in range(n):
             for j in range(n):
                 m[i, j] = i * n + j
@@ -23,7 +23,7 @@ class TestMatrixTranspose(unittest.TestCase):
 
     def test_triangular_matrix_transpose(self):
         n = 10
-        m = pycauset.TriangularFloatMatrix(n)
+        m = pycauset.TriangularMatrix(n, dtype="float64")
         # Fill upper triangle
         for i in range(n):
             for j in range(i + 1, n):
@@ -47,7 +47,7 @@ class TestMatrixTranspose(unittest.TestCase):
 
     def test_dense_bit_matrix_transpose(self):
         n = 10
-        m = pycauset.DenseBitMatrix(n)
+        m = pycauset.DenseMatrix(n, dtype="bool")
         # Set some bits
         m.set(1, 2, True)
         m.set(3, 4, True)
@@ -62,7 +62,7 @@ class TestMatrixTranspose(unittest.TestCase):
 
     def test_dense_bit_matrix_transpose_rectangular(self):
         rows, cols = 3, 5
-        m = pycauset.DenseBitMatrix(rows, cols)
+        m = pycauset.DenseMatrix(rows, cols, dtype="bool")
         m.set(1, 4, True)
         m.set(2, 0, True)
 
@@ -78,7 +78,7 @@ class TestMatrixTranspose(unittest.TestCase):
 
     def test_triangular_bit_matrix_transpose(self):
         n = 10
-        m = pycauset.TriangularBitMatrix(n)
+        m = pycauset.TriangularMatrix(n, dtype="bool")
         m.set(1, 2, True)
         m.set(3, 4, True)
         

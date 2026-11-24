@@ -36,7 +36,7 @@ static std::shared_ptr<TriangularBitMatrix> sprinkle_to_tbm(
 
     auto* tbm = dynamic_cast<TriangularBitMatrix*>(base.get());
     if (tbm == nullptr) {
-        throw std::runtime_error("Sprinkler::sprinkle did not return a TriangularBitMatrix");
+        throw std::runtime_error("Sprinkler::sprinkle did not return a causal (bit triangular) matrix");
     }
 
     // Transfer ownership into shared_ptr<TriangularBitMatrix>

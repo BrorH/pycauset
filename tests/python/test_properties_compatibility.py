@@ -7,7 +7,7 @@ class TestPropertiesCompatibility(unittest.TestCase):
     def test_unitary_requires_square_matrix(self):
         m = None
         try:
-            m = pycauset.FloatMatrix(2, 3)
+            m = pycauset.DenseMatrix(2, 3, dtype="float64")
             with self.assertRaises(ValueError):
                 m.properties["is_unitary"] = True
         finally:
@@ -17,7 +17,7 @@ class TestPropertiesCompatibility(unittest.TestCase):
     def test_cached_trace_requires_square_matrix(self):
         m = None
         try:
-            m = pycauset.FloatMatrix(2, 3)
+            m = pycauset.DenseMatrix(2, 3, dtype="float64")
             with self.assertRaises(ValueError):
                 m.properties["trace"] = 1.0
         finally:
@@ -27,7 +27,7 @@ class TestPropertiesCompatibility(unittest.TestCase):
     def test_identity_contradicts_zero(self):
         m = None
         try:
-            m = pycauset.FloatMatrix(2)
+            m = pycauset.DenseMatrix(2, dtype="float64")
             m.properties["is_identity"] = True
             with self.assertRaises(ValueError):
                 m.properties["is_zero"] = True
@@ -38,7 +38,7 @@ class TestPropertiesCompatibility(unittest.TestCase):
     def test_diagonal_implies_not_upper_false(self):
         m = None
         try:
-            m = pycauset.FloatMatrix(2)
+            m = pycauset.DenseMatrix(2, dtype="float64")
             m.properties["is_diagonal"] = True
             with self.assertRaises(ValueError):
                 m.properties["is_upper_triangular"] = False
@@ -49,7 +49,7 @@ class TestPropertiesCompatibility(unittest.TestCase):
     def test_identity_implies_not_permutation_false(self):
         m = None
         try:
-            m = pycauset.FloatMatrix(2)
+            m = pycauset.DenseMatrix(2, dtype="float64")
             m.properties["is_identity"] = True
             with self.assertRaises(ValueError):
                 m.properties["is_permutation"] = False
@@ -60,7 +60,7 @@ class TestPropertiesCompatibility(unittest.TestCase):
     def test_property_setter_validates(self):
         m = None
         try:
-            m = pycauset.FloatMatrix(2, 3)
+            m = pycauset.DenseMatrix(2, 3, dtype="float64")
             with self.assertRaises(ValueError):
                 m.properties = {"is_unitary": True}
         finally:
@@ -70,7 +70,7 @@ class TestPropertiesCompatibility(unittest.TestCase):
     def test_upper_triangular_requires_square_matrix(self):
         m = None
         try:
-            m = pycauset.FloatMatrix(2, 3)
+            m = pycauset.DenseMatrix(2, 3, dtype="float64")
             with self.assertRaises(ValueError):
                 m.properties["is_upper_triangular"] = True
         finally:
@@ -80,7 +80,7 @@ class TestPropertiesCompatibility(unittest.TestCase):
     def test_atomic_requires_square_matrix(self):
         m = None
         try:
-            m = pycauset.FloatMatrix(2, 3)
+            m = pycauset.DenseMatrix(2, 3, dtype="float64")
             with self.assertRaises(ValueError):
                 m.properties["is_atomic"] = True
         finally:
@@ -100,7 +100,7 @@ class TestPropertiesCompatibility(unittest.TestCase):
     def test_upper_and_lower_true_contradicts_diagonal_false(self):
         m = None
         try:
-            m = pycauset.FloatMatrix(3)
+            m = pycauset.DenseMatrix(3, dtype="float64")
             with self.assertRaises(ValueError):
                 m.properties = {"is_upper_triangular": True, "is_lower_triangular": True, "is_diagonal": False}
         finally:
@@ -113,7 +113,7 @@ class TestCachedDerivedPropagation(unittest.TestCase):
         m = None
         m2 = None
         try:
-            m = pycauset.FloatMatrix(3)
+            m = pycauset.DenseMatrix(3, dtype="float64")
             m.properties["trace"] = 7.0
             m2 = 2.0 * m
             self.assertEqual(m2.properties.get("trace"), 14.0)
@@ -127,7 +127,7 @@ class TestCachedDerivedPropagation(unittest.TestCase):
         m = None
         m2 = None
         try:
-            m = pycauset.FloatMatrix(3)
+            m = pycauset.DenseMatrix(3, dtype="float64")
             m.properties["determinant"] = 3.0
             m2 = 2.0 * m
             self.assertEqual(m2.properties.get("determinant"), 3.0 * (2.0**3))
@@ -141,7 +141,7 @@ class TestCachedDerivedPropagation(unittest.TestCase):
         m = None
         m2 = None
         try:
-            m = pycauset.FloatMatrix(3)
+            m = pycauset.DenseMatrix(3, dtype="float64")
             m.properties["is_identity"] = True
             m2 = 2.0 * m
             self.assertIn("is_identity", m2.properties)
@@ -157,8 +157,8 @@ class TestCachedDerivedPropagation(unittest.TestCase):
         b = None
         c = None
         try:
-            a = pycauset.FloatMatrix(2)
-            b = pycauset.FloatMatrix(2)
+            a = pycauset.DenseMatrix(2, dtype="float64")
+            b = pycauset.DenseMatrix(2, dtype="float64")
             a.properties["trace"] = 1.0
             b.properties["trace"] = 2.0
             c = a + b
@@ -177,8 +177,8 @@ class TestCachedDerivedPropagation(unittest.TestCase):
         b = None
         c = None
         try:
-            a = pycauset.ComplexFloat64Matrix(2)
-            b = pycauset.ComplexFloat64Matrix(2)
+            a = pycauset.DenseMatrix(2, dtype="complex_float64")
+            b = pycauset.DenseMatrix(2, dtype="complex_float64")
             a.properties["sum"] = 1 + 2j
             b.properties["sum"] = 3 + 4j
             c = a + b
@@ -195,7 +195,7 @@ class TestCachedDerivedPropagation(unittest.TestCase):
         m = None
         m2 = None
         try:
-            m = pycauset.FloatMatrix(3)
+            m = pycauset.DenseMatrix(3, dtype="float64")
             m.properties["trace"] = 7.0
             m.properties["determinant"] = 3.0
             m.properties["norm"] = 5.0

@@ -7,7 +7,7 @@
 namespace pycauset {
 
 DenseVector<bool>::DenseVector(uint64_t n, const std::string& backing_file)
-    : VectorBase(n) {
+    : DenseVectorBase(n) {
     // 1 bit per element, packed into 64-bit words. No row padding.
     uint64_t words = (n + 63) / 64;
     uint64_t size_in_bytes = words * 8;
@@ -23,7 +23,7 @@ DenseVector<bool>::DenseVector(uint64_t n,
                                uint64_t seed,
                                std::complex<double> scalar,
                                bool is_transposed)
-    : VectorBase(n) {
+    : DenseVectorBase(n) {
     uint64_t words = (n + 63) / 64;
     uint64_t size_in_bytes = words * 8;
     
@@ -39,7 +39,7 @@ DenseVector<bool>::DenseVector(uint64_t n,
 }
 
 DenseVector<bool>::DenseVector(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-    : VectorBase(n, std::move(mapper), pycauset::Structure::VECTOR, pycauset::DataType::BIT) {}
+    : DenseVectorBase(n, std::move(mapper), pycauset::Structure::VECTOR, pycauset::DataType::BIT) {}
 
 void DenseVector<bool>::set(uint64_t i, bool value) {
     if (i >= n_) throw std::out_of_range("Index out of bounds");

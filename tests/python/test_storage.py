@@ -3,7 +3,7 @@ import os
 import shutil
 from pathlib import Path
 import pycauset
-from pycauset import CausalSet, TriangularBitMatrix, IntegerMatrix, FloatMatrix
+from pycauset import CausalSet, TriangularMatrix, DenseMatrix
 
 from pycauset._internal import persistence as _persistence
 
@@ -106,7 +106,7 @@ class TestStorage(unittest.TestCase):
     def test_matrix_save_load(self):
         # Create a matrix
         n = 100
-        matrix = TriangularBitMatrix.random(n, 0.5, seed=42)
+        matrix = TriangularMatrix.random(n, 0.5, seed=42)
         path = self.test_dir / "matrix.pycauset"
         
         try:
@@ -119,12 +119,12 @@ class TestStorage(unittest.TestCase):
             _assert_is_container(path)
             meta, _ = _persistence._read_new_container_metadata_and_offset(path)
             self.assertEqual(meta["rows"], n)
-            self.assertEqual(meta["matrix_type"], "CAUSAL")
+            self.assertEqual((meta["structure"], meta["dtype"]), ("triangular", "bool"))
                     
             # Load
             loaded_matrix = pycauset.load(path)
             try:
-                self.assertIsInstance(loaded_matrix, TriangularBitMatrix)
+                self.assertTrue(isinstance(loaded_matrix, TriangularMatrix) and loaded_matrix.dtype == "bool")
                 self.assertEqual(loaded_matrix.rows(), n)
                 self.assertEqual(loaded_matrix.cols(), n)
             finally:
@@ -160,7 +160,7 @@ class TestStorage(unittest.TestCase):
 
     def test_integer_matrix_save_load(self):
         n = 10
-        matrix = IntegerMatrix(n) # Zero initialized
+        matrix = DenseMatrix(n, dtype="int32") # Zero initialized
         path = self.test_dir / "int_matrix.pycauset"
         
         try:
@@ -168,7 +168,7 @@ class TestStorage(unittest.TestCase):
             
             loaded = pycauset.load(path)
             try:
-                self.assertIsInstance(loaded, IntegerMatrix)
+                self.assertTrue(isinstance(loaded, DenseMatrix) and loaded.dtype == "int32")
                 self.assertEqual(loaded.rows(), n)
                 self.assertEqual(loaded.cols(), n)
             finally:
@@ -177,10 +177,8 @@ class TestStorage(unittest.TestCase):
             matrix.close()
 
     def test_dense_bit_matrix_rectangular_save_load(self):
-        if getattr(pycauset, "DenseBitMatrix", None) is None:
-            self.skipTest("DenseBitMatrix is not available")
 
-        m = pycauset.DenseBitMatrix(3, 5)
+        m = pycauset.DenseMatrix(3, 5, dtype="bool")
         m.set(1, 4, True)
         m.set(2, 0, True)
         path = self.test_dir / "bit_matrix_rect.pycauset"
@@ -191,11 +189,11 @@ class TestStorage(unittest.TestCase):
             meta, _ = _persistence._read_new_container_metadata_and_offset(path)
             self.assertEqual(meta["rows"], 3)
             self.assertEqual(meta["cols"], 5)
-            self.assertEqual(meta.get("data_type"), "BIT")
+            self.assertEqual((meta.get("structure"), meta.get("dtype")), ("dense", "bool"))
 
             loaded = pycauset.load(path)
             try:
-                self.assertIsInstance(loaded, pycauset.DenseBitMatrix)
+                self.assertTrue(isinstance(loaded, pycauset.DenseMatrix) and loaded.dtype == "bool")
                 self.assertEqual(loaded.rows(), 3)
                 self.assertEqual(loaded.cols(), 5)
                 self.assertTrue(loaded.get(1, 4))
@@ -208,7 +206,7 @@ class TestStorage(unittest.TestCase):
 
     def test_square_only_metadata_mismatch_rejected(self):
         n = 16
-        matrix = TriangularBitMatrix.random(n, 0.25, seed=7)
+        matrix = TriangularMatrix.random(n, 0.25, seed=7)
         path = self.test_dir / "triangular_ok.pycauset"
         bad_path = self.test_dir / "triangular_bad_cols.pycauset"
 
@@ -224,11 +222,9 @@ class TestStorage(unittest.TestCase):
             matrix.close()
 
     def test_int16_matrix_save_load(self):
-        if getattr(pycauset, "Int16Matrix", None) is None:
-            self.skipTest("Int16Matrix is not available")
 
         n = 10
-        matrix = pycauset.Int16Matrix(n)
+        matrix = pycauset.DenseMatrix(n, dtype="int16")
         matrix[0, 0] = 7
         matrix[1, 0] = -3
         path = self.test_dir / "int16_matrix.pycauset"
@@ -238,7 +234,7 @@ class TestStorage(unittest.TestCase):
 
             loaded = pycauset.load(path)
             try:
-                self.assertIsInstance(loaded, pycauset.Int16Matrix)
+                self.assertTrue(isinstance(loaded, pycauset.DenseMatrix) and loaded.dtype == "int16")
                 self.assertEqual(loaded.rows(), n)
                 self.assertEqual(loaded.cols(), n)
                 self.assertEqual(loaded[0, 0], 7)
@@ -249,11 +245,9 @@ class TestStorage(unittest.TestCase):
             matrix.close()
 
     def test_int16_vector_save_load(self):
-        if getattr(pycauset, "Int16Vector", None) is None:
-            self.skipTest("Int16Vector is not available")
 
         n = 10
-        vec = pycauset.Int16Vector(n)
+        vec = pycauset.DenseVector(n, dtype="int16")
         vec[0] = 4
         vec[1] = -5
         path = self.test_dir / "int16_vector.pycauset"
@@ -263,7 +257,7 @@ class TestStorage(unittest.TestCase):
 
             loaded = pycauset.load(path)
             try:
-                self.assertIsInstance(loaded, pycauset.Int16Vector)
+                self.assertTrue(isinstance(loaded, pycauset.DenseVector) and loaded.dtype == "int16")
                 self.assertEqual(len(loaded), n)
                 self.assertEqual(loaded[0], 4)
                 self.assertEqual(loaded[1], -5)

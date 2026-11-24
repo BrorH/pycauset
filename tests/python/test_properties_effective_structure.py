@@ -8,7 +8,7 @@ class TestEffectiveStructure(unittest.TestCase):
     def test_priority_tree_zero_identity_diagonal(self):
         m = None
         try:
-            m = pycauset.FloatMatrix(3)
+            m = pycauset.DenseMatrix(3, dtype="float64")
 
             m.properties = {"is_zero": True}
             self.assertEqual(effective_structure(m), "zero")
@@ -28,7 +28,7 @@ class TestEffectiveStructure(unittest.TestCase):
     def test_priority_tree_triangular_and_general(self):
         m = None
         try:
-            m = pycauset.FloatMatrix(3)
+            m = pycauset.DenseMatrix(3, dtype="float64")
 
             m.properties = {"is_upper_triangular": True}
             self.assertEqual(effective_structure(m), "upper_triangular")

@@ -20,7 +20,7 @@ class TestMatrixHierarchy(unittest.TestCase):
         C2 = causal_matrix(10)
         I_mat = matmul(C, C2)
         self.assertIsInstance(I_mat, pycauset.MatrixBase)
-        self.assertIsInstance(I_mat, pycauset.TriangularIntegerMatrix)
+        self.assertTrue(isinstance(I_mat, pycauset.TriangularMatrix) and I_mat.dtype == "int32")
         
         C.close()
         C2.close()

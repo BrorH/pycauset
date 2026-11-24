@@ -44,14 +44,14 @@ class TestIdentityFactory(unittest.TestCase):
         self.assertEqual(m[1, 4], 0.0)
 
     def test_identitymatrix_from_shape_list_rectangular(self):
-        m = pycauset.IdentityMatrix([2, 5])
+        m = pycauset.identity([2, 5])
         self.assertEqual(m.shape, (2, 5))
         self.assertEqual(m[0, 0], 1.0)
         self.assertEqual(m[1, 1], 1.0)
         self.assertEqual(m[1, 4], 0.0)
 
     def test_identity_from_matrix(self):
-        a = pycauset.IntegerMatrix(3, 2)
+        a = pycauset.DenseMatrix(3, 2, dtype="int32")
         m = pycauset.identity(a)
         self.assertEqual(m.shape, (3, 2))
         self.assertEqual(m[0, 0], 1.0)
@@ -60,23 +60,23 @@ class TestIdentityFactory(unittest.TestCase):
         self.assertEqual(m[2, 1], 0.0)
 
     def test_identitymatrix_from_matrix(self):
-        a = pycauset.IntegerMatrix(3, 2)
-        m = pycauset.IdentityMatrix(a)
+        a = pycauset.DenseMatrix(3, 2, dtype="int32")
+        m = pycauset.identity(a)
         self.assertEqual(m.shape, (3, 2))
         self.assertEqual(m[0, 0], 1.0)
         self.assertEqual(m[1, 1], 1.0)
         self.assertEqual(m[2, 1], 0.0)
 
     def test_identity_from_vector(self):
-        v = pycauset.IntegerVector(6)
+        v = pycauset.DenseVector(6, dtype="int32")
         m = pycauset.identity(v)
         self.assertEqual(m.shape, (6, 6))
         self.assertEqual(m[5, 5], 1.0)
         self.assertEqual(m[0, 5], 0.0)
 
     def test_identitymatrix_from_vector(self):
-        v = pycauset.IntegerVector(6)
-        m = pycauset.IdentityMatrix(v)
+        v = pycauset.DenseVector(6, dtype="int32")
+        m = pycauset.identity(v)
         self.assertEqual(m.shape, (6, 6))
         self.assertEqual(m[5, 5], 1.0)
         self.assertEqual(m[0, 5], 0.0)

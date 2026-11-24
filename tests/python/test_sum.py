@@ -8,7 +8,7 @@ import pycauset
 
 class TestSum(unittest.TestCase):
     def test_sum_vector_float(self):
-        v = pycauset.FloatVector(np.array([1.0, 2.0, 3.0], dtype=np.float64))
+        v = pycauset.vector(np.array([1.0, 2.0, 3.0], dtype=np.float64), dtype="float64")
         try:
             self.assertEqual(pycauset.sum(v), 6.0 + 0.0j)
 
@@ -19,7 +19,7 @@ class TestSum(unittest.TestCase):
             v.close()
 
     def test_sum_matrix_float(self):
-        m = pycauset.FloatMatrix(np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64))
+        m = pycauset.matrix(np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64), dtype="float64")
         try:
             self.assertEqual(pycauset.sum(m), 10.0 + 0.0j)
 
@@ -30,7 +30,7 @@ class TestSum(unittest.TestCase):
             m.close()
 
     def test_sum_scalar_multiply_propagates_cached_sum(self):
-        v = pycauset.FloatVector(np.array([1.0, 2.0, 3.0], dtype=np.float64))
+        v = pycauset.vector(np.array([1.0, 2.0, 3.0], dtype=np.float64), dtype="float64")
         v2 = None
         try:
             self.assertEqual(pycauset.sum(v), 6.0 + 0.0j)
@@ -47,7 +47,7 @@ class TestSum(unittest.TestCase):
             v.close()
 
     def test_sum_persists_as_cached_derived(self):
-        m = pycauset.FloatMatrix(np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64))
+        m = pycauset.matrix(np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64), dtype="float64")
         try:
             self.assertEqual(pycauset.sum(m), 10.0 + 0.0j)
             props = getattr(m, "properties", None)
@@ -69,11 +69,9 @@ class TestSum(unittest.TestCase):
             m.close()
 
     def test_sum_vector_complex_and_conjugation(self):
-        if getattr(pycauset, "ComplexFloat64Vector", None) is None:
-            self.skipTest("ComplexFloat64Vector is not available")
 
         arr = np.array([1 + 2j, 3 - 4j, -5 + 6j], dtype=np.complex128)
-        v = pycauset.ComplexFloat64Vector(arr)
+        v = pycauset.vector(arr, dtype="complex_float64")
         vc = None
         try:
             expected = (1 + 2j) + (3 - 4j) + (-5 + 6j)

@@ -25,7 +25,7 @@ class TestNumpyIntegration(unittest.TestCase):
         n = 5
         
         # FloatMatrix
-        fm = pycauset.FloatMatrix(n)
+        fm = pycauset.DenseMatrix(n, dtype="float64")
         fm[0, 1] = 3.14
         np_fm = np.array(fm)
         self.assertIsInstance(np_fm, np.ndarray)
@@ -34,21 +34,21 @@ class TestNumpyIntegration(unittest.TestCase):
         self.assertEqual(np_fm[0, 1], 3.14)
         
         # IntegerMatrix
-        im = pycauset.IntegerMatrix(n)
+        im = pycauset.DenseMatrix(n, dtype="int32")
         im[0, 1] = 42
         np_im = np.array(im)
         self.assertEqual(np_im.dtype, np.int32)
         self.assertEqual(np_im[0, 1], 42)
         
         # BitMatrix
-        bm = pycauset.DenseBitMatrix(n)
+        bm = pycauset.DenseMatrix(n, dtype="bool")
         bm[0, 1] = True
         np_bm = np.array(bm)
         self.assertEqual(np_bm.dtype, bool)
         self.assertEqual(np_bm[0, 1], True)
         
         # TriangularMatrix
-        tm = pycauset.TriangularFloatMatrix(n)
+        tm = pycauset.TriangularMatrix(n, dtype="float64")
         tm[0, 1] = 1.23
         np_tm = np.array(tm)
         self.assertEqual(np_tm[0, 1], 1.23)
@@ -57,7 +57,7 @@ class TestNumpyIntegration(unittest.TestCase):
     def test_numpy_arithmetic_interaction(self):
         """Test arithmetic between PyCauset objects and NumPy arrays."""
         n = 4
-        pc_mat = pycauset.FloatMatrix(n)
+        pc_mat = pycauset.DenseMatrix(n, dtype="float64")
         pc_mat[0, 0] = 10.0
         
         np_mat = np.zeros((n, n))
@@ -95,7 +95,7 @@ class TestNumpyIntegration(unittest.TestCase):
     def test_numpy_elementwise_broadcasting_1d(self):
         """Test NumPy-style broadcasting with 1D arrays (row-vectors)."""
         rows, cols = 3, 4
-        pc_mat = pycauset.FloatMatrix(rows, cols)
+        pc_mat = pycauset.DenseMatrix(rows, cols, dtype="float64")
         for i in range(rows):
             for j in range(cols):
                 pc_mat[i, j] = float(i * 10 + j)
@@ -142,7 +142,7 @@ class TestNumpyIntegration(unittest.TestCase):
     def test_numpy_ufuncs(self):
         """Test NumPy ufuncs on PyCauset objects."""
         n = 3
-        m = pycauset.FloatMatrix(n)
+        m = pycauset.DenseMatrix(n, dtype="float64")
         m[0, 0] = 0.0
         m[1, 1] = np.pi / 2
         
@@ -157,7 +157,7 @@ class TestNumpyIntegration(unittest.TestCase):
     def test_shape_and_attributes(self):
         """Test that PyCauset objects expose NumPy-like attributes."""
         n = 6
-        m = pycauset.FloatMatrix(n)
+        m = pycauset.DenseMatrix(n, dtype="float64")
         
         # .shape
         self.assertEqual(m.shape, (n, n))
@@ -180,7 +180,7 @@ class TestNumpyIntegration(unittest.TestCase):
     def test_vector_numpy_integration(self):
         """Test vector integration."""
         n = 5
-        v = pycauset.FloatVector(n)
+        v = pycauset.DenseVector(n, dtype="float64")
         v[0] = 1.0
         v[1] = 2.0
         

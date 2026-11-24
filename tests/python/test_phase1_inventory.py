@@ -7,8 +7,6 @@ from pathlib import Path
 class TestPhase1Inventory(unittest.TestCase):
     def test_01_lazy_arrays_materialize(self):
         """Verify that np.asarray(Expression) triggers evaluation."""
-        if not hasattr(pc, "FloatMatrix"):
-            self.skipTest("FloatMatrix undefined")
             
         A = pc.zeros((2, 2), dtype=pc.float64)
         B = pc.zeros((2, 2), dtype=pc.float64)
@@ -35,7 +33,7 @@ class TestPhase1Inventory(unittest.TestCase):
         
     def test_02_snapshot_export_loads_data(self):
         """Reproduce failure: Verify snapshot-based export reads data."""
-        m = pc.FloatMatrix(10, 10)
+        m = pc.DenseMatrix(10, 10, dtype="float64")
         m[0, 0] = 42.0
         snap_path = "inventory_test.pycauset"
         try:
@@ -52,38 +50,20 @@ class TestPhase1Inventory(unittest.TestCase):
                  try: os.remove(snap_path) 
                  except: pass
 
-    def test_03_enum_python_types(self):
-        """List all exportable types."""
-        types = [
-            pc.FloatVector, pc.IntegerVector,
-            pc.FloatMatrix, pc.IntegerMatrix,
-            pc.DenseBitMatrix
-        ]
-        # Check complex if available (R1_COMPLEX not fully active maybe?)
-        if hasattr(pc, "ComplexMatrix"):
-             types.append(pc.ComplexMatrix)
-             
-        for T in types:
-            inst = T(2) if "Vector" in T.__name__ else T(2, 2)
-            has_array = hasattr(inst, "__array__")
-            print(f"Type {T.__name__}: __array__={has_array}")
-            self.assertTrue(has_array, f"{T.__name__} missing __array__")
-
-    def test_04_dtype_mapping(self):
-        """Verify explicit dtype mapping in export."""
-        pairs = [
-            (pc.FloatMatrix, np.float64),
-            (pc.Float32Matrix, np.float32),
-            (pc.IntegerMatrix, np.int32),
-            (pc.DenseBitMatrix, np.bool_), # Should be bool or uint8?
-        ]
-        for T, np_dt in pairs:
-            if not hasattr(pc, T.__name__): continue
-            m = T(2, 2)
-            arr = np.array(m)
-            # Use strict type check or equivalence
-            self.assertTrue(arr.dtype == np_dt or np.issubdtype(arr.dtype, np_dt), 
-                            f"{T.__name__} -> {arr.dtype}, expected {np_dt}")
+    def test_03_every_dtype_exports_with_its_numpy_dtype(self):
+        """Every dense dtype has __array__ and exports with the matching NumPy dtype."""
+        pairs = {
+            "bool": np.bool_, "int8": np.int8, "int16": np.int16, "int32": np.int32, "int64": np.int64,
+            "uint8": np.uint8, "uint16": np.uint16, "uint32": np.uint32, "uint64": np.uint64,
+            "float16": np.float16, "float32": np.float32, "float64": np.float64,
+            "complex_float32": np.complex64, "complex_float64": np.complex128,
+        }
+        for dt, np_dt in pairs.items():
+            m = pc.DenseMatrix(2, 2, dtype=dt)
+            self.assertTrue(hasattr(m, "__array__"))
+            self.assertEqual(np.array(m).dtype, np_dt, dt)
+            v = pc.DenseVector(2, dtype=dt)
+            self.assertEqual(np.array(v).dtype, np_dt, dt)
 
 if __name__ == '__main__':
     unittest.main()

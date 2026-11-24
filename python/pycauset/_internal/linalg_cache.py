@@ -26,7 +26,10 @@ def patch_matrixbase_save(native: Any, save_func: Any) -> None:
         native.VectorBase.save = save_func
 
 
-def make_inverse(FloatMatrix: Any) -> Any:
+def make_inverse(native: Any) -> Any:
+    def _float64_matrix(arr: Any) -> Any:
+        return native.asarray(np.ascontiguousarray(arr, dtype=np.float64))
+
     def _inverse(self: Any, save: bool = False) -> Any:
         """Compute or retrieve cached inverse."""
         if hasattr(self, "_cached_inverse"):
@@ -38,7 +41,7 @@ def make_inverse(FloatMatrix: Any) -> Any:
         except Exception:
             backing = None
 
-        if backing and isinstance(self, FloatMatrix) and backing.endswith(".pycauset") and os.path.exists(backing):
+        if backing and isinstance(self, native.DenseMatrix) and self.dtype == "float64" and backing.endswith(".pycauset") and os.path.exists(backing):
             if _is_new_container(backing):
                 # If a persisted inverse object exists for this view state, load it.
                 ref_exists = False
@@ -56,7 +59,7 @@ def make_inverse(FloatMatrix: Any) -> Any:
                         backing,
                         name="inverse",
                         view_signature=view_sig,
-                        MatrixClass=FloatMatrix,
+                        native=native,
                     )
                 except Exception:
                     inv = None
@@ -79,7 +82,7 @@ def make_inverse(FloatMatrix: Any) -> Any:
                 # matrices backed by the new container (likely ignoring payload offsets).
                 # Until native inversion is made container-aware, force a NumPy inverse.
                 inv_np = np.linalg.inv(np.asarray(self))
-                inv = FloatMatrix(inv_np)
+                inv = _float64_matrix(inv_np)
                 self._cached_inverse = inv
 
                 if save:
@@ -105,7 +108,7 @@ def make_inverse(FloatMatrix: Any) -> Any:
                 # (e.g., truly singular matrices).
                 try:
                     inv_np = np.linalg.inv(np.asarray(self))
-                    inv = FloatMatrix(inv_np)
+                    inv = _float64_matrix(inv_np)
                 except Exception:
                     raise exc
         else:
@@ -131,8 +134,8 @@ def make_inverse(FloatMatrix: Any) -> Any:
     return _inverse
 
 
-def patch_inverse(*, FloatMatrix: Any, classes: list[Any]) -> None:
-    inv_func = make_inverse(FloatMatrix)
+def patch_inverse(*, native: Any, classes: list[Any]) -> None:
+    inv_func = make_inverse(native)
 
     for cls in classes:
         if cls and hasattr(cls, "invert"):

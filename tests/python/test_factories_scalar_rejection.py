@@ -16,7 +16,7 @@ def test_vector_rejects_float_scalar_deterministically():
 
 
 def test_matrix_accepts_existing_native_matrix_as_noop():
-    m = pycauset.FloatMatrix(2, 3)
+    m = pycauset.DenseMatrix(2, 3, dtype="float64")
     try:
         m2 = pycauset.matrix(m)
         assert m2 is m
@@ -49,7 +49,7 @@ def test_matrix_rejects_3d_nested_sequences_deterministically():
 
 
 def test_vector_accepts_existing_native_vector_as_noop():
-    v = pycauset.FloatVector(5)
+    v = pycauset.DenseVector(5, dtype="float64")
     try:
         v2 = pycauset.vector(v)
         assert v2 is v

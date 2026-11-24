@@ -12,7 +12,7 @@ from pycauset import save
 class TestComplexVectorDTypes(unittest.TestCase):
     def test_construct_set_get_complex_float32(self):
         v = pycauset.empty(3, dtype="complex_float32")
-        self.assertTrue("ComplexFloat32Vector" in str(v))
+        self.assertTrue(v.dtype == "complex_float32")
 
         v[0] = 1.25 + 2.5j
         v[1] = -3.0 + 0.5j
@@ -29,7 +29,7 @@ class TestComplexVectorDTypes(unittest.TestCase):
     def test_numpy_roundtrip_complex64(self):
         arr = np.array([1 + 2j, 3 - 4j, 0.25 + 0.5j], dtype=np.complex64)
         v = pycauset.vector(arr)
-        self.assertTrue("ComplexFloat32Vector" in str(v))
+        self.assertTrue(v.dtype == "complex_float32")
 
         out = np.array(v)
         self.assertEqual(out.dtype, np.complex64)
@@ -71,7 +71,7 @@ class TestComplexVectorDTypes(unittest.TestCase):
         tmp_dir = tempfile.mkdtemp(prefix="pycauset_cf16_vec_")
         try:
             v = pycauset.vector([1 + 2j, 3 - 4j, 0.25 + 0.5j], dtype="complex_float16")
-            self.assertTrue("ComplexFloat16Vector" in str(v))
+            self.assertTrue(v.dtype == "complex_float16")
 
             out = np.array(v)
             self.assertEqual(out.dtype, np.complex64)
@@ -83,7 +83,7 @@ class TestComplexVectorDTypes(unittest.TestCase):
             v.close()
 
             v2 = pycauset.load(path)
-            self.assertTrue("ComplexFloat16Vector" in str(v2))
+            self.assertTrue(v2.dtype == "complex_float16")
             out2 = np.array(v2)
             self.assertEqual(out2.dtype, np.complex64)
             self.assertTrue(np.allclose(out2, expected, atol=5e-2, rtol=5e-2))

@@ -16,10 +16,10 @@ class TestBlockMatrixPhaseB(unittest.TestCase):
 
         a = b = c = d = None
         try:
-            a = pycauset.FloatMatrix(2, 2)
-            b = pycauset.FloatMatrix(2, 1)
-            c = pycauset.FloatMatrix(1, 2)
-            d = pycauset.FloatMatrix(1, 1)
+            a = pycauset.DenseMatrix(2, 2, dtype="float64")
+            b = pycauset.DenseMatrix(2, 1, dtype="float64")
+            c = pycauset.DenseMatrix(1, 2, dtype="float64")
+            d = pycauset.DenseMatrix(1, 1, dtype="float64")
 
             self._fill_const(a, 1.0)
             self._fill_const(b, 2.0)
@@ -77,8 +77,8 @@ class TestBlockMatrixPhaseB(unittest.TestCase):
 
         a = b = None
         try:
-            a = pycauset.FloatMatrix(2, 2)
-            b = pycauset.FloatMatrix(3, 1)
+            a = pycauset.DenseMatrix(2, 2, dtype="float64")
+            b = pycauset.DenseMatrix(3, 1, dtype="float64")
             with self.assertRaises(ValueError):
                 BlockMatrix([[a, b]])
         finally:
@@ -91,10 +91,10 @@ class TestBlockMatrixPhaseB(unittest.TestCase):
 
         a = b = c = d = None
         try:
-            a = pycauset.FloatMatrix(1, 2)
-            b = pycauset.FloatMatrix(1, 3)
-            c = pycauset.FloatMatrix(1, 2)
-            d = pycauset.FloatMatrix(1, 4)
+            a = pycauset.DenseMatrix(1, 2, dtype="float64")
+            b = pycauset.DenseMatrix(1, 3, dtype="float64")
+            c = pycauset.DenseMatrix(1, 2, dtype="float64")
+            d = pycauset.DenseMatrix(1, 4, dtype="float64")
             with self.assertRaises(ValueError):
                 BlockMatrix([[a, b], [c, d]])
         finally:

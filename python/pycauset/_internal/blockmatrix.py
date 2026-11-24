@@ -194,37 +194,7 @@ def _infer_dtype_label(obj: Any) -> str:
     except Exception:
         pass
 
-    name = type(obj).__name__
-    # Common native type names.
-    if "ComplexFloat16" in name:
-        return "cf16"
-    if "ComplexFloat32" in name:
-        return "c32"
-    if "ComplexFloat64" in name:
-        return "c64"
-    if "Float16" in name:
-        return "f16"
-    if "Float32" in name:
-        return "f32"
-    if name == "FloatMatrix" or name.endswith("FloatMatrix"):
-        return "f64"
-    if "Int8" in name:
-        return "i8"
-    if "Int16" in name:
-        return "i16"
-    if "Int64" in name:
-        return "i64"
-    if "UInt8" in name:
-        return "u8"
-    if "UInt16" in name:
-        return "u16"
-    if "UInt32" in name:
-        return "u32"
-    if "UInt64" in name:
-        return "u64"
-    if "Bit" in name:
-        return "bit"
-    return name
+    return type(obj).__name__
 
 
 def _block_kind(obj: Any) -> str:

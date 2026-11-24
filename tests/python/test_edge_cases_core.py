@@ -123,7 +123,7 @@ class TestDTypeInvariants(unittest.TestCase):
         # through to the float branch and produce a broken abstract Matrix (with
         # no dtype, so to_numpy raised "data type '' not understood").
         z = pc.matrix([[1 + 2j, 0], [0, 1]])
-        self.assertEqual(type(z).__name__, "ComplexFloat64Matrix")
+        self.assertEqual((type(z).__name__, z.dtype), ("DenseMatrix", "complex_float64"))
         got = _np(z)
         self.assertEqual(got.dtype, np.dtype(np.complex128))
         self.assertEqual(got[0, 0], 1 + 2j)
@@ -131,7 +131,7 @@ class TestDTypeInvariants(unittest.TestCase):
 
     def test_complex_list_rectangular_and_explicit_dtype(self):
         rect = pc.matrix([[1 + 2j, 3], [4, 5 + 6j], [7, 8]])
-        self.assertEqual(type(rect).__name__, "ComplexFloat64Matrix")
+        self.assertEqual((type(rect).__name__, rect.dtype), ("DenseMatrix", "complex_float64"))
         self.assertEqual(_np(rect).dtype, np.dtype(np.complex128))
 
         c32 = pc.matrix([[1 + 2j, 0], [0, 1]], dtype="complex_float32")
@@ -283,9 +283,11 @@ class TestBitwiseOps(unittest.TestCase):
     def test_bitwise_returns_bit_structure(self):
         a = pc.matrix(np.array([[1, 0], [1, 1]], dtype=bool))
         b = pc.matrix(np.array([[1, 1], [0, 1]], dtype=bool))
-        self.assertEqual(type(pc.bitwise_and(a, b)).__name__, "DenseBitMatrix")
+        r = pc.bitwise_and(a, b)
+        self.assertEqual((type(r).__name__, r.dtype), ("DenseMatrix", "bool"))
         v = pc.vector([True, False], dtype="bool")
-        self.assertEqual(type(pc.bitwise_and(v, v)).__name__, "BitVector")
+        rv = pc.bitwise_and(v, v)
+        self.assertEqual((type(rv).__name__, rv.dtype), ("DenseVector", "bool"))
 
 
 if __name__ == "__main__":

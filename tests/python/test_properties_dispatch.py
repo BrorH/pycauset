@@ -5,8 +5,8 @@ import pycauset
 
 class TestPropertiesDispatch(unittest.TestCase):
     def test_matmul_diagonal_properties_drive_dispatch(self):
-        a = pycauset.FloatMatrix(2)
-        b = pycauset.FloatMatrix(2)
+        a = pycauset.DenseMatrix(2, dtype="float64")
+        b = pycauset.DenseMatrix(2, dtype="float64")
         try:
             # Note: off-diagonal entries are nonzero, but properties are gospel.
             a.set(0, 0, 1.0)
@@ -39,8 +39,8 @@ class TestPropertiesDispatch(unittest.TestCase):
             b.close()
 
     def test_matmul_triangular_properties_drive_dispatch(self):
-        a = pycauset.FloatMatrix(3)
-        b = pycauset.FloatMatrix(3)
+        a = pycauset.DenseMatrix(3, dtype="float64")
+        b = pycauset.DenseMatrix(3, dtype="float64")
         try:
             # Fill A and B with values (including below-diagonal noise).
             vals_a = [
