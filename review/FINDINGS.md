@@ -531,3 +531,29 @@ the entry (the history is useful). New findings go at the bottom with the next f
   guessed dtype, and NumPy's default is float64. It was a deliberate R1 feature
   (CHANGELOG 0.6.1), so it's the maintainer's call. **Tech-lead recommendation:** default
   to float64 like NumPy and delete the wrapper.
+
+### F-042 Scalar factor views exist only for float dtypes (wanted feature, R1)
+- **Status:** open, **next up** (maintainer: "definitely a wanted feature").
+- `k * M` is meant to be O(1): the result shares `M`'s storage and records `k` in the view
+  metadata (`scalar_`), and chains such as `2 * 3 * 5 * M` fold into one factor. Measured on
+  3000×3000, three chained multiplies: float64 0.2 ms (view, `scalar = 30`); int32 85 ms and
+  int64 139 ms (three full copies).
+- History: before F-001 the integer path also made a view, but most readers (`__getitem__`,
+  NumPy export, matmul) ignored `scalar_` for integer and bit matrices, so `A * 3` returned
+  `A` unchanged. The F-001 fix made integer and bit scaling eager and exact, which is correct
+  but lost the O(1) path.
+- Not the same thing as the expression engine removed in `d564c7f` (fused `A + B + C` trees,
+  float-only, measured no faster). The view mechanism (`scalar_`, `is_transposed_`,
+  `is_conjugated_`) stays and is the right place for this.
+- Plan:
+  1. Store the factor exactly: an int64 factor for integer/bit views beside the complex one
+     for floats. Wrapping multiplication is a ring homomorphism mod 2^k, so
+     `(x·a)·b ≡ x·(a·b) (mod 2^k)`: folding int factors gives bit-identical results to eager
+     NumPy, overflow included.
+  2. Every reader honours the factor (element get, export, sum, matmul via BLAS `alpha`,
+     element-wise kernels, streaming, persistence save/load), enforced by a conformance
+     test that runs each op on `k * M` and compares it with NumPy (the gap that hid F-001).
+  3. Bit matrices: `2 * C` is an int view over bit storage (dtype from the promotion rules);
+     an int32 view costs 1/32 of the memory of the eager result.
+  4. Cases that can't be a view stay eager: int × float scalar (truncation per element),
+     dtype-changing scalars.
