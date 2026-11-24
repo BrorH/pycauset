@@ -97,8 +97,6 @@ Overflow behavior depends on the operation class:
 - **Elementwise** (`add`, `sub`, `mul`, `div`, and their scalar variants): integer overflow **wraps silently** (C/NumPy two's-complement semantics). This is the documented, supported behavior: it is not an error and does not auto-promote.
 - **Reductions** (`matmul`): PyCauset uses a **wider internal accumulator** and **throws `OverflowError`** when the final result does not fit the output dtype. This keeps reductions free of silent wrap. (`dot` returns a Python `float` scalar, which is exact for results within float64 precision.)
 
-For high-risk ops such as large integer matmul, PyCauset may emit an **advisory risk warning** based on conservative bounds (see `PyCausetOverflowRiskWarning`).
-
 Reduction-aware accumulator widening is a dtype-policy event (see `PyCausetDTypeWarning`).
 
 ### 5.2 Float overflow

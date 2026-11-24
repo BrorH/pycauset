@@ -15,7 +15,10 @@ This page defines the project-wide conventions for **user-facing warnings** and 
 Warnings are for cases where execution can continue correctly, but the user should be informed.
 
 - **Policy surprises** (e.g., underpromotion within floats, reduction accumulator widening)
-- **Heuristic risk checks** (e.g., integer matmul overflow-risk preflight)
+- **Lossy assignments** (e.g., narrowing or float→int casts)
+
+Never warn (or decide anything) based on *sampling* the data: every warning must follow
+deterministically from dtypes, shapes, or values the engine has fully checked.
 - **Performance hazards** (e.g., a fallback that will be much slower than expected)
   - Example: a cached-derived value (including a “big blob cache” like an inverse) cannot be loaded because its referenced storage object is missing/corrupt; the runtime will warn and ignore the cached entry (no implicit recompute).
 
@@ -43,7 +46,7 @@ Defined in `python/pycauset/_internal/warnings.py` and re-exported from `pycause
 
 - `pycauset.PyCausetWarning` (base)
 - `pycauset.PyCausetDTypeWarning` (promotion/accumulator dtype notifications)
-- `pycauset.PyCausetOverflowRiskWarning` (heuristic overflow risk preflights)
+- `pycauset.PyCausetOverflowRiskWarning` (narrowing or float→int casts on assignment)
 - `pycauset.PyCausetPerformanceWarning` (slow-path / performance notifications)
 - `pycauset.PyCausetStorageWarning` (storage/mmap/cache notifications)
 
@@ -57,7 +60,7 @@ Users can suppress specific warning families:
 
 Warnings should follow this format:
 
-- Start with `pycauset <op> ...` or `pycauset <op> preflight ...`
+- Start with `pycauset <op> ...`
 - Include **operation name** (e.g., `matmul`, `dot`)
 - Include **relevant dtypes / structures** (even if the current engine is only int32/float32/float64)
 - State what was changed:
@@ -124,10 +127,13 @@ Policy notes:
 - Keep messages stable and specific.
 - Prefer: `"Integer matmul overflow: ..."` over generic `"overflow"`.
 
-## Current implemented warnings (Phase 1 work)
+## Current implemented warnings
 
 - `int32 @ int32` matmul accumulator notification (`PyCausetDTypeWarning`)
 - mixed `float32/float64` underpromotion notification (`PyCausetDTypeWarning`)
-- integer matmul overflow-risk preflight warning (`PyCausetOverflowRiskWarning`)
+- narrowing / float→int cast on assignment (`PyCausetOverflowRiskWarning`)
+
+PyCauset never warns or decides based on sampling the data: integer matmul overflow is
+detected exactly (int64 accumulator, `OverflowError` when a result doesn't fit).
 
 As dtype expansion progresses, these will generalize to the resolver-selected dtype tuples.

@@ -294,3 +294,22 @@ the entry (the history is useful). New findings go at the bottom with the next f
   sanitized run looks clean even when UB occurs (verified 2026-11-24). `asan.yml`
   passes `-s`, but it runs ASan only (no UBSan) and only on `main`. The new CI
   sanitizer job must use `-s` or `-fno-sanitize-recover=undefined`.
+
+### F-028 Guesswork in the engine (sampled overflow preflight)
+- **Status:** fixed (preflight removed; see the commit `fix(F-028)`)
+- **Policy (maintainer, 2026-11-24):** the engine must be deterministic. No decision
+  or warning may be based on sampling the data.
+- Audit result: the only data-sampling heuristic is
+  `maybe_warn_integer_matmul_overflow_risk_preflight` (`bind_matrix.cpp:231-305`). It
+  reads 72 fixed-position elements of int32 operands and emits a
+  `PyCausetOverflowRiskWarning`. It is redundant: the int32 matmul kernel already
+  accumulates in int64 and **raises `OverflowError`** exactly when a result doesn't fit
+  (verified, including a large value at an unsampled position). Remove it.
+- Other "estimates" are deterministic arithmetic on shapes (bytes, parallel thresholds)
+  and are fine. The `AutoSolver` CPU/GPU timing benchmark is run-dependent but GPU-only;
+  it leaves with the CUDA move.
+- Run-to-run determinism of float reductions verified: `sum`, `norm`, `dot` and matmul
+  are bit-identical across 3 processes × 5 repeats (1500² matrix, 2M vector).
+- Related inconsistency: int32 **matmul raises** on overflow, while int32 **elementwise
+  ops wrap** (F-006). One overflow policy is needed; it arrives with value bounds
+  (features/VALUE_BOUNDS.md). Interim: elementwise must at least stop relying on UB.

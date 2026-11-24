@@ -56,6 +56,10 @@ review/
    RESTRUCTURE §3.1. Ask the maintainer only product questions, in plain language.
 10. **R1 priority is the engine** (linear algebra, NumPy parity, storage). Physics
    gets smoke tests and glaring-bug fixes only until after R1.
+12. **Deterministic only (maintainer, 2026-11-24).** No heuristics that guess from
+   samples of the data, and no decisions that can differ between runs on the same
+   input. If a value can't be guaranteed, accept the larger dtype or raise. Guessing
+   features may come later as explicit opt-ins, never in R1.
 11. **Dead code is a first-class target** (DEADCODE.md). If you touch a file, check
    its never-executed list.
 
