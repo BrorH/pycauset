@@ -95,8 +95,9 @@ Re-check `MemoryGovernor`'s pinning API with the gtests included before removing
   never fire) and the empty `pc.TriangularMatrix` shim.
 - `lazy_allocation` dtype-less `zeros()` wrapper: 18 operator methods never run.
 - `pc.divide`: public, never called by any test.
-- `CpuSolver`: `gemm` (80 lines), `multiply_scalar` (36), `eigvals_arnoldi` (C++,
-  ~160), several `matmul` type-combination branches, `batch_gemv`.
+- `CpuSolver`: `gemm` (80 lines), `multiply_scalar` (36), several `matmul`
+  type-combination branches, `batch_gemv`. (`eigvals_arnoldi` is **kept by maintainer
+  decision**: test it, don't delete it.)
 - `StreamingManager.cpp` + `CpuComputeWorker` (see §3).
 - All of `review/deadcode/cpp_never_executed.txt` and `py_never_executed.txt`,
   reviewed file by file during PLAN Phase 3. Each reviewer records keep/test/delete.
@@ -127,9 +128,11 @@ code across ~40 C++ classes and their bindings.
 Record answers here with a date. Anything cut is removed completely (code, tests,
 docs, plans).
 
-**Answers (2026-11-24):** dtype scope delegated to the tech lead → drop
-`complex_float16`, add none (RESTRUCTURE §3.1 item 10). Structures: judged one by one
-in Phase 3. Rarely used features: tech lead proposes per feature in Phase 3.
+**Answers (maintainer, 2026-11-24):** keep **all 16 dtypes** (under-promotion is the
+point; int64 is the ceiling). Keep `eigvals_skew`, `eig_skew` and `eigvals_arnoldi`;
+their never-executed C++ code moves from "candidate" to **"must be tested"**. Defer
+and remove `precision_mode` (+ set/get). Structures: judged one by one in Phase 3.
+Other rarely used features: tech lead proposes per feature in Phase 3.
 
 ## 6. Removal procedure (for agents)
 1. Pick one tier and one area. Small batches; one commit per logical removal.

@@ -98,3 +98,12 @@ removing MemoryGovernor's pinning API.
   Spec: `features/VALUE_BOUNDS.md`; PLAN Phase F1. It replaces the existing
   heuristic int32 matmul overflow preflight (`bind_matrix.cpp:231-305`), which
   samples a few elements and is therefore unsound.
+
+## Session 1, part 4: 2026-11-24, R1 scope answers
+
+- **All 16 dtypes stay** (maintainer: small dtypes are the under-promotion mantra).
+  Reverses the tech lead's "drop complex_float16". int64 is the ceiling.
+- Keep the skew-symmetric eigensolvers and Arnoldi: their untested C++ paths become
+  must-test items in Phase 2.
+- `precision_mode` (+ set/get) deferred out of R1: to be removed (PLAN 4.1b).
+- bool/bit addition counts into integers, documented (reconfirmed).

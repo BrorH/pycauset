@@ -83,6 +83,8 @@ Each fix: regression test first (from Phase 1), then fix, then FINDINGS status.
 - [ ] F-004 nested ParallelFor deadlock; F-005 exception-path use-after-free
 - [ ] F-006 signed-overflow UB in integer kernels (all widths, all ops)
 - [ ] F-002 operator coverage (`__neg__`, int `__rmul__`, `A - int`, uint64)
+- [ ] Skew/Arnoldi eigensolvers: tests that actually execute the C++ paths
+      (`CpuSolver::eigvals_arnoldi` is 0% executed today); maintainer needs them for R1
 - [ ] F-003 `cond` NumPy default norm, plus other "silently differs from NumPy" defaults
       (do a pass over every function's defaults against NumPy's signature)
 - [ ] Anything Phase 1 grids surface (log as new F-ids)
@@ -130,7 +132,11 @@ risk: storage and object model first, since everything rests on them.
 ## Phase 4: Structural cleanup (after the RESTRUCTURE decisions)
 Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.1 Dead code Tiers B–D (DEADCODE.md) and debug leftovers (F-019)
-- [ ] 4.1b Scope pruning: remove `complex_float16` end to end (RESTRUCTURE §3.1 item 10)
+- [ ] 4.1b Remove `precision_mode` / `set_precision_mode` / `get_precision_mode` end to end
+      (code, C++ mode, docs, tests); update the under-promotion warning text
+- [ ] 4.1d Dtype matrix completeness: every one of the 16 dtypes works with every other
+      in every op of the spec table (the conformance grid is the gate)
+- [ ] 4.1e Fold `ComplexFloat16Matrix/Vector` into the generic templates if feasible
 - [ ] 4.1c bit/bool arithmetic = integer counting everywhere (RESTRUCTURE §3.2 B, F-013)
 - [ ] 4.2 Split CpuSolver.cpp, bind_matrix.cpp and `__init__.py` (pure moves)
 - [ ] 4.3 Single source of truth for operators and properties (RESTRUCTURE §3.1 items 1–2); delete the monkeypatch stack

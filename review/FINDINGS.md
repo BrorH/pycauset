@@ -185,7 +185,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   startup per call.
 
 ### F-013 bool dtype semantics diverge from NumPy without documentation
-- **Status:** open. **Decision (maintainer, 2026-11-24): counting semantics.** bool/bit
+- **Status:** open. **Decision (maintainer, 2026-11-24, reconfirmed): counting semantics, documented.** bool/bit
   `A + B` adds into integers; matmul counts paths. Document it as a deliberate NumPy
   divergence. With value bounds (features/VALUE_BOUNDS.md) the result is the smallest
   int that fits (bit + bit → int8).

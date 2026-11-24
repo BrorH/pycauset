@@ -161,20 +161,26 @@ engine and everything behind it is C++.* Python is a thin packaging layer.
 9. **The old test suite is retired only after the new one proves equal or better
    coverage** (TESTS.md §4). *Why:* the old tests are the only written record of
    intended behaviour in some corners.
-10. **Dtype set = NumPy's numeric dtypes + bit-packed.** Keep bool/bit, int8–64,
-   uint8–64, float16/32/64, complex64/128. **Drop `complex_float16`** (NumPy has no
-   complex32, so no native round-trip; it is the only dtype needing two hand-written
-   C++ classes, `ComplexFloat16Matrix/Vector`). **Add none:** bfloat16 is an ML format,
-   float128 isn't portable; both would be feature creep. (Maintainer asked for this
-   check and delegated the call.)
+10. **[Maintainer decision 2026-11-24, reverses the tech lead's proposal to drop
+   complex_float16]** **All 16 dtypes stay**: bit/bool, int8–64, uint8–64,
+   float16/32/64, complex16/32/64. *Why (maintainer):* small dtypes are the
+   under-promotion mantra ("massive matrices that just work"), so every dtype must
+   work with every other. int64 is the ceiling (no int128). **Add none** (bfloat16,
+   float128 rejected as creep). Consequence: complex16 exports to NumPy as complex64
+   (NumPy has no complex32); document it. The hand-written `ComplexFloat16Matrix/Vector`
+   classes should be folded into the generic templates during Phase 4 if feasible.
 11. **Structures for R1:** keep all current structures for now; each is judged
    individually in Phase 3 by coverage and usefulness (DEADCODE Tier B), not cut
    wholesale.
 
 ### 3.2 Product questions for the creative director (open)
-A. **Scope for R1:** dtypes delegated → decided in §3.1 item 10. Rarely used
-   features (DEADCODE §5.3) are judged per feature during Phase 3; ask the maintainer
-   only about user-visible features with real users.
+A. **[Decided by maintainer 2026-11-24] Scope for R1:** all 16 dtypes (§3.1 item 10).
+   **Keep and test:** skew-symmetric eigensolvers (`eigvals_skew`, `eig_skew`) and
+   `eigvals_arnoldi` ("definitely needed"). **Defer out of R1 and remove:**
+   `precision_mode` / `set_precision_mode` / `get_precision_mode` and the C++
+   thread-local precision mode (the default float under-promotion stays; the
+   under-promotion warning should advise casting inputs to float64). Other rarely used
+   features: tech lead judges per feature in Phase 3.
 B. **[Decided by maintainer 2026-11-24]** bit/bool `A + B` **adds into integers**
    (counting), *not* logical OR. Multiplication keeps counting paths. Documented as a
    deliberate NumPy divergence. (F-013)
