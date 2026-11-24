@@ -10,7 +10,6 @@
 #include "pycauset/vector/DenseVector.hpp"
 #include "pycauset/vector/ComplexFloat16Vector.hpp"
 #include "pycauset/vector/UnitVector.hpp"
-#include "pycauset/core/MatrixTypeResolver.hpp"
 #include "pycauset/core/Float16.hpp"
 #include <complex>
 #include <stdexcept>

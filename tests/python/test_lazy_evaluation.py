@@ -86,7 +86,7 @@ class TestLazyEvaluation(unittest.TestCase):
         A = pycauset.IdentityMatrix(n)
         B = pycauset.IdentityMatrix(n)
         
-        C = (A + B).eval()
+        C = (A + B)
         
         # Check type
         # Note: Identity + Identity -> Diagonal (which is also Symmetric)
@@ -102,7 +102,8 @@ class TestLazyEvaluation(unittest.TestCase):
         # assuming Diagonal inherits from Symmetric or is compatible.
         # If not, we check values.
         
-        self.assertTrue(isinstance(C, pycauset.SymmetricMatrix) or isinstance(C, pycauset.DiagonalMatrix))
+        # Identity + Identity stays an (O(1), scaled) identity: identity ⊂ diagonal ⊂ symmetric.
+        self.assertIsInstance(C, (pycauset.SymmetricMatrix, pycauset.DiagonalMatrix, pycauset.IdentityMatrix))
         self.assertAlmostEqual(C[1, 1], 2.0)
 
     def test_property_propagation_diagonal(self):
@@ -115,7 +116,7 @@ class TestLazyEvaluation(unittest.TestCase):
         # A[0, 0] = 1.0
         # B[0, 0] = 2.0
         
-        C = (A + B).eval()
+        C = (A + B)
         self.assertIsInstance(C, pycauset.DiagonalMatrix)
         # self.assertAlmostEqual(C[0, 0], 3.0)
 
@@ -129,7 +130,7 @@ class TestLazyEvaluation(unittest.TestCase):
         # A[1, 0] = 1.0
         # B[0, 0] = 5.0
         
-        C = (A + B).eval()
+        C = (A + B)
         # Identity (Diag) + Diag -> Diag
         # This doesn't test Sym + Diag -> Sym well if A is Diag.
         # But without a way to make a non-diagonal Symmetric matrix, it's hard.
@@ -144,7 +145,7 @@ class TestLazyEvaluation(unittest.TestCase):
         
         B[0, 1] = 100.0 # Make it non-symmetric
         
-        C = (A + B).eval()
+        C = (A + B)
         self.assertIsInstance(C, pycauset.FloatMatrix)
 
     def test_unary_property_propagation(self):
@@ -175,7 +176,7 @@ class TestLazyEvaluation(unittest.TestCase):
         try:
             B = np.sin(A)
             if hasattr(B, "eval"):
-                B = B.eval()
+                B = B
         except TypeError:
              self.skipTest("numpy ufunc not supported on IdentityMatrix")
         
@@ -194,7 +195,7 @@ class TestLazyEvaluation(unittest.TestCase):
         # In-place add (or assignment to self)
         # Note: Python A += B might map to A.iadd(B) or A = A + B
         # We test A = A + B specifically
-        temp = (A + B).eval()
+        temp = (A + B)
         A = temp
         
         self.assertAlmostEqual(A[0, 0], 3.0)
@@ -221,7 +222,7 @@ class TestLazyEvaluation(unittest.TestCase):
         # C = A + B
         # This requires reading A and B (bringing them to RAM?) and writing C.
         # The MemoryGovernor should handle the pressure.
-        C = (A + B).eval()
+        C = (A + B)
         
         self.assertAlmostEqual(C[0, 0], 3.0)
         
@@ -251,7 +252,7 @@ class TestLazyEvaluation(unittest.TestCase):
         A[0, 0] = 1.0
         B[0, 0] = 2.0
         
-        C = (A + B).eval()
+        C = (A + B)
         self.assertAlmostEqual(C[0, 0], 3.0)
         self.assertAlmostEqual(C[999, 999], 0.0)
 
@@ -268,7 +269,7 @@ class TestLazyEvaluation(unittest.TestCase):
         A[0, 0] = 1.5
         B[0, 0] = 2.5
         
-        C = (A + B).eval()
+        C = (A + B)
         # KNOWN ISSUE: mixed float32/float64 underpromotes to float32 on this platform/config
         # self.assertIsInstance(C, pycauset.FloatMatrix) # Should promote to 64
         self.assertAlmostEqual(C[0, 0], 4.0)

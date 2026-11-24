@@ -28,7 +28,7 @@ def _catalog():
     for dt in DTYPES:
         items[f"dense-{dt}"] = lambda dt=dt: pc.matrix(_dense(dt))
         items[f"dense-{dt}.T"] = lambda dt=dt: pc.matrix(_dense(dt)).T
-    items["float64*2.5 (lazy scalar)"] = lambda: pc.matrix(_dense("float64")) * 2.5
+    items["float64*2.5 (scalar view)"] = lambda: pc.matrix(_dense("float64")) * 2.5
     items["complex128*1j"] = lambda: pc.matrix(_dense("complex128")) * 1j
     items["int32*3 (exact)"] = lambda: pc.matrix(_dense("int32")) * 3
     items["causal"] = lambda: pc.causal_matrix(12, populate=True)
@@ -47,13 +47,6 @@ def _catalog():
 CATALOG = _catalog()
 IDS = list(CATALOG)
 
-# Results of lazy float expressions are LazyMatrix objects, which lack sum/.T/save (F-038).
-LAZY = {"float64*2.5 (lazy scalar)", "identity*4"}
-
-
-def _mark_lazy_gap(name, request, what):
-    if name in LAZY:
-        request.applymarker(pytest.mark.xfail(reason=f"F-038: LazyMatrix has no {what}", strict=False))
 
 
 def _tol(arr):
@@ -82,8 +75,7 @@ def test_element_access_matches_export(name, storage):
 
 
 @pytest.mark.parametrize("name", IDS)
-def test_sum_matches_export(name, request, storage):
-    _mark_lazy_gap(name, request, "pc.sum support")
+def test_sum_matches_export(name, storage):
     m = CATALOG[name]()
     ref = to_np(m)
     total = complex(pc.sum(m))
@@ -92,8 +84,7 @@ def test_sum_matches_export(name, request, storage):
 
 
 @pytest.mark.parametrize("name", IDS)
-def test_transpose_matches_export(name, request, storage):
-    _mark_lazy_gap(name, request, ".T")
+def test_transpose_matches_export(name, storage):
     m = CATALOG[name]()
     np.testing.assert_array_equal(to_np(m.T), to_np(m).T)
 
@@ -108,11 +99,10 @@ def test_matmul_with_identity_preserves_values(name, storage):
 
 
 @pytest.mark.parametrize("name", IDS)
-def test_save_load_roundtrip(name, request, storage, tmp_path):
-    _mark_lazy_gap(name, request, "save support")
+def test_save_load_roundtrip(name, storage, tmp_path):
     m = CATALOG[name]()
     path = tmp_path / "m.pycauset"
     pc.save(m, path)
     loaded = pc.load(path)
     np.testing.assert_array_equal(to_np(loaded), to_np(m))
-    assert type(loaded).__name__ == type(m).__name__ or type(m).__name__ == "LazyMatrix"
+    assert type(loaded).__name__ == type(m).__name__

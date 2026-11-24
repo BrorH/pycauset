@@ -1478,8 +1478,11 @@ inline bool is_float_dtype(const DataType dt) {
     return dt == DataType::FLOAT16 || dt == DataType::FLOAT32 || dt == DataType::FLOAT64;
 }
 
-inline bool allow_lazy_elementwise(const MatrixBase& a, const MatrixBase& b) {
-    return is_float_dtype(a.get_data_type()) && is_float_dtype(b.get_data_type());
+// F-038: operators evaluate eagerly. The lazy-expression path returned a second-class
+// LazyMatrix (no sum/.T/save) and measured no faster than eager evaluation. Its branches
+// are removed in the follow-up commit; this predicate keeps them unreachable meanwhile.
+inline bool allow_lazy_elementwise(const MatrixBase&, const MatrixBase&) {
+    return false;
 }
 
 
@@ -1544,8 +1547,8 @@ inline py::object export_dense_any(const MatrixBase& mat) {
     }
 }
 
-inline bool allow_lazy_scalar(const MatrixBase& a) {
-    return is_float_dtype(a.get_data_type());
+inline bool allow_lazy_scalar(const MatrixBase&) {
+    return false;  // F-038: see allow_lazy_elementwise
 }
 
 inline bool is_numpy_scalar(const py::handle& obj) {

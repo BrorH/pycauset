@@ -410,6 +410,7 @@ set(PYCAUSET_SOURCES
     src/core/SystemUtils.cpp
     src/core/ParallelUtils.cpp
     src/core/PromotionResolver.cpp
+    src/core/StructureResolver.cpp
     src/core/OpRegistration.cpp
     src/matrix/MatrixBase.cpp
     src/matrix/MatrixOps.cpp

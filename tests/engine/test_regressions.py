@@ -159,3 +159,28 @@ def test_F037_save_load_keeps_transposed_views(dtype, tmp_path):
     pc.save(m, tmp_path / "t.pycauset")
     loaded = pc.load(tmp_path / "t.pycauset")
     np.testing.assert_array_equal(to_np(loaded), a.T)
+
+
+# ---------------------------------------------------------------- F-038 / F-039
+def test_F038_float_arithmetic_returns_real_matrices():
+    a = pc.matrix(np.ones((3, 3)))
+    for r in (a + a, a - a, a / 2.0, a * 2.5, 2.0 * a, (a + a) * 2.0 - a):
+        assert type(r).__name__ != "LazyMatrix"
+        pc.sum(r), r.T  # full matrix API available
+
+
+@pytest.mark.parametrize("expr", ["C+C.T", "C-C.T", "C*C.T", "C+C", "C*C", "C.T+C.T"])
+def test_F039_triangular_orientation_is_respected(expr):
+    c = pc.causal_matrix(12, populate=True, seed=5)
+    cn = to_np(c).astype(np.int64)
+    env_pc, env_np = {"C": c}, {"C": cn}
+    got = to_np(eval(expr, {}, env_pc)).astype(np.int64)
+    np.testing.assert_array_equal(got, eval(expr, {}, env_np))
+
+
+@pytest.mark.parametrize("op", ["+", "-", "*"])
+def test_F039_float_upper_with_lower_triangle(op, rng):
+    u = np.triu(rng.standard_normal((6, 6)), 1)
+    tu = pc.matrix(u)
+    got = to_np(eval(f"tu {op} tu.T", {}, {"tu": tu}))
+    np.testing.assert_allclose(got, eval(f"u {op} u.T", {}, {"u": u}))

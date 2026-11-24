@@ -12,7 +12,7 @@
 #include "pycauset/vector/UnitVector.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
 #include "pycauset/core/PromotionResolver.hpp"
-#include "pycauset/core/MatrixTypeResolver.hpp"
+#include "pycauset/core/StructureResolver.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/core/Float16.hpp"
@@ -91,11 +91,9 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
 
     DataType type_a = a.get_data_type();
     DataType type_b = b.get_data_type();
-    MatrixType mtype_a = a.get_matrix_type();
-    MatrixType mtype_b = b.get_matrix_type();
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::Add, type_a, type_b).result_dtype;
-    MatrixType res_mtype = matrix_promotion::resolve(mtype_a, mtype_b);
+    MatrixType res_mtype = structure::resolve_result_structure(promotion::BinaryOp::Add, a, b, res_dtype);
 
     auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     
@@ -125,11 +123,9 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
 
     DataType type_a = a.get_data_type();
     DataType type_b = b.get_data_type();
-    MatrixType mtype_a = a.get_matrix_type();
-    MatrixType mtype_b = b.get_matrix_type();
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::Subtract, type_a, type_b).result_dtype;
-    MatrixType res_mtype = matrix_promotion::resolve(mtype_a, mtype_b);
+    MatrixType res_mtype = structure::resolve_result_structure(promotion::BinaryOp::Subtract, a, b, res_dtype);
 
     auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     
@@ -159,11 +155,9 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
 
     DataType type_a = a.get_data_type();
     DataType type_b = b.get_data_type();
-    MatrixType mtype_a = a.get_matrix_type();
-    MatrixType mtype_b = b.get_matrix_type();
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, type_a, type_b).result_dtype;
-    MatrixType res_mtype = matrix_promotion::resolve(mtype_a, mtype_b);
+    MatrixType res_mtype = structure::resolve_result_structure(promotion::BinaryOp::ElementwiseMultiply, a, b, res_dtype);
 
     auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     

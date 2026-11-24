@@ -466,7 +466,11 @@ the entry (the history is useful). New findings go at the bottom with the next f
   Regression: `test_regressions.py::test_F037_*`.
 
 ### F-038 `LazyMatrix` is a second-class object
-- **Status:** open (S2; PLAN 4.3)
+- **Status:** fixed for users (`fix(F-038,F-039)`, session 3): operators evaluate eagerly. Measured
+  first: lazy `(A+B)*2-A` on 2000² was 100.8 ms vs 91.9 ms eager (NumPy 7.1 ms), so laziness
+  bought nothing, and it was float-only. Tech-lead decision: remove lazy evaluation from R1
+  operators; the expression engine itself is deleted in a follow-up commit. Any future fused
+  kernels get designed in the performance phase.
 - For float matrices most element-wise ops return a lazy expression (`A + B`, `A - B`,
   `A / B`, every scalar op, `(A + B) * 2.0`), but `A * B` returns a concrete matrix.
   `LazyMatrix` is not a `MatrixBase`: `pc.sum` rejects it, it has no `.T`/conj/properties,
@@ -477,3 +481,18 @@ the entry (the history is useful). New findings go at the bottom with the next f
   automatically (one C++ `materialize()` used by the operator table, `sum`, save, views),
   and `A * B` follows the same rule as its siblings. Decide with the operator-table
   consolidation (PLAN 4.3). Tests waiting: invariants marked `F-038`.
+
+### F-039 Triangular + transposed triangular silently dropped half the matrix
+- **Status:** fixed (`fix(F-038,F-039)`)
+- `C + C.T` (the comparability matrix, a staple of causal-set analysis) and `C - C.T`
+  returned a **TriangularIntegerMatrix with the lower half lost**, silently. `C * C.T` raised.
+  Pre-existing: integer/bit ops never used the lazy path.
+- Root cause: two structure resolvers with different rule sets (`MatrixTypeResolver.hpp`,
+  eager; `StructureResolver.hpp`, lazy only), and neither knew orientation: a transposed
+  triangle is a *lower* triangle.
+- Fix: one op-, orientation- and strictness-aware resolver
+  (`structure::resolve_result_structure`, `src/core/StructureResolver.cpp`) used by the eager
+  add/subtract/elementwise_multiply; it only picks structured classes that exist for the
+  result dtype (F-032), else dense. `MatrixTypeResolver.hpp` deleted. Diagonal/identity/
+  symmetric structure propagation (previously lazy-only) now works on the eager path.
+- Tests: `test_regressions.py::test_F039_*` (causal and float triangles, + − *).
