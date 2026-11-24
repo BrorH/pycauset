@@ -72,8 +72,7 @@ scalar-op grid, dtype-pair grid and invariants (2,760 passed / 44 xfailed in ~21
 sanitizers clean. **Open priorities:** F-038 (LazyMatrix full citizen) and F-032
 (unregistered instantiations), both with PLAN 4.3/4.6; F-030 (restarted Arnoldi);
 F-026 (C++ StreamingManager live or dead); remove precision_mode (4.1b); dead-code Tier B. All decisions answered (RESTRUCTURE §3); new feature
-accepted: value bounds (features/VALUE_BOUNDS.md, PLAN Phase F1). Critical open bugs: F-024 (eig results corrupt each other), F-001 (int scalar
-multiply is a no-op), F-004 (nested ParallelFor deadlock), F-006 (UB).
+accepted: value bounds (features/VALUE_BOUNDS.md, PLAN Phase F1).
 
 ## When the overhaul is finished
 ARCHITECTURE.md moves into `documentation/internals/`, FINDINGS.md becomes the
