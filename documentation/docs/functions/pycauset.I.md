@@ -29,9 +29,9 @@ rect_id = pycauset.I(3, 5)
 # Also supported:
 rect_id2 = pycauset.I([3, 5])
 
-A = pycauset.FloatMatrix(2, 4)
+A = pycauset.DenseMatrix(2, 4, dtype="float64")
 IA = pycauset.I(A)          # 2x4
 
-v = pycauset.IntegerVector(7)
+v = pycauset.DenseVector(7, dtype="int32")
 Iv = pycauset.I(v)          # 7x7
 ```

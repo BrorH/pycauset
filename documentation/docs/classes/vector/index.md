@@ -1,20 +1,6 @@
-# Vector
+# Vectors
 
-* **[[docs/functions/pycauset.vector.md|pycauset.vector]]**
-* **[[docs/classes/vector/pycauset.VectorBase.md|pycauset.VectorBase]]**
-* **[[docs/classes/vector/pycauset.UnitVector.md|pycauset.UnitVector]]**
-* **[[docs/classes/vector/pycauset.BitVector.md|pycauset.BitVector]]**
-* **[[docs/classes/vector/pycauset.IntegerVector.md|pycauset.IntegerVector]]**
-* **[[docs/classes/vector/pycauset.Int8Vector.md|pycauset.Int8Vector]]**
-* **[[docs/classes/vector/pycauset.Int16Vector.md|pycauset.Int16Vector]]**
-* **[[docs/classes/vector/pycauset.Int64Vector.md|pycauset.Int64Vector]]**
-* **[[docs/classes/vector/pycauset.UInt8Vector.md|pycauset.UInt8Vector]]**
-* **[[docs/classes/vector/pycauset.UInt16Vector.md|pycauset.UInt16Vector]]**
-* **[[docs/classes/vector/pycauset.UInt32Vector.md|pycauset.UInt32Vector]]**
-* **[[docs/classes/vector/pycauset.UInt64Vector.md|pycauset.UInt64Vector]]**
-* **[[docs/classes/vector/pycauset.FloatVector.md|pycauset.FloatVector]]**
-* **[[docs/classes/vector/pycauset.Float32Vector.md|pycauset.Float32Vector]]**
-* **[[docs/classes/vector/pycauset.Float16Vector.md|pycauset.Float16Vector]]**
-* **[[docs/classes/vector/pycauset.ComplexFloat64Vector.md|pycauset.ComplexFloat64Vector]]**
-* **[[docs/classes/vector/pycauset.ComplexFloat32Vector.md|pycauset.ComplexFloat32Vector]]**
-* **[[docs/classes/vector/pycauset.ComplexFloat16Vector.md|pycauset.ComplexFloat16Vector]]**
+* **[[docs/functions/pycauset.vector.md|pycauset.vector]]**: build a vector from data.
+* **[[docs/classes/vector/pycauset.VectorBase.md|pycauset.VectorBase]]**: methods common to all vectors.
+* **[[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]]**: a vector of any dtype.
+* **[[docs/classes/vector/pycauset.UnitVector.md|pycauset.UnitVector]]**: a standard basis vector.

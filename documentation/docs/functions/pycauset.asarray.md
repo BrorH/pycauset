@@ -28,16 +28,16 @@ The exact class depends on the input:
 
 | Input | Result |
 | :--- | :--- |
-| 1D `float64` | `FloatVector` |
-| 1D `int64` | `Int64Vector` |
-| 1D `bool` | `BitVector` |
-| 2D `float64` | `FloatMatrix` |
-| 2D `int64` | `Int64Matrix` |
-| 2D `bool` | `DenseBitMatrix` |
-| 2D `complex128` | `ComplexFloat64Matrix` |
+| 1D `float64` | `DenseVector` (dtype `float64`) |
+| 1D `int64` | `DenseVector` (dtype `int64`) |
+| 1D `bool` | `DenseVector` (dtype `bool`) |
+| 2D `float64` | `DenseMatrix` (dtype `float64`) |
+| 2D `int64` | `DenseMatrix` (dtype `int64`) |
+| 2D `bool` | `DenseMatrix` (dtype `bool`) |
+| 2D `complex128` | `DenseMatrix` (dtype `complex_float64`) |
 
 Other NumPy dtypes map to the corresponding native class (e.g. `float32` →
-`Float32Matrix`, `uint8` → `UInt8Matrix`).
+`DenseMatrix` (dtype `float32`), `uint8` → `DenseMatrix` (dtype `uint8`)).
 
 ## Exceptions
 
@@ -52,12 +52,12 @@ import pycauset as pc
 
 arr = np.arange(6).reshape(2, 3)   # int64 2D
 M = pc.asarray(arr)
-assert type(M).__name__ == "Int64Matrix"
+assert type(M).__name__ == "DenseMatrix (int64)"
 assert M.shape == (2, 3)
 
 b = np.full((2, 2), True, dtype=bool)   # a 2x2 boolean array
 B = pc.asarray(b)                       # bit-packed boolean matrix
-assert type(B).__name__ == "DenseBitMatrix"
+assert type(B).__name__ == "DenseMatrix (bool)"
 ```
 
 ## See also

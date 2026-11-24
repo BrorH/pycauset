@@ -35,7 +35,7 @@ manual field coefficients. See [[guides/Spacetime|Spacetime]].
 ```python
 import numpy as np
 
-C = c.C                       # TriangularBitMatrix (bit-packed, disk-backed)
+C = c.C                       # TriangularMatrix (bool) (bit-packed, disk-backed)
 dense = np.asarray(C)         # bool array, C[i, j] is True when i < j
 ```
 

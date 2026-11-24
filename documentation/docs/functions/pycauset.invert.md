@@ -12,11 +12,11 @@ You can use the `.invert()` method on a matrix object or the [[pycauset.invert]]
 import pycauset as pc
 
 # Create a matrix (must be invertible)
-# Note: TriangularBitMatrix and IntegerMatrix are strictly upper triangular
+# Note: TriangularMatrix (bool) and DenseMatrix (int32) are strictly upper triangular
 # and therefore singular (determinant is 0). They cannot be inverted.
 
 try:
-    m = pc.TriangularBitMatrix(5)
+    m = pc.TriangularMatrix(5, dtype="bool")
     inv = m.invert()
     # OR
     inv = pc.invert(m)
@@ -26,7 +26,7 @@ except RuntimeError as e:
 
 ## Singularity of Triangular Matrices
 
-The triangular matrix types in PyCauset ([[pycauset.TriangularBitMatrix]], [[pycauset.TriangularFloatMatrix]]) are **strictly upper triangular**. 
+The triangular matrix types in PyCauset ([[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`), [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `float64`)) are **strictly upper triangular**. 
 
 A strictly upper triangular matrix has zeros on the main diagonal. The determinant of a triangular matrix is the product of its diagonal entries. Therefore, the determinant of any strictly upper triangular matrix is 0, making it **singular** (non-invertible).
 
@@ -34,7 +34,7 @@ Attempting to invert these matrices will raise a `RuntimeError`.
 
 ## Dense Matrix Inversion
 
-The [[pycauset.FloatMatrix]] class supports general matrix inversion.
+The [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `float64`) class supports general matrix inversion.
 
 ### Algorithms
 
@@ -45,15 +45,15 @@ The [[pycauset.FloatMatrix]] class supports general matrix inversion.
 
 **Performance Note**: For large matrices ($N \ge 1000$) it uses all available threads, or the GPU.
 
-**Note**: [[pycauset.IntegerMatrix]] and [[pycauset.DenseBitMatrix]] are also dense, but direct inversion is not supported to avoid ambiguity (integer inversion usually results in floats). To invert them, convert them to [[pycauset.FloatMatrix]] first.
+**Note**: [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`) and [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `bool`) are also dense, but direct inversion is not supported to avoid ambiguity (integer inversion usually results in floats). To invert them, convert them to [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `float64`) first.
 
 ```python
 import pycauset as pc
 
-# Create a dense FloatMatrix
+# Create a dense DenseMatrix (float64)
 # [ [4, 7],
 #   [2, 6] ]
-m = pc.FloatMatrix(2)
+m = pc.DenseMatrix(2, dtype="float64")
 m[0, 0] = 4.0
 m[0, 1] = 7.0
 m[1, 0] = 2.0

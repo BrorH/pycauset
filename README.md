@@ -120,7 +120,7 @@ changes, and file I/O. Every line is prefixed `[pycauset]`.
 import pycauset as pc
 pc.debug_mode = True
 
-A = pc.zeros((2000, 2000), dtype=pc.float64)   # [pycauset] allocated FloatMatrix 2000x2000 float64 RAM
+A = pc.zeros((2000, 2000), dtype=pc.float64)   # [pycauset] allocated DenseMatrix (float64) 2000x2000 float64 RAM
 C = A @ A                                       # [pycauset] matmul ... : 1.2s
 ```
 

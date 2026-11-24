@@ -31,7 +31,7 @@ c.coordinates()   # (n, 2) array of points
 c.C           # the causal matrix: C[i, j] is True when i < j
 ```
 
-The causal matrix is a bit-packed `TriangularBitMatrix`. You can get it as a NumPy
+The causal matrix is a bit-packed `TriangularMatrix` (dtype `bool`). You can get it as a NumPy
 array with `np.asarray(c.C)`.
 
 ## 2. Plot it

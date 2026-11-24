@@ -31,7 +31,7 @@ c2 = pycauset.CausalSet(10000, seed="simulation_A_run_1")
 
 ## Accessing the Causal Matrix
 
-The core data of a causal set is its _causal matrix_. In `pycauset`, this is represented as a [[pycauset.TriangularBitMatrix]] for efficiency. You can access it via the `.causal_matrix` property or its alias `.C`.
+The core data of a causal set is its _causal matrix_. In `pycauset`, this is represented as a [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`) for efficiency. You can access it via the `.causal_matrix` property or its alias `.C`.
 
 ```python
 # Get the causal matrix
@@ -40,11 +40,11 @@ C = c.causal_matrix
 # Or using the alias
 C = c.C
 
-# C is a pycauset.TriangularBitMatrix
+# C is a TriangularMatrix (bool)
 print(C)
 ```
 
-> **Performance Note:** `TriangularBitMatrix` and `DenseBitMatrix` use hardware-accelerated bit manipulation (AVX-512/NEON `popcount`, dispatched at runtime). Bit-matrix matmul and dot products run through a popcount kernel; at N=5000 it beats NumPy's dense int64 matvec by roughly 30x.
+> **Performance Note:** `TriangularMatrix` (dtype `bool`) and `DenseMatrix` (dtype `bool`) use hardware-accelerated bit manipulation (AVX-512/NEON `popcount`, dispatched at runtime). Bit-matrix matmul and dot products run through a popcount kernel; at N=5000 it beats NumPy's dense int64 matvec by roughly 30x.
 
 ### Causal Structure
 
@@ -62,7 +62,7 @@ The `c` object itself is extremely lightweight. It is essentially a metadata wra
 1.  **N**: The number of elements (e.g., 1000).
 2.  **Seed**: The random seed used for generation.
 3.  **Spacetime**: The definition of the manifold (e.g., "2D Minkowski Diamond").
-4.  **Handle to causal_matrix**: A reference to the [[pycauset.TriangularBitMatrix]] object.
+4.  **Handle to causal_matrix**: A reference to the [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`) object.
 
 **What is NOT stored:**
 *   **Coordinates**: The coordinates of the 1000 points are **not** stored in the `c` object. They were generated temporarily to compute the matrix and then discarded.

@@ -48,7 +48,7 @@ c = pc.causet(density=500, seed=1)   # N ~ Poisson(rho * volume)
 ```python
 c.n                   # number of elements
 c.coordinates()       # (n, 2) array of points
-c.C                   # the causal matrix, a TriangularBitMatrix
+c.C                   # the causal matrix, a TriangularMatrix (bool)
 ```
 
 `c.C[i, j]` is `True` when element `i` is in the causal past of `j`. It is bit-packed

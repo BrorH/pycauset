@@ -18,7 +18,7 @@ The `k` eigenvalues of largest magnitude, computed with a restarted Krylov metho
 
 ## Returns
 
-* **FloatVector** of length `k` if `a` is symmetric, otherwise **ComplexFloat64Vector**.
+* **DenseVector (float64)** of length `k` if `a` is symmetric, otherwise **DenseVector (complex_float64)**.
   Sorted by descending magnitude (ties by real part, then imaginary part).
 
 ## Raises

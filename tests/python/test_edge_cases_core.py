@@ -107,8 +107,13 @@ class TestDTypeInvariants(unittest.TestCase):
             "    pc.ones((2, 2), dtype='float32') + pc.ones((2, 2), dtype='float64')\n"
             "print([x.category.__name__ for x in w])\n"
         )
+        import os
+        from pathlib import Path
+
+        src = str(Path(pc.__file__).resolve().parents[1])  # the pycauset under test
+        env = {**os.environ, "PYTHONPATH": src}
         out = subprocess.run(
-            [sys.executable, "-c", code], capture_output=True, text=True
+            [sys.executable, "-c", code], capture_output=True, text=True, env=env
         )
         self.assertIn("PyCausetDTypeWarning", out.stdout)
 

@@ -49,15 +49,15 @@ If you already have a `numpy.ndarray` and want an explicitly-typed PyCauset vect
 import numpy as np
 import pycauset as pc
 
-v64 = pc.FloatVector(np.array([1.0, 2.0, 3.0], dtype=np.float64))
-v32 = pc.Float32Vector(np.array([1.0, 2.0, 3.0], dtype=np.float32))
-vi = pc.IntegerVector(np.array([1, 2, 3], dtype=np.int32))
+v64 = pc.vector(np.array([1.0, 2.0, 3.0], dtype=np.float64), dtype="float64")
+v32 = pc.vector(np.array([1.0, 2.0, 3.0], dtype=np.float32), dtype="float32")
+vi = pc.vector(np.array([1, 2, 3], dtype=np.int32), dtype="int32")
 ```
 
 **Requirements**:
 
 - The array must be 1D.
-- The dtype must match the target class (e.g. `Float32Vector` requires `np.float32`).
+- The dtype must match the target class (e.g. `DenseVector` (dtype `float32`) requires `np.float32`).
 
 ## Unit Vectors
 
@@ -174,9 +174,9 @@ scalar = v1 @ v2    # 32.0
 ```
 
 **Type Safety**:
-*   [[pycauset.IntegerVector]] @ [[pycauset.IntegerVector]] -> `int`
-*   [[pycauset.BitVector]] @ [[pycauset.BitVector]] -> `int`
-*   Any [[pycauset.FloatVector]] operand -> `float`
+*   [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `int32`) @ [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `int32`) -> `int`
+*   [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `bool`) @ [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `bool`) -> `int`
+*   Any [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `float64`) operand -> `float`
 
 ### Outer Product
 
@@ -195,9 +195,9 @@ M = v1 @ v2.T
 ```
 
 **Type Safety**:
-*   [[pycauset.BitVector]] @ [[pycauset.BitVector]].T -> [[pycauset.DenseBitMatrix]] (Logical AND)
-*   [[pycauset.IntegerVector]] @ [[pycauset.IntegerVector]].T -> [[pycauset.IntegerMatrix]]
-*   Others -> [[pycauset.FloatMatrix]]
+*   [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `bool`) @ [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `bool`).T -> [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `bool`) (Logical AND)
+*   [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `int32`) @ [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `int32`).T -> [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`)
+*   Others -> [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `float64`)
 
 ### Matrix-Vector Multiplication
 
@@ -262,6 +262,6 @@ Operations between different vector dtypes (e.g., integer + float) are supported
 v_int = pc.vector([1, 2], dtype=pc.int32)
 v_float = pc.vector([0.5, 0.5], dtype=pc.float64)
 
-v_sum = v_int + v_float  # [1.5, 2.5] (FloatVector)
+v_sum = v_int + v_float  # [1.5, 2.5] (DenseVector (float64))
 ```
 

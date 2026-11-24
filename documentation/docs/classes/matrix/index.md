@@ -1,28 +1,30 @@
-# Matrix
+# Matrices
 
-* **[[docs/functions/pycauset.matrix.md|pycauset.matrix]]**
-* **[[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]**
-* **[[docs/functions/pycauset.causal_matrix.md|pycauset.causal_matrix]]**
-* **[[docs/classes/matrix/pycauset.IdentityMatrix.md|pycauset.IdentityMatrix]]**
-* **[[docs/classes/matrix/pycauset.DiagonalMatrix.md|pycauset.DiagonalMatrix]]**
-* **[[docs/classes/matrix/pycauset.DenseBitMatrix.md|pycauset.DenseBitMatrix]]**
-* **[[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]]**
-* **[[docs/classes/matrix/pycauset.TriangularBitMatrix.md|pycauset.TriangularBitMatrix]]**
-* **[[docs/classes/matrix/pycauset.TriangularIntegerMatrix.md|pycauset.TriangularIntegerMatrix]]**
-* **[[docs/classes/matrix/pycauset.TriangularFloatMatrix.md|pycauset.TriangularFloatMatrix]]**
-* **[[docs/classes/matrix/pycauset.SymmetricMatrix.md|pycauset.SymmetricMatrix]]**
-* **[[docs/classes/matrix/pycauset.AntiSymmetricMatrix.md|pycauset.AntiSymmetricMatrix]]**
-* **[[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]]**
-* **[[docs/classes/matrix/pycauset.Int8Matrix.md|pycauset.Int8Matrix]]**
-* **[[docs/classes/matrix/pycauset.Int16Matrix.md|pycauset.Int16Matrix]]**
-* **[[docs/classes/matrix/pycauset.Int64Matrix.md|pycauset.Int64Matrix]]**
-* **[[docs/classes/matrix/pycauset.UInt8Matrix.md|pycauset.UInt8Matrix]]**
-* **[[docs/classes/matrix/pycauset.UInt16Matrix.md|pycauset.UInt16Matrix]]**
-* **[[docs/classes/matrix/pycauset.UInt32Matrix.md|pycauset.UInt32Matrix]]**
-* **[[docs/classes/matrix/pycauset.UInt64Matrix.md|pycauset.UInt64Matrix]]**
-* **[[docs/classes/matrix/pycauset.FloatMatrix.md|pycauset.FloatMatrix]]**
-* **[[docs/classes/matrix/pycauset.Float32Matrix.md|pycauset.Float32Matrix]]**
-* **[[docs/classes/matrix/pycauset.Float16Matrix.md|pycauset.Float16Matrix]]**
-* **[[docs/classes/matrix/pycauset.ComplexFloat64Matrix.md|pycauset.ComplexFloat64Matrix]]**
-* **[[docs/classes/matrix/pycauset.ComplexFloat32Matrix.md|pycauset.ComplexFloat32Matrix]]**
-* **[[docs/classes/matrix/pycauset.ComplexFloat16Matrix.md|pycauset.ComplexFloat16Matrix]]**
+PyCauset has one class per **storage structure**. The element type is an attribute,
+`A.dtype`, as in NumPy; every structure supports the dtypes listed on its page.
+
+| class | stores | dtypes |
+|---|---|---|
+| [[docs/classes/matrix/pycauset.DenseMatrix.md|DenseMatrix]] | all `rows × cols` elements | all 15 |
+| [[docs/classes/matrix/pycauset.TriangularMatrix.md|TriangularMatrix]] | the upper triangle (causal matrices: dtype `bool`) | real dtypes |
+| [[docs/classes/matrix/pycauset.SymmetricMatrix.md|SymmetricMatrix]] | the upper triangle, `A == A.T` | real dtypes |
+| [[docs/classes/matrix/pycauset.AntiSymmetricMatrix.md|AntiSymmetricMatrix]] | the strict upper triangle, `A == -A.T` | real dtypes |
+| [[docs/classes/matrix/pycauset.DiagonalMatrix.md|DiagonalMatrix]] | the diagonal | `bool`, integers, `float64` |
+| [[docs/classes/matrix/pycauset.IdentityMatrix.md|IdentityMatrix]] | nothing (read-only) | `bool`, integers, `float64` |
+
+All of them share the methods of [[docs/classes/matrix/pycauset.MatrixBase.md|MatrixBase]].
+Construct matrices with [[docs/functions/pycauset.matrix.md|pycauset.matrix]],
+[[docs/functions/pycauset.zeros.md|zeros]], [[docs/functions/pycauset.causal_matrix.md|causal_matrix]]
+or the class constructors.
+
+## dtypes
+
+| dtype | element | bytes per element |
+|---|---|---|
+| `bool` | bit (0/1) | 1/8 |
+| `int8`, `int16`, `int32`, `int64` | signed integer | 1, 2, 4, 8 |
+| `uint8`, `uint16`, `uint32`, `uint64` | unsigned integer | 1, 2, 4, 8 |
+| `float16`, `float32`, `float64` | IEEE float | 2, 4, 8 |
+| `complex_float16`, `complex_float32`, `complex_float64` | complex | 4, 8, 16 |
+
+NumPy has no `complex_float16`; it exports as `complex64`.

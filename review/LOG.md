@@ -274,3 +274,10 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Probe `review/probes/view_semantics_probe.py`: views exist for float scale and all transposes; integer/bit/vector scaling copies (F-042); no mutation leaks; Diagonal/Symmetric .T copies (F-044).
 - Measured: 2A+3B costs 2x A+B (F-043); (A@B)@v 236 ms vs A@(B@v) 41 ms at n=3000.
 - Wrote features/LAZY.md (exactness tiers E/A, catalogue L1-L6, architecture ViewSpec/ExprNode, test oracle, phases). PLAN Phase L added.
+- CUDA moved to experimental/cuda (dormant core hooks listed in its README).
+- MatrixType -> Structure enum (causal = TRIANGULAR + BIT).
+- One Python class per structure with .dtype (RESTRUCTURE 3.1 item 4 revised): DTypeDispatch.hpp
+  visitor, polymorphic type hook, generic element access; Python facade, persistence, tests and
+  docs migrated. Findings: F-045 (view get/set wrong), F-046 (size-based float32 + structure
+  inference), F-047 (eig float32 -> float64, open), F-048 (stale installed package in tests/probe).
+- Suite: 2,825 passed / 7 skipped / 33 xfailed; ctest 7/7; doc pages failing 70 -> 60 (F-008).

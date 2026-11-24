@@ -1,41 +1,26 @@
 # pycauset.AntiSymmetricMatrix
 
 ```python
-class pycauset.AntiSymmetricMatrix(SymmetricMatrix)
+class pycauset.AntiSymmetricMatrix(n, dtype="float64")
 ```
 
-A matrix where $A_{ij} = -A_{ji}$ (skew-symmetric), with a zero diagonal.
+An `n × n` antisymmetric matrix (`A == -A.T`, zero diagonal) that stores only the strict
+upper triangle; writing `A[i, j]` also sets `A[j, i] = -value`. Supports the real dtypes.
+The Pauli–Jordan operator is antisymmetric; its spectrum is computed by
+[[docs/functions/pycauset.eigvals_skew.md|pycauset.eigvals_skew]]. See also
+[[docs/functions/pycauset.antisymmetric.md|pycauset.antisymmetric]].
 
-This class stores only the strict upper triangular part of the matrix (the diagonal is structurally zero), so an $N \times N$ matrix costs about $N(N-1)/2$ stored elements.
+## Methods
 
-## Construction
+Everything in [[docs/classes/matrix/pycauset.MatrixBase.md|MatrixBase]], plus
+`AntiSymmetricMatrix.from_triangular(T)`.
 
-Use the validated factory:
+## Example
 
 ```python
 import pycauset as pc
 
-A = pc.antisymmetric([ [0.0, 2.0], [-2.0, 0.0] ])   # -> pycauset.AntiSymmetricMatrix
+A = pc.AntiSymmetricMatrix(3)
+A[0, 1] = 2.0
+assert A[1, 0] == -2.0 and A[1, 1] == 0.0
 ```
-
-The factory checks that the input satisfies $A = -A^T$ and has a zero diagonal, then stores only the strict upper triangle.
-
-The raw native constructor `pycauset.AntiSymmetricMatrix(n)` allocates an empty $N \times N$
-anti-symmetric matrix; fill the strict upper triangle with `set(i, j, value)`.
-
-## Indexing
-
-Element access uses NumPy-style indexing:
-
-*   Read: `x = A[i, j]` (if `i > j`, returns the negated upper-triangle value)
-*   Write: `A[i, j] = value` (if `i > j`, stores `-value` in the upper triangle)
-*   Writing a non-zero value to the diagonal raises `ValueError`.
-
-## `transpose()`
-
-The transpose of an anti-symmetric matrix is its negation ($A^T = -A$).
-
-## See also
-
-* [[docs/functions/pycauset.antisymmetric.md|pycauset.antisymmetric]]
-* [[docs/classes/matrix/pycauset.SymmetricMatrix.md|pycauset.SymmetricMatrix]]

@@ -13,7 +13,7 @@ Elementwise bitwise OR of two bit matrices or bit vectors.
 
 ## Returns
 
-A bit matrix or bit vector (`DenseBitMatrix` / `BitVector`).
+A bit matrix or bit vector (`DenseMatrix` (dtype `bool`) / `DenseVector` (dtype `bool`)).
 
 ## See also
 

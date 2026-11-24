@@ -245,7 +245,7 @@ Some cached results are too large to store directly inside metadata. In that cas
 Example:
 
 ```python
-pc.save(pc.FloatMatrix(2), "A.pycauset")
+pc.save(pc.DenseMatrix(2, dtype="float64"), "A.pycauset")
 A = pc.load("A.pycauset")
 
 # Persist the inverse as a sibling cached object.

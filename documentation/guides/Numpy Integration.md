@@ -8,7 +8,7 @@ You can convert NumPy arrays into `pycauset` objects using [[docs/functions/pyca
 
 Note: PyCauset does **not** expose a `pycauset.asarray` API. In PyCauset, “arrays” are not a first-class concept; matrices and vectors are.
 
-Rectangular 2D arrays are supported for dense numeric matrices (int/uint/float/complex). Boolean 2D arrays are bit-packed (`DenseBitMatrix`) and also support rectangular `(rows, cols)` shapes.
+Rectangular 2D arrays are supported for dense numeric matrices (int/uint/float/complex). Boolean 2D arrays are bit-packed (`DenseMatrix` (dtype `bool`)) and also support rectangular `(rows, cols)` shapes.
 
 Supported dtypes include:
 
@@ -25,23 +25,23 @@ import pycauset as pc
 
 # Convert 1D NumPy array to Vector
 arr_1d = np.array([1.0, 2.0, 3.0])
-vec = pc.vector(arr_1d)  # Returns [[pycauset.FloatVector]]
+vec = pc.vector(arr_1d)  # Returns [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `float64`)
 
 # Convert 2D NumPy array to Matrix
 arr_2d = np.array(((1, 2), (3, 4)), dtype=np.int32)
-mat = pc.matrix(arr_2d)  # Returns [[pycauset.IntegerMatrix]]
+mat = pc.matrix(arr_2d)  # Returns [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`)
 
 # Unsigned integers
 arr_u = np.array(((1, 2), (3, 4)), dtype=np.uint32)
-mat_u = pc.matrix(arr_u)  # Returns [[pycauset.UInt32Matrix]]
+mat_u = pc.matrix(arr_u)  # Returns [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `uint32`)
 
 # Complex
 arr_c = np.array(((1 + 2j, 0), (0, 3 - 4j)), dtype=np.complex64)
-mat_c = pc.matrix(arr_c)  # Returns [[pycauset.ComplexFloat32Matrix]]
+mat_c = pc.matrix(arr_c)  # Returns [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `complex_float32`)
 
 # Convert Boolean array
 arr_bool = np.array([True, False], dtype=bool)
-vec_bool = pc.vector(arr_bool)  # Returns [[pycauset.BitVector]]
+vec_bool = pc.vector(arr_bool)  # Returns [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `bool`)
 ```
 
 **Note**: This operation creates a **copy** of the data. Depending on the size and the configured memory threshold, the new object will be stored in RAM or on disk. See [[guides/Storage and Memory|guides/Storage and Memory]].
@@ -70,7 +70,7 @@ A = pc.matrix(np.random.rand(1000, 1000))
 B = np.random.rand(1000, 1000)
 
 # Works efficiently!
-# PyCauset handles the add, returning a FloatMatrix
+# PyCauset handles the add, returning a DenseMatrix (float64)
 C = A + B 
 
 # Also works (Reverse add support)

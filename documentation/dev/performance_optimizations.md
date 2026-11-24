@@ -23,10 +23,10 @@ This document details the performance optimizations implemented to achieve >0.90
 
 **Problem:** Bit-matrix operations were not utilizing modern CPU instructions.
 **Solution:**
-- **Alignment:** `DenseBitMatrix` strides are now aligned to 64 bytes (512 bits).
+- **Alignment:** `DenseMatrix` (dtype `bool`) strides are now aligned to 64 bytes (512 bits).
 - **Intrinsics:** Implemented `_mm512_popcnt_epi64` and `_mm512_and_si512` for bit-matrix multiplication.
 - **Runtime Dispatch:** `CpuSolver` checks for AVX-512 support at runtime using `__cpuid`.
-- **File:** `src/matrix/DenseBitMatrix.cpp`, `src/compute/cpu/CpuSolver.cpp`
+- **File:** `src/matrix/DenseMatrix (bool).cpp`, `src/compute/cpu/CpuSolver.cpp`
 
 ## 4. Memory Governor & Direct Path ("Anti-Nanny")
 

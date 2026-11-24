@@ -12,7 +12,7 @@ pycauset.solve_triangular(A, b)
 
 - Uses gospel properties, not truth validation. If A.properties["is_diagonal"] or is_upper_triangular / is_lower_triangular is set, the solver treats off-triangle entries as zero.
 - Diagonal path: elementwise divide.
-- Triangular path: converts to the native TriangularFloatMatrix and solves via the native inverse then matmul.
+- Triangular path: converts to the native TriangularMatrix (float64) and solves via the native inverse then matmul.
 - Shape must be square; raises ValueError otherwise.
 - If no triangular/diagonal claim is present, falls back to pycauset.solve or raises.
 

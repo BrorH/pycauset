@@ -12,7 +12,7 @@ If `source` is 2D, returns a matrix. If `source` is 1D, returns a vector.
 
 `pycauset.matrix(...)` also supports constructing a block matrix when given a 2D grid of matrix objects.
 
-Rectangular shapes are supported for dense matrices, including numeric dtypes (int/uint/float/complex) and boolean/bit matrices. Boolean 2D inputs use bit-packed storage (`DenseBitMatrix`).
+Rectangular shapes are supported for dense matrices, including numeric dtypes (int/uint/float/complex) and boolean/bit matrices. Boolean 2D inputs use bit-packed storage (`DenseMatrix` (dtype `bool`)).
 
 ## Block-grid construction
 

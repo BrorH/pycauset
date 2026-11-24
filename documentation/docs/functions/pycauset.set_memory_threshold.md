@@ -23,5 +23,5 @@ import pycauset
 pycauset.set_memory_threshold(100 * 1024 * 1024)
 
 # This matrix (approx 12.5 MB) will now be in RAM
-m = pycauset.TriangularBitMatrix(10000) 
+m = pycauset.TriangularMatrix(10000, dtype="bool") 
 ```

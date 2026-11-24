@@ -4,7 +4,7 @@
 pycauset.causal_matrix(n, populate=True, **kwargs)
 ```
 
-Factory function for creating a [[pycauset.TriangularBitMatrix]] suitable for representing a causal relation.
+Factory function for creating a [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`) suitable for representing a causal relation.
 
 ## Parameters
 
@@ -14,7 +14,7 @@ Factory function for creating a [[pycauset.TriangularBitMatrix]] suitable for re
 
 ## Returns
 
-*   **TriangularBitMatrix**: A new instance of [[pycauset.TriangularBitMatrix]].
+*   **TriangularMatrix (bool)**: A new instance of [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`).
 
 ## Example
 

@@ -4,7 +4,7 @@
 class CausalSet(n=None, density=None, spacetime=None, seed=None, matrix=None, validate=True)
 ```
 
-The `CausalSet` class represents a causal set, a discrete partial order. It is the primary object of PyCauset: a `TriangularBitMatrix` (the causal relations) plus provenance (the spacetime + seed it was sprinkled from, or an attached embedding).
+The `CausalSet` class represents a causal set, a discrete partial order. It is the primary object of PyCauset: a `TriangularMatrix` (dtype `bool`) (the causal relations) plus provenance (the spacetime + seed it was sprinkled from, or an attached embedding).
 
 ## Parameters
 
@@ -12,7 +12,7 @@ The `CausalSet` class represents a causal set, a discrete partial order. It is t
 *   **density** (*float, optional*): The sprinkling density; `n` is drawn as `Poisson(density × volume)`.
 *   **spacetime** (*Spacetime, optional*): The spacetime to sprinkle into. Defaults to a 2D Minkowski diamond.
 *   **seed** (*int | str, optional*): The random seed. Defaults to a random seed.
-*   **matrix** (*TriangularBitMatrix, optional*): A pre-existing causal matrix (used by `load()`). If provided, sprinkling is skipped.
+*   **matrix** (*TriangularMatrix (bool), optional*): A pre-existing causal matrix (used by `load()`). If provided, sprinkling is skipped.
 *   **validate** (*bool*): When `True` (default), a supplied `matrix` is validated as a strict partial order.
 
 ## Properties
@@ -21,7 +21,7 @@ The `CausalSet` class represents a causal set, a discrete partial order. It is t
 
 ```python
 @property
-def causal_matrix(self) -> TriangularBitMatrix
+def causal_matrix(self) -> TriangularMatrix (bool)
 ```
 
 The causal matrix (`C[i, j] == 1` iff `i ≺ j`). `C` is an alias.

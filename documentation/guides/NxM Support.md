@@ -29,7 +29,7 @@ Rectangular dense matrices are supported for:
 - int8/int16/int32/int64
 - uint8/uint16/uint32/uint64
 - complex_float16/complex_float32/complex_float64
-- bool/bit (`DenseBitMatrix`, bit-packed)
+- bool/bit (`DenseMatrix` (dtype `bool`), bit-packed)
 
 ### Identity-like matrices
 

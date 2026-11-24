@@ -77,7 +77,8 @@ def main() -> None:
         bf.write_text(json.dumps(blocks))
         try:
             proc = subprocess.run([sys.executable, str(runner), str(bf)], capture_output=True,
-                                  text=True, timeout=120, env={**__import__("os").environ})
+                                  text=True, timeout=120, env={**__import__("os").environ,
+                                       "PYTHONPATH": str(pathlib.Path(__file__).resolve().parents[2] / "python")})
             out = (proc.stdout.strip().splitlines() or ["{}"])[-1]
             res = json.loads(out) if out.startswith("{") else {"error": (proc.stderr.strip().splitlines() or ["crash"])[-1]}
         except subprocess.TimeoutExpired:

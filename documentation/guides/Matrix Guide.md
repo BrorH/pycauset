@@ -9,7 +9,7 @@ Matrices can be created from data using **[[docs/functions/pycauset.matrix.md|py
 ## Rectangular support (what is and isn’t NxM)
 
 - **Dense numeric matrices are rectangular-aware**: for integer/float/complex dtypes you can allocate and operate on `(rows, cols)` shapes.
-- **Dense boolean/bit matrices are rectangular-aware**: `dtype="bool"` / `dtype="bit"` maps to `DenseBitMatrix` and supports `(rows, cols)` shapes.
+- **Dense boolean/bit matrices are rectangular-aware**: `dtype="bool"` / `dtype="bit"` maps to `DenseMatrix` (dtype `bool`) and supports `(rows, cols)` shapes.
 - **Some matrix *types* are square-only by definition** (e.g. triangular/causal, identity, diagonal, symmetric/antisymmetric).
 
 `pycauset.matrix(...)` is a data constructor (aligned with `np.array(...)` semantics). It does not interpret integers/tuples as shapes. When you want to allocate by shape, use `zeros/ones/empty` with an explicit `dtype`.
@@ -39,24 +39,24 @@ import pycauset as pc
 import numpy as np
 
 # 1. From a list of lists (infers type)
-M1 = pc.matrix(((1, 2), (3, 4)))  # Creates IntegerMatrix
+M1 = pc.matrix(((1, 2), (3, 4)))  # Creates DenseMatrix (int32)
 
 # 2. From a NumPy array
 arr = np.random.rand(5, 5)
-M2 = pc.matrix(arr)               # Creates FloatMatrix
+M2 = pc.matrix(arr)               # Creates DenseMatrix (float64)
 
 # 3. Allocate by shape (dtype required)
-M3 = pc.zeros((100, 200), dtype=int)   # 100x200 IntegerMatrix (zeros)
-M4 = pc.zeros((100, 100), dtype=bool)  # 100x100 DenseBitMatrix (zeros)
+M3 = pc.zeros((100, 200), dtype=int)   # 100x200 DenseMatrix (int32) (zeros)
+M4 = pc.zeros((100, 100), dtype=bool)  # 100x100 DenseMatrix (bool) (zeros)
 
 # 4. Explicit int16 storage
-M5 = pc.empty((100, 100), dtype=pc.int16)  # returns Int16Matrix
+M5 = pc.empty((100, 100), dtype=pc.int16)  # returns DenseMatrix (int16)
 
 # 5. Unsigned integer storage
-Mu = pc.empty((100, 100), dtype=pc.uint32)  # returns UInt32Matrix
+Mu = pc.empty((100, 100), dtype=pc.uint32)  # returns DenseMatrix (uint32)
 
 # 6. Complex float storage (construct from data)
-Mc = pc.matrix(((1 + 2j, 0), (0, 3 - 4j)), dtype=pc.complex_float32)  # ComplexFloat32Matrix
+Mc = pc.matrix(((1 + 2j, 0), (0, 3 - 4j)), dtype=pc.complex_float32)  # DenseMatrix (complex_float32)
 
 # 7. Causal Matrix (Specialized Triangular Bit Matrix)
 # This is optimized for causal sets (strictly upper triangular)
@@ -201,7 +201,7 @@ If a compatible NVIDIA GPU is detected, PyCauset will automatically accelerate:
 *   **Inversion**: $A^{-1}$ for Float64 and Float32 matrices.
 
 **Boolean Matrix Acceleration:**
-Multiplying `DenseBitMatrix` (boolean) on the GPU is highly optimized. It uses bit-packing to perform 64 operations per cycle, making it ideal for path counting in large causal sets.
+Multiplying `DenseMatrix` (dtype `bool`) (boolean) on the GPU is highly optimized. It uses bit-packing to perform 64 operations per cycle, making it ideal for path counting in large causal sets.
 
 ```python
 A = pc.zeros((4096, 4096), dtype=bool)
@@ -220,16 +220,16 @@ It supports many combinations of matrix types, automatically promoting the resul
 
 | Operand A | Operand B | Result Type |
 | :--- | :--- | :--- |
-| [[docs/classes/matrix/pycauset.FloatMatrix.md|pycauset.FloatMatrix]] (Dense) | Any | [[docs/classes/matrix/pycauset.FloatMatrix.md|pycauset.FloatMatrix]] |
-| Any | [[docs/classes/matrix/pycauset.FloatMatrix.md|pycauset.FloatMatrix]] (Dense) | [[docs/classes/matrix/pycauset.FloatMatrix.md|pycauset.FloatMatrix]] |
-| [[docs/classes/matrix/pycauset.TriangularFloatMatrix.md|pycauset.TriangularFloatMatrix]] | Triangular (Any) | [[docs/classes/matrix/pycauset.TriangularFloatMatrix.md|pycauset.TriangularFloatMatrix]] |
-| Triangular (Any) | [[docs/classes/matrix/pycauset.TriangularFloatMatrix.md|pycauset.TriangularFloatMatrix]] | [[docs/classes/matrix/pycauset.TriangularFloatMatrix.md|pycauset.TriangularFloatMatrix]] |
-| [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] or [[docs/classes/matrix/pycauset.TriangularBitMatrix.md|pycauset.TriangularBitMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] |
-| [[docs/classes/matrix/pycauset.TriangularBitMatrix.md|pycauset.TriangularBitMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] |
-| [[docs/classes/matrix/pycauset.TriangularBitMatrix.md|pycauset.TriangularBitMatrix]] | [[docs/classes/matrix/pycauset.TriangularBitMatrix.md|pycauset.TriangularBitMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] |
-| [[docs/classes/matrix/pycauset.DenseBitMatrix.md|pycauset.DenseBitMatrix]] | [[docs/classes/matrix/pycauset.DenseBitMatrix.md|pycauset.DenseBitMatrix]] | [[docs/classes/matrix/pycauset.IntegerMatrix.md|pycauset.IntegerMatrix]] |
+| [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `float64`) (Dense) | Any | [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `float64`) |
+| Any | [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `float64`) (Dense) | [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `float64`) |
+| [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `float64`) | Triangular (Any) | [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `float64`) |
+| Triangular (Any) | [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `float64`) | [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `float64`) |
+| [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`) | [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`) or [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`) | [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`) |
+| [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`) | [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`) | [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`) |
+| [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`) | [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`) | [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`) |
+| [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `bool`) | [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `bool`) | [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`) |
 
-**Note**: [[pycauset.IntegerMatrix]] is a **dense** matrix storing 32-bit integers, commonly returned for discrete path counting operations.
+**Note**: [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`) is a **dense** matrix storing 32-bit integers, commonly returned for discrete path counting operations.
 
 ### Implementation Details
 Operations use memory-mapped files to handle large matrices.
@@ -242,7 +242,7 @@ Operations use memory-mapped files to handle large matrices.
 
 Use the standard `*` operator: `C = A * B`.
 -   $C_{ij} = A_{ij} \times B_{ij}$
--   For [[pycauset.TriangularBitMatrix]], this is equivalent to bitwise AND.
+-   For [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`), this is equivalent to bitwise AND.
 -   Returns a new matrix of the same type as the operands.
 
 ## Scalar Multiplication
@@ -307,7 +307,7 @@ matrix = pc.load("my_saved_matrix.pycauset")
 
 # Check the type
 print(type(matrix)) 
-# <class 'pycauset.pycauset.TriangularBitMatrix'> (or IntegerMatrix, etc.)
+# <class 'pycauset.TriangularMatrix (bool)'> (or DenseMatrix (int32), etc.)
 ```
 
 ### Temporary Files
@@ -349,13 +349,13 @@ classDiagram
 ### Common Types
 | Python Class | C++ Implementation | Description |
 | :--- | :--- | :--- |
-| `IntegerMatrix` | `DenseMatrix<int32_t>` | Dense matrix of 32-bit integers. |
-| `FloatMatrix` | `DenseMatrix<double>` | Dense matrix of 64-bit floats. |
-| `DenseBitMatrix` | `DenseMatrix<bool>` | Dense matrix of booleans (bit-packed). |
-| `TriangularBitMatrix` | `TriangularMatrix<bool>` | Strictly upper triangular boolean matrix (Causal Matrix). |
-| `TriangularFloatMatrix` | `TriangularMatrix<double>` | Strictly upper triangular float matrix. |
+| `DenseMatrix` (dtype `int32`) | `DenseMatrix<int32_t>` | Dense matrix of 32-bit integers. |
+| `DenseMatrix` (dtype `float64`) | `DenseMatrix<double>` | Dense matrix of 64-bit floats. |
+| `DenseMatrix` (dtype `bool`) | `DenseMatrix<bool>` | Dense matrix of booleans (bit-packed). |
+| `TriangularMatrix` (dtype `bool`) | `TriangularMatrix<bool>` | Strictly upper triangular boolean matrix (Causal Matrix). |
+| `TriangularMatrix` (dtype `float64`) | `TriangularMatrix<double>` | Strictly upper triangular float matrix. |
 
-For working with causal matrices (a backbone of the causal set theory), `TriangularBitMatrix` is the primary boolean specialization. Use `pycauset.causal_matrix(...)` to create one. `IntegerMatrix` stores 32-bit counts (e.g., from matrix multiplication). `TriangularFloatMatrix` and `FloatMatrix` (dense) provide floating-point storage for analytical results.
+For working with causal matrices (a backbone of the causal set theory), `TriangularMatrix` (dtype `bool`) is the primary boolean specialization. Use `pycauset.causal_matrix(...)` to create one. `DenseMatrix` (dtype `int32`) stores 32-bit counts (e.g., from matrix multiplication). `TriangularMatrix` (dtype `float64`) and `DenseMatrix` (dtype `float64`) (dense) provide floating-point storage for analytical results.
 
 # Performance & Parallelism
 

@@ -1,7 +1,7 @@
 # pycauset.compute_k
 
 ```python
-pycauset.compute_k(matrix: TriangularBitMatrix, a: float) -> TriangularFloatMatrix
+pycauset.compute_k(matrix: TriangularMatrix (bool), a: float) -> TriangularMatrix (float64)
 ```
 
 Compute the matrix $K = C(aI + C)^{-1}$ for a causal matrix $C$ and scalar $a$.
@@ -10,9 +10,9 @@ This function uses an optimized column-independent backward substitution algorit
 
 ## Parameters
 
-*   **matrix** (*TriangularBitMatrix*): The input causal matrix $C$.
+*   **matrix** (*TriangularMatrix (bool)*): The input causal matrix $C$.
 *   **a** (*float*): The scalar parameter $a$.
 
 ## Returns
 
-*   **TriangularFloatMatrix**: The result matrix $K$.
+*   **TriangularMatrix (float64)**: The result matrix $K$.

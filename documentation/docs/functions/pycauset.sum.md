@@ -30,10 +30,10 @@ Notes:
 import numpy as np
 import pycauset as pc
 
-v = pc.FloatVector(np.array([1.0, 2.0, 3.0], dtype=np.float64))
+v = pc.vector(np.array([1.0, 2.0, 3.0], dtype=np.float64), dtype="float64")
 assert pc.sum(v) == 6.0 + 0.0j
 
-z = pc.ComplexFloat64Vector(np.array([1 + 2j, 3 - 4j], dtype=np.complex128))
+z = pc.vector(np.array([1 + 2j, 3 - 4j], dtype=np.complex128), dtype="complex_float64")
 assert pc.sum(z) == (1 + 2j) + (3 - 4j)
 assert pc.sum(z.conj()) == np.conj(pc.sum(z))
 ```

@@ -17,9 +17,9 @@ This function is NumPy-like:
 - vector-matrix: `(k,) @ (k, n) -> (1, n)` (row-vector semantics)
 - vector-vector: `(k,) @ (k,) -> scalar` (dot)
 
-Bit operands (`bool`/`bit`, i.e. `DenseBitMatrix` or `TriangularBitMatrix`) promote
+Bit operands (`bool`/`bit`, i.e. `DenseMatrix` (dtype `bool`) or `TriangularMatrix` (dtype `bool`)) promote
 to `int32` on matmul because a bit-bit reduction can exceed `{0,1}`. This includes
-the mixed `DenseBitMatrix @ TriangularBitMatrix` case (and its reverse).
+the mixed `DenseMatrix (bool) @ TriangularMatrix (bool)` case (and its reverse).
 
 ## Parameters
 

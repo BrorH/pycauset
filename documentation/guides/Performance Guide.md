@@ -25,7 +25,7 @@ To use the GPU acceleration, you need:
 The following operations are currently accelerated via the AutoSolver:
 *   **Matrix Multiplication** (`matmul`, `*` operator):
     *   Uses `cuBLAS` for high-performance GEMM (Float32/Float64).
-    *   **BitMatrices**: `DenseBitMatrix` and `TriangularBitMatrix` multiplication is **fully accelerated** using custom bit-packed kernels. This allows for extremely fast path counting and transitive closure operations (up to 64x faster than float operations).
+    *   **BitMatrices**: `DenseMatrix` (dtype `bool`) and `TriangularMatrix` (dtype `bool`) multiplication is **fully accelerated** using custom bit-packed kernels. This allows for extremely fast path counting and transitive closure operations (up to 64x faster than float operations).
 *   **Matrix Inversion** (`inverse`):
     *   Uses `cuSOLVER` LU factorization.
 *   **General eigen-decomposition** (`eig`, `eigvals`):
@@ -64,10 +64,10 @@ pc.set_backing_dir(Path("./storage"))
 pc.set_memory_threshold(256 * 1024 * 1024)  # 256 MB
 
 # This forces a file-backed matrix on most machines.
-A = pc.FloatMatrix(50000)
+A = pc.DenseMatrix(50000, dtype="float64")
 A.set_identity()
 
-B = pc.FloatMatrix(50000)
+B = pc.DenseMatrix(50000, dtype="float64")
 B.fill(1.0)
 
 C = A @ B  # streaming route if thresholds are exceeded
@@ -118,9 +118,9 @@ When PyCauset initializes, the ComputeContext queries your system:
 
 When you convert a NumPy array to a PyCauset matrix using `pycauset.matrix()`:
 
-1.  **Float32 Input**: Always creates a `Float32Matrix`.
+1.  **Float32 Input**: Always creates a `DenseMatrix` (dtype `float32`).
 2.  **Float64 Input (Standard NumPy)**:
-    *   If your hardware prefers Float32 (e.g., GTX 1060), PyCauset will **automatically downcast** to `Float32Matrix` for a 15-30x speedup.
+    *   If your hardware prefers Float32 (e.g., GTX 1060), PyCauset will **automatically downcast** to `DenseMatrix` (dtype `float32`) for a 15-30x speedup.
     *   If your hardware supports fast Float64, it creates a `Float64Matrix`.
 
 ### Benchmarks (Example: GTX 1060)
@@ -145,7 +145,7 @@ PyCauset uses a multithreaded "Direct Path" for loading/saving data and importin
 *   **Import**: **~2.7x faster** for importing non-contiguous (sliced) NumPy arrays.
 
 ### 3. Bit-Packed Boolean Math (up to 64x faster)
-NumPy stores booleans as 8-bit bytes (`bool_`). PyCauset stores them as 1-bit packs (`DenseBitMatrix`).
+NumPy stores booleans as 8-bit bytes (`bool_`). PyCauset stores them as 1-bit packs (`DenseMatrix` (dtype `bool`)).
 *   **Storage**: 8x smaller RAM footprint.
 *   **Matmul**: 64x faster (using specialized bit-block kernels).
 

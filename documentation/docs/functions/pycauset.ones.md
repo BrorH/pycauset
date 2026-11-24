@@ -20,7 +20,7 @@ concrete object immediately.
 
     Notes:
     *   Rectangular allocation is supported for dense numeric matrix types.
-    *   `dtype="bool"`/`dtype="bit"` uses bit-packed storage (`DenseBitMatrix`) and supports rectangular `(rows, cols)` shapes.
+    *   `dtype="bool"`/`dtype="bit"` uses bit-packed storage (`DenseMatrix` (dtype `bool`)) and supports rectangular `(rows, cols)` shapes.
 *   **dtype** (*str or type, optional*): Storage dtype token. Defaults to a deferred `int32` when omitted.
 *   **kwargs**: Passed through to the backend allocator.
 

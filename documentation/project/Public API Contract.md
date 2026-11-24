@@ -43,7 +43,7 @@ See also: [[dev/Python Internals|Python Internals]] and [[dev/Bindings & Dispatc
 
 - Public types use `PascalCase`.
 - Concrete matrix/vector classes follow `…Matrix` / `…Vector` naming.
-  - Examples: `FloatMatrix`, `TriangularFloatMatrix`, `IntegerVector`.
+  - Examples: `DenseMatrix` (dtype `float64`), `TriangularMatrix` (dtype `float64`), `DenseVector` (dtype `int32`).
 
 ### Matrix/vector semantic properties (`obj.properties`)
 

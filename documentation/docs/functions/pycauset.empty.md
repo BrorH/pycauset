@@ -22,7 +22,7 @@ at all. Its dtype is deduced from the first value written into it (`set`,
 
     Notes:
     *   Rectangular allocation is supported for dense numeric matrix types.
-    *   `dtype="bool"`/`dtype="bit"` uses bit-packed storage (`DenseBitMatrix`) and supports rectangular `(rows, cols)` shapes.
+    *   `dtype="bool"`/`dtype="bit"` uses bit-packed storage (`DenseMatrix` (dtype `bool`)) and supports rectangular `(rows, cols)` shapes.
 *   **dtype** (*str or type, optional*): Storage dtype token. When omitted, the dtype is deduced from the first written value.
 *   **kwargs**: Passed through to the backend allocator.
 

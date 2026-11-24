@@ -16,7 +16,7 @@ c = pc.causet(n=500, seed=42)
 
 print(c.n)                 # 500
 print(c.coordinates().shape)   # (500, 2): time and space per element
-print(c.C)                 # the causal matrix, a TriangularBitMatrix
+print(c.C)                 # the causal matrix, a TriangularMatrix (bool)
 
 # The causal matrix as a dense boolean array: C[i, j] is True when i is in j's past.
 dense = np.asarray(c.C)

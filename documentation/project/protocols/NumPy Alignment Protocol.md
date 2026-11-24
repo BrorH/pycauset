@@ -35,7 +35,7 @@ Examples:
 
 Examples:
 
-- `pycauset.FloatMatrix`, `pycauset.Int8Vector`, `pycauset.TriangularBitMatrix`
+- `DenseMatrix` (dtype `float64`), `DenseVector` (dtype `int8`), `TriangularMatrix` (dtype `bool`)
 
 ### C) No deprecation aliases: rename == purge
 

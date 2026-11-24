@@ -8,7 +8,7 @@ Compute the bitwise inversion (NOT) of a matrix.
 
 ## Parameters
 
-*   **matrix** (*MatrixBase* or *array-like*): The matrix to invert. Must be a `TriangularBitMatrix`, `IntegerMatrix`, or similar bit-supporting type.
+*   **matrix** (*MatrixBase* or *array-like*): The matrix to invert. Must be a `TriangularMatrix` (dtype `bool`), `DenseMatrix` (dtype `int32`), or similar bit-supporting type.
 
 ## Returns
 

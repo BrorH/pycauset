@@ -16,9 +16,9 @@ Identity matrices are **shape-flexible** in PyCauset: `IdentityMatrix(rows, cols
 
 The factory enforces this at creation time: these `Structure`s reject `rows != cols` (triangular/causal, diagonal, symmetric/antisymmetric).
 
-### DenseBitMatrix is bit-packed (implementation detail)
+### DenseMatrix (bool) is bit-packed (implementation detail)
 
-`DenseBitMatrix` (`DenseMatrix<bool>`) is stored in bit-packed row layout with a per-row stride determined by `cols` (not by `n`). Rectangular `(rows, cols)` shapes are supported.
+`DenseMatrix` (dtype `bool`) (`DenseMatrix<bool>`) is stored in bit-packed row layout with a per-row stride determined by `cols` (not by `n`). Rectangular `(rows, cols)` shapes are supported.
 
 ### Square-only operations
 

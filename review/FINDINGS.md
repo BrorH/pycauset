@@ -401,7 +401,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
   Convert it to gtest `EXPECT_*` (or fold it into the new suite).
 
 ### F-032 Unregistered template instantiations reach Python as bare `MatrixBase`
-- **Status:** open (S2; blocks the "every dtype works with every structure" gate, PLAN 4.1d)
+- **Status:** fixed by construction (session 4): one Python class per structure; a pybind11
+  polymorphic type hook (`src/bindings/bindings_common.hpp`) maps every instantiation to its
+  structure class. ScalarOps' int32/float64-only triangular restriction can now be lifted (4.1d).
 - The C++ factory creates `TriangularMatrix<T>`, `DiagonalMatrix<T>`, `IdentityMatrix<T>`
   for ~10 dtypes each, but Python classes exist only for Triangular{bit,int32,float64},
   Diagonal{float64} and Identity{float64}. Any op that yields another instantiation
@@ -569,3 +571,36 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - **Status:** open; LAZY.md phase L1.
 - Both are their own transpose; `.T` should return the same storage in O(1). Today it
   allocates and copies (probe: `review/probes/view_semantics_probe.py`).
+
+### F-045 `.get()` and writes ignored view metadata (scale factor, conjugation)
+- **Status:** fixed (structure-class commit). Tests: old suite + engine suite.
+- `B = A * 2.5; B.get(0, 1)` returned the unscaled value (2.0) while `B[0, 1]` gave 5.0; on a
+  conjugated complex view `.get` returned the unconjugated value. Writes were wrong too:
+  `B[0, 0] = 1.0` read back as 2.5, and writes into a conjugated view read back conjugated.
+  Silent wrong data. Cause: the per-class bindings bound the raw typed `get`/`set`, which apply
+  the transpose but not the factor or conjugation.
+- Fix: reads go through the view-aware readers (floats/complex) or exact typed reads (ints/bits);
+  writes first fold a scale/conjugation view into private storage (dense). Structured matrices
+  carrying a float factor raise on write instead of storing a wrong value; lazy phase L1
+  (features/LAZY.md) replaces this with ViewSpec-aware writes.
+
+### F-046 `pycauset.matrix(n)` silently used float32 for n >= 10,000; list input inferred structure
+- **Status:** fixed (structure-class commit).
+- A size heuristic changed the result dtype ("Enforcing Float32 precision for storage efficiency"),
+  violating "guesses may inform, never decide". A nested list whose values happened to be strictly
+  upper triangular became a triangular class, while the same data as a NumPy array became dense.
+  Now: dtype from `dtype=` or the data (NumPy rules, Python ints -> int32); lists take the array path.
+- Also fixed on the way: persistence recorded every diagonal/symmetric/antisymmetric/identity
+  matrix as float64 whatever its dtype (wrong dtype after load); files now store structure + dtype.
+
+### F-047 Eigen-decompositions don't follow under-promotion (float32 in -> float64 out)
+- **Status:** open (`tests/python/test_eigen_cpu.py::test_eigvalsh_f32` is an expectedFailure).
+- `pc.eigvalsh(A)` / `A.eigvalsh()` on a float32 matrix return float64 eigenvalues (NumPy returns
+  float32). The removed per-class float32 method returned float32, so behaviour differed by entry
+  point. Decide in the operator consolidation (4.3): result dtype = input float dtype.
+
+### F-048 Tests and the doc runner imported a stale installed pycauset
+- **Status:** fixed. A subprocess-based test and `review/probes/run_doc_snippets.py` imported the
+  site-packages copy (from an earlier `pip install`), so they tested old code (same class as
+  F-029). Both now put the source tree on PYTHONPATH; the stale install was removed from the
+  dev container. Rule (TESTS.md): never rely on an installed pycauset in tests or probes.

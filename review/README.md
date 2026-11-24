@@ -69,7 +69,8 @@ review/
 **After session 3 (2026-11-24):** fixed F-001…F-006, F-024, F-025, F-028…F-030, F-033,
 F-034, F-035a, F-036…F-040, F-041a; precision_mode removed; lazy expression engine removed
 (eager operators, one structure resolver); Arnoldi on Spectra; streaming engine tested.
-2,842 passed / 32 xfailed (F-035b by design) in ~22 s; ASan+UBSan clean (sanitizer builds
+Session 4: CUDA to experimental/, Structure enum, one class per structure (F-032/F-045/F-046
+fixed), lazy-evaluation design (features/LAZY.md). 2,825 passed / 33 xfailed in ~24 s; ASan+UBSan clean (sanitizer builds
 need -j1). **Open priorities:** F-041b (maintainer: zeros() default dtype); F-032 + renames
 (PLAN 4.6); F-040 follow-ups (views in the tiler, `set_memory_threshold` vs streaming);
 performance F-012 (profile the 13× element-wise gap); dead-code Tier B; docs F-008. All decisions answered (RESTRUCTURE §3); new feature

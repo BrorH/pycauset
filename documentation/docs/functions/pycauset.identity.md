@@ -35,11 +35,11 @@ I5 = pc.identity(5)            # 5x5
 I35 = pc.identity([3, 5])      # 3x5
 
 # 3) Matrix input
-A = pc.FloatMatrix(2, 4)
+A = pc.DenseMatrix(2, 4, dtype="float64")
 IA = pc.identity(A)            # 2x4
 
 # 3) Vector input
-v = pc.IntegerVector(7)
+v = pc.DenseVector(7, dtype="int32")
 Iv = pc.identity(v)            # 7x7
 ```
 
