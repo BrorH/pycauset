@@ -17,7 +17,10 @@ date) whenever a phase lands, and keep the old row so the trend is visible.
 | … of the skips: stale (pass when un-skipped) | 3 (F-009) |
 | C++ gtests wired in CMake | 6/6 pass |
 | C++ gtests orphaned | 3 (2 pass, 1 hangs, F-004) |
-| ASan+UBSan Python suite | first UB at `CpuSolver.cpp:165` (F-006); full pass pending |
+| ASan+UBSan Python suite (with `-s`) | **no memory errors**; 3 UB sites: int32 add & mul overflow (F-006), null memcpy (F-025) |
+| Python line coverage (suite) | 76%; 87 functions never executed |
+| C++ line / function coverage (suite + demos, no gtests) | 35% / 45%; 489 of 1,562 source functions never executed; StreamingManager 0% |
+| Test files with 0 unique Python lines | 47 of 121 |
 | Compiler warnings (`-Wall -Wextra -Wno-unused-parameter`, own code) | 18 unique (F-020) |
 | `ruff check python/` (pyproject rules) | 289 |
 | pyflakes on tests, benchmarks, tools, scripts, demos | 87 |
@@ -99,6 +102,16 @@ set, about 125 GB). The snippet runner caps files at 1 GiB per process
 (RLIMIT_FSIZE) and deletes each page's working directory. Don't run doc examples
 without it. In session 1 an uncapped run filled the disk, which also killed a
 parallel build.
+
+### Coverage (Python + C++) and dead-code tools
+See DEADCODE.md §2 for the full pipeline. The C++ coverage build:
+```bash
+cmake -S . -B build/cov -G Ninja -DCMAKE_BUILD_TYPE=Debug -Dpybind11_DIR=... \
+  -DCMAKE_CXX_FLAGS="--coverage -O0" -DCMAKE_SHARED_LINKER_FLAGS=--coverage -DCMAKE_MODULE_LINKER_FLAGS=--coverage
+cmake --build build/cov -j3      # ~15 min; the largest TU needs ~9 GB RAM
+```
+Stage it like the ASan build (copy `.so` files into a package copy, import it before
+pytest). Under coverage the suite takes ~4 min instead of 21 s.
 
 ### Lint / warnings
 ```bash

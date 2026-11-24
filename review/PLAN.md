@@ -7,7 +7,15 @@ be. Expected duration: weeks. Many agents, and the maintainer, will work on it.
 
 **Scope:** everything (C++ engine, bindings, Python layer, physics suite, tests,
 benchmarks, tools, build and CI, docs). **Out of scope:** GPU/CUDA work (on hold;
-see RESTRUCTURE DECISION 3) and new features.
+moves to `experimental/`, RESTRUCTURE §3.1) and new features.
+
+**Priority for R1 (maintainer, 2026-11-24):** the *engine*, meaning linear
+algebra and "NumPy for causal sets". The physics suite is **deprioritized**: smoke
+tests only, and fix glaring bugs if found, but no deep review or new spacetimes
+until after R1.
+
+**Companion strategies:** `TESTS.md` (new compact test suite) and `DEADCODE.md`
+(dead-code program). Both run *through* the phases below.
 
 **How to use this file:** phases run roughly in order, but within a phase the work
 items are independent and can be claimed by different agents. Claim an item by
@@ -26,10 +34,14 @@ session in `LOG.md`. Record every issue in `FINDINGS.md`.
 - [x] Lint and warnings baselines; ASan+UBSan build
 - [x] Findings F-001 … F-024 → `FINDINGS.md`
 - [x] Restructure proposal with open decisions → `RESTRUCTURE.md`
-- [ ] **Maintainer answers the RESTRUCTURE decisions** (blocks Phase 4)
-- [ ] Full ASan+UBSan pass over the whole Python suite (session 1 got halfway, see LOG)
+- [x] Technical decisions recorded (RESTRUCTURE §3.1)
+- [ ] **Maintainer answers the product questions** (RESTRUCTURE §3.2: R1 dtype and
+      structure scope, bool semantics). Blocks only the scope pruning in Phase 4.
+- [x] Dead-code tooling evaluated plus a coverage-based pipeline → `DEADCODE.md`
+- [x] Test-suite redesign strategy plus redundancy measurement → `TESTS.md`
+- [x] Full ASan+UBSan pass: no memory errors; 3 UB sites (F-006, F-025)
 
-## Phase 1: Safety net (make the tests trustworthy before changing anything)
+## Phase 1: Safety net = the NEW test suite core (see TESTS.md)
 Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists, so
 "green" doesn't mean "correct". Refactoring without a better net is unsafe.
 
@@ -43,7 +55,9 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
       UBSan with `-fno-sanitize-recover`. Add a TSan job for the threading tests.
 - [ ] **1.4 Remove stale skips** (F-009); every remaining skip must carry a reason
       plus a FINDINGS id.
-- [ ] **1.5 Parity grid as tests:** promote `review/probes/dtype_matrix_probe.py`
+- [ ] **1.5 New-suite core** (TESTS.md §3.2): `tests/conftest.py`, `tests/spec.py`,
+      `engine/test_conformance.py`, `engine/test_invariants.py`, `engine/test_regressions.py`.
+      Details of the grid: promote `review/probes/dtype_matrix_probe.py`
       into a parametrized pytest grid (dtype × op × structure × storage
       {RAM, disk}), asserting values **and** dtypes against NumPy. Initially
       `xfail(strict=True)` for known-open findings, so fixes flip them green.
@@ -57,6 +71,10 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
       frozen (no new findings).
 - [ ] **1.9 Coverage measurement:** Python (`pytest-cov`) and C++ (`gcovr`) once,
       to find untested files and functions → record in INVENTORY.md.
+
+## Phase 1b: Dead code, Tier A (cheap, early; shrinks context for everything after)
+- [ ] Remove DEADCODE.md §4 Tier A items in small commits, guarded by the current suite + gtests
+- [ ] Add Skylos and ruff-F to CI so new dead code is flagged on PRs
 
 ## Phase 2: Critical correctness fixes
 Each fix: regression test first (from Phase 1), then fix, then FINDINGS status.
@@ -80,22 +98,23 @@ risk: storage and object model first, since everything rests on them.
 | 3.2 | Object model: MatrixBase/VectorBase and every concrete type; view metadata; CoW | `include/pycauset/{matrix,vector}`, `src/{matrix,vector}` | 3,600 |
 | 3.3 | Factory & promotion: ObjectFactory, Promotion/Structure/MatrixType resolvers | `src/core` | 1,100 |
 | 3.4 | Dispatch & CPU kernels: ComputeContext, AutoSolver, CpuDevice, **CpuSolver**, ParallelUtils, SIMD | `src/compute` | 7,800 |
-| 3.5 | Streaming / out-of-core: StreamingManager (C++ and Py), ComputeWorker, io_observability | | 1,000 |
+| 3.5 | Streaming / out-of-core: StreamingManager (C++ and Py), ComputeWorker, io_observability. **Priority: C++ StreamingManager is 0% executed; is out-of-core really mmap-only?** | | 1,000 |
 | 3.6 | Math entry & expressions: LinearAlgebra.cpp, Eigen.cpp, expression templates, LazyMatrix | `src/math`, `matrix/expression` | 1,900 |
 | 3.7 | Bindings | `src/bindings*` | 7,300 |
 | 3.8 | Python facade & glue: `__init__`, patching, properties, ops, factories, dtypes, lazy_allocation | `python/pycauset` | 6,500 |
 | 3.9 | Persistence & caches: persistence, big_blob_cache, linalg_cache, export_guard, container format | | 2,300 |
 | 3.10 | Block matrices: blockmatrix, submatrix_view, thunks, dense_python | | 1,200 |
-| 3.11 | Physics: causet, spacetime, field, synthetic, Sprinkler.cpp, Spacetime.hpp | | 2,300 |
-| 3.12 | Visualization: vis.py | | 435 |
+| 3.11 | Physics: causet, spacetime, field, synthetic, Sprinkler.cpp, Spacetime.hpp **(post-R1; smoke tests only before)** | | 2,300 |
+| 3.12 | Visualization: vis.py **(post-R1)** | | 435 |
 | 3.13 | Build, packaging, CI, release: CMakeLists, pyproject, workflows, tools/*.ps1 | | 1,000 |
-| 3.14 | Tests themselves: what each file actually asserts; duplicates; weak asserts | `tests/` | 16,700 |
+| 3.14 | Old tests: superseded by TESTS.md migration (no line-by-line review of old tests) | `tests/` | 16,700 |
 | 3.15 | Benchmarks, demos, scripts, tools | | 2,200 |
 | 3.16 | CUDA: **inventory only**, no review while on hold | `src/accelerators/cuda` | 4,300 |
 
 **Per-file review checklist** (copy into the area notes):
 1. Purpose: can you say in one sentence what this file is for? Is it in the right place?
-2. Liveness: is every function reachable from the public API, a test, or a tool? (else F-id, DEAD)
+2. Liveness: check `review/deadcode/*_never_executed.txt`. Every never-executed
+   function gets a verdict: keep + test, or delete (DEADCODE.md §6)
 3. Correctness: view metadata (scalar/transposed/conjugated/offset) honoured;
    all dtypes handled or explicitly rejected; bounds and overflow; NaN/Inf; empty
    (0×n) and 1×1 shapes; non-square.
@@ -110,19 +129,20 @@ risk: storage and object model first, since everything rests on them.
 
 ## Phase 4: Structural cleanup (after the RESTRUCTURE decisions)
 Behaviour-preserving moves in their own commits, then logic consolidation.
-- [ ] 4.1 Dead code removal (F-018) and debug leftovers (F-019)
+- [ ] 4.1 Dead code Tiers B–D (DEADCODE.md) and debug leftovers (F-019)
+- [ ] 4.1b Scope pruning per the creative director's R1 dtype/structure answers
 - [ ] 4.2 Split CpuSolver.cpp, bind_matrix.cpp and `__init__.py` (pure moves)
-- [ ] 4.3 Single source of truth for operators and properties (DECISIONS 1–2); delete the monkeypatch stack
+- [ ] 4.3 Single source of truth for operators and properties (RESTRUCTURE §3.1 items 1–2); delete the monkeypatch stack
 - [ ] 4.4 Python `_internal/` subpackages; `.pyi` generation (F-007)
-- [ ] 4.5 Test-suite reorganization (RESTRUCTURE §2.4)
-- [ ] 4.6 Naming sweep: milestone names out; class renames (DECISION 4)
+- [ ] 4.5 Retire the old test suite per TESTS.md §4 migration rules
+- [ ] 4.6 Naming sweep: milestone names out; class renames (§3.1 item 4)
 - [ ] 4.7 One StreamingManager; one Minkowski implementation path
 - [ ] 4.8 Silent-exception sweep (126 sites)
 - [ ] 4.9 Per-directory README.md files (what lives here, what doesn't)
 
 ## Phase 5: Documentation truth pass
 - [ ] 5.1 Fix every broken snippet (F-008); the snippet test is green
-- [ ] 5.2 API reference regenerated or verified (DECISION 5); no pages for missing symbols
+- [ ] 5.2 API reference regenerated or verified (§3.1 item 5); no pages for missing symbols
 - [ ] 5.3 Delete historical plans/archive; one ROADMAP; merge dev/ + internals/
 - [ ] 5.4 README and BENCHMARKS claims re-measured ("≥0.90× NumPy", "bigger than RAM")
 - [ ] 5.5 ARCHITECTURE.md moves into `documentation/internals/` as the canonical map

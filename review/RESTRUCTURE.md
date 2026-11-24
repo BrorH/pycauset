@@ -1,8 +1,7 @@
 # Restructure & Cleanup Proposal (for discussion)
 
-**Status:** DRAFT. Nothing here has been executed. Items marked **DECISION** need
-the maintainer's call before anyone acts on them. Record each answer inline
-(`**Decided (date):** ...`) so later agents don't re-litigate it.
+**Status:** DRAFT proposal; technical decisions recorded in §3.1, product questions
+open in §3.2. Nothing has been executed yet.
 
 Ground rules (from the maintainer, 2026-11-24):
 - Pre-alpha: **no backwards compatibility**. When something goes, it goes
@@ -51,12 +50,12 @@ Keep the conventional `include/` + `src/` split. Changes inside it:
   the duplicated dtype-dispatch ladders with one templated dispatcher.
 - **Split `bind_matrix.cpp`**: `bind_matrix_classes.cpp` (class registration per
   dtype), `bind_matrix_numpy.cpp` (buffer protocol, from/to NumPy),
-  `bind_matrix_operators.cpp` (one operator table, see DECISION 1).
+  `bind_matrix_operators.cpp` (one operator table, see §3.1 item 1).
 - **Delete**: `WorkloadPartitioner.{hpp,cpp}`, `src/main.cpp`, the
   `#pragma message`, the commented-out CMake targets.
 - **`PersistentObject`** moves into `namespace pycauset`.
-- **`MatrixType` enum**: separate structure from dtype (DECISION 4).
-- **CUDA** (`src/accelerators/cuda/`, `bind_cuda.cpp`, `pycauset/cuda.py`): DECISION 3.
+- **`MatrixType` enum**: separate structure from dtype (§3.1 item 4).
+- **CUDA** (`src/accelerators/cuda/`, `bind_cuda.cpp`, `pycauset/cuda.py`): moves to `experimental/cuda/` (§3.1 item 3).
 
 ### 2.3 Python (`python/pycauset/`)
 - **`__init__.py` becomes a pure facade** (target < 300 lines): imports and
@@ -68,7 +67,7 @@ Keep the conventional `include/` + `src/` split. Changes inside it:
     native/       native.py, native_setup.py, native_threshold.py, gpu_hint.py
     core/         dtypes.py, coercion.py, formatting.py, warnings.py, runtime.py
     ops/          ops.py split into linalg.py, eig.py, decomp.py, elementwise.py
-    properties/   properties.py (after DECISION 2 shrinks it)
+    properties/   properties.py (after §3.1 item 2 shrinks it)
     storage/      persistence.py, big_blob_cache.py, linalg_cache.py,
                   export_guard.py, io_observability.py, streaming_manager.py
     blocks/       blockmatrix.py, submatrix_view.py, dense_python.py, thunks.py
@@ -78,7 +77,7 @@ Keep the conventional `include/` + `src/` split. Changes inside it:
   `ops.eigvals`. Decide whether `storage_debug.py` and `support_matrix.py` are dev
   tools (move to `tools/`) or library features.
 - **Remove the monkeypatch wrapper stack** (`patching.py` plus the operator wrappers
-  in `properties.py`). See DECISION 1.
+  in `properties.py`). See §3.1 item 1.
 - **Silent `except: pass`** (126 sites): each one either becomes a specific
   exception type or gets a comment explaining why swallowing is correct.
 - **`.pyi` stub**: generated, or deleted (F-007).
@@ -104,7 +103,7 @@ tests/
   `test_skew{,_comprehensive}.py`).
 - Delete `tests/manual/`, `tests/stability/` (or turn them into `slow` tests),
   `tests/python/debug_load.py`, `phase3_4_verification.py`.
-- GPU-only tests: park them with the CUDA code (DECISION 3).
+- GPU-only tests: park them with the CUDA code (§3.1 item 3).
 - `tests/BUG_LOG.md` moves into the docs (or merges with `review/FINDINGS.md`).
 
 ### 2.5 Documentation (`documentation/`)
@@ -117,40 +116,51 @@ Proposal:
   R1/R2 plans. Keep one `ROADMAP.md`.
 - **Merge** `internals/` and `dev/` into one `internals/` (developer docs).
   `review/ARCHITECTURE.md` becomes its front page once the review is complete.
-- **API reference**: DECISION 5.
+- **API reference**: generated from docstrings (§3.1 item 5).
 - Every python code block in user docs must run; enforced in CI by the doc-snippet
   test. Signature listings get a non-python fence.
 
-## 3. DECISIONS needed from the maintainer
+## 3. Decisions
 
-1. **Where do operator semantics live?** Today they're split between ~8 pybind
-   overloads per operator and two layers of Python monkeypatch wrappers.
-   *Recommendation:* C++ is the single source of truth for arithmetic and result
-   types (fast, one place). Python adds nothing per-op, apart from a single
-   registration hook for temp-file tracking implemented in C++ or via pybind's
-   return-value policy. Properties propagation moves into C++ alongside
-   `PropertyFlags` (see 2).
-2. **Properties system:** C++ flags and the Python dict both exist. *Recommendation:*
-   C++ owns the flags and the propagation rules; Python exposes a read-only view
-   plus explicit setters.
-3. **GPU/CUDA code while on hold:** (a) leave in place, unbuilt and untested; (b) move
-   to `experimental/cuda/` with its tests; (c) delete now and recover from git
-   later. *Recommendation:* (b). It keeps the tree honest about what's maintained
-   without throwing away work.
-4. **Class naming and type enum:** rename `IntegerMatrix` → `Int32Matrix`,
-   `FloatMatrix` → `Float64Matrix`, `IntegerVector`/`FloatVector` likewise, and split
-   `MatrixType` into Structure × DType. Breaking, but we're pre-alpha.
-   *Recommendation:* yes, in one sweep.
-5. **API reference docs:** hand-maintained pages (96+, drifting) vs generated from
-   docstrings (mkdocstrings), with hand-written guides kept. *Recommendation:*
-   generate, and make the docstrings the source of truth.
-6. **Python floor:** `requires-python >= 3.8` but CI tests only 3.12 and the code
-   uses 3.10+ idioms. *Recommendation:* `>=3.10`, CI on 3.10 and 3.13.
-7. **bool semantics:** NumPy (bool + bool = OR) or counting semantics
-   (bool + bool = int, which suits causal matrices)? Either way it must be one
-   documented rule (F-013).
-8. **Export guard and spill dir UX** (F-016, F-017): guard by size only (not by
-   "is on disk")? Default spill dir to the system temp dir instead of `./.pycauset`?
+**Roles (maintainer, 2026-11-24):** the maintainer is creative director; the
+technical lead (the agent running the overhaul) makes technical calls and records
+them here with a reason. The maintainer can veto any of them. Product questions
+(what PyCauset *is* and *offers*) stay with the maintainer and are asked in plain
+language.
+
+### 3.1 Technical decisions (decided 2026-11-24 by technical lead; maintainer may veto)
+1. **Operator semantics live in C++ only.** One operator table in the bindings,
+   no Python per-op wrappers. The monkeypatch stack (`patching.py` plus the
+   operator wrappers in `properties.py`) is deleted. Temp-file registration
+   happens in C++ at allocation. *Why:* one source of truth; removes the
+   inconsistency behind F-001/F-002 and the overhead behind F-012.
+2. **Properties: C++ owns the flags and propagation rules**; Python exposes a view
+   plus explicit setters. *Why:* two sources of truth today.
+3. **CUDA moves to `experimental/cuda/`** (code, bindings, Python facade, GPU
+   tests), excluded from the default build, CI and docs nav. *Why:* keeps the
+   maintained tree honest and out of agents' context, without losing the work.
+4. **Renames in one sweep:** `IntegerMatrix→Int32Matrix`, `FloatMatrix→Float64Matrix`
+   (vectors likewise); `MatrixType` split into Structure × DType. *Why:* names
+   should say what they are; pre-alpha is the cheapest time.
+5. **API reference generated from docstrings** (mkdocstrings); guides stay
+   hand-written. *Why:* 96 hand pages already drift (F-008).
+6. **Python ≥ 3.10**; CI on 3.10 and 3.13. *Why:* the code already needs it.
+7. **Export guard by size only.** Small disk-backed results convert to NumPy
+   freely; the guard trips only above the size ceiling. *Why:* spilling is
+   automatic, so the user can't predict it (F-016).
+8. **Default spill directory = the OS temp/cache dir** (overridable with
+   `set_backing_dir`), not `./.pycauset`. *Why:* don't litter the user's working
+   directory (F-017).
+9. **The old test suite is retired only after the new one proves equal or better
+   coverage** (TESTS.md §4). *Why:* the old tests are the only written record of
+   intended behaviour in some corners.
+
+### 3.2 Product questions for the creative director (open)
+A. **Scope for R1:** which dtypes, structures and rarely used features ship?
+   (DEADCODE.md §5; the biggest dead-code lever we have.)
+B. **Adding two causal (boolean) matrices:** "logical OR, like NumPy" or "count
+   relations, giving integers"? Same for multiplying them (today it counts paths,
+   which suits causal sets but differs from NumPy). (F-013)
 
 ## 4. Sequencing
 Don't restructure before the safety net exists (PLAN phase 1). Moves that change no

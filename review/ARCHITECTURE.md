@@ -8,6 +8,9 @@ before touching code. It describes the code **as it is** (as of 2026-11-24, comm
 **Who maintains it:** whoever changes a subsystem's responsibilities or wiring updates
 this file in the same commit. If you move a file, fix its path here.
 
+**Coverage:** per-file executed-line numbers are in `review/deadcode/`; they show how
+much of each file is actually alive.
+
 Status markers used below: **[OK]** coherent, **[SMELL]** works but is patchwork,
 **[DEAD]** unreferenced, **[BUG]** see `FINDINGS.md`.
 
@@ -133,6 +136,8 @@ pybind lambda (bind_matrix.cpp)
 ### 2.4 Out-of-core streaming
 * C++: `compute/StreamingManager` plans tiles from MemoryGovernor budgets and runs
   them through a `ComputeWorker` (`cpu/CpuComputeWorker`). Only `CpuDevice` uses it.
+  **[F-026] It is 0% executed** by the test suite and demos. In practice, disk-backed
+  operands are processed through ordinary mmap paging by the normal kernels.
 * Python: `_internal/streaming_manager.py` is a **separate** Python-side planner and
   observer (`last_io_trace`, IO traces). **[SMELL]** Two components with the same
   name and overlapping purpose.
@@ -240,7 +245,7 @@ F-002) and of elementwise ops running at 0.2–0.3× NumPy speed.
 | `persistence.py` | 1,664 | `.pycauset` container: header slots, metadata blocks, save/load, cached derived objects |
 | `properties.py` | 1,199 | user-visible property dict (`is_symmetric`, `is_upper_triangular`, ...), propagation rules, operator wrappers |
 | `blockmatrix.py` | 852 | Python BlockMatrix (tiles of native matrices) |
-| `matrix_api.py` | 618 | Python `TriangularMatrix` front and related helpers |
+| `matrix_api.py` | 618 | `Matrix` factory shim; contains a leftover **pure-Python list-backed matrix** reached only from `pc.matrix`/`zeros` fallback branches that never fire (DEADCODE Tier B); empty `TriangularMatrix` shim exported as `pc.TriangularMatrix` |
 | `io_observability.py` | 335 | IO trace records (`last_io_trace`) |
 | `export_guard.py` | 319 | refuse NumPy export of file-backed or huge objects |
 | `streaming_manager.py` | 288 | Python streaming planner (see 2.4) |

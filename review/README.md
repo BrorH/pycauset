@@ -13,8 +13,10 @@ work cold**. Read this file first, then the ones it points to.
 4. **[RESTRUCTURE.md](RESTRUCTURE.md)**: proposed moves, deletions and consolidation,
    and the **open decisions** for the maintainer.
 5. **[INVENTORY.md](INVENTORY.md)**: every file, with its role and review status.
-6. **[BASELINE.md](BASELINE.md)**: measured numbers and the exact commands to reproduce them.
-7. **[LOG.md](LOG.md)**: session-by-session history.
+6. **[TESTS.md](TESTS.md)**: the new compact test suite strategy and migration rules.
+7. **[DEADCODE.md](DEADCODE.md)**: dead-code tooling, pipeline, tiered candidates.
+8. **[BASELINE.md](BASELINE.md)**: measured numbers and the exact commands to reproduce them.
+9. **[LOG.md](LOG.md)**: session-by-session history.
 
 ## Directory layout
 ```
@@ -25,11 +27,14 @@ review/
   FINDINGS.md       issue log, F-001...
   RESTRUCTURE.md    cleanup proposal + decisions
   INVENTORY.md      per-file catalog + review status
+  TESTS.md          new test-suite design + migration rules
+  DEADCODE.md       dead-code program (tools, pipeline, candidates)
   BASELINE.md       numbers + reproduction recipes
   LOG.md            session log
   areas/            per-area deep-review notes (Phase 3), one file per area
+  deadcode/         snapshots of dead-code/coverage reports (regenerate per DEADCODE.md §2)
   probes/           runnable investigation scripts (candidates to become tests)
-  scripts/          helpers for maintaining these docs (inventory generator)
+  scripts/          inventory generator, coverage analysers (Python + C++)
 ```
 
 ## Rules for anyone working here
@@ -45,13 +50,18 @@ review/
 7. **GPU/CUDA is on hold:** inventory it, don't invest in it.
 8. **Disk safety:** never run doc examples or large-N scripts without the size caps
    described in BASELINE.md.
-9. Don't decide RESTRUCTURE "DECISION" items yourself; they belong to the maintainer.
-   Record answers inline once given.
+9. **Roles:** the maintainer is creative director (product scope, what PyCauset
+   offers); the technical lead decides technical questions and records them in
+   RESTRUCTURE §3.1. Ask the maintainer only product questions, in plain language.
+10. **R1 priority is the engine** (linear algebra, NumPy parity, storage). Physics
+   gets smoke tests and glaring-bug fixes only until after R1.
+11. **Dead code is a first-class target** (DEADCODE.md). If you touch a file, check
+   its never-executed list.
 
 ## Current status (update this line every session)
-**2026-11-24:** Phase 0 (orientation & baseline) complete except a full sanitizer
-pass. Waiting on the maintainer's RESTRUCTURE decisions; Phase 1 (safety net) can
-start now. Critical open bugs: F-024 (eig results corrupt each other), F-001 (int scalar
+**2026-11-24:** Phase 0 complete, including the sanitizer pass, the dead-code
+pipeline and the test-redesign strategy. Next: Phase 1 (new test-suite core) and
+Phase 1b (Tier-A dead code). Open product questions: RESTRUCTURE §3.2. Critical open bugs: F-024 (eig results corrupt each other), F-001 (int scalar
 multiply is a no-op), F-004 (nested ParallelFor deadlock), F-006 (UB).
 
 ## When the overhaul is finished

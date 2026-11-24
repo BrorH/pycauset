@@ -53,3 +53,32 @@ verbose progress reporting. The documents below were written after that steer.
   1.2 wire gtests into CI, 1.4 remove stale skips.
 - Not yet done: coverage measurement (1.9); checking whether any production
   code path actually nests ParallelFor (affects F-004 severity).
+
+## Session 1, part 2: 2026-11-24, new direction from the maintainer
+
+**Steer:** (1) design a new, compact, smarter test suite instead of keeping the
+16.7k-line one; (2) the maintainer is creative director and the agent is technical
+lead, so make technical calls and ask only plain-language product questions;
+(3) make dead-code elimination a first-class part of the overhaul, and look for
+existing tools; (4) R1 = the engine; physics is deprioritized.
+
+**Done**
+1. Full ASan+UBSan pass: no memory errors; UB in int32 add/mul (F-006) and a null
+   memcpy (F-025). Learned that pytest capture hides UBSan output (F-027).
+2. Dead-code tooling researched and trialled: Skylos (best static Python), Vulture
+   (noisy), cppcheck (useful only intersected with coverage), coverage.py with
+   per-test contexts, and gcov/gcovr. Wrote `scripts/coverage_analysis.py` and
+   `scripts/cpp_unexecuted.py`; snapshots in `review/deadcode/`. Wrote DEADCODE.md.
+3. Coverage results: Python 76% (87 never-executed functions); C++ 35% lines /
+   489 of 1,562 functions never executed; **StreamingManager.cpp 0%** (F-026); a
+   pure-Python fallback matrix still wired into `pc.matrix` but never reached.
+4. Test redundancy: 47/121 test files contribute zero unique Python lines. Wrote
+   TESTS.md (oracle-first, table-driven, invariant-based; ~3–4k lines target;
+   migrate, then retire old files only with coverage proof).
+5. RESTRUCTURE §3 rewritten: 9 technical decisions made (vetoable), 2 product
+   questions left open. PLAN updated: R1 engine priority, Phase 1 = new suite core,
+   new Phase 1b = Tier-A dead code, physics review moved post-R1.
+
+**Next:** Phase 1 (new-suite core, CI wiring) and Phase 1b (Tier-A removals), in
+parallel. The C++ coverage run should be repeated with the gtests included before
+removing MemoryGovernor's pinning API.

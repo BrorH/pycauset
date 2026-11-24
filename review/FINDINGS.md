@@ -114,6 +114,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - The project's policy is NumPy-style wrapping, but it relies on signed overflow,
   which is undefined behaviour. It works today only by compiler accident. The other
   integer kernels (sub, mul, scalar ops, all int widths) most likely share this.
+- Full sanitized run (2026-11-24) also hits int32 multiply overflow (`46341*46341`, via
+  `std::multiplies` in `stl_function.h:287`), from `test_elementwise_int32_mul_wraps`.
 - **Fix:** do the arithmetic in `std::make_unsigned_t<T>` and cast back.
 - Found by UBSan (`build/asan`, see BASELINE.md).
 
@@ -266,3 +268,25 @@ the entry (the history is useful). New findings go at the bottom with the next f
   is shadowed by the source tree. CI copies `_pycauset.so` and `libpycauset_core.so`
   into `python/pycauset/`. Fix: no path hacks. Test the installed package (or an
   editable install), with one `conftest.py`.
+
+### F-025 `memcpy` from a null pointer when copying an empty object's storage
+- **Status:** open (S4: UB, harmless in practice)
+- `src/core/PersistentObject.cpp:352`: `std::memcpy(dst, src, size)` with
+  `src == nullptr` when `size == 0`. UBSan flags it during the persistence tests.
+  Guard with `if (size)`.
+
+### F-026 The C++ out-of-core engine (StreamingManager) never runs
+- **Status:** open (S2: headline feature unverified)
+- `src/compute/StreamingManager.cpp` and `CpuComputeWorker` have **0% line coverage**
+  under the full pytest suite plus all demos (DEADCODE.md §3). "Work with matrices
+  bigger than your RAM" is PyCauset's headline claim. Either out-of-core works purely
+  through mmap paging (and this engine is dead weight to delete), or the tiled path
+  is never triggered and untested. Phase 3.5 must answer this with a real
+  larger-than-RAM run (cgroup/ulimit-constrained) and decide keep vs delete.
+
+### F-027 pytest output capture swallows sanitizer (UBSan) reports
+- **Status:** open (S3: CI hygiene)
+- Non-fatal UBSan reports go to fd 2, which pytest captures. Without `-s` a
+  sanitized run looks clean even when UB occurs (verified 2026-11-24). `asan.yml`
+  passes `-s`, but it runs ASan only (no UBSan) and only on `main`. The new CI
+  sanitizer job must use `-s` or `-fno-sanitize-recover=undefined`.
