@@ -18,6 +18,7 @@
 
 #include "pycauset/core/Float16.hpp"
 #include "pycauset/core/Types.hpp"
+#include "pycauset/matrix/BitClosureMatrix.hpp"
 #include "pycauset/matrix/ComplexFloat16Matrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
@@ -156,6 +157,11 @@ decltype(auto) visit_matrix(M& m, F&& f) {
     static_assert(std::is_base_of_v<MatrixBase, std::remove_const_t<M>>);
     const Structure s = m.get_structure();
     const DataType dt = m.get_data_type();
+    // Closure views (LAZY.md L2b) are symmetric/antisymmetric int32 with bit storage.
+    if (s == Structure::SYMMETRIC || s == Structure::ANTISYMMETRIC) {
+        using CT = std::conditional_t<std::is_const_v<M>, const BitClosureMatrix, BitClosureMatrix>;
+        if (auto* c = dynamic_cast<CT*>(&m)) return f(*c);
+    }
     return visit_dtype(dt, [&](auto tag) -> decltype(auto) {
         using T = typename decltype(tag)::type;
         if (s == Structure::DENSE) {

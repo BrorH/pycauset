@@ -116,3 +116,13 @@ inline bool fold_int_factors(std::complex<double> a, int64_t k, int64_t& out) {
 }
 
 } // namespace pycauset::scalar
+
+#include <atomic>
+namespace pycauset {
+// Global switch for lazy results (views, closures). Off = everything computed eagerly; the
+// test oracle (LAZY.md section 10) runs expressions both ways and compares.
+inline std::atomic<bool>& lazy_enabled() {
+    static std::atomic<bool> flag{true};
+    return flag;
+}
+}  // namespace pycauset

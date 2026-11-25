@@ -2789,6 +2789,12 @@ void bind_matrix_classes(py::module_& m) {
                 }
             });
         }, py::is_operator())
+        .def_property_readonly("is_lazy", [](const MatrixBase& mat) {
+            if (auto* c = dynamic_cast<const pycauset::BitClosureMatrix*>(&mat)) {
+                if (!c->is_materialized()) return true;
+            }
+            return mat.get_scalar() != std::complex<double>(1.0, 0.0) || mat.is_transposed() || mat.is_conjugated();
+        }, "True when the elements are computed on read (a view or closure) rather than stored.")
         .def("inverse", [](const MatrixBase& mat) { return matrix_inverse(mat); })
         .def("invert", [](const MatrixBase& mat) { return matrix_inverse(mat); })
         .def("matmul", [](const MatrixBase& a, const MatrixBase& b) {
@@ -2915,6 +2921,22 @@ void bind_matrix_classes(py::module_& m) {
         py::arg("structure"), py::arg("dtype"), py::arg("rows"), py::arg("cols"), py::arg("path"),
         py::arg("offset"), py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"),
         "Internal: map an existing data file as a matrix or vector (storage shape; the view flags are applied).");
+    m.def("_materialize_for_save", [](const std::shared_ptr<MatrixBase>& mat) -> std::shared_ptr<MatrixBase> {
+        // Closure views read another object's storage layout; files store the packed result.
+        if (auto* c = dynamic_cast<const pycauset::BitClosureMatrix*>(mat.get())) {
+            return std::shared_ptr<MatrixBase>(c->materialized_copy().release());
+        }
+        return mat;
+    }, py::arg("matrix"));
+    m.def("materialize", [](const std::shared_ptr<MatrixBase>& mat) -> std::shared_ptr<MatrixBase> {
+        if (auto* c = dynamic_cast<const pycauset::BitClosureMatrix*>(mat.get())) {
+            return std::shared_ptr<MatrixBase>(c->materialized_copy().release());
+        }
+        if (mat->get_scalar() != std::complex<double>(1.0, 0.0) || mat->is_transposed() || mat->is_conjugated()) {
+            return std::shared_ptr<MatrixBase>(pycauset::materialize(*mat).release());
+        }
+        return mat;
+    }, py::arg("matrix"), "The matrix with its elements stored (views and closures evaluated).");
     m.def("_structure_of", [](const py::object& obj) -> std::string {
         if (py::isinstance<MatrixBase>(obj)) return pycauset::structure_name(obj.cast<const MatrixBase&>().get_structure());
         if (py::isinstance<VectorBase>(obj)) return pycauset::structure_name(obj.cast<const VectorBase&>().get_structure());

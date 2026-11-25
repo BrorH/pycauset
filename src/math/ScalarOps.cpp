@@ -429,6 +429,7 @@ std::unique_ptr<MatrixBase> run_exact(const MatrixBase& a, DataType out, ScalarO
 
 // Shared-storage view of an integer matrix scaled by k (nullptr when not representable).
 std::unique_ptr<MatrixBase> int_scale_view(const MatrixBase& a, int64_t k) {
+    if (!lazy_enabled().load()) return nullptr;
     const Structure st = a.get_structure();
     if ((st != Structure::DENSE && st != Structure::TRIANGULAR && st != Structure::SYMMETRIC &&
          st != Structure::ANTISYMMETRIC) || a.is_conjugated()) return nullptr;

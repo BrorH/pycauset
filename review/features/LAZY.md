@@ -164,7 +164,12 @@ or constant (bandwidth factor).
   and `eigvals_skew` / Lanczos apply directly. For a causal matrix, `C − Cᵀ` becomes an
   int32 AntiSymmetricMatrix (n²/2 × 4 bytes instead of n² × 4); with value bounds (F1) the
   dtype drops to int8.
-- **L2b, the closure view (the 32–64× saving):** a `ClosureMatrix` class (C++) deriving the
+- **L2b, the closure view (the 32–64× saving) — DONE session 5** (`BitClosureMatrix`;
+  n = 4000: no extra storage vs 32 MB packed, build 0.9 ms vs 49 ms, same Arnoldi spectrum;
+  `tests/engine/test_closures.py` compares every consumer with the eager oracle
+  `_set_lazy(False)`; `A.is_lazy`, `pc.materialize(A)` added). Follow-ups: word-level
+  closure matvec (today bit-by-bit), dense `eigvals_skew` is O(n³) whatever the storage
+  (L7.1 real skew solver). Original requirements: a `ClosureMatrix` class (C++) deriving the
   Symmetric/AntiSymmetric structure bases, holding a shared pointer to the source triangular
   storage plus a sign and a logical dtype. Requirements found while designing it:
   1. `visit_matrix` (DTypeDispatch.hpp) assumes the storage class matches (structure, dtype);

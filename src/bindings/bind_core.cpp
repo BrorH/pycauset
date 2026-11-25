@@ -1,4 +1,5 @@
 #include "bindings_common.hpp"
+#include "pycauset/core/ScalarUtils.hpp"
 
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/core/StorageUtils.hpp"
@@ -137,6 +138,10 @@ void bind_core_classes(py::module_& m) {
     // Test-only: the governor's RAM safety margin. A huge margin makes every operation
     // "not fit in RAM", forcing the out-of-core StreamingManager path (F-026).
     m.def("_get_ram_safety_margin", []() { return pycauset::core::MemoryGovernor::instance().get_safety_margin(); });
+    // Lazy results on/off (LAZY.md section 10: the lazy == eager test oracle).
+    m.def("_set_lazy", [](bool on) { pycauset::lazy_enabled().store(on); }, py::arg("on"));
+    m.def("_get_lazy", []() { return pycauset::lazy_enabled().load(); });
+
     m.def(
         "_set_ram_safety_margin",
         [](uint64_t bytes) { pycauset::core::MemoryGovernor::instance().set_safety_margin(bytes); },

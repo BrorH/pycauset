@@ -61,6 +61,7 @@
 #include <vector>
 #include <cstring>
 #include <functional>
+#include "pycauset/matrix/BitClosureMatrix.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
 #include "pycauset/math/ScalarOps.hpp"
 #include <iostream>
@@ -3226,6 +3227,31 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
     const uint64_t rows = m.rows();
     const uint64_t cols = m.cols();
     if (result.size() != rows) throw std::invalid_argument("Dimension mismatch");
+
+    // Closure view C +- C^T over causal bits (LAZY.md L2b): two triangular passes over the
+    // bits, nothing materialized. Used when the int32 entries can't wrap under the factor.
+    if (auto* cl = dynamic_cast<const BitClosureMatrix*>(&m); cl && !cl->is_materialized()) {
+        auto* out = dynamic_cast<DenseVector<double>*>(&result);
+        const double k = m.get_scalar().real();
+        if (out && m.get_scalar().imag() == 0.0 && std::abs(k) < 1073741824.0 &&
+            v.get_data_type() != DataType::COMPLEX_FLOAT16 && v.get_data_type() != DataType::COMPLEX_FLOAT32 &&
+            v.get_data_type() != DataType::COMPLEX_FLOAT64) {
+            debug_trace::set_last("cpu.matvec.bit_closure");
+            const auto& c = cl->bits();
+            const double sg = static_cast<double>(cl->sign());
+            std::vector<double> x(cols);
+            for (uint64_t j = 0; j < cols; ++j) x[j] = v.get_element_as_double(j);
+            double* y = out->data();
+            ParallelFor(0, rows, [&](size_t i) {
+                double up = 0.0, down = 0.0;
+                for (uint64_t j = i + 1; j < cols; ++j) if (c.get(i, j)) up += x[j];   // (C x)_i
+                for (uint64_t j = 0; j < i; ++j) if (c.get(j, i)) down += x[j];       // (C^T x)_i
+                y[i] = k * (up + sg * down);
+            });
+            out->set_scalar(1.0);
+            return;
+        }
+    }
 
     // Identity Optimization
     if (m.get_structure() == Structure::IDENTITY) {

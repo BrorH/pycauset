@@ -3,6 +3,8 @@
 #include <utility>
 #include "pycauset/matrix/TriangularMatrix.hpp"
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
+#include "pycauset/matrix/BitClosureMatrix.hpp"
+#include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/IdentityMatrix.hpp"
@@ -70,6 +72,24 @@ bool is_identity(const MatrixBase& m) {
 
 // --- Matrix Operations ---
 
+// C + C^T / C - C^T for a causal (bit, strictly upper triangular) C: a closure view over C's
+// bits (LAZY.md L2b). sign_op = +1 for add, -1 for subtract.
+static std::unique_ptr<MatrixBase> try_bit_closure(const MatrixBase& a, const MatrixBase& b, int sign_op,
+                                                   const std::string& result_file) {
+    if (!lazy_enabled().load() || !result_file.empty()) return nullptr;
+    if (a.get_data_type() != DataType::BIT || b.get_data_type() != DataType::BIT) return nullptr;
+    if (a.get_structure() != Structure::TRIANGULAR || b.get_structure() != Structure::TRIANGULAR) return nullptr;
+    if (!a.shared_mapper() || a.shared_mapper() != b.shared_mapper()) return nullptr;
+    if (a.is_transposed() == b.is_transposed()) return nullptr;
+    if (a.get_scalar() != std::complex<double>(1.0, 0.0) || b.get_scalar() != std::complex<double>(1.0, 0.0)) return nullptr;
+    if (a.has_view_offset() || b.has_view_offset()) return nullptr;
+    if (promotion::resolve(sign_op > 0 ? promotion::BinaryOp::Add : promotion::BinaryOp::Subtract,
+                           DataType::BIT, DataType::BIT).result_dtype != DataType::INT32) return nullptr;
+    auto out = std::make_unique<BitClosureMatrix>(a.rows(), a.shared_mapper(), sign_op);
+    if (sign_op < 0 && a.is_transposed()) out->set_scalar(-1.0);  // C^T - C = -(C - C^T)
+    return out;
+}
+
 std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
     if (is_identity(a) && is_identity(b)) {
         if (a.rows() != b.rows() || a.cols() != b.cols()) {
@@ -87,6 +107,7 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
         }
     }
 
+    if (auto closure = try_bit_closure(a, b, +1, result_file)) return closure;
     const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "add");
 
     DataType type_a = a.get_data_type();
@@ -119,6 +140,7 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
         }
     }
 
+    if (auto closure = try_bit_closure(a, b, -1, result_file)) return closure;
     const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "subtract");
 
     DataType type_a = a.get_data_type();

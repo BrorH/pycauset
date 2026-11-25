@@ -69,6 +69,9 @@ review/
 **After session 3 (2026-11-24):** fixed F-001…F-006, F-024, F-025, F-028…F-030, F-033,
 F-034, F-035a, F-036…F-040, F-041a; precision_mode removed; lazy expression engine removed
 (eager operators, one structure resolver); Arnoldi on Spectra; streaming engine tested.
+Session 5 (overnight, autonomous): lazy L1 (integer scale views, view reads at kernel speed),
+L2a/L2b (packed A±Aᵀ, C±Cᵀ closure over bits), structured results for every dtype, 8 silent
+wrong-result bugs fixed (F-045, F-049–F-051), ASan+UBSan clean; 3,671 tests.
 Session 4: CUDA to experimental/, Structure enum, one class per structure (F-032/F-045/F-046
 fixed), lazy-evaluation design (features/LAZY.md). 2,825 passed / 33 xfailed in ~24 s; ASan+UBSan clean (sanitizer builds
 need -j1). **Open priorities:** F-041b (maintainer: zeros() default dtype); F-032 + renames

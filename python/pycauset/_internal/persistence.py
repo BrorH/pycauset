@@ -669,6 +669,9 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
         causet_obj = obj
         payload_obj = obj.causal_matrix
 
+    # Closure views (LAZY.md L2b) read another object's storage; save their packed result.
+    if isinstance(payload_obj, deps.native.MatrixBase):
+        payload_obj = deps.native._materialize_for_save(payload_obj)
     if hasattr(payload_obj, "copy_storage"):
         payload_obj.copy_storage(str(temp_raw))
     else:
