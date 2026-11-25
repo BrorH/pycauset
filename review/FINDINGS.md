@@ -707,3 +707,20 @@ the entry (the history is useful). New findings go at the bottom with the next f
   Windows `OfferVirtualMemory`) on RAM-backed storage frees the pages, so data reads back as
   zeros (block matrices lost their blocks). Discard is now a no-op for RAM storage on all
   platforms; on Windows this was already reachable before this change.
+
+### F-058 Vector arithmetic was a second, weaker implementation; matrices lacked `s / M`
+- **Status:** fixed (session 7).
+- Vectors had no `/`, `v - s`, `s - v`, unary `-`, element-wise `*` or `/` (TypeError), and
+  their scalar ops turned int8/int64/uint* vectors into float64 through `double` (int64 values
+  beyond 2^53 lost precision). Matrices had no scalar `__rtruediv__` (`2 / A` TypeError for
+  every dtype; found by the vector oracle test).
+- Fix: a dense vector is a 1 x n matrix over the same storage (bit vectors now padded to 64
+  bytes like a bit-matrix row), so vector arithmetic runs through the matrix machinery
+  (`math/VectorOps.hpp`) with the matrix dtype rules. Matrix operators collapsed from ~45
+  pybind overloads to one `matrix_arith` path (PLAN 4.3). Deleted: `add_vectors`,
+  `subtract_vectors`, `scalar_multiply_vector`, `scalar_add_vector` and their device/solver
+  kernels (~1,200 lines), `VectorBase::multiply_scalar/add_scalar`.
+- Speed (1M elements): scalar kernels now read contiguous storage directly and run in parallel
+  for vector-shaped results (`2*v` 6.4 -> 1.2 ms, NumPy ~0.8; int `3*v` 4.9 -> 0.8 ms).
+- Test: `tests/engine/test_vector_ops.py` (vector op == row-matrix op == NumPy values).
+

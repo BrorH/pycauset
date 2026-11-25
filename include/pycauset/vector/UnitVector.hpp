@@ -70,30 +70,7 @@ public:
         return result;
     }
 
-    std::unique_ptr<VectorBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
-        auto result = std::make_unique<UnitVector>(n_, active_index_, result_file);
-        result->set_scalar(scalar_ * factor);
-        result->set_transposed(is_transposed());
-        result->set_conjugated(is_conjugated());
-        return result;
-    }
 
-    std::unique_ptr<VectorBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        auto result = std::make_unique<DenseVector<double>>(n_, result_file);
-        double* ptr = result->data();
-        double background = scalar;
-        double active_val = scalar_.real() + scalar;
-        
-        std::fill_n(ptr, n_, background);
-        if (active_index_ < n_) {
-            ptr[active_index_] = active_val;
-        }
-        
-        if (is_transposed()) {
-            result->set_transposed(true);
-        }
-        return result;
-    }
     
     uint64_t get_active_index() const { return active_index_; }
 

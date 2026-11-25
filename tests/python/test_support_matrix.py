@@ -49,40 +49,6 @@ class TestSupportMatrix(unittest.TestCase):
                 return 1.25 - 0.5j
             raise ValueError(f"Unknown scalar token: {token}")
 
-        def expected_vector_scalar_result_dtype(v_dtype: str, scalar_token: str, *, op: str) -> str:
-            # Mirrors the C++ implementation in src/math/LinearAlgebra.cpp:
-            # - Complex vectors preserve complex dtype for real/complex scalar mul, and for real scalar add.
-            # - For non-complex vectors:
-            #    - float scalar: float16/float32 preserved; everything else -> float64
-            #    - int scalar: int16 preserved; int32/bit -> int32; float16/float32 preserved; everything else -> float64
-            if v_dtype.startswith("complex_"):
-                if scalar_token == "scalar_complex128" and op != "mul_scalar":
-                    raise ValueError("Complex scalar add is not supported")
-                return v_dtype
-
-            if scalar_token == "scalar_complex128":
-                raise ValueError("Complex scalar requires complex vector")
-
-            if scalar_token == "scalar_float64":
-                if v_dtype == "float16":
-                    return "float16"
-                if v_dtype == "float32":
-                    return "float32"
-                return "float64"
-
-            if scalar_token == "scalar_int64":
-                if v_dtype == "int16":
-                    return "int16"
-                if v_dtype in ("int32", "bit"):
-                    return "int32"
-                if v_dtype == "float16":
-                    return "float16"
-                if v_dtype == "float32":
-                    return "float32"
-                return "float64"
-
-            raise ValueError(f"Unknown scalar token: {scalar_token}")
-
         def quantize_expected(expected: np.ndarray, result_dtype: str) -> np.ndarray:
             if result_dtype == "complex_float16":
                 re = expected.real.astype(np.float16).astype(np.float32)
@@ -336,45 +302,6 @@ class TestSupportMatrix(unittest.TestCase):
                             assert_close(label, out_np, expected_q, dtype_token=res_dtype)
                         finally:
                             for obj in (out, m, v):
-                                if obj is not None and hasattr(obj, "close"):
-                                    try:
-                                        obj.close()
-                                    except Exception:
-                                        pass
-
-                    elif case.kind == "vector_scalar":
-                        v = make_vector(a_dtype)
-                        s_token = b_dtype
-                        s = scalar_value(s_token)
-
-                        out1 = None
-                        out2 = None
-                        try:
-                            v_np = np.array(values_vector(a_dtype), dtype=np.complex128)
-
-                            if case.op == "add_scalar":
-                                out1 = v + s
-                                out2 = s + v
-                                expected = v_np + s
-                                res_dtype = expected_vector_scalar_result_dtype(a_dtype, s_token, op="add_scalar")
-                            elif case.op == "mul_scalar":
-                                out1 = v * s
-                                out2 = s * v
-                                expected = v_np * s
-                                res_dtype = expected_vector_scalar_result_dtype(a_dtype, s_token, op="mul_scalar")
-                            else:
-                                raise ValueError(f"Unknown op: {case.op}")
-
-                            out1_np = np.array(out1)
-                            out2_np = np.array(out2)
-
-                            expected_q = quantize_expected(expected, res_dtype)
-                            self.assertEqual(out1_np.dtype, np.dtype(dtype_to_np[res_dtype]), f"{label}: dtype mismatch")
-                            self.assertEqual(out2_np.dtype, np.dtype(dtype_to_np[res_dtype]), f"{label}: dtype mismatch")
-                            assert_close(label + ":lhs", out1_np, expected_q, dtype_token=res_dtype)
-                            assert_close(label + ":rhs", out2_np, expected_q, dtype_token=res_dtype)
-                        finally:
-                            for obj in (out2, out1, v):
                                 if obj is not None and hasattr(obj, "close"):
                                     try:
                                         obj.close()

@@ -36,10 +36,11 @@ This is an explicit full write. On very large disk-backed vectors, this can be a
 ### Dot product
 
 ```python
-v.dot(other) -> float | complex
+v.dot(other) -> int | float | complex
 ```
 
-Computes the dot product. For complex vectors this returns a complex number.
+Computes the dot product: an exact `int` for integer/bool vectors (`OverflowError` beyond
+128 bits), a `float` for real float vectors, a `complex` if either is complex.
 
 Notes:
 
@@ -52,14 +53,11 @@ Vector `@` uses NumPy-like semantics:
 - `v @ w` (vector @ vector) returns a scalar dot product.
 - `v @ w.T` (column @ row) returns an outer-product matrix.
 
-### Scalar arithmetic
+### Arithmetic
 
-Vectors support scalar arithmetic via Python operators:
-
-- `v + s` / `s + v`
-- `v * s` / `s * v`
-
-Supported scalar types depend on the vector dtype (real vs complex).
+`+`, `-`, `*`, `/` with another vector (same length), a 1-D NumPy array or a scalar, on
+either side, and unary `-`. Element-wise, with the same result dtypes as the equivalent
+1 x n matrix operation (NumPy's rules; see the [[guides/Vector Guide|Vector Guide]]).
 
 ## NumPy interoperability
 

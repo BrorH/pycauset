@@ -146,6 +146,8 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.1c bit/bool arithmetic = integer counting everywhere (RESTRUCTURE §3.2 B, F-013)
 - [ ] 4.2 Split CpuSolver.cpp, bind_matrix.cpp and `__init__.py` (pure moves)
 - [ ] 4.3 Single source of truth for operators and properties (RESTRUCTURE §3.1 items 1–2); delete the monkeypatch stack
+  - session 7: matrix `+ - * /` (and reflected) are one binding path (`matrix_arith`); vectors
+    reuse the matrix machinery (F-058). Open: properties, `__iadd__`, the Python patch stack.
 - [ ] 4.4 Python `_internal/` subpackages; `.pyi` generation (F-007)
 - [ ] 4.5 Retire the old test suite per TESTS.md §4 migration rules
 - [x] 4.6a **Structure classes** (§3.1 item 4, revised): `MatrixType`→`Structure` enum; one

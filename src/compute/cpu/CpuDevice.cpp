@@ -158,25 +158,10 @@ double CpuDevice::l2_norm(const VectorBase& v) {
     return solver_.l2_norm(v);
 }
 
-void CpuDevice::add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
-    solver_.add_vector(a, b, result);
-}
 
-void CpuDevice::subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
-    solver_.subtract_vector(a, b, result);
-}
 
-void CpuDevice::scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) {
-    solver_.scalar_multiply_vector(a, scalar, result);
-}
 
-void CpuDevice::scalar_multiply_vector_complex(const VectorBase& a, std::complex<double> scalar, VectorBase& result) {
-    solver_.scalar_multiply_vector_complex(a, scalar, result);
-}
 
-void CpuDevice::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
-    solver_.scalar_add_vector(a, scalar, result);
-}
 
 void CpuDevice::cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) {
     solver_.cross_product(a, b, result);

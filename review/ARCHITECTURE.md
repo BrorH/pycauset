@@ -128,8 +128,8 @@ pybind lambda (bind_matrix.cpp)
 ```
 * `ComputeDevice.hpp` is a fat interface: ~40 pure virtuals, one per op.
 * **[SMELL]** `CpuSolver.cpp` is a monolith. `matmul` alone is ~880 lines and
-  `matrix_vector_multiply` ~490. The vector ops repeat dtype-dispatch ladders
-  (~250 lines each).
+  `matrix_vector_multiply` ~490. (The per-dtype vector add/scale kernels are gone: vector
+  arithmetic runs through the matrix kernels as 1 x n matrices, `math/VectorOps.hpp`, F-058.)
 * `OpRegistry` (`core/OpRegistry.hpp`, `src/core/OpRegistration.cpp`) is a
   per-op "support contract" table, exposed to Python for introspection. It does not
   drive dispatch.

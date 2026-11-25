@@ -50,11 +50,6 @@ public:
 
     virtual std::unique_ptr<VectorBase> transpose(const std::string& saveas = "") const = 0;
 
-    virtual std::unique_ptr<VectorBase> multiply_scalar(double factor, const std::string& result_file = "") const = 0;
-    virtual std::unique_ptr<VectorBase> multiply_scalar(std::complex<double> factor, const std::string& result_file = "") const {
-        throw std::runtime_error("Complex scalar multiplication not implemented for this vector type");
-    }
-    virtual std::unique_ptr<VectorBase> add_scalar(double scalar, const std::string& result_file = "") const = 0;
 
 protected:
     uint64_t n_;

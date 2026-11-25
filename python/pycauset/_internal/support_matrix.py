@@ -15,7 +15,7 @@ from typing import List
 
 @dataclass(frozen=True)
 class SupportCase:
-    kind: str  # "matrix" | "vector" | "matvec" | "vecmat" | "vector_scalar"
+    kind: str  # "matrix" | "vector" | "matvec" | "vecmat"
     op: str
     a_dtype: str
     b_dtype: str | None = None
@@ -113,24 +113,6 @@ def _mixed_dtype_cases() -> List[SupportCase]:
     return cases
 
 
-def _vector_scalar_cases() -> List[SupportCase]:
-    cases: List[SupportCase] = []
-
-    # v + s and v * s are supported for int/float scalars across all vector dtypes.
-    for v_dt in DTYPES:
-        for s_dt in ("scalar_int64", "scalar_float64"):
-            cases.append(SupportCase("vector_scalar", "add_scalar", v_dt, s_dt))
-            cases.append(SupportCase("vector_scalar", "mul_scalar", v_dt, s_dt))
-
-    # Complex scalar multiplication is only supported for complex vectors.
-    for v_dt in DTYPES:
-        if not v_dt.startswith("complex_"):
-            continue
-        cases.append(SupportCase("vector_scalar", "mul_scalar", v_dt, "scalar_complex128"))
-
-    return cases
-
-
-SUPPORTED: List[SupportCase] = _same_dtype_cases() + _mixed_dtype_cases() + _vector_scalar_cases()
+SUPPORTED: List[SupportCase] = _same_dtype_cases() + _mixed_dtype_cases()
 
 

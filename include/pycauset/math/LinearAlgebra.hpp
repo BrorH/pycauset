@@ -33,8 +33,6 @@ std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string& re
 
 // --- Vector Operations ---
 
-std::unique_ptr<VectorBase> add_vectors(const VectorBase& a, const VectorBase& b, const std::string& result_file = "");
-std::unique_ptr<VectorBase> subtract_vectors(const VectorBase& a, const VectorBase& b, const std::string& result_file = "");
 double dot_product(const VectorBase& a, const VectorBase& b);
 std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& b);
 double norm(const VectorBase& v);
@@ -44,11 +42,6 @@ std::complex<double> sum(const MatrixBase& m);
 std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b, const std::string& result_file = "");
 
 // Scalar operations on vectors
-std::unique_ptr<VectorBase> scalar_multiply_vector(const VectorBase& v, double scalar, const std::string& result_file = "");
-std::unique_ptr<VectorBase> scalar_multiply_vector(const VectorBase& v, int64_t scalar, const std::string& result_file = "");
-std::unique_ptr<VectorBase> scalar_multiply_vector(const VectorBase& v, std::complex<double> scalar, const std::string& result_file = "");
-std::unique_ptr<VectorBase> scalar_add_vector(const VectorBase& v, double scalar, const std::string& result_file = "");
-std::unique_ptr<VectorBase> scalar_add_vector(const VectorBase& v, int64_t scalar, const std::string& result_file = "");
 
 // --- Matrix-Vector Operations ---
 

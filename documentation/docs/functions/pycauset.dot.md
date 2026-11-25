@@ -21,7 +21,7 @@ Matrix cases route through `pycauset.matmul`.
 
 ## Returns
 
-*   `float | complex` for vector · vector.
+*   `int` (exact) for integer/bool vector · vector, otherwise `float | complex`.
 *   `MatrixBase | VectorBase` for matrix cases.
 
 ## Exceptions

@@ -312,3 +312,9 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Found: vectors lack `/`, `v - s`, `s - v`, unary `-`, `abs`, element-wise `*` and `/`; vector
   scalar ops turn int8/int64/uint* into float64 through double. Next: route vector ops through
   the matrix machinery (a dense vector is an n x 1 matrix over the same storage).
+- F-058: vectors = 1 x n matrices over the same storage (`math/VectorOps.hpp`); vector
+  arithmetic complete and NumPy-typed; matrix operators one binding path (`matrix_arith`,
+  adds the missing `s / A`); ~1,400 lines of vector kernels/overloads deleted. Scalar kernels:
+  contiguous same-dtype fast path + flat-block parallelism (`2*v` 6.4 -> 1.2 ms).
+- Build note: ScalarOps.cpp instantiations are memory-hungry; the contiguous fast path is
+  limited to same-dtype results (all-pairs OOMed a 15 GB container at -j1).

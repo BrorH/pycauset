@@ -46,11 +46,6 @@ public:
     virtual std::complex<double> dot_complex(const VectorBase& a, const VectorBase& b) = 0;
     virtual std::complex<double> sum(const VectorBase& v) = 0;
     virtual double l2_norm(const VectorBase& v) = 0;
-    virtual void add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
-    virtual void subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
-    virtual void scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) = 0;
-    virtual void scalar_multiply_vector_complex(const VectorBase& a, std::complex<double> scalar, VectorBase& result) = 0;
-    virtual void scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) = 0;
 
     // Specialized vector ops
     virtual void cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;

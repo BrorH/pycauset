@@ -188,8 +188,6 @@ struct OpRegistration {
             registry.register_op(c);
         };
         register_vector_op("dot");
-        register_vector_op("add_vector");
-        register_vector_op("subtract_vector");
         register_vector_op("outer");
         register_vector_op("add_scalar");
         register_vector_op("mul_scalar");

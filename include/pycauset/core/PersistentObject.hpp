@@ -72,6 +72,10 @@ public:
      */
     pycauset::core::StorageState get_storage_state() const { return storage_state_; }
 
+    // The storage itself (shared, copy-on-write). Lets another object view the same bytes
+    // with a different shape, e.g. a dense vector as a 1 x n matrix (math/VectorOps.hpp).
+    const std::shared_ptr<MemoryMapper>& shared_mapper() const { return mapper_; }
+
     // --- Metadata Accessors ---
 
     std::complex<double> get_scalar() const { return scalar_; }

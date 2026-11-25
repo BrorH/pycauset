@@ -1,5 +1,7 @@
 ﻿#include "bindings_common.hpp"
 #include "element_conversion.hpp"
+#include "scalar_args.hpp"
+#include "pycauset/math/VectorOps.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
@@ -337,6 +339,34 @@ inline uint64_t vector_index(const VectorBase& v, py::ssize_t i) {
     return static_cast<uint64_t>(i);
 }
 
+// Vector arithmetic: `a op other` (or `other op a` when reflected) for another vector, a 1-D
+// NumPy array or a scalar. Everything runs through the matrix machinery (math/VectorOps.hpp),
+// so result dtypes follow NumPy and integers are exact. Anything else: NotImplemented.
+inline py::object vector_arith(const VectorBase& a, const py::object& other, Arith op, bool reflected) {
+    std::shared_ptr<VectorBase> b;
+    if (py::isinstance<VectorBase>(other)) {
+        b = other.cast<std::shared_ptr<VectorBase>>();
+    } else if (py::isinstance<py::array>(other) && other.cast<py::array>().ndim() == 1) {
+        b = vector_from_numpy(other.cast<py::array>());
+    }
+    if (b) {
+        const VectorBase& x = reflected ? *b : a;
+        const VectorBase& y = reflected ? a : *b;
+        if (op == Arith::Add || op == Arith::Sub) {
+            maybe_warn_bit_promotes_to_int32(op == Arith::Add ? "add" : "subtract",
+                                             op == Arith::Add ? promotion::BinaryOp::Add : promotion::BinaryOp::Subtract,
+                                             x.get_data_type(), y.get_data_type());
+        }
+        const VectorBinaryOp vop = op == Arith::Add ? VectorBinaryOp::Add
+                                 : op == Arith::Sub ? VectorBinaryOp::Sub
+                                 : op == Arith::Mul ? VectorBinaryOp::Mul : VectorBinaryOp::Div;
+        return py::cast(std::shared_ptr<VectorBase>(pycauset::binary_op(x, y, vop).release()));
+    }
+    ScalarArg s;
+    if (!to_scalar_arg(other, s)) return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+    return py::cast(std::shared_ptr<VectorBase>(pycauset::scalar_op(a, scalar_kind(op, reflected), s).release()));
+}
+
 } // namespace
 
 void bind_vector_classes(py::module_& m) {
@@ -652,126 +682,15 @@ void bind_vector_classes(py::module_& m) {
             "dot",
             [](const VectorBase& a, const std::shared_ptr<VectorBase>& b) { return vector_dot(a, *b); },
             py::arg("other"))
-        .def(
-            "__add__",
-            [](const VectorBase& a, const std::shared_ptr<VectorBase>& b) {
-                maybe_warn_bit_promotes_to_int32(
-                    "add",
-                    promotion::BinaryOp::Add,
-                    a.get_data_type(),
-                    b->get_data_type());
-                auto out = pycauset::add_vectors(a, *b, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__add__",
-            [](const VectorBase& a, const py::array& b) {
-                auto vb = vector_from_numpy(b);
-                maybe_warn_bit_promotes_to_int32(
-                    "add",
-                    promotion::BinaryOp::Add,
-                    a.get_data_type(),
-                    vb->get_data_type());
-                auto out = pycauset::add_vectors(a, *vb, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__add__",
-            [](const VectorBase& a, double s) {
-                auto out = pycauset::scalar_add_vector(a, s, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__add__",
-            [](const VectorBase& a, int64_t s) {
-                auto out = pycauset::scalar_add_vector(a, s, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__radd__",
-            [](const VectorBase& a, double s) {
-                auto out = pycauset::scalar_add_vector(a, s, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__radd__",
-            [](const VectorBase& a, int64_t s) {
-                auto out = pycauset::scalar_add_vector(a, s, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__radd__",
-            [](const VectorBase& a, const py::array& b) {
-                auto vb = vector_from_numpy(b);
-                maybe_warn_bit_promotes_to_int32(
-                    "add",
-                    promotion::BinaryOp::Add,
-                    vb->get_data_type(),
-                    a.get_data_type());
-                auto out = pycauset::add_vectors(*vb, a, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__sub__",
-            [](const VectorBase& a, const std::shared_ptr<VectorBase>& b) {
-                maybe_warn_bit_promotes_to_int32(
-                    "subtract",
-                    promotion::BinaryOp::Subtract,
-                    a.get_data_type(),
-                    b->get_data_type());
-                auto out = pycauset::subtract_vectors(a, *b, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__mul__",
-            [](const VectorBase& a, double s) {
-                auto out = pycauset::scalar_multiply_vector(a, s, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__mul__",
-            [](const VectorBase& a, int64_t s) {
-                auto out = pycauset::scalar_multiply_vector(a, s, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__mul__",
-            [](const VectorBase& a, std::complex<double> s) {
-                auto out = pycauset::scalar_multiply_vector(a, s, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__rmul__",
-            [](const VectorBase& a, double s) {
-                auto out = pycauset::scalar_multiply_vector(a, s, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__rmul__",
-            [](const VectorBase& a, int64_t s) {
-                auto out = pycauset::scalar_multiply_vector(a, s, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__rmul__",
-            [](const VectorBase& a, std::complex<double> s) {
-                auto out = pycauset::scalar_multiply_vector(a, s, "");
-                return std::shared_ptr<VectorBase>(out.release());
-            },
-            py::is_operator())
+        .def("__add__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Add, false); }, py::is_operator())
+        .def("__radd__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Add, true); }, py::is_operator())
+        .def("__sub__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Sub, false); }, py::is_operator())
+        .def("__rsub__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Sub, true); }, py::is_operator())
+        .def("__mul__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Mul, false); }, py::is_operator())
+        .def("__rmul__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Mul, true); }, py::is_operator())
+        .def("__truediv__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Div, false); }, py::is_operator())
+        .def("__rtruediv__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Div, true); }, py::is_operator())
+        .def("__neg__", [](const VectorBase& a) { return std::shared_ptr<VectorBase>(pycauset::negate(a).release()); })
         .def(
             "__matmul__",
             [](const VectorBase& a, const std::shared_ptr<VectorBase>& b) -> py::object {

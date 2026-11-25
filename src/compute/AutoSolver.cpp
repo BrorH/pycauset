@@ -767,26 +767,10 @@ double AutoSolver::l2_norm(const VectorBase& v) {
     return cpu_device_->l2_norm(v);
 }
 
-void AutoSolver::add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
-    cpu_device_->add_vector(a, b, result);
-}
 
-void AutoSolver::subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
-    cpu_device_->subtract_vector(a, b, result);
-}
 
-void AutoSolver::scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) {
-    cpu_device_->scalar_multiply_vector(a, scalar, result);
-}
 
-void AutoSolver::scalar_multiply_vector_complex(const VectorBase& a, std::complex<double> scalar, VectorBase& result) {
-    // Always CPU for now
-    cpu_device_->scalar_multiply_vector_complex(a, scalar, result);
-}
 
-void AutoSolver::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
-    cpu_device_->scalar_add_vector(a, scalar, result);
-}
 
 void AutoSolver::cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) {
     // Always CPU for now

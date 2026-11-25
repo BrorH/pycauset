@@ -289,6 +289,24 @@ R convert_in(In v) {
     }
 }
 
+// Calls f(flat index, i, j) for every element of a rows x cols row-major result, in parallel
+// over fixed blocks of the flat range (so a 1 x n vector-shaped result is parallel too).
+template <typename F>
+void for_each_block(uint64_t rows, uint64_t cols, F&& f) {
+    const uint64_t total = rows * cols;
+    if (total == 0) return;
+    constexpr uint64_t kBlock = 1u << 14;
+    ParallelFor(0, (total + kBlock - 1) / kBlock, [&](size_t b) {
+        uint64_t idx = static_cast<uint64_t>(b) * kBlock;
+        const uint64_t end = std::min(total, idx + kBlock);
+        uint64_t i = idx / cols, j = idx % cols;
+        for (; idx < end; ++idx) {
+            f(idx, i, j);
+            if (++j == cols) { j = 0; ++i; }
+        }
+    });
+}
+
 // Integer factor of an integer view (1 for plain matrices and for non-integer dtypes).
 inline int64_t int_view_factor(const MatrixBase& a) {
     if (is_int(a.get_data_type()) && scalar::is_exact_int_factor(a.get_scalar())) {
@@ -306,10 +324,14 @@ inline constexpr bool is_symmetric_src_v<SymmetricMatrix<T>> = true;
 template <typename In, typename Src>
 struct TypedReader {
     const Src& m;
-    int64_t k = 1;  // integer view factor (F-042), applied with NumPy's wrapping
+    int64_t k = 1;     // integer view factor (F-042), applied with NumPy's wrapping
+    double f = 1.0;    // real float view factor (O(1) views of float32/float64 inputs)
     In operator()(uint64_t i, uint64_t j) const {
         if constexpr (std::is_integral_v<In> && !std::is_same_v<In, bool>) {
             return k == 1 ? m.get(i, j) : scalar::wrap_scale(m.get(i, j), k);
+        } else if constexpr (std::is_floating_point_v<In>) {
+            // Same rounding as the virtual accessor: stored value times the factor in double.
+            return f == 1.0 ? m.get(i, j) : static_cast<In>(static_cast<double>(m.get(i, j)) * f);
         } else {
             return m.get(i, j);
         }
@@ -321,7 +343,7 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
                                 bool triangular_in, bool has_diag) {
     const uint64_t rows = a.rows(), cols = a.cols();
     const R sv = scalar_as<R>(s);
-    TypedReader<In, Src> read{src, int_view_factor(a)};
+    TypedReader<In, Src> read{src, int_view_factor(a), is_real_float(a.get_data_type()) ? a.get_scalar().real() : 1.0};
 
     // Triangular results for every real element type (each has a Python class since the
     // structure classes, F-032); complex results become dense.
@@ -359,10 +381,39 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
 
     auto out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
     R* dst = out->data();
-    ParallelFor(0, rows, [&](size_t i) {
-        for (uint64_t j = 0; j < cols; ++j) {
-            dst[i * cols + j] = apply<R>(op, convert_in<R>(read(i, j)), sv);
+
+    // Contiguous source, same result dtype (the common case: v + 1, 3 * v, -v): raw pointer,
+    // op fixed at compile time. Same arithmetic as the general loop below. Limited to R == In
+    // to keep the instantiation count (and compile memory) small.
+    if constexpr (std::is_same_v<Src, DenseMatrix<In>> && std::is_same_v<R, In> && !std::is_same_v<In, bool>) {
+        if (!a.is_transposed() && !a.has_view_offset() && cols == a.base_cols()) {
+            const In* p = src.data();
+            auto loop = [&](auto op_c) {
+                constexpr ScalarOpKind O = decltype(op_c)::value;
+                for_each_block(rows, cols, [&](uint64_t idx, uint64_t, uint64_t) {
+                    In x = p[idx];
+                    if constexpr (std::is_integral_v<In>) {
+                        if (read.k != 1) x = scalar::wrap_scale(x, read.k);
+                    } else if constexpr (std::is_floating_point_v<In>) {
+                        if (read.f != 1.0) x = static_cast<In>(static_cast<double>(x) * read.f);
+                    }
+                    dst[idx] = apply<R>(O, convert_in<R>(x), sv);
+                });
+            };
+            switch (op) {
+                case ScalarOpKind::Add: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::Add>{}); break;
+                case ScalarOpKind::Sub: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::Sub>{}); break;
+                case ScalarOpKind::RSub: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::RSub>{}); break;
+                case ScalarOpKind::Mul: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::Mul>{}); break;
+                case ScalarOpKind::TrueDiv: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::TrueDiv>{}); break;
+                case ScalarOpKind::RTrueDiv: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::RTrueDiv>{}); break;
+            }
+            return out;
         }
+    }
+
+    for_each_block(rows, cols, [&](uint64_t idx, uint64_t i, uint64_t j) {
+        dst[idx] = apply<R>(op, convert_in<R>(read(i, j)), sv);
     });
     return out;
 }
@@ -389,20 +440,21 @@ std::unique_ptr<MatrixBase> run_generic(const MatrixBase& a, ScalarOpKind op, co
     const R sv = scalar_as<R>(s);
     auto out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
     R* dst = out->data();
-    ParallelFor(0, rows, [&](size_t i) {
-        for (uint64_t j = 0; j < cols; ++j) dst[i * cols + j] = apply<R>(op, read(i, j), sv);
-    });
+    for_each_block(rows, cols, [&](uint64_t idx, uint64_t i, uint64_t j) { dst[idx] = apply<R>(op, read(i, j), sv); });
     return out;
 }
 
 // Dispatch on the concrete input class for a fixed result type R.
 template <typename R>
 std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s) {
-    // Exact typed paths only when the input carries no lazy scalar (integers never do
-    // after F-001; a float input may, and is then read through the generic accessor).
-    const bool plain = !a.is_conjugated() &&
-                       (a.get_scalar() == std::complex<double>(1.0, 0.0) ||
-                        (is_int(a.get_data_type()) && scalar::is_exact_int_factor(a.get_scalar())));
+    // Typed paths read the factor themselves: an exact integer factor for integer inputs, a
+    // real factor for float32/float64 inputs (conjugation is a no-op on real values). Other
+    // views (complex factors, bit with a factor) use the generic accessor.
+    const std::complex<double> sc = a.get_scalar();
+    const DataType dt = a.get_data_type();
+    const bool plain = sc == std::complex<double>(1.0, 0.0) ? (!a.is_conjugated() || !is_complex(dt))
+                     : is_int(dt) ? (!a.is_conjugated() && scalar::is_exact_int_factor(sc))
+                     : (is_real_float(dt) && sc.imag() == 0.0);
 #define PYCAUSET_TRY_DENSE(T)                                                              \
     if (auto* m = dynamic_cast<const DenseMatrix<T>*>(&a); m && plain)                    \
         return run<R, T>(*m, a, op, s, false, false);

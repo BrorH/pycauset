@@ -22,6 +22,14 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   are read from its bits. Floating-point results of combined lazy steps may differ from
   step-by-step evaluation in the last digits (deterministic). `A.is_lazy`, `pycauset.materialize`.
 
+- Vector arithmetic follows the matrix (NumPy) dtype rules: `int8` vector `+ 1` stays `int8`
+  (was float64); `v / 2`, `2 - v`, `-v`, `v * w`, `v / w` are supported; integer `dot`
+  returns an exact `int`. `2 / A` works for matrices.
+- `import pycauset` sets `OMP_WAIT_POLICY=PASSIVE` and `OPENBLAS_THREAD_TIMEOUT=4` unless
+  already set (thread pools no longer starve each other; see the Performance Guide).
+- Warnings are deduplicated by Python's warnings filter only (no hidden "warn once" state);
+  the int32 accumulator notices are removed.
+
 ### Removed
 - `precision_mode`, the lazy expression engine (`LazyMatrix`), `pycauset.cuda` and the `[gpu]`
   extra (CUDA moved to `experimental/cuda`, on hold), the per-class buffer protocol.

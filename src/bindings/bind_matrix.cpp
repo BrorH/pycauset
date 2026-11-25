@@ -5,6 +5,7 @@
 #include <limits>
 #include "bindings_common.hpp"
 #include "element_conversion.hpp"
+#include "scalar_args.hpp"
 #include <vector>
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #include <immintrin.h>
@@ -1391,7 +1392,6 @@ inline py::object matrixbase_getitem_dispatch(const MatrixBase& mat, const py::o
         return element_get(mat, parsed.rows.index, parsed.cols.index);
     }
     return pycauset::visit_matrix(mat, [&](const auto& typed) -> py::object {
-        using M = std::decay_t<decltype(typed)>;
         if constexpr (requires { dense_getitem(typed, key); }) {
             return dense_getitem(typed, key);
         } else {
@@ -1682,107 +1682,46 @@ inline py::object export_generic(const MatrixBase& mat) {
 }
 
 
-inline bool is_numpy_scalar(const py::handle& obj) {
-    try {
-        static py::object np_generic;
-        static bool initialized = false;
-        if (!initialized) {
-            auto np = py::module_::import("numpy");
-            np_generic = np.attr("generic");
-            initialized = true;
-        }
-        return py::isinstance(obj, np_generic);
-    } catch (...) {
-        return false;
-    }
-}
 
-inline bool is_numpy_complex_scalar(const py::handle& obj) {
-    try {
-        static py::object np_complex;
-        static bool initialized = false;
-        if (!initialized) {
-            auto np = py::module_::import("numpy");
-            np_complex = np.attr("complexfloating");
-            initialized = true;
-        }
-        return py::isinstance(obj, np_complex);
-    } catch (...) {
-        return false;
+// Matrix arithmetic, the single operator path (PLAN 4.3): `a op other` (`other op a` when
+// reflected) for another matrix, any Python/NumPy scalar, or a NumPy array. Scalars go to
+// scalar_op (NumPy result dtypes, exact integers, O(1) float views); matrices to the
+// element-wise ops. Anything else returns NotImplemented (e.g. BlockMatrix handles it).
+inline py::object matrix_arith(const MatrixBase& a, const py::object& other, Arith op, bool reflected) {
+    std::shared_ptr<MatrixBase> b;
+    if (py::isinstance<MatrixBase>(other)) {
+        b = other.cast<std::shared_ptr<MatrixBase>>();
+    } else if (pycauset::ScalarArg s; to_scalar_arg(other, s)) {
+        return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, scalar_kind(op, reflected), s).release()));
+    } else if (py::isinstance<py::array>(other)) {
+        b = elementwise_operand_matrix_from_numpy(other.cast<py::array>());
+    } else {
+        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
     }
-}
-
-// --- Scalar arguments (F-001/F-002) -------------------------------------------------
-// Converts a Python int of any size in [INT64_MIN, UINT64_MAX]; larger ones raise
-// OverflowError like NumPy.
-inline pycauset::ScalarArg scalar_arg_from_pyint(const py::handle& obj) {
-    int overflow = 0;
-    const long long v = PyLong_AsLongLongAndOverflow(obj.ptr(), &overflow);
-    if (overflow == 0) {
-        if (v == -1 && PyErr_Occurred()) throw py::error_already_set();
-        return pycauset::ScalarArg::from_int64(static_cast<int64_t>(v));
+    const MatrixBase& x = reflected ? *b : a;
+    const MatrixBase& y = reflected ? a : *b;
+    std::unique_ptr<MatrixBase> out;
+    switch (op) {
+        case Arith::Add:
+            maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, x, y);
+            maybe_warn_bit_promotes_to_int32("add", promotion::BinaryOp::Add, x.get_data_type(), y.get_data_type());
+            out = pycauset::add(x, y, "");
+            break;
+        case Arith::Sub:
+            maybe_warn_float_underpromotion("subtract", promotion::BinaryOp::Subtract, x, y);
+            maybe_warn_bit_promotes_to_int32("subtract", promotion::BinaryOp::Subtract, x.get_data_type(), y.get_data_type());
+            out = pycauset::subtract(x, y, "");
+            break;
+        case Arith::Mul:
+            maybe_warn_float_underpromotion("elementwise_multiply", promotion::BinaryOp::ElementwiseMultiply, x, y);
+            out = pycauset::elementwise_multiply(x, y, "");
+            break;
+        case Arith::Div:
+            maybe_warn_float_underpromotion("elementwise_divide", promotion::BinaryOp::Divide, x, y);
+            out = pycauset::elementwise_divide(x, y, "");
+            break;
     }
-    if (overflow > 0) {
-        const unsigned long long u = PyLong_AsUnsignedLongLong(obj.ptr());
-        if (!PyErr_Occurred()) return pycauset::ScalarArg::from_uint64(static_cast<uint64_t>(u));
-        PyErr_Clear();
-    }
-    throw std::overflow_error("Python integer out of bounds for 64-bit matrix dtypes");
-}
-
-inline pycauset::DataType numpy_scalar_dtype(const py::handle& obj) {
-    const std::string name = py::str(obj.attr("dtype").attr("name")).cast<std::string>();
-    if (name == "bool") return pycauset::DataType::BIT;
-    if (name == "int8") return pycauset::DataType::INT8;
-    if (name == "int16") return pycauset::DataType::INT16;
-    if (name == "int32") return pycauset::DataType::INT32;
-    if (name == "int64") return pycauset::DataType::INT64;
-    if (name == "uint8") return pycauset::DataType::UINT8;
-    if (name == "uint16") return pycauset::DataType::UINT16;
-    if (name == "uint32") return pycauset::DataType::UINT32;
-    if (name == "uint64") return pycauset::DataType::UINT64;
-    if (name == "float16") return pycauset::DataType::FLOAT16;
-    if (name == "float32") return pycauset::DataType::FLOAT32;
-    if (name == "float64") return pycauset::DataType::FLOAT64;
-    if (name == "complex64") return pycauset::DataType::COMPLEX_FLOAT32;
-    if (name == "complex128") return pycauset::DataType::COMPLEX_FLOAT64;
-    return pycauset::DataType::UNKNOWN;
-}
-
-// True if `obj` is a Python bool/int/float/complex or a NumPy scalar; fills `out`.
-inline bool to_scalar_arg(const py::handle& obj, pycauset::ScalarArg& out) {
-    PyObject* p = obj.ptr();
-    if (PyBool_Check(p)) { out = pycauset::ScalarArg::from_int64(p == Py_True ? 1 : 0); return true; }
-    if (PyLong_Check(p)) { out = scalar_arg_from_pyint(obj); return true; }
-    if (PyFloat_Check(p)) { out = pycauset::ScalarArg::from_double(PyFloat_AsDouble(p)); return true; }
-    if (PyComplex_Check(p)) { out = pycauset::ScalarArg::from_complex(obj.cast<std::complex<double>>()); return true; }
-    if (is_numpy_scalar(obj)) {
-        const pycauset::DataType dt = numpy_scalar_dtype(obj);
-        if (dt == pycauset::DataType::UNKNOWN) return false;
-        if (dt == pycauset::DataType::COMPLEX_FLOAT32 || dt == pycauset::DataType::COMPLEX_FLOAT64) {
-            out = pycauset::ScalarArg::from_complex(obj.cast<std::complex<double>>());
-        } else if (dt == pycauset::DataType::FLOAT16 || dt == pycauset::DataType::FLOAT32 || dt == pycauset::DataType::FLOAT64) {
-            out = pycauset::ScalarArg::from_double(obj.cast<double>());
-        } else if (dt == pycauset::DataType::UINT64) {
-            out = pycauset::ScalarArg::from_uint64(obj.cast<uint64_t>());
-        } else {
-            out = pycauset::ScalarArg::from_int64(obj.cast<int64_t>());
-        }
-        if (dt != pycauset::DataType::BIT) {
-            out.strong = true;
-            out.strong_dtype = dt;
-        }
-        return true;
-    }
-    return false;
-}
-
-// Integer/bit matrices always take the exact path; float matrices only when the
-// result dtype changes (e.g. float64 * complex). Same-dtype float ops keep their
-// O(1)/lazy paths.
-inline bool needs_exact_scalar_op(const MatrixBase& a, pycauset::ScalarOpKind op, const pycauset::ScalarArg& s) {
-    const pycauset::DataType in = a.get_data_type();
-    return pycauset::is_integer_or_bit(in) || pycauset::scalar_result_dtype(in, op, s) != in;
+    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
 }
 
 } // namespace
@@ -2150,137 +2089,14 @@ void bind_matrix_classes(py::module_& m) {
                 return py::reinterpret_borrow<py::object>(Py_NotImplemented);
             },
             py::is_operator())
-        .def(
-            "__add__",
-            [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) -> py::object {
-                maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, a, *b);
-                maybe_warn_bit_promotes_to_int32(
-                    "add",
-                    promotion::BinaryOp::Add,
-                    a.get_data_type(),
-                    b->get_data_type());
-                auto out = pycauset::add(a, *b, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator())
-        .def(
-            "__add__",
-            [](const MatrixBase& a, const py::array& b) {
-                // Eager Evaluation (Lazy not supported for numpy temporary)
-                auto mb = elementwise_operand_matrix_from_numpy(b);
-                maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, a, *mb);
-                maybe_warn_bit_promotes_to_int32(
-                    "add",
-                    promotion::BinaryOp::Add,
-                    a.get_data_type(),
-                    mb->get_data_type());
-                auto out = pycauset::add(a, *mb, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__add__",
-            [](const MatrixBase& a, double s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = pycauset::ScalarArg::from_double(s); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Add, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Add, sa__).release()));
-                }
-                auto out = a.add_scalar(s, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
-        .def(
-            "__add__",
-            [](const MatrixBase& a, py::int_ s_obj__) {
-                // py::int_ (strict PyLong) instead of int64_t: the int64_t caster also accepts
-                // NumPy integers via __index__, which would lose their strong dtype.
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = scalar_arg_from_pyint(s_obj__); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Add, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Add, sa__).release()));
-                }
-                const int64_t s = s_obj__.cast<int64_t>();
-                auto out = a.add_scalar(s, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
-        .def(
-            "__add__",
-            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
-                // Any Python/NumPy number, any dtype (F-002: plain Python numbers used to fall
-                // through to NotImplemented here when this overload preceded the typed ones).
-                if (pycauset::ScalarArg sa__; to_scalar_arg(b_obj, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Add, sa__).release()));
-                }
-                if (is_numpy_scalar(b_obj)) {
-                    if (is_numpy_complex_scalar(b_obj)) {
-                        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-                    }
-                    const double s = b_obj.cast<double>();
-                    auto out = a.add_scalar(s, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                // Allow other operand types (e.g., internal BlockMatrix) to
-                // handle the operation via their __radd__.
-                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-            },
-            py::is_operator())
-        .def(
-            "__radd__",
-            [](const MatrixBase& a, double s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = pycauset::ScalarArg::from_double(s); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Add, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Add, sa__).release()));
-                }
-                auto out = a.add_scalar(s, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
-        .def(
-            "__radd__",
-            [](const MatrixBase& a, py::int_ s_obj__) {
-                // py::int_ (strict PyLong) instead of int64_t: the int64_t caster also accepts
-                // NumPy integers via __index__, which would lose their strong dtype.
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = scalar_arg_from_pyint(s_obj__); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Add, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Add, sa__).release()));
-                }
-                const int64_t s = s_obj__.cast<int64_t>();
-                auto out = a.add_scalar(s, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
-        .def(
-            "__radd__",
-            [](const MatrixBase& a, py::object b_obj) -> py::object {
-                // Any Python/NumPy number, any dtype (F-002: plain Python numbers used to fall
-                // through to NotImplemented here when this overload preceded the typed ones).
-                if (pycauset::ScalarArg sa__; to_scalar_arg(b_obj, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Add, sa__).release()));
-                }
-                if (is_numpy_scalar(b_obj)) {
-                    if (is_numpy_complex_scalar(b_obj)) {
-                        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-                    }
-                    const double s = b_obj.cast<double>();
-                    auto out = a.add_scalar(s, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                if (py::isinstance<py::array>(b_obj)) {
-                    // Eager Evaluation
-                    auto b = b_obj.cast<py::array>();
-                    auto mb = elementwise_operand_matrix_from_numpy(b);
-                    maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, *mb, a);
-                    maybe_warn_bit_promotes_to_int32(
-                        "add",
-                        promotion::BinaryOp::Add,
-                        mb->get_data_type(),
-                        a.get_data_type());
-                    auto out = pycauset::add(*mb, a, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                 return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-            },
-            py::is_operator())
+        .def("__add__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Add, false); }, py::is_operator())
+        .def("__radd__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Add, true); }, py::is_operator())
+        .def("__sub__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Sub, false); }, py::is_operator())
+        .def("__rsub__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Sub, true); }, py::is_operator())
+        .def("__mul__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Mul, false); }, py::is_operator())
+        .def("__rmul__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Mul, true); }, py::is_operator())
+        .def("__truediv__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Div, false); }, py::is_operator())
+        .def("__rtruediv__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Div, true); }, py::is_operator())
         .def(
             "__iadd__",
             [](const std::shared_ptr<MatrixBase>& a, const std::shared_ptr<MatrixBase>& b) {
@@ -2308,229 +2124,6 @@ void bind_matrix_classes(py::module_& m) {
             },
             py::is_operator())
         .def(
-            "__sub__",
-            [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) {
-                maybe_warn_float_underpromotion("subtract", promotion::BinaryOp::Subtract, a, *b);
-                maybe_warn_bit_promotes_to_int32(
-                    "subtract",
-                    promotion::BinaryOp::Subtract,
-                    a.get_data_type(),
-                    b->get_data_type());
-                auto out = pycauset::subtract(a, *b, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator())
-        .def(
-            "__sub__",
-            [](const MatrixBase& a, const py::array& b) {
-                // Eager Evaluation
-                auto mb = elementwise_operand_matrix_from_numpy(b);
-                maybe_warn_float_underpromotion("subtract", promotion::BinaryOp::Subtract, a, *mb);
-                maybe_warn_bit_promotes_to_int32(
-                    "subtract",
-                    promotion::BinaryOp::Subtract,
-                    a.get_data_type(),
-                    mb->get_data_type());
-                auto out = pycauset::subtract(a, *mb, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__sub__",
-            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
-                // Any Python/NumPy number, any dtype (F-002: plain Python numbers used to fall
-                // through to NotImplemented here when this overload preceded the typed ones).
-                if (pycauset::ScalarArg sa__; to_scalar_arg(b_obj, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Sub, sa__).release()));
-                }
-                if (is_numpy_scalar(b_obj)) {
-                    if (is_numpy_complex_scalar(b_obj)) {
-                        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-                    }
-                    const double s = b_obj.cast<double>();
-                    auto out = a.add_scalar(-s, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                // Allow other operand types (e.g., internal BlockMatrix) to
-                // handle the operation via their __rsub__.
-                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-            },
-            py::is_operator())
-        .def(
-            "__sub__",
-            [](const MatrixBase& a, double s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = pycauset::ScalarArg::from_double(s); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Sub, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Sub, sa__).release()));
-                }
-                auto out = a.add_scalar(-s, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
-        .def(
-            "__sub__",
-            [](const MatrixBase& a, py::int_ s_obj__) {
-                // py::int_ (strict PyLong) instead of int64_t: the int64_t caster also accepts
-                // NumPy integers via __index__, which would lose their strong dtype.
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = scalar_arg_from_pyint(s_obj__); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Sub, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Sub, sa__).release()));
-                }
-                const int64_t s = s_obj__.cast<int64_t>();
-                auto out = a.add_scalar(-s, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
-        .def(
-            "__rsub__",
-            [](const MatrixBase& a, double s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = pycauset::ScalarArg::from_double(s); needs_exact_scalar_op(a, pycauset::ScalarOpKind::RSub, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::RSub, sa__).release()));
-                }
-                auto neg = a.multiply_scalar(-1.0, "");
-                auto out = neg->add_scalar(s, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
-        .def(
-            "__rsub__",
-            [](const MatrixBase& a, py::int_ s_obj__) {
-                // py::int_ (strict PyLong) instead of int64_t: the int64_t caster also accepts
-                // NumPy integers via __index__, which would lose their strong dtype.
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = scalar_arg_from_pyint(s_obj__); needs_exact_scalar_op(a, pycauset::ScalarOpKind::RSub, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::RSub, sa__).release()));
-                }
-                const int64_t s = s_obj__.cast<int64_t>();
-                auto neg = a.multiply_scalar(-1.0, "");
-                auto out = neg->add_scalar(s, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
-        .def(
-            "__rsub__",
-            [](const MatrixBase& a, const py::array& b) {
-                // Eager Evaluation
-                auto mb = elementwise_operand_matrix_from_numpy(b);
-                maybe_warn_float_underpromotion("subtract", promotion::BinaryOp::Subtract, *mb, a);
-                maybe_warn_bit_promotes_to_int32(
-                    "subtract",
-                    promotion::BinaryOp::Subtract,
-                    mb->get_data_type(),
-                    a.get_data_type());
-                auto out = pycauset::subtract(*mb, a, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__rsub__",
-            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
-                // Any Python/NumPy number, any dtype (F-002: plain Python numbers used to fall
-                // through to NotImplemented here when this overload preceded the typed ones).
-                if (pycauset::ScalarArg sa__; to_scalar_arg(b_obj, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::RSub, sa__).release()));
-                }
-                if (is_numpy_scalar(b_obj)) {
-                    if (is_numpy_complex_scalar(b_obj)) {
-                        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-                    }
-                    const double s = b_obj.cast<double>();
-                    auto neg = a.multiply_scalar(-1.0, "");
-                    auto out = neg->add_scalar(s, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-            },
-            py::is_operator())
-        .def(
-            "__truediv__",
-            [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) {
-                maybe_warn_float_underpromotion("elementwise_divide", promotion::BinaryOp::Divide, a, *b);
-                auto out = pycauset::elementwise_divide(a, *b, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator())
-        .def(
-            "__truediv__",
-            [](const MatrixBase& a, const py::array& b) {
-                // Eager Evaluation
-                auto mb = elementwise_operand_matrix_from_numpy(b);
-                maybe_warn_float_underpromotion("elementwise_divide", promotion::BinaryOp::Divide, a, *mb);
-                auto out = pycauset::elementwise_divide(a, *mb, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__truediv__",
-            [](const MatrixBase& a, double s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = pycauset::ScalarArg::from_double(s); needs_exact_scalar_op(a, pycauset::ScalarOpKind::TrueDiv, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::TrueDiv, sa__).release()));
-                }
-                auto out = a.multiply_scalar(1.0 / s, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
-        .def(
-            "__truediv__",
-            [](const MatrixBase& a, py::int_ s_obj__) {
-                // py::int_ (strict PyLong) instead of int64_t: the int64_t caster also accepts
-                // NumPy integers via __index__, which would lose their strong dtype.
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = scalar_arg_from_pyint(s_obj__); needs_exact_scalar_op(a, pycauset::ScalarOpKind::TrueDiv, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::TrueDiv, sa__).release()));
-                }
-                const int64_t s = s_obj__.cast<int64_t>();
-                auto out = a.multiply_scalar(1.0 / static_cast<double>(s), "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator(), py::keep_alive<0, 1>(), py::arg("s").noconvert())
-        .def(
-            "__truediv__",
-            [](const MatrixBase& a, std::complex<double> s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = pycauset::ScalarArg::from_complex(s); needs_exact_scalar_op(a, pycauset::ScalarOpKind::TrueDiv, sa__)) {
-                    return std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::TrueDiv, sa__).release());
-                }
-                auto out = a.multiply_scalar(1.0 / s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__rtruediv__",
-            [](const MatrixBase& a, const py::array& b) {
-                // Eager Evaluation
-                auto mb = elementwise_operand_matrix_from_numpy(b);
-                maybe_warn_float_underpromotion("elementwise_divide", promotion::BinaryOp::Divide, *mb, a);
-                auto out = pycauset::elementwise_divide(*mb, a, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__truediv__",
-            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
-                // Any Python/NumPy number, any dtype (F-002: plain Python numbers used to fall
-                // through to NotImplemented here when this overload preceded the typed ones).
-                if (pycauset::ScalarArg sa__; to_scalar_arg(b_obj, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::TrueDiv, sa__).release()));
-                }
-                if (is_numpy_scalar(b_obj)) {
-                    if (is_numpy_complex_scalar(b_obj)) {
-                        const std::complex<double> s = b_obj.cast<std::complex<double>>();
-                        auto out = a.multiply_scalar(1.0 / s, "");
-                        return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                    }
-                    const double s = b_obj.cast<double>();
-                    auto out = a.multiply_scalar(1.0 / s, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                // Allow other operand types (e.g., internal BlockMatrix) to
-                // handle the operation via their __rtruediv__.
-                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-            },
-            py::is_operator())
-        .def(
             "__neg__",
             [](const MatrixBase& a) {
                 // F-002: unary minus (wraps for unsigned ints like NumPy; bit/bool raises).
@@ -2542,168 +2135,8 @@ void bind_matrix_classes(py::module_& m) {
             [](const MatrixBase& a) {
                 return std::shared_ptr<MatrixBase>(a.multiply_scalar(static_cast<int64_t>(1)).release());
             },
-            py::is_operator())
-        .def(
-            "__mul__",
-            [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) {
-                maybe_warn_float_underpromotion("elementwise_multiply", promotion::BinaryOp::ElementwiseMultiply, a, *b);
-                auto out = pycauset::elementwise_multiply(a, *b, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__mul__",
-            [](const MatrixBase& a, const py::array& b) {
-                auto mb = elementwise_operand_matrix_from_numpy(b);
-                maybe_warn_float_underpromotion("elementwise_multiply", promotion::BinaryOp::ElementwiseMultiply, a, *mb);
-                auto out = pycauset::elementwise_multiply(a, *mb, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__mul__",
-            [](const MatrixBase& a, py::float_ s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = pycauset::ScalarArg::from_double(s.cast<double>()); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Mul, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release()));
-                }
-                const double sv = s.cast<double>();
-                if (a.get_structure() == pycauset::Structure::TRIANGULAR) {
-                    auto out = a.multiply_scalar(sv, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                auto out = a.multiply_scalar(sv, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator())
-        .def(
-            "__mul__",
-            [](const MatrixBase& a, py::int_ s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = scalar_arg_from_pyint(s); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Mul, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release()));
-                }
-                const int64_t sv = s.cast<int64_t>();
-                if (a.get_structure() == pycauset::Structure::TRIANGULAR) {
-                    auto out = a.multiply_scalar(static_cast<double>(sv), "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                auto out = a.multiply_scalar(static_cast<double>(sv), "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator())
-        .def(
-            "__mul__",
-            [](const MatrixBase& a, std::complex<double> s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = pycauset::ScalarArg::from_complex(s); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Mul, sa__)) {
-                    return std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release());
-                }
-                auto out = a.multiply_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__mul__",
-            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
-                // Any Python/NumPy number, any dtype (F-002: plain Python numbers used to fall
-                // through to NotImplemented here when this overload preceded the typed ones).
-                if (pycauset::ScalarArg sa__; to_scalar_arg(b_obj, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release()));
-                }
-                if (is_numpy_scalar(b_obj)) {
-                    if (is_numpy_complex_scalar(b_obj)) {
-                        const std::complex<double> s = b_obj.cast<std::complex<double>>();
-                        auto out = a.multiply_scalar(s, "");
-                        return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                    }
-                    const double s = b_obj.cast<double>();
-                    auto out = a.multiply_scalar(s, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                // Allow other operand types (e.g., internal BlockMatrix) to
-                // handle the operation via their __rmul__.
-                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-            },
-            py::is_operator())
-        .def(
-            "__rmul__",
-            [](const MatrixBase& a, py::float_ s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = pycauset::ScalarArg::from_double(s.cast<double>()); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Mul, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release()));
-                }
-                const double sv = s.cast<double>();
-                if (a.get_structure() == pycauset::Structure::TRIANGULAR) {
-                    auto out = a.multiply_scalar(sv, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                auto out = a.multiply_scalar(sv, "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator())
-        .def(
-            "__rmul__",
-            [](const MatrixBase& a, const py::array& b) {
-                auto mb = elementwise_operand_matrix_from_numpy(b);
-                maybe_warn_float_underpromotion("elementwise_multiply", promotion::BinaryOp::ElementwiseMultiply, *mb, a);
-                auto out = pycauset::elementwise_multiply(*mb, a, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__rmul__",
-            [](const MatrixBase& a, const py::object& b_obj) -> py::object {
-                // Any Python/NumPy number, any dtype (F-002: plain Python numbers used to fall
-                // through to NotImplemented here when this overload preceded the typed ones).
-                if (pycauset::ScalarArg sa__; to_scalar_arg(b_obj, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release()));
-                }
-                if (PyComplex_Check(b_obj.ptr())) {
-                    const std::complex<double> s = b_obj.cast<std::complex<double>>();
-                    auto out = a.multiply_scalar(s, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                if (is_numpy_scalar(b_obj)) {
-                    if (is_numpy_complex_scalar(b_obj)) {
-                        const std::complex<double> s = b_obj.cast<std::complex<double>>();
-                        auto out = a.multiply_scalar(s, "");
-                        return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                    }
-                    const double s = b_obj.cast<double>();
-                    auto out = a.multiply_scalar(s, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-            },
-            py::is_operator())
-        .def(
-            "__rmul__",
-            [](const MatrixBase& a, py::int_ s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = scalar_arg_from_pyint(s); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Mul, sa__)) {
-                    return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release()));
-                }
-                const int64_t sv = s.cast<int64_t>();
-                if (a.get_structure() == pycauset::Structure::TRIANGULAR) {
-                    auto out = a.multiply_scalar(static_cast<double>(sv), "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
-                auto out = a.multiply_scalar(static_cast<double>(sv), "");
-                return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-            },
-            py::is_operator())
-        .def(
-            "__rmul__",
-            [](const MatrixBase& a, std::complex<double> s) {
-                // Exact NumPy-semantics path for integer/bit matrices and dtype-changing scalars (F-001).
-                if (const auto sa__ = pycauset::ScalarArg::from_complex(s); needs_exact_scalar_op(a, pycauset::ScalarOpKind::Mul, sa__)) {
-                    return std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, pycauset::ScalarOpKind::Mul, sa__).release());
-                }
-                auto out = a.multiply_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
             py::is_operator());
+
 
     // Internal eager elementwise helpers (used by BlockMatrix thunk evaluation).
     m.def(

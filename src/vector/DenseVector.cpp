@@ -8,9 +8,9 @@ namespace pycauset {
 
 DenseVector<bool>::DenseVector(uint64_t n, const std::string& backing_file)
     : DenseVectorBase(n) {
-    // 1 bit per element, packed into 64-bit words. No row padding.
-    uint64_t words = (n + 63) / 64;
-    uint64_t size_in_bytes = words * 8;
+    // Padded to 64 bytes like a bit-matrix row, so the vector is also a 1 x n bit matrix
+    // over the same storage (math/VectorOps.hpp).
+    uint64_t size_in_bytes = (((n + 63) / 64) * 8 + 63) & ~63ULL;
     
     initialize_storage(size_in_bytes, backing_file, "vector_bit", 8, 
                       pycauset::Structure::VECTOR, pycauset::DataType::BIT,
@@ -24,8 +24,9 @@ DenseVector<bool>::DenseVector(uint64_t n,
                                std::complex<double> scalar,
                                bool is_transposed)
     : DenseVectorBase(n) {
-    uint64_t words = (n + 63) / 64;
-    uint64_t size_in_bytes = words * 8;
+    // Padded to 64 bytes like a bit-matrix row, so the vector is also a 1 x n bit matrix
+    // over the same storage (math/VectorOps.hpp).
+    uint64_t size_in_bytes = (((n + 63) / 64) * 8 + 63) & ~63ULL;
     
     initialize_storage(size_in_bytes, backing_file, "", 8, 
                       pycauset::Structure::VECTOR, pycauset::DataType::BIT,
@@ -80,44 +81,6 @@ std::unique_ptr<VectorBase> DenseVector<bool>::transpose(const std::string& save
     return out;
 }
 
-std::unique_ptr<VectorBase> DenseVector<bool>::multiply_scalar(double factor, const std::string& result_file) const {
-    // Copy storage
-    std::string target = result_file;
-    if (target.empty()) {
-        target = pycauset::make_unique_storage_file("vector_bit_mul");
-    }
-    std::string new_path = this->copy_storage(target);
-    
-    // Create new vector wrapper
-    uint64_t file_size = std::filesystem::file_size(new_path);
-    auto mapper = std::make_unique<MemoryMapper>(new_path, file_size, 0, false);
-    auto new_vec = std::make_unique<DenseVector<bool>>(n_, std::move(mapper));
-    
-    new_vec->set_scalar(scalar_ * factor);
-    new_vec->set_seed(seed_);
-    new_vec->set_transposed(is_transposed());
-    
-    if (result_file.empty()) {
-        new_vec->set_temporary(true);
-    }
-    return new_vec;
-}
 
-std::unique_ptr<VectorBase> DenseVector<bool>::add_scalar(double scalar, const std::string& result_file) const {
-    auto result = std::make_unique<DenseVector<double>>(n_, result_file);
-    double* dst = result->data();
-    
-    double val_0 = scalar;
-    double val_1 = (scalar_ + scalar).real();
-    
-    for (uint64_t i = 0; i < n_; ++i) {
-        dst[i] = get(i) ? val_1 : val_0;
-    }
-    
-    if (is_transposed()) {
-        result->set_transposed(true);
-    }
-    return result;
-}
 
 } // namespace pycauset

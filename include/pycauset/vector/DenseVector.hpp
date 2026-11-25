@@ -90,59 +90,8 @@ public:
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }
     const T* data() const { return static_cast<const T*>(require_mapper()->get_data()); }
 
-    std::unique_ptr<VectorBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto new_vector = std::make_unique<DenseVector<T>>(n_, std::move(mapper));
-        new_vector->set_scalar(scalar_ * factor);
-        new_vector->set_conjugated(is_conjugated());
-        if (result_file.empty()) {
-            new_vector->set_temporary(true);
-        }
-        return new_vector;
-    }
 
-    std::unique_ptr<VectorBase> multiply_scalar(std::complex<double> factor, const std::string& result_file = "") const override {
-        if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
-            std::string new_path = copy_storage(result_file);
-            auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-            auto new_vector = std::make_unique<DenseVector<T>>(n_, std::move(mapper));
-            new_vector->set_scalar(scalar_ * factor);
-            new_vector->set_conjugated(is_conjugated());
-            if (result_file.empty()) {
-                new_vector->set_temporary(true);
-            }
-            return new_vector;
-        }
-        throw std::runtime_error("Complex scalar multiplication not supported for real vector types");
-    }
 
-    std::unique_ptr<VectorBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        auto result = std::make_unique<DenseVector<T>>(n_, result_file);
-        
-        const T* src_data = data();
-        T* dst_data = result->data();
-        
-        if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
-            const std::complex<double> add = {scalar, 0.0};
-            for (uint64_t i = 0; i < n_; ++i) {
-                const std::complex<double> v = pycauset::scalar::to_complex_double(src_data[i]);
-                dst_data[i] = pycauset::scalar::from_complex_double<T>(v * scalar_ + add);
-            }
-        } else {
-            const double s_self = scalar_.real();
-            for (uint64_t i = 0; i < n_; ++i) {
-                double val = static_cast<double>(src_data[i]) * s_self + scalar;
-                dst_data[i] = pycauset::scalar::from_double<T>(val);
-            }
-        }
-        
-        result->set_scalar(1.0);
-        if (result_file.empty()) {
-            result->set_temporary(true);
-        }
-        return result;
-    }
 
     std::unique_ptr<VectorBase> transpose(const std::string& result_file = "") const override {
         (void)result_file;
@@ -177,8 +126,6 @@ public:
     const uint64_t* data() const { return static_cast<const uint64_t*>(require_mapper()->get_data()); }
     uint64_t* data() { return static_cast<uint64_t*>(require_mapper()->get_data()); }
 
-    std::unique_ptr<VectorBase> multiply_scalar(double factor, const std::string& result_file = "") const override;
-    std::unique_ptr<VectorBase> add_scalar(double scalar, const std::string& result_file = "") const override;
     
     std::unique_ptr<VectorBase> transpose(const std::string& result_file = "") const override;
 };

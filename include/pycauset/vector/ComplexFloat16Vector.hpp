@@ -93,58 +93,8 @@ public:
         return z;
     }
 
-    std::unique_ptr<VectorBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto out = std::make_unique<ComplexFloat16Vector>(n_, std::move(mapper));
-        out->set_scalar(scalar_ * factor);
-        out->set_seed(seed_);
-        out->set_transposed(is_transposed());
-        out->set_conjugated(is_conjugated());
-        if (result_file.empty()) {
-            out->set_temporary(true);
-        }
-        return out;
-    }
 
-    std::unique_ptr<VectorBase> multiply_scalar(std::complex<double> factor, const std::string& result_file = "") const override {
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto out = std::make_unique<ComplexFloat16Vector>(n_, std::move(mapper));
-        out->set_scalar(scalar_ * factor);
-        out->set_seed(seed_);
-        out->set_transposed(is_transposed());
-        out->set_conjugated(is_conjugated());
-        if (result_file.empty()) {
-            out->set_temporary(true);
-        }
-        return out;
-    }
 
-    std::unique_ptr<VectorBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        auto result = std::make_unique<ComplexFloat16Vector>(n_, result_file);
-
-        const auto* rsrc = real_data();
-        const auto* isrc = imag_data();
-        auto* rdst = result->real_data();
-        auto* idst = result->imag_data();
-
-        const std::complex<double> add = {scalar, 0.0};
-        for (uint64_t i = 0; i < n_; ++i) {
-            const std::complex<double> v = {static_cast<double>(rsrc[i]), static_cast<double>(isrc[i])};
-            const std::complex<double> out = v * scalar_ + add;
-            rdst[i] = pycauset::float16_t(out.real());
-            idst[i] = pycauset::float16_t(out.imag());
-        }
-
-        result->set_scalar(1.0);
-        result->set_seed(seed_);
-        result->set_transposed(is_transposed());
-        if (result_file.empty()) {
-            result->set_temporary(true);
-        }
-        return result;
-    }
 
     std::unique_ptr<VectorBase> transpose(const std::string& result_file = "") const override {
         if (result_file.empty()) {

@@ -210,12 +210,6 @@ std::complex<double> CudaDevice::sum(const VectorBase& v) {
     throw std::runtime_error("CudaDevice::sum(VectorBase) not implemented");
 }
 
-void CudaDevice::scalar_multiply_vector_complex(const VectorBase& a, std::complex<double> scalar, VectorBase& result) {
-    (void)a;
-    (void)scalar;
-    (void)result;
-    throw std::runtime_error("CUDA scalar_multiply_vector_complex not implemented");
-}
 
 std::complex<double> CudaDevice::sum(const MatrixBase& m) {
     (void)m;
@@ -2058,21 +2052,9 @@ double CudaDevice::l2_norm(const VectorBase& v) {
     throw std::runtime_error("CudaDevice::l2_norm not implemented");
 }
 
-void CudaDevice::add_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
-    throw std::runtime_error("CudaDevice::add_vector not implemented");
-}
 
-void CudaDevice::subtract_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) {
-    throw std::runtime_error("CudaDevice::subtract_vector not implemented");
-}
 
-void CudaDevice::scalar_multiply_vector(const VectorBase& a, double scalar, VectorBase& result) {
-    throw std::runtime_error("CudaDevice::scalar_multiply_vector not implemented");
-}
 
-void CudaDevice::scalar_add_vector(const VectorBase& a, double scalar, VectorBase& result) {
-    throw std::runtime_error("CudaDevice::scalar_add_vector not implemented");
-}
 
 void CudaDevice::cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) {
     (void)a;

@@ -428,6 +428,7 @@ set(PYCAUSET_SOURCES
     src/math/Eigen.cpp
     src/math/LinearAlgebra.cpp
     src/math/ScalarOps.cpp
+    src/math/VectorOps.cpp
     src/causet/Sprinkler.cpp
 )
 

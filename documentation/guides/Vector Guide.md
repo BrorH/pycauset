@@ -72,52 +72,34 @@ u = pc.UnitVector(1000, 5)
 print(u[5]) # 1.0
 ```
 
-**Benefits:**
-*   **O(1) Storage**: Only stores the index and size.
-*   **O(1) Arithmetic**: Operations like dot products or addition with other unit vectors are computed instantly without iterating over the full size.
+Storage is O(1) (the size and the index). Arithmetic with a unit vector writes it out as a
+dense float64 vector first, so it costs the same as with a dense vector.
 
 ## Vector Arithmetic
 
-Vectors support standard arithmetic operations. These operations are performed element-wise and are optimized for large datasets.
+Vectors support `+`, `-`, `*`, `/` (element-wise, with another vector of the same length, a
+1-D NumPy array, or a scalar, on either side) and unary `-`. A vector behaves exactly like a
+1 x n matrix: the same kernels and the same result-dtype rules
+(`documentation/internals/DType System.md`), which follow NumPy:
 
-### Optimized Operations
+* integer op Python int keeps the integer dtype and wraps like NumPy (`int8` stays `int8`);
+  a Python int that doesn't fit raises `OverflowError`;
+* integer op Python float gives `float64`; true division of integers gives a float;
+* bool/bit vectors count: `bit + bit` and `bit * 3` give `int32` (NumPy keeps `bool` for
+  `+`; PyCauset warns once per call site with `PyCausetDTypeWarning`).
 
-Arithmetic involving `UnitVector` is special-cased for performance.
-*   `UnitVector` + `UnitVector`: Returns a sparse result if possible.
-*   `Vector` + `UnitVector`: Only updates the single active element.
-*   `Vector` . `UnitVector`: Returns the element at the active index (O(1)).
-
-### Addition
-
-```python
-v1 = pc.vector([1, 2, 3])
-v2 = pc.vector([4, 5, 6])
-v3 = v1 + v2  # [5, 7, 9]
-```
-
-### Subtraction
+Orientation (row/column) is taken from the left operand.
 
 ```python
 v1 = pc.vector([1, 2, 3])
 v2 = pc.vector([4, 5, 6])
-v3 = v2 - v1  # [3, 3, 3]
-```
-
-### Scalar Addition
-
-You can add a scalar to every element of a vector.
-
-```python
-v = pc.vector([1, 2, 3])
-v_plus_5 = v + 5  # [6, 7, 8]
-v_plus_5_reverse = 5 + v  # [6, 7, 8]
-```
-
-### Scalar Multiplication
-
-```python
-v = pc.vector([1, 2, 3])
-v_scaled = v * 2.0  # [2.0, 4.0, 6.0]
+v1 + v2      # [5, 7, 9]
+v2 - v1      # [3, 3, 3]
+v1 * v2      # [4, 10, 18]
+v1 / 2       # [0.5, 1.0, 1.5]   (float64)
+10 - v1      # [9, 8, 7]
+-v1          # [-1, -2, -3]
+v1 * 2.0     # [2.0, 4.0, 6.0]  (float64)
 ```
 
 ### Dot Product
@@ -130,7 +112,7 @@ import pycauset as pc
 v1 = pc.vector([1, 2, 3])
 v2 = pc.vector([4, 5, 6])
 
-result = pc.dot(v1, v2)  # 1*4 + 2*5 + 3*6 = 32.0
+result = pc.dot(v1, v2)  # 1*4 + 2*5 + 3*6 = 32 (an int: integer vectors give an exact int)
 # OR
 result = v1.dot(v2)
 ```
@@ -167,16 +149,16 @@ v1 = pc.vector([1, 2, 3])
 v2 = pc.vector([4, 5, 6])
 
 # Row @ Column -> Scalar
-scalar = v1.T @ v2  # 32.0
+scalar = v1.T @ v2  # 32
 
 # Column @ Column (Numpy behavior for 1D arrays)
-scalar = v1 @ v2    # 32.0
+scalar = v1 @ v2    # 32
 ```
 
 **Type Safety**:
-*   [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `int32`) @ [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `int32`) -> `int`
-*   [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `bool`) @ [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `bool`) -> `int`
-*   Any [[docs/classes/vector/pycauset.DenseVector.md|pycauset.DenseVector]] (dtype `float64`) operand -> `float`
+*   Integer or bool vectors (any widths) -> an exact Python `int` (128-bit accumulation;
+    `OverflowError` beyond that). Reductions never wrap silently.
+*   Any float operand -> `float`; any complex operand -> `complex`.
 
 ### Outer Product
 
