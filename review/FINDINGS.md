@@ -202,7 +202,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
   out-of-core. See `review/probes/numpy_fallback_probe.py`.
 
 ### F-012 Most core ops are well below NumPy speed (README claims ≥ 0.90×)
-- **Status:** open (S2 for R1 credibility; Phase 6)
+- **Status:** largely fixed (session 6). Root causes: RAM allocation zero-filled every page
+  (F-057), views read per element (F-043), matvec had no BLAS path. 3000² float64, 4 vCPU
+  (pycauset vs NumPy): A+B 5.7 vs 16.4 ms, A*B 6.8 vs 20.4, 2A+3B 13.6 vs 41.3, A.T+B 11.2 vs
+  23.7, A+1.5 5.8 vs 10.7, A@B 168 vs 179, A@v 1.6 vs 1.0–6.5 ms (gemv). Re-run
+  `benchmarks/r2_parity.py` (dot, invert, determinant) in the docs pass (PLAN 5.4).
+- Original measurement:
 - Quiet-machine measurement, `benchmarks/r2_parity.py`, N=1024, 4 vCPU, pip Release
   build: matmul **0.32×**, invert 0.72×, determinant 0.60×, add 0.24×, multiply 0.32×,
   **dot 0.01×** (≈100× slower: 11 ms vs 0.1 ms for a 1M-element dot), solve 1.00×,

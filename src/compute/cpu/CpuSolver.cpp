@@ -3327,6 +3327,39 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
     const uint64_t cols = m.cols();
     if (result.size() != rows) throw std::invalid_argument("Dimension mismatch");
 
+    // Real dense matrix x vector through BLAS gemv (F-012: the generic per-element path was 24x
+    // slower than NumPy). Views map to gemv arguments: transpose -> CblasTrans, offsets ->
+    // pointer + leading dimension, factor -> alpha.
+    {
+        auto gemv = [&](auto tag) -> bool {
+            using T = typename decltype(tag)::type;
+            auto* md = dynamic_cast<const DenseMatrix<T>*>(&m);
+            auto* vd = dynamic_cast<const DenseVector<T>*>(&v);
+            auto* out = dynamic_cast<DenseVector<T>*>(&result);
+            if (!md || !vd || !out) return false;
+            if (m.get_scalar().imag() != 0.0 || v.get_scalar() != std::complex<double>(1.0, 0.0)) return false;
+            const bool tr = md->is_transposed();
+            const int ld = static_cast<int>(md->base_cols());
+            const T* a = md->data() + md->row_offset() * md->base_cols() + md->col_offset();
+            // Storage block seen by BLAS: (rows x cols) if not transposed, (cols x rows) if transposed.
+            const int sr = static_cast<int>(tr ? cols : rows), sc = static_cast<int>(tr ? rows : cols);
+            const T alpha = static_cast<T>(m.get_scalar().real());
+            if constexpr (std::is_same_v<T, double>) {
+                cblas_dgemv(CblasRowMajor, tr ? CblasTrans : CblasNoTrans, sr, sc, alpha, a, ld, vd->data(), 1, 0.0,
+                            out->data(), 1);
+            } else {
+                cblas_sgemv(CblasRowMajor, tr ? CblasTrans : CblasNoTrans, sr, sc, alpha, a, ld, vd->data(), 1, 0.0f,
+                            out->data(), 1);
+            }
+            out->set_scalar(1.0);
+            return true;
+        };
+        if (gemv(pycauset::type_tag<double>{}) || gemv(pycauset::type_tag<float>{})) {
+            debug_trace::set_last("cpu.matvec.blas");
+            return;
+        }
+    }
+
     // Closure view C +- C^T over causal bits (LAZY.md L2b): two triangular passes over the
     // bits, nothing materialized. Used when the int32 entries can't wrap under the factor.
     if (auto* cl = dynamic_cast<const BitClosureMatrix*>(&m); cl && !cl->is_materialized()) {
