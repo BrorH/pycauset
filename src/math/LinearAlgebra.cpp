@@ -783,35 +783,7 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const Ma
     return std::make_tuple(std::move(q), std::move(r));
 }
 
-std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(const MatrixBase& a, const std::string& result_file)
-{
-    if (!is_plain(a)) return svd(*write_out(a), result_file);  // kernels read storage (F-062)
-    uint64_t m = a.rows();
-    uint64_t n = a.cols();
-    uint64_t k = std::min(m, n);
-    DataType dtype = a.get_data_type();
-
-    // U: (M, K)
-    auto u = ObjectFactory::create_matrix(m, k, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_u");
-    
-    // S: (K,) - Real values even if input is complex
-    DataType s_dtype = (dtype == DataType::COMPLEX_FLOAT32 || dtype == DataType::COMPLEX_FLOAT64) ? 
-                       (dtype == DataType::COMPLEX_FLOAT32 ? DataType::FLOAT32 : DataType::FLOAT64) : dtype;
-                       
-    // If input is int, we probably upgraded to float/double elsewhere or should throw. 
-    // Assuming float/double here.
-    
-    auto s = ObjectFactory::create_vector(k, s_dtype, Structure::VECTOR, result_file.empty() ? "" : result_file + "_s");
-    
-    // VT: (K, N)
-    auto vt = ObjectFactory::create_matrix(k, n, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_vt");
-
-    ComputeContext::instance().get_device()->svd(a, *u, *s, *vt);
-    
-    return std::make_tuple(std::move(u), std::move(s), std::move(vt));
-}
-
-// Result dtype of solve, NumPy's rule: integers and bit solve in float64, float16/float32 in
+// Result dtype of solve/svd (LAPACK dtypes), NumPy's rule: integers and bit solve in float64, float16/float32 in
 // float32, complex stays complex (complex64 only when nothing needs double precision).
 static DataType solve_dtype(DataType a, DataType b) {
     auto cplx = [](DataType d) {
@@ -824,6 +796,31 @@ static DataType solve_dtype(DataType a, DataType b) {
     const bool sp = single(a) && single(b);
     if (cplx(a) || cplx(b)) return sp ? DataType::COMPLEX_FLOAT32 : DataType::COMPLEX_FLOAT64;
     return sp ? DataType::FLOAT32 : DataType::FLOAT64;
+}
+
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(
+    const MatrixBase& a, bool full_matrices)
+{
+    // The LAPACK kernel reads dense storage in a LAPACK dtype: integers/bit in float64,
+    // float16 in float32, complex32 in complex64 (NumPy's rule); any structure or view is
+    // written out first (F-062, F-079: complex SVD used to fall back to NumPy).
+    {
+        const DataType in = a.get_data_type();
+        const DataType want = solve_dtype(in, in);
+        if (a.get_structure() != Structure::DENSE || in != want || !is_plain(a)) {
+            return svd(*to_dense(a, want), full_matrices);
+        }
+    }
+    const uint64_t m = a.rows(), n = a.cols(), k = std::min(m, n);
+    const DataType dtype = a.get_data_type();
+    const DataType s_dtype = dtype == DataType::COMPLEX_FLOAT32 ? DataType::FLOAT32
+                           : dtype == DataType::COMPLEX_FLOAT64 ? DataType::FLOAT64 : dtype;
+    // NumPy shapes: U (m, m) and VT (n, n) when full_matrices, else (m, k) and (k, n).
+    auto u = ObjectFactory::create_matrix(m, full_matrices ? m : k, dtype, Structure::DENSE, "");
+    auto s = ObjectFactory::create_vector(k, s_dtype, Structure::VECTOR, "");
+    auto vt = ObjectFactory::create_matrix(full_matrices ? n : k, n, dtype, Structure::DENSE, "");
+    ComputeContext::instance().get_device()->svd(a, *u, *s, *vt);
+    return std::make_tuple(std::move(u), std::move(s), std::move(vt));
 }
 
 std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, const std::string& result_file)

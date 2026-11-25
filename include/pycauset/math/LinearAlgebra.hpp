@@ -19,7 +19,9 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
 std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& result_file = "");
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a, const std::string& result_file = "");
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const MatrixBase& a, const std::string& result_file = "");
-std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(const MatrixBase& a, const std::string& result_file = "");
+// NumPy's svd: any dtype/structure/view; U (m, m|k), S (k,) real, VT (n|k, n).
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(
+    const MatrixBase& a, bool full_matrices = false);
 std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
 
 std::unique_ptr<VectorBase> eigvals_arnoldi(const MatrixBase& a, int k, int m, double tol, const std::string& result_file = "");

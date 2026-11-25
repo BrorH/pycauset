@@ -881,3 +881,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
 ### F-078 The diagonal of `A.T` for antisymmetric A was -0.0 (`2 / A.T` gave -inf)
 - **Status:** fixed. `A.T` is stored as the factor -1 (A.T = -A), which negated the zero
   diagonal; NumPy gives +0.0 there. The antisymmetric accessors return +0.0 on the diagonal.
+
+### F-079 `pinv` by the normal equations; `svd`/`svdvals` and complex SVD went through NumPy
+- **Status:** fixed (session 8, atlas). `pinv` computed (AᴴA)⁻¹Aᴴ: the condition number
+  squared, wrong for ill-conditioned input (atlas: bool windows, float32 antisymmetric), with
+  a NumPy SVD fallback behind it. `svdvals` and `svd(full_matrices=True)` (NumPy's default)
+  always ran NumPy; the native SVD was real-only.
+- Fix: the native SVD takes any dtype/structure/view (normalised to a dense LAPACK dtype) and
+  runs one templated `?gesdd` for float32/float64/complex64/complex128, reduced or full
+  (NumPy shapes). `svd`, `svdvals` and `pinv` (V S⁺ Uᴴ with NumPy's cutoff) use it.

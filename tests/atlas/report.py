@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import collections
 import dataclasses
+import gzip
 import json
 import os
 import sys
@@ -23,8 +24,12 @@ def main(argv=None) -> None:
         if i % 500 == 0:
             print(f"{i}/{len(cells)} {time.time() - t0:.0f}s", file=sys.stderr, flush=True)
     os.makedirs(OUT, exist_ok=True)
-    with open(os.path.join(OUT, "atlas.json"), "w") as f:
-        json.dump([dataclasses.asdict(c) for c in cells], f, indent=0)
+    # Committed snapshot: cell key -> "outcome path" (gzip, ~1 MB); the CI regression check
+    # reads it. The full per-cell record (kernels, errors, timings) goes to the scratch JSON.
+    with gzip.open(os.path.join(OUT, "atlas.json.gz"), "wt") as f:
+        json.dump({c.key(): f"{c.outcome} {c.path}".strip() for c in cells}, f, separators=(",", ":"))
+    with open(os.path.join(OUT, "atlas_full.json"), "w") as f:
+        json.dump([dataclasses.asdict(c) for c in cells], f, separators=(",", ":"))
     with open(os.path.join(OUT, "ATLAS.md"), "w") as f:
         f.write(render(cells))
     print(summary_line(cells))

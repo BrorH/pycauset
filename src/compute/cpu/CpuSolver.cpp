@@ -5166,84 +5166,49 @@ void CpuSolver::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBas
     throw std::runtime_error("LU only implemented for float/double");
 }
 
-void CpuSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) {
-    // SVD: A = U * S * VT
-    // A: (M, N)
-    // U: (M, K) - K=min(M,N)
-    // S: (K,)
-    // VT: (K, N)
-    // Using GESVD with JOBU='S' (return first min(M,N) columns of U) and JOBVT='S' (return first min(M,N) rows of VT).
-    
-    uint64_t m = in.rows();
-    uint64_t n = in.cols();
-    // LAPACKE_dgesvd
-    
-    if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
-         std::vector<double> a_buf(m * n);
-         if (!in_d->is_transposed() && !in_d->is_subview()) {
-             std::memcpy(a_buf.data(), in_d->data(), m * n * sizeof(double));
-         } else {
-             for(size_t i=0; i<m; ++i)
-                 for(size_t j=0; j<n; ++j)
-                     a_buf[i * n + j] = in_d->get(i, j);
-         }
-                 
-         // Output buffers
-         auto* u_d = dynamic_cast<DenseMatrix<double>*>(&U);
-         auto* vt_d = dynamic_cast<DenseMatrix<double>*>(&VT);
-         
-         // S is a vector
-         // But VectorBase access is generic. Let's cast to DenseVector<double>.
-         // Or if S is different type? We assumed it matches 'in' type's float variant.
-         // Let's assume DenseVector<double> or similar.
-         // We'll calculate into a std::vector then copy.
-         
-         uint64_t k = std::min(m, n);
-         std::vector<double> s_vec(k);
-         
-         // dgesdd (divide-and-conquer) is far faster than dgesvd (QR-based) and is
-         // what NumPy uses by default.
-         lapack_int info = LAPACKE_dgesdd(LAPACK_ROW_MAJOR, 'S',
-             (lapack_int)m, (lapack_int)n, a_buf.data(), (lapack_int)n,
-             s_vec.data(),
-             u_d->data(), (lapack_int)k,
-             vt_d->data(), (lapack_int)n);
-         
-         if (info > 0) throw std::runtime_error("dgesdd did not converge");
-         if (info < 0) throw std::runtime_error("dgesdd: illegal argument");
-         
-         // Copy S to VectorBase
-         extract_vector(k, s_vec.data(), S);
-         return;
-    }
-    
-    if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
-         std::vector<float> a_buf(m * n);
-         if (!in_f->is_transposed() && !in_f->is_subview()) {
-             std::memcpy(a_buf.data(), in_f->data(), m * n * sizeof(float));
-         } else {
-             for(size_t i=0; i<m; ++i) for(size_t j=0; j<n; ++j) a_buf[i * n + j] = in_f->get(i, j);
-         }
-         
-         auto* u_f = dynamic_cast<DenseMatrix<float>*>(&U);
-         auto* vt_f = dynamic_cast<DenseMatrix<float>*>(&VT);
-         uint64_t k = std::min(m, n);
-         std::vector<float> s_vec(k);
-         
-         lapack_int info = LAPACKE_sgesdd(LAPACK_ROW_MAJOR, 'S',
-             (lapack_int)m, (lapack_int)n, a_buf.data(), (lapack_int)n,
-             s_vec.data(),
-             u_f->data(), (lapack_int)k,
-             vt_f->data(), (lapack_int)n);
-         
-         if (info > 0) throw std::runtime_error("sgesdd did not converge");
-         if (info < 0) throw std::runtime_error("sgesdd: illegal argument");
-         
-         extract_vector(k, s_vec.data(), S);
-         return;
-    }
+namespace {
+template <typename T> struct real_of { using type = T; };
+template <typename T> struct real_of<std::complex<T>> { using type = T; };
+template <typename T> using real_of_t = typename real_of<T>::type;
 
-    throw std::runtime_error("SVD only implemented for float/double");
+// Reduced SVD A = U diag(S) VT of dense row-major storage (LAPACK ?gesdd, divide and conquer:
+// what NumPy uses). S is real for complex input.
+template <typename T>
+lapack_int gesdd(char job, lapack_int m, lapack_int n, T* a, real_of_t<T>* s, T* u, lapack_int ldu, T* vt) {
+    if constexpr (std::is_same_v<T, double>) return LAPACKE_dgesdd(LAPACK_ROW_MAJOR, job, m, n, a, n, s, u, ldu, vt, n);
+    else if constexpr (std::is_same_v<T, float>) return LAPACKE_sgesdd(LAPACK_ROW_MAJOR, job, m, n, a, n, s, u, ldu, vt, n);
+    else if constexpr (std::is_same_v<T, std::complex<double>>) return LAPACKE_zgesdd(LAPACK_ROW_MAJOR, job, m, n, a, n, s, u, ldu, vt, n);
+    else return LAPACKE_cgesdd(LAPACK_ROW_MAJOR, job, m, n, a, n, s, u, ldu, vt, n);
+}
+
+template <typename T>
+bool svd_dense(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) {
+    using R = real_of_t<T>;
+    auto* A = dynamic_cast<const DenseMatrix<T>*>(&in);
+    auto* u = dynamic_cast<DenseMatrix<T>*>(&U);
+    auto* vt = dynamic_cast<DenseMatrix<T>*>(&VT);
+    auto* s = dynamic_cast<DenseVector<R>*>(&S);
+    if (!A || !u || !vt || !s) return false;
+    debug_trace::set_last("cpu.svd.gesdd");
+    const uint64_t m = in.rows(), n = in.cols();
+    std::vector<T> a(A->data(), A->data() + m * n);  // gesdd destroys its input
+    // U's shape says which: (m, m) is NumPy's full_matrices=True (job 'A'), (m, k) reduced ('S').
+    const char job = (U.cols() == m && m != std::min(m, n)) || (VT.rows() == n && n != std::min(m, n)) ? 'A' : 'S';
+    const lapack_int info = gesdd<T>(job, (lapack_int)m, (lapack_int)n, a.data(), s->data(), u->data(),
+                                     (lapack_int)U.cols(), vt->data());
+    if (info > 0) throw std::runtime_error("SVD did not converge");
+    if (info < 0) throw std::runtime_error("SVD: illegal argument to gesdd");
+    return true;
+}
+}  // namespace
+
+// Input is dense, plain, float32/float64/complex64/complex128 (LinearAlgebra::svd writes it out).
+void CpuSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) {
+    if (svd_dense<double>(in, U, S, VT) || svd_dense<float>(in, U, S, VT) ||
+        svd_dense<std::complex<double>>(in, U, S, VT) || svd_dense<std::complex<float>>(in, U, S, VT)) {
+        return;
+    }
+    throw std::runtime_error("svd: operand must be dense float32/float64/complex64/complex128");
 }
 
 namespace {

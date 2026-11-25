@@ -948,46 +948,30 @@ def solve_triangular(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 
 
 def pinv(a: Any, *, deps: OpsDeps) -> Any:
-    """Moore-Penrose pseudoinverse (baseline).
+    """Moore-Penrose pseudoinverse through the engine's SVD, as NumPy computes it.
 
-    Uses the normal equations (Aᴴ = conjugate transpose):
-    - tall/square (`rows >= cols`): (Aᴴ A)^-1 Aᴴ
-    - wide (`rows < cols`):          Aᴴ (A Aᴴ)^-1
-
-    This matches the `lstsq` baseline (normal equations) and is numerically less
-    stable than an SVD-based pinv. Falls back to NumPy's SVD-based `pinv` when the
-    normal equations fail (e.g. rank-deficient) or for non-native inputs.
+    A = U S Vᴴ → A⁺ = V S⁺ Uᴴ, with singular values at or below NumPy's default cutoff
+    max(m, n) · eps · max(s) treated as zero. The normal equations used before ((AᴴA)⁻¹Aᴴ)
+    squared the condition number and gave wrong answers for ill-conditioned input (F-079); the
+    NumPy fallback behind them is gone.
     """
     _record_io_trace("pinv", [a], deps=deps)
-
-    shape = _safe_rows_cols(a)
-    if shape is not None:
-        rows, cols = shape
-        # Conjugate transpose (Aᴴ): for complex A the normal equations need it (F-063).
-        is_complex = "complex" in str(getattr(a, "dtype", ""))
-        a_t = getattr(a, "H" if is_complex else "T", None)
-        if a_t is not None:
-            try:
-                if rows >= cols:
-                    ata = matmul(a_t, a, deps=deps)
-                    ata_inv = invert(ata, deps=deps)
-                    result = matmul(ata_inv, a_t, deps=deps)
-                else:
-                    aat = matmul(a, a_t, deps=deps)
-                    aat_inv = invert(aat, deps=deps)
-                    result = matmul(a_t, aat_inv, deps=deps)
-                _track_and_mark_temporary_if_native(result, deps=deps)
-                return result
-            except Exception:
-                pass
-
-    # NumPy fallback (SVD-based; also covers complex and non-native inputs).
     np_module = deps.np_module
-    if np_module is not None:
-        val = np_module.linalg.pinv(_to_numpy_matrix(a, deps=deps))
-        return _as_pycauset_array(val, deps=deps)
-
-    raise RuntimeError("pinv failed")
+    if not isinstance(a, deps.native.MatrixBase):
+        a = deps.Matrix(np_module.asarray(a))
+    rows, cols = a.shape
+    u, s, vt = deps.native.svd(a, False)
+    k = len(s)
+    s_np = np_module.asarray(s)
+    eps = np_module.finfo(s_np.dtype).eps
+    cutoff = max(rows, cols) * eps * (float(s_np.max()) if k else 0.0)
+    inv_s = np_module.where(s_np > cutoff, 1.0 / np_module.where(s_np > cutoff, s_np, 1), 0).astype(s_np.dtype)
+    uk_h = u[0:rows, 0:k].H  # k x rows
+    vk_h = vt[0:k, 0:cols].H  # cols x k
+    scaled = deps.Matrix(inv_s.reshape(k, 1)) * uk_h  # rows of Uᴴ scaled by 1/s
+    result = matmul(vk_h, scaled, deps=deps)
+    _track_and_mark_temporary_if_native(result, deps=deps)
+    return result
 
 
 def trace(a: Any, *, deps: OpsDeps) -> Any:
@@ -1044,14 +1028,10 @@ def norm(x: Any, ord: Any = None, *, deps: OpsDeps) -> float:
 
 
 def svdvals(a: Any, *, deps: OpsDeps) -> Any:
-    """Singular values of a matrix (the S vector of an SVD), descending."""
+    """Singular values of a matrix (the S vector of an SVD), descending; engine SVD (F-079)."""
     _record_io_trace("svdvals", [a], deps=deps)
-
-    np_module = deps.np_module
-    if np_module is None:
-        raise RuntimeError("svdvals requires NumPy")
-    s = np_module.linalg.svd(_to_numpy_matrix(a, deps=deps), compute_uv=False)
-    return _as_pycauset_vector(s, deps=deps)
+    _u, s, _vt = svd(a, full_matrices=False, deps=deps)
+    return s
 
 
 def matrix_rank(a: Any, tol: Any = None, *, deps: OpsDeps) -> int:
@@ -1230,33 +1210,15 @@ def qr(a: Any, mode: str = 'reduced', *, deps: OpsDeps) -> Any:
 
 
 def svd(a: Any, full_matrices: bool = True, compute_uv: bool = True, *, deps: OpsDeps) -> Any:
-    """Return SVD decomposition."""
+    """SVD with NumPy's signature and shapes, computed by the engine (?gesdd) for every dtype,
+    structure and view; no NumPy fallback (F-079)."""
     _record_io_trace("svd", [a], deps=deps)
-    
-    # Native only supports reduced/compact where U is MxK, VT is KxN (approx full_matrices=False)
-    if not full_matrices and compute_uv:
-        fn = getattr(deps.native, "svd", None)
-        if callable(fn):
-            try:
-                u, s, vt = fn(a)
-                _track_and_mark_temporary_if_native(u, deps=deps)
-                _track_and_mark_temporary_if_native(s, deps=deps)
-                _track_and_mark_temporary_if_native(vt, deps=deps)
-                return u, s, vt
-            except Exception:
-                pass
-
-    np_module = deps.np_module
-    if np_module:
-        res = np_module.linalg.svd(_to_numpy_matrix(a, deps=deps), full_matrices=full_matrices, compute_uv=compute_uv)
-        if compute_uv:
-             u_np, s_np, vt_np = res
-             return (_as_pycauset_array(u_np, deps=deps), _as_pycauset_array(s_np, deps=deps), _as_pycauset_array(vt_np, deps=deps))
-        else:
-             s_np = res
-             return _as_pycauset_array(s_np, deps=deps)
-        
-    raise RuntimeError("svd failed")
+    if not isinstance(a, deps.native.MatrixBase):
+        a = deps.Matrix(deps.np_module.asarray(a))
+    u, s, vt = deps.native.svd(a, bool(full_matrices) and bool(compute_uv))
+    for x in (u, s, vt):
+        _track_and_mark_temporary_if_native(x, deps=deps)
+    return (u, s, vt) if compute_uv else s
 
 
 def lu(a: Any, *, deps: OpsDeps) -> Any:

@@ -5,7 +5,7 @@ plus the dtype-pair and structure-pair cells) and fails on
 
   * a wrong result (✗) that is not in KNOWN_GAPS (each entry names its finding);
   * an atlas harness error (a bug in the oracle must be fixed, not ignored);
-  * a regression: a cell that was correct in the committed report (review/atlas/atlas.json)
+  * a regression: a cell that was correct in the committed snapshot (review/atlas/atlas.json.gz)
     and now raises or is wrong.
 
 Paths (fast / generic / numpy) are reported by `python -m tests.atlas.report`, not asserted
@@ -13,6 +13,7 @@ here: they are performance facts, worked down in Phase N / C.5.
 """
 from __future__ import annotations
 
+import gzip
 import json
 import os
 
@@ -24,22 +25,16 @@ from tests.atlas.atlas import OPS, enumerate_cells, run_cell
 # remove the entry.
 KNOWN_GAPS: dict[str, str] = {}
 
-_REPORT = os.path.join(os.path.dirname(__file__), "..", "..", "review", "atlas", "atlas.json")
+_REPORT = os.path.join(os.path.dirname(__file__), "..", "..", "review", "atlas", "atlas.json.gz")
 
 
 def _previously_ok() -> set[str]:
     try:
-        with open(_REPORT) as f:
-            cells = json.load(f)
+        with gzip.open(_REPORT, "rt") as f:
+            snapshot = json.load(f)
     except (OSError, ValueError):
         return set()
-    keys = set()
-    for c in cells:
-        if c["outcome"] == "ok":
-            parts = [c["op"], c["dtype"] + (f"x{c['dtype2']}" if c["dtype2"] else ""),
-                     c["structure"] + (f"x{c['structure2']}" if c["structure2"] else ""), c["view"], c["storage"]]
-            keys.add("/".join(parts))
-    return keys
+    return {key for key, value in snapshot.items() if value.startswith("ok")}
 
 
 _CELLS = enumerate_cells(storages=("ram", "file"))
