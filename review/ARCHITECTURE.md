@@ -171,14 +171,32 @@ pybind lambda (bind_matrix.cpp)
 * Nested `ParallelFor` deadlocks, and the exception path can use-after-free (see
   FINDINGS).
 
-### 2.7 Evaluation model (no lazy expressions)
-Operators evaluate eagerly and return concrete matrices. The expression-template engine
-(`matrix/expression/*`, `MatrixOps.hpp`, `LazyMatrix`) was removed in session 3 (F-038): it
-was float-only, slower than eager evaluation in measurement, copied through `double`
-buffers, and produced a second-class object. O(1) work still exists as **views**: transpose,
-conjugation and float/complex scalar multiples share storage (view metadata on
-`PersistentObject`). Result structure for element-wise ops comes from one resolver,
-`structure::resolve_result_structure` (`src/core/StructureResolver.cpp`, F-039).
+### 2.7 Evaluation model: eager results, lazy views (spec: `review/features/LAZY.md`)
+Operators return ordinary matrices; laziness is invisible except for speed and memory. The
+old expression-template engine (`LazyMatrix`) was removed in session 3 (F-038). Lazy forms:
+* **Views** (view metadata on `PersistentObject`: factor, transpose, conjugation, offsets).
+  Float/complex scaling, transposes, conjugation, slices, and (session 5) **integer scale
+  views**: an exact integer factor (|k| <= 2^53, folded mod 2^64) applied with NumPy's
+  wrapping via `scalar::wrap_scale` (`core/ScalarUtils.hpp`). Created in `ScalarOps.cpp`
+  (`int_scale_view`).
+* **Closures**: `matrix/BitClosureMatrix.hpp`, `C ± Cᵀ` over a causal matrix's bits
+  (created by `add`/`subtract` in `LinearAlgebra.cpp`); matvec straight from the bits
+  (`CpuSolver::matrix_vector_multiply`), materializes in place on write.
+* **Readers must honour views.** Element-wise kernels read operands through `StridedReader`
+  (`CpuSolver.cpp`; transpose/offset/broadcast/factor/conjugation in the inner loop, exact for
+  integers) or `exact_int_reader` (structured integer operands). Element access/export in
+  `bind_matrix.cpp` (`element_get`, `export_dense_typed`). Writes fold a view first
+  (`fold_value_view_for_write`).
+* **Switch:** `pycauset::lazy_enabled()` / `_native._set_lazy(bool)`; CI runs the engine suite
+  with `PYCAUSET_LAZY=0` (lazy == eager oracle). `A.is_lazy`, `pycauset.materialize(A)`.
+* Result structure for element-wise ops: `structure::resolve_result_structure`
+  (`StructureResolver.cpp`), including packed results for `A ± Aᵀ` (L2a) and structured
+  results for every real dtype.
+
+### 2.7b Type dispatch
+`core/DTypeDispatch.hpp`: `visit_dtype`, `visit_matrix`, `visit_vector` turn a runtime
+(Structure, DataType) into the concrete class (one place instead of copy-pasted ladders);
+closures are dispatched there too. `dtype_name` / `structure_name` are the canonical names.
 
 ### 2.8 Physics in C++
 `causet/Spacetime.hpp` (native MinkowskiDiamond, Cylinder, Box) and `Sprinkler.cpp`
@@ -193,18 +211,18 @@ conjugation and float/complex scalar multiples share storage (view metadata on
 |---|---|---|
 | `bindings.cpp` | small | `PYBIND11_MODULE`, calls the `bind_*` functions |
 | `bind_core.cpp` | 273 | storage config, threads, memory threshold, IOAccelerator, hints |
-| `bind_matrix.cpp` | **~4,700** | every matrix class, operators (~8 overloads per operator; scalar overloads delegate to ScalarOps for int/bit), NumPy buffer protocol and generic native export (`export_dense_any`), construction from NumPy |
-| `bind_vector.cpp` | 1,371 | vector classes |
-| `bind_complex.cpp` | 174 | complex16 extras |
+| `bind_matrix.cpp` | ~3,500 | MatrixBase methods (generic over dtype via DTypeDispatch), the six structure classes, operators (scalar overloads delegate to ScalarOps), generic native export, construction from NumPy, `_open_storage` |
+| `bind_vector.cpp` | ~900 | VectorBase methods, DenseVector, UnitVector |
 | `bind_math.cpp` | | free functions (linalg) |
-| `bind_causet.cpp` | | native spacetimes, `sprinkle`, `make_coordinates` |
+| `bind_causet.cpp` | | native spacetimes, `sprinkle`, `make_coordinates`, `_transitive_reduction` (link matrix bit kernel) |
 | `bind_op_registry.cpp` | | OpRegistry introspection |
-| `bind_cuda.cpp` | | separate `_pycauset_cuda` module (ON HOLD) |
 | `binding_warnings.*`, `numpy_export_guard.hpp`, `bindings_common.hpp` | | helpers |
 
-Operator semantics are split between C++ overloads here and Python wrappers in
-`_internal/`, and neither side is complete. Unary minus (`__neg__`) is not defined
-anywhere, and `int * Matrix` fails for most dtypes (F-002).
+`bindings_common.hpp` holds the pybind11 polymorphic type hook that maps every C++
+instantiation to its structure class (one Python class per structure, `.dtype` attribute).
+`element_conversion.hpp`: Python value -> element with NumPy assignment rules. Operator
+semantics are still split between C++ overloads and Python wrappers in `_internal/`
+(PLAN 4.3).
 
 ---
 
