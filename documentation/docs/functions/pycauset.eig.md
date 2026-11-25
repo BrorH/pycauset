@@ -15,10 +15,7 @@ A pair `(w, v)` where:
 
 ## Backend
 
-- Prefers the native backend, which routes through the AutoSolver cost model:
-  the operation runs on the GPU when the GPU is active **and** the model predicts
-  it wins, otherwise on the CPU.
-- On CUDA builds the GPU path uses cuSOLVER `geev`.
+- Native: LAPACK `geev` on the CPU.
 - Falls back to NumPy (`numpy.linalg.eig`) if the native backend cannot handle
   the input.
 

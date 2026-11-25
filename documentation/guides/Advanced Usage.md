@@ -56,18 +56,7 @@ print(pc.get_num_threads())
 The default is the machine's CPU count. `pc.configure_openblas_threads()` reapplies
 the current thread setting to the OpenBLAS pool if the build uses it.
 
-## 5. Backend override (debug)
-
-The autosolver normally routes each operation to CPU or GPU by cost. You can force a
-device. `pycauset.cuda` is safe to import on a CPU-only install: the controls are
-no-ops when no CUDA device is present.
-
-```python
-pc.cuda.is_available()      # bool
-pc.cuda.force_backend("cpu")  # or "gpu" (raises if unavailable), "auto"
-```
-
-## 6. IO trace observability
+## 5. IO trace observability
 
 The IO layer records routing decisions. Read the most recent one, or filter by
 operation name, when you want to see why something streamed or stayed in RAM.

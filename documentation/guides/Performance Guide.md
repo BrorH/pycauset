@@ -1,13 +1,16 @@
-# Performance and Acceleration Guide
+# Performance Guide
 
-PyCauset picks the fastest backend for your hardware through one **Compute Context**. This guide explains how the GPU acceleration works, how precision (Float32 vs Float64) is handled, and how to achieve maximum throughput.
+PyCauset runs on the CPU: OpenMP for element-wise kernels, OpenBLAS/LAPACK for products,
+solves and decompositions. This page covers what is fast, what to avoid, and the few
+settings that matter. (A CUDA backend exists in `experimental/cuda` but is not built or
+supported.)
 
-## Threads (CPU)
+## Threads
 
-PyCauset's element-wise kernels use OpenMP; matrix products, solves and decompositions use
-OpenBLAS/LAPACK. NumPy brings its own OpenBLAS. By default each of these thread pools keeps
-its threads spinning after a call (OpenBLAS for about 0.1 s), which starves whichever pool
-runs next: alternating NumPy and PyCauset calls could make either one ~3× slower.
+NumPy brings its own OpenBLAS. By default each thread pool (OpenMP, PyCauset's OpenBLAS,
+NumPy's OpenBLAS) keeps its threads spinning after a call (OpenBLAS for about 0.1 s), which
+starves whichever pool runs next: alternating NumPy and PyCauset calls made either one up
+to ~3× slower.
 
 `import pycauset` therefore sets two defaults before any BLAS library loads (values you set
 yourself are kept):
@@ -21,229 +24,60 @@ NumPy's OpenBLAS reads the variable when NumPy is first imported, so **import py
 before numpy** (or export `OPENBLAS_THREAD_TIMEOUT=4` in your shell) to cover NumPy's
 threads as well.
 
-## 1. GPU Acceleration
+## How fast, compared with NumPy
 
-PyCauset has a CUDA backend. It needs no configuration: it detects a compatible GPU on its own and falls back to the CPU when there is none.
+Measured on a 4-vCPU Linux machine (`benchmarks/r2_parity.py`, float64, N = 1024; ratios
+vary by about ±10% between runs):
 
-### Features
+| operation | PyCauset vs NumPy |
+|---|---|
+| `A @ B`, `solve`, `eigh`, `dot`, export to NumPy | at parity (0.9–1.1×) |
+| `A + B`, `A * B`, `A + s` | at parity at N = 1024; 2–3× faster at N = 3000 (multithreaded) |
+| `inv`, `det` | 0.7–1.0× |
 
-*   **Automatic Detection**: The ComputeContext checks for a CUDA-capable GPU at startup.
-*   **Dynamic Loading**: The GPU backend is a separate plugin (`pycauset_cuda.dll` / `.so`). You do not need CUDA installed to run PyCauset on a CPU-only machine.
-*   **Out-of-Core Processing**: Operations handle matrices larger than the GPU's VRAM by streaming between disk, RAM, and VRAM.
+Where PyCauset is structurally ahead:
 
-### Requirements
+* **Causal (bit) matrices.** A causal matrix stores 1 bit per relation: 8× less than a
+  NumPy `bool` array, 64× less than float64. Products of bit matrices use word-level
+  popcount kernels (n = 2000: 0.05 s, versus 0.11 s for a float64 BLAS product and seconds
+  for NumPy's `bool @ bool`). `pc.sum(C)` counts the relations from the bits (n = 20,000
+  in 2 ms).
+* **Structured results.** `C + C.T` and `C - C.T` are read from `C`'s bits without being
+  written out, and iterative eigensolvers work on them directly: the top of the spectrum of
+  `C - C.T` for n = 20,000 in about 2 s and 100 MB. See the
+  [[guides/Lazy Evaluation|Lazy Evaluation guide]].
+* **Exact integers.** Integer matrix products run exactly through float64 BLAS when the
+  values provably fit (50× faster than an integer kernel); sums and dot products of integer
+  arrays are exact Python ints.
+* **Larger than RAM.** Matrices above the memory threshold are file-backed (memory-mapped)
+  and operations work on them out of core.
 
-To use the GPU acceleration, you need:
+## Memory: RAM first, then disk
 
-1.  **Hardware**: An NVIDIA GPU with Compute Capability 6.0 or higher (Pascal or newer).
-2.  **Drivers**: Up-to-date NVIDIA Drivers.
-3.  **Software**: The `pycauset_cuda` plugin must be present in the library directory (installed automatically if built with CUDA support).
-
-### Supported Operations
-
-The following operations are currently accelerated via the AutoSolver:
-*   **Matrix Multiplication** (`matmul`, `*` operator):
-    *   Uses `cuBLAS` for high-performance GEMM (Float32/Float64).
-    *   **BitMatrices**: `DenseMatrix` (dtype `bool`) and `TriangularMatrix` (dtype `bool`) multiplication is **fully accelerated** using custom bit-packed kernels. This allows for extremely fast path counting and transitive closure operations (up to 64x faster than float operations).
-*   **Matrix Inversion** (`inverse`):
-    *   Uses `cuSOLVER` LU factorization.
-*   **General eigen-decomposition** (`eig`, `eigvals`):
-    *   Uses `cuSOLVER` `geev` for Float32/Float64. Eigenvalues are complex;
-      eigenvectors are returned for `eig`.
-
-### Streaming constraints
-
-GPU acceleration assumes **streaming-first** execution. Operations that exceed VRAM are tiled and pipelined so the CPU can prepare the next batch while the GPU computes.
-
-**Constraints to know:**
-- Routing may prefer CPU for medium sizes if PCIe transfer cost dominates (the cost model compares transfer + compute against CPU throughput, and only selects the GPU when it wins).
-- Host buffers are pinned **on demand** during GPU transfers (`ScopedPinner`), so CPU-side workloads keep ordinary pageable memory and are not slowed by page-locked allocations.
-- Some operations remain CPU-only until GPU kernels are implemented (routing is explicit and testable).
-
-#### Minimal example (force streaming decisions)
+Matrices live in RAM until their size passes the memory threshold; larger ones are backed by
+files in the backing directory and memory-mapped.
 
 ```python
 import pycauset as pc
 
-# Lower the IO streaming threshold to force streaming routing.
-pc.set_io_streaming_threshold(64)  # bytes
-
-A = pc.Matrix(128, 128)
-B = pc.Matrix(128, 128)
-C = A @ B
+pc.set_backing_dir("./storage")                # where file-backed matrices go
+pc.set_memory_threshold(256 * 1024**2)         # bytes; larger matrices use files
 ```
 
-#### Practical example (disk-backed matrices)
+Operations on file-backed matrices stream through RAM in tiles; the threshold for that is
+`pc.set_io_streaming_threshold(bytes)`.
 
-```python
-import pycauset as pc
-from pathlib import Path
+## Things to avoid
 
-pc.set_backing_dir(Path("./storage"))
-pc.set_memory_threshold(256 * 1024 * 1024)  # 256 MB
-
-# This forces a file-backed matrix on most machines.
-A = pc.DenseMatrix(50000, dtype="float64")
-A.set_identity()
-
-B = pc.DenseMatrix(50000, dtype="float64")
-B.fill(1.0)
-
-C = A @ B  # streaming route if thresholds are exceeded
-```
-
-### Routing policy and control
-
-PyCauset routes operations through a cost model that weighs PCIe transfer time against GPU compute throughput. The first time a GPU is used, PyCauset runs a small benchmark and caches it to `~/.pycauset/hardware_profile.json`.
-
-#### Minimal example
-
-```python
-import pycauset as pc
-
-pc.cuda.enable()
-pc.cuda.benchmark(force=False)  # warm the hardware profile cache
-```
-
-#### Practical example (deterministic routing)
-
-```python
-import pycauset as pc
-
-pc.cuda.enable()
-pc.cuda.force_backend("cpu")  # force CPU for validation
-C_cpu = pc.Matrix(2048, 2048) @ pc.Matrix(2048, 2048)
-
-pc.cuda.force_backend("gpu")  # prefer GPU for throughput
-C_gpu = pc.Matrix(2048, 2048) @ pc.Matrix(2048, 2048)
-
-pc.cuda.force_backend("auto")
-```
-
-## 2. Precision and Types
-
-PyCauset respects the user's choice of type but employs smart defaults to maximize performance on consumer hardware.
-
-### Automatic Hardware Detection
-
-When PyCauset initializes, the ComputeContext queries your system:
-
-*   **CPU**: Detects AVX2/AVX-512 support for vectorized operations.
-*   **GPU**: Checks for CUDA-capable devices.
-    *   **Consumer GPUs (GeForce GTX/RTX)**: Typically default to **Float32** due to hardware constraints (poor Float64 performance).
-    *   **Data Center GPUs (Tesla/A100)**: May default to **Float64** if supported.
-
-### Default Behavior
-
-When you convert a NumPy array to a PyCauset matrix using `pycauset.matrix()`:
-
-1.  **Float32 Input**: Always creates a `DenseMatrix` (dtype `float32`).
-2.  **Float64 Input (Standard NumPy)**:
-    *   If your hardware prefers Float32 (e.g., GTX 1060), PyCauset will **automatically downcast** to `DenseMatrix` (dtype `float32`) for a 15-30x speedup.
-    *   If your hardware supports fast Float64, it creates a `Float64Matrix`.
-
-### Benchmarks (Example: GTX 1060)
-
-*   **Float64**: ~135 GFLOPS
-*   **Float32**: ~4400 GFLOPS (**32x faster**)
-
-PyCauset ensures you get this speedup by default.
-
-# 3. Where PyCauset is Faster than NumPy
-
-PyCauset isn’t faster at everything, but it is **decidably faster** in specific large-scale regimes.
-
-### 1. Out-of-Core Processing (Infinite Speedup)
-Standard NumPy crashes with `MemoryError` if a matrix exceeds RAM.
-*   **PyCauset**: Transparently tiles operations on disk-backed matrices (up to Terabytes).
-*   **Result**: Infinite speedup (vs crash).
-
-### 2. High-Bandwidth I/O (up to 10x faster)
-PyCauset uses a multithreaded "Direct Path" for loading/saving data and importing/exporting from NumPy, bypassing python loop overhead.
-*   **Contiguous Write**: **~10.0x faster** than standard `np.tofile` or pickle for large buffers (>1GB).
-*   **Import**: **~2.7x faster** for importing non-contiguous (sliced) NumPy arrays.
-
-### 3. Bit-Packed Boolean Math (up to 64x faster)
-NumPy stores booleans as 8-bit bytes (`bool_`). PyCauset stores them as 1-bit packs (`DenseMatrix` (dtype `bool`)).
-*   **Storage**: 8x smaller RAM footprint.
-*   **Matmul**: 64x faster (using specialized bit-block kernels).
-
-### 4. Mixed-Precision GPU Offloading
-NumPy is CPU-only. PyCauset sends large `matmul` and `inverse` ops to CUDA without you having to manage device memory.
-*   **Latency**: Lower for small ops (don't use GPU for 10x10 matrices).
-*   **Throughput**: Orders of magnitude higher for large matrices (e.g., 4000x4000).
-
-## 4. Memory Management Strategy
-
-PyCauset uses a **"RAM-First"** architecture to maximize speed.
-
-1.  **Use all available RAM**: PyCauset keeps matrices in memory up to the threshold for speed.
-2.  **Automatic Disk Spillover**: When physical RAM is exhausted, the system can spill by switching to file-backed (memory-mapped) storage (for example `.tmp` backing files under the backing directory).
-3.  **Hybrid Async Pipeline**:
-    *   **Small Matrices**: If a matrix fits entirely in VRAM, it is uploaded once and processed at maximum speed.
-    *   **Large Matrices**: If a matrix exceeds VRAM (or the configured memory_limit), the system automatically switches to **Streaming Mode**.
-        *   **CPU Parallelism**: The CPU uses multi-threading to pack data into pinned memory buffers.
-        *   **GPU Overlap**: The GPU computes the current chunk while the CPU prepares the next one.
-
-## 5. GPU Configuration
-
-While PyCauset works out-of-the-box, power users can fine-tune the behavior through the ComputeContext (exposed via `pycauset.cuda` for backward compatibility):
-
-```python
-import pycauset.cuda
-
-# Enable with specific settings
-pycauset.cuda.enable(
-    device_id=0,              # Select specific GPU
-    memory_limit=4*1024**3,   # Limit VRAM usage to 4GB
-    enable_async=True         # Enable/Disable Async Pipelining
-)
-
-# Optional: override the pinned-memory budget (bytes)
-pycauset.cuda.set_pinning_budget(2 * 1024**3)
-```
-
-Additional controls:
-
-```python
-import pycauset as pc
-
-pc.cuda.is_available()        # True/False
-pc.cuda.current_device()      # Human-readable device label
-pc.cuda.force_backend("gpu")  # Force GPU routing (or "cpu", "auto")
-pc.cuda.benchmark(force=True) # Recompute hardware profile + cache
-pc.cuda.disable()             # Disable GPU routing
-```
-
-Hardware profile cache:
-
-- Stored at `~/.pycauset/hardware_profile.json`.
-- Delete the file to force a clean re-benchmark.
-- `pc.cuda.benchmark(force=True)` always regenerates the profile.
-
-## 6. Troubleshooting
-
-If you believe you have a GPU but PyCauset is using the CPU:
-
-1.  Check if `pycauset.cuda.is_available()` returns `True`.
-2.  Ensure `pycauset_cuda.dll` (Windows) or `libpycauset_cuda.so` (Linux) exists in the installation folder.
-3.  Verify your NVIDIA drivers are installed and working (run `nvidia-smi`).
+* **Element-by-element loops in Python** (`for i ...: A[i, j]`): each access is a Python
+  call. Use whole-matrix operations, slicing, or `np.asarray(A)` once.
+* **Converting back and forth with NumPy inside a loop**: each `np.asarray(A)` copies the
+  matrix.
 
 ## See also
 
-- [[docs/functions/pycauset.cuda.enable.md|pycauset.cuda.enable]]
-- [[docs/functions/pycauset.cuda.force_backend.md|pycauset.cuda.force_backend]]
-- [[docs/functions/pycauset.cuda.benchmark.md|pycauset.cuda.benchmark]]
-- [[docs/functions/pycauset.cuda.set_pinning_budget.md|pycauset.cuda.set_pinning_budget]]
 - [[docs/functions/pycauset.set_backing_dir.md|pycauset.set_backing_dir]]
 - [[docs/functions/pycauset.set_memory_threshold.md|pycauset.set_memory_threshold]]
-- [[internals/Compute Architecture.md|Compute Architecture]]
+- [[docs/functions/pycauset.set_io_streaming_threshold.md|pycauset.set_io_streaming_threshold]]
+- [[guides/Lazy Evaluation|Lazy Evaluation]]
 - [[internals/Streaming Manager.md|Streaming Manager]]
-
-## 7. Evaluation and O(1) views
-
-Arithmetic is evaluated eagerly: `C = A + B` computes `C` and returns an ordinary matrix.
-Some operations are O(1) metadata views instead of computations: transposition (`A.T`),
-conjugation, and multiplying a float/complex matrix by a scalar (`A * 3.5`) share storage
-with `A`. Integer and bit matrices are scaled for real, so their results have NumPy's dtypes.
-

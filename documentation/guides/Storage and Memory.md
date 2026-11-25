@@ -90,7 +90,7 @@ A.properties["is_upper_triangular"] = True
 Currently, the property system is implemented primarily in the **Python layer**:
 - The `properties` dictionary is injected into the native object at runtime (via `python/pycauset/_internal/properties.py`).
 - C++ kernels currently see physical metadata (shape/dtype) but not these semantic properties directly.
-- **Future Integration:** A mechanism to mirror these high-impact flags to C++ (e.g., via a bitmask) is planned so that backend drivers (like the GPU engine) can inspect them without crossing the Python boundary.
+- **Future Integration:** A mechanism to mirror these high-impact flags to C++ (e.g., via a bitmask) is planned so that C++ kernels can inspect them without crossing the Python boundary.
 
 ## Where backing files go (temporary storage)
 

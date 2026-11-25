@@ -75,10 +75,3 @@
 * **[[docs/functions/pycauset.set_export_max_bytes.md|set_export_max_bytes]]**
 * **[[docs/functions/pycauset.set_memory_threshold.md|set_memory_threshold]]**
 * **[[docs/functions/pycauset.set_num_threads.md|set_num_threads]]**
-* **[[docs/functions/pycauset.cuda.is_available.md|pycauset.cuda.is_available]]**
-* **[[docs/functions/pycauset.cuda.enable.md|pycauset.cuda.enable]]**
-* **[[docs/functions/pycauset.cuda.disable.md|pycauset.cuda.disable]]**
-* **[[docs/functions/pycauset.cuda.current_device.md|pycauset.cuda.current_device]]**
-* **[[docs/functions/pycauset.cuda.force_backend.md|pycauset.cuda.force_backend]]**
-* **[[docs/functions/pycauset.cuda.set_pinning_budget.md|pycauset.cuda.set_pinning_budget]]**
-* **[[docs/functions/pycauset.cuda.benchmark.md|pycauset.cuda.benchmark]]**

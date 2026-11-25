@@ -36,14 +36,10 @@ Attempting to invert these matrices will raise a `RuntimeError`.
 
 The [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `float64`) class supports general matrix inversion.
 
-### Algorithms
+### Algorithm
 
-1.  **CPU**: Uses a parallel **Block Gauss-Jordan** elimination algorithm. This inverts dense matrices using multiple CPU cores.
-2.  **GPU**: If a CUDA-capable GPU is detected, PyCauset uses **cuSOLVER** (LU Decomposition).
-    *   **In-Core**: For matrices that fit in VRAM, it uses standard dense solvers.
-    *   **Out-of-Core**: For massive matrices, it uses a **Streaming Blocked LU** algorithm that streams data between Disk/RAM and GPU, allowing inversion of matrices larger than GPU memory.
-
-**Performance Note**: For large matrices ($N \ge 1000$) it uses all available threads, or the GPU.
+LAPACK LU factorization and inversion (`getrf` + `getri`, multithreaded through OpenBLAS),
+the same routines NumPy uses.
 
 **Note**: [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`) and [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `bool`) are also dense, but direct inversion is not supported to avoid ambiguity (integer inversion usually results in floats). To invert them, convert them to [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `float64`) first.
 

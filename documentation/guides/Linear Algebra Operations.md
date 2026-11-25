@@ -114,7 +114,6 @@ val, logabsdet = pc.slogdet(A)
 - Respect user dtype; no silent promotion except documented mixes (float32 with float64 →
   float32 with a `PyCausetDTypeWarning`, integer with float → a float wide enough for the
   integer, bit arithmetic → int32 counts). Cast inputs to float64 to compute in float64.
-- GPU routing is op- and dtype-dependent; when unsupported, the call falls back to CPU or raises a deterministic error. See [[guides/Performance Guide.md|Performance Guide]].
 
 ## Indexing/slicing recap
 

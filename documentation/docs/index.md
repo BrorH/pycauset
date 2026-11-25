@@ -27,6 +27,3 @@ This section contains the detailed API documentation for the PyCauset library.
 *   **[[docs/functions/pycauset.to_numpy.md|pycauset.to_numpy]]**: Materialize a PyCauset object as a NumPy array.
 *   **[[docs/functions/pycauset.compute_k.md|pycauset.compute_k]]**: Propagator-related helper.
 
-## CUDA
-
-*   **[[docs/functions/pycauset.cuda.is_available.md|pycauset.cuda]]**: GPU backend controls (`enable`, `disable`, `force_backend`, `benchmark`, `current_device`, `set_pinning_budget`).

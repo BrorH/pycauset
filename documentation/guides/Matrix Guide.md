@@ -194,24 +194,6 @@ Views with storage offsets are rejected by `matmul`, `qr`, `lu`, and `inverse`; 
 
 See also: [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]], [[project/protocols/NumPy Alignment Protocol.md|NumPy Alignment Protocol]], [[guides/Storage and Memory.md|Storage and Memory]]
 
-## GPU Acceleration
-
-If a compatible NVIDIA GPU is detected, PyCauset will automatically accelerate:
-*   **Multiplication**: $A \times B$ for Float64, Float32, and Boolean matrices.
-*   **Inversion**: $A^{-1}$ for Float64 and Float32 matrices.
-
-**Boolean Matrix Acceleration:**
-Multiplying `DenseMatrix` (dtype `bool`) (boolean) on the GPU is highly optimized. It uses bit-packing to perform 64 operations per cycle, making it ideal for path counting in large causal sets.
-
-```python
-A = pc.zeros((4096, 4096), dtype=bool)
-B = pc.zeros((4096, 4096), dtype=bool)
-# ... fill matrices ...
-
-# Extremely fast GPU multiplication
-C = A @ B 
-```
-
 ## Matrix Multiplication (`matmul`)
 
 Matrix multiplication is performed using [[docs/functions/pycauset.matmul.md|pycauset.matmul]](A, B). It follows the standard shape rule: `A.cols() == B.rows()` and returns a matrix of shape `(A.rows(), B.cols())`.

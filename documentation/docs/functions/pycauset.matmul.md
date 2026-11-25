@@ -45,7 +45,7 @@ Determinism:
 
 - Fixed `k` order for each output block’s accumulation.
 - Accumulator dtype is chosen from operand dtype metadata only (folding add-result dtype across terms) before evaluation.
-- Leaf matmul runs through the public compute boundary (AutoSolver) per block; complex blocks route to CPU on CUDA builds.
+- Leaf matmul runs through the public compute boundary (AutoSolver) per block.
 
 See [[internals/Block Matrices.md|Block Matrices]] for details.
 

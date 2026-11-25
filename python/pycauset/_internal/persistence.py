@@ -52,6 +52,30 @@ _PAYLOAD_LAYOUT = {
 }
 
 _CACHED_DERIVED_PROPERTY_KEYS = {"trace", "determinant", "norm", "sum", "eigenvalues"}
+_CACHED_SCALAR_KEYS = ("trace", "determinant", "norm", "sum")
+
+
+def _encode_number(value: Any) -> Any:
+    """JSON form of a cached scalar keeping its kind: int (exact, as a string), float, [re, im]."""
+    if isinstance(value, complex):
+        return [float(value.real), float(value.imag)]
+    if isinstance(value, int) and not isinstance(value, bool):
+        return {"int": str(value)}
+    return float(value)
+
+
+def _decode_number(value: Any) -> Any:
+    """Inverse of _encode_number; None for anything malformed."""
+    try:
+        if isinstance(value, dict) and "int" in value:
+            return int(value["int"])
+        if isinstance(value, list) and len(value) == 2:
+            return complex(float(value[0]), float(value[1]))
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+    except (TypeError, ValueError):
+        return None
+    return None
 
 
 def _extract_properties_for_persistence(obj: Any) -> dict[str, Any]:
@@ -759,37 +783,13 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             is_conjugated=bool(view["is_conjugated"]),
             scalar=scalar,
         )
-        trace_val = props_all.get("trace")
-        if trace_val is not None:
-            cached["trace"] = {
-                "value": float(trace_val),
-                "signature": {"payload_uuid": payload_uuid, "view_signature": view_sig},
-            }
-        det_val = props_all.get("determinant")
-        if det_val is not None:
-            cached["determinant"] = {
-                "value": float(det_val),
-                "signature": {"payload_uuid": payload_uuid, "view_signature": view_sig},
-            }
-        norm_val = props_all.get("norm")
-        if norm_val is not None:
-            cached["norm"] = {
-                "value": float(norm_val),
-                "signature": {"payload_uuid": payload_uuid, "view_signature": view_sig},
-            }
-        sum_val = props_all.get("sum")
-        if sum_val is not None:
-            # int (exact, as a decimal string: JSON numbers lose precision), float, or [re, im].
-            if isinstance(sum_val, int):
-                value = {"int": str(sum_val)}
-            elif isinstance(sum_val, complex):
-                value = [float(sum_val.real), float(sum_val.imag)]
-            else:
-                value = float(sum_val)
-            cached["sum"] = {
-                "value": value,
-                "signature": {"payload_uuid": payload_uuid, "view_signature": view_sig},
-            }
+        for key in _CACHED_SCALAR_KEYS:
+            value = props_all.get(key)
+            if value is not None:
+                cached[key] = {
+                    "value": _encode_number(value),
+                    "signature": {"payload_uuid": payload_uuid, "view_signature": view_sig},
+                }
         eigen_val = props_all.get("eigenvalues")
         if eigen_val is not None:
             cached["eigenvalues"] = {
@@ -966,62 +966,17 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
 
     cached = metadata.get("cached", {})
     if isinstance(cached, dict):
-        trace_entry = cached.get("trace")
-        if (
-            isinstance(trace_entry, dict)
-            and trace_entry.get("value") is not None
-            and isinstance(trace_entry.get("signature"), dict)
-            and trace_entry["signature"].get("payload_uuid") == payload_uuid
-            and trace_entry["signature"].get("view_signature") == view_sig
-        ):
-            try:
-                obj.properties["trace"] = float(trace_entry["value"])
-            except Exception:
-                pass
-
-        det_entry = cached.get("determinant")
-        if (
-            isinstance(det_entry, dict)
-            and det_entry.get("value") is not None
-            and isinstance(det_entry.get("signature"), dict)
-            and det_entry["signature"].get("payload_uuid") == payload_uuid
-            and det_entry["signature"].get("view_signature") == view_sig
-        ):
-            try:
-                obj.properties["determinant"] = float(det_entry["value"])
-            except Exception:
-                pass
-
-        norm_entry = cached.get("norm")
-        if (
-            isinstance(norm_entry, dict)
-            and norm_entry.get("value") is not None
-            and isinstance(norm_entry.get("signature"), dict)
-            and norm_entry["signature"].get("payload_uuid") == payload_uuid
-            and norm_entry["signature"].get("view_signature") == view_sig
-        ):
-            try:
-                obj.properties["norm"] = float(norm_entry["value"])
-            except Exception:
-                pass
-
-        sum_entry = cached.get("sum")
-        if (
-            isinstance(sum_entry, dict)
-            and isinstance(sum_entry.get("signature"), dict)
-            and sum_entry["signature"].get("payload_uuid") == payload_uuid
-            and sum_entry["signature"].get("view_signature") == view_sig
-        ):
-            value = sum_entry.get("value")
-            try:
-                if isinstance(value, dict) and "int" in value:
-                    obj.properties["sum"] = int(value["int"])
-                elif isinstance(value, list) and len(value) == 2:
-                    obj.properties["sum"] = complex(float(value[0]), float(value[1]))
-                elif isinstance(value, (int, float)):
-                    obj.properties["sum"] = float(value)
-            except Exception:
-                pass
+        for key in _CACHED_SCALAR_KEYS:
+            entry = cached.get(key)
+            if (
+                isinstance(entry, dict)
+                and isinstance(entry.get("signature"), dict)
+                and entry["signature"].get("payload_uuid") == payload_uuid
+                and entry["signature"].get("view_signature") == view_sig
+            ):
+                value = _decode_number(entry.get("value"))
+                if value is not None:
+                    obj.properties[key] = value
 
         eigen_entry = cached.get("eigenvalues")
         if (
