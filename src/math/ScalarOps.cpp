@@ -15,6 +15,7 @@
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
+#include "pycauset/matrix/SymmetricMatrix.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
 
 namespace pycauset {
@@ -395,6 +396,12 @@ std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op,
     PYCAUSET_TRY_TRI(int8_t) PYCAUSET_TRY_TRI(int16_t) PYCAUSET_TRY_TRI(int32_t) PYCAUSET_TRY_TRI(int64_t)
     PYCAUSET_TRY_TRI(uint8_t) PYCAUSET_TRY_TRI(uint16_t) PYCAUSET_TRY_TRI(uint32_t) PYCAUSET_TRY_TRI(uint64_t)
     PYCAUSET_TRY_TRI(float) PYCAUSET_TRY_TRI(double)
+#define PYCAUSET_TRY_SYM(T)                                                                \
+    if (auto* m = dynamic_cast<const SymmetricMatrix<T>*>(&a); m && plain && is_int(a.get_data_type())) \
+        return run<R, T>(*m, a, op, s, false, false);
+    PYCAUSET_TRY_SYM(int8_t) PYCAUSET_TRY_SYM(int16_t) PYCAUSET_TRY_SYM(int32_t) PYCAUSET_TRY_SYM(int64_t)
+    PYCAUSET_TRY_SYM(uint8_t) PYCAUSET_TRY_SYM(uint16_t) PYCAUSET_TRY_SYM(uint32_t) PYCAUSET_TRY_SYM(uint64_t)
+#undef PYCAUSET_TRY_SYM
 #undef PYCAUSET_TRY_DENSE
 #undef PYCAUSET_TRY_TRI
     return run_generic<R>(a, op, s);
@@ -424,7 +431,8 @@ std::unique_ptr<MatrixBase> run_exact(const MatrixBase& a, DataType out, ScalarO
 // Shared-storage view of an integer matrix scaled by k (nullptr when not representable).
 std::unique_ptr<MatrixBase> int_scale_view(const MatrixBase& a, int64_t k) {
     const Structure st = a.get_structure();
-    if ((st != Structure::DENSE && st != Structure::TRIANGULAR) || a.is_conjugated()) return nullptr;
+    if ((st != Structure::DENSE && st != Structure::TRIANGULAR && st != Structure::SYMMETRIC &&
+         st != Structure::ANTISYMMETRIC) || a.is_conjugated()) return nullptr;
     int64_t f = 0;
     if (!scalar::fold_int_factors(a.get_scalar(), k, f)) return nullptr;
     auto c = a.clone();

@@ -252,6 +252,9 @@ Each was checked on a real causal matrix (n = 600, `review/LOG.md` session 5).
    worth it only beyond RAM. Measure before building.
 
 ### Rejected or not worth it
+- **Vector and diagonal scale views** (session 5 decision): these objects are O(n); a scaling copy
+  costs ~1 ms per million elements, while each view type adds reader surface that must be
+  proven correct. Views stay for the O(n²) structures. Revisit only if profiling says otherwise.
 - **Lazy element-wise functions in general** (`exp(A)`, `A ** 0.5` element-wise): a view
   would recompute the function on every read. Only kept as fusion inside L5.
 - **Lazy comparisons and masks** (`C & ~(C @ C)`) as standalone objects: eager. Their common

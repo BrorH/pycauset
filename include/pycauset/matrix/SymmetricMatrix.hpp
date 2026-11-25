@@ -147,14 +147,22 @@ public:
         if (scalar_ == 1.0) {
             return static_cast<double>(get(i, j));
         }
+        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+            // Integer views (F-042): NumPy wrapping.
+            return static_cast<double>(pycauset::scalar::wrap_scale(get(i, j), static_cast<int64_t>(scalar_.real())));
+        }
         return (static_cast<double>(get(i, j)) * scalar_).real();
     }
 
     std::complex<double> get_element_as_complex(uint64_t i, uint64_t j) const override {
-        if (scalar_ == 1.0) {
-            return std::complex<double>(static_cast<double>(get(i, j)), 0.0);
+        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+            return {get_element_as_double(i, j), 0.0};
+        } else {
+            if (scalar_ == 1.0) {
+                return std::complex<double>(static_cast<double>(get(i, j)), 0.0);
+            }
+            return static_cast<double>(get(i, j)) * scalar_;
         }
-        return static_cast<double>(get(i, j)) * scalar_;
     }
 
     void set_element_as_double(uint64_t i, uint64_t j, double value) override {

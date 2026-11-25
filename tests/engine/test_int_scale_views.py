@@ -141,3 +141,35 @@ def test_mixed_consumers_of_integer_views(rng):
     np.testing.assert_allclose(pc.norm(v), np.linalg.norm(ref))
     c = pc.causal_matrix(6, seed=2)
     np.testing.assert_array_equal(to_np(c @ v), to_np(c).astype(np.int32) @ ref)
+
+
+def _sym_int(kind, dtype, rng):
+    m = (pc.SymmetricMatrix if kind == "symmetric" else pc.AntiSymmetricMatrix)(N, dtype=dtype)
+    for i in range(N):
+        for j in range(i if kind == "symmetric" else i + 1, N):
+            m[i, j] = int(rng.integers(-40, 40))
+    if dtype == "int64":
+        m[0, 1] = 2**62 + 77
+    return m
+
+
+@pytest.mark.parametrize("kind", ["symmetric", "antisymmetric"])
+@pytest.mark.parametrize("dtype", ["int8", "int32", "int64"])
+@pytest.mark.parametrize("k", [3, -2])
+def test_symmetric_integer_views(kind, dtype, k, rng, tmp_path):
+    m = _sym_int(kind, dtype, rng)
+    a = to_np(m)
+    v = m * k
+    assert type(v) is type(m) and v.dtype == dtype and v.scalar == k  # O(1) view
+    ref = _np_scale(a, k)
+    np.testing.assert_array_equal(to_np(v), ref)
+    np.testing.assert_array_equal(np.array([[v[i, j] for j in range(N)] for i in range(N)]), ref)
+    np.testing.assert_array_equal(to_np(v.T), ref.T)
+    np.testing.assert_array_equal(to_np(-v), (np.zeros_like(ref) - ref))
+    np.testing.assert_array_equal(to_np(v * 5), _np_scale(ref, 5))
+    np.testing.assert_array_equal(to_np(v + 1), ref + ref.dtype.type(1))
+    with np.errstate(over="ignore"):
+        np.testing.assert_array_equal(to_np(v + pc.matrix(np.ones((N, N), dtype=dtype))), ref + np.ones_like(ref))
+    p = tmp_path / "s.pycauset"
+    pc.save(v, p)
+    np.testing.assert_array_equal(to_np(pc.load(p)), ref)

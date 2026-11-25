@@ -60,6 +60,7 @@
 #include <filesystem>
 #include <vector>
 #include <cstring>
+#include <functional>
 #include "pycauset/core/DTypeDispatch.hpp"
 #include "pycauset/math/ScalarOps.hpp"
 #include <iostream>
@@ -2475,6 +2476,34 @@ namespace {
         }
     }
 
+    // Exact element reader for integer results over any structure (resolved once per operand):
+    // reads in the operand's own type and applies an integer view factor with wrapping.
+    // Returns an empty function when the operand isn't integer/bit-typed.
+    template <typename T>
+    std::function<T(uint64_t, uint64_t)> exact_int_reader(const MatrixBase& m) {
+        const bool scaled = m.get_scalar() != std::complex<double>(1.0, 0.0);
+        if (scaled && !pycauset::scalar::is_exact_int_factor(m.get_scalar())) return {};
+        const int64_t k = static_cast<int64_t>(m.get_scalar().real());
+        try {
+            return pycauset::visit_matrix(m, [&](const auto& typed) -> std::function<T(uint64_t, uint64_t)> {
+                using M = std::decay_t<decltype(typed)>;
+                using E = std::decay_t<decltype(typed.get(uint64_t{0}, uint64_t{0}))>;
+                if constexpr (std::is_integral_v<E>) {
+                    const M* p = &typed;
+                    return [p, k, scaled](uint64_t i, uint64_t j) {
+                        E v = p->get(i, j);
+                        if (scaled) v = pycauset::scalar::wrap_scale(v, k);
+                        return static_cast<T>(v);
+                    };
+                } else {
+                    return {};
+                }
+            });
+        } catch (const std::exception&) {
+            return {};
+        }
+    }
+
     template <typename T, typename Op>
     void binary_op_impl(const MatrixBase& a, const MatrixBase& b, MatrixBase& result, Op op) {
         const uint64_t rows = result.rows();
@@ -2557,7 +2586,22 @@ namespace {
                 return;
             }
 
-            // Per-element fallback (bit / float16 / complex16 / structured operands).
+            // Per-element fallback (bit / float16 / complex16 / structured operands). Integer
+            // results read integer operands exactly (int64 beyond 2^53, wrapping views).
+            if constexpr (std::is_integral_v<T>) {
+                auto ea = exact_int_reader<T>(a);
+                auto eb = exact_int_reader<T>(b);
+                if (ea && eb) {
+                    ParallelFor(0, rows, [&](size_t i) {
+                        for (size_t j = 0; j < cols; ++j) {
+                            const T va = ea(broadcast_index(i, a.rows()), broadcast_index(j, a.cols()));
+                            const T vb = eb(broadcast_index(i, b.rows()), broadcast_index(j, b.cols()));
+                            res_dense->set(i, j, op(va, vb));
+                        }
+                    });
+                    return;
+                }
+            }
             ParallelFor(0, rows, [&](size_t i) {
                 for (size_t j = 0; j < cols; ++j) {
                     T val_a;
@@ -2580,6 +2624,18 @@ namespace {
         }
 
         if constexpr (!is_std_complex_v<T>) {
+            // Structured results: integer element types read exactly (see exact_int_reader).
+            std::function<T(uint64_t, uint64_t)> ea, eb;
+            if constexpr (std::is_integral_v<T>) {
+                ea = exact_int_reader<T>(a);
+                eb = exact_int_reader<T>(b);
+            }
+            auto read_a = [&](uint64_t i, uint64_t j) -> T {
+                return ea ? ea(i, j) : static_cast<T>(a.get_element_as_double(i, j));
+            };
+            auto read_b = [&](uint64_t i, uint64_t j) -> T {
+                return eb ? eb(i, j) : static_cast<T>(b.get_element_as_double(i, j));
+            };
             // 2. TriangularMatrix Result
             if (auto* res_tri = dynamic_cast<TriangularMatrix<T>*>(&result)) {
                 if (rows != cols) {
@@ -2591,8 +2647,8 @@ namespace {
                         const uint64_t ja = broadcast_index(static_cast<uint64_t>(j), a.cols());
                         const uint64_t ib = broadcast_index(static_cast<uint64_t>(i), b.rows());
                         const uint64_t jb = broadcast_index(static_cast<uint64_t>(j), b.cols());
-                        T val = op(static_cast<T>(a.get_element_as_double(ia, ja)),
-                                   static_cast<T>(b.get_element_as_double(ib, jb)));
+                        T val = op(read_a(ia, ja),
+                                   read_b(ib, jb));
                         if (val != static_cast<T>(0)) {
                             res_tri->set(i, j, val);
                         }
@@ -2610,8 +2666,8 @@ namespace {
                          const uint64_t ja = broadcast_index(0, a.cols());
                          const uint64_t ib = broadcast_index(0, b.rows());
                          const uint64_t jb = broadcast_index(0, b.cols());
-                         T val = op(static_cast<T>(a.get_element_as_double(ia, ja)),
-                                    static_cast<T>(b.get_element_as_double(ib, jb)));
+                         T val = op(read_a(ia, ja),
+                                    read_b(ib, jb));
                          result.set_scalar(static_cast<double>(val));
                      }
                      return;
@@ -2626,8 +2682,8 @@ namespace {
                     const uint64_t ja = broadcast_index(static_cast<uint64_t>(i), a.cols());
                     const uint64_t ib = broadcast_index(static_cast<uint64_t>(i), b.rows());
                     const uint64_t jb = broadcast_index(static_cast<uint64_t>(i), b.cols());
-                    T val = op(static_cast<T>(a.get_element_as_double(ia, ja)),
-                               static_cast<T>(b.get_element_as_double(ib, jb)));
+                    T val = op(read_a(ia, ja),
+                               read_b(ib, jb));
                     res_diag->set(i, i, val);
                 });
                 return;
@@ -2645,8 +2701,8 @@ namespace {
                         const uint64_t ja = broadcast_index(static_cast<uint64_t>(j), a.cols());
                         const uint64_t ib = broadcast_index(static_cast<uint64_t>(i), b.rows());
                         const uint64_t jb = broadcast_index(static_cast<uint64_t>(j), b.cols());
-                        T val = op(static_cast<T>(a.get_element_as_double(ia, ja)),
-                                   static_cast<T>(b.get_element_as_double(ib, jb)));
+                        T val = op(read_a(ia, ja),
+                                   read_b(ib, jb));
                         res_sym->set(i, j, val);
                     }
                 });

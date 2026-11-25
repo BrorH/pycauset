@@ -539,8 +539,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
   and `-A` are O(1) shared-storage views with an exact folded integer factor (|k| <= 2^53,
   folded mod 2^64, NumPy wrapping on read). 3000² int32 `5*(3*(2*A))`: 85 ms -> 0.21 ms.
   Every consumer verified by `tests/engine/test_int_scale_views.py` (7 dtypes x 4 factors x
-  17 consumers + triangular + mixed). **Remaining:** bit matrices (`2*C` needs a cast view:
-  logical dtype != storage dtype), diagonal/symmetric integer views, vectors.
+  17 consumers + triangular + mixed). Symmetric/antisymmetric integer views added (same tests).
+  **Remaining:** bit matrices (`2*C` needs a cast view: logical dtype != storage dtype).
+  Not planned: vector and diagonal views (O(n) copies; not worth the reader surface, LAZY.md).
 - `k * M` is meant to be O(1): the result shares `M`'s storage and records `k` in the view
   metadata (`scalar_`), and chains such as `2 * 3 * 5 * M` fold into one factor. Measured on
   3000×3000, three chained multiplies: float64 0.2 ms (view, `scalar = 30`); int32 85 ms and
@@ -634,6 +635,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   with a 1-ulp tolerance.
 
 ### F-051 Integer matvec / vecmat / dot / sum went through double (int64 precision, UB on overflow)
+- Also fixed (session 5): element-wise ops with a non-dense integer operand (symmetric, triangular,
+  diagonal) or a structured integer result read through double; now exact (`exact_int_reader`).
 - **Status:** matvec and vecmat fixed (session 5: exact integer path, wrapping 64-bit accumulation,
   `cpu.matvec.int_exact` / `cpu.vecmat.int_exact`). **Open:** `pc.dot` and `pc.sum` return a
   float/complex for integer inputs (NumPy returns an exact integer); fix with the single operator
