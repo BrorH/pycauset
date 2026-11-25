@@ -1160,38 +1160,21 @@ def norm(x: Any, ord: Any = None) -> float:
     return out
 
 
-def sum(x: Any) -> complex:
-    """Return the sum of all elements in a vector or matrix.
+def sum(x: Any) -> int | float | complex:
+    """Return the sum of all elements in a vector or matrix, like ``numpy.sum``.
 
-    Notes:
-    - For real inputs, the result is returned as `complex` with zero imaginary part.
-    - For complex inputs, the full complex sum is returned.
+    Integer and bool inputs give an exact Python ``int`` (no wrap; ``OverflowError`` beyond
+    128 bits), real floats a ``float``, complex inputs a ``complex``. Float sums are
+    deterministic (fixed summation order, independent of the thread count).
     """
-
-    # Cached-derived fast path (R1_PROPERTIES): if the object exposes a properties
-    # mapping and already has a cached sum, use it.
-    try:
-        props = getattr(x, "properties", None)
-        if props is not None:
-            cached = props.get("sum")  # type: ignore[union-attr]
-            if cached is not None:
-                return complex(cached)
-    except Exception:
-        pass
-
-    fn = getattr(_native, "sum", None)
-    if fn is None:
-        raise RuntimeError("Native function sum is not available")
-    out = complex(fn(x))
-
-    # Best-effort populate cache.
-    try:
-        props = getattr(x, "properties", None)
-        if props is not None:
-            props["sum"] = out  # type: ignore[index]
-    except Exception:
-        pass
-
+    props = getattr(x, "properties", None)
+    if props is not None:
+        cached = props.get("sum")
+        if cached is not None:
+            return cached
+    out = _native.sum(x)
+    if props is not None:
+        props["sum"] = out
     return out
 
 def compute_k(matrix: Any, a: float):

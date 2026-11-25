@@ -27,7 +27,6 @@ public:
 
     double dot(const VectorBase& a, const VectorBase& b) override;
     std::complex<double> dot_complex(const VectorBase& a, const VectorBase& b) override;
-    std::complex<double> sum(const VectorBase& v) override;
     double l2_norm(const VectorBase& v) override;
 
     void cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) override;
@@ -39,7 +38,6 @@ public:
         int num_threads) override;
 
     double frobenius_norm(const MatrixBase& m) override;
-    std::complex<double> sum(const MatrixBase& m) override;
 
     double trace(const MatrixBase& m) override;
     double determinant(const MatrixBase& m) override;

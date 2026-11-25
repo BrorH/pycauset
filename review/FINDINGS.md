@@ -656,6 +656,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   with a 1-ulp tolerance.
 
 ### F-051 Integer matvec / vecmat / dot / sum went through double (int64 precision, UB on overflow)
+- **Status: fixed** (sessions 5 and 7).
 - Also fixed (session 5): element-wise ops with a non-dense integer operand (symmetric, triangular,
   diagonal) or a structured integer result read through double; now exact (`exact_int_reader`).
 - **Status:** matvec and vecmat fixed (session 5: exact integer path, wrapping 64-bit accumulation,
@@ -663,8 +664,11 @@ the entry (the history is useful). New findings go at the bottom with the next f
   `v @ u` share `vector_dot` (`bind_vector.cpp`): integer/bit operands give an exact Python `int`
   (128-bit accumulation, integer view factors applied, `OverflowError` past 127 bits; bit·bit
   keeps the popcount kernel). Before, `pc.dot` returned a float and `v @ u` for int32/int16
-  **ignored the vector's factor** (55 instead of 165 for a factor-3 view). **Open:** `pc.sum`
-  returns a float/complex for integer inputs (NumPy returns an exact integer).
+  **ignored the vector's factor** (55 instead of 165 for a factor-3 view). `pc.sum` fixed
+  (session 7, `math/Reductions.cpp`): NumPy result kinds (was always `complex`), exact integer
+  sums, deterministic float sums (row order, not OpenMP reduction order), popcount for bit
+  matrices (|C| at n = 20,000 in 2 ms; was ~4e8 virtual calls) and O(1) for C ± Cᵀ closures.
+  Cached integer sums are dropped (not rescaled) when a factor changes: elements wrap.
 - Was: `M @ v` with int64 entries near 2**62 off by ~57; out-of-range double->int conversion in
   the fallback is undefined behaviour. Test: `tests/engine/test_int_scale_views.py` (matvec, vecmat).
 

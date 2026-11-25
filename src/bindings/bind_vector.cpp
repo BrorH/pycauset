@@ -94,16 +94,7 @@ inline py::object exact_int_dot(const VectorBase& a, const VectorBase& b) {
             }
         });
     });
-    if (sum >= static_cast<__int128>(std::numeric_limits<int64_t>::min()) &&
-        sum <= static_cast<__int128>(std::numeric_limits<int64_t>::max())) {
-        return py::int_(static_cast<int64_t>(sum));
-    }
-    const bool neg = sum < 0;
-    const unsigned __int128 mag = neg ? static_cast<unsigned __int128>(-(sum + 1)) + 1 : static_cast<unsigned __int128>(sum);
-    py::object hi = py::int_(static_cast<uint64_t>(mag >> 64));
-    py::object lo = py::int_(static_cast<uint64_t>(mag));
-    py::object out = (hi.attr("__lshift__")(64)).attr("__or__")(lo);
-    return neg ? out.attr("__neg__")() : out;
+    return pycauset_bindings::int128_to_py(sum);
 }
 
 // Inner product of two vectors (orientation ignored, no conjugation, like np.dot).

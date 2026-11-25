@@ -757,10 +757,6 @@ std::complex<double> AutoSolver::dot_complex(const VectorBase& a, const VectorBa
     return cpu_device_->dot_complex(a, b);
 }
 
-std::complex<double> AutoSolver::sum(const VectorBase& v) {
-    // Always CPU for now
-    return cpu_device_->sum(v);
-}
 
 double AutoSolver::l2_norm(const VectorBase& v) {
     // Always CPU for now
@@ -792,10 +788,6 @@ double AutoSolver::frobenius_norm(const MatrixBase& m) {
     return cpu_device_->frobenius_norm(m);
 }
 
-std::complex<double> AutoSolver::sum(const MatrixBase& m) {
-    // Always CPU for now
-    return cpu_device_->sum(m);
-}
 
 double AutoSolver::trace(const MatrixBase& m) {
     // Always CPU for now

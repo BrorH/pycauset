@@ -150,9 +150,6 @@ std::complex<double> CpuDevice::dot_complex(const VectorBase& a, const VectorBas
     return solver_.dot_complex(a, b);
 }
 
-std::complex<double> CpuDevice::sum(const VectorBase& v) {
-    return solver_.sum(v);
-}
 
 double CpuDevice::l2_norm(const VectorBase& v) {
     return solver_.l2_norm(v);
@@ -180,9 +177,6 @@ double CpuDevice::frobenius_norm(const MatrixBase& m) {
     return solver_.frobenius_norm(m);
 }
 
-std::complex<double> CpuDevice::sum(const MatrixBase& m) {
-    return solver_.sum(m);
-}
 
 double CpuDevice::trace(const MatrixBase& m) {
     return solver_.trace(m);

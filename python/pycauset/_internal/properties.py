@@ -377,7 +377,11 @@ def _apply_scalar_ratio_inplace(obj: Any, *, ratio: Any) -> None:
     if "trace" in store:
         store["trace"] = _as_number(store["trace"]) * ratio
     if "sum" in store:
-        store["sum"] = _as_number(store["sum"]) * ratio
+        if isinstance(store["sum"], int):
+            # Integer elements wrap individually under scaling: sum(k*A) != k*sum(A). Recompute.
+            store.pop("sum", None)
+        else:
+            store["sum"] = _as_number(store["sum"]) * ratio
     if "determinant" in store:
         n = _get_square_dim(obj)
         if n is None:

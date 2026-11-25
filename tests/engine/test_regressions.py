@@ -317,3 +317,31 @@ def test_F051_integer_dot_applies_the_view_factor_and_is_exact_beyond_2_53():
     with pytest.raises(OverflowError):
         huge = pc.vector(np.full(8, 2**64 - 1, dtype=np.uint64))
         pc.dot(huge, huge)
+
+
+@pytest.mark.parametrize("dtype", ["int8", "int16", "int64", "uint64", "bool", "float32", "float64", "complex128"])
+def test_F051_sum_has_numpy_result_kind_and_is_exact(dtype, rng):
+    a = rng.integers(0, 2 if dtype == "bool" else 90, (7, 5)).astype(dtype)
+    expected_type = int if dtype.startswith(("int", "uint", "bool")) else complex if "complex" in dtype else float
+    for obj, ref in ((pc.matrix(a), a), (pc.vector(a.ravel()), a.ravel())):
+        got = pc.sum(obj)
+        assert type(got) is expected_type
+        assert got == (int(ref.astype(object).sum()) if expected_type is int else ref.sum())
+
+
+def test_F051_integer_sums_beyond_2_53_and_of_views():
+    big = pc.matrix(np.full((3, 3), 2**62 + 1, dtype=np.int64))
+    assert pc.sum(big) == 9 * (2**62 + 1)
+    v = pc.matrix(np.arange(4, dtype=np.int8).reshape(2, 2)) * 100  # elements wrap in int8
+    assert pc.sum(v) == int((np.arange(4, dtype=np.int8) * np.int8(100)).astype(np.int64).sum())
+
+
+@pytest.mark.parametrize("n", [1, 64, 65, 300])
+def test_F051_causal_sums_count_relations(n):
+    c = pc.causal_matrix(n, seed=3)
+    rel = int(to_np(c).sum())
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert pc.sum(c) == pc.sum(c.T) == rel
+        assert pc.sum(c + c.T) == 2 * rel and pc.sum(c - c.T) == 0
+        assert pc.sum(3 * (c + c.T)) == 6 * rel

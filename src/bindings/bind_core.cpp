@@ -1,4 +1,6 @@
 #include "bindings_common.hpp"
+#include "element_conversion.hpp"
+#include "pycauset/math/Reductions.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
 
 #include "pycauset/core/ParallelUtils.hpp"
@@ -109,15 +111,19 @@ void bind_core_classes(py::module_& m) {
         [](const pycauset::MatrixBase& mat) { return pycauset::norm(mat); },
         py::arg("x"));
 
-    m.def(
-        "sum",
-        [](const pycauset::VectorBase& v) { return pycauset::sum(v); },
-        py::arg("x"));
-
-    m.def(
-        "sum",
-        [](const pycauset::MatrixBase& mat) { return pycauset::sum(mat); },
-        py::arg("x"));
+    // NumPy result kinds: exact int for integer/bit, float for real, complex for complex (F-051).
+    auto reduction_to_py = [](const pycauset::ReductionValue& r) -> py::object {
+        switch (r.kind) {
+            case pycauset::ReductionValue::Kind::Int: return pycauset_bindings::int128_to_py(r.i);
+            case pycauset::ReductionValue::Kind::Real: return py::float_(r.r);
+            case pycauset::ReductionValue::Kind::Complex: return py::cast(r.c);
+        }
+        return py::none();
+    };
+    m.def("sum", [reduction_to_py](const pycauset::VectorBase& v) { return reduction_to_py(pycauset::sum(v)); },
+          py::arg("x"));
+    m.def("sum", [reduction_to_py](const pycauset::MatrixBase& mat) { return reduction_to_py(pycauset::sum(mat)); },
+          py::arg("x"));
 
     // --- Internal / test-only helpers ---
     // Exposes the promotion resolver without running kernels.

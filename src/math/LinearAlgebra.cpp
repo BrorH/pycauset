@@ -227,13 +227,7 @@ double norm(const MatrixBase& m) {
     return ComputeContext::instance().get_device()->frobenius_norm(m);
 }
 
-std::complex<double> sum(const VectorBase& v) {
-    return ComputeContext::instance().get_device()->sum(v);
-}
 
-std::complex<double> sum(const MatrixBase& m) {
-    return ComputeContext::instance().get_device()->sum(m);
-}
 
 std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& b) {
     const uint64_t n = a.size();

@@ -1,10 +1,10 @@
 ﻿# pycauset.sum
 
 ```python
-pycauset.sum(x) -> complex
+pycauset.sum(x) -> int | float | complex
 ```
 
-Return the sum of all elements in a vector or matrix.
+Return the sum of all elements in a vector or matrix, like `numpy.sum`.
 
 ## Parameters
 
@@ -12,13 +12,16 @@ Return the sum of all elements in a vector or matrix.
 
 ## Returns
 
-- `complex`: The total sum.
+- `int` for integer and bool inputs: exact (no wrap-around; `OverflowError` only beyond
+  128 bits). For a causal matrix `C` this is the number of relations, counted on the bits.
+- `float` for real float inputs, `complex` for complex inputs.
 
 Notes:
 
-- For real inputs, the result is returned as `complex` with zero imaginary part.
-- For complex inputs, the full complex sum is returned.
-- Conjugated views (`x.conj()` / `x.H`) are respected.
+- Views are respected: scaled views (`3 * A`, integer elements wrap first, as in NumPy),
+  transposes, slices, conjugated views (`x.conj()` / `x.H`), and lazy closures
+  (`pc.sum(C - C.T)` is computed from `C`'s bit count without writing anything out).
+- Float sums are deterministic: same result for any thread count (fixed summation order).
 
 ## Exceptions
 
@@ -31,7 +34,8 @@ import numpy as np
 import pycauset as pc
 
 v = pc.vector(np.array([1.0, 2.0, 3.0], dtype=np.float64), dtype="float64")
-assert pc.sum(v) == 6.0 + 0.0j
+assert pc.sum(v) == 6.0
+assert pc.sum(pc.vector([1, 2, 3])) == 6  # an int
 
 z = pc.vector(np.array([1 + 2j, 3 - 4j], dtype=np.complex128), dtype="complex_float64")
 assert pc.sum(z) == (1 + 2j) + (3 - 4j)

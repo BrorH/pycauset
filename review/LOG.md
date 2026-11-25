@@ -318,3 +318,6 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   contiguous same-dtype fast path + flat-block parallelism (`2*v` 6.4 -> 1.2 ms).
 - Build note: ScalarOps.cpp instantiations are memory-hungry; the contiguous fast path is
   limited to same-dtype results (all-pairs OOMed a 15 GB container at -j1).
+- F-051 closed: `pc.sum` (`math/Reductions.cpp`) returns NumPy kinds (exact int / float /
+  complex), deterministic float order, popcount for bit storage (|C| n=20,000 in 2 ms), O(1)
+  for closures; old device/solver sum (complex, OpenMP reduction, virtual per element) deleted.

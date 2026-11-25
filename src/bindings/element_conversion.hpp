@@ -77,4 +77,17 @@ E py_to_element(const py::object& value) {
     }
 }
 
+// Exact Python int from a 128-bit integer (results of exact integer reductions).
+inline py::object int128_to_py(__int128 v) {
+    if (v >= static_cast<__int128>(std::numeric_limits<int64_t>::min()) &&
+        v <= static_cast<__int128>(std::numeric_limits<int64_t>::max())) {
+        return py::int_(static_cast<int64_t>(v));
+    }
+    const bool neg = v < 0;
+    const unsigned __int128 mag = neg ? static_cast<unsigned __int128>(-(v + 1)) + 1 : static_cast<unsigned __int128>(v);
+    py::object out = py::int_(static_cast<uint64_t>(mag >> 64)).attr("__lshift__")(64).attr("__or__")(
+        py::int_(static_cast<uint64_t>(mag)));
+    return neg ? out.attr("__neg__")() : out;
+}
+
 }  // namespace pycauset_bindings

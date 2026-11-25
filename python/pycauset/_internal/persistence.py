@@ -779,9 +779,15 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             }
         sum_val = props_all.get("sum")
         if sum_val is not None:
-            z = complex(sum_val)
+            # int (exact, as a decimal string: JSON numbers lose precision), float, or [re, im].
+            if isinstance(sum_val, int):
+                value = {"int": str(sum_val)}
+            elif isinstance(sum_val, complex):
+                value = [float(sum_val.real), float(sum_val.imag)]
+            else:
+                value = float(sum_val)
             cached["sum"] = {
-                "value": [float(z.real), float(z.imag)],
+                "value": value,
                 "signature": {"payload_uuid": payload_uuid, "view_signature": view_sig},
             }
         eigen_val = props_all.get("eigenvalues")
@@ -1002,15 +1008,18 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         sum_entry = cached.get("sum")
         if (
             isinstance(sum_entry, dict)
-            and isinstance(sum_entry.get("value"), list)
-            and len(sum_entry.get("value")) == 2
             and isinstance(sum_entry.get("signature"), dict)
             and sum_entry["signature"].get("payload_uuid") == payload_uuid
             and sum_entry["signature"].get("view_signature") == view_sig
         ):
+            value = sum_entry.get("value")
             try:
-                r, i = sum_entry["value"]
-                obj.properties["sum"] = complex(float(r), float(i))
+                if isinstance(value, dict) and "int" in value:
+                    obj.properties["sum"] = int(value["int"])
+                elif isinstance(value, list) and len(value) == 2:
+                    obj.properties["sum"] = complex(float(value[0]), float(value[1]))
+                elif isinstance(value, (int, float)):
+                    obj.properties["sum"] = float(value)
             except Exception:
                 pass
 

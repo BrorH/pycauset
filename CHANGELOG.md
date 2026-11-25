@@ -35,7 +35,9 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   extra (CUDA moved to `experimental/cuda`, on hold), the per-class buffer protocol.
 
 ### Fixed
-- Many silent wrong results (review/FINDINGS.md F-001 ... F-055), among them: integer scalar
+- `pycauset.sum` returns `int` for integer/bool inputs (exact), `float` for real, `complex` for
+  complex (was always `complex`).
+- Many silent wrong results (review/FINDINGS.md F-001 ... F-058), among them: integer scalar
   multiplication, `C + C.T` dropping the lower triangle, views ignored by `.get`, writes and
   several kernels, int64 precision in matvec and element-wise ops, false links in
   `CausalSet.links()`.

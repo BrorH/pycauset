@@ -3265,37 +3265,6 @@ std::complex<double> CpuSolver::dot_complex(const VectorBase& a, const VectorBas
     return {re, im};
 }
 
-std::complex<double> CpuSolver::sum(const VectorBase& v) {
-    const uint64_t n = v.size();
-    if (n == 0) {
-        return {0.0, 0.0};
-    }
-
-    const auto dt = v.get_data_type();
-    const bool complex =
-        (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64);
-
-    if (complex) {
-        debug_trace::set_last("cpu.sum.vector.complex");
-        double re = 0.0;
-        double im = 0.0;
-        #pragma omp parallel for reduction(+:re, im)
-        for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
-            const std::complex<double> z = v.get_element_as_complex(static_cast<uint64_t>(i));
-            re += z.real();
-            im += z.imag();
-        }
-        return {re, im};
-    }
-
-    debug_trace::set_last("cpu.sum.vector.real");
-    double sum = 0.0;
-    #pragma omp parallel for reduction(+:sum)
-    for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
-        sum += v.get_element_as_double(static_cast<uint64_t>(i));
-    }
-    return {sum, 0.0};
-}
 
 double CpuSolver::l2_norm(const VectorBase& v) {
     const uint64_t n = v.size();
@@ -4543,42 +4512,6 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
     return std::sqrt(sum);
 }
 
-std::complex<double> CpuSolver::sum(const MatrixBase& m) {
-    const uint64_t rows = m.rows();
-    const uint64_t cols = m.cols();
-    if (rows == 0 || cols == 0) {
-        return {0.0, 0.0};
-    }
-
-    const auto dt = m.get_data_type();
-    const bool complex =
-        (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64);
-
-    if (complex) {
-        debug_trace::set_last("cpu.sum.matrix.complex");
-        double re = 0.0;
-        double im = 0.0;
-        #pragma omp parallel for reduction(+:re, im)
-        for (int64_t i = 0; i < static_cast<int64_t>(rows); ++i) {
-            for (uint64_t j = 0; j < cols; ++j) {
-                const std::complex<double> z = m.get_element_as_complex(static_cast<uint64_t>(i), j);
-                re += z.real();
-                im += z.imag();
-            }
-        }
-        return {re, im};
-    }
-
-    debug_trace::set_last("cpu.sum.matrix.real");
-    double sum = 0.0;
-    #pragma omp parallel for reduction(+:sum)
-    for (int64_t i = 0; i < static_cast<int64_t>(rows); ++i) {
-        for (uint64_t j = 0; j < cols; ++j) {
-            sum += m.get_element_as_double(static_cast<uint64_t>(i), j);
-        }
-    }
-    return {sum, 0.0};
-}
 
 double CpuSolver::trace(const MatrixBase& matrix) {
     const uint64_t rows = matrix.rows();

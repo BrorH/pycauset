@@ -40,7 +40,6 @@ public:
 
     double dot(const VectorBase& a, const VectorBase& b);
     std::complex<double> dot_complex(const VectorBase& a, const VectorBase& b);
-    std::complex<double> sum(const VectorBase& v);
     double l2_norm(const VectorBase& v);
 
     void cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result);
@@ -52,7 +51,6 @@ public:
         int num_threads);
 
     double frobenius_norm(const MatrixBase& m);
-    std::complex<double> sum(const MatrixBase& m);
 
     double trace(const MatrixBase& m);
     double determinant(const MatrixBase& m);

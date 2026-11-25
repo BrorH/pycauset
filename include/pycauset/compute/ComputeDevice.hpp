@@ -44,7 +44,6 @@ public:
     // Vector Operations
     virtual double dot(const VectorBase& a, const VectorBase& b) = 0;
     virtual std::complex<double> dot_complex(const VectorBase& a, const VectorBase& b) = 0;
-    virtual std::complex<double> sum(const VectorBase& v) = 0;
     virtual double l2_norm(const VectorBase& v) = 0;
 
     // Specialized vector ops
@@ -59,7 +58,6 @@ public:
 
     // Reductions / norms
     virtual double frobenius_norm(const MatrixBase& m) = 0;
-    virtual std::complex<double> sum(const MatrixBase& m) = 0;
 
     // Linalg utilities
     virtual double trace(const MatrixBase& m) = 0;

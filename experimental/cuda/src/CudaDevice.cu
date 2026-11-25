@@ -205,16 +205,8 @@ std::complex<double> CudaDevice::dot_complex(const VectorBase& a, const VectorBa
     throw std::runtime_error("CUDA dot_complex not implemented");
 }
 
-std::complex<double> CudaDevice::sum(const VectorBase& v) {
-    (void)v;
-    throw std::runtime_error("CudaDevice::sum(VectorBase) not implemented");
-}
 
 
-std::complex<double> CudaDevice::sum(const MatrixBase& m) {
-    (void)m;
-    throw std::runtime_error("CudaDevice::sum(MatrixBase) not implemented");
-}
 
 double CudaDevice::trace(const MatrixBase& m) {
     (void)m;
