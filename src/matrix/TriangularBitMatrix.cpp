@@ -456,27 +456,7 @@ std::unique_ptr<MatrixBase> TriangularMatrix<bool>::multiply_scalar(double facto
 
 
 
-std::unique_ptr<MatrixBase> TriangularMatrix<bool>::add_scalar(double scalar, const std::string& result_file) const {
-    const uint64_t n = rows();
-    auto result = std::make_unique<DenseMatrix<double>>(n, result_file);
-    double* dst_data = result->data();
-    
-    for (uint64_t i = 0; i < n; ++i) {
-        for (uint64_t j = 0; j < n; ++j) {
-            double val = get_element_as_double(i, j) + scalar;
-            dst_data[i * n + j] = val;
-        }
-    }
-    
-    if (result_file.empty()) {
-        result->set_temporary(true);
-    }
-    return result;
-}
 
-std::unique_ptr<MatrixBase> TriangularMatrix<bool>::add_scalar(int64_t scalar, const std::string& result_file) const {
-    return add_scalar(static_cast<double>(scalar), result_file);
-}
 
 
 } // namespace pycauset

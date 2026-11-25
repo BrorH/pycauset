@@ -183,11 +183,20 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
       cells are all conversions.
 - [ ] N.1b Generalise the matmul normaliser into a shared, declarative one (operation =
       contract + plain-dense kernel + optional structure rules), then the ops that still have
-      private element readers (atlas generic after N.2): norm 674, div 564, vecmat 511,
+      private element readers (atlas generic after N.2): norm 674 (done, F-085: 11 left), div 564, vecmat 511,
       det/slogdet 457 each, matvec 446, mul/sub/add ~250 each, export 187, save_load 172,
       sum 145, add/rsub scalar 129 each. Rewrite `protocols/Adding Operations.md` around it.
 - [ ] N.6 Per-call overhead (F-083 a): 30-50 µs per `+` / `@` vs NumPy's 0.3-0.7 µs; profile
       the Python wrapper stack (monkeypatches, property patches, io traces) and cut it.
+- [ ] N.7 Row readers for every class (the speed half of N.2): extend `StridedReader`
+      (row-at-a-time, typed, `view_value`) from dense storage to every class through
+      `visit_matrix` (packed triangular/symmetric rows are contiguous). Element-wise ops
+      (dense and structured results) read rows only; delete `exact_int_reader` and the
+      virtual fallback in `binary_op_impl`. Timing pass: typed per-element `get` paths run at
+      0.3-0.6x NumPy; contiguous rows are what NumPy-speed needs. Also fold ViewRead.cpp's
+      dynamic_cast chain into `visit_matrix` (one dispatch mechanism).
+- [ ] C.3b Timing harness: integer operands overflow at timing size (values 1-4, n = 384) and
+      the int8 linalg recipe adds n to the diagonal; use small values at timing size.
 - [ ] N.5 Structure × dtype gaps (no technical obstacle; factory switches never got the
       cases): diagonal/identity float16, float32, complex; triangular/symmetric complex
       (maintainer decision: complex symmetric A = Aᵀ vs Hermitian A = Aᴴ, recommended both as

@@ -239,28 +239,7 @@ void DenseMatrix<bool>::fill_random(double density, std::optional<uint64_t> seed
     }
 }
 
-std::unique_ptr<MatrixBase> DenseMatrix<bool>::add_scalar(double scalar, const std::string& result_file) const {
-    const uint64_t m = rows();
-    const uint64_t n = cols();
-    auto result = std::make_unique<DenseMatrix<double>>(m, n, result_file);
 
-    for (uint64_t i = 0; i < m; ++i) {
-        for (uint64_t j = 0; j < n; ++j) {
-            const double val = (get(i, j) ? scalar_.real() : 0.0) + scalar;
-            result->set(i, j, val);
-        }
-    }
-
-    result->set_scalar(1.0);
-    if (result_file.empty()) {
-        result->set_temporary(true);
-    }
-    return result;
-}
-
-std::unique_ptr<MatrixBase> DenseMatrix<bool>::add_scalar(int64_t scalar, const std::string& result_file) const {
-    return add_scalar(static_cast<double>(scalar), result_file);
-}
 
 
 } // namespace pycauset

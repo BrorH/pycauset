@@ -989,3 +989,35 @@ the entry (the history is useful). New findings go at the bottom with the next f
   pass exposed it (a complex float16 vector add at 1M elements took seconds, single-threaded
   through the virtual accessor). The threshold is now N (one call per element of a row):
   generic 4,986 → 6,478, the difference being vector per-element paths.
+
+### F-085 `norm` read every element through the virtual accessor, for every class and dtype
+- **Status:** fixed (session 8, N.1b first reduction). `frobenius_norm` and `l2_norm` had no
+  typed path at all (plain float64 dense included) and the vector norm parallelised over rows
+  (one row: single-threaded).
+- Fix: one implementation for matrices and vectors (the 1 x n bridge), built on the view rule:
+  the norm is |factor| x the norm of the raw values (transposition and conjugation do not
+  change it), except integer storage with an integer factor (NumPy wraps each element first).
+  One `visit_matrix` dispatch, typed reads, deterministic block sums parallel for any shape;
+  plain float32/float64 storage uses BLAS dot per fixed block (NumPy's `sqrt(dot(x, x))`).
+- Atlas: norm 791 of 802 correct cells fast (was 0 typed); the 11 left are lazy closures.
+
+
+### F-086 Element-wise ops conjugated before scaling: `m.conj() * 2j + 0` was wrong
+- **Status:** fixed (session 8, found while moving the element-wise ops onto the shared
+  reader). A conj view with a complex factor stores factor -2j and the conjugation flag; its
+  value is conj(raw · (-2j)). `StridedReader` (element-wise `+ − * /`, integer matmul through
+  BLAS) computed conj(raw) · (-2j): `m.conj() * 2j + 0` gave -4-2j where NumPy gives 4+2j.
+  Export, matmul, `sum` and scalar ops were right: each had its own copy of the view rule,
+  and this one differed. The atlas missed it because its views tested conjugation and a
+  complex factor separately.
+- Fix: the rule lives once in `include/pycauset/math/ViewValue.hpp` (`view_value`), used by
+  the converter and by `StridedReader`. The atlas has a combined view `conj_cscale`
+  (`m.conj() * 2j`) for every operation, so this combination class is now enumerated.
+- Follow-up in the same session: the new `conj_cscale` view found the same wrong order in a
+  fourth copy, `DenseMatrix::add_scalar` (`m.conj() * 2j + 3`, `3 + v`, `3 - v`: 6 atlas
+  cells). Instead of fixing that copy, the route to it is gone: scalar `+`/`-` go through
+  `run_exact` (the shared typed reader) like every other scalar op, half-precision results
+  compute in float64/complex128 and round once, and every per-class `add_scalar` (10
+  classes, 24 functions) and both `__iadd__` bindings (`+=` now means `x = x + y`, one path)
+  were deleted.
+

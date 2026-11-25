@@ -196,8 +196,11 @@ VIEWS: dict[str, tuple[Callable, Callable, bool]] = {
     "window_shift": (lambda m: m[0:W, 2:W + 2], lambda a: a[0:W, 2:W + 2], False),
     "vwindow": (lambda m: m[1:W + 1], lambda a: a[1:W + 1], None),  # vectors only
     "lazy_sum": (lambda m: m + m, None, True),
+    # Two flags at once: conjugation and a complex factor (conj(raw * s) vs conj(raw) * s was
+    # wrong in one reader, F-086). Real dtypes become complex here.
+    "conj_cscale": (lambda m: m.conj() * 2j, lambda a: np.conj(a) * 2j, True),
 }
-LINALG_VIEWS = {"plain", "T", "scaled_int", "scaled_float", "conj", "H", "window0", "window1", "lazy_sum"}
+LINALG_VIEWS = {"plain", "T", "scaled_int", "scaled_float", "conj", "H", "window0", "window1", "lazy_sum", "conj_cscale"}
 
 
 def view_reference(view: str, a: np.ndarray, pc_dtype: str) -> np.ndarray:

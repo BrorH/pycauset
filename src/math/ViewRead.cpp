@@ -1,6 +1,7 @@
 // Typed readers for every matrix class with the view applied once (review PLAN N.2).
 // Kept in its own translation unit: one instantiation per (class, wide type) pair.
 #include "pycauset/math/ViewRead.hpp"
+#include "pycauset/math/ViewValue.hpp"
 
 #include <string>
 #include <type_traits>
@@ -18,28 +19,6 @@
 
 namespace pycauset {
 namespace {
-
-template <typename T>
-std::complex<double> view_value(const T& raw, std::complex<double> s, bool conj) {
-    std::complex<double> z;
-    if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-        if (s == std::complex<double>(1.0, 0.0)) z = {static_cast<double>(raw), 0.0};
-        else if (scalar::is_exact_int_factor(s))
-            z = {static_cast<double>(scalar::wrap_scale(raw, static_cast<int64_t>(s.real()))), 0.0};
-        else z = static_cast<double>(raw) * s;
-    } else if constexpr (std::is_floating_point_v<T> || std::is_same_v<T, bool> ||
-                         std::is_same_v<T, pycauset::float16_t>) {
-        // Real storage, real factor: real arithmetic, as NumPy scales a real array. A factor
-        // stored as (-1, -0) (A.T of an antisymmetric A) must give 0.0 * -1 = -0.0; a complex
-        // product would give +0.0 (found by the atlas, 2 / A.T).
-        const double r = scalar::to_complex_double(raw).real();
-        z = s.imag() == 0.0 ? std::complex<double>(r * s.real(), 0.0) : r * s;
-    } else {
-        z = scalar::to_complex_double(raw);
-        if (s != std::complex<double>(1.0, 0.0)) z *= s;
-    }
-    return conj ? std::conj(z) : z;
-}
 
 template <typename W, typename Src>
 std::unique_ptr<MatrixBase> read_typed(const Src& m, const MatrixBase& a, bool anti) {

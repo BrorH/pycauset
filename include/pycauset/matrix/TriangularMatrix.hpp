@@ -201,28 +201,7 @@ public:
         return multiply_scalar(static_cast<double>(factor), result_file);
     }
 
-    std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        const uint64_t n = rows();
-        auto result = std::make_unique<DenseMatrix<T>>(n, result_file);
-        T* dst_data = result->data();
-        
-        for (uint64_t i = 0; i < n; ++i) {
-            for (uint64_t j = 0; j < n; ++j) {
-                // get_element_as_double handles scalar_
-                double val = get_element_as_double(i, j) + scalar;
-                dst_data[i * n + j] = static_cast<T>(val);
-            }
-        }
-        
-        if (result_file.empty()) {
-            result->set_temporary(true);
-        }
-        return result;
-    }
 
-    std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const override {
-        return add_scalar(static_cast<double>(scalar), result_file);
-    }
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
         // Transposing a Triangular Matrix makes it Lower Triangular.

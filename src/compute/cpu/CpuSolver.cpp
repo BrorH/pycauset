@@ -51,7 +51,8 @@
 #include "pycauset/core/MemoryHints.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/DebugTrace.hpp"
-#include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/math/VectorOps.hpp"
+#include "pycauset/math/ViewValue.hpp"
 #include "pycauset/core/Nvtx.hpp"
 #include <Eigen/Dense>
 #include <stdexcept>
@@ -979,13 +980,11 @@ namespace {
             }
         }
         if constexpr (is_std_complex_v<T>) {
-            const bool conj = r.conj, scaled = r.scaled;
-            const std::complex<double> s = r.scalar;
+            // The shared view rule (math/ViewValue.hpp): conj(raw * s), not conj(raw) * s (F-086).
+            const bool conj = r.conj;
+            const std::complex<double> s = r.scaled ? r.scalar : std::complex<double>(1.0, 0.0);
             for (uint64_t q = 0; q < n; ++q) {
-                std::complex<double> z = pycauset::scalar::to_complex_double(src[static_cast<int64_t>(q) * sj]);
-                if (conj) z = std::conj(z);
-                if (scaled) z *= s;
-                out[q] = static_cast<T>(z);
+                out[q] = static_cast<T>(pycauset::view_value(src[static_cast<int64_t>(q) * sj], s, conj));
             }
         } else if constexpr (std::is_integral_v<T>) {
             for (uint64_t q = 0; q < n; ++q) out[q] = static_cast<T>(src[static_cast<int64_t>(q) * sj]);
@@ -2520,29 +2519,8 @@ std::complex<double> CpuSolver::dot_complex(const VectorBase& a, const VectorBas
 
 
 double CpuSolver::l2_norm(const VectorBase& v) {
-    const uint64_t n = v.size();
-    if (n == 0) return 0.0;
-
-    const auto dt = v.get_data_type();
-    if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
-        debug_trace::set_last("cpu.l2_norm.complex");
-        double sum = 0.0;
-        #pragma omp parallel for reduction(+:sum)
-        for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
-            const std::complex<double> z = v.get_element_as_complex(static_cast<uint64_t>(i));
-            sum += std::norm(z);
-        }
-        return std::sqrt(sum);
-    }
-
-    debug_trace::set_last("cpu.l2_norm.real");
-    double sum = 0.0;
-    #pragma omp parallel for reduction(+:sum)
-    for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
-        const double x = v.get_element_as_double(static_cast<uint64_t>(i));
-        sum += x * x;
-    }
-    return std::sqrt(sum);
+    auto row = as_row_matrix(v);  // the 1 x n bridge: one norm implementation
+    return frobenius_norm(*row);
 }
 
 void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) {
@@ -3731,38 +3709,86 @@ std::unique_ptr<TriangularMatrix<double>> CpuSolver::compute_k_matrix(
     return K;
 }
 
-double CpuSolver::frobenius_norm(const MatrixBase& m) {
-    const uint64_t rows = m.rows();
-    const uint64_t cols = m.cols();
-    if (rows == 0 || cols == 0) return 0.0;
-
-    const auto dt = m.get_data_type();
+namespace {
+// Sum of f(i, j) over a rows x cols index set in fixed blocks of the flat range, partials
+// combined in block order: parallel for any shape (a 1 x n vector too) and deterministic.
+template <typename F>
+double block_sum(uint64_t rows, uint64_t cols, F&& f) {
     const uint64_t total = rows * cols;
-    if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
-        debug_trace::set_last("cpu.frobenius_norm.complex");
-        double sum = 0.0;
-        #pragma omp parallel for reduction(+:sum)
-        for (int64_t idx = 0; idx < static_cast<int64_t>(total); ++idx) {
-            const uint64_t uidx = static_cast<uint64_t>(idx);
-            const uint64_t i = uidx / cols;
-            const uint64_t j = uidx % cols;
-            const std::complex<double> z = m.get_element_as_complex(i, j);
-            sum += std::norm(z);
+    if (total == 0) return 0.0;
+    constexpr uint64_t kBlock = 1u << 14;
+    const uint64_t blocks = (total + kBlock - 1) / kBlock;
+    std::vector<double> part(blocks, 0.0);
+    ParallelFor(0, blocks, [&](size_t blk) {
+        uint64_t idx = static_cast<uint64_t>(blk) * kBlock;
+        const uint64_t end = std::min(total, idx + kBlock);
+        uint64_t i = idx / cols, j = idx % cols;
+        double acc = 0.0;
+        for (; idx < end; ++idx) {
+            acc += f(i, j);
+            if (++j == cols) { j = 0; ++i; }
         }
-        return std::sqrt(sum);
-    }
-
-    debug_trace::set_last("cpu.frobenius_norm.real");
+        part[blk] = acc;
+    });
     double sum = 0.0;
-    #pragma omp parallel for reduction(+:sum)
-    for (int64_t idx = 0; idx < static_cast<int64_t>(total); ++idx) {
-        const uint64_t uidx = static_cast<uint64_t>(idx);
-        const uint64_t i = uidx / cols;
-        const uint64_t j = uidx % cols;
-        const double x = m.get_element_as_double(i, j);
-        sum += x * x;
+    for (double p : part) sum += p;
+    return sum;
+}
+}  // namespace
+
+// Frobenius norm of any matrix (L2 for vectors through the 1 x n bridge). The view rule
+// (math/ViewRead.hpp) makes it a property of the raw values: transposition and conjugation
+// do not change it and a factor f scales it by |f|, except integer storage with an integer
+// factor, where NumPy wraps each element first. One class dispatch, typed reads; plain
+// contiguous float32/float64 storage sums squares with BLAS dot in fixed blocks.
+double CpuSolver::frobenius_norm(const MatrixBase& m) {
+    const uint64_t rows = m.rows(), cols = m.cols();
+    if (rows == 0 || cols == 0) return 0.0;
+    const std::complex<double> f = m.get_scalar();
+    if (dynamic_cast<const BitClosureMatrix*>(&m) != nullptr) {
+        debug_trace::set_last("cpu.norm.closure");
+        return std::sqrt(block_sum(rows, cols, [&](uint64_t i, uint64_t j) {
+            return std::norm(m.get_element_as_complex(i, j));
+        }));
     }
-    return std::sqrt(sum);
+    return visit_matrix(m, [&](const auto& typed) -> double {
+        using M = std::decay_t<decltype(typed)>;
+        using T = std::decay_t<decltype(typed.get(0, 0))>;
+        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+            if (scalar::is_exact_int_factor(f) && f.real() != 1.0) {
+                const int64_t k = static_cast<int64_t>(f.real());
+                debug_trace::set_last("cpu.norm.int_view");
+                return std::sqrt(block_sum(rows, cols, [&](uint64_t i, uint64_t j) {
+                    const double x = static_cast<double>(scalar::wrap_scale(typed.get(i, j), k));
+                    return x * x;
+                }));
+            }
+        }
+        const double af = std::abs(f);
+        if constexpr (std::is_same_v<M, DenseMatrix<double>> || std::is_same_v<M, DenseMatrix<float>>) {
+            if (!typed.is_transposed() && !typed.is_subview() && cols == typed.base_cols()) {
+                debug_trace::set_last("cpu.norm.blas");
+                const T* p = typed.data();
+                const uint64_t total = rows * cols;
+                constexpr uint64_t kBlock = 1u << 16;
+                const uint64_t blocks = (total + kBlock - 1) / kBlock;
+                std::vector<double> part(blocks, 0.0);
+                ParallelFor(0, blocks, [&](size_t blk) {
+                    const uint64_t lo = static_cast<uint64_t>(blk) * kBlock;
+                    const int len = static_cast<int>(std::min(total, lo + kBlock) - lo);
+                    if constexpr (std::is_same_v<T, double>) part[blk] = cblas_ddot(len, p + lo, 1, p + lo, 1);
+                    else part[blk] = cblas_dsdot(len, p + lo, 1, p + lo, 1);
+                });
+                double sum = 0.0;
+                for (double q : part) sum += q;
+                return af * std::sqrt(sum);
+            }
+        }
+        debug_trace::set_last("cpu.norm.typed");
+        return af * std::sqrt(block_sum(rows, cols, [&](uint64_t i, uint64_t j) {
+            return std::norm(scalar::to_complex_double(typed.get(i, j)));
+        }));
+    });
 }
 
 

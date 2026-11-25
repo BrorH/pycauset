@@ -272,64 +272,7 @@ public:
         return out;
     }
 
-    std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        auto result = std::make_unique<DenseMatrix<T>>(rows(), cols(), result_file);
 
-        // Reads honour the view (transpose, offsets, factor, conjugation); the result is a plain
-        // matrix in logical order, so it carries no view flags (F-050).
-        const bool full_span = row_offset() == 0 && col_offset() == 0 && !is_transposed() && !is_conjugated() &&
-                               rows() == base_rows() && cols() == base_cols();
-
-        if (full_span) {
-            const T* src_data = data();
-            T* dst_data = result->data();
-            const uint64_t total_elements = base_rows() * base_cols();
-
-            if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
-                const std::complex<double> add = {scalar, 0.0};
-                pycauset::ParallelFor(0, total_elements, [&](size_t i) {
-                    const std::complex<double> v = pycauset::scalar::to_complex_double(src_data[i]);
-                    dst_data[i] = pycauset::scalar::from_complex_double<T>(v * scalar_ + add);
-                });
-            } else if constexpr (std::is_same_v<T, float>) {
-                const float s = static_cast<float>(scalar);
-                const float s_self = static_cast<float>(scalar_.real());
-                pycauset::ParallelFor(0, total_elements, [&](size_t i) { dst_data[i] = src_data[i] * s_self + s; });
-            } else {
-                const double s_self = scalar_.real();
-                pycauset::ParallelFor(0, total_elements, [&](size_t i) {
-                    double val = static_cast<double>(src_data[i]) * s_self + scalar;
-                    dst_data[i] = pycauset::scalar::from_double<T>(val);
-                });
-            }
-        } else {
-            for (uint64_t i = 0; i < rows(); ++i) {
-                for (uint64_t j = 0; j < cols(); ++j) {
-                    const auto v = get(i, j);
-                    if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
-                        std::complex<double> x = pycauset::scalar::to_complex_double(v);
-                        if (is_conjugated()) x = std::conj(x);
-                        const std::complex<double> z = x * scalar_ + std::complex<double>{scalar, 0.0};
-                        result->set(i, j, pycauset::scalar::from_complex_double<T>(z));
-                    } else {
-                        const double z = static_cast<double>(v) * scalar_.real() + scalar;
-                        result->set(i, j, pycauset::scalar::from_double<T>(z));
-                    }
-                }
-            }
-        }
-
-        result->set_scalar(1.0);
-        result->set_seed(seed_);
-        if (result_file.empty()) {
-            result->set_temporary(true);
-        }
-        return result;
-    }
-
-    std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const override {
-        return add_scalar(static_cast<double>(scalar), result_file);
-    }
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
         (void)result_file;

@@ -110,57 +110,7 @@ public:
         return multiply_scalar(static_cast<double>(factor), result_file);
     }
 
-    std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        // Adding a scalar makes it a DenseMatrix (unless scalar is 0)
-        if (scalar == 0.0) {
-             return multiply_scalar(1.0, result_file); // Copy
-        }
 
-        const uint64_t n = rows();
-        auto result = std::make_unique<DenseMatrix<T>>(n, result_file);
-        
-        if constexpr (std::is_same_v<T, bool>) {
-            const T* src_data = data();
-            for (uint64_t i = 0; i < n; ++i) {
-                for (uint64_t j = 0; j < n; ++j) {
-                    T val;
-                    if (i == j) {
-                        val = static_cast<T>((static_cast<double>(src_data[i]) * scalar_ + scalar).real());
-                    } else {
-                        val = static_cast<T>(scalar);
-                    }
-                    result->set(i, j, val);
-                }
-            }
-        } else {
-            T* dst_data = result->data();
-            const T* src_data = data();
-            
-            // Fill dense matrix
-            // Diagonal elements: src[i] * scalar_ + scalar
-            // Off-diagonal: scalar
-            
-            // This is O(N^2), unavoidable for Dense result
-            for (uint64_t i = 0; i < n; ++i) {
-                for (uint64_t j = 0; j < n; ++j) {
-                    if (i == j) {
-                        dst_data[i * n + j] = static_cast<T>((static_cast<double>(src_data[i]) * scalar_ + scalar).real());
-                    } else {
-                        dst_data[i * n + j] = static_cast<T>(scalar);
-                    }
-                }
-            }
-        }
-        
-        if (result_file.empty()) {
-            result->set_temporary(true);
-        }
-        return result;
-    }
-
-    std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const override {
-        return add_scalar(static_cast<double>(scalar), result_file);
-    }
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
         // A diagonal matrix is its own transpose: share storage (copy-on-write), O(1) (F-044).

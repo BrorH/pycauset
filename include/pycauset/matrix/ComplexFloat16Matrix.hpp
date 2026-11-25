@@ -172,39 +172,7 @@ public:
         return out;
     }
 
-    std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        auto result = std::make_unique<ComplexFloat16Matrix>(base_rows(), base_cols(), result_file);
 
-        const uint64_t total = base_rows() * base_cols();
-        const auto* rsrc = real_data();
-        const auto* isrc = imag_data();
-        auto* rdst = result->real_data();
-        auto* idst = result->imag_data();
-
-        const std::complex<double> add = {scalar, 0.0};
-        for (uint64_t idx = 0; idx < total; ++idx) {
-            const std::complex<double> v = {
-                static_cast<double>(rsrc[idx]),
-                static_cast<double>(isrc[idx]),
-            };
-            const std::complex<double> out = v * scalar_ + add;
-            rdst[idx] = pycauset::float16_t(out.real());
-            idst[idx] = pycauset::float16_t(out.imag());
-        }
-
-        result->set_scalar(1.0);
-        result->set_seed(seed_);
-        result->set_transposed(is_transposed());
-        result->set_conjugated(is_conjugated());
-        if (result_file.empty()) {
-            result->set_temporary(true);
-        }
-        return result;
-    }
-
-    std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const override {
-        return add_scalar(static_cast<double>(scalar), result_file);
-    }
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
         if (result_file.empty()) {

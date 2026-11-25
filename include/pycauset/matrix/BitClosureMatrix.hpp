@@ -88,12 +88,6 @@ public:
     std::unique_ptr<MatrixBase> multiply_scalar(int64_t s, const std::string& f = "") const override {
         return materialized_copy()->multiply_scalar(s, f);
     }
-    std::unique_ptr<MatrixBase> add_scalar(double s, const std::string& f = "") const override {
-        return materialized_copy()->add_scalar(s, f);
-    }
-    std::unique_ptr<MatrixBase> add_scalar(int64_t s, const std::string& f = "") const override {
-        return materialized_copy()->add_scalar(s, f);
-    }
 
     // (C + C^T)^T = itself; (C - C^T)^T = -(C - C^T): a factor of -1.
     std::unique_ptr<MatrixBase> transpose(const std::string& = "") const override {

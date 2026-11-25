@@ -148,31 +148,7 @@ public:
         return multiply_scalar(static_cast<double>(factor), result_file);
     }
 
-    std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        const uint64_t r = rows();
-        const uint64_t c = cols();
-        auto result = std::make_unique<DenseMatrix<double>>(r, c, result_file);
-        double* dst_data = result->data();
 
-        for (uint64_t i = 0; i < r; ++i) {
-            for (uint64_t j = 0; j < c; ++j) {
-                if (i == j) {
-                    dst_data[i * c + j] = (scalar_ + scalar).real();
-                } else {
-                    dst_data[i * c + j] = scalar;
-                }
-            }
-        }
-
-        if (result_file.empty()) {
-            result->set_temporary(true);
-        }
-        return result;
-    }
-
-    std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const override {
-        return add_scalar(static_cast<double>(scalar), result_file);
-    }
 };
 
 } // namespace pycauset

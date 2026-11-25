@@ -205,31 +205,7 @@ public:
         return multiply_scalar(static_cast<double>(scalar), result_file);
     }
 
-    // S + s stays symmetric; an antisymmetric A + s is not antisymmetric, so it becomes dense.
-    // Values are read through the view (factor applied).
-    std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const override {
-        const uint64_t n = this->rows();
-        if (!is_antisymmetric_) {
-            auto out = std::make_unique<SymmetricMatrix<T>>(n, result_file, false);
-            for (uint64_t i = 0; i < n; ++i) {
-                for (uint64_t j = i; j < n; ++j) {
-                    out->set(i, j, static_cast<T>(this->get_element_as_double(i, j) + scalar));
-                }
-            }
-            return out;
-        }
-        auto out = std::make_unique<DenseMatrix<T>>(n, n, result_file);
-        for (uint64_t i = 0; i < n; ++i) {
-            for (uint64_t j = 0; j < n; ++j) {
-                out->set(i, j, static_cast<T>(this->get_element_as_double(i, j) + scalar));
-            }
-        }
-        return out;
-    }
 
-    std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const override {
-        return add_scalar(static_cast<double>(scalar), result_file);
-    }
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
         auto clone_ptr = this->clone();

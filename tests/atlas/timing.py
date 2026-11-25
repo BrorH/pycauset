@@ -73,12 +73,29 @@ def _operand(structure, dtype, view, seed, n, linalg):
                 a = A.reference(structure, dtype, seed)
         finally:
             A._dominant = dominant
-        _OPERANDS[key] = (A.build(structure, dtype, a, seed), a)
+        _OPERANDS[key] = (_build_fast(structure, dtype, a, seed), a)
     m, a = _OPERANDS[key]
     pc._native._set_lazy(True)  # views are built as views
     v = A.VIEWS[view][0](m)
     vdt = A._pc_dtype_of(v)
     return v, A.view_reference(view, a, vdt), vdt
+
+
+def _build_fast(structure, dtype, a, seed):
+    """A.build, with structured classes filled natively (n^2 Python setitems cost minutes)."""
+    cls = {"triangular": lambda n: pc.TriangularMatrix(n, dtype=dtype, has_diagonal=True),
+           "strict_triangular": lambda n: pc.TriangularMatrix(n, dtype=dtype, has_diagonal=False),
+           "diagonal": lambda n: pc.DiagonalMatrix(n, dtype=dtype),
+           "symmetric": lambda n: pc.SymmetricMatrix(n, dtype=dtype),
+           "antisymmetric": lambda n: pc.AntiSymmetricMatrix(n, dtype=dtype)}.get(structure)
+    if cls is None:
+        return A.build(structure, dtype, a, seed)
+    try:
+        m = cls(a.shape[0])
+    except Exception as e:  # noqa: BLE001 - the structure x dtype is not offered
+        raise A.Unavailable(str(e)) from None
+    pc._native._debug_fill(m, np.asarray(a, dtype=np.complex128))
+    return m
 
 
 def _previously_fast() -> set[str]:

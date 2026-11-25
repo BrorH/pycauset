@@ -578,23 +578,15 @@ std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, cons
                 return s.kind == ScalarArg::Kind::Complex ? a.multiply_scalar(c) : a.multiply_scalar(c.real());
             case ScalarOpKind::TrueDiv:
                 return s.kind == ScalarArg::Kind::Complex ? a.multiply_scalar(1.0 / c) : a.multiply_scalar(1.0 / c.real());
-            case ScalarOpKind::Add:
-                if (s.kind != ScalarArg::Kind::Complex) return a.add_scalar(c.real());
-                break;
-            case ScalarOpKind::Sub:
-                if (s.kind != ScalarArg::Kind::Complex) return a.add_scalar(-c.real());
-                break;
-            case ScalarOpKind::RSub:
-                if (s.kind != ScalarArg::Kind::Complex) return a.multiply_scalar(-1.0)->add_scalar(c.real());
-                break;
             default:
-                break;
+                break;  // + and - compute below, through the one typed path (F-086)
         }
     }
-    if (in == DataType::COMPLEX_FLOAT16 || out == DataType::COMPLEX_FLOAT16 || in == DataType::FLOAT16 ||
-        out == DataType::FLOAT16) {
-        throw std::invalid_argument("scalar operation: float16/complex_float16 inputs only support same-dtype "
-                                    "real scalar arithmetic (dtype " + dtype_name(in) + " -> " + dtype_name(out) + ")");
+    // Half-precision results: compute in float64 / complex128 (exact for these operands and
+    // scalars' sums and products) and round once.
+    if (out == DataType::FLOAT16 || out == DataType::COMPLEX_FLOAT16) {
+        const DataType wide = out == DataType::FLOAT16 ? DataType::FLOAT64 : DataType::COMPLEX_FLOAT64;
+        return cast_to(*run_exact(a, wide, op, s), out);
     }
     return run_exact(a, out, op, s);
 }

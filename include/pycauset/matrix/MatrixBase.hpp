@@ -128,9 +128,6 @@ public:
         throw std::runtime_error("Complex scalar multiplication not implemented for this matrix type");
     }
 
-    virtual std::unique_ptr<MatrixBase> add_scalar(double scalar, const std::string& result_file = "") const = 0;
-    virtual std::unique_ptr<MatrixBase> add_scalar(int64_t scalar, const std::string& result_file = "") const = 0;
-
     virtual std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const = 0;
 
 protected:

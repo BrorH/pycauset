@@ -2110,32 +2110,6 @@ void bind_matrix_classes(py::module_& m) {
         .def("__truediv__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Div, false); }, py::is_operator())
         .def("__rtruediv__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Div, true); }, py::is_operator())
         .def(
-            "__iadd__",
-            [](const std::shared_ptr<MatrixBase>& a, const std::shared_ptr<MatrixBase>& b) {
-                maybe_warn_bit_promotes_to_int32(
-                    "add",
-                    promotion::BinaryOp::Add,
-                    a->get_data_type(),
-                    b->get_data_type());
-                auto out = pycauset::add(*a, *b, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__iadd__",
-            [](const std::shared_ptr<MatrixBase>& a, double s) {
-                auto out = a->add_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
-            "__iadd__",
-            [](const std::shared_ptr<MatrixBase>& a, int64_t s) {
-                auto out = a->add_scalar(s, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            },
-            py::is_operator())
-        .def(
             "__neg__",
             [](const MatrixBase& a) {
                 // F-002: unary minus (wraps for unsigned ints like NumPy; bit/bool raises).
@@ -2418,6 +2392,40 @@ void bind_matrix_classes(py::module_& m) {
         }
         return mat;
     }, py::arg("matrix"), "The matrix with its elements stored (views and closures evaluated).");
+    m.def("_debug_fill", [](MatrixBase& mat, py::array_t<std::complex<double>, py::array::c_style | py::array::forcecast> arr) {
+        // Test-harness helper (tests/atlas/timing.py): write the stored entries of `mat` from a
+        // logical array in one typed C++ loop, instead of n^2 Python `m[i, j] = v` calls.
+        const Structure st = mat.get_structure();
+        if (st == Structure::IDENTITY) return;
+        auto a = arr.unchecked<2>();
+        const uint64_t rows = mat.rows(), cols = mat.cols();
+        if (static_cast<uint64_t>(a.shape(0)) != rows || static_cast<uint64_t>(a.shape(1)) != cols) {
+            throw py::value_error("_debug_fill: shape mismatch");
+        }
+        const bool diag = st == Structure::TRIANGULAR && static_cast<const TriangularMatrixBase&>(mat).has_diagonal();
+        pycauset::visit_matrix(mat, [&](auto& typed) {
+            using T = std::decay_t<decltype(typed.get(0, 0))>;
+            if constexpr (requires { typed.set(0, 0, T{}); }) {
+                for (uint64_t i = 0; i < rows; ++i) {
+                    for (uint64_t j = 0; j < cols; ++j) {
+                        const bool stored = st == Structure::DENSE ? true
+                                          : st == Structure::TRIANGULAR ? (diag ? j >= i : j > i)
+                                          : st == Structure::SYMMETRIC ? j >= i
+                                          : st == Structure::ANTISYMMETRIC ? j > i
+                                          : st == Structure::DIAGONAL ? i == j : false;
+                        const std::complex<double> z = a(static_cast<py::ssize_t>(i), static_cast<py::ssize_t>(j));
+                        if (!stored || z == std::complex<double>(0.0, 0.0)) continue;
+                        if constexpr (std::is_same_v<T, bool>) typed.set(i, j, z.real() != 0.0);
+                        else if constexpr (pycauset::is_complex_element_v<T> || std::is_same_v<T, std::complex<double>>)
+                            typed.set(i, j, T(z));
+                        else typed.set(i, j, static_cast<T>(z.real()));
+                    }
+                }
+            } else {
+                throw py::type_error("_debug_fill: matrix class has no typed set");
+            }
+        });
+    }, py::arg("matrix"), py::arg("values"));
     m.def("_debug_is_closure", [](const MatrixBase& mat) {
         return dynamic_cast<const pycauset::BitClosureMatrix*>(&mat) != nullptr;
     }, py::arg("matrix"), "True for a lazy closure result (its work happens when it is evaluated).");
