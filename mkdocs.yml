@@ -114,6 +114,7 @@ nav:
       - Vector Guide: guides/Vector Guide.md
       - Linear Algebra Operations: guides/Linear Algebra Operations.md
       - NxM Support: guides/NxM Support.md
+      - Lazy Evaluation: guides/Lazy Evaluation.md
     - Scale and tuning:
       - Performance Guide: guides/Performance Guide.md
       - Advanced Usage: guides/Advanced Usage.md
