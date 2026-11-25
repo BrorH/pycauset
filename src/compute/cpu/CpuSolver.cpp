@@ -3247,15 +3247,58 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             debug_trace::set_last("cpu.matvec.bit_closure");
             const auto& c = cl->bits();
             const double sg = static_cast<double>(cl->sign());
-            std::vector<double> x(cols);
-            for (uint64_t j = 0; j < cols; ++j) x[j] = v.get_element_as_double(j);
-            double* y = out->data();
-            ParallelFor(0, rows, [&](size_t i) {
-                double up = 0.0, down = 0.0;
-                for (uint64_t j = i + 1; j < cols; ++j) if (c.get(i, j)) up += x[j];   // (C x)_i
-                for (uint64_t j = 0; j < i; ++j) if (c.get(j, i)) down += x[j];       // (C^T x)_i
-                y[i] = k * (up + sg * down);
+            const uint64_t n = rows;
+            std::vector<double> x(n);
+            for (uint64_t j = 0; j < n; ++j) x[j] = v.get_element_as_double(j);
+            // Row i holds columns i+1..n-1 as bits, starting at byte offset row_offset(i).
+            const auto* base = static_cast<const char*>(c.shared_mapper()->get_data());
+            auto row_words = [&](uint64_t i) {
+                return reinterpret_cast<const uint64_t*>(base + c.get_row_offset(i));
+            };
+            std::vector<double> up(n, 0.0), down(n, 0.0);
+            // (C x)_i: gather along row i, visiting set bits only.
+            ParallelFor(0, n, [&](size_t i) {
+                if (i + 1 >= n) return;
+                const uint64_t* w = row_words(i);
+                const uint64_t nbits = n - 1 - i;
+                double acc = 0.0;
+                for (uint64_t q = 0; q * 64 < nbits; ++q) {
+                    uint64_t bits = w[q];
+                    const uint64_t remaining = nbits - q * 64;
+                    if (remaining < 64) bits &= (uint64_t{1} << remaining) - 1;
+                    while (bits) {
+                        const uint64_t t = static_cast<uint64_t>(__builtin_ctzll(bits));
+                        acc += x[i + 1 + q * 64 + t];
+                        bits &= bits - 1;
+                    }
+                }
+                up[i] = acc;
             });
+            // (C^T x)_j = sum_{i<j} C_ij x_i: scatter, parallel over disjoint column blocks.
+            constexpr uint64_t BLOCK = 4096;
+            ParallelFor(0, (n + BLOCK - 1) / BLOCK, [&](size_t blk) {
+                const uint64_t c0 = blk * BLOCK, c1 = std::min<uint64_t>(n, c0 + BLOCK);
+                for (uint64_t i = 0; i + 1 < c1; ++i) {
+                    const uint64_t j_lo = std::max<uint64_t>(c0, i + 1);
+                    if (j_lo >= c1) continue;
+                    const uint64_t* w = row_words(i);
+                    const double xi = x[i];
+                    const uint64_t b_lo = j_lo - (i + 1), b_hi = c1 - (i + 1);  // bit range [b_lo, b_hi)
+                    for (uint64_t q = b_lo / 64; q * 64 < b_hi; ++q) {
+                        uint64_t bits = w[q];
+                        const uint64_t q0 = q * 64;
+                        if (b_lo > q0) bits &= ~uint64_t{0} << (b_lo - q0);
+                        if (b_hi < q0 + 64) bits &= (uint64_t{1} << (b_hi - q0)) - 1;
+                        while (bits) {
+                            const uint64_t t = static_cast<uint64_t>(__builtin_ctzll(bits));
+                            down[i + 1 + q0 + t] += xi;
+                            bits &= bits - 1;
+                        }
+                    }
+                }
+            });
+            double* y = out->data();
+            for (uint64_t i = 0; i < n; ++i) y[i] = k * (up[i] + sg * down[i]);
             out->set_scalar(1.0);
             return;
         }

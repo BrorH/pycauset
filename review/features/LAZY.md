@@ -167,8 +167,9 @@ or constant (bandwidth factor).
 - **L2b, the closure view (the 32–64× saving) — DONE session 5** (`BitClosureMatrix`;
   n = 4000: no extra storage vs 32 MB packed, build 0.9 ms vs 49 ms, same Arnoldi spectrum;
   `tests/engine/test_closures.py` compares every consumer with the eager oracle
-  `_set_lazy(False)`; `A.is_lazy`, `pc.materialize(A)` added). Follow-ups: word-level
-  closure matvec (today bit-by-bit), dense `eigvals_skew` is O(n³) whatever the storage
+  `_set_lazy(False)`; `A.is_lazy`, `pc.materialize(A)` added). Word-level closure matvec done
+  (set-bit gather + column-block scatter): n = 4000 Arnoldi 1.47 s -> 0.20 s; n = 20,000 top-6
+  spectrum of C − Cᵀ in 1.8 s at 99 MB peak RSS. Follow-ups: dense `eigvals_skew` is O(n³) whatever the storage
   (L7.1 real skew solver). **Session 5:** `eigvals_skew` now uses the Hermitian solver on iA
   (zheevd, exact ± pairs, deterministic order): n = 1500 0.65 s -> 0.36 s. `eig_skew` (vectors)
   still uses dgeev. Original requirements: a `ClosureMatrix` class (C++) deriving the
