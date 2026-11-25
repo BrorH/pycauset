@@ -3,6 +3,7 @@
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/core/MatrixTraits.hpp"
+#include "pycauset/math/ViewValue.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -85,12 +86,17 @@ public:
         return static_cast<T>(0);
     }
 
+    // The view rule lives in math/ViewValue.hpp (one definition, F-086).
     double element_as_double(uint64_t i, uint64_t j) const override {
-        if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
-        if (i == j) {
-            return scalar_.real();
+        if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+            throw std::runtime_error("Complex matrix does not support get_element_as_double; use get_element_as_complex");
+        } else {
+            return element_as_complex(i, j).real();
         }
-        return 0.0;
+    }
+
+    std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override {
+        return view_value(get(i, j), scalar_, is_conjugated());
     }
 
     void set_element_double(uint64_t i, uint64_t j, double value) override {
@@ -134,18 +140,16 @@ public:
         return result;
     }
 
-    std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
-        auto result = std::make_unique<IdentityMatrix<T>>(base_rows(), base_cols(), result_file);
-        result->set_scalar(scalar_ * factor);
-        result->set_transposed(is_transposed());
-        if (result_file.empty()) {
-            result->set_temporary(true);
-        }
-        return result;
+    std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& = "") const override {
+        return scaled_clone(factor);
     }
 
-    std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
-        return multiply_scalar(static_cast<double>(factor), result_file);
+    std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& = "") const override {
+        return scaled_clone(static_cast<double>(factor));
+    }
+
+    std::unique_ptr<MatrixBase> multiply_scalar(std::complex<double> factor, const std::string& = "") const override {
+        return scaled_clone(factor);
     }
 
 

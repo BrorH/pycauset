@@ -5,7 +5,7 @@ class pycauset.AntiSymmetricMatrix(n, dtype="float64")
 ```
 
 An `n × n` antisymmetric matrix (`A == -A.T`, zero diagonal) that stores only the strict
-upper triangle; writing `A[i, j]` also sets `A[j, i] = -value`. Supports the real dtypes.
+upper triangle; writing `A[i, j]` also sets `A[j, i] = -value`. Supports the signed dtypes (integers, floats, `complex_float32/64`); unsigned and `bool` storage cannot hold `-value`.
 The Pauli–Jordan operator is antisymmetric; its spectrum is computed by
 [[docs/functions/pycauset.eigvals_skew.md|pycauset.eigvals_skew]]. See also
 [[docs/functions/pycauset.antisymmetric.md|pycauset.antisymmetric]].

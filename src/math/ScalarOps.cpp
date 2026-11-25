@@ -271,8 +271,8 @@ R apply(ScalarOpKind op, R x, R s) {
             case ScalarOpKind::Sub: return x - s;
             case ScalarOpKind::RSub: return s - x;
             case ScalarOpKind::Mul: return x * s;
-            case ScalarOpKind::TrueDiv: return x / s;
-            case ScalarOpKind::RTrueDiv: return s / x;
+            case ScalarOpKind::TrueDiv: return scalar::true_divide(x, s);
+            case ScalarOpKind::RTrueDiv: return scalar::true_divide(s, x);
         }
     }
     return x;
@@ -371,7 +371,7 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
                   !std::is_same_v<R, std::complex<double>>) if (keep_structure) {
         const bool anti = a.get_structure() == Structure::ANTISYMMETRIC;
         if (!anti || preserves_zero(op, s)) {
-            auto out = std::make_unique<SymmetricMatrix<R>>(rows, std::string(), anti);
+            auto out = std::make_unique<SymmetricMatrix<R>>(rows, std::string(), anti ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC);
             for (uint64_t i = 0; i < rows; ++i) {
                 for (uint64_t j = anti ? i + 1 : i; j < cols; ++j) {
                     out->set(i, j, apply<R>(op, convert_in<R>(read(i, j)), sv));

@@ -2,6 +2,7 @@
 // Kept in its own translation unit: one instantiation per (class, wide type) pair.
 #include "pycauset/math/ViewRead.hpp"
 #include "pycauset/math/ViewValue.hpp"
+#include "pycauset/core/DTypeDispatch.hpp"
 
 #include <string>
 #include <type_traits>
@@ -59,38 +60,16 @@ std::unique_ptr<MatrixBase> read_typed(const Src& m, const MatrixBase& a, bool a
 
 template <typename W>
 std::unique_ptr<MatrixBase> read_as(const MatrixBase& a) {
-    const bool window = a.is_subview();
-#define PYCAUSET_READ(Cls, anti) \
-    if (auto* m = dynamic_cast<const Cls*>(&a)) return read_typed<W>(*m, a, anti);
-#define PYCAUSET_READ_REAL(Tmpl, anti)                                                                    \
-    PYCAUSET_READ(Tmpl<bool>, anti) PYCAUSET_READ(Tmpl<int8_t>, anti) PYCAUSET_READ(Tmpl<int16_t>, anti)     \
-    PYCAUSET_READ(Tmpl<int32_t>, anti) PYCAUSET_READ(Tmpl<int64_t>, anti) PYCAUSET_READ(Tmpl<uint8_t>, anti) \
-    PYCAUSET_READ(Tmpl<uint16_t>, anti) PYCAUSET_READ(Tmpl<uint32_t>, anti)                                  \
-    PYCAUSET_READ(Tmpl<uint64_t>, anti) PYCAUSET_READ(Tmpl<float>, anti) PYCAUSET_READ(Tmpl<double>, anti)   \
-    PYCAUSET_READ(Tmpl<pycauset::float16_t>, anti)
-    // Dense `get` honours windows and transposition (the bit specialisation ignores windows).
-    PYCAUSET_READ(DenseMatrix<int8_t>, false) PYCAUSET_READ(DenseMatrix<int16_t>, false)
-    PYCAUSET_READ(DenseMatrix<int32_t>, false) PYCAUSET_READ(DenseMatrix<int64_t>, false)
-    PYCAUSET_READ(DenseMatrix<uint8_t>, false) PYCAUSET_READ(DenseMatrix<uint16_t>, false)
-    PYCAUSET_READ(DenseMatrix<uint32_t>, false) PYCAUSET_READ(DenseMatrix<uint64_t>, false)
-    PYCAUSET_READ(DenseMatrix<float>, false) PYCAUSET_READ(DenseMatrix<double>, false)
-    PYCAUSET_READ(DenseMatrix<pycauset::float16_t>, false)
-    PYCAUSET_READ(DenseMatrix<std::complex<float>>, false)
-    PYCAUSET_READ(DenseMatrix<std::complex<double>>, false)
-    if (window) return nullptr;
-    // The other classes' `get` honours transposition (or is symmetric), not windows.
-    PYCAUSET_READ(DenseMatrix<bool>, false)
-    PYCAUSET_READ(ComplexFloat16Matrix, false)
-    if (a.get_structure() == Structure::SYMMETRIC || a.get_structure() == Structure::ANTISYMMETRIC) {
-        const bool anti = a.get_structure() == Structure::ANTISYMMETRIC;
-        PYCAUSET_READ_REAL(SymmetricMatrix, anti)
-    }
-    PYCAUSET_READ_REAL(TriangularMatrix, false)
-    PYCAUSET_READ_REAL(DiagonalMatrix, false)
-    PYCAUSET_READ_REAL(IdentityMatrix, false)
-#undef PYCAUSET_READ_REAL
-#undef PYCAUSET_READ
-    return nullptr;
+    // Dense `get` honours windows and transposition; the other classes' `get` (and the bit
+    // specialisation's) honour transposition, not windows: their windows read virtually.
+    const Structure st = a.get_structure();
+    if (a.is_subview() && (st != Structure::DENSE || a.get_data_type() == DataType::BIT)) return nullptr;
+    // A lazy closure computes on read: it is evaluated by the virtual path (or materialised).
+    if (dynamic_cast<const BitClosureMatrix*>(&a) != nullptr) return nullptr;
+    // One class dispatch through the catalogue (DTypeDispatch.hpp): every offered class.
+    return visit_matrix(a, [&](const auto& typed) -> std::unique_ptr<MatrixBase> {
+        return read_typed<W>(typed, a, st == Structure::ANTISYMMETRIC);
+    });
 }
 
 }  // namespace

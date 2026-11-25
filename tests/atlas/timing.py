@@ -87,7 +87,9 @@ def _build_fast(structure, dtype, a, seed):
            "strict_triangular": lambda n: pc.TriangularMatrix(n, dtype=dtype, has_diagonal=False),
            "diagonal": lambda n: pc.DiagonalMatrix(n, dtype=dtype),
            "symmetric": lambda n: pc.SymmetricMatrix(n, dtype=dtype),
-           "antisymmetric": lambda n: pc.AntiSymmetricMatrix(n, dtype=dtype)}.get(structure)
+           "antisymmetric": lambda n: pc.AntiSymmetricMatrix(n, dtype=dtype),
+           "hermitian": lambda n: pc.HermitianMatrix(n, dtype=dtype),
+           "skew_hermitian": lambda n: pc.SkewHermitianMatrix(n, dtype=dtype)}.get(structure)
     if cls is None:
         return A.build(structure, dtype, a, seed)
     try:

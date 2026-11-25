@@ -2,6 +2,7 @@
 
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/core/MatrixTraits.hpp"
+#include "pycauset/math/ViewValue.hpp"
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include <stdexcept>
@@ -81,11 +82,17 @@ public:
         return data()[i];
     }
 
+    // The view rule lives in math/ViewValue.hpp (one definition, F-086).
     double element_as_double(uint64_t i, uint64_t j) const override {
-        if (scalar_ == 1.0) {
-            return static_cast<double>(get(i, j));
+        if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+            throw std::runtime_error("Complex matrix does not support get_element_as_double; use get_element_as_complex");
+        } else {
+            return element_as_complex(i, j).real();
         }
-        return (static_cast<double>(get(i, j)) * scalar_).real();
+    }
+
+    std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override {
+        return view_value(get(i, j), scalar_, is_conjugated());
     }
 
     void set_element_double(uint64_t i, uint64_t j, double value) override {
@@ -95,26 +102,23 @@ public:
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }
     const T* data() const { return static_cast<const T*>(require_mapper()->get_data()); }
 
-    std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto new_matrix = std::make_unique<DiagonalMatrix<T>>(base_rows(), std::move(mapper));
-        new_matrix->set_scalar(scalar_ * factor);
-        if (result_file.empty()) {
-            new_matrix->set_temporary(true);
-        }
-        return new_matrix;
+    std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& = "") const override {
+        return scaled_clone(factor);
     }
 
-    std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
-        return multiply_scalar(static_cast<double>(factor), result_file);
+    std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& = "") const override {
+        return scaled_clone(static_cast<double>(factor));
+    }
+
+    std::unique_ptr<MatrixBase> multiply_scalar(std::complex<double> factor, const std::string& = "") const override {
+        return scaled_clone(factor);
     }
 
 
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
         // A diagonal matrix is its own transpose: share storage (copy-on-write), O(1) (F-044).
-        if (!result_file.empty()) return multiply_scalar(1.0, result_file);  // explicit file: copy
+        (void)result_file;
         auto c = this->clone();
         return std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(c.release()));
     }

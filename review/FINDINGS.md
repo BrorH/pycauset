@@ -1021,3 +1021,32 @@ the entry (the history is useful). New findings go at the bottom with the next f
   classes, 24 functions) and both `__iadd__` bindings (`+=` now means `x = x + y`, one path)
   were deleted.
 
+
+### F-087 Five hand-kept tables decided which (structure, dtype) pairs exist
+- **Status:** fixed (session 8, N.5.1). `ObjectFactory::create_matrix`, `clone_matrix` (which
+  also dropped `has_diagonal`), `visit_matrix`, `open_storage` (load) and the result-structure
+  resolver's `can_make` each listed the pairs by hand (~150 switch cases); the gaps the
+  maintainer called "a big hole" (no float16/float32/complex diagonal or identity, no complex
+  triangular or symmetric) lived there.
+- Fix: one catalogue in `DTypeDispatch.hpp` (`offered<S, T>`, `ClassOf<S, T>`, builders
+  `make_matrix` / `open_matrix` / `adopt_matrix` with `MatrixOptions`); everything consults it.
+  ObjectFactory 420 → 157 lines. New pairs: diagonal and identity in float16, float32,
+  complex64/128; triangular, symmetric, antisymmetric in complex64/128; new structures
+  `HERMITIAN` and `SKEW_HERMITIAN` (`HermitianMatrix`, `SkewHermitianMatrix`, complex dtypes;
+  maintainer: a complex symmetric matrix is not Hermitian, both are supported). Errors say why
+  a pair does not exist. Protocol: `documentation/project/protocols/Adding Types.md`.
+- The new pairs exposed existing bugs, fixed at the root (atlas 45 ✗ → 0):
+  - `multiply_scalar` of Triangular, Diagonal, Identity built new objects without the
+    conjugation flag (`A.conj() * 0.5`): one `MatrixBase::scaled_clone` replaces the copies;
+  - the accessors of Diagonal (no complex accessor), Triangular (ignored conjugation) and
+    Identity (ignored integer wrapping) were three more copies of the view rule: all use
+    `view_value` now;
+  - `A.H` set the conjugation flag from the original matrix, discarding the transpose's own
+    (wrong for Hermitian A, where A.T = conj(A));
+  - identity shortcuts in matvec, vecmat, identity @ identity, identity @ X and the
+    determinant used the factor without the conjugation flag: `view_value(1, s, conj)`;
+  - complex division used `std::complex` division, which differs from NumPy for a signed-zero
+    denominator (`x / (-0+0j)`): NumPy's algorithm, once, in `scalar::true_divide`.
+- Atlas 77,372 cells (was 64,395), 0 ✗; ok cells 27,436 → 33,034.
+- Tests: `tests/engine/test_catalogue.py` (every pair constructs or raises with a reason, saves
+  and loads as itself; Hermitian/skew-Hermitian rules and views).

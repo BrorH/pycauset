@@ -7,11 +7,12 @@
 //     pycauset::visit_matrix(m, [&](auto& typed) { ... typed.get(i, j) ... });
 //
 // `typed` is the concrete object (DenseMatrix<int8_t>&, TriangularMatrix<bool>&,
-// ComplexFloat16Matrix&, ...). Combinations the engine never instantiates (e.g. a
-// triangular complex matrix) are never named, so they don't need to compile.
+// ComplexFloat16Matrix&, ...). Which (structure, dtype) pairs exist is decided once, by the
+// catalogue below (`offered`, `ClassOf`); pairs it does not offer are never instantiated.
 
 #include <complex>
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -74,6 +75,8 @@ inline const char* structure_name(Structure s) {
         case Structure::ANTISYMMETRIC: return "antisymmetric";
         case Structure::VECTOR: return "vector";
         case Structure::UNIT_VECTOR: return "unit_vector";
+        case Structure::HERMITIAN: return "hermitian";
+        case Structure::SKEW_HERMITIAN: return "skew_hermitian";
         default: return "unknown";
     }
 }
@@ -87,6 +90,8 @@ inline Structure parse_structure(const std::string& s) {
     if (s == "antisymmetric") return Structure::ANTISYMMETRIC;
     if (s == "vector") return Structure::VECTOR;
     if (s == "unit_vector") return Structure::UNIT_VECTOR;
+    if (s == "hermitian") return Structure::HERMITIAN;
+    if (s == "skew_hermitian") return Structure::SKEW_HERMITIAN;
     throw std::invalid_argument("unknown structure: " + s);
 }
 
@@ -135,7 +140,21 @@ template <typename T> struct DenseVectorOf { using type = DenseVector<T>; };
 template <> struct DenseVectorOf<complex_float16_marker> { using type = ComplexFloat16Vector; };
 
 [[noreturn]] inline void throw_unsupported(Structure s, DataType dt) {
-    throw std::invalid_argument(std::string("no ") + structure_name(s) + " matrix of dtype " + dtype_name(dt));
+    // Say why: the catalogue's reasons (see `offered` below).
+    std::string why;
+    const bool cplx = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 ||
+                      dt == DataType::COMPLEX_FLOAT64;
+    if (s == Structure::HERMITIAN || s == Structure::SKEW_HERMITIAN) {
+        if (!cplx) why = ": Hermitian matrices need a complex dtype (for real dtypes use SymmetricMatrix / AntiSymmetricMatrix)";
+    } else if (s == Structure::ANTISYMMETRIC) {
+        if (dt == DataType::BIT || dt == DataType::UINT8 || dt == DataType::UINT16 || dt == DataType::UINT32 ||
+            dt == DataType::UINT64)
+            why = ": antisymmetric matrices need a signed dtype";
+    }
+    if (why.empty() && dt == DataType::COMPLEX_FLOAT16 && s != Structure::DENSE) {
+        why = ": structured complex_float16 storage is not implemented yet (review N.5.5)";
+    }
+    throw std::invalid_argument(std::string("no ") + structure_name(s) + " matrix of dtype " + dtype_name(dt) + why);
 }
 
 namespace detail {
@@ -149,6 +168,170 @@ decltype(auto) call_as(Base& obj, F&& f) {
     return f(*typed);
 }
 }  // namespace detail
+
+// ------------------------------------------------------------------ the catalogue
+// Which (structure, element type) pairs exist, and which class holds each. This is the ONLY
+// place that decides (review N.5.1): ObjectFactory, visit_matrix, loading (open_matrix) and
+// the constructor bindings all go through it. To offer a new pair, change `offered` (and make
+// the class template work for the element type); see protocols/Adding Types.md.
+template <Structure S, typename T>
+constexpr bool offered() {
+    constexpr bool cplx = is_complex_element_v<T>;
+    constexpr bool signed_like = !(std::is_unsigned_v<T> || std::is_same_v<T, bool>);
+    if constexpr (S == Structure::DENSE) {
+        return true;
+    } else if constexpr (std::is_same_v<T, complex_float16_marker>) {
+        return false;  // structured complex_float16: review N.5.5
+    } else if constexpr (S == Structure::TRIANGULAR || S == Structure::DIAGONAL || S == Structure::IDENTITY ||
+                         S == Structure::SYMMETRIC) {
+        return true;
+    } else if constexpr (S == Structure::ANTISYMMETRIC) {
+        return signed_like;  // A(j,i) = -A(i,j) needs negation (F-065)
+    } else if constexpr (S == Structure::HERMITIAN || S == Structure::SKEW_HERMITIAN) {
+        return cplx;  // for real dtypes these are symmetric / antisymmetric
+    } else {
+        return false;
+    }
+}
+
+template <Structure S, typename T> struct ClassOf { using type = void; };
+template <typename T> struct ClassOf<Structure::DENSE, T> { using type = typename DenseMatrixOf<T>::type; };
+template <typename T> struct ClassOf<Structure::TRIANGULAR, T> { using type = TriangularMatrix<T>; };
+template <typename T> struct ClassOf<Structure::DIAGONAL, T> { using type = DiagonalMatrix<T>; };
+template <typename T> struct ClassOf<Structure::IDENTITY, T> { using type = IdentityMatrix<T>; };
+template <typename T> struct ClassOf<Structure::SYMMETRIC, T> { using type = SymmetricMatrix<T>; };
+template <typename T> struct ClassOf<Structure::ANTISYMMETRIC, T> { using type = SymmetricMatrix<T>; };
+template <typename T> struct ClassOf<Structure::HERMITIAN, T> { using type = SymmetricMatrix<T>; };
+template <typename T> struct ClassOf<Structure::SKEW_HERMITIAN, T> { using type = SymmetricMatrix<T>; };
+
+template <Structure S>
+using structure_tag = std::integral_constant<Structure, S>;
+
+// Calls f(structure_tag<S>{}) for a matrix structure.
+template <typename F>
+decltype(auto) visit_structure(Structure s, F&& f) {
+    switch (s) {
+        case Structure::DENSE: return f(structure_tag<Structure::DENSE>{});
+        case Structure::TRIANGULAR: return f(structure_tag<Structure::TRIANGULAR>{});
+        case Structure::DIAGONAL: return f(structure_tag<Structure::DIAGONAL>{});
+        case Structure::IDENTITY: return f(structure_tag<Structure::IDENTITY>{});
+        case Structure::SYMMETRIC: return f(structure_tag<Structure::SYMMETRIC>{});
+        case Structure::ANTISYMMETRIC: return f(structure_tag<Structure::ANTISYMMETRIC>{});
+        case Structure::HERMITIAN: return f(structure_tag<Structure::HERMITIAN>{});
+        case Structure::SKEW_HERMITIAN: return f(structure_tag<Structure::SKEW_HERMITIAN>{});
+        default: throw std::invalid_argument(std::string("not a matrix structure: ") + structure_name(s));
+    }
+}
+
+// Is the (structure, dtype) pair offered (runtime form of `offered`)?
+inline bool is_offered(Structure s, DataType dt) {
+    if (s == Structure::VECTOR || s == Structure::UNIT_VECTOR || s == Structure::UNKNOWN) return false;
+    return visit_structure(s, [&](auto st) {
+        return visit_dtype(dt, [&](auto tag) { return offered<decltype(st)::value, typename decltype(tag)::type>(); });
+    });
+}
+
+// Structure-specific construction options (one struct, so nothing is dropped on the way:
+// a lost has_diagonal read shifted values, F-064 / F-076).
+struct MatrixOptions {
+    bool has_diagonal = false;  // TRIANGULAR only
+};
+
+namespace detail {
+inline void require_square(Structure s, uint64_t rows, uint64_t cols) {
+    if (s != Structure::DENSE && s != Structure::IDENTITY && rows != cols) {
+        throw std::invalid_argument("Structure requires square dimensions");
+    }
+}
+
+// One builder for the three constructor shapes every class has. Mode::Create: new storage
+// (`file` may be empty); Mode::Open: existing storage at `offset` with a view; Mode::Adopt:
+// share a mapper (clone).
+enum class Build { Create, Open, Adopt };
+
+struct BuildArgs {
+    uint64_t rows = 0, cols = 0;
+    std::string file;
+    size_t offset = 0;
+    uint64_t seed = 0;
+    std::complex<double> scalar = 1.0;
+    bool transposed = false;
+    std::shared_ptr<MemoryMapper> mapper;
+    MatrixOptions opts;
+};
+
+template <Build B>
+std::unique_ptr<MatrixBase> build_matrix(Structure s, DataType dt, const BuildArgs& a) {
+    require_square(s, a.rows, a.cols);
+    return visit_structure(s, [&](auto st) -> std::unique_ptr<MatrixBase> {
+        constexpr Structure S = decltype(st)::value;
+        return visit_dtype(dt, [&](auto tag) -> std::unique_ptr<MatrixBase> {
+            using T = typename decltype(tag)::type;
+            if constexpr (!offered<S, T>()) {
+                throw_unsupported(S, dt);
+            } else {
+                using C = typename ClassOf<S, T>::type;
+                const uint64_t n = a.rows;
+                if constexpr (S == Structure::DENSE || S == Structure::IDENTITY) {
+                    if constexpr (B == Build::Create) return std::make_unique<C>(a.rows, a.cols, a.file);
+                    else if constexpr (B == Build::Open)
+                        return std::make_unique<C>(a.rows, a.cols, a.file, a.offset, a.seed, a.scalar, a.transposed);
+                    else return std::make_unique<C>(a.rows, a.cols, a.mapper);
+                } else if constexpr (S == Structure::TRIANGULAR && std::is_same_v<T, bool>) {
+                    // Bit triangles are strictly upper triangular (with-diagonal: review N.5.6).
+                    if (a.opts.has_diagonal) throw std::invalid_argument("bit triangular matrices are strictly upper triangular");
+                    if constexpr (B == Build::Create) return std::make_unique<C>(n, a.file);
+                    else if constexpr (B == Build::Open)
+                        return std::make_unique<C>(n, a.file, a.offset, a.seed, a.scalar, a.transposed);
+                    else return std::make_unique<C>(n, a.mapper);
+                } else if constexpr (S == Structure::TRIANGULAR) {
+                    const bool d = a.opts.has_diagonal;
+                    if constexpr (B == Build::Create) return std::make_unique<C>(n, a.file, d);
+                    else if constexpr (B == Build::Open)
+                        return std::make_unique<C>(n, a.file, a.offset, a.seed, a.scalar, a.transposed, d);
+                    else return std::make_unique<C>(n, a.mapper, d);
+                } else if constexpr (S == Structure::DIAGONAL) {
+                    if constexpr (B == Build::Create) return std::make_unique<C>(n, a.file);
+                    else if constexpr (B == Build::Open)
+                        return std::make_unique<C>(n, a.file, a.offset, a.seed, a.scalar, a.transposed);
+                    else return std::make_unique<C>(n, a.mapper);
+                } else {  // the symmetric family: the structure is the kind
+                    if constexpr (B == Build::Create) return std::make_unique<C>(n, a.file, S);
+                    else if constexpr (B == Build::Open)
+                        return std::make_unique<C>(n, a.file, a.offset, a.seed, a.scalar, a.transposed, S);
+                    else return std::make_unique<C>(n, a.mapper, S);
+                }
+            }
+        });
+    });
+}
+}  // namespace detail
+
+// New storage for a (structure, dtype) pair.
+inline std::unique_ptr<MatrixBase> make_matrix(Structure s, DataType dt, uint64_t rows, uint64_t cols,
+                                               const std::string& file = "", MatrixOptions opts = {}) {
+    detail::BuildArgs a;
+    a.rows = rows; a.cols = cols; a.file = file; a.opts = opts;
+    return detail::build_matrix<detail::Build::Create>(s, dt, a);
+}
+
+// Existing storage (persistence): `rows` x `cols` is the storage shape, the view is applied.
+inline std::unique_ptr<MatrixBase> open_matrix(Structure s, DataType dt, uint64_t rows, uint64_t cols,
+                                               const std::string& file, size_t offset, uint64_t seed,
+                                               std::complex<double> scalar, bool transposed, MatrixOptions opts = {}) {
+    detail::BuildArgs a;
+    a.rows = rows; a.cols = cols; a.file = file; a.offset = offset; a.seed = seed; a.scalar = scalar;
+    a.transposed = transposed; a.opts = opts;
+    return detail::build_matrix<detail::Build::Open>(s, dt, a);
+}
+
+// A new object sharing `mapper` (clone); the caller sets the view.
+inline std::unique_ptr<MatrixBase> adopt_matrix(Structure s, DataType dt, std::shared_ptr<MemoryMapper> mapper,
+                                                uint64_t rows, uint64_t cols, MatrixOptions opts = {}) {
+    detail::BuildArgs a;
+    a.rows = rows; a.cols = cols; a.mapper = std::move(mapper); a.opts = opts;
+    return detail::build_matrix<detail::Build::Adopt>(s, dt, a);
+}
 
 // Calls f(concrete&) for a matrix. Works for const and non-const MatrixBase.
 // Every branch must return the same type (use void or py::object in callers).
@@ -164,25 +347,23 @@ decltype(auto) visit_matrix(M& m, F&& f) {
     }
     return visit_dtype(dt, [&](auto tag) -> decltype(auto) {
         using T = typename decltype(tag)::type;
-        if (s == Structure::DENSE) {
-            return detail::call_as<typename DenseMatrixOf<T>::type>(m, f);
+#define PYCAUSET_VISIT_CASE(S)                                                                \
+        case S:                                                                               \
+            if constexpr (offered<S, T>()) return detail::call_as<typename ClassOf<S, T>::type>(m, f); \
+            break;
+        switch (s) {
+            case Structure::DENSE: return detail::call_as<typename ClassOf<Structure::DENSE, T>::type>(m, f);
+            PYCAUSET_VISIT_CASE(Structure::TRIANGULAR)
+            PYCAUSET_VISIT_CASE(Structure::DIAGONAL)
+            PYCAUSET_VISIT_CASE(Structure::IDENTITY)
+            PYCAUSET_VISIT_CASE(Structure::SYMMETRIC)
+            PYCAUSET_VISIT_CASE(Structure::ANTISYMMETRIC)
+            PYCAUSET_VISIT_CASE(Structure::HERMITIAN)
+            PYCAUSET_VISIT_CASE(Structure::SKEW_HERMITIAN)
+            default: break;
         }
-        if constexpr (is_complex_element_v<T>) {
-            throw_unsupported(s, dt);
-        } else {
-            switch (s) {
-                case Structure::TRIANGULAR: return detail::call_as<TriangularMatrix<T>>(m, f);
-                case Structure::SYMMETRIC:
-                case Structure::ANTISYMMETRIC: return detail::call_as<SymmetricMatrix<T>>(m, f);
-                case Structure::DIAGONAL:
-                    if constexpr (std::is_same_v<T, float16_t> || std::is_same_v<T, float>) throw_unsupported(s, dt);
-                    else return detail::call_as<DiagonalMatrix<T>>(m, f);
-                case Structure::IDENTITY:
-                    if constexpr (std::is_same_v<T, float16_t> || std::is_same_v<T, float>) throw_unsupported(s, dt);
-                    else return detail::call_as<IdentityMatrix<T>>(m, f);
-                default: throw_unsupported(s, dt);
-            }
-        }
+#undef PYCAUSET_VISIT_CASE
+        throw_unsupported(s, dt);
     });
 }
 

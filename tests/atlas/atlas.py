@@ -66,7 +66,7 @@ def is_int(d: str) -> bool:
 # --------------------------------------------------------------------------- operands
 
 STRUCTURES = ["dense", "triangular", "strict_triangular", "diagonal", "identity", "symmetric",
-              "antisymmetric", "causal", "c_plus_ct", "vector", "unit_vector"]
+              "antisymmetric", "hermitian", "skew_hermitian", "causal", "c_plus_ct", "vector", "unit_vector"]
 
 
 class Unavailable(Exception):
@@ -118,6 +118,20 @@ def reference(structure: str, dtype: str, seed: int) -> np.ndarray:
             iu = np.triu_indices(N)
             out[iu] = u[iu]
             return out
+    if structure in ("hermitian", "skew_hermitian"):
+        # A = A^H (real diagonal) or A = -A^H (imaginary diagonal); real dtypes: not offered.
+        u = np.triu(_dominant(a, dtype))
+        if kind(dtype) != "c":
+            return u + np.triu(u, 1).T
+        d = np.diag(u)
+        u = u - np.diag(d) + np.diag(d.real if structure == "hermitian" else 1j * d.imag).astype(u.dtype)
+        # A[j,i] = conj(A[i,j]) / -conj(A[i,j]) by placement, with IEEE negation (a stored 0
+        # reads as -0 below the diagonal of a skew-Hermitian matrix, as the engine reads it).
+        mirror = np.conj(u.T) if structure == "hermitian" else np.negative(np.conj(u.T))
+        out = mirror.copy()
+        iu = np.triu_indices(N)
+        out[iu] = u[iu]
+        return out.astype(u.dtype)
     if structure == "c_plus_ct":
         u = np.triu(a, 1)
         return u | u.T if dtype == "bool" else u + u.T
@@ -163,7 +177,8 @@ def build(structure: str, dtype: str, ref: np.ndarray, seed: int):
                 warnings.simplefilter("ignore")
                 return c + c.T  # PyCauset counts: int32 values, same as `ref` here for 0/1 data
         cls = {"diagonal": pc.DiagonalMatrix, "symmetric": pc.SymmetricMatrix,
-               "antisymmetric": pc.AntiSymmetricMatrix}[structure]
+               "antisymmetric": pc.AntiSymmetricMatrix, "hermitian": pc.HermitianMatrix,
+               "skew_hermitian": pc.SkewHermitianMatrix}[structure]
         m = cls(N, dtype=dtype)
         for i in range(N):
             for j in range(i if structure != "antisymmetric" else i + 1, N):
@@ -567,7 +582,7 @@ def _numpy_rejects(op: Op, cell: Cell) -> bool:
     """Cells NumPy itself has no meaning for: raising is the right answer."""
     if op.group == "bitwise" and kind(cell.dtype) in "fc":
         return True
-    if op.name in ("eigvalsh", "cholesky") and cell.structure not in ("symmetric", "diagonal", "identity"):
+    if op.name in ("eigvalsh", "cholesky") and not _hermitian_input(cell.structure, cell.dtype):
         return True  # not Hermitian/positive definite: no defined answer
     return False
 
@@ -632,6 +647,13 @@ def classify(cell: Cell, op: Op) -> str:
 
 # --------------------------------------------------------------------------- enumeration
 
+def _hermitian_input(structure: str, dtype: str) -> bool:
+    """Is every matrix of this structure Hermitian? (A complex symmetric matrix is not.)"""
+    if structure == "hermitian":
+        return True
+    return structure in ("symmetric", "diagonal", "identity") and (kind(dtype) != "c" or structure == "identity")
+
+
 def applicable(op: Op, dtype: str, structure: str, view: str) -> bool:
     is_vec = structure in ("vector", "unit_vector")
     if is_vec and not op.vector:
@@ -646,7 +668,7 @@ def applicable(op: Op, dtype: str, structure: str, view: str) -> bool:
         return False
     if op.name == "dot" and view not in ("plain", "conj", "T"):
         return False
-    if op.name in ("eigvalsh", "cholesky") and structure not in ("symmetric", "diagonal", "identity"):
+    if op.name in ("eigvalsh", "cholesky") and not _hermitian_input(structure, dtype):
         return False  # defined for Hermitian input only (NumPy reads one triangle and trusts it)
     if op.name == "cholesky" and view == "lazy_sum" and dtype == "bool":
         return False

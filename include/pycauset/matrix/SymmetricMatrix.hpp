@@ -1,233 +1,197 @@
 #pragma once
 
-#include <type_traits>
-#include <stdexcept>
-
-#include "pycauset/matrix/TriangularMatrix.hpp"
-#include "pycauset/matrix/DenseMatrix.hpp"
-#include "pycauset/core/MatrixTraits.hpp"
 #include <algorithm>
+#include <complex>
 #include <stdexcept>
+#include <string>
+#include <type_traits>
+
+#include "pycauset/core/MatrixTraits.hpp"
+#include "pycauset/math/ViewValue.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/matrix/TriangularMatrix.hpp"
 
 namespace pycauset {
 
-// Structure bases (see MatrixBase.hpp). Symmetric and antisymmetric matrices share one
-// implementation (SymmetricMatrix<T> with a runtime flag), so every packed (anti)symmetric
-// object derives BOTH bases; the Python type hook picks the class from the flag.
+// Structure bases (see MatrixBase.hpp). The four packed symmetry kinds share one
+// implementation (SymmetricMatrix<T> with a runtime kind), so every packed object derives all
+// marker bases; the Python type hook picks the class from the object's structure.
+//
+//   kind             lower triangle A(j, i)   diagonal          dtypes
+//   SYMMETRIC        A(i, j)                  any               all
+//   ANTISYMMETRIC    -A(i, j)                 0                 signed (not unsigned, not bool)
+//   HERMITIAN        conj(A(i, j))            real              complex
+//   SKEW_HERMITIAN   -conj(A(i, j))           imaginary         complex
+//
+// A complex symmetric matrix (A = A^T) and a Hermitian one (A = A^H) are different structures.
 class SymmetricMatrixBase : public TriangularMatrixBase {
 public:
     using TriangularMatrixBase::TriangularMatrixBase;
 };
-
 class AntiSymmetricMatrixBase : public SymmetricMatrixBase {
 public:
     using SymmetricMatrixBase::SymmetricMatrixBase;
 };
+class HermitianMatrixBase : public AntiSymmetricMatrixBase {
+public:
+    using AntiSymmetricMatrixBase::AntiSymmetricMatrixBase;
+};
+class SkewHermitianMatrixBase : public HermitianMatrixBase {
+public:
+    using HermitianMatrixBase::HermitianMatrixBase;
+};
+
+inline bool is_symmetric_family(Structure s) {
+    return s == Structure::SYMMETRIC || s == Structure::ANTISYMMETRIC || s == Structure::HERMITIAN ||
+           s == Structure::SKEW_HERMITIAN;
+}
 
 template <typename T>
-class SymmetricMatrix : public AntiSymmetricMatrixBase {
-    // A(j,i) = -A(i,j) has no meaning for unsigned or bit storage: the stored value wrapped
-    // (254 for -2) while the arithmetic paths negated (-5.0 for 2.5 * -2), F-065.
-    static void require_signed_if_antisymmetric(bool is_antisymmetric) {
-        if (is_antisymmetric && (std::is_unsigned_v<T> || std::is_same_v<T, bool>)) {
-            throw std::invalid_argument(
-                std::string("antisymmetric matrices need a signed dtype (got ") + MatrixTraits<T>::name + ")");
+class SymmetricMatrix : public SkewHermitianMatrixBase {
+    static constexpr bool kComplex =
+        std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>;
+
+    static Structure checked(Structure kind) {
+        if (!is_symmetric_family(kind)) throw std::invalid_argument("SymmetricMatrix: not a symmetry kind");
+        // A(j,i) = -A(i,j) has no meaning for unsigned or bit storage (F-065).
+        if ((kind == Structure::ANTISYMMETRIC || kind == Structure::SKEW_HERMITIAN) &&
+            (std::is_unsigned_v<T> || std::is_same_v<T, bool>)) {
+            throw std::invalid_argument(std::string("antisymmetric matrices need a signed dtype (got ") +
+                                        MatrixTraits<T>::name + ")");
+        }
+        if ((kind == Structure::HERMITIAN || kind == Structure::SKEW_HERMITIAN) && !kComplex) {
+            throw std::invalid_argument(std::string("Hermitian matrices need a complex dtype (got ") +
+                                        MatrixTraits<T>::name + "); for real dtypes use SymmetricMatrix / "
+                                        "AntiSymmetricMatrix");
+        }
+        return kind;
+    }
+
+    static std::string prefix(Structure kind) {
+        switch (kind) {
+            case Structure::ANTISYMMETRIC: return "antisymmetric_";
+            case Structure::HERMITIAN: return "hermitian_";
+            case Structure::SKEW_HERMITIAN: return "skew_hermitian_";
+            default: return "symmetric_";
         }
     }
 
 public:
-    SymmetricMatrix(uint64_t n, const std::string& backing_file = "", bool is_antisymmetric = false)
-        : AntiSymmetricMatrixBase(n, is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
-          is_antisymmetric_(is_antisymmetric) {
-        require_signed_if_antisymmetric(is_antisymmetric);
-        
-        has_diagonal_ = true; // Symmetric matrices always have a diagonal (even if 0 for antisymmetric)
-        
-        // Calculate offsets for T (sizeof(T)*8 bits per element), aligned to 64 bits
-        // We store the upper triangle including diagonal.
-        // Number of elements = n*(n+1)/2
+    SymmetricMatrix(uint64_t n, const std::string& backing_file = "", Structure kind = Structure::SYMMETRIC)
+        : SkewHermitianMatrixBase(n, checked(kind), MatrixTraits<T>::data_type), kind_(kind) {
+        has_diagonal_ = true;  // the packed upper triangle includes the diagonal
         uint64_t size_in_bytes = calculate_triangular_offsets(sizeof(T) * 8, 64);
-        
-        initialize_storage(size_in_bytes, backing_file, 
-                         std::string(is_antisymmetric ? "antisymmetric_" : "symmetric_") + MatrixTraits<T>::name, 
-                         8,
-                         is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, 
-                         MatrixTraits<T>::data_type,
-                         n, n);
+        initialize_storage(size_in_bytes, backing_file, prefix(kind) + MatrixTraits<T>::name, 8, kind,
+                           MatrixTraits<T>::data_type, n, n);
     }
 
     // Constructor for loading with explicit metadata
-    SymmetricMatrix(uint64_t n, 
-                     const std::string& backing_file,
-                     size_t offset,
-                     uint64_t seed,
-                     std::complex<double> scalar,
-                     bool is_transposed,
-                     bool is_antisymmetric)
-        : AntiSymmetricMatrixBase(n, is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
-          is_antisymmetric_(is_antisymmetric) {
-        require_signed_if_antisymmetric(is_antisymmetric);
-        
+    SymmetricMatrix(uint64_t n, const std::string& backing_file, size_t offset, uint64_t seed,
+                    std::complex<double> scalar, bool is_transposed, Structure kind)
+        : SkewHermitianMatrixBase(n, checked(kind), MatrixTraits<T>::data_type), kind_(kind) {
         has_diagonal_ = true;
         uint64_t size_in_bytes = calculate_triangular_offsets(sizeof(T) * 8, 64);
-        
-        initialize_storage(size_in_bytes, backing_file, 
-                         "", 
-                         8,
-                         is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, 
-                         MatrixTraits<T>::data_type,
-                         n, n,
-                         offset,
-                         false);
-        
+        initialize_storage(size_in_bytes, backing_file, "", 8, kind, MatrixTraits<T>::data_type, n, n, offset,
+                           false);
         set_seed(seed);
         set_scalar(scalar);
         set_transposed(is_transposed);
     }
 
-    SymmetricMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper, bool is_antisymmetric = false)
-        : AntiSymmetricMatrixBase(n, std::move(mapper), is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
-          is_antisymmetric_(is_antisymmetric) {
-        require_signed_if_antisymmetric(is_antisymmetric);
+    SymmetricMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper, Structure kind = Structure::SYMMETRIC)
+        : SkewHermitianMatrixBase(n, std::move(mapper), checked(kind), MatrixTraits<T>::data_type), kind_(kind) {
         has_diagonal_ = true;
         calculate_triangular_offsets(sizeof(T) * 8, 64);
     }
 
-    bool is_antisymmetric() const { return is_antisymmetric_; }
+    Structure kind() const { return kind_; }
+    bool is_antisymmetric() const { return kind_ == Structure::ANTISYMMETRIC; }
+
+    // The value of the lower triangle given the stored upper value (see the table above).
+    T mirror(T v) const {
+        switch (kind_) {
+            case Structure::ANTISYMMETRIC: return negate(v);
+            case Structure::HERMITIAN: return conj_of(v);
+            case Structure::SKEW_HERMITIAN: return negate(conj_of(v));
+            default: return v;
+        }
+    }
 
     void set(uint64_t i, uint64_t j, T value) {
         ensure_unique();
-        
         if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
-
-        bool swapped = false;
-        if (i > j) {
+        if (i == j) {
+            check_diagonal(value);
+        } else if (i > j) {
             std::swap(i, j);
-            swapped = true;
+            value = mirror(value);  // the mirror is an involution: storing A(i,j) from A(j,i)
         }
-
-        if (is_antisymmetric_) {
-            if (i == j) {
-                if (value != T(0)) {
-                    throw std::invalid_argument("Diagonal of anti-symmetric matrix must be zero");
-                }
-                // We still set it to 0 in storage to be safe/consistent
-            } else if (swapped) {
-                // User set lower triangle: A[j, i] = val => A[i, j] = -val
-                value = -value;
-            }
-        }
-
-        // Access storage (Upper Triangular)
-        // Row i offset + j
-        // Note: TriangularMatrixBase::calculate_triangular_offsets assumes a specific packing.
-        // Usually row_offsets_[i] gives the start of row i.
-        // In packed upper triangular, row i has length (N-i) or something similar depending on packing.
-        // Let's assume standard packed storage where row i starts at row_offsets_[i].
-        // Since we are storing upper triangle, for a given row i, the columns are j=i, i+1, ..., N-1.
-        // So the index within the row is (j - i).
-        
-        uint64_t byte_offset = get_row_offset(i) + (j - i) * sizeof(T);
-        
-        // Write value
-        T* ptr = reinterpret_cast<T*>(static_cast<uint8_t*>(mapper_->get_data()) + byte_offset);
+        T* ptr = reinterpret_cast<T*>(static_cast<uint8_t*>(mapper_->get_data()) + get_row_offset(i) +
+                                      (j - i) * sizeof(T));
         *ptr = value;
     }
 
     T get(uint64_t i, uint64_t j) const {
         if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
-
-        bool swapped = false;
-        if (i > j) {
-            std::swap(i, j);
-            swapped = true;
-        }
-
-        // Read from storage (Upper Triangular)
-        uint64_t byte_offset = get_row_offset(i) + (j - i) * sizeof(T);
-        const T* ptr = reinterpret_cast<const T*>(static_cast<const uint8_t*>(mapper_->get_data()) + byte_offset);
-        T val = *ptr;
-
-        if (is_antisymmetric_ && swapped) {
-            return -val;
-        }
-        return val;
+        const bool lower = i > j;
+        if (lower) std::swap(i, j);
+        const T* ptr = reinterpret_cast<const T*>(static_cast<const uint8_t*>(mapper_->get_data()) +
+                                                  get_row_offset(i) + (j - i) * sizeof(T));
+        return lower ? mirror(*ptr) : *ptr;
     }
 
     T* data() { return static_cast<T*>(this->require_mapper()->get_data()); }
     const T* data() const { return static_cast<const T*>(this->require_mapper()->get_data()); }
 
-    // Implement MatrixBase virtuals
     double element_as_double(uint64_t i, uint64_t j) const override {
-        // The diagonal of an antisymmetric matrix is +0.0 whatever the factor: A.T is stored as
-        // the factor -1, which turned it into -0.0 (2 / A.T gave -inf, F-078).
-        if (is_antisymmetric_ && i == j) return 0.0;
-        if (scalar_ == 1.0) {
-            return static_cast<double>(get(i, j));
+        if constexpr (kComplex) {
+            throw std::runtime_error("Complex matrix does not support get_element_as_double; use get_element_as_complex");
+        } else {
+            return element_as_complex(i, j).real();
         }
-        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-            // Integer views (F-042): NumPy wrapping.
-            return static_cast<double>(pycauset::scalar::wrap_scale(get(i, j), static_cast<int64_t>(scalar_.real())));
-        }
-        return (static_cast<double>(get(i, j)) * scalar_).real();
     }
 
     std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override {
-        if (is_antisymmetric_ && i == j) return {0.0, 0.0};
-        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-            return {get_element_as_double(i, j), 0.0};
-        } else {
-            if (scalar_ == 1.0) {
-                return std::complex<double>(static_cast<double>(get(i, j)), 0.0);
-            }
-            return static_cast<double>(get(i, j)) * scalar_;
-        }
+        // The antisymmetric diagonal is +0.0 whatever the factor (F-078).
+        if (kind_ == Structure::ANTISYMMETRIC && i == j) return {0.0, 0.0};
+        return view_value(get(i, j), scalar_, is_conjugated());
     }
 
     void set_element_double(uint64_t i, uint64_t j, double value) override {
-        set(i, j, static_cast<T>(value));
+        if constexpr (kComplex) set(i, j, T(value));
+        else set(i, j, static_cast<T>(value));
     }
 
-    std::unique_ptr<MatrixBase> multiply_scalar(double scalar, const std::string& result_file = "") const override {
-        // Metadata update
-        auto clone_ptr = this->clone();
-        auto mat_ptr = std::unique_ptr<MatrixBase>(dynamic_cast<MatrixBase*>(clone_ptr.release()));
-        mat_ptr->set_scalar(mat_ptr->get_scalar() * scalar);
-        if (!result_file.empty()) {
-             // If result file is specified, we might need to copy storage, but here we just clone and update scalar.
-             // If deep copy is needed, clone() usually does CoW or shallow copy.
-             // For now, follow pattern.
+    std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& = "") const override {
+        return scaled_clone(factor);
+    }
+
+    std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& = "") const override {
+        return scaled_clone(static_cast<double>(factor));
+    }
+
+    std::unique_ptr<MatrixBase> multiply_scalar(std::complex<double> factor, const std::string& = "") const override {
+        return scaled_clone(factor);
+    }
+
+    // O(1): A^T = A (symmetric), -A (antisymmetric), conj(A) (Hermitian), -conj(A) (skew). A
+    // conjugation is applied as a toggled flag with the factor conjugated, so that
+    // conj'(raw * s') equals the transposed value under the view rule.
+    std::unique_ptr<MatrixBase> transpose(const std::string& = "") const override {
+        auto out = std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(this->clone().release()));
+        std::complex<double> s = out->get_scalar();
+        if (kind_ == Structure::HERMITIAN || kind_ == Structure::SKEW_HERMITIAN) {
+            out->set_conjugated(!out->is_conjugated());
+            s = std::conj(s);
         }
-        return mat_ptr;
-    }
-
-    std::unique_ptr<MatrixBase> multiply_scalar(int64_t scalar, const std::string& result_file = "") const override {
-        return multiply_scalar(static_cast<double>(scalar), result_file);
-    }
-
-
-
-    std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
-        auto clone_ptr = this->clone();
-        auto mat_ptr = std::unique_ptr<MatrixBase>(dynamic_cast<MatrixBase*>(clone_ptr.release()));
-        
-        if (is_antisymmetric_) {
-            // Transpose of anti-symmetric is negation.
-            // A^T = -A.
-            // We can represent this by flipping the scalar?
-            mat_ptr->set_scalar(mat_ptr->get_scalar() * -1.0);
-        } else {
-            // Transpose of symmetric is itself.
-            // No change needed.
-        }
-        return mat_ptr;
+        if (kind_ == Structure::ANTISYMMETRIC || kind_ == Structure::SKEW_HERMITIAN) s = -s;
+        out->set_scalar(s);
+        return out;
     }
 
     std::unique_ptr<PersistentObject> clone() const override {
-        // Create a new object sharing the same mapper (CoW handled by PersistentObject/MemoryMapper)
-        // Keep the view metadata: transpose/negation and scaling are stored in it (the factor
-        // used to be dropped here, so A.T * 3 gave 3A and A.T.T gave -A for antisymmetric A).
-        auto out = std::make_unique<SymmetricMatrix<T>>(base_rows(), mapper_, is_antisymmetric_);
+        // Keep the view metadata: transpose/negation and scaling are stored in it.
+        auto out = std::make_unique<SymmetricMatrix<T>>(base_rows(), mapper_, kind_);
         out->set_scalar(this->get_scalar());
         out->set_conjugated(this->is_conjugated());
         out->set_transposed(this->is_transposed());
@@ -235,61 +199,42 @@ public:
         return out;
     }
 
-    static std::unique_ptr<SymmetricMatrix<T>> from_triangular(const TriangularMatrix<T>& source, const std::string& backing_file = "") {
-        auto n = source.rows();
-        auto mat = std::make_unique<SymmetricMatrix<T>>(n, backing_file, false);
-        
-        // Copy upper triangle including diagonal
+    // The matrix of the given kind whose upper triangle (strict for antisymmetric) is `source`'s.
+    static std::unique_ptr<SymmetricMatrix<T>> from_triangular(const TriangularMatrix<T>& source, Structure kind,
+                                                                const std::string& backing_file = "") {
+        const uint64_t n = source.rows();
+        auto mat = std::make_unique<SymmetricMatrix<T>>(n, backing_file, kind);
+        const bool skip_diag = kind == Structure::ANTISYMMETRIC;
         for (uint64_t i = 0; i < n; ++i) {
-            for (uint64_t j = i; j < n; ++j) {
-                mat->set(i, j, source.get(i, j));
-            }
+            for (uint64_t j = skip_diag ? i + 1 : i; j < n; ++j) mat->set(i, j, source.get(i, j));
         }
         return mat;
     }
 
-protected:
-    bool is_antisymmetric_;
-};
-
-template <typename T>
-class AntiSymmetricMatrix : public SymmetricMatrix<T> {
-public:
-    AntiSymmetricMatrix(uint64_t n, const std::string& backing_file = "")
-        : SymmetricMatrix<T>(n, backing_file, true) {}
-
-    AntiSymmetricMatrix(uint64_t n, 
-                     const std::string& backing_file,
-                     size_t offset,
-                     uint64_t seed,
-                     std::complex<double> scalar,
-                     bool is_transposed)
-        : SymmetricMatrix<T>(n, backing_file, offset, seed, scalar, is_transposed, true) {}
-
-    AntiSymmetricMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
-        : SymmetricMatrix<T>(n, std::move(mapper), true) {}
-
-    std::unique_ptr<PersistentObject> clone() const override {
-        auto out = std::make_unique<AntiSymmetricMatrix<T>>(this->base_rows(), this->mapper_);
-        out->set_scalar(this->get_scalar());
-        out->set_conjugated(this->is_conjugated());
-        out->set_transposed(this->is_transposed());
-        out->set_seed(this->get_seed());
-        return out;
+private:
+    static T negate(T v) {
+        if constexpr (std::is_same_v<T, bool>) return v;  // never reached: bool is never antisymmetric
+        else return static_cast<T>(-v);
     }
-
-    static std::unique_ptr<AntiSymmetricMatrix<T>> from_triangular(const TriangularMatrix<T>& source, const std::string& backing_file = "") {
-        auto n = source.rows();
-        auto mat = std::make_unique<AntiSymmetricMatrix<T>>(n, backing_file);
-        
-        // Copy upper triangle excluding diagonal (diagonal is 0)
-        for (uint64_t i = 0; i < n; ++i) {
-            for (uint64_t j = i + 1; j < n; ++j) {
-                mat->set(i, j, source.get(i, j));
+    static T conj_of(T v) {
+        if constexpr (kComplex) return std::conj(v);
+        else return v;
+    }
+    void check_diagonal(T v) const {
+        if (kind_ == Structure::ANTISYMMETRIC && v != T(0)) {
+            throw std::invalid_argument("Diagonal of an antisymmetric matrix must be zero");
+        }
+        if constexpr (kComplex) {
+            if (kind_ == Structure::HERMITIAN && v.imag() != 0) {
+                throw std::invalid_argument("Diagonal of a Hermitian matrix must be real");
+            }
+            if (kind_ == Structure::SKEW_HERMITIAN && v.real() != 0) {
+                throw std::invalid_argument("Diagonal of a skew-Hermitian matrix must be imaginary");
             }
         }
-        return mat;
     }
+
+    Structure kind_;
 };
 
-} // namespace pycauset
+}  // namespace pycauset

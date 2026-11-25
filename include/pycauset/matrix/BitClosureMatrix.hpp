@@ -75,7 +75,7 @@ public:
     // Packed result with the factor folded in (used by save, export, unsupported ops).
     std::unique_ptr<MatrixBase> materialized_copy() const {
         const uint64_t n = rows();
-        auto out = std::make_unique<SymmetricMatrix<int32_t>>(n, "", sign_ < 0);
+        auto out = std::make_unique<SymmetricMatrix<int32_t>>(n, "", sign_ < 0 ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC);
         for (uint64_t i = 0; i < n; ++i) {
             for (uint64_t j = sign_ < 0 ? i + 1 : i; j < n; ++j) out->set(i, j, value(i, j));
         }
@@ -113,7 +113,7 @@ private:
         if (materialized_) return;
         // Values without the factor: the factor stays in scalar_ and applies on read.
         const uint64_t n = rows();
-        auto m = std::make_unique<SymmetricMatrix<int32_t>>(n, "", sign_ < 0);
+        auto m = std::make_unique<SymmetricMatrix<int32_t>>(n, "", sign_ < 0 ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC);
         for (uint64_t i = 0; i < n; ++i) {
             for (uint64_t j = sign_ < 0 ? i + 1 : i; j < n; ++j) m->set(i, j, base_get(i, j));
         }

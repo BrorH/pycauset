@@ -128,6 +128,21 @@ public:
         throw std::runtime_error("Complex scalar multiplication not implemented for this matrix type");
     }
 
+    // O(1) scaled view sharing storage: clone() keeps every view flag (transpose, conjugation,
+    // window), then the factor is scaled. value = conj?(raw * s), so scaling the value by f
+    // scales s by conj(f) under a pending conjugation (F-071). Structured classes use this
+    // instead of hand-built copies, which dropped the conjugation flag (A.conj() * 0.5).
+    std::unique_ptr<MatrixBase> scaled_clone(double f) const {
+        auto out = std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(clone().release()));
+        out->set_scalar(get_scalar() * f);
+        return out;
+    }
+    std::unique_ptr<MatrixBase> scaled_clone(std::complex<double> f) const {
+        auto out = std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(clone().release()));
+        out->set_scalar(get_scalar() * (is_conjugated() ? std::conj(f) : f));
+        return out;
+    }
+
     virtual std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const = 0;
 
 protected:

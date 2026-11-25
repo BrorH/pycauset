@@ -201,12 +201,12 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
       specialised matrix types for every occasion"; complex symmetric and Hermitian are
       different and both supported as separate flags). Steps, each gated by the atlas
       (new combinations turn from "unavailable" into live cells automatically):
-  - [ ] N.5.1 One catalogue: a single constexpr predicate of which (structure, dtype) exist
+  - [x] N.5.1 One catalogue: a single constexpr predicate of which (structure, dtype) exist
         and a single class map; ObjectFactory, visit_matrix, open_storage (load) and the
         constructor bindings all consult it (today three hand-kept tables).
-  - [ ] N.5.2 Diagonal and identity for float16, float32, complex64, complex128.
-  - [ ] N.5.3 Triangular, symmetric, antisymmetric for complex64/complex128.
-  - [ ] N.5.4 Hermitian and skew-Hermitian (A = Aᴴ, A = -Aᴴ) as flags on the symmetric class
+  - [x] N.5.2 Diagonal and identity for float16, float32, complex64, complex128.
+  - [x] N.5.3 Triangular, symmetric, antisymmetric for complex64/complex128.
+  - [x] N.5.4 Hermitian and skew-Hermitian (A = Aᴴ, A = -Aᴴ) as flags on the symmetric class
         (as antisymmetric is): packed upper triangle, lower read as conj(±upper), real
         (resp. imaginary) diagonal enforced on set. Complex dtypes only (for real dtypes they
         are symmetric/antisymmetric). Atlas structures `hermitian`, `skew_hermitian`.
@@ -214,7 +214,7 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
         type (pair of float16) for TriangularMatrix/Symmetric/Diagonal/Identity<T>.
   - [ ] N.5.6 Bit triangular with diagonal (packed rows of n - i bits).
   - [ ] N.5.7 UnitVector for every dtype.
-  - [ ] N.5.8 `Adding Types.md` rewritten around the catalogue (what a new structure or
+  - [x] N.5.8 `Adding Types.md` rewritten around the catalogue (what a new structure or
         dtype must provide: class template, catalogue entry, typed get/set, view reader,
         persistence layout, atlas entry).
 - [ ] N.3 No silent fallbacks: the Python layer calls the engine and lets errors surface;

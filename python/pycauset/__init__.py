@@ -206,6 +206,8 @@ DiagonalMatrix = _native.DiagonalMatrix
 IdentityMatrix = _native.IdentityMatrix
 SymmetricMatrix = _native.SymmetricMatrix
 AntiSymmetricMatrix = _native.AntiSymmetricMatrix
+HermitianMatrix = _native.HermitianMatrix
+SkewHermitianMatrix = _native.SkewHermitianMatrix
 DenseVector = _native.DenseVector
 UnitVector = _native.UnitVector
 
@@ -216,6 +218,8 @@ _MATRIX_CLASSES = (
     IdentityMatrix,
     SymmetricMatrix,
     AntiSymmetricMatrix,
+    HermitianMatrix,
+    SkewHermitianMatrix,
 )
 _VECTOR_CLASSES = (DenseVector, UnitVector)
 
@@ -643,6 +647,7 @@ def convert_file(
 
 
 _native.MatrixBase.save = save
+_native.MatrixBase.conjugate = _native.MatrixBase.conj  # NumPy's two names, one code path
 _native.VectorBase.save = save
 
 _formatting.configure(np_module=_np, edge_items=4)
@@ -1654,6 +1659,8 @@ _extra_exports = [
     "IdentityMatrix",
     "SymmetricMatrix",
     "AntiSymmetricMatrix",
+    "HermitianMatrix",
+    "SkewHermitianMatrix",
     "DenseVector",
     "UnitVector",
     "matmul",

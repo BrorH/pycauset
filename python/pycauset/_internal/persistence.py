@@ -35,6 +35,8 @@ _PAYLOAD_LAYOUT = {
     "triangular": "raw_triangular",
     "symmetric": "raw_triangular",
     "antisymmetric": "raw_triangular",
+    "hermitian": "raw_triangular",
+    "skew_hermitian": "raw_triangular",
     "diagonal": "raw_diagonal",
 }
 

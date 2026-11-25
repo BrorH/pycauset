@@ -1,4 +1,5 @@
 #pragma once
+#include <cmath>
 
 #include "pycauset/core/Float16.hpp"
 
@@ -71,6 +72,28 @@ constexpr auto wrapping_apply(A a, B b, Op op) {
     }
 }
 }  // namespace detail
+
+// x / y as NumPy computes it. Complex: Smith's method with NumPy's zero-denominator branch
+// (each part divided by |Re y|), so infinities and NaNs match NumPy where std::complex
+// division differs, e.g. x / (-0 + 0j) (found by the atlas on skew-Hermitian operands). Real
+// types: plain division. One definition; every division of matrix values uses it.
+template <typename T>
+inline T true_divide(const T& x, const T& y) {
+    if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+        using V = typename T::value_type;
+        const V ar = x.real(), ai = x.imag(), br = y.real(), bi = y.imag();
+        const V abr = std::abs(br), abi = std::abs(bi);
+        if (abr >= abi) {
+            if (abr == V(0) && abi == V(0)) return T(ar / abr, ai / abr);
+            const V rat = bi / br, scl = V(1) / (br + bi * rat);
+            return T((ar + ai * rat) * scl, (ai - ar * rat) * scl);
+        }
+        const V rat = br / bi, scl = V(1) / (bi + br * rat);
+        return T((ar * rat + ai) * scl, (ai * rat - ar) * scl);
+    } else {
+        return x / y;
+    }
+}
 
 struct WrapPlus {
     template <typename A, typename B>

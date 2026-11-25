@@ -19,6 +19,7 @@
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/core/Float16.hpp"
 #include "pycauset/core/DebugTrace.hpp"
+#include "pycauset/math/ViewValue.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/compute/ComputeDevice.hpp"
 #include <stdexcept>
@@ -467,12 +468,14 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
 
     // R1 identity.
     if (sa == Structure::IDENTITY && sb == Structure::IDENTITY) {
+        // An identity entry's value is conj?(1 * s) (math/ViewValue.hpp).
         auto res = ObjectFactory::create_matrix(m, n, r, Structure::IDENTITY, saveas);
-        res->set_scalar(a.get_scalar() * b.get_scalar());
+        res->set_scalar(view_value(1.0, a.get_scalar(), a.is_conjugated()) *
+                        view_value(1.0, b.get_scalar(), b.is_conjugated()));
         return res;
     }
     auto identity_times = [&](const MatrixBase& id, const MatrixBase& other) {
-        const std::complex<double> s = id.get_scalar();
+        const std::complex<double> s = view_value(1.0, id.get_scalar(), id.is_conjugated());
         const ScalarArg arg = s.imag() == 0.0 ? ScalarArg::from_double(s.real()) : ScalarArg::from_complex(s);
         auto out = scalar_op(other, ScalarOpKind::Mul, arg);  // integer-safe (F-001), promotes
         if (out->get_data_type() != r) out = cast_to(*out, r);

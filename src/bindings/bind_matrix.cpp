@@ -1474,7 +1474,7 @@ std::shared_ptr<StructureBase> make_structure(uint64_t rows, uint64_t cols, pyca
     return std::shared_ptr<StructureBase>(typed);
 }
 
-inline py::object symmetric_from_triangular(const MatrixBase& source, bool anti) {
+inline py::object symmetric_from_triangular(const MatrixBase& source, pycauset::Structure kind) {
     if (source.get_structure() != pycauset::Structure::TRIANGULAR) {
         throw py::type_error("from_triangular expects a TriangularMatrix");
     }
@@ -1482,54 +1482,32 @@ inline py::object symmetric_from_triangular(const MatrixBase& source, bool anti)
         using M = std::decay_t<decltype(tri)>;
         using E = element_of_t<M>;
         if constexpr (std::is_same_v<M, TriangularMatrix<E>> && !std::is_same_v<E, bool>) {
-            if (anti) return py::cast(std::shared_ptr<MatrixBase>(AntiSymmetricMatrix<E>::from_triangular(tri, "").release()));
-            return py::cast(std::shared_ptr<MatrixBase>(SymmetricMatrix<E>::from_triangular(tri, "").release()));
+            return py::cast(std::shared_ptr<MatrixBase>(SymmetricMatrix<E>::from_triangular(tri, kind, "").release()));
         } else {
             throw py::type_error("from_triangular is not supported for " + describe(source));
         }
     });
 }
 
-// Re-open stored data: the constructors take the *storage* shape and the view flags.
+// Re-open stored data: the constructors take the *storage* shape and the view flags. Which
+// (structure, dtype) pairs exist is the catalogue's decision (DTypeDispatch.hpp).
 inline py::object open_storage(pycauset::Structure s, DataType dt, uint64_t rows, uint64_t cols,
                                const std::string& path, size_t offset, uint64_t seed,
                                std::complex<double> scalar, bool is_transposed, bool has_diagonal) {
     using S = pycauset::Structure;
-    return pycauset::visit_dtype(dt, [&](auto tag) -> py::object {
-        using T = typename decltype(tag)::type;
-        if (s == S::DENSE) {
-            using M = typename pycauset::DenseMatrixOf<T>::type;
-            return py::cast(std::shared_ptr<MatrixBase>(std::make_shared<M>(rows, cols, path, offset, seed, scalar, is_transposed)));
-        }
-        if (s == S::VECTOR) {
-            using V = typename pycauset::DenseVectorOf<T>::type;
+    if (s == S::VECTOR) {
+        return pycauset::visit_dtype(dt, [&](auto tag) -> py::object {
+            using V = typename pycauset::DenseVectorOf<typename decltype(tag)::type>::type;
             return py::cast(std::shared_ptr<VectorBase>(std::make_shared<V>(rows, path, offset, seed, scalar, is_transposed)));
-        }
-        if constexpr (pycauset::is_complex_element_v<T>) {
-            pycauset::throw_unsupported(s, dt);
-        } else {
-            switch (s) {
-                case S::TRIANGULAR:
-                    if constexpr (std::is_same_v<T, bool>) {  // bit triangles are always strict
-                        return py::cast(std::shared_ptr<MatrixBase>(std::make_shared<TriangularMatrix<T>>(rows, path, offset, seed, scalar, is_transposed)));
-                    } else {
-                        return py::cast(std::shared_ptr<MatrixBase>(std::make_shared<TriangularMatrix<T>>(rows, path, offset, seed, scalar, is_transposed, has_diagonal)));
-                    }
-                case S::SYMMETRIC:
-                case S::ANTISYMMETRIC:
-                    return py::cast(std::shared_ptr<MatrixBase>(std::make_shared<SymmetricMatrix<T>>(rows, path, offset, seed, scalar, is_transposed, s == S::ANTISYMMETRIC)));
-                case S::DIAGONAL:
-                    if constexpr (std::is_same_v<T, pycauset::float16_t> || std::is_same_v<T, float>) pycauset::throw_unsupported(s, dt);
-                    else return py::cast(std::shared_ptr<MatrixBase>(std::make_shared<DiagonalMatrix<T>>(rows, path, offset, seed, scalar, is_transposed)));
-                case S::IDENTITY:
-                    if constexpr (std::is_same_v<T, pycauset::float16_t> || std::is_same_v<T, float>) pycauset::throw_unsupported(s, dt);
-                    else return py::cast(std::shared_ptr<MatrixBase>(std::make_shared<IdentityMatrix<T>>(rows, cols, path, offset, seed, scalar, is_transposed)));
-                case S::UNIT_VECTOR:
-                    return py::cast(std::shared_ptr<VectorBase>(std::make_shared<UnitVector>(rows, seed, path, offset, seed, scalar, is_transposed)));
-                default: pycauset::throw_unsupported(s, dt);
-            }
-        }
-    });
+        });
+    }
+    if (s == S::UNIT_VECTOR) {
+        return py::cast(std::shared_ptr<VectorBase>(std::make_shared<UnitVector>(rows, seed, path, offset, seed, scalar, is_transposed)));
+    }
+    pycauset::MatrixOptions opts;
+    opts.has_diagonal = has_diagonal && dt != DataType::BIT;  // bit triangles are always strict
+    auto m = pycauset::open_matrix(s, dt, rows, cols, path, offset, seed, scalar, is_transposed, opts);
+    return py::cast(std::shared_ptr<MatrixBase>(m.release()));
 }
 
 template <typename Fn>
@@ -1769,8 +1747,10 @@ void bind_matrix_classes(py::module_& m) {
         .def_property_readonly(
             "H",
             [](const MatrixBase& mat) {
+                // A^H = conj(A^T): toggle the transposed result's flag (a Hermitian transpose
+                // already toggles it; using `mat`'s flag dropped that, so A.H was wrong).
                 auto out = mat.transpose("");
-                out->set_conjugated(!mat.is_conjugated());
+                out->set_conjugated(!out->is_conjugated());
                 return std::shared_ptr<MatrixBase>(out.release());
             })
         .def(
@@ -1778,17 +1758,6 @@ void bind_matrix_classes(py::module_& m) {
             [](const MatrixBase& mat) {
                 auto out = mat.transpose("");
                 return std::shared_ptr<MatrixBase>(out.release());
-            })
-        .def(
-            "conjugate",
-            [](const MatrixBase& mat) {
-                auto out = mat.clone();
-                auto* m = dynamic_cast<MatrixBase*>(out.get());
-                if (!m) {
-                    throw std::runtime_error("Internal error: clone() did not return a MatrixBase");
-                }
-                m->set_conjugated(!mat.is_conjugated());
-                return std::shared_ptr<MatrixBase>(static_cast<MatrixBase*>(out.release()));
             })
         .def(
             "conj",
@@ -2295,18 +2264,10 @@ void bind_matrix_classes(py::module_& m) {
     py::class_<TriangularMatrixBase, MatrixBase, std::shared_ptr<TriangularMatrixBase>>(
         m, "TriangularMatrix", "Upper-triangular matrix (strict unless has_diagonal). Causal matrices have dtype 'bool'.")
         .def(py::init([](uint64_t n, const std::string& dtype, bool has_diagonal) {
-                 const auto dt = pycauset::parse_dtype_name(dtype);
-                 return pycauset::visit_dtype(dt, [&](auto tag) -> std::shared_ptr<TriangularMatrixBase> {
-                     using T = typename decltype(tag)::type;
-                     if constexpr (pycauset::is_complex_element_v<T>) {
-                         pycauset::throw_unsupported(pycauset::Structure::TRIANGULAR, dt);
-                     } else if constexpr (std::is_same_v<T, bool>) {
-                         if (has_diagonal) throw py::value_error("bit triangular matrices are strictly upper triangular");
-                         return std::make_shared<TriangularMatrix<bool>>(n, "");
-                     } else {
-                         return std::make_shared<TriangularMatrix<T>>(n, "", has_diagonal);
-                     }
-                 });
+                 pycauset::MatrixOptions opts;
+                 opts.has_diagonal = has_diagonal;
+                 auto m = pycauset::make_matrix(pycauset::Structure::TRIANGULAR, pycauset::parse_dtype_name(dtype), n, n, "", opts);
+                 return std::shared_ptr<TriangularMatrixBase>(static_cast<TriangularMatrixBase*>(m.release()));
              }),
              py::arg("n"), py::arg("dtype") = "float64", py::arg("has_diagonal") = false)
         .def_property_readonly("has_diagonal", &TriangularMatrixBase::has_diagonal)
@@ -2339,26 +2300,38 @@ void bind_matrix_classes(py::module_& m) {
              }),
              py::arg("rows"), py::arg("cols") = std::nullopt, py::arg("dtype") = "float64");
 
-    // --- SymmetricMatrix / AntiSymmetricMatrix (packed upper triangle) ---------------------
-    // Both C++ markers are bases of every SymmetricMatrix<T>; Python keeps the two classes
-    // unrelated (an antisymmetric matrix is not symmetric), hence MatrixBase as the base.
-    py::class_<pycauset::SymmetricMatrixBase, MatrixBase, std::shared_ptr<pycauset::SymmetricMatrixBase>>(
-        m, "SymmetricMatrix", "Symmetric matrix, A == A.T (packed upper triangle).")
-        .def(py::init([](uint64_t n, const std::string& dtype) {
-                 return make_structure<pycauset::SymmetricMatrixBase>(n, n, pycauset::Structure::SYMMETRIC, dtype);
-             }),
-             py::arg("n"), py::arg("dtype") = "float64")
-        .def_static("from_triangular", [](const MatrixBase& source) { return symmetric_from_triangular(source, false); },
-                    py::arg("source"), "Symmetric matrix whose upper triangle is `source`'s.");
-
-    py::class_<pycauset::AntiSymmetricMatrixBase, MatrixBase, std::shared_ptr<pycauset::AntiSymmetricMatrixBase>>(
-        m, "AntiSymmetricMatrix", "Antisymmetric matrix, A == -A.T (packed strict upper triangle).")
-        .def(py::init([](uint64_t n, const std::string& dtype) {
-                 return make_structure<pycauset::AntiSymmetricMatrixBase>(n, n, pycauset::Structure::ANTISYMMETRIC, dtype);
-             }),
-             py::arg("n"), py::arg("dtype") = "float64")
-        .def_static("from_triangular", [](const MatrixBase& source) { return symmetric_from_triangular(source, true); },
-                    py::arg("source"), "Antisymmetric matrix whose strict upper triangle is `source`'s.");
+    // --- The packed symmetric family (one C++ class with a kind, four Python classes) -------
+    // Every SymmetricMatrix<T> derives all four C++ markers; Python keeps the classes unrelated
+    // (an antisymmetric matrix is not symmetric; a complex symmetric matrix is not Hermitian),
+    // hence MatrixBase as the base. The structure picks the class (bindings_common.hpp).
+    auto bind_symmetric_kind = [&](auto marker, const char* name, pycauset::Structure kind, const char* doc,
+                                   const char* from_doc) {
+        using B = typename decltype(marker)::type;
+        py::class_<B, MatrixBase, std::shared_ptr<B>>(m, name, doc)
+            .def(py::init([kind](uint64_t n, const std::string& dtype) {
+                     return make_structure<B>(n, n, kind, dtype);
+                 }),
+                 py::arg("n"), py::arg("dtype") = "float64")
+            .def_static("from_triangular", [kind](const MatrixBase& source) { return symmetric_from_triangular(source, kind); },
+                        py::arg("source"), from_doc);
+    };
+    bind_symmetric_kind(pycauset::type_tag<pycauset::SymmetricMatrixBase>{}, "SymmetricMatrix",
+                        pycauset::Structure::SYMMETRIC, "Symmetric matrix, A == A.T (packed upper triangle).",
+                        "Symmetric matrix whose upper triangle is `source`'s.");
+    bind_symmetric_kind(pycauset::type_tag<pycauset::AntiSymmetricMatrixBase>{}, "AntiSymmetricMatrix",
+                        pycauset::Structure::ANTISYMMETRIC,
+                        "Antisymmetric matrix, A == -A.T (packed strict upper triangle; signed dtypes).",
+                        "Antisymmetric matrix whose strict upper triangle is `source`'s.");
+    bind_symmetric_kind(pycauset::type_tag<pycauset::HermitianMatrixBase>{}, "HermitianMatrix",
+                        pycauset::Structure::HERMITIAN,
+                        "Hermitian matrix, A == A.conj().T (packed upper triangle, real diagonal; complex dtypes). "
+                        "Not the same as a complex SymmetricMatrix (A == A.T).",
+                        "Hermitian matrix whose upper triangle is `source`'s (its diagonal must be real).");
+    bind_symmetric_kind(pycauset::type_tag<pycauset::SkewHermitianMatrixBase>{}, "SkewHermitianMatrix",
+                        pycauset::Structure::SKEW_HERMITIAN,
+                        "Skew-Hermitian matrix, A == -A.conj().T (packed upper triangle, imaginary diagonal; "
+                        "complex dtypes).",
+                        "Skew-Hermitian matrix whose upper triangle is `source`'s (its diagonal must be imaginary).");
 
     // --- Re-open stored data (persistence.load) ---------------------------------------------
     m.def(
@@ -2410,7 +2383,8 @@ void bind_matrix_classes(py::module_& m) {
                     for (uint64_t j = 0; j < cols; ++j) {
                         const bool stored = st == Structure::DENSE ? true
                                           : st == Structure::TRIANGULAR ? (diag ? j >= i : j > i)
-                                          : st == Structure::SYMMETRIC ? j >= i
+                                          : (st == Structure::SYMMETRIC || st == Structure::HERMITIAN ||
+                                             st == Structure::SKEW_HERMITIAN) ? j >= i
                                           : st == Structure::ANTISYMMETRIC ? j > i
                                           : st == Structure::DIAGONAL ? i == j : false;
                         const std::complex<double> z = a(static_cast<py::ssize_t>(i), static_cast<py::ssize_t>(j));

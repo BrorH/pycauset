@@ -374,4 +374,10 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   results (stack overflow) and gave +0.0 for 0.0 x (-1-0j): both caught at once by the
   atlas. Generic 8,598 -> 4,986, matmul 837/847 fast. Atlas window no longer includes the
   export of the result (it double-charged export reads to the op).
+- Maintainer: the operation procedure must be documented and survive; the missing types are
+  a big hole ("the heart of PyCauset"); complex symmetric and Hermitian are separate. Done:
+  `Adding Operations.md` rewritten (Phase N procedure), `Adding Types.md` rewritten (the
+  catalogue), `CLAUDE.md` entry point. N.5.1-N.5.4: one catalogue (F-087), 9 new structure x
+  dtype pairs + Hermitian/skew-Hermitian; the new pairs found 5 existing bugs (45 atlas ✗),
+  all fixed at the root. Atlas 77,372 cells, 0 ✗.
 

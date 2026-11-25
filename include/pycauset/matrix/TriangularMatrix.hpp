@@ -2,6 +2,7 @@
 
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/core/MatrixTraits.hpp"
+#include "pycauset/math/ViewValue.hpp"
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include <vector>
@@ -157,48 +158,32 @@ public:
         return row_ptr[col_index];
     }
 
+    // The view rule lives in math/ViewValue.hpp (one definition, F-086).
     double element_as_double(uint64_t i, uint64_t j) const override {
-        if (scalar_ == 1.0) {
-            return static_cast<double>(get(i, j));
+        if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+            throw std::runtime_error("Complex matrix does not support get_element_as_double; use get_element_as_complex");
+        } else {
+            return element_as_complex(i, j).real();
         }
-        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-            return static_cast<double>(pycauset::scalar::wrap_scale(get(i, j), static_cast<int64_t>(scalar_.real())));
-        }
-        return (static_cast<double>(get(i, j)) * scalar_).real();
     }
 
     std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override {
-        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-            return {get_element_as_double(i, j), 0.0};
-        } else {
-            return static_cast<double>(get(i, j)) * scalar_;
-        }
+        return view_value(get(i, j), scalar_, is_conjugated());
     }
 
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }
     const T* data() const { return static_cast<const T*>(require_mapper()->get_data()); }
 
-    std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
-        if (result_file.empty()) {
-            auto out = std::make_unique<TriangularMatrix<T>>(rows(), mapper_, has_diagonal_);
-            out->set_scalar(scalar_ * factor);
-            out->set_seed(seed_);
-            out->set_transposed(is_transposed());
-            out->set_temporary(true);
-            return out;
-        }
-
-        auto result = std::make_unique<TriangularMatrix<T>>(rows(), result_file, has_diagonal_);
-        const size_t bytes = require_mapper()->get_data_size();
-        std::memcpy(result->data(), data(), bytes);
-        result->set_scalar(scalar_ * factor);
-        result->set_seed(seed_);
-        result->set_transposed(is_transposed());
-        return result;
+    std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& = "") const override {
+        return scaled_clone(factor);
     }
 
-    std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
-        return multiply_scalar(static_cast<double>(factor), result_file);
+    std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& = "") const override {
+        return scaled_clone(static_cast<double>(factor));
+    }
+
+    std::unique_ptr<MatrixBase> multiply_scalar(std::complex<double> factor, const std::string& = "") const override {
+        return scaled_clone(factor);
     }
 
 

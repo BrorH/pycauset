@@ -2336,19 +2336,19 @@ void CpuSolver::elementwise_divide(const MatrixBase& a, const MatrixBase& b, Mat
     if (dtype == DataType::COMPLEX_FLOAT16) {
         debug_trace::set_last("cpu.div.cf16");
         if (auto* out = dynamic_cast<ComplexFloat16Matrix*>(&result)) {
-            binary_op_complex16_impl(a, b, *out, [](auto x, auto y) { return x / y; });
+            binary_op_complex16_impl(a, b, *out, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
             return;
         }
         throw std::runtime_error("CpuSolver::elementwise_divide complex_float16 result type mismatch");
     }
     if (dtype == DataType::COMPLEX_FLOAT32) {
         debug_trace::set_last("cpu.div.c32");
-        binary_op_impl<std::complex<float>>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<std::complex<float>>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
         return;
     }
     if (dtype == DataType::COMPLEX_FLOAT64) {
         debug_trace::set_last("cpu.div.c64");
-        binary_op_impl<std::complex<double>>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<std::complex<double>>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
         return;
     }
 
@@ -2359,38 +2359,38 @@ void CpuSolver::elementwise_divide(const MatrixBase& a, const MatrixBase& b, Mat
     if (dtype == DataType::FLOAT64) {
         debug_trace::set_last("cpu.div.f64");
         if (try_fast_simd<double>(a, b, result, get_div_kernel<double>())) return;
-        binary_op_impl<double>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<double>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else if (dtype == DataType::FLOAT16) {
         debug_trace::set_last("cpu.div.f16");
-        binary_op_impl<pycauset::float16_t>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<pycauset::float16_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else if (dtype == DataType::FLOAT32) {
         debug_trace::set_last("cpu.div.f32");
         if (try_fast_simd<float>(a, b, result, get_div_kernel<float>())) return;
-        binary_op_impl<float>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<float>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else if (dtype == DataType::INT8) {
         debug_trace::set_last("cpu.div.i8");
-        binary_op_impl<int8_t>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<int8_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else if (dtype == DataType::INT16) {
         debug_trace::set_last("cpu.div.i16");
-        binary_op_impl<int16_t>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<int16_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else if (dtype == DataType::INT32) {
         debug_trace::set_last("cpu.div.i32");
-        binary_op_impl<int32_t>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<int32_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else if (dtype == DataType::INT64) {
         debug_trace::set_last("cpu.div.i64");
-        binary_op_impl<int64_t>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<int64_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else if (dtype == DataType::UINT8) {
         debug_trace::set_last("cpu.div.u8");
-        binary_op_impl<uint8_t>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<uint8_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else if (dtype == DataType::UINT16) {
         debug_trace::set_last("cpu.div.u16");
-        binary_op_impl<uint16_t>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<uint16_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else if (dtype == DataType::UINT32) {
         debug_trace::set_last("cpu.div.u32");
-        binary_op_impl<uint32_t>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<uint32_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else if (dtype == DataType::UINT64) {
         debug_trace::set_last("cpu.div.u64");
-        binary_op_impl<uint64_t>(a, b, result, [](auto x, auto y) { return x / y; });
+        binary_op_impl<uint64_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else {
         throw std::runtime_error("CpuSolver::elementwise_divide result data type not supported");
     }
@@ -2636,7 +2636,7 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
         const DataType res_dt = result.get_data_type();
         if (res_dt == DataType::COMPLEX_FLOAT16 || res_dt == DataType::COMPLEX_FLOAT32 || res_dt == DataType::COMPLEX_FLOAT64) {
             debug_trace::set_last("cpu.matvec.identity.complex");
-            const std::complex<double> scalar = m.get_scalar();
+            const std::complex<double> scalar = view_value(1.0, m.get_scalar(), m.is_conjugated());  // an entry's value
             if (auto* out16 = dynamic_cast<ComplexFloat16Vector*>(&result)) {
                 auto* rdst = out16->real_data();
                 auto* idst = out16->imag_data();
@@ -3210,7 +3210,7 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
         const DataType res_dt = result.get_data_type();
         if (res_dt == DataType::COMPLEX_FLOAT16 || res_dt == DataType::COMPLEX_FLOAT32 || res_dt == DataType::COMPLEX_FLOAT64) {
             debug_trace::set_last("cpu.vecmat.identity.complex");
-            const std::complex<double> scalar = m.get_scalar();
+            const std::complex<double> scalar = view_value(1.0, m.get_scalar(), m.is_conjugated());  // an entry's value
             if (auto* out16 = dynamic_cast<ComplexFloat16Vector*>(&result)) {
                 auto* rdst = out16->real_data();
                 auto* idst = out16->imag_data();
@@ -3809,7 +3809,7 @@ LuPivots CpuSolver::lu_pivots(const MatrixBase& matrix) {
     out.pivots.resize(n);
 
     if (type == Structure::IDENTITY) {
-        std::fill(out.pivots.begin(), out.pivots.end(), matrix.get_scalar());
+        std::fill(out.pivots.begin(), out.pivots.end(), view_value(1.0, matrix.get_scalar(), matrix.is_conjugated()));
         return out;
     }
     const bool strict_triangular =

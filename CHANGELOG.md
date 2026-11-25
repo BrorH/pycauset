@@ -9,6 +9,13 @@ milestone corresponds to **v0.6.1**.
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
 ### Changed
+- New structure x dtype combinations: `DiagonalMatrix` and `IdentityMatrix` in float16,
+  float32, complex_float32/64; `TriangularMatrix`, `SymmetricMatrix`, `AntiSymmetricMatrix` in
+  complex_float32/64. New classes `HermitianMatrix` (`A == A.conj().T`) and
+  `SkewHermitianMatrix` (`A == -A.conj().T`) for complex dtypes; a complex `SymmetricMatrix`
+  is `A == A.T`. A combination that does not exist raises `ValueError` saying why.
+- Complex division follows NumPy's algorithm (division by a signed zero gives NumPy's
+  infinities). `A.conjugate()` is an alias of `A.conj()`.
 - Results are never cached. `sum`, `trace`, `determinant`, `norm`, eigenvalues and inverses
   are computed on every call (cached values went stale after `M[i, j] = v`). Properties are
   metadata only: they never change a result (`is_zero=True` no longer makes `det` 0). Save

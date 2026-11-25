@@ -61,6 +61,8 @@ inline const void* structure_class_of(const pycauset::MatrixBase* src, const std
         case S::IDENTITY: return as_structure<pycauset::IdentityMatrixBase>(src, type);
         case S::SYMMETRIC: return as_structure<pycauset::SymmetricMatrixBase>(src, type);
         case S::ANTISYMMETRIC: return as_structure<pycauset::AntiSymmetricMatrixBase>(src, type);
+        case S::HERMITIAN: return as_structure<pycauset::HermitianMatrixBase>(src, type);
+        case S::SKEW_HERMITIAN: return as_structure<pycauset::SkewHermitianMatrixBase>(src, type);
         default:
             type = &typeid(*src);
             return dynamic_cast<const void*>(src);

@@ -5,7 +5,7 @@ class pycauset.IdentityMatrix(rows, cols=None, dtype="float64")
 ```
 
 The identity (ones on the diagonal), possibly rectangular. Stores no elements and is
-read-only. Supported dtypes: `bool`, the integer dtypes and `float64`.
+read-only. Supported dtypes: every dtype except `complex_float16`.
 [[docs/functions/pycauset.identity.md|pycauset.identity]] also accepts `[rows, cols]` or a
 matrix/vector whose shape to copy.
 

@@ -1,64 +1,95 @@
-# Protocol: Adding New Matrix and Vector Types
+# Protocol: Adding a Structure or a dtype
 
-**Objective**: Ensure new matrix/vector structures are fully integrated into the factory, storage, compute, and Python ecosystems.
+**Status:** authoritative (2026 review, N.5). Companion to
+[[project/protocols/Adding Operations|Adding Operations]].
 
-## Step-by-step implementation guide
+**Objective:** a new (structure, dtype) combination that works in *every* operation, view and
+storage mode the moment it exists, proven by the atlas.
 
-### 1) Core definitions (`include/pycauset/core/Types.hpp`)
+PyCauset's value is specialised storage for every occasion (bit-packed causal matrices,
+packed triangles, Hermitian matrices, …) in every dtype. Which combinations exist used to be
+decided in five hand-kept tables that drifted apart (factory, clone, dispatch, load,
+result-structure resolver); the gaps (no float16 diagonal, no complex triangular) came from
+there. Now one catalogue decides.
 
-- Add a new enum value to `Structure` (structures) or `DataType` (dtypes), both in `include/pycauset/core/Types.hpp`.
-- Decide whether the new type is a matrix-like (`rows x cols`) or a vector-like (`n x 1`) object.
+## 1. The catalogue: one place decides
 
-### 2) Define the class
+`include/pycauset/core/DTypeDispatch.hpp`:
 
-- Matrix types live in `include/pycauset/matrix/`.
-- Vector types live in `include/pycauset/vector/`.
+| Piece | Role |
+|---|---|
+| `offered<Structure, T>()` | **the** predicate: does the pair exist? |
+| `ClassOf<Structure, T>::type` | the C++ class holding the pair |
+| `make_matrix` / `open_matrix` / `adopt_matrix` | create, load (persistence), clone: built from the two above |
+| `visit_matrix(m, f)` | runtime dispatch to the concrete class: built from the two above |
+| `throw_unsupported(s, dt)` | the error for a pair that does not exist, with the reason |
 
-Implement the required virtual interface:
+`ObjectFactory`, persistence (`open_storage`), the constructor bindings, `visit_matrix`, the
+typed readers (`math/ViewRead.cpp`) and the result-structure resolver
+(`core/StructureResolver.cpp`) all go through it. **Never add a `switch (dtype)` that lists
+classes elsewhere.**
 
-- Matrices (`MatrixBase`): `get_element_as_double(i, j)`, `multiply_scalar`, `add_scalar`, `transpose`, and correct `clone()` behavior.
-- Vectors (`VectorBase`): `get_element_as_double(i)`, `multiply_scalar`, `add_scalar`, `transpose` (if supported), and correct `clone()` behavior.
+## 2. Adding a dtype to an existing structure
 
-If the type is intended for GPU/BLAS interoperability, it must expose contiguous raw memory access where appropriate.
+1. Make the class template work for the element type `T` (compile errors show what is
+   missing). Typical work: accessors must use `view_value` (`math/ViewValue.hpp`) instead of
+   `static_cast<double>`; complex `T` throws from `element_as_double` like `DenseMatrix`.
+2. Flip `offered<S, T>()`.
+3. Run the atlas (`python -m tests.atlas.report`): the new cells change from "unavailable"
+   to live; fix every ✗ at its root (§5).
+4. Update `tests/engine/test_catalogue.py` (`offered` there is the catalogue as data) and the
+   class's API page (dtype list).
 
-### 3) Update the factory (`include/pycauset/core/ObjectFactory.hpp`, `src/core/ObjectFactory.cpp`)
+## 3. Adding a structure
 
-The factory is the central registry for creating and cloning persistent objects.
-(Loading from a `.pycauset` container goes through each class's `_from_storage`
-binding, driven by `python/pycauset/_internal/persistence.py`.)
+1. `Structure` enum value (`core/Types.hpp`) and its name in `structure_name` /
+   `parse_structure` (`DTypeDispatch.hpp`; the name is the persistence and Python key).
+2. The class template, with the three constructor shapes every class has: create
+   `(shape, file[, options])`, open `(shape, file, offset, seed, scalar, transposed[, options])`,
+   adopt `(shape, mapper[, options])`; a typed `T get(i, j)` (honouring transposition) and
+   `set(i, j, T)`; `clone()` keeping every view flag and option; accessors through
+   `view_value`; `multiply_scalar` through `MatrixBase::scaled_clone` (O(1), keeps the view).
+3. If one storage serves several structures, make the structure the option (the symmetric
+   family: one `SymmetricMatrix<T>` with a kind for symmetric, antisymmetric, Hermitian and
+   skew-Hermitian, each its own Python class through a marker base class).
+4. Catalogue: `ClassOf` specialisation, `offered` rule, a branch in `detail::build_matrix` if
+   the constructors take an option; `MatrixOptions` carries options so none is dropped
+   (a dropped `has_diagonal` read shifted values twice: F-064, F-076).
+5. Python: a `py::class_` for the structure's base (`bind_matrix.cpp`), its case in
+   `structure_class_of` (`bindings_common.hpp`), the export in `pycauset/__init__.py`.
+6. Persistence: the payload layout name in `persistence.py` (`_PAYLOAD_LAYOUT`).
+7. Atlas: the structure in `STRUCTURES`, its NumPy reference in `reference()` and its
+   construction in `build()` (`tests/atlas/atlas.py`); the timing harness's `_build_fast`.
+8. Structure rules in operations (e.g. Hermitian + Hermitian stays Hermitian) are optional,
+   per operation: see Adding Operations §3. Without them results are correct and dense.
+9. Docs: class page in `documentation/docs/classes/matrix/`, the class index table,
+   `CHANGELOG.md`.
 
-- Matrices:
-    - `create_matrix`
-    - `clone_matrix`
-- Vectors:
-    - `create_vector`
-    - `clone_vector`
+## 4. Semantics to decide and write down
 
-### 4) Update compute support
+- The value of every element, including the mirrored ones (`conj`, sign) and the diagonal
+  rule (zero, real, imaginary), enforced on `set`.
+- `A.T` as an O(1) view where possible, derived from the view rule `conj?(raw · s)`: e.g.
+  Hermitian `A.T = conj(A)` toggles the conjugation flag *and* conjugates the factor.
+- Signed zeros: mirrored elements use IEEE negation (a stored 0 mirrors to -0); the atlas
+  reference must build them by placement, not by subtraction.
+- Which dtypes are meaningful (antisymmetric needs negation; Hermitian needs complex).
 
-- Add CPU support in `src/compute/cpu/CpuSolver.cpp` if the new type participates in operations.
-- Wire through `CpuDevice` and `AutoSolver` if device dispatch is required.
+## 5. The gates
 
-If the new type is intentionally excluded from some operations (common for bit-special cases), those exclusions must be explicit and tested.
+| Gate | Requirement |
+|---|---|
+| `pytest tests/atlas` | 0 ✗ over every operation × view × storage for the new combinations |
+| `pytest tests/engine/test_catalogue.py` | the new pairs construct, save/load as themselves; rules hold |
+| Both suites (`PYCAUSET_LAZY=0` too) | pass |
 
-### 5) Python bindings (`src/bindings/` + `src/bindings.cpp`)
+Bugs the new combinations expose in existing code are fixed at the root, never worked around
+per type (N.5 found: a scaled view dropping the conjugation flag in three classes →
+`scaled_clone`; identity shortcuts ignoring conjugation → `view_value(1, s, conj)`; complex
+division by a signed zero → NumPy's algorithm in `scalar::true_divide`).
 
-- Bind the new class in the correct translation unit (`bind_matrix.cpp` or `bind_vector.cpp`, or `bind_complex.cpp` for complex helpers).
-- Ensure the aggregator `src/bindings.cpp` calls the binder.
-- Expose constructors, accessors, and key properties (`dtype`, `shape`, etc.).
+## See also
 
-### 6) Testing (`tests/`)
-
-Verify:
-
-- creation + access,
-- persistence (save/load/clone),
-- dtype behavior (including bit/int/float boundaries),
-- at least one large-ish case that exercises the memory-mapped path.
-
-### 7) Documentation
-
-- Add API reference in `documentation/docs/classes/`.
-- Update the relevant guide(s) in `documentation/guides/`.
-
-If the new type changes dtype semantics or bit behavior, add/update internals docs in `documentation/internals/`.
+- [[project/protocols/Adding Operations|Adding Operations]]
+- `include/pycauset/math/ViewValue.hpp`: the view rule
+- `review/features/ATLAS.md`: the atlas

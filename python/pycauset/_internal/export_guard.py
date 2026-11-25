@@ -78,23 +78,9 @@ def _normalize_dtype_token(token: Any) -> str | None:
         "complex128": "complex_float64",
         "float_": "float64",
         "float": "float64",
-        # Triangular float matrices are stored as float64.
-        "triangularfloat": "float64",
         "int_": "int32",
         "int": "int32",
         "uint": "uint32",
-        "densebit": "bit",
-        "triangularbit": "bit",
-        # Triangular integer matrices are stored as int32.
-        "triangularinteger": "int32",
-        "integer": "int32",
-        # IdentityMatrix has no stored dtype; its scalar is float64 by default.
-        "identity": "float64",
-        # DiagonalMatrix / SymmetricMatrix / AntiSymmetricMatrix are bound as
-        # float64 in R1; they materialize to a full n-by-n float64 array on export.
-        "diagonal": "float64",
-        "symmetric": "float64",
-        "antisymmetric": "float64",
         "complexfloat16": "complex_float16",
         "complexfloat32": "complex_float32",
         "complexfloat64": "complex_float64",

@@ -5,7 +5,7 @@ class pycauset.SymmetricMatrix(n, dtype="float64")
 ```
 
 An `n × n` symmetric matrix (`A == A.T`) that stores only the upper triangle; writing
-`A[i, j]` also sets `A[j, i]`. Supports the real dtypes. See also
+`A[i, j]` also sets `A[j, i]`. Supports every dtype except `complex_float16`; a complex symmetric matrix satisfies `A == A.T` (for `A == A.conj().T` use [[docs/classes/matrix/pycauset.HermitianMatrix.md|HermitianMatrix]]). See also
 [[docs/functions/pycauset.symmetric.md|pycauset.symmetric]].
 
 ## Methods

@@ -15,7 +15,9 @@ enum class Structure : uint32_t {
     SYMMETRIC = 5,       // packed upper triangle, A == A^T
     ANTISYMMETRIC = 6,   // packed strict upper triangle, A == -A^T
     VECTOR = 7,
-    UNIT_VECTOR = 8
+    UNIT_VECTOR = 8,
+    HERMITIAN = 9,       // packed upper triangle, A == A^H (complex dtypes)
+    SKEW_HERMITIAN = 10  // packed upper triangle, A == -A^H (complex dtypes)
 };
 
 enum class DataType : uint32_t {
