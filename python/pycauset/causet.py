@@ -291,9 +291,10 @@ class CausalSet:
 
     def links(self):
         """Transitive reduction (Hasse / link matrix): ``L = C & ~(C@C)``."""
-        C = _np.asarray(self._matrix, dtype=bool)
-        paths2 = (C.astype(_np.uint8) @ C.astype(_np.uint8)) > 0
-        return C & ~paths2
+        # Native bit kernel on the (validated, transitively closed) causal matrix. The former
+        # NumPy uint8 product wrapped path counts of 256 to 0 and reported false links (F-053).
+        L = _native._transitive_reduction(self._matrix)
+        return _np.asarray(L, dtype=bool)
 
     def past(self, x):
         """Indices ``i`` with ``i \u227a x``."""

@@ -252,3 +252,18 @@ def test_pauli_jordan_like_spectrum_from_packed_result():
     w = np.sort(np.abs(to_np(pc.eigvals_skew(d, 6))))
     ref = np.sort(np.abs(np.linalg.eigvals(a - a.T)))[-6:]
     np.testing.assert_allclose(np.sort(w), np.sort(ref), rtol=1e-8)
+
+
+# F-053: links() used a NumPy uint8 product; path counts of 256 wrapped to 0 -> false links.
+def test_F053_links_of_a_long_chain():
+    c = pc.synthetic.chain(300)
+    links = c.links()
+    assert int(links.sum()) == 299 and not links[0, 257]
+
+
+@pytest.mark.parametrize("n,seed", [(150, 1), (400, 7)])
+def test_links_match_the_definition(n, seed):
+    cs = pc.causet(n=n, seed=seed)
+    c = np.asarray(cs.C, dtype=bool)
+    ci = c.astype(np.int64)
+    np.testing.assert_array_equal(cs.links(), c & ~((ci @ ci) > 0))

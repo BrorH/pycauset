@@ -649,3 +649,10 @@ the entry (the history is useful). New findings go at the bottom with the next f
   `3 * S` (int symmetric) was a SymmetricMatrix lazily but a DenseMatrix eagerly. The exact scalar
   kernel now keeps symmetric structure (any op) and antisymmetric structure (zero-preserving ops).
   CI runs the engine suite in both modes.
+
+### F-053 `CausalSet.links()` reported false links (uint8 path counts wrapped)
+- **Status:** fixed (session 5). `links()` computed C² as a NumPy uint8 product: 256 paths wrapped to
+  0, so pairs with 256 intermediate elements counted as links (a 300-chain had 342 "links", not 299).
+  Now a native transitive reduction on the bits (`_transitive_reduction`, valid because a CausalSet's
+  matrix is validated transitive): n = 20,000 in 0.05 s, no n² integer product. The NumPy export of
+  the result dominates `links()` time for mid n (non-dense export is slow; F-012 family).
