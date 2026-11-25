@@ -7,6 +7,7 @@
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/core/PromotionResolver.hpp"
 #include "pycauset/core/DebugTrace.hpp"
+#include "pycauset/core/AccessCounter.hpp"
 #include "pycauset/core/MemoryHints.hpp"
 #include "pycauset/core/IOAccelerator.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
@@ -146,6 +147,18 @@ void bind_core_classes(py::module_& m) {
 
     m.def("_debug_last_kernel_trace", []() { return pycauset::debug_trace::get_last(); });
     m.def("_debug_clear_kernel_trace", []() { pycauset::debug_trace::clear(); });
+    m.def("_debug_kernel_log_start", []() { pycauset::debug_trace::start_log(); });
+    m.def("_debug_kernel_log_stop", []() { return pycauset::debug_trace::stop_log(); });
+    // Virtual per-element accessor counter (operation atlas): start resets and enables,
+    // stop disables and returns the count since start.
+    m.def("_debug_access_count_start", []() {
+        pycauset::access_counter::g_count.store(0);
+        pycauset::access_counter::g_enabled.store(true);
+    });
+    m.def("_debug_access_count_stop", []() {
+        pycauset::access_counter::g_enabled.store(false);
+        return pycauset::access_counter::g_count.load();
+    });
 
     // --- Lookahead protocol / IO accelerator (Phase F) ---
     py::enum_<pycauset::core::AccessPattern>(m, "AccessPattern")

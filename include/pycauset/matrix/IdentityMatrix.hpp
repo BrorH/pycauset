@@ -85,7 +85,7 @@ public:
         return static_cast<T>(0);
     }
 
-    double get_element_as_double(uint64_t i, uint64_t j) const override {
+    double element_as_double(uint64_t i, uint64_t j) const override {
         if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
         if (i == j) {
             return scalar_.real();
@@ -93,7 +93,7 @@ public:
         return 0.0;
     }
 
-    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+    void set_element_double(uint64_t i, uint64_t j, double value) override {
         // Identity is immutable in structure.
         bool is_diag = (i == j);
         double expected = is_diag ? scalar_.real() : 0.0;

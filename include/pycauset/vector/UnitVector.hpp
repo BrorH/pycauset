@@ -54,7 +54,7 @@ public:
         active_index_ = get_seed();
     }
 
-    double get_element_as_double(uint64_t i) const override {
+    double element_as_double(uint64_t i) const override {
         if (i >= n_) throw std::out_of_range("Index out of bounds");
         if (i == active_index_) {
             return scalar_.real();

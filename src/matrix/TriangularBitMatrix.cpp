@@ -89,7 +89,7 @@ bool TriangularMatrix<bool>::get(uint64_t i, uint64_t j) const {
     return (*data_ptr >> bit_index) & 1ULL;
 }
 
-double TriangularMatrix<bool>::get_element_as_double(uint64_t i, uint64_t j) const {
+double TriangularMatrix<bool>::element_as_double(uint64_t i, uint64_t j) const {
     if (scalar_ == 1.0) {
         return get(i, j) ? 1.0 : 0.0;
     }

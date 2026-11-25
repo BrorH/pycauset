@@ -66,7 +66,7 @@ bool DenseVector<bool>::get(uint64_t i) const {
     return (ptr[word_index] >> bit_index) & 1ULL;
 }
 
-double DenseVector<bool>::get_element_as_double(uint64_t i) const {
+double DenseVector<bool>::element_as_double(uint64_t i) const {
     return get(i) ? scalar_.real() : 0.0;
 }
 

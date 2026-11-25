@@ -64,11 +64,11 @@ public:
         materialized_->set(i, j, value);
     }
 
-    double get_element_as_double(uint64_t i, uint64_t j) const override { return static_cast<double>(value(i, j)); }
-    std::complex<double> get_element_as_complex(uint64_t i, uint64_t j) const override {
+    double element_as_double(uint64_t i, uint64_t j) const override { return static_cast<double>(value(i, j)); }
+    std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override {
         return {static_cast<double>(value(i, j)), 0.0};
     }
-    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+    void set_element_double(uint64_t i, uint64_t j, double value) override {
         set(i, j, static_cast<int32_t>(value));
     }
 

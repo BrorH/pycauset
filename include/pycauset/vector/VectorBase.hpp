@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pycauset/core/AccessCounter.hpp"
+
 #include <cstdint>
 #include <complex>
 #include <memory>
@@ -42,11 +44,23 @@ public:
 
     uint64_t size() const { return n_; }
 
-    virtual double get_element_as_double(uint64_t i) const = 0;
-
-    virtual std::complex<double> get_element_as_complex(uint64_t i) const {
-        return std::complex<double>(get_element_as_double(i), 0.0);
+    // Generic per-element access; see MatrixBase (counted wrappers over element_* virtuals).
+    double get_element_as_double(uint64_t i) const {
+        access_counter::hit();
+        return element_as_double(i);
     }
+    std::complex<double> get_element_as_complex(uint64_t i) const {
+        access_counter::hit();
+        return element_as_complex(i);
+    }
+
+protected:
+    virtual double element_as_double(uint64_t i) const = 0;
+    virtual std::complex<double> element_as_complex(uint64_t i) const {
+        return std::complex<double>(element_as_double(i), 0.0);
+    }
+
+public:
 
     virtual std::unique_ptr<VectorBase> transpose(const std::string& saveas = "") const = 0;
 

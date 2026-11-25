@@ -143,7 +143,7 @@ public:
     const T* data() const { return static_cast<const T*>(this->require_mapper()->get_data()); }
 
     // Implement MatrixBase virtuals
-    double get_element_as_double(uint64_t i, uint64_t j) const override {
+    double element_as_double(uint64_t i, uint64_t j) const override {
         if (scalar_ == 1.0) {
             return static_cast<double>(get(i, j));
         }
@@ -154,7 +154,7 @@ public:
         return (static_cast<double>(get(i, j)) * scalar_).real();
     }
 
-    std::complex<double> get_element_as_complex(uint64_t i, uint64_t j) const override {
+    std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override {
         if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
             return {get_element_as_double(i, j), 0.0};
         } else {
@@ -165,7 +165,7 @@ public:
         }
     }
 
-    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+    void set_element_double(uint64_t i, uint64_t j, double value) override {
         set(i, j, static_cast<T>(value));
     }
 

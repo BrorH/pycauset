@@ -79,12 +79,12 @@ public:
         return {static_cast<double>(real_data()[i]), static_cast<double>(imag_data()[i])};
     }
 
-    double get_element_as_double(uint64_t i) const override {
+    double element_as_double(uint64_t i) const override {
         (void)i;
         throw std::runtime_error("Complex vector does not support get_element_as_double; use get_element_as_complex");
     }
 
-    std::complex<double> get_element_as_complex(uint64_t i) const override {
+    std::complex<double> element_as_complex(uint64_t i) const override {
         const std::complex<double> v = get(i);
         std::complex<double> z = (scalar_ == 1.0) ? v : (v * scalar_);
         if (is_conjugated()) {

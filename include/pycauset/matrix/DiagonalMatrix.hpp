@@ -81,14 +81,14 @@ public:
         return data()[i];
     }
 
-    double get_element_as_double(uint64_t i, uint64_t j) const override {
+    double element_as_double(uint64_t i, uint64_t j) const override {
         if (scalar_ == 1.0) {
             return static_cast<double>(get(i, j));
         }
         return (static_cast<double>(get(i, j)) * scalar_).real();
     }
 
-    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+    void set_element_double(uint64_t i, uint64_t j, double value) override {
         set(i, j, static_cast<T>(value));
     }
 

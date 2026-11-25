@@ -108,7 +108,7 @@ public:
         data()[idx] = value;
     }
 
-    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+    void set_element_double(uint64_t i, uint64_t j, double value) override {
         set(i, j, static_cast<T>(value));
     }
 
@@ -150,7 +150,7 @@ public:
         set_scalar(1.0);
     }
 
-    double get_element_as_double(uint64_t i, uint64_t j) const override {
+    double element_as_double(uint64_t i, uint64_t j) const override {
         if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
             throw std::runtime_error("Complex matrix does not support get_element_as_double; use get_element_as_complex");
         }
@@ -166,7 +166,7 @@ public:
         return (v * scalar_).real();
     }
 
-    std::complex<double> get_element_as_complex(uint64_t i, uint64_t j) const override {
+    std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override {
         if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
             return {get_element_as_double(i, j), 0.0};
         }

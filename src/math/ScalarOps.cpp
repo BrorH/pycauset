@@ -1,4 +1,5 @@
 // Matrix ⊕ scalar operations with NumPy result-dtype semantics. See ScalarOps.hpp.
+#include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/math/ScalarOps.hpp"
 
 #include <cmath>
@@ -592,6 +593,7 @@ bool is_plain(const MatrixBase& a) {
 }
 
 std::unique_ptr<MatrixBase> write_out(const MatrixBase& a) {
+    debug_trace::set_last("write_out");
     const DataType dt = a.get_data_type();
     const uint64_t rows = a.rows(), cols = a.cols();
     if (dt == DataType::BIT) {

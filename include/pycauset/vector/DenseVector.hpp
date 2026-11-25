@@ -67,7 +67,7 @@ public:
         return data()[i];
     }
 
-    double get_element_as_double(uint64_t i) const override {
+    double element_as_double(uint64_t i) const override {
         if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
             throw std::runtime_error("Complex vector does not support get_element_as_double; use get_element_as_complex");
         }
@@ -78,7 +78,7 @@ public:
         return (v * scalar_).real();
     }
 
-    std::complex<double> get_element_as_complex(uint64_t i) const override {
+    std::complex<double> element_as_complex(uint64_t i) const override {
         const std::complex<double> v = pycauset::scalar::to_complex_double(get(i));
         std::complex<double> z = (scalar_ == 1.0) ? v : (v * scalar_);
         if (is_conjugated()) {
@@ -121,7 +121,7 @@ public:
 
     void set(uint64_t i, bool value);
     bool get(uint64_t i) const;
-    double get_element_as_double(uint64_t i) const override;
+    double element_as_double(uint64_t i) const override;
 
     const uint64_t* data() const { return static_cast<const uint64_t*>(require_mapper()->get_data()); }
     uint64_t* data() { return static_cast<uint64_t*>(require_mapper()->get_data()); }

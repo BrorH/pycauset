@@ -148,7 +148,7 @@ bool DenseMatrix<bool>::get(uint64_t i, uint64_t j) const {
     return (*data_ptr >> bit_index) & 1ULL;
 }
 
-double DenseMatrix<bool>::get_element_as_double(uint64_t i, uint64_t j) const {
+double DenseMatrix<bool>::element_as_double(uint64_t i, uint64_t j) const {
     return get(i, j) ? scalar_.real() : 0.0;
 }
 

@@ -215,7 +215,14 @@ def _materialize_via_memoryview(obj: Any, dtype: Any, np_module: Any, *, copy: b
         return None
 
 
+# Number of exports since import. The operation atlas (tests/atlas) reads it around an
+# operation: an operation that exports its input to NumPy is a "numpy-fallback" path.
+export_count = 0
+
+
 def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool = True) -> Any:
+    global export_count
+    export_count += 1
     ensure_export_allowed(obj, allow_huge=allow_huge, ceiling_bytes=_EXPORT_MAX_BYTES)
 
     try:

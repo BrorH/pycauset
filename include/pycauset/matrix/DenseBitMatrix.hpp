@@ -44,10 +44,10 @@ public:
     bool get(uint64_t i, uint64_t j) const;
     
     // Generic accessor
-    double get_element_as_double(uint64_t i, uint64_t j) const override;
+    double element_as_double(uint64_t i, uint64_t j) const override;
 
     // Generic setter
-    void set_element_as_double(uint64_t i, uint64_t j, double value) override {
+    void set_element_double(uint64_t i, uint64_t j, double value) override {
         set(i, j, value != 0.0);
     }
 

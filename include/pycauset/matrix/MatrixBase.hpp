@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pycauset/core/AccessCounter.hpp"
+
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -78,14 +80,30 @@ public:
         return row_offset_ != 0 || col_offset_ != 0 || logical_rows_ != get_rows() || logical_cols_ != get_cols();
     }
 
-    virtual double get_element_as_double(uint64_t i, uint64_t j) const = 0;
-    
-    virtual std::complex<double> get_element_as_complex(uint64_t i, uint64_t j) const {
-        return std::complex<double>(get_element_as_double(i, j), 0.0);
+    // Generic per-element access (logical coordinates, view metadata applied). Non-virtual
+    // wrappers count calls (access_counter, debug only) and dispatch to the element_* virtuals
+    // that each storage class implements. Kernels should not loop over these.
+    double get_element_as_double(uint64_t i, uint64_t j) const {
+        access_counter::hit();
+        return element_as_double(i, j);
+    }
+    std::complex<double> get_element_as_complex(uint64_t i, uint64_t j) const {
+        access_counter::hit();
+        return element_as_complex(i, j);
+    }
+    void set_element_as_double(uint64_t i, uint64_t j, double value) {
+        access_counter::hit();
+        set_element_double(i, j, value);
     }
 
-    // Virtual setter for generic assignment (Phase 2.2)
-    virtual void set_element_as_double(uint64_t i, uint64_t j, double value) = 0;
+protected:
+    virtual double element_as_double(uint64_t i, uint64_t j) const = 0;
+    virtual std::complex<double> element_as_complex(uint64_t i, uint64_t j) const {
+        return std::complex<double>(element_as_double(i, j), 0.0);
+    }
+    virtual void set_element_double(uint64_t i, uint64_t j, double value) = 0;
+
+public:
 
     // Phase 2.5: Batch Write
     // Allows writing a block of data at once, enabling vectorization in derived classes.
