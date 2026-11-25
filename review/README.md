@@ -33,7 +33,7 @@ review/
   LOG.md            session log
   areas/            per-area deep-review notes (Phase 3), one file per area
   deadcode/         snapshots of dead-code/coverage reports (regenerate per DEADCODE.md §2)
-  features/         specs for new features accepted into the overhaul (VALUE_BOUNDS.md, LAZY.md)
+  features/         specs for features accepted into the overhaul (LAZY, VALUE_BOUNDS, ATLAS, BIT_PLANES)
   probes/           runnable investigation scripts (candidates to become tests)
   scripts/          inventory generator, coverage analysers (Python + C++)
 ```
@@ -69,16 +69,17 @@ review/
 **After session 3 (2026-11-24):** fixed F-001…F-006, F-024, F-025, F-028…F-030, F-033,
 F-034, F-035a, F-036…F-040, F-041a; precision_mode removed; lazy expression engine removed
 (eager operators, one structure resolver); Arnoldi on Spectra; streaming engine tested.
-Session 5 (overnight, autonomous): lazy L1 (integer scale views, view reads at kernel speed),
-L2a/L2b (packed A±Aᵀ, C±Cᵀ closure over bits), structured results for every dtype, 8 silent
-wrong-result bugs fixed (F-045, F-049–F-051), ASan+UBSan clean; 3,671 tests.
-Session 4: CUDA to experimental/, Structure enum, one class per structure (F-032/F-045/F-046
-fixed), lazy-evaluation design (features/LAZY.md). 2,825 passed / 33 xfailed in ~24 s; ASan+UBSan clean (sanitizer builds
-need -j1). **Open priorities:** F-041b (maintainer: zeros() default dtype); F-032 + renames
-(PLAN 4.6); F-040 follow-ups (views in the tiler, `set_memory_threshold` vs streaming);
-performance F-012 (profile the 13× element-wise gap); dead-code Tier B; docs F-008. All decisions answered (RESTRUCTURE §3); new feature
-accepted: value bounds (features/VALUE_BOUNDS.md, PLAN Phase F1); lazy evaluation
-(features/LAZY.md, PLAN Phase L).
+Session 7: performance (thread-pool defaults, export, BLAS dot: r2_parity mostly at
+parity), vectors = 1 x n matrices (F-058), exact integer dot/sum/trace (F-051), linear algebra
+on views and complex inputs (F-059..F-063: 5 silent wrong-result classes), user docs GPU-free.
+3,860 + 287 tests. Session 6: bit-plane investigation (features/BIT_PLANES.md), exact int
+matmul via BLAS (F-055), RAM storage 3× faster (F-057). Session 5: lazy L1/L2 (integer scale
+views, C ± Cᵀ closure over bits). Session 4: one class per structure, CUDA to experimental/.
+**Next:** PLAN Phase C, the operation atlas (features/ATLAS.md): every operation × dtype ×
+structure × view checked against NumPy and classified fast / slow / fallback, generated
+report + CI. Then Phase 4 from the atlas report, ASan re-run, docs truth pass (F-008).
+Features accepted: lazy evaluation (features/LAZY.md, Phase L), value bounds
+(features/VALUE_BOUNDS.md, Phase F1), atlas (features/ATLAS.md, Phase C).
 
 ## When the overhaul is finished
 ARCHITECTURE.md moves into `documentation/internals/`, FINDINGS.md becomes the

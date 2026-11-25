@@ -130,6 +130,21 @@ risk: storage and object model first, since everything rests on them.
 9. Docs: is it in ARCHITECTURE.md? Do the internals/user docs describe it correctly?
 10. Tests: which tests cover it? Is there a gap?
 
+## Phase C: Operation atlas (maintainer request, session 7; design in `features/ATLAS.md`) ⟵ NEXT
+Every operation × dtype × structure × view × storage, checked against NumPy and classified as
+fast / written-out / generic / numpy-fallback / unsupported, with timings. Generated report
+(`review/atlas/ATLAS.md`) + CI tests. Stops the "found one more slow or wrong combination"
+cycle by finding all of them at once. Runs before the remaining Phase 4 items, which then
+work from the report.
+- [ ] C.1 Instrumentation: kernel traces on every kernel entry; accessor counter (debug flag);
+      NumPy-fallback hook
+- [ ] C.2 Enumerator, oracle, classifier (correctness); first full run → findings
+- [ ] C.3 Timing pass; generated `review/atlas/ATLAS.md`
+- [ ] C.4 CI wiring (`tests/atlas/`, explicit known-gap list); delete `support_matrix.py`,
+      `tools/check_support_matrix.py`, superseded probes
+- [ ] C.5 Work the report down (no ✗ cells; no engine NumPy fallbacks; `generic` only where
+      documented)
+
 ## Phase 4: Structural cleanup (after the RESTRUCTURE decisions)
 Behaviour-preserving moves in their own commits, then logic consolidation.
 - [x] 4.0 CUDA moved to `experimental/cuda` (code, bindings, `pycauset.cuda`, GPU tests, docs,
@@ -137,7 +152,7 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.1 Dead code Tiers B–D (DEADCODE.md) and debug leftovers (F-019)
 - [x] 4.1b Remove `precision_mode` / `set_precision_mode` / `get_precision_mode` end to end
       (code, C++ mode, docs, tests); update the under-promotion warning text
-- [ ] 4.1d Dtype matrix completeness: every one of the 16 dtypes works with every other
+- [ ] 4.1d (now tracked by the atlas, Phase C) Dtype matrix completeness: every one of the 16 dtypes works with every other
       in every op of the spec table (the conformance grid is the gate). Session 5: structured
       results (triangular/symmetric/antisymmetric/diagonal) for every real dtype the factory
       instantiates (was int32/float64 only). Gaps left: diagonal/identity float16/float32,
