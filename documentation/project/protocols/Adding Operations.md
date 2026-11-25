@@ -1,278 +1,187 @@
-# Protocol: Adding New Matrix/Vector Operations
+# Protocol: Adding or Changing an Operation
 
-**Objective**: Make new ops easy to add without “hunt across the codebase”, and ensure both **matrix and vector** variants are covered.
+**Status:** authoritative (2026 review, Phase N). Supersedes the device-chain protocol
+(`ComputeDevice` → `AutoSolver` → CUDA checklists) and the property-driven dispatch it
+described. GPU work is on hold; see `experimental/cuda/README.md`.
 
-## The current architecture (where things go)
+**Objective:** an operation that is correct for *every* dtype × structure × view × storage
+combination by construction, fast where it matters, and provably so: measured, not hoped.
 
-1. **Frontend (type resolution + allocation + entry point)**
-    - Declarations: `include/pycauset/math/LinearAlgebra.hpp`
-    - Definitions: `src/math/LinearAlgebra.cpp`
-2. **Context (`ComputeContext`)**
-    - `include/pycauset/compute/ComputeContext.hpp`, `src/compute/ComputeContext.cpp`
-3. **Dispatcher (`AutoSolver`)**
-    - `include/pycauset/compute/AutoSolver.hpp`, `src/compute/AutoSolver.cpp`
-4. **Interface (`ComputeDevice`)**
-    - `include/pycauset/compute/ComputeDevice.hpp`
-5. **Implementations (CPU / CUDA)**
-    - CPU device: `include/pycauset/compute/cpu/CpuDevice.hpp`, `src/compute/cpu/CpuDevice.cpp`
-    - CPU algorithms: `include/pycauset/compute/cpu/CpuSolver.hpp`, `src/compute/cpu/CpuSolver.cpp`
-    - CUDA device: `src/accelerators/cuda/CudaDevice.hpp`, `src/accelerators/cuda/CudaDevice.cu`
+Why this protocol exists: the code base grew operation by operation, each with branches for
+the combinations its author thought of, private copies of the view rules, silent NumPy
+fallbacks and result caches. Every unplanned combination was its own unplanned path, so the
+same classes of bug kept appearing in new places (review FINDINGS F-064…F-086). The procedure
+below makes new combinations correct by construction, and the atlas proves it.
 
-## The “Support Checklist” (authoritative)
+## 1. The shape of every operation
 
-When adding a new operation, you must decide and/or implement support in each of these axes:
-
-1. **Operand rank**
-    - Matrix-Matrix
-    - Vector-Vector
-    - Matrix-Vector and Vector-Matrix (if applicable)
-
-2. **Scalar kind + flags**
-    - Fundamental kinds: `bit`, `int`, `float`
-    - Flags/permutations: `complex`, `unsigned`
-    - Special rule: **bit is allowed to have op-specific exceptions** (bitwise vs numeric vs error-by-design).
-      See [[internals/DType System|internals/DType System]].
-
-3. **Structure/storage**
-    - Dense vs triangular vs symmetric/antisymmetric vs identity/diagonal
-    - Vector special cases like `UnitVector`
-
-4. **Device coverage**
-    - CPU must be correct.
-    - GPU is optional; if unsupported, routing must be prevented or it must throw clearly.
-
-5. **Python surface**
-    - Bindings: `src/bindings/` (`bind_matrix.cpp`, `bind_vector.cpp`, `bind_complex.cpp`) and the aggregator `src/bindings.cpp`.
-    - Python API helpers/wrappers may also need updates in `python/pycauset/`.
-
-6. **Documentation + tests**
-    - Add/modify API docs in `documentation/docs/` and guides in `documentation/guides/`.
-    - Add tests (Python and/or C++) covering dtype permutations and “error-by-design” cases.
-
-7. **Properties**
-    - Properties are user metadata: the op must not read them to choose a path or a result,
-      and must not cache its result anywhere (review F-081). Structure that the op exploits
-      comes from the operand's class (`TriangularMatrix`, `DiagonalMatrix`, ...), never from a
-      property.
-
-8. **Atlas**
-    - Add the op to `tests/atlas/atlas.py` (`OPS`, with its NumPy reference). The atlas then
-      checks it in every dtype x structure x view x storage cell; `python -m tests.atlas.timing`
-      measures it against NumPy.
-
-9. **Traits/Tags (Phase 3: property mirroring)**
-    - If the op depends on properties for routing, consult the C++ property flags (`include/pycauset/core/PropertyFlags.hpp`).
-    - Use `MatrixPropertyTraits` in `AutoSolver` or routing helpers to make decisions without scanning payloads.
-    - When adding new boolean properties, update both the Python property map and the C++ flag map.
-
-## Step-by-step (what to edit, in order)
-
-### 1) Add the device-interface method
-
-Add a pure virtual method to `include/pycauset/compute/ComputeDevice.hpp`.
-
-Matrix example:
-```cpp
-virtual void my_new_op(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
+```
+Python operator / pycauset.f()        thin binding: no logic, no NumPy, no properties
+        │
+entry function (one per operation)    src/math/*.cpp   e.g. dispatch_matmul
+   1. validate shapes
+   2. result dtype = promotion::resolve(op, dtype_a, dtype_b)     (the NumPy rule)
+   3. structure rules (declared list, see §3)
+   4. normaliser: bring each operand to a kernel contract         (shared tools, §4)
+        │
+kernel(s) with a written contract     src/compute/cpu/CpuSolver.cpp
+   accept exactly what the contract says; throw on anything else
 ```
 
-Vector example:
-```cpp
-virtual void my_new_op_vector(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
+Worked example: `dispatch_matmul` (`src/math/LinearAlgebra.cpp`) and `CpuSolver::matmul`
+(`src/compute/cpu/CpuSolver.cpp`), review F-080. Five rules and four kernel contracts
+replaced ~25 front-end branches and 9 device fallbacks.
+
+## 2. Step by step
+
+### Step 1: write down the semantics (NumPy is the oracle)
+
+- What NumPy returns for the same logical arrays: values, result dtype, and where it raises.
+  PyCauset matches NumPy unless a documented PyCauset rule says otherwise (bit operands
+  counting in int32, integer matmul raising on overflow); such rules live in
+  [[internals/DType System|DType System]].
+- The result dtype comes from `promotion::resolve` (`core/PromotionResolver`). If the op
+  needs a new rule, add it there, not in the op.
+- `bit`: state whether the op is bitwise (stays packed), numeric (widens) or an error.
+
+### Step 2: add it to the atlas first
+
+Add one `Op(...)` line to `OPS` in `tests/atlas/atlas.py` with its NumPy reference. Then:
+
+```
+PYTHONPATH=python python -m tests.atlas.report <op>   # every cell of the op
 ```
 
-### 2) Implement CPU algorithm + wire CpuDevice
+The atlas runs the op in every dtype × structure × view × storage cell (and dtype/structure
+pairs for binary ops) and classifies each: ✓ fast kernel, ○ generic (per-element virtual
+reads), N NumPy round trip, ✗ wrong, — raises where NumPy answers. Before the op exists,
+every cell is —: that is the work list.
 
-- Add implementation to `include/pycauset/compute/cpu/CpuSolver.hpp` and `src/compute/cpu/CpuSolver.cpp`.
-- Wire through `include/pycauset/compute/cpu/CpuDevice.hpp` and `src/compute/cpu/CpuDevice.cpp` as a thin passthrough.
+### Step 3: the entry function
 
-### 3) Add AutoSolver routing
+One function per operation (`src/math/`). In order:
 
-Update `include/pycauset/compute/AutoSolver.hpp` and `src/compute/AutoSolver.cpp`.
+1. Shape checks. Raise `std::invalid_argument` with the NumPy-style message.
+2. `const DataType r = promotion::resolve(...)`.
+3. Structure rules (§3), each a few lines.
+4. The normaliser (§4): convert each operand once to what the kernel accepts, then call it.
 
-- Default: run on the CPU device. Each AutoSolver method decides GPU eligibility inline
-  (`is_gpu_active()` plus dtype/structure/size checks), e.g. `AutoSolver::add`. (GPU work
-  is on hold; new ops should be CPU-only unless GPU support is explicitly in scope.)
-- If GPU does not support the op/dtypes/structures, either:
-  - enforce “CPU only” in AutoSolver for that op, or
-  - keep GPU routing but ensure GPU throws a clear error.
+The entry function does not read properties, does not cache, does not call NumPy, and has no
+`try { fast } catch { fallback }`.
 
-### 4) (Optional) Implement CUDA
+### Step 4: the kernels and their contracts
 
-If supported, implement in `src/accelerators/cuda/CudaDevice.cu`.
+- One kernel per *family*, templated on the element type: `dense_kernel<T>` for every
+  float, complex and integer T, not one hand-written loop per dtype pair.
+- A comment above each kernel states its contract: which classes and dtypes, which view
+  flags it reads natively (typically transposition and a real scale factor), what it
+  writes. Anything else is a contract violation: throw, never guess.
+- Kernels read storage through typed pointers or the shared readers (§4), never through
+  `get_element_as_double/complex` in a loop (the atlas counts those calls as ○ generic).
+- Integer arithmetic: element-wise wraps like NumPy; reductions that change magnitude (matmul)
+  raise `OverflowError` on overflow of the result dtype (DType System).
+- Determinism: parallel reductions sum fixed blocks in a fixed order (see `block_sum` in
+  CpuSolver.cpp), so results do not depend on the thread count.
 
-### 5) Add the frontend wrapper(s)
+### Step 5: the binding
 
-Add a top-level frontend function in `include/pycauset/math/LinearAlgebra.hpp` + `src/math/LinearAlgebra.cpp`.
+`src/bindings/bind_*.cpp`: convert arguments, call the entry function, return. No second
+entry point for the same operation (one path for `+` and `+=`, F-086); no NumPy; no
+property reads; no result caching.
 
-Responsibilities of the frontend:
-- validate shapes,
-- determine the result dtype/structure,
-- allocate the result using `ObjectFactory::create_matrix/create_vector`,
-- dispatch via `ComputeContext::instance().get_device()->...`.
+### Step 6: the gates (all must pass before merging)
 
-Additional responsibility (R1_PROPERTIES):
+| Gate | Command | Requirement |
+|---|---|---|
+| Correctness | `pytest tests/atlas` | 0 ✗ cells, no regression against `review/atlas/atlas.json.gz` |
+| Paths | `python -m tests.atlas.report` | ○ generic only where a finding explains it |
+| Speed | `python -m tests.atlas.timing <op>` | ≥ 0.9× NumPy per fast cell, or a finding |
+| Suites | `pytest tests/engine tests/python` and `PYCAUSET_LAZY=0 pytest tests/engine` | pass |
+| Regressions | `tests/engine/test_regressions.py` | one `test_F<id>_...` per bug fixed |
 
-- Compute any **effective structure category** once (e.g., zero/identity/diagonal/triangular/general) from properties and pass that decision down to avoid repeated property lookups in inner loops.
+Commit the regenerated `review/atlas/ATLAS.md`, `atlas.json.gz` and `TIMING.md` with the op.
 
-### 6) Bind to Python
+### Step 7: documentation
 
-Add the binding to the appropriate `src/bindings/bind_*.cpp` and ensure it is reachable from `src/bindings.cpp`.
+- API page in `documentation/docs/functions/` or the class page: semantics, result dtype,
+  result structure, raises.
+- `CHANGELOG.md` for user-visible behaviour.
+- If the op needed a new structure rule or kernel family, say so in the entry function's
+  comment block (it is the operation's specification).
 
-### 7) Declare dtype/coverage expectations (policy + tests)
+## 3. Structure rules
 
-Every new op must explicitly state its dtype behavior. In particular:
+A structure rule exists when the *result* has a structure (triangular @ triangular is
+triangular) or when the structure changes the algorithm's cost (diagonal @ diagonal is O(n),
+a bit matrix stays packed). Each rule:
 
-- **Fundamental-kind rule (bit/int/float):** do not “promote down” across kinds. For example, `matmul(bit, float64) -> float64`.
-- **Underpromotion within floats:** `matmul(float32, float64) -> float32` by default.
-- **Overflow:** elementwise integer arithmetic wraps (C/NumPy semantics); integer `matmul` reductions throw `OverflowError` on final-cast overflow and may emit an advisory risk warning.
+- covers every dtype the structure's class exists for, not one or two (the old matmul had
+  "triangular" for float64 and int32 only);
+- states when it applies (e.g. both upper triangular, no window) and otherwise falls
+  through to the dense rule;
+- states any deviation from NumPy. Skipping structural zeros differs from NumPy only where
+  a skipped `0 * inf` would be `nan`; say so.
 
-These rules are defined in [[internals/DType System|internals/DType System]] and summarized in [[project/Philosophy|project/Philosophy]].
+The structure comes from the operand's **class** (`TriangularMatrix`, `DiagonalMatrix`, …),
+never from a property: properties are user metadata and never change a result (F-081).
 
-### 8) Register the Op Contract
+## 4. Shared tools: use these, never re-derive them
 
-Every numerical operation must declare its capabilities in the **Op Contract Registry**. This ensures that the system knows which operations support streaming, block matrices, or have special requirements (like square inputs).
+| Need | Tool | Where |
+|---|---|---|
+| The value of an element through its view | `view_value(raw, factor, conj)` | `include/pycauset/math/ViewValue.hpp` |
+| An operand as plain dense of dtype T (every class, every view, typed) | `to_dense(a, dtype)` | `math/ScalarOps.hpp` (uses `read_wide`, `math/ViewRead.hpp`) |
+| Same dtype, view folded into storage | `write_out(a)` | `math/ScalarOps.hpp` |
+| Dtype conversion keeping structure | `cast_to(a, dtype)` | `math/ScalarOps.hpp` |
+| Does the operand carry any view? | `is_plain(a)` | `math/ScalarOps.hpp` |
+| Typed traversal of any class (one dispatch, then typed `get`) | `visit_matrix(m, f)` / `visit_vector` | `core/DTypeDispatch.hpp` |
+| A vector as a 1 × n matrix (one implementation for both) | `as_row_matrix(v)` | `math/VectorOps.hpp` |
+| Result dtype | `promotion::resolve(op, a, b)` | `core/PromotionResolver.hpp` |
 
-**The Contract Struct** (defined in `include/pycauset/core/OpRegistry.hpp`):
+The view rule is `value = conj?(raw · factor)`, with integer factors wrapping, real storage
+times a real factor in real arithmetic, and a +0.0 antisymmetric diagonal. It is written once,
+in `ViewValue.hpp`. Four hand-written copies of it existed and two were wrong (F-086): do not
+write a fifth.
 
-```cpp
-struct OpContract {
-    std::string name;
-    bool supports_streaming;     // Can delegate to StreamingManager?
-    bool supports_streaming;     // Does it delegate to StreamingManager?
-    bool supports_block_matrix;  // Does it natively handle BlockMatrix recursion?
-    bool requires_square;        // Does it enforce square inputs?
-    // Future: SIMD Tier, Property propagation rules
-};
-```
+## 5. Forbidden
 
-### Usage (C++)
+- NumPy as a backend (`np.linalg.*` behind a PyCauset call). NumPy is the oracle.
+- Silent fallbacks: `try { fast } catch { slow / NumPy }`. Errors surface.
+- Reading properties to choose a path or produce a result; caching results (F-081).
+- Per-dtype or per-class copy-paste branches where a template over the element type works.
+- A private copy of the view rule.
+- Guesses deciding results: sampling or heuristics may only produce warnings.
+- `get_element_as_*` loops in kernels.
 
-```cpp
-// On module load / static init
-OpContract matmul_contract;
-matmul_contract.name = "matmul";
-matmul_contract.supports_streaming = true;
-matmul_contract.supports_block_matrix = true;
+## 6. Performance notes
 
-OpRegistry::instance().register_op(matmul_contract);
-```
+- An O(n²) conversion in front of an O(n³) kernel is acceptable only if it is typed. A
+  virtual-call conversion costs ~100× a BLAS flop and dominates up to n in the thousands
+  (F-083).
+- For O(n²) operations a conversion doubles the cost: read the common views (transposition,
+  real factor) natively in the kernel.
+- Parallelise over flat blocks, not rows: a vector is one row.
+- Per-call overhead of the Python layers is measured in `TIMING.md` (per-call table).
 
-### Usage (Python)
+## 7. Streaming (out-of-core)
 
-The registry is mirrored to Python for inspection and AI-guided development.
+Ops that can run tile by tile on file-backed data delegate to `StreamingManager`
+(`src/compute/StreamingManager.cpp`), whose tile kernels have the same contract as the dense
+kernels (same dtype, dense). See [[internals/Streaming Manager.md|Streaming Manager]].
 
-```python
-import _pycauset as internal  # or pycauset.internals depending on binding layout
+## Definition of done
 
-contract = internal.OpRegistry.instance().get_contract("matmul")
-print(contract.supports_streaming) # True
-```
-
-### Integrating a New Op
-
-1. Define the C++ implementation.
-2. In the initialization static block, register the `OpContract`.
-
-## Streaming manager wiring (per-op template)
-
-Use this when deciding whether an op should stream and how to express it.
-
-1. **Decide streamability and invariants.** Specify when streaming is allowed (e.g., associative/commutative reductions, block-separable transforms) and when to fall back to single-shot (e.g., global normalization constants, shape-dependent fusion that would regress correctness). Capture the rationale so AutoSolver can gate.
-2. **Define the streaming descriptor.** Choose chunk shape (rows/tiles/blocks), prefetch distance, double-buffering vs single-buffer, and whether pinned host staging is required. Provide CPU defaults and GPU defaults separately; GPU defaults should include host<->device staging policy and max in-flight buffers.
-3. **Route through AutoSolver.** Add a routing path that prefers the streaming plan when the device supports it and the op's streamability predicates are satisfied; otherwise route to the non-streaming implementation or raise a clear "streaming not supported for this configuration" error.
-4. **Budgeting with the memory governor.** Set per-op limits: max residency for staging buffers, spill/evict behavior, and what to do when budgets are tight (e.g., shrink chunk size, drop to CPU-only, or disable streaming). Avoid hidden allocations outside the governor.
-5. **Telemetry and tests.** Add a minimal streaming test that asserts the op uses the streaming path (e.g., via a debug hook or perf counter) and a fallback test that confirms graceful degradation when streaming is blocked. Document the defaults and any known non-streamable cases in the op's docstring/API doc.
-
-## GPU routine authoring checklist (Phase 2, R1_GPU)
-
-Use this checklist when you add a **GPU acceleration routine** (host-orchestrated driver) for a new op. This is the plug-and-play contract that keeps GPU work predictable and future R1_CPU-compatible.
-
-1. **Define the Driver contract** (host-side orchestration).
-    - Inputs: operand shapes, dtype, memory layout, and streaming tile constraints.
-    - Outputs: explicit success/failure codes and error messages (no silent fallbacks).
-    - Dependencies: the driver may call `AsyncStreamer` and device kernels, but **must not** embed device-specific logic in the orchestration loop.
-
-2. **Declare capability surface (routing gate).**
-    - Enumerate supported dtypes and matrix structures.
-    - State any property preconditions (e.g., symmetric/triangular).
-    - Provide a “no” reason string for unsupported cases (for routing traces).
-
-3. **Use the MemoryGovernor budget.**
-    - All pinned allocations must request a ticket from the governor.
-    - If denied, degrade to pageable host buffers (or CPU fallback) and record a trace reason.
-
-4. **Provide CPU compatibility.**
-    - The driver contract must remain backend-agnostic so R1_CPU can reuse the same orchestration loop.
-    - Device-specific kernels should sit behind a worker interface; do not bake CUDA into the driver.
-
-5. **Instrument routing and execution.**
-    - Emit trace tags for routing choice, streaming decisions, and kernel/driver stages.
-    - Ensure observability is deterministic and does not depend on timing.
-
-6. **Register the driver in AutoSolver.**
-    - Add the routing decision (cost model + capability checks) in `AutoSolver`.
-    - Fall back to CPU with a clear reason if the driver cannot run.
-
-7. **Document & test.**
-    - Update the API reference and guides with the new acceleration path.
-    - Add correctness tests and at least one routing test (GPU chosen / GPU rejected).
-
-## GPU kernel checklist (Phase 5, R1_GPU)
-
-Use this when adding or modifying **low-level CUDA kernels** (beyond the host driver):
-
-1. **Declare kernel coverage.**
-    - Supported dtypes, structures, and any layout assumptions (row-major/col-major, contiguous, stride rules).
-    - Explicitly document unsupported permutations and how routing rejects them.
-
-2. **Validate inputs.**
-    - Bounds/shape checks must happen before launching kernels.
-    - Fast-fail with a clear error on invalid sizes or unsupported structure flags.
-
-3. **Precision and determinism.**
-    - Declare math mode (e.g., TF32 allowed vs disabled).
-    - Document any non-deterministic reductions or race-sensitive paths.
-
-4. **Memory and stream discipline.**
-    - Honor the MemoryGovernor pinning budget for host staging.
-    - Use the caller’s stream (no implicit default-stream races).
-    - Avoid hidden device allocations in hot loops.
-
-5. **Error handling and traceability.**
-    - Check CUDA errors (`cudaGetLastError`, `cublasStatus`, `cusolverStatus`).
-    - Emit deterministic trace tags for routing and kernel stages.
-
-6. **Tests.**
-    - Add correctness tests for representative shapes/dtypes.
-    - Add a routing test that confirms GPU selection for supported inputs.
-    - Add a failure test for a known unsupported permutation.
-
-## Minimal “Definition of Done” for a new op
-
-- [ ] `ComputeDevice` interface updated.
-- [ ] CPU implementation exists and is correct.
-- [ ] `AutoSolver` dispatch correct (CPU-only or GPU-enabled).
-- [ ] Frontend wrapper(s) in `src/math/LinearAlgebra.cpp` (matrix and/or vector).
-- [ ] Python bindings updated.
-- [ ] Dtype behavior documented (including bit exceptions and cross-kind rules).
-- [ ] Tests cover supported dtypes + at least one “error-by-design” dtype.
-
-If the op is property-aware (R1_PROPERTIES):
-
-- [ ] The op reads no properties and caches no result (F-081).
-- [ ] The op is in the atlas (`tests/atlas/atlas.py`) and its CI test passes.
-
-For `bit` specifically, always state whether the new op is:
-
-- **bitwise** (stays `bit`, stays packed), or
-- **numeric** (may widen to `int`/`float`, potentially huge), or
-- **error-by-design** for `bit` unless the user explicitly requests widening.
+- [ ] Semantics written down (NumPy reference; any deviation documented).
+- [ ] Atlas entry; `pytest tests/atlas` passes (0 ✗, no regression).
+- [ ] Generic cells explained by findings; timing ≥ 0.9× NumPy or a finding.
+- [ ] Entry function with structure rules + normaliser; kernels with written contracts.
+- [ ] No forbidden pattern (§5).
+- [ ] Suites pass in both lazy modes; regression tests for bugs found.
+- [ ] API docs and CHANGELOG updated; atlas reports committed.
 
 ## See also
 
-- [[project/protocols/Documentation Protocol.md|Documentation Protocol]]
-- [[internals/plans/archive/R1_PROPERTIES_PLAN.md|R1_PROPERTIES plan (properties + caches)]]
-- [[internals/DType System|internals/DType System]]
-- [[internals/Compute Architecture.md|Compute Architecture]]
-- [[internals/Streaming Manager.md|Streaming Manager]]
+- [[project/protocols/Adding Types|Adding Types]]: new structures and dtypes
+- [[internals/DType System|DType System]]: promotion, overflow, bit rules
+- [[project/protocols/NumPy Alignment Protocol|NumPy Alignment Protocol]]
+- `review/features/ATLAS.md`: the atlas design

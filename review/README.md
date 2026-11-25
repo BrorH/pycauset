@@ -5,6 +5,8 @@ that started on 2026-11-24. It is written for **agents and humans picking up the
 work cold**. Read this file first, then the ones it points to.
 
 ## Read in this order
+0. **`documentation/project/protocols/Adding Operations.md`** and **`Adding Types.md`**: the
+   procedures the review established (Phase N). Every change to an operation or type follows them.
 1. **[ARCHITECTURE.md](ARCHITECTURE.md)**: map of every moving part and how a call
    flows through the stack. Read it before touching code.
 2. **[PLAN.md](PLAN.md)**: the phased plan (0–6), what's done, what's next, the

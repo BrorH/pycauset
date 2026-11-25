@@ -6,6 +6,8 @@ If you are adding or changing behavior, start with:
 
 - [[project/protocols/Pre-alpha Policy|Pre-alpha Policy]]
 - [[project/protocols/Documentation Protocol|Documentation Protocol]]
+- [[project/protocols/Adding Operations|Adding Operations]]: the required procedure for any
+  new or changed operation (contracts, normaliser, atlas and timing gates).
 
 ## Protocols
 
