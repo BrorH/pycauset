@@ -502,14 +502,24 @@ def _run_cell(cell: Cell, op: Op, seed: int, view_fn) -> Cell:
     err = None
     try:
         r = op.run(x, y)
-        got_dtype = _pc_dtype_of(r)
-        got = _materialize(r, op)
+        # A lazy closure's work happens when it is evaluated: evaluate it inside the window.
+        # Exporting the result to NumPy is the `export` operation's cost, not this one's.
+        if isinstance(r, pc._native.MatrixBase) and pc._native._debug_is_closure(r):
+            r = pc._native.materialize(r)
+        if op.name == "export":  # the export is this operation
+            got_dtype, got = _pc_dtype_of(r), _materialize(r, op)
     except Exception as e:
         err = e
     cell.seconds = time.perf_counter() - t0
     cell.accesses = int(pc._native._debug_access_count_stop())
     cell.kernels = list(dict.fromkeys(pc._native._debug_kernel_log_stop()))
     cell.exports = export_guard.export_count - export_guard_before
+    if err is None and op.name != "export":
+        try:
+            got_dtype = _pc_dtype_of(r)
+            got = _materialize(r, op)
+        except Exception as e:
+            err = e
 
     # NumPy natural dtype (for the kind rule) and the reference values in PyCauset's dtype
     np_err = None
@@ -605,10 +615,12 @@ def _check(op: Op, cell: Cell, got, a, b, arith: str, xdt: str, ydt: str) -> boo
 def classify(cell: Cell, op: Op) -> str:
     if cell.exports > 0:
         return "numpy"
-    # Any per-element accessor use beyond a few calls is the generic path, also for O(n^3)
-    # operations: a virtual-call conversion costs ~100x a BLAS flop, so it dominates the kernel
-    # up to n in the thousands (measured by the timing pass, tests/atlas/timing.py).
-    if cell.accesses >= 64:
+    # Per-element accessor use is the generic path, also for O(n^3) operations: a virtual-call
+    # conversion costs ~100x a BLAS flop and dominates the kernel up to n in the thousands
+    # (measured by the timing pass, tests/atlas/timing.py). The threshold is one call per
+    # element of a row (N), not a fixed count: a 16-element vector op makes 32 calls, which a
+    # fixed threshold of 64 classified as fast.
+    if cell.accesses >= N:
         return "generic"
     if "write_out" in cell.kernels:
         return "written-out" if op.o_n2 else "fast"

@@ -368,4 +368,10 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   all result caching removed (~1,000 lines, 2 modules, 2 test files). F-083: per-call
   overhead 30-50 µs; virtual-call conversions dominate cubic kernels; the interim
   "4n² is normalisation" classifier rule reverted (matmul honest count: 557 fast, 290 generic).
+- N.2 converter (F-084): one written view rule + typed readers per class in its own TU (the
+  first attempt instantiated one reader per result dtype x class and OOM-killed the compiler;
+  narrowing through int64/float64/complex128 fixed it). First version recursed for complex
+  results (stack overflow) and gave +0.0 for 0.0 x (-1-0j): both caught at once by the
+  atlas. Generic 8,598 -> 4,986, matmul 837/847 fast. Atlas window no longer includes the
+  export of the result (it double-charged export reads to the op).
 

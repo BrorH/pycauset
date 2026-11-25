@@ -170,8 +170,11 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
       device fallbacks; atlas matmul 847/847 fast). Next by atlas generic count: norm (674),
       element-wise div/mul/add/sub, scalar ops (~2,600 together), matvec/vecmat (957), neg,
       export/save_load, sum, invert, matrix_power.
-- [ ] N.2 One definition of view semantics (value = conj(raw · factor), windows, transpose)
-      in one header; every reader goes through it or through normalisation. Concretely, next:
+- [~] N.2 One definition of view semantics (value = conj(raw · factor), windows, transpose)
+      in one header; every reader goes through it or through normalisation. Done (F-084):
+      `math/ViewRead.hpp` + typed readers per class behind every conversion. Open: windows of
+      structured classes (their `get` ignores windows), the bit dense `get` window bug class,
+      and moving the remaining private readers (N.1b list) onto it. Original plan:
       one typed converter `to_dense(any operand, dtype)` with a typed reader per structure
       (dense, triangular, symmetric/antisymmetric, diagonal, identity, float16/complex16
       storage) and the view applied once, no per-element virtual call. Every normaliser uses
@@ -179,8 +182,12 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
       (fast once a kernel reads it natively). Measured need: F-083 (b); matmul's 290 generic
       cells are all conversions.
 - [ ] N.1b Generalise the matmul normaliser into a shared, declarative one (operation =
-      contract + plain-dense kernel + optional structure rules), then norm, element-wise and
-      scalar ops, matvec/vecmat on it. Rewrite `protocols/Adding Operations.md` around it.
+      contract + plain-dense kernel + optional structure rules), then the ops that still have
+      private element readers (atlas generic after N.2): norm 674, div 564, vecmat 511,
+      det/slogdet 457 each, matvec 446, mul/sub/add ~250 each, export 187, save_load 172,
+      sum 145, add/rsub scalar 129 each. Rewrite `protocols/Adding Operations.md` around it.
+- [ ] N.6 Per-call overhead (F-083 a): 30-50 µs per `+` / `@` vs NumPy's 0.3-0.7 µs; profile
+      the Python wrapper stack (monkeypatches, property patches, io traces) and cut it.
 - [ ] N.5 Structure × dtype gaps (no technical obstacle; factory switches never got the
       cases): diagonal/identity float16, float32, complex; triangular/symmetric complex
       (maintainer decision: complex symmetric A = Aᵀ vs Hermitian A = Aᴴ, recommended both as

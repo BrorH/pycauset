@@ -2418,6 +2418,9 @@ void bind_matrix_classes(py::module_& m) {
         }
         return mat;
     }, py::arg("matrix"), "The matrix with its elements stored (views and closures evaluated).");
+    m.def("_debug_is_closure", [](const MatrixBase& mat) {
+        return dynamic_cast<const pycauset::BitClosureMatrix*>(&mat) != nullptr;
+    }, py::arg("matrix"), "True for a lazy closure result (its work happens when it is evaluated).");
     m.def("_structure_of", [](const py::object& obj) -> std::string {
         if (py::isinstance<MatrixBase>(obj)) return pycauset::structure_name(obj.cast<const MatrixBase&>().get_structure());
         if (py::isinstance<VectorBase>(obj)) return pycauset::structure_name(obj.cast<const VectorBase&>().get_structure());

@@ -1266,21 +1266,19 @@ bool bit_x_bit_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& resu
     auto* C = dynamic_cast<DenseMatrix<int32_t>*>(&result);
     if (!A || !B || !C) return false;
     debug_trace::set_last("cpu.matmul.bitbit_popcount");
-    const uint64_t m = A->rows(), k = A->cols(), n = B->cols();
-    if (!A->is_transposed() && !B->is_transposed()) {
-        bit_popcount_matmul(*A, *B, *C);
-    } else {
-        ParallelFor(0, m, [&](size_t i) {
-            for (uint64_t j = 0; j < n; ++j) {
-                int64_t count = 0;
-                for (uint64_t kk = 0; kk < k; ++kk) count += (A->get(i, kk) && B->get(kk, j)) ? 1 : 0;
-                if (count > static_cast<int64_t>((std::numeric_limits<int32_t>::max)())) {
-                    throw std::overflow_error("Integer matmul overflow: bit x bit result does not fit in int32 output");
-                }
-                C->set(i, j, static_cast<int32_t>(count));
-            }
-        });
-    }
+    // The popcount kernel reads rows of A and columns of B as packed words: a transposed
+    // operand gets one typed O(n^2) plain copy (the per-element O(n^3) branch this replaced
+    // took 104 ms vs NumPy 1.4 ms at n = 384, F-083).
+    auto plain = [](const DenseMatrix<bool>& X) {
+        auto out = std::make_unique<DenseMatrix<bool>>(X.rows(), X.cols(), std::string());
+        for (uint64_t i = 0; i < X.rows(); ++i)
+            for (uint64_t j = 0; j < X.cols(); ++j)
+                if (X.get(i, j)) out->set(i, j, true);
+        return out;
+    };
+    std::unique_ptr<DenseMatrix<bool>> ha = A->is_transposed() ? plain(*A) : nullptr;
+    std::unique_ptr<DenseMatrix<bool>> hb = B->is_transposed() ? plain(*B) : nullptr;
+    bit_popcount_matmul(ha ? *ha : *A, hb ? *hb : *B, *C);
     C->set_scalar(A->get_scalar() * B->get_scalar());
     return true;
 }

@@ -911,9 +911,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   kernel dtype (float16 computes in float32, complex float16 in complex64). Triangular and
   diagonal results now keep their structure for every dtype with a class (was float64/int32
   only). Net -930 lines.
-- Atlas: matmul 557 of 847 correct cells fast (was 328), 290 generic (was 519). The 290 are
-  operand conversions through the virtual accessor (float16 / complex float16, conjugated
-  complex, symmetric, antisymmetric, diagonal, identity): fixed by a typed converter (N.2).
+- Atlas: matmul 837 of 847 correct cells fast (was 328), 10 generic (was 519), after the N.2
+  typed converter (F-084) replaced the virtual-accessor operand conversions.
   An interim classifier rule that counted up to 4n² accessor calls as "normalisation" was
   reverted after the timing pass measured such a conversion (F-083).
 - Semantics (documented in the code): structured rules skip structural zeros, so they differ
@@ -959,3 +958,34 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Policy (ATLAS.md §5): an `ok` cell must reach ≥ 0.9× NumPy at the reference size, or carry a
   finding that explains why.
 
+### F-084 View semantics defined per class, differently; conversions read per element (N.2)
+- **Status:** fixed for conversions (session 8). Each class implemented a different subset of
+  the view rules: `DenseMatrix::get` honours windows and transposition, `DenseMatrix<bool>::get`
+  and `ComplexFloat16Matrix::get` ignore windows, symmetric/diagonal `get` ignore windows,
+  factors and conjugation lived only in each class's virtual `element_as_*` (each written
+  slightly differently; the antisymmetric +0.0 diagonal only there). Every conversion of a
+  non-dense or viewed operand (`to_dense`, `cast_to`, scalar ops) therefore read through the
+  virtual accessor (~100 ns per element).
+- Fix: one definition of view semantics (`include/pycauset/math/ViewRead.hpp`:
+  `conj?(raw · factor)`, integer factors wrap, real storage × real factor in real arithmetic,
+  antisymmetric diagonal +0.0) and typed readers for every class (`src/math/ViewRead.cpp`,
+  own translation unit: one instantiation per class × {int64, float64, complex128}).
+  `run_generic` (behind `to_dense`, `cast_to`, `write_out`, scalar ops) uses them; half-
+  precision targets go through float64/complex128 and round once. The virtual reader remains
+  only for windows of structured classes and lazy closures.
+- Found on the way, by the atlas: a factor stored as (-1, -0) (A.T of an antisymmetric A)
+  times real storage must be real arithmetic (0.0 × -1 = -0.0); a complex product gives +0.0
+  and `2 / A.T` flipped -inf to +inf. Now part of the written definition.
+- Atlas: total generic 8,598 → 4,986 (6,478 after the classifier fix below); solve 242 → 6, svdvals 247 → 6, scalar ops ~550 → 6,
+  matmul 290 → 10. Operations with private element readers (norm, element-wise + − * /,
+  det/slogdet, matvec/vecmat, sum, export) are unchanged: N.1b.
+- Atlas harness fix on the way: the access/kernel window included exporting the result to
+  NumPy, so an op returning a scaled view was charged the export's per-element reads (a
+  float64 matmul with a scaled result counted 256 accesses). The window now covers the op and
+  the evaluation of lazy closures (`_debug_is_closure`); export is the `export` op's cost.
+
+- Atlas classifier fix (same session): the `generic` threshold was a fixed 64 accessor calls,
+  so per-element paths on 16-element vectors (32 calls) were classified `fast`; the timing
+  pass exposed it (a complex float16 vector add at 1M elements took seconds, single-threaded
+  through the virtual accessor). The threshold is now N (one call per element of a row):
+  generic 4,986 → 6,478, the difference being vector per-element paths.

@@ -34,7 +34,7 @@ float64 first, which the atlas verifies once per operation").
    * `fast`: a typed kernel (BLAS/LAPACK, word-level bit kernel, contiguous typed loop);
    * `written-out`: the input was copied to plain storage first, then a fast kernel (fine for
      O(n³) operations; flagged for O(n²) ones);
-   * `generic`: virtual element accessor calls (threshold 64), also when they only convert an
+   * `generic`: virtual element accessor calls (threshold N, one per element of a row), also when they only convert an
      operand in front of a fast O(n³) kernel: the timing pass measured such a conversion at
      ~100 ns per element, which dominates the kernel up to n in the thousands (float32
      antisymmetric @ X at n = 384: 17.5 ms vs NumPy 0.28 ms). Conversions must be typed;

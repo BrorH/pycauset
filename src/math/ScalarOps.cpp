@@ -18,6 +18,7 @@
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
 #include "pycauset/matrix/SymmetricMatrix.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
+#include "pycauset/math/ViewRead.hpp"
 
 namespace pycauset {
 
@@ -419,30 +420,63 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
     return out;
 }
 
-// Generic (exact for |x| < 2^53) fallback for other structures: diagonal, identity,
-// symmetric, ... read through the virtual complex accessor, which applies views.
+// Generic (exact for |x| < 2^53): read through the virtual complex accessor, which applies
+// views. Only for what has no typed reader below (windows of structured classes, lazy and
+// closure classes); the atlas counts these calls as the `generic` path.
 template <typename R>
-std::unique_ptr<MatrixBase> run_generic(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s) {
-    struct GenericReader {
-        const MatrixBase& m;
-        R operator()(uint64_t i, uint64_t j) const {
-            const std::complex<double> v = m.get_element_as_complex(i, j);
-            if constexpr (std::is_integral_v<R>) {
-                return static_cast<R>(static_cast<int64_t>(v.real()));
-            } else if constexpr (std::is_floating_point_v<R>) {
-                return static_cast<R>(v.real());
-            } else {
-                using V = typename R::value_type;
-                return R(static_cast<V>(v.real()), static_cast<V>(v.imag()));
-            }
-        }
-    } read{a};
+inline R from_logical(std::complex<double> v) {
+    if constexpr (std::is_integral_v<R>) {
+        return static_cast<R>(static_cast<int64_t>(v.real()));
+    } else if constexpr (std::is_floating_point_v<R>) {
+        return static_cast<R>(v.real());
+    } else {
+        using V = typename R::value_type;
+        return R(static_cast<V>(v.real()), static_cast<V>(v.imag()));
+    }
+}
+
+template <typename R>
+std::unique_ptr<MatrixBase> run_virtual(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s) {
     const uint64_t rows = a.rows(), cols = a.cols();
     const R sv = scalar_as<R>(s);
     auto out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
     R* dst = out->data();
-    for_each_block(rows, cols, [&](uint64_t idx, uint64_t i, uint64_t j) { dst[idx] = apply<R>(op, read(i, j), sv); });
+    for_each_block(rows, cols, [&](uint64_t idx, uint64_t i, uint64_t j) {
+        dst[idx] = apply<R>(op, from_logical<R>(a.get_element_as_complex(i, j)), sv);
+    });
     return out;
+}
+
+// Every view of every class as a dense R matrix (no structure kept). The typed reader of
+// ViewRead.cpp brings the operand to a plain wide matrix (int64 / float64 / complex128) with
+// the view applied; the typed dense path narrows it to R. Only what has no typed reader
+// (windows of structured classes, lazy and closure classes) reads through the virtual accessor.
+template <typename R, typename W>
+std::unique_ptr<MatrixBase> narrow_wide(const MatrixBase& wide, ScalarOpKind op, const ScalarArg& s) {
+    const W* src = static_cast<const DenseMatrix<W>&>(wide).data();
+    const uint64_t rows = wide.rows(), cols = wide.cols();
+    const R sv = scalar_as<R>(s);
+    auto out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
+    R* dst = out->data();
+    for_each_block(rows, cols, [&](uint64_t idx, uint64_t, uint64_t) {
+        R v;
+        if constexpr (std::is_same_v<W, std::complex<double>>) v = from_logical<R>(src[idx]);
+        else v = convert_in<R>(src[idx]);
+        dst[idx] = apply<R>(op, v, sv);
+    });
+    return out;
+}
+
+template <typename R>
+std::unique_ptr<MatrixBase> run_generic(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s) {
+    if constexpr (std::is_integral_v<R>) {
+        if (auto w = read_wide(a, WideKind::Int64)) return narrow_wide<R, int64_t>(*w, op, s);
+    } else if constexpr (std::is_floating_point_v<R>) {
+        if (auto w = read_wide(a, WideKind::Float64)) return narrow_wide<R, double>(*w, op, s);
+    } else {
+        if (auto w = read_wide(a, WideKind::Complex128)) return narrow_wide<R, std::complex<double>>(*w, op, s);
+    }
+    return run_virtual<R>(a, op, s);
 }
 
 // Dispatch on the concrete input class for a fixed result type R.
@@ -609,19 +643,30 @@ std::unique_ptr<MatrixBase> write_out(const MatrixBase& a) {
 
 std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt) {
     const uint64_t rows = a.rows(), cols = a.cols();
+    // Half-precision targets: the typed float64 / complex128 conversion (exact for every
+    // source the old per-element path read exactly), then one rounding to half precision.
     if (dt == DataType::FLOAT16) {
+        auto wide = run_exact(a, DataType::FLOAT64, ScalarOpKind::Mul, ScalarArg::from_int64(1), false);
+        const double* src = static_cast<const DenseMatrix<double>&>(*wide).data();
         auto out = std::make_unique<DenseMatrix<pycauset::float16_t>>(rows, cols, std::string());
         pycauset::float16_t* dst = out->data();
         ParallelFor(0, rows, [&](size_t i) {
-            for (uint64_t j = 0; j < cols; ++j) dst[i * cols + j] = pycauset::float16_t(a.get_element_as_double(i, j));
+            for (uint64_t j = 0; j < cols; ++j) dst[i * cols + j] = pycauset::float16_t(src[i * cols + j]);
         });
         return out;
     }
     if (dt == DataType::COMPLEX_FLOAT16) {
+        auto wide = run_exact(a, DataType::COMPLEX_FLOAT64, ScalarOpKind::Mul, ScalarArg::from_int64(1), false);
+        const std::complex<double>* src = static_cast<const DenseMatrix<std::complex<double>>&>(*wide).data();
         auto out = std::make_unique<ComplexFloat16Matrix>(rows, cols, std::string());
-        for (uint64_t i = 0; i < rows; ++i) {
-            for (uint64_t j = 0; j < cols; ++j) out->set(i, j, a.get_element_as_complex(i, j));
-        }
+        pycauset::float16_t* re = out->real_data();
+        pycauset::float16_t* im = out->imag_data();
+        ParallelFor(0, rows, [&](size_t i) {
+            for (uint64_t j = 0; j < cols; ++j) {
+                re[i * cols + j] = pycauset::float16_t(src[i * cols + j].real());
+                im[i * cols + j] = pycauset::float16_t(src[i * cols + j].imag());
+            }
+        });
         return out;
     }
     // Multiplying by one in the target type is an exact conversion (ints, floats, complex).
