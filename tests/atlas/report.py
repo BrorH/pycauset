@@ -26,8 +26,10 @@ def main(argv=None) -> None:
     os.makedirs(OUT, exist_ok=True)
     # Committed snapshot: cell key -> "outcome path" (gzip, ~1 MB); the CI regression check
     # reads it. The full per-cell record (kernels, errors, timings) goes to the scratch JSON.
-    with gzip.open(os.path.join(OUT, "atlas.json.gz"), "wt") as f:
-        json.dump({c.key(): f"{c.outcome} {c.path}".strip() for c in cells}, f, separators=(",", ":"))
+    snapshot = json.dumps({c.key(): f"{c.outcome} {c.path}".strip() for c in cells}, separators=(",", ":"))
+    with open(os.path.join(OUT, "atlas.json.gz"), "wb") as raw:
+        with gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as f:  # mtime=0: byte-identical reruns
+            f.write(snapshot.encode())
     with open(os.path.join(OUT, "atlas_full.json"), "w") as f:
         json.dump([dataclasses.asdict(c) for c in cells], f, separators=(",", ":"))
     with open(os.path.join(OUT, "ATLAS.md"), "w") as f:

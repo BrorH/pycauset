@@ -140,11 +140,12 @@ work from the report.
       wrappers over the `element_*` virtuals), per-operation kernel log
       (`debug_trace::start_log`), NumPy export counter (`export_guard.export_count`).
       Kernel traces are completed lazily: the report lists ops with no trace.
-- [~] C.2 Enumerator, oracle, classifier: `tests/atlas/atlas.py` + `report.py`. First run
-      found F-064..F-075 (all fixed); oracle bugs fixed alongside. Next: triage the rerun.
-- [ ] C.3 Timing pass; generated `review/atlas/ATLAS.md`
-- [ ] C.4 CI wiring (`tests/atlas/`, explicit known-gap list); delete `support_matrix.py`,
-      `tools/check_support_matrix.py`, superseded probes
+- [x] C.2 Enumerator, oracle, classifier: `tests/atlas/atlas.py` + `report.py` (58,935 cells,
+      26 s, deterministic). Runs found F-064..F-079, all fixed: **0 wrong cells** (session 8).
+- [ ] C.3 Timing pass (speed vs NumPy and vs float64 dense at reference sizes)
+- [~] C.4 CI: `tests/atlas/test_atlas.py` (fails on any ✗, harness error, or regression vs the
+      committed `review/atlas/atlas.json.gz`; KNOWN_GAPS empty). Still to do: delete
+      `support_matrix.py`, `tools/check_support_matrix.py`, superseded probes
 - [ ] C.5 Work the report down (no ✗ cells; no engine NumPy fallbacks; `generic` only where
       documented)
 

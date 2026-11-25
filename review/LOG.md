@@ -348,3 +348,7 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   tests asserting that removed: test_properties_dispatch.py, two others).
 - Maintainer approved Phase N and stated the review's purpose: the code was grown feature by
   feature (AI-generated over ~a year) without integration; integrating it is part of the review.
+- Atlas reruns: 2,446 wrong cells → 101 → 6 → 0 (F-076..F-079 fixed on the way; oracle made
+  deterministic: CRC32 seeds instead of per-process str hash, well-conditioned operands for
+  linear algebra, float16 overflow compared as float16). CI test passes (40 ops, 34 s).
+  Remaining report: 8,942 generic and 3,056 NumPy-round-trip cells, 1,399 unsupported → Phase N.

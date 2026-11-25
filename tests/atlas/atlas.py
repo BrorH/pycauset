@@ -28,6 +28,7 @@ import os
 import tempfile
 import time
 import warnings
+import zlib
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -436,7 +437,8 @@ def _match_spectra(got, ref, dtype: str) -> bool:
 
 def run_cell(cell: Cell) -> Cell:
     op = OP_BY_NAME[cell.op]
-    seed = hash((cell.op, cell.dtype, cell.structure, cell.view)) % 1000
+    # Stable across processes (str hash() is randomised per process: runs were not reproducible).
+    seed = zlib.crc32("/".join((cell.op, cell.dtype, cell.structure, cell.view)).encode()) % 1000
     view_fn = VIEWS[cell.view][0]
     threshold = pc.get_memory_threshold()
     try:
@@ -455,11 +457,17 @@ def run_cell(cell: Cell) -> Cell:
 
 
 def _operand(structure, dtype, view, seed, linalg):
-    a = reference(structure, dtype, seed)
-    m = build(structure, dtype, a, seed)
-    v = VIEWS[view][0](m)
-    vdt = _pc_dtype_of(v)
-    return v, view_reference(view, a, vdt), vdt
+    for attempt in range(25):
+        a = reference(structure, dtype, seed + 1000 * attempt)
+        m = build(structure, dtype, a, seed)
+        v = VIEWS[view][0](m)
+        vdt = _pc_dtype_of(v)
+        x = view_reference(view, a, vdt)
+        # Linear algebra on a numerically singular input has no well-defined answer (det,
+        # slogdet, inv are rounding noise there): draw again. Random 0/1 matrices often are.
+        if not linalg or x.ndim != 2 or np.linalg.cond(x.astype(np.complex128)) < 1e8:
+            return v, x, vdt
+    return v, x, vdt
 
 
 def _run_cell(cell: Cell, op: Op, seed: int, view_fn) -> Cell:
