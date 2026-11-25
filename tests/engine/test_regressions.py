@@ -195,3 +195,23 @@ def test_triangular_matrix_is_the_native_structure_class():
     t = pc.TriangularMatrix(4, dtype="int16")
     t[0, 3] = -7
     assert type(t) is pc.TriangularMatrix and t.dtype == "int16" and t[0, 3] == -7 and t[3, 0] == 0
+
+
+# Structured results for every dtype the structure supports (F-032 follow-up, PLAN 4.1d).
+@pytest.mark.parametrize("kind,dtype", [
+    ("TriangularMatrix", "int16"), ("TriangularMatrix", "float32"), ("TriangularMatrix", "uint8"),
+    ("SymmetricMatrix", "int8"), ("SymmetricMatrix", "float32"), ("AntiSymmetricMatrix", "int64"),
+    ("DiagonalMatrix", "uint8"), ("DiagonalMatrix", "int64"),
+])
+def test_structured_results_keep_structure_for_every_dtype(kind, dtype):
+    cls = getattr(pc, kind)
+    a, b = cls(5, dtype=dtype), cls(5, dtype=dtype)
+    a[0, 0 if kind == "DiagonalMatrix" else 3] = 2
+    b[1, 1 if kind == "DiagonalMatrix" else 4] = 3
+    for res, ref in [(a + b, to_np(a) + to_np(b)), (a - b, to_np(a) - to_np(b))]:
+        assert type(res) is cls and res.dtype == dtype
+        np.testing.assert_array_equal(to_np(res), ref)
+    if kind == "TriangularMatrix":
+        assert type(a * 3) is cls  # scaling keeps the structure
+        if not dtype.startswith("float"):
+            assert type(a + 0) is cls  # exact integer kernel: zero-preserving ops keep it too

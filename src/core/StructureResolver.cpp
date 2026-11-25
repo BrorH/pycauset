@@ -28,14 +28,20 @@ bool is_strict_upper(const MatrixBase& m) {
 
 // Structured result classes that exist (and are registered with Python) per dtype.
 bool can_make(Structure t, DataType dt) {
+    // Combinations the factory instantiates and the element-wise kernels can write. Every one
+    // has a Python class since the structure classes (F-032), so results keep their structure.
+    // No BIT results (the kernels can't write packed bits; bit sums promote anyway), no complex
+    // structured storage.
+    const bool real_non_bit = dt != DataType::BIT && dt != DataType::COMPLEX_FLOAT16 &&
+                              dt != DataType::COMPLEX_FLOAT32 && dt != DataType::COMPLEX_FLOAT64 &&
+                              dt != DataType::UNKNOWN;
     switch (t) {
         case Structure::TRIANGULAR:
-            // No BIT: the element-wise kernels cannot write a TriangularBitMatrix result.
-            return dt == DataType::INT32 || dt == DataType::FLOAT64;
-        case Structure::DIAGONAL:
         case Structure::SYMMETRIC:
         case Structure::ANTISYMMETRIC:
-            return dt == DataType::FLOAT64;
+            return real_non_bit;
+        case Structure::DIAGONAL:
+            return real_non_bit && dt != DataType::FLOAT16 && dt != DataType::FLOAT32;
         default:
             return true;
     }

@@ -318,10 +318,9 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
     const R sv = scalar_as<R>(s);
     TypedReader<In, Src> read{src, int_view_factor(a)};
 
-    // Triangular results only for element types that have a Python class
-    // (TriangularIntegerMatrix = int32, TriangularFloatMatrix = float64); anything else
-    // would reach Python as a bare MatrixBase (F-032). Other dtypes become dense.
-    constexpr bool tri_capable = std::is_same_v<R, int32_t> || std::is_same_v<R, double>;
+    // Triangular results for every real element type (each has a Python class since the
+    // structure classes, F-032); complex results become dense.
+    constexpr bool tri_capable = !std::is_same_v<R, std::complex<float>> && !std::is_same_v<R, std::complex<double>>;
     if constexpr (tri_capable) if (triangular_in && preserves_zero(op, s)) {
         auto out = std::make_unique<TriangularMatrix<R>>(rows, std::string(), has_diag);
         const bool lower = a.is_transposed();
