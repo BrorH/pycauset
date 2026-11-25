@@ -346,3 +346,5 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Decisions taken (maintainer may veto): `~` follows NumPy (complements every element of a
   structured matrix); user-set properties no longer steer dispatch or change results (old
   tests asserting that removed: test_properties_dispatch.py, two others).
+- Maintainer approved Phase N and stated the review's purpose: the code was grown feature by
+  feature (AI-generated over ~a year) without integration; integrating it is part of the review.

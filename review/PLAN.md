@@ -148,7 +148,11 @@ work from the report.
 - [ ] C.5 Work the report down (no ✗ cells; no engine NumPy fallbacks; `generic` only where
       documented)
 
-## Phase N: Normalise at the boundary (session 8; the cure for the recurring bug class)
+## Phase N: Normalise at the boundary (session 8; maintainer-approved; a core goal of the review)
+Maintainer, session 8: much of the code was AI-generated over about a year, feature on top of
+feature without the features being integrated with each other; integrating them ("compounding")
+is one of the reasons for this review. Phase N is that work for the operation layer; the same
+lens applies to every area (one mechanism instead of N parallel special cases).
 Root cause of F-043..F-075 (see LOG session 8): kernels are chosen by one property (dtype or
 class) and silently assume others (dense storage, no transpose/conjugation/factor/window,
 upper orientation); view flags are optional for every reader; rules are re-implemented in
