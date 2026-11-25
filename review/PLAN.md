@@ -162,6 +162,10 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
       it honours). One entry function per operation normalises any other operand
       (`write_out` / `to_dense` / cast) before dispatch; kernels assert their contract.
       Delete the ad-hoc per-branch guards and the branches the normaliser makes redundant.
+      Done: matmul (F-080: 5 rules + 4 kernel contracts replace ~25 front branches and 9
+      device fallbacks; atlas matmul 847/847 fast). Next by atlas generic count: norm (674),
+      element-wise div/mul/add/sub, scalar ops (~2,600 together), matvec/vecmat (957), neg,
+      export/save_load, sum, invert, matrix_power.
 - [ ] N.2 One definition of view semantics (value = conj(raw · factor), windows, transpose)
       in one header; every reader goes through it or through normalisation.
 - [ ] N.3 No silent fallbacks: the Python layer calls the engine and lets errors surface;

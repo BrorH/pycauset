@@ -378,19 +378,6 @@ public:
         }
     }
 
-    std::unique_ptr<DenseMatrix<T>> multiply(const DenseMatrix<T>& other, const std::string& result_file = "") const {
-        if (is_subview() || other.is_subview()) {
-            throw std::runtime_error("matmul on views with offsets is not supported; materialize with copy() first");
-        }
-        if (cols() != other.rows()) {
-            throw std::invalid_argument("Dimension mismatch");
-        }
-
-        auto result = std::make_unique<DenseMatrix<T>>(rows(), other.cols(), result_file);
-        pycauset::ComputeContext::instance().get_device()->matmul(*this, other, *result);
-        return result;
-    }
-
     void inverse_to(DenseMatrix<T>& out) const {
         if (is_subview() || out.is_subview()) {
             throw std::runtime_error("inverse on views with offsets is not supported; materialize with copy() first");

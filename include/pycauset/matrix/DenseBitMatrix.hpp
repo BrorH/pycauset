@@ -53,7 +53,6 @@ public:
 
     // Standard Matrix Multiplication: Result = this * other
     // Returns a DenseMatrix<int32_t>
-    std::unique_ptr<DenseMatrix<int32_t>> multiply(const DenseMatrix<bool>& other, const std::string& result_file) const;
     
     // Logical AND between two boolean matrices
     std::unique_ptr<DenseMatrix<bool>> elementwise_multiply(const DenseMatrix<bool>& other, const std::string& result_file) const;

@@ -804,8 +804,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Fix: `dispatch_matmul` writes a transposed triangular operand out (dense) before the
   structured paths, so the kernels only see upper storage; the int32 kernel sums k in [i, j]
   and its result keeps a diagonal iff both operands have one.
-- Open (atlas, performance): `cpu.matmul.tri_i32` reads through the virtual accessors
-  (generic path, O(n^3) virtual calls).
+- Performance part resolved by F-080: one templated triangular kernel reads packed storage
+  for every real dtype (`cpu.matmul.tri_i32`, which used the virtual accessors, is gone).
 
 ### F-067 `matrix_power(2*I, n)` returned `2*I`
 - **Status:** fixed. The Python `matrix_power` returned an identity operand unchanged
@@ -890,3 +890,30 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Fix: the native SVD takes any dtype/structure/view (normalised to a dense LAPACK dtype) and
   runs one templated `?gesdd` for float32/float64/complex64/complex128, reduced or full
   (NumPy shapes). `svd`, `svdvals` and `pinv` (V S⁺ Uᴴ with NumPy's cutoff) use it.
+
+### F-080 Matmul: 25 dispatch branches and 9 per-element device fallbacks (Phase N.1)
+- **Status:** fixed (session 8). Matmul was the clearest case of the Phase N root cause:
+  `dispatch_matmul` chose among ~25 branches by `dynamic_cast` to one class pair at a time
+  (float64 diagonal, float64 triangular, int32 triangular, int16/int32 mixes, bit x four
+  dtypes, ...), and the device added a hand-written loop for each pair it had no kernel for
+  (`float16_fallback`, `mixed_float_fallback_f32`, `cf16_fallback`, `mixed_int_fallback_i32`,
+  `generic_fallback_{f32,int,f64}`, `tri_i32`). Every new dtype or structure needed a new
+  branch; the loops read through the virtual accessors (atlas: 519 of 847 correct matmul cells
+  generic). `diag_x_dense_f64` / `dense_x_diag_f64` indexed raw storage and ignored a
+  transposed dense operand (unreachable only because the front never sent one). Four member
+  `multiply` functions (dense, triangular, bit-dense, identity) were parallel entry points.
+- Fix: kernels with declared contracts (`CpuSolver::matmul`): dense `T x T -> T` for every
+  float, complex and integer T (complex now through `cgemm`/`zgemm`, it was a scalar triple
+  loop); upper triangular `T x T -> T` for every real T (one template); bit-packed x dense
+  float64/float32/int32/int16 (one template); bit x bit popcount. Anything else throws. One
+  normaliser in `dispatch_matmul` resolves the dtype and applies five rules (identity,
+  bit-packed, triangular, diagonal, dense); the dense rule converts each operand once to the
+  kernel dtype (float16 computes in float32, complex float16 in complex64). Triangular and
+  diagonal results now keep their structure for every dtype with a class (was float64/int32
+  only). Net -930 lines.
+- Atlas: matmul 847 of 847 correct cells fast (was 328). The classifier counts up to 4n²
+  accessor calls on an O(n³) operation as normalisation, not per-element compute (ATLAS.md §3).
+- Semantics (documented in the code): structured rules skip structural zeros, so they differ
+  from NumPy only where a skipped 0·inf or 0·nan would give nan. Integer matmul raises on
+  overflow (F-055 policy) where NumPy wraps: unchanged, listed for the maintainer.
+- Tests: `tests/engine/test_matmul_rules.py` (result structure per rule, overflow guards).

@@ -275,19 +275,6 @@ public:
         return result;
     }
 
-    std::unique_ptr<TriangularMatrix<T>> multiply(const TriangularMatrix<T>& other, const std::string& result_file = "") const {
-        if (rows() != other.rows() || cols() != other.cols()) {
-            throw std::invalid_argument("Matrix dimensions must match");
-        }
-
-        auto result = std::make_unique<TriangularMatrix<T>>(base_rows(), result_file, has_diagonal_);
-        
-        // Delegate to ComputeContext (AutoSolver)
-        pycauset::ComputeContext::instance().get_device()->matmul(*this, other, *result);
-        
-        return result;
-    }
-
     // Inverse (throws)
     std::unique_ptr<TriangularMatrix<double>> inverse(const std::string& result_file = "") const {
         throw std::runtime_error("Strictly upper triangular matrices are singular (not invertible).");

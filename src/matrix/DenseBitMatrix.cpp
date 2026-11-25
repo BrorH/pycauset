@@ -152,21 +152,6 @@ double DenseMatrix<bool>::element_as_double(uint64_t i, uint64_t j) const {
     return get(i, j) ? scalar_.real() : 0.0;
 }
 
-std::unique_ptr<DenseMatrix<int32_t>> DenseMatrix<bool>::multiply(const DenseMatrix<bool>& other, const std::string& result_file) const {
-    if (cols() != other.rows()) {
-        throw std::invalid_argument("Dimension mismatch");
-    }
-
-    auto result = std::make_unique<DenseMatrix<int32_t>>(rows(), other.cols(), result_file);
-
-    // Delegate to ComputeContext (AutoSolver)
-    // AutoSolver will choose between GPU and CPU (CpuSolver)
-    // CpuSolver now contains the optimized bit matrix multiplication logic
-    pycauset::ComputeContext::instance().get_device()->matmul(*this, other, *result);
-    
-    return result;
-}
-
 std::unique_ptr<MatrixBase> DenseMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {
     (void)result_file;
     auto out = std::make_unique<DenseMatrix<bool>>(base_rows(), base_cols(), mapper_);

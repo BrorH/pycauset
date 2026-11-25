@@ -34,7 +34,10 @@ float64 first, which the atlas verifies once per operation").
    * `fast`: a typed kernel (BLAS/LAPACK, word-level bit kernel, contiguous typed loop);
    * `written-out`: the input was copied to plain storage first, then a fast kernel (fine for
      O(n³) operations; flagged for O(n²) ones);
-   * `generic`: one virtual element accessor call per element (correct, slow);
+   * `generic`: one virtual element accessor call per element (correct, slow). For O(n²)
+     operations any accessor use counts (threshold 64 calls); for O(n³) operations up to 4n²
+     calls are operand normalisation in front of a kernel (Phase N: the normaliser converts an
+     operand once, an O(n²) cost next to the O(n³) kernel), and only more counts as generic;
    * `numpy-fallback`: the Python layer called NumPy;
    * `unsupported`: raises.
    Detection is objective, not hand-tagged: (a) the kernel trace (`debug_trace` names,

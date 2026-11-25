@@ -18,6 +18,7 @@
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/core/Float16.hpp"
+#include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/compute/ComputeDevice.hpp"
 #include <stdexcept>
@@ -28,11 +29,6 @@
 #include <complex>
 
 namespace pycauset {
-
-using IntegerMatrix = DenseMatrix<int32_t>;
-using FloatMatrix = DenseMatrix<double>;
-using Int16Matrix = DenseMatrix<int16_t>;
-using Float16Matrix = DenseMatrix<pycauset::float16_t>;
 
 // --- Helpers ---
 
@@ -371,351 +367,196 @@ std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const Ma
     return result;
 }
 
-using Float32Matrix = DenseMatrix<float>;
-using Float16Matrix2 = DenseMatrix<pycauset::float16_t>;
-using TriangularBitMatrix = TriangularMatrix<bool>;
-using DenseBitMatrix = DenseMatrix<bool>;
-using TriangularFloat64Matrix = pycauset::TriangularMatrix<double>;
-using DiagonalFloat64Matrix = pycauset::DiagonalMatrix<double>;
 
+namespace {
+bool mm_complex(DataType d) {
+    return d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 || d == DataType::COMPLEX_FLOAT64;
+}
+bool mm_int(DataType d) { return is_integer_or_bit(d) && d != DataType::BIT; }
+
+// The kernels' own scalar handling: the factor of a float operand is folded into the result
+// scalar; integer kernels take factor 1 (an integer view factor is written out, so overflow
+// and wrapping are decided on the values NumPy sees).
+bool mm_factor_ok(const MatrixBase& m) {
+    const std::complex<double> s = m.get_scalar();
+    const DataType d = m.get_data_type();
+    if (mm_complex(d)) return !m.is_conjugated();
+    if (mm_int(d) || d == DataType::BIT) return s == std::complex<double>(1.0, 0.0);
+    return s.imag() == 0.0;
+}
+
+// Dense kernel contract (CpuSolver::matmul): DenseMatrix<c>, no window, factor as above.
+bool mm_dense_ready(const MatrixBase& m, DataType c) {
+    return m.get_structure() == Structure::DENSE && m.get_data_type() == c && !m.is_subview() && mm_factor_ok(m);
+}
+
+// Triangular kernel contract: upper TriangularMatrix<r>, no window, factor as above.
+bool mm_triangular_ready(const MatrixBase& m, DataType r) {
+    return m.get_structure() == Structure::TRIANGULAR && m.get_data_type() == r && !m.is_subview() &&
+           !m.is_transposed() && mm_factor_ok(m);
+}
+
+bool mm_has_triangular_kernel(DataType r) {
+    return r == DataType::FLOAT64 || r == DataType::FLOAT32 || (mm_int(r));
+}
+
+std::pair<double, double> mm_int_range(DataType r) {
+    switch (r) {
+        case DataType::INT8: return {-128.0, 127.0};
+        case DataType::INT16: return {-32768.0, 32767.0};
+        case DataType::INT32: return {-2147483648.0, 2147483647.0};
+        case DataType::INT64: return {-9223372036854775808.0, 9223372036854775807.0};
+        case DataType::UINT8: return {0.0, 255.0};
+        case DataType::UINT16: return {0.0, 65535.0};
+        case DataType::UINT32: return {0.0, 4294967295.0};
+        case DataType::UINT64: return {0.0, 18446744073709551615.0};
+        default: throw std::logic_error("mm_int_range: not an integer dtype");
+    }
+}
+
+bool mm_has_diagonal_class(DataType r) { return r == DataType::FLOAT64 || mm_int(r); }
+
+template <typename T>
+std::unique_ptr<MatrixBase> mm_make_triangular_t(uint64_t n, const std::string& saveas, bool diag) {
+    return std::make_unique<TriangularMatrix<T>>(n, saveas, diag);
+}
+
+std::unique_ptr<MatrixBase> mm_make_triangular(DataType r, uint64_t n, const std::string& saveas, bool diag) {
+    switch (r) {
+        case DataType::FLOAT64: return mm_make_triangular_t<double>(n, saveas, diag);
+        case DataType::FLOAT32: return mm_make_triangular_t<float>(n, saveas, diag);
+        case DataType::INT8: return mm_make_triangular_t<int8_t>(n, saveas, diag);
+        case DataType::INT16: return mm_make_triangular_t<int16_t>(n, saveas, diag);
+        case DataType::INT32: return mm_make_triangular_t<int32_t>(n, saveas, diag);
+        case DataType::INT64: return mm_make_triangular_t<int64_t>(n, saveas, diag);
+        case DataType::UINT8: return mm_make_triangular_t<uint8_t>(n, saveas, diag);
+        case DataType::UINT16: return mm_make_triangular_t<uint16_t>(n, saveas, diag);
+        case DataType::UINT32: return mm_make_triangular_t<uint32_t>(n, saveas, diag);
+        case DataType::UINT64: return mm_make_triangular_t<uint64_t>(n, saveas, diag);
+        default: throw std::logic_error("mm_make_triangular: no triangular kernel dtype");
+    }
+}
+
+bool mm_has_diagonal(const MatrixBase& m) {
+    auto* t = dynamic_cast<const TriangularMatrixBase*>(&m);
+    return t != nullptr && t->has_diagonal();
+}
+}  // namespace
+
+// Matrix product. One normaliser in front of a few kernels with declared contracts
+// (CpuSolver::matmul); review/PLAN.md Phase N.1. The result dtype is the resolver's. Rules:
+//   R1 identity:   I @ X and X @ I are scalar operations on X.
+//   R2 bit-packed: bit @ bit counts paths (int32; strictly upper x strictly upper stays
+//                  triangular); bit @ dense float64/float32/int32/int16 keeps the bit operand packed.
+//   R3 triangular: upper @ upper stays upper triangular (every real dtype with a kernel).
+//   R4 diagonal:   diag @ diag stays diagonal (O(n)).
+//   R5 dense:      everything else; operands become DenseMatrix<c> (c = r, or float32 /
+//                  complex64 for the float16 dtypes, which have no arithmetic) and the result
+//                  is cast to r.
+// Structured rules skip structural zeros, so they differ from NumPy only where a skipped
+// 0 * inf or 0 * nan would have produced nan.
 std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBase& b, std::string saveas) {
-    // Leave saveas empty by default so small outputs can stay in RAM.
-    // The storage initializer will spill to disk automatically if the
-    // result exceeds the configured memory threshold.
-
     if (a.cols() != b.rows()) {
         throw std::invalid_argument("Dimension mismatch");
     }
+    const DataType da = a.get_data_type(), db = b.get_data_type();
+    const DataType r = promotion::resolve(promotion::BinaryOp::Matmul, da, db).result_dtype;
+    const Structure sa = a.get_structure(), sb = b.get_structure();
+    ComputeDevice* device = ComputeContext::instance().get_device();
+    const uint64_t m = a.rows(), n = b.cols();
 
-    // The kernels read storage with transposition and fold scalar factors, but not
-    // conjugation or windows: write such operands out first (F-060, F-061).
-    {
-        auto needs_copy = [](const MatrixBase& m) {
-            const DataType d = m.get_data_type();
-            const bool cplx = d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 ||
-                              d == DataType::COMPLEX_FLOAT64;
-            // The triangular kernels read upper storage; a transposed (lower) triangular operand
-            // makes upper x lower, which is not triangular (F-066).
-            const bool lower = m.get_structure() == Structure::TRIANGULAR && m.is_transposed();
-            return m.is_subview() || (m.is_conjugated() && cplx) || lower;
-        };
-        if (needs_copy(a) || needs_copy(b)) {
-            auto pa = needs_copy(a) ? write_out(a) : nullptr;
-            auto pb = needs_copy(b) ? write_out(b) : nullptr;
-            return dispatch_matmul(pa ? *pa : a, pb ? *pb : b, std::move(saveas));
-        }
-    }
-
-    // Try to cast to known types
-    auto* a_fm = dynamic_cast<const FloatMatrix*>(&a);
-    auto* b_fm = dynamic_cast<const FloatMatrix*>(&b);
-    auto* a_fm32 = dynamic_cast<const Float32Matrix*>(&a);
-    auto* b_fm32 = dynamic_cast<const Float32Matrix*>(&b);
-    auto* a_fm16 = dynamic_cast<const Float16Matrix2*>(&a);
-    auto* b_fm16 = dynamic_cast<const Float16Matrix2*>(&b);
-
-    bool a_is_id = (a.get_structure() == Structure::IDENTITY);
-    bool b_is_id = (b.get_structure() == Structure::IDENTITY);
-
-    // Identity x Identity -> Identity
-    if (a_is_id && b_is_id) {
-        DataType res_dtype = promotion::resolve(
-            promotion::BinaryOp::Matmul,
-            a.get_data_type(),
-            b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::IDENTITY, saveas);
+    // R1 identity.
+    if (sa == Structure::IDENTITY && sb == Structure::IDENTITY) {
+        auto res = ObjectFactory::create_matrix(m, n, r, Structure::IDENTITY, saveas);
         res->set_scalar(a.get_scalar() * b.get_scalar());
         return res;
     }
-
-    // Identity x Any -> Any * scalar, and Any x Identity -> Any * scalar. Routed through
-    // scalar_op so integer/bit operands never get a lazy scalar (F-001) and the result
-    // dtype follows the promotion rules (e.g. float64 identity with int32 -> float64).
     auto identity_times = [&](const MatrixBase& id, const MatrixBase& other) {
         const std::complex<double> s = id.get_scalar();
         const ScalarArg arg = s.imag() == 0.0 ? ScalarArg::from_double(s.real()) : ScalarArg::from_complex(s);
-        const DataType want =
-            promotion::resolve(promotion::BinaryOp::Matmul, id.get_data_type(), other.get_data_type()).result_dtype;
-        auto out = scalar_op(other, ScalarOpKind::Mul, arg);
-        if (out->get_data_type() != want) out = cast_to(*out, want);
+        auto out = scalar_op(other, ScalarOpKind::Mul, arg);  // integer-safe (F-001), promotes
+        if (out->get_data_type() != r) out = cast_to(*out, r);
         return out;
     };
-    if (a_is_id && a.rows() == a.cols()) {
-        return identity_times(a, b);
+    if (sa == Structure::IDENTITY && a.rows() == a.cols()) return identity_times(a, b);
+    if (sb == Structure::IDENTITY && b.rows() == b.cols()) return identity_times(b, a);
+
+    // R2 bit-packed.
+    auto bit_ready = [](const MatrixBase& x) {
+        return x.get_data_type() == DataType::BIT && !x.is_subview() && mm_factor_ok(x) &&
+               (x.get_structure() == Structure::DENSE || x.get_structure() == Structure::TRIANGULAR);
+    };
+    if (r == DataType::INT32 && bit_ready(a) && bit_ready(b)) {
+        if (sa == Structure::TRIANGULAR && sb == Structure::TRIANGULAR && !a.is_transposed() && !b.is_transposed()) {
+            debug_trace::set_last("cpu.matmul.bit_triangular");
+            return static_cast<const TriangularMatrix<bool>&>(a).multiply(static_cast<const TriangularMatrix<bool>&>(b),
+                                                                          saveas);
+        }
+        std::unique_ptr<MatrixBase> ha = sa == Structure::DENSE ? nullptr : write_out(a);
+        std::unique_ptr<MatrixBase> hb = sb == Structure::DENSE ? nullptr : write_out(b);
+        auto res = std::make_unique<DenseMatrix<int32_t>>(m, n, saveas);
+        device->matmul(ha ? *ha : a, hb ? *hb : b, *res);
+        return res;
     }
-    if (b_is_id && b.rows() == b.cols()) {
-        return identity_times(b, a);
+    if (bit_ready(a) && sa == Structure::DENSE && mm_dense_ready(b, r) &&
+        (r == DataType::FLOAT64 || r == DataType::FLOAT32 || r == DataType::INT32 || r == DataType::INT16)) {
+        auto res = ObjectFactory::create_matrix(m, n, r, Structure::DENSE, saveas);
+        device->matmul(a, b, *res);
+        return res;
     }
 
-    // Mixed dtypes involving float16 or complex have no direct kernels (F-035a): promote
-    // both operands to the resolved result dtype and use the same-dtype kernel.
-    {
-        const DataType da = a.get_data_type(), db = b.get_data_type();
-        auto needs_promotion = [](DataType d) {
-            return d == DataType::FLOAT16 || d == DataType::COMPLEX_FLOAT16 ||
-                   d == DataType::COMPLEX_FLOAT32 || d == DataType::COMPLEX_FLOAT64;
-        };
-        if (da != db && (needs_promotion(da) || needs_promotion(db))) {
-            const DataType r = promotion::resolve(promotion::BinaryOp::Matmul, da, db).result_dtype;
-            std::unique_ptr<MatrixBase> ca, cb;
-            if (da != r) ca = cast_to(a, r);
-            if (db != r) cb = cast_to(b, r);
-            return dispatch_matmul(ca ? *ca : a, cb ? *cb : b, saveas);
+    // R3 triangular. Operands are brought to TriangularMatrix<r> (cast keeps the structure);
+    // a lower or windowed triangular operand is not upper triangular and goes dense.
+    if (sa == Structure::TRIANGULAR && sb == Structure::TRIANGULAR && mm_has_triangular_kernel(r) &&
+        !a.is_transposed() && !b.is_transposed() && !a.is_subview() && !b.is_subview()) {
+        std::unique_ptr<MatrixBase> ha = mm_triangular_ready(a, r) ? nullptr : cast_to(a, r);
+        std::unique_ptr<MatrixBase> hb = mm_triangular_ready(b, r) ? nullptr : cast_to(b, r);
+        const MatrixBase& A = ha ? *ha : a;
+        const MatrixBase& B = hb ? *hb : b;
+        if (mm_triangular_ready(A, r) && mm_triangular_ready(B, r)) {
+            // Upper x upper; the diagonal is a(i,i) b(i,i), stored only if both have one.
+            auto res = mm_make_triangular(r, m, saveas, mm_has_diagonal(A) && mm_has_diagonal(B));
+            device->matmul(A, B, *res);
+            return res;
         }
     }
 
-    // --- Structured float64 matrices (Diagonal / TriangularFloat64) ---
-    // These are supported by CpuSolver matmul specializations when the result type matches.
-    auto* a_diag = dynamic_cast<const DiagonalFloat64Matrix*>(&a);
-    auto* b_diag = dynamic_cast<const DiagonalFloat64Matrix*>(&b);
-    auto* a_tri_f64 = dynamic_cast<const TriangularFloat64Matrix*>(&a);
-    auto* b_tri_f64 = dynamic_cast<const TriangularFloat64Matrix*>(&b);
-
-    // Diagonal x Diagonal -> Diagonal
-    if (a_diag && b_diag) {
-        if (a.rows() != a.cols() || b.rows() != b.cols()) {
-            throw std::invalid_argument("Diagonal matmul requires square operands");
+    // R4 diagonal. Entries are read through the view-aware accessor; integer results are
+    // formed exactly only while every product stays below 2^53 (measured), otherwise dense.
+    if (sa == Structure::DIAGONAL && sb == Structure::DIAGONAL && mm_has_diagonal_class(r) && !a.is_subview() &&
+        !b.is_subview()) {
+        std::vector<double> d(m);
+        bool exact = true;
+        for (uint64_t i = 0; i < m && exact; ++i) {
+            const std::complex<double> x = a.get_element_as_complex(i, i) * b.get_element_as_complex(i, i);
+            d[i] = x.real();
+            if (mm_int(r) && !(std::abs(d[i]) < 9007199254740992.0)) exact = false;
         }
-        auto res = std::make_unique<DiagonalFloat64Matrix>(a.rows(), saveas);
-        ComputeContext::instance().get_device()->matmul(a, b, *res);
-        return res;
-    }
-
-    // Diagonal x DenseFloat64 -> DenseFloat64
-    if (a_diag && b_fm) {
-        auto res = std::make_unique<FloatMatrix>(a.rows(), b.cols(), saveas);
-        ComputeContext::instance().get_device()->matmul(a, b, *res);
-        return res;
-    }
-
-    // DenseFloat64 x Diagonal -> DenseFloat64
-    if (a_fm && b_diag) {
-        auto res = std::make_unique<FloatMatrix>(a.rows(), b.cols(), saveas);
-        ComputeContext::instance().get_device()->matmul(a, b, *res);
-        return res;
-    }
-
-    // TriangularFloat64 x TriangularFloat64 -> TriangularFloat64
-    if (a_tri_f64 && b_tri_f64) {
-        if (a.rows() != a.cols() || b.rows() != b.cols()) {
-            throw std::invalid_argument("Triangular matmul requires square operands");
+        if (exact) {
+            if (mm_int(r)) {
+                const auto [lo, hi] = mm_int_range(r);
+                for (double v : d) {
+                    if (v < lo || v > hi) {
+                        throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
+                    }
+                }
+            }
+            auto res = ObjectFactory::create_matrix(m, n, r, Structure::DIAGONAL, saveas);
+            for (uint64_t i = 0; i < m; ++i) res->set_element_as_double(i, i, d[i]);
+            return res;
         }
-        bool has_diag = a_tri_f64->has_diagonal() || b_tri_f64->has_diagonal();
-        auto res = std::make_unique<TriangularFloat64Matrix>(a.rows(), saveas, has_diag);
-        // Preserve lower/upper orientation from the left operand.
-        res->set_transposed(a_tri_f64->is_transposed());
-        ComputeContext::instance().get_device()->matmul(a, b, *res);
-        return res;
     }
 
-    // Complex matmul (CPU fallback): allocate promoted complex dtype and dispatch via device.
-    const bool a_is_cplx =
-        (a.get_data_type() == DataType::COMPLEX_FLOAT16 || a.get_data_type() == DataType::COMPLEX_FLOAT32 ||
-         a.get_data_type() == DataType::COMPLEX_FLOAT64);
-    const bool b_is_cplx =
-        (b.get_data_type() == DataType::COMPLEX_FLOAT16 || b.get_data_type() == DataType::COMPLEX_FLOAT32 ||
-         b.get_data_type() == DataType::COMPLEX_FLOAT64);
-    if (a_is_cplx || b_is_cplx) {
-        if (a.cols() != b.rows()) throw std::invalid_argument("Dimension mismatch");
-        const DataType res_dtype = promotion::resolve(
-            promotion::BinaryOp::Matmul,
-            a.get_data_type(),
-            b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::DENSE, saveas);
-        ComputeContext::instance().get_device()->matmul(a, b, *res);
-        return res;
-    }
-
-    // Use ComputeDevice for FloatMatrix x FloatMatrix
-    if (a_fm && b_fm && ComputeContext::instance().is_gpu_active()) {
-        auto res = std::make_unique<FloatMatrix>(a.rows(), b.cols(), saveas);
-        ComputeContext::instance().get_device()->matmul(*a_fm, *b_fm, *res);
-        return res;
-    }
-
-    // Use ComputeDevice for Float32Matrix x Float32Matrix
-    if (a_fm32 && b_fm32 && ComputeContext::instance().is_gpu_active()) {
-        auto res = std::make_unique<Float32Matrix>(a.rows(), b.cols(), saveas);
-        ComputeContext::instance().get_device()->matmul(*a_fm32, *b_fm32, *res);
-        return res;
-    }
-
-    // Mixed float precision: output dtype is policy-driven via PromotionResolver.
-    if ((a_fm && b_fm32) || (a_fm32 && b_fm)) {
-        const DataType res_dtype = promotion::resolve(
-            promotion::BinaryOp::Matmul,
-            a.get_data_type(),
-            b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::DENSE, saveas);
-        ComputeContext::instance().get_device()->matmul(a, b, *res);
-        return res;
-    }
-
-    // Any float16 participation: allocate promoted dtype and dispatch via device.
-    // Use dtype checks (not just dynamic_cast) so this also works for non-dense float16 views.
-    const bool a_is_float =
-        (a.get_data_type() == DataType::FLOAT16 || a.get_data_type() == DataType::FLOAT32 ||
-         a.get_data_type() == DataType::FLOAT64);
-    const bool b_is_float =
-        (b.get_data_type() == DataType::FLOAT16 || b.get_data_type() == DataType::FLOAT32 ||
-         b.get_data_type() == DataType::FLOAT64);
-    if (a_is_float && b_is_float &&
-        (a.get_data_type() == DataType::FLOAT16 || b.get_data_type() == DataType::FLOAT16)) {
-        const DataType res_dtype = promotion::resolve(
-            promotion::BinaryOp::Matmul,
-            a.get_data_type(),
-            b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::DENSE, saveas);
-        ComputeContext::instance().get_device()->matmul(a, b, *res);
-        return res;
-    }
-
-    // Fallback to existing logic for other types
-    if (a_fm && b_fm) {
-         return a_fm->multiply(*b_fm, saveas);
-    }
-    if (a_fm32 && b_fm32) {
-         return a_fm32->multiply(*b_fm32, saveas);
-    }
-    if (a_fm16 && b_fm16) {
-        auto res = std::make_unique<Float16Matrix>(a.rows(), b.cols(), saveas);
-        ComputeContext::instance().get_device()->matmul(*a_fm16, *b_fm16, *res);
-        return res;
-    }
-
-    auto* a_im = dynamic_cast<const IntegerMatrix*>(&a);
-    auto* a_tbm = dynamic_cast<const TriangularBitMatrix*>(&a);
-    auto* a_dbm = dynamic_cast<const DenseBitMatrix*>(&a);
-    auto* a_i16m = dynamic_cast<const Int16Matrix*>(&a);
-    
-    auto* b_im = dynamic_cast<const IntegerMatrix*>(&b);
-    auto* b_tbm = dynamic_cast<const TriangularBitMatrix*>(&b);
-    auto* b_dbm = dynamic_cast<const DenseBitMatrix*>(&b);
-    auto* b_i16m = dynamic_cast<const Int16Matrix*>(&b);
-
-    // DenseBitMatrix x {IntegerMatrix, FloatMatrix, Float32Matrix}
-    // Scale-first: keep A bit-packed and avoid materializing it to dense ints/floats.
-    if (a_dbm && b_im) {
-        auto res = std::make_unique<IntegerMatrix>(a.rows(), b.cols(), saveas);
-        ComputeContext::instance().get_device()->matmul(*a_dbm, *b_im, *res);
-        return res;
-    }
-    if (a_dbm && b_i16m) {
-        auto res = std::make_unique<Int16Matrix>(a.rows(), b.cols(), saveas);
-        ComputeContext::instance().get_device()->matmul(*a_dbm, *b_i16m, *res);
-        return res;
-    }
-    if (a_dbm && b_fm) {
-        auto res = std::make_unique<FloatMatrix>(a.rows(), b.cols(), saveas);
-        ComputeContext::instance().get_device()->matmul(*a_dbm, *b_fm, *res);
-        return res;
-    }
-    if (a_dbm && b_fm32) {
-        auto res = std::make_unique<Float32Matrix>(a.rows(), b.cols(), saveas);
-        ComputeContext::instance().get_device()->matmul(*a_dbm, *b_fm32, *res);
-        return res;
-    }
-
-    // IntegerMatrix x IntegerMatrix
-    if (a_im && b_im) return a_im->multiply(*b_im, saveas);
-
-    // Int16Matrix x Int16Matrix
-    if (a_i16m && b_i16m) return a_i16m->multiply(*b_i16m, saveas);
-
-    // Mixed int16/int32 -> allocate promoted dtype and dispatch via device
-    if ((a_i16m && b_im) || (a_im && b_i16m)) {
-        const DataType res_dtype = promotion::resolve(
-            promotion::BinaryOp::Matmul,
-            a.get_data_type(),
-            b.get_data_type()).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::DENSE, saveas);
-        ComputeContext::instance().get_device()->matmul(a, b, *res);
-        return res;
-    }
-
-    // TriangularIntegerMatrix x {TriangularBitMatrix, TriangularIntegerMatrix}
-    // -> TriangularIntegerMatrix (product of strictly upper triangular matrices).
-    // Placed before the same-dtype integer case so a TriangularIntegerMatrix
-    // operand is not treated as a dense int32 matrix.
-    auto* a_ti32 = dynamic_cast<const TriangularMatrix<int32_t>*>(&a);
-    auto* b_ti32 = dynamic_cast<const TriangularMatrix<int32_t>*>(&b);
-    if ((a_ti32 && b_tbm) || (a_tbm && b_ti32) || (a_ti32 && b_ti32)) {
-        // Upper x upper is upper; its diagonal is a(i,i) b(i,i), non-zero only if both have one.
-        const bool diag = a_ti32 && b_ti32 && a_ti32->has_diagonal() && b_ti32->has_diagonal();
-        auto res = std::make_unique<TriangularMatrix<int32_t>>(a.rows(), saveas, diag);
-        ComputeContext::instance().get_device()->matmul(a, b, *res);
-        return res;
-    }
-
-    // Same-dtype integer matmul beyond int16/int32 (int8/int64/uint*): allocate and dispatch via device.
-    const auto a_dt = a.get_data_type();
-    const auto b_dt = b.get_data_type();
-    const bool a_is_int =
-        (a_dt == DataType::INT8 || a_dt == DataType::INT16 || a_dt == DataType::INT32 || a_dt == DataType::INT64 ||
-         a_dt == DataType::UINT8 || a_dt == DataType::UINT16 || a_dt == DataType::UINT32 || a_dt == DataType::UINT64);
-    const bool b_is_int =
-        (b_dt == DataType::INT8 || b_dt == DataType::INT16 || b_dt == DataType::INT32 || b_dt == DataType::INT64 ||
-         b_dt == DataType::UINT8 || b_dt == DataType::UINT16 || b_dt == DataType::UINT32 || b_dt == DataType::UINT64);
-    if (a_is_int && b_is_int && a_dt == b_dt) {
-        const DataType res_dtype = promotion::resolve(
-            promotion::BinaryOp::Matmul,
-            a_dt,
-            b_dt).result_dtype;
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dtype, Structure::DENSE, saveas);
-        ComputeContext::instance().get_device()->matmul(a, b, *res);
-        return res;
-    }
-
-    // DenseBitMatrix x DenseBitMatrix
-    if (a_dbm && b_dbm) return a_dbm->multiply(*b_dbm, saveas);
-
-    // TriangularBitMatrix x TriangularBitMatrix -> TriangularIntegerMatrix
-    if (a_tbm && b_tbm) {
-        // GPU Acceleration for BitMatrices is disabled by default due to overhead.
-        // Users must explicitly convert to FloatMatrix/Float32Matrix to use GPU.
-        return a_tbm->multiply(*b_tbm, saveas);
-    }
-
-    // DenseBitMatrix x TriangularBitMatrix -> IntegerMatrix (bit x bit promotes to int32)
-    if (a_dbm && b_tbm) {
-        auto res = std::make_unique<IntegerMatrix>(a.rows(), b.cols(), saveas);
-        ComputeContext::instance().get_device()->matmul(*a_dbm, *b_tbm, *res);
-        return res;
-    }
-
-    // TriangularBitMatrix x DenseBitMatrix -> IntegerMatrix (bit x bit promotes to int32)
-    if (a_tbm && b_dbm) {
-        auto res = std::make_unique<IntegerMatrix>(a.rows(), b.cols(), saveas);
-        ComputeContext::instance().get_device()->matmul(*a_tbm, *b_dbm, *res);
-        return res;
-    }
-
-    // General fallback: mixed int/float/bit combinations without a specialized
-    // kernel. Resolve the promoted result dtype and compute via a generic
-    // element-access path (correctness-first).
-    {
-        DataType res_dt = DataType::UNKNOWN;
-        try {
-            res_dt = promotion::resolve(
-                promotion::BinaryOp::Matmul,
-                a.get_data_type(),
-                b.get_data_type()).result_dtype;
-        } catch (...) {
-            res_dt = DataType::UNKNOWN;
-        }
-        const bool real_supported =
-            (res_dt == DataType::FLOAT16 || res_dt == DataType::FLOAT32 || res_dt == DataType::FLOAT64 ||
-             res_dt == DataType::INT8 || res_dt == DataType::INT16 || res_dt == DataType::INT32 ||
-             res_dt == DataType::INT64 ||
-             res_dt == DataType::UINT8 || res_dt == DataType::UINT16 || res_dt == DataType::UINT32 ||
-             res_dt == DataType::UINT64);
-        if (!real_supported) {
-            throw std::runtime_error("Unsupported matrix multiplication types.");
-        }
-        auto res = ObjectFactory::create_matrix(a.rows(), b.cols(), res_dt, Structure::DENSE, saveas);
-        ComputeContext::instance().get_device()->matmul(a, b, *res);
-        return res;
-    }
+    // R5 dense.
+    const DataType c = r == DataType::FLOAT16 ? DataType::FLOAT32
+                     : r == DataType::COMPLEX_FLOAT16 ? DataType::COMPLEX_FLOAT32
+                     : r;
+    std::unique_ptr<MatrixBase> ha = mm_dense_ready(a, c) ? nullptr : to_dense(a, c);
+    std::unique_ptr<MatrixBase> hb = mm_dense_ready(b, c) ? nullptr : to_dense(b, c);
+    auto res = ObjectFactory::create_matrix(m, n, c, Structure::DENSE, c == r ? saveas : std::string());
+    device->matmul(ha ? *ha : a, hb ? *hb : b, *res);
+    if (c != r) return cast_to(*res, r);
+    return res;
 }
 
 std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& result_file) {

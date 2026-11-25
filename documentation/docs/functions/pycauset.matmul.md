@@ -21,6 +21,23 @@ Bit operands (`bool`/`bit`, i.e. `DenseMatrix` (dtype `bool`) or `TriangularMatr
 to `int32` on matmul because a bit-bit reduction can exceed `{0,1}`. This includes
 the mixed `DenseMatrix (bool) @ TriangularMatrix (bool)` case (and its reverse).
 
+## Result structure
+
+The values are always NumPy's (`a @ b` on the same arrays); the result dtype follows the
+promotion rules. The result keeps a structure when the product has it:
+
+| Operands | Result |
+|---|---|
+| identity `@` X, X `@` identity | X scaled (X's structure) |
+| upper triangular `@` upper triangular (real dtypes except float16) | `TriangularMatrix`; it has a diagonal only if both operands do |
+| causal (strictly upper `bool`) `@` causal | `TriangularMatrix` (int32 path counts) |
+| diagonal `@` diagonal (dtypes with a `DiagonalMatrix`) | `DiagonalMatrix` |
+| anything else (including a lower triangular `T.T` operand) | dense |
+
+Structured products skip structural zeros, so they differ from NumPy only where a skipped
+`0 * inf` or `0 * nan` would have produced `nan`. Integer products raise `OverflowError` when
+a result does not fit the result dtype.
+
 ## Parameters
 
 *   **a** (*MatrixBase or VectorBase or BlockMatrix*): Left operand.

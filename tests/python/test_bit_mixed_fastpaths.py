@@ -35,7 +35,7 @@ class TestBitMixedFastPaths(unittest.TestCase):
         self.assertEqual(c[1, 0], 0)
 
         trace = pycauset._debug_last_kernel_trace()
-        self.assertIn("cpu.matmul.bit_x_i32", trace)
+        self.assertIn("cpu.matmul.bit_x_dense", trace)
 
     def test_bit_x_int16_matmul_uses_fastpath(self):
 
@@ -61,7 +61,7 @@ class TestBitMixedFastPaths(unittest.TestCase):
         self.assertEqual(c[1, 0], 0)
 
         trace = pycauset._debug_last_kernel_trace()
-        self.assertIn("cpu.matmul.bit_x_i16", trace)
+        self.assertIn("cpu.matmul.bit_x_dense", trace)
 
     def test_bit_x_float64_matmul_uses_fastpath(self):
         n = 64
@@ -82,7 +82,7 @@ class TestBitMixedFastPaths(unittest.TestCase):
         self.assertAlmostEqual(c[1, 0], 0.0)
 
         trace = pycauset._debug_last_kernel_trace()
-        self.assertIn("cpu.matmul.bit_x_f64", trace)
+        self.assertIn("cpu.matmul.bit_x_dense", trace)
 
     def test_bit_x_float64_matmul_rectangular_uses_fastpath(self):
         a = pycauset.DenseMatrix(3, 4, dtype="bool")
@@ -107,7 +107,7 @@ class TestBitMixedFastPaths(unittest.TestCase):
         self.assertAlmostEqual(c[1, 0], 0.0)
 
         trace = pycauset._debug_last_kernel_trace()
-        self.assertIn("cpu.matmul.bit_x_f64", trace)
+        self.assertIn("cpu.matmul.bit_x_dense", trace)
 
     def test_bit_x_int32_matvec_uses_fastpath(self):
         n = 128

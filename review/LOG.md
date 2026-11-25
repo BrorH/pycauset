@@ -352,3 +352,10 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   deterministic: CRC32 seeds instead of per-process str hash, well-conditioned operands for
   linear algebra, float16 overflow compared as float16). CI test passes (40 ops, 34 s).
   Remaining report: 8,942 generic and 3,056 NumPy-round-trip cells, 1,399 unsupported → Phase N.
+- Phase N.1 started with matmul (F-080). The device kernels now state their contracts and
+  throw on anything else; `dispatch_matmul` is five rules plus one normaliser. Removed: ~25
+  front branches, 9 per-element device loops, 4 member `multiply` entry points (net -930
+  lines). Atlas: matmul generic 519 -> 0, total generic 8,942 -> 6,386; still 0 wrong cells.
+  Classifier: on O(n³) ops up to 4n² accessor calls are normalisation (documented).
+  Old test `test_bit_mixed_fastpaths.py` now asserts the one `cpu.matmul.bit_x_dense` tag.
+
