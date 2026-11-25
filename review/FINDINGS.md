@@ -794,3 +794,66 @@ the entry (the history is useful). New findings go at the bottom with the next f
   gave `-2` where the export said `True`. There is no consistent meaning for A(j,i) = -A(i,j)
   in unsigned or bit storage. Decision: antisymmetric requires a signed dtype; the
   constructor raises `ValueError` for unsigned and bool (pre-alpha: no compatibility path).
+
+### F-066 Triangular matmul: diagonal dropped (int32), transposed operand ignored (all)
+- **Status:** fixed (session 8, atlas). `T @ T` for an int32 `TriangularMatrix` with a
+  diagonal gave only the strict part (`cpu.matmul.tri_i32` summed k in (i, j) and allocated
+  a strict result). `T @ T.T` (upper x lower, not triangular) was computed as `T @ T` into a
+  triangular result for float64, and `C @ C.T` for a causal matrix likewise: the triangular
+  kernels read upper storage and ignore the transpose flag.
+- Fix: `dispatch_matmul` writes a transposed triangular operand out (dense) before the
+  structured paths, so the kernels only see upper storage; the int32 kernel sums k in [i, j]
+  and its result keeps a diagonal iff both operands have one.
+- Open (atlas, performance): `cpu.matmul.tri_i32` reads through the virtual accessors
+  (generic path, O(n^3) virtual calls).
+
+### F-067 `matrix_power(2*I, n)` returned `2*I`
+- **Status:** fixed. The Python `matrix_power` returned an identity operand unchanged
+  (ignoring its scale factor, for every n including negative). The shortcut is removed:
+  identity x identity is O(1) in the engine anyway.
+
+### F-068 `solve`: vectors always went to NumPy; structured operands wrong; `solve_triangular` broken
+- **Status:** fixed (session 8, atlas).
+  * The native `solve` took matrices only, so `solve(A, vector)` (the common call) raised
+    inside and the Python wrapper silently retried in NumPy, for every input.
+  * The native kernel handled dense float32/float64 only (int, complex, structured raised →
+    NumPy), and the Python wrapper's own shortcuts were wrong: an identity operand returned
+    `b` unscaled; diagonal/triangular operands went to `solve_triangular`, whose diagonal
+    path dropped imaginary parts and broadcast a vector `b` (n,) against (n, 1) into an
+    n x n "solution".
+- Fix: one engine path. `solve(a, b)` resolves NumPy's result dtype (ints → float64,
+  float16/32 → float32, complex kept), writes any structure/view/dtype out to dense, and runs
+  LAPACK `?gesv` for float32/float64/complex64/complex128; a vector `b` is solved as a column
+  over its storage and returned as a vector. The Python wrapper has no shortcut and no
+  fallback; `solve_triangular` checks the triangular claim and calls `solve`.
+
+### F-069 `lstsq` used the normal equations with Aᵀ
+- **Status:** fixed. (AᵀA)⁻¹Aᵀb squares the condition number and is wrong for complex A
+  (needs Aᴴ). Now `pinv(a) @ b` through the SVD: NumPy's minimum-norm answer.
+
+### F-070 `slogdet` overflowed and failed for complex matrices
+- **Status:** fixed. It computed `float(det)`: inf/0 for large n (log of an overflowed
+  determinant), TypeError for complex. The device's `determinant` is replaced by `lu_pivots`
+  (U's diagonal + permutation parity); `determinant` multiplies them, the new native
+  `slogdet` sums their logs (NumPy's (sign, logabsdet), complex unit sign for complex input).
+
+### F-071 A complex factor on a conjugated view was conjugated too: `A.conj() * 1j`
+- **Status:** fixed. Views read conj(raw x factor); multiplying a conjugated view by c must
+  store conj(c) in the factor. `A.conj() * 1j` gave conj(A * 1j) = -1j * conj(A), likewise
+  `A.H * 1j`. Both `multiply_scalar(complex)` overrides fixed.
+
+### F-072 Saving a window saved the whole matrix
+- **Status:** fixed. `save(A[1:4, 1:4])` wrote A's full storage (the view record has no
+  offsets); `load` returned a 3x3 view of the wrong elements. Windows are written out first.
+
+### F-073 Python `matmul` converted structured operands to float64
+- **Status:** fixed (dead code removed). The Python wrapper (used by `pc.matmul`,
+  `matrix_power`, `lstsq`) turned symmetric/antisymmetric operands into dense float64
+  (int32 symmetric @ x came back float64) and had float64-only diagonal/triangular
+  conversions plus a NumPy/per-element generic fallback. The engine dispatches every
+  structure; the wrapper now calls `a @ b` (array-likes are imported first, no fallback).
+
+### F-074 `~C` of a causal matrix complemented only the stored triangle
+- **Status:** fixed. `~` on a structured integer/bit matrix kept the structure (NumPy
+  complements every element: the lower triangle and diagonal become True). Structured and
+  viewed operands are written out before the bitwise kernel.

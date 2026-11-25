@@ -78,9 +78,9 @@ def _values(dtype: str, shape, seed: int) -> np.ndarray:
         return rng.integers(0, 2, size=shape).astype(bool)
     if is_int(dtype):
         return rng.integers(1, 5, size=shape).astype(np_dtype(dtype))
-    re = np.round(rng.uniform(-1, 1, size=shape) * 8) / 8  # exact in float16
+    re = np.round(rng.uniform(-1, 1, size=shape) * 8) / 8 + 0.0  # exact in float16; no -0.0
     if kind(dtype) == "c":
-        im = np.round(rng.uniform(-1, 1, size=shape) * 8) / 8
+        im = np.round(rng.uniform(-1, 1, size=shape) * 8) / 8 + 0.0
         return (re + 1j * im).astype(np_dtype(dtype))
     return re.astype(np_dtype(dtype))
 
@@ -110,7 +110,13 @@ def reference(structure: str, dtype: str, seed: int) -> np.ndarray:
     if structure == "antisymmetric":
         u = np.triu(a, 1)
         with np.errstate(over="ignore"):
-            return (u - u.T).astype(u.dtype) if dtype != "bool" else u ^ u.T
+            # A[j,i] = -A[i,j] as IEEE negation (-0.0 below a stored 0.0, as the engine reads it)
+            if dtype == "bool":
+                return u ^ u.T
+            out = (-u).T.copy()
+            iu = np.triu_indices(N)
+            out[iu] = u[iu]
+            return out
     if structure == "c_plus_ct":
         u = np.triu(a, 1)
         return u | u.T if dtype == "bool" else u + u.T
@@ -182,8 +188,8 @@ VIEWS: dict[str, tuple[Callable, Callable, bool]] = {
     "T": (lambda m: m.T, lambda a: a.T, True),
     "scaled_int": (lambda m: m * 2, None, True),  # numpy side computed with PyCauset's dtype
     "scaled_float": (lambda m: m * 2.5, None, True),
-    "conj": (lambda m: m.conj(), lambda a: np.conj(a), True),
-    "H": (lambda m: m.H, lambda a: np.conj(a).T, True),
+    "conj": (lambda m: m.conj(), lambda a: np.conj(a) if np.iscomplexobj(a) else a, True),
+    "H": (lambda m: m.H, lambda a: (np.conj(a) if np.iscomplexobj(a) else a).T, True),
     "window0": (lambda m: m[0:W, 0:W], lambda a: a[0:W, 0:W], False),
     "window1": (lambda m: m[1:W + 1, 1:W + 1], lambda a: a[1:W + 1, 1:W + 1], False),
     "window_shift": (lambda m: m[0:W, 2:W + 2], lambda a: a[0:W, 2:W + 2], False),
@@ -207,19 +213,19 @@ def view_reference(view: str, a: np.ndarray, pc_dtype: str) -> np.ndarray:
 def _cast(x, dtype: str) -> np.ndarray:
     """Cast to dtype with integer wraparound (as PyCauset's integer kernels do)."""
     x = np.asarray(x)
-    if is_int(dtype) and dtype != "bool":
-        bits = np.dtype(np_dtype(dtype)).itemsize * 8
-        if x.dtype.kind in "fc":
-            x = np.real(x)
-            x = np.trunc(x.astype(np.float64)).astype(object) if x.dtype.kind == "f" else x
-            x = np.vectorize(int, otypes=[object])(x)
-        xo = x.astype(object) % (1 << bits)
-        if np.dtype(np_dtype(dtype)).kind == "i":
-            xo = np.where(xo >= (1 << (bits - 1)), xo - (1 << bits), xo)
-        return np.asarray(xo.astype(object), dtype=np_dtype(dtype))
     if dtype == "bool":
         return x.astype(bool)
-    return x.astype(np_dtype(dtype))
+    if not is_int(dtype):
+        return x.astype(np_dtype(dtype))
+    info = np.iinfo(np_dtype(dtype))
+    span = int(info.max) - int(info.min) + 1
+
+    def wrap(v):
+        v = int(np.real(v)) if not isinstance(v, int) else v  # int() truncates toward zero
+        return (v - int(info.min)) % span + int(info.min)
+
+    out = np.frompyfunc(wrap, 1, 1)(x.astype(object))
+    return np.asarray(out, dtype=np_dtype(dtype)).reshape(x.shape)
 
 
 # --------------------------------------------------------------------------- operations
@@ -240,11 +246,6 @@ class Op:
     compare: str = "values"  # values | sorted | invariant
     ints_ok: bool = True
     bool_ok: bool = True
-
-
-def _sorted(v):
-    v = np.asarray(v).astype(np.complex128).ravel()
-    return v[np.lexsort((np.round(v.imag, 6), np.round(v.real, 6)))]
 
 
 def _svals(x):
@@ -385,6 +386,12 @@ def _close(got: np.ndarray, ref: np.ndarray, dtype: str, linalg: bool) -> bool:
     tol = (LINALG_TOL if linalg else TOL).get(dtype, 1e-8 if linalg else 1e-12)
     g = got.astype(np.complex128)
     r = ref.astype(np.complex128)
+    special = ~np.isfinite(r) | ~np.isfinite(g)
+    if special.any():
+        same = (np.isnan(g) & np.isnan(r)) | (g == r)
+        if not np.all(same[special]):
+            return False
+        g, r = np.where(special, 0, g), np.where(special, 0, r)
     scale = max(1.0, float(np.max(np.abs(r))) if r.size else 1.0)
     return bool(np.all(np.abs(g - r) <= tol * scale + tol * np.abs(r)) or np.allclose(g, r, rtol=tol, atol=tol * scale, equal_nan=True))
 
@@ -395,12 +402,31 @@ def _wide(dtype: str):
 
 
 def _arith_inputs(arrays, dtype: str, linalg: bool):
-    """Inputs in the arithmetic dtype: exact python ints for integer results, wide floats else."""
+    """Reference inputs: exact Python ints for integer results, else wide floats/complex.
+
+    Complex inputs stay complex even when the result is real (norm, abs)."""
+    if any(np.iscomplexobj(x) for x in arrays):
+        return [np.asarray(x).astype(np.complex128) for x in arrays]
     if linalg or not is_int(dtype):
-        return [x.astype(_wide(dtype) if not linalg or kind(dtype) == "c" else (np.complex128 if any(np.iscomplexobj(y) for y in arrays) else np.float64)) for x in arrays]
+        return [np.asarray(x).astype(np.complex128 if kind(dtype) == "c" else np.float64) for x in arrays]
     if dtype == "bool":
-        return [x.astype(bool) for x in arrays]
+        return [np.asarray(x).astype(bool) for x in arrays]
     return [np.asarray(x).astype(np.int64).astype(object) for x in arrays]
+
+
+def _match_spectra(got, ref, dtype: str) -> bool:
+    """Same multiset of (complex) values up to tolerance, by greedy nearest matching."""
+    g = list(np.asarray(got).astype(np.complex128).ravel())
+    r = np.asarray(ref).astype(np.complex128).ravel()
+    if len(g) != len(r):
+        return False
+    tol = LINALG_TOL.get(dtype, 1e-8) * max(1.0, float(np.max(np.abs(r))) if r.size else 1.0)
+    for v in r:
+        k = int(np.argmin([abs(v - w) for w in g]))
+        if abs(v - g[k]) > tol:
+            return False
+        g.pop(k)
+    return True
 
 
 def run_cell(cell: Cell) -> Cell:
@@ -555,7 +581,7 @@ def _check(op: Op, cell: Cell, got, a, b, arith: str, xdt: str, ydt: str) -> boo
         ref = ref[0]
     ref = np.asarray(ref)
     if op.compare == "sorted":
-        return _close(_sorted(got), _sorted(ref), arith, True)
+        return _match_spectra(got, ref, xdt if xdt in DTYPES else arith)
     if is_int(arith) and not op.linalg and op.group != "linalg":
         ref = _cast(ref, arith)
     elif op.group == "linalg" and is_int(arith):
@@ -588,6 +614,10 @@ def applicable(op: Op, dtype: str, structure: str, view: str) -> bool:
     if op.linalg and view not in LINALG_VIEWS:
         return False
     if op.name == "dot" and view not in ("plain", "conj", "T"):
+        return False
+    if op.name in ("eigvalsh", "cholesky") and structure not in ("symmetric", "diagonal", "identity"):
+        return False  # defined for Hermitian input only (NumPy reads one triangle and trusts it)
+    if op.name == "cholesky" and view == "lazy_sum" and dtype == "bool":
         return False
     return True
 

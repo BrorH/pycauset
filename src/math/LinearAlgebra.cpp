@@ -394,7 +394,10 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             const DataType d = m.get_data_type();
             const bool cplx = d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 ||
                               d == DataType::COMPLEX_FLOAT64;
-            return m.is_subview() || (m.is_conjugated() && cplx);
+            // The triangular kernels read upper storage; a transposed (lower) triangular operand
+            // makes upper x lower, which is not triangular (F-066).
+            const bool lower = m.get_structure() == Structure::TRIANGULAR && m.is_transposed();
+            return m.is_subview() || (m.is_conjugated() && cplx) || lower;
         };
         if (needs_copy(a) || needs_copy(b)) {
             auto pa = needs_copy(a) ? write_out(a) : nullptr;
@@ -637,7 +640,9 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     auto* a_ti32 = dynamic_cast<const TriangularMatrix<int32_t>*>(&a);
     auto* b_ti32 = dynamic_cast<const TriangularMatrix<int32_t>*>(&b);
     if ((a_ti32 && b_tbm) || (a_tbm && b_ti32) || (a_ti32 && b_ti32)) {
-        auto res = std::make_unique<TriangularMatrix<int32_t>>(a.rows(), saveas);
+        // Upper x upper is upper; its diagonal is a(i,i) b(i,i), non-zero only if both have one.
+        const bool diag = a_ti32 && b_ti32 && a_ti32->has_diagonal() && b_ti32->has_diagonal();
+        auto res = std::make_unique<TriangularMatrix<int32_t>>(a.rows(), saveas, diag);
         ComputeContext::instance().get_device()->matmul(a, b, *res);
         return res;
     }
@@ -806,27 +811,43 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique
     return std::make_tuple(std::move(u), std::move(s), std::move(vt));
 }
 
+// Result dtype of solve, NumPy's rule: integers and bit solve in float64, float16/float32 in
+// float32, complex stays complex (complex64 only when nothing needs double precision).
+static DataType solve_dtype(DataType a, DataType b) {
+    auto cplx = [](DataType d) {
+        return d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 || d == DataType::COMPLEX_FLOAT64;
+    };
+    auto single = [](DataType d) {
+        return d == DataType::FLOAT16 || d == DataType::FLOAT32 || d == DataType::COMPLEX_FLOAT16 ||
+               d == DataType::COMPLEX_FLOAT32;
+    };
+    const bool sp = single(a) && single(b);
+    if (cplx(a) || cplx(b)) return sp ? DataType::COMPLEX_FLOAT32 : DataType::COMPLEX_FLOAT64;
+    return sp ? DataType::FLOAT32 : DataType::FLOAT64;
+}
+
 std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, const std::string& result_file)
 {
-    if (!is_plain(a) || !is_plain(b)) {  // kernels read storage (F-062)
-        auto pa = is_plain(a) ? nullptr : write_out(a);
-        auto pb = is_plain(b) ? nullptr : write_out(b);
-        return solve(pa ? *pa : a, pb ? *pb : b, result_file);
-    }
     if (a.rows() != a.cols()) {
         throw std::invalid_argument("solve: coefficient matrix 'a' must be square");
     }
     if (a.rows() != b.rows()) {
         throw std::invalid_argument("solve: 'b' must have the same number of rows as 'a'");
     }
+    // The LAPACK kernel reads dense storage of one dtype: any structure, view or other dtype
+    // is written out first (O(n^2) in front of O(n^3); every input used to fall back to NumPy
+    // or read packed storage as dense, F-068).
+    const DataType dt = solve_dtype(a.get_data_type(), b.get_data_type());
+    auto ready = [dt](const MatrixBase& m) {
+        return m.get_structure() == Structure::DENSE && m.get_data_type() == dt && is_plain(m);
+    };
+    std::unique_ptr<MatrixBase> pa = ready(a) ? nullptr : to_dense(a, dt);
+    std::unique_ptr<MatrixBase> pb = ready(b) ? nullptr : to_dense(b, dt);
+    const MatrixBase& A = pa ? *pa : a;
+    const MatrixBase& B = pb ? *pb : b;
 
-    // X has same shape as B
-    auto x = ObjectFactory::create_matrix(b.rows(), b.cols(), a.get_data_type(), Structure::DENSE, result_file);
-    
-    // We assume A and B have compatible types or rely on device dispatch to handle/throw.
-    // Ideally we'd resolve types, but solve typically expects float/double.
-    
-    ComputeContext::instance().get_device()->solve(a, b, *x);
+    auto x = ObjectFactory::create_matrix(B.rows(), B.cols(), dt, Structure::DENSE, result_file);
+    ComputeContext::instance().get_device()->solve(A, B, *x);
     return x;
 }
 

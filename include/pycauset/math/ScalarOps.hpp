@@ -74,4 +74,8 @@ bool is_plain(const MatrixBase& a);
 // applied; bit stays bit). For kernels that read storage directly (F-061, F-062).
 std::unique_ptr<MatrixBase> write_out(const MatrixBase& a);
 
+// Dense, plain copy of a's logical values converted to dt (any structure, any view). For
+// kernels that need one storage layout and dtype (solve's LAPACK path).
+std::unique_ptr<MatrixBase> to_dense(const MatrixBase& a, DataType dt);
+
 }  // namespace pycauset

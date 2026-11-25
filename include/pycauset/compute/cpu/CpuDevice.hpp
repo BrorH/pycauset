@@ -39,7 +39,7 @@ public:
 
     double frobenius_norm(const MatrixBase& m) override;
 
-    std::complex<double> determinant(const MatrixBase& m) override;
+    LuPivots lu_pivots(const MatrixBase& m) override;
     void qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) override;
     void cholesky(const MatrixBase& in, MatrixBase& out) override;
     void lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) override;

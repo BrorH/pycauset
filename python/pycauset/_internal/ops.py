@@ -313,99 +313,6 @@ def _streaming_matmul_tiles(a: Any, b: Any, *, deps: OpsDeps, rec: Any) -> Any |
     return res
 
 
-def _try_convert_to_diagonal_f64(obj: Any, *, deps: OpsDeps) -> Any | None:
-    diag_cls = getattr(deps.native, "DiagonalMatrix", None)
-    if diag_cls is None:
-        return None
-
-    shape = _safe_rows_cols(obj)
-    if shape is None:
-        return None
-    rows, cols = shape
-    if rows != cols:
-        return None
-
-    try:
-        out = diag_cls(rows)
-        for i in range(rows):
-            out.set_diagonal(i, float(obj.get(i, i)))
-        _track_and_mark_temporary_if_native(out, deps=deps)
-        return out
-    except Exception:
-        return None
-
-
-def _try_convert_to_triangular_f64(obj: Any, *, which: str, deps: OpsDeps) -> Any | None:
-    tri_cls = deps.native.TriangularMatrix
-
-    shape = _safe_rows_cols(obj)
-    if shape is None:
-        return None
-    rows, cols = shape
-    if rows != cols:
-        return None
-
-    lower = which == "lower_triangular"
-    upper = which == "upper_triangular"
-    if not (lower or upper):
-        return None
-
-    try:
-        out = tri_cls(rows, dtype="float64", has_diagonal=True)
-        if lower:
-            try:
-                out.set_transposed(True)
-            except Exception:
-                return None
-
-        # Gospel semantics: treat out-of-triangle entries as zero.
-        for i in range(rows):
-            if upper:
-                j0, j1 = i, cols
-            else:
-                j0, j1 = 0, i + 1
-            for j in range(j0, j1):
-                try:
-                    val = obj.get(i, j)
-                except Exception:
-                    continue
-                if val != 0:
-                    out.set(i, j, float(val))
-
-        _track_and_mark_temporary_if_native(out, deps=deps)
-        return out
-    except Exception:
-        return None
-
-
-def _try_convert_to_dense_f64(obj: Any, *, deps: OpsDeps) -> Any | None:
-    """Materialize a symmetric/antisymmetric native matrix to a dense float64 matrix.
-
-    The native matmul dispatch does not accept SymmetricMatrix/AntiSymmetricMatrix
-    operands, so correctness-first matmul routes through a dense materialization.
-    """
-    dense_cls = deps.native.DenseMatrix
-
-    shape = _safe_rows_cols(obj)
-    if shape is None:
-        return None
-    rows, cols = shape
-    if rows != cols:
-        return None
-
-    try:
-        out = dense_cls(rows)
-        for i in range(rows):
-            for j in range(cols):
-                v = obj.get(i, j)
-                if v != 0:
-                    out.set(i, j, float(v))
-        _track_and_mark_temporary_if_native(out, deps=deps)
-        return out
-    except Exception:
-        return None
-
-
 def _set_result_structure_properties(result: Any, *, structure: str) -> None:
     try:
         mapping: dict[str, Any] = {}
@@ -501,59 +408,10 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
             a_struct = _effective_structure_for(a)
             b_struct = _effective_structure_for(b)
 
-            # Property-aware dispatch (Phase E): if users assert structure,
-            # convert into the corresponding structured storage type so the
-            # backend can take specialized paths.
-            a_eff = a
-            b_eff = b
-
-            # Diagonal × Dense and Dense × Diagonal fast paths (float64 only).
-            def _dense_f64(x: Any) -> bool:
-                return isinstance(x, deps.native.DenseMatrix) and x.dtype == "float64"
-
-            if a_struct == "diagonal" and _dense_f64(b):
-                converted = _try_convert_to_diagonal_f64(a, deps=deps)
-                if converted is not None:
-                    a_eff = converted
-            elif b_struct == "diagonal" and _dense_f64(a):
-                converted = _try_convert_to_diagonal_f64(b, deps=deps)
-                if converted is not None:
-                    b_eff = converted
-
-            # Triangular × Triangular fast path (float64 only).
-            if a_struct in ("upper_triangular", "lower_triangular") and b_struct in (
-                "upper_triangular",
-                "lower_triangular",
-            ):
-                a_tri = _try_convert_to_triangular_f64(a, which=a_struct, deps=deps)
-                b_tri = _try_convert_to_triangular_f64(b, which=b_struct, deps=deps)
-                if a_tri is not None and b_tri is not None:
-                    a_eff = a_tri
-                    b_eff = b_tri
-
-            # Symmetric/AntiSymmetric -> dense float64 fallback: the native matmul
-            # dispatch does not accept these structured types, so materialize them
-            # to dense before multiplying (correctness-first; the result is dense).
-            if a_struct in ("symmetric", "antisymmetric"):
-                converted = _try_convert_to_dense_f64(a, deps=deps)
-                if converted is not None:
-                    a_eff = converted
-                    a_struct = "general"
-            if b_struct in ("symmetric", "antisymmetric"):
-                converted = _try_convert_to_dense_f64(b, deps=deps)
-                if converted is not None:
-                    b_eff = converted
-                    b_struct = "general"
-
-            # Prefer the native @ operator (MatrixBase.__matmul__), which is the
-            # most widely supported entry point across matrix types.
-            try:
-                result = a_eff @ b_eff
-            except Exception:
-                # Some builds may still expose native.matmul for specific types.
-                if native_matmul is None:
-                    raise
-                result = native_matmul(a_eff, b_eff)
+            # The engine dispatches every structure and dtype itself. The conversions that
+            # were here (symmetric -> dense float64, triangular/diagonal -> float64) changed
+            # result dtypes and duplicated engine paths (F-073).
+            result = a @ b
             deps.track_matrix(result)
             deps.mark_temporary_if_auto(result)
 
@@ -563,44 +421,23 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
             _discard_if_streaming(rec, [a, b], result, deps=deps)
             return result
 
-    # Generic fallback
-    if not (hasattr(a, "shape") and hasattr(b, "shape")):
-        raise TypeError("Inputs must be matrix-like objects with a shape property.")
+    # Array-likes (NumPy arrays, nested lists): import, then the engine. No per-element or
+    # NumPy fallback (R1: NumPy is an oracle, not a backend).
+    if not isinstance(a, (native_matrix_base, native_vector_base)) or not isinstance(
+        b, (native_matrix_base, native_vector_base)
+    ):
+        return matmul(_import_operand(a, deps=deps), _import_operand(b, deps=deps), deps=deps)
+    raise TypeError(f"matmul: unsupported operands {type(a).__name__}, {type(b).__name__}")
 
-    if a.shape[1] != b.shape[0]:
-        raise ValueError(f"Shape mismatch: {a.shape} vs {b.shape}")
 
-    rows = a.shape[0]
-    cols = b.shape[1]
-    inner = a.shape[1]
-
-    np_module = deps.np_module
-    if np_module is not None:
-        try:
-            a_np = np_module.array(
-                [[a.get(i, j) for j in range(a.shape[1])] for i in range(a.shape[0])]
-            )
-            b_np = np_module.array(
-                [[b.get(i, j) for j in range(b.shape[1])] for i in range(b.shape[0])]
-            )
-            res_np = np_module.matmul(a_np, b_np)
-            res_mat = deps.Matrix(res_np)
-            _discard_if_streaming(rec, [a, b], res_mat, deps=deps)
-            return res_mat
-        except Exception:
-            pass
-
-    # Slow generic loop (materializes the result in memory).
-    res_data: list[list[Any]] = [[0 for _ in range(cols)] for _ in range(rows)]
-    for i in range(rows):
-        for j in range(cols):
-            val: Any = 0
-            for k in range(inner):
-                val += a.get(i, k) * b.get(k, j)
-            res_data[i][j] = val
-    res_mat = deps.Matrix(res_data)
-    _discard_if_streaming(rec, [a, b], res_mat, deps=deps)
-    return res_mat
+def _import_operand(x: Any, *, deps: OpsDeps) -> Any:
+    native = (deps.native.MatrixBase, deps.native.VectorBase)
+    if isinstance(x, native):
+        return x
+    arr = deps.np_module.asarray(x)
+    if arr.ndim == 1:
+        return deps.native.asarray(arr)
+    return deps.Matrix(arr)
 
 
 def compute_k(matrix: Any, a: float, *, deps: OpsDeps) -> Any:
@@ -726,47 +563,21 @@ def invert(matrix: Any, *, deps: OpsDeps) -> Any:
 
 
 def lstsq(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Return a least-squares solution x minimizing ||a @ x - b||.
+    """Least-squares solution x minimizing ||a @ x - b|| (minimum norm when rank-deficient).
 
-    Baseline implementation uses normal equations: x = (A^T A)^{-1} A^T b.
-
-    Notes:
-    - This is intended as an endpoint-first baseline.
-    - It can be numerically unstable compared to QR/SVD.
+    x = pinv(a) @ b, through the SVD: the same answer as NumPy's lstsq (which uses ?gelsd).
+    The normal equations (A^T A)^-1 A^T b used before squared the condition number and used
+    A^T instead of A^H for complex input (F-069).
     """
-    a_t = getattr(a, "T", None)
-    if a_t is None:
-        a_t = getattr(a, "transpose", None)
-        if callable(a_t):
-            a_t = a_t()
-    if a_t is None:
-        raise TypeError("lstsq: expected a matrix-like object with transpose support")
-
-    ata = matmul(a_t, a, deps=deps)
-    atb = matmul(a_t, b, deps=deps)
-    result = solve(ata, atb, deps=deps)
+    result = matmul(pinv(a, deps=deps), b, deps=deps)
     _track_and_mark_temporary_if_native(result, deps=deps)
     return result
 
 
-def slogdet(a: Any, *, deps: OpsDeps) -> tuple[float, float]:
-    """Return (sign, log(abs(det(a)))) for square matrices."""
-    import math
-
-    det_fn = getattr(a, "determinant", None)
-    if callable(det_fn):
-        det = float(det_fn())
-    else:
-        np_module = deps.np_module
-        if np_module is None:
-            raise RuntimeError("NumPy is required for slogdet")
-        det = float(np_module.linalg.det(_to_numpy_matrix(a, deps=deps)))  # pragma: no cover
-
-    if det == 0.0:
-        return 0.0, float("-inf")
-
-    sign = 1.0 if det > 0.0 else -1.0
-    return sign, float(math.log(abs(det)))
+def slogdet(a: Any, *, deps: OpsDeps) -> tuple[Any, float]:
+    """(sign, log|det|) from the engine's LU pivots, as NumPy: no overflow for large n, a
+    complex unit sign for complex matrices, (0, -inf) when singular (F-070)."""
+    return a.slogdet()
 
 
 def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
@@ -1124,67 +935,16 @@ def eig_skew(a: Any, k: int, *, deps: OpsDeps) -> tuple[Any, Any]:
     return _as_pycauset_vector(top_w, deps=deps), _as_pycauset_array(top_v, deps=deps)
 
 
-def solve_triangular(*_args: Any, **_kwargs: Any) -> Any:
-    """Solve a triangular system using gospel properties.
+def solve_triangular(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Solve A X = B for a triangular (or diagonal) A; raises if A is not marked triangular.
 
-    This endpoint exists primarily to enable Phase E property-aware shortcuts.
-    Current implementation:
-    - Diagonal: elementwise divide.
-    - Upper/lower triangular: convert to a float64 TriangularMatrix and use native triangular inversion.
+    The engine's solve handles every structure, view and dtype (F-068); the diagonal path
+    this used to have dropped imaginary parts and broadcast a vector right-hand side into an
+    n x n matrix (F-068).
     """
-
-    if len(_args) < 2:
-        raise TypeError("solve_triangular(a, b) requires two positional arguments")
-
-    a = _args[0]
-    b = _args[1]
-    deps = _kwargs.get("deps")
-    if deps is None:
-        raise TypeError("solve_triangular requires deps")
-
-    a_struct = _effective_structure_for(a)
-    shape = _safe_rows_cols(a)
-    if shape is None:
-        raise TypeError("solve_triangular: expected a matrix-like object")
-    n, m = shape
-    if n != m:
-        raise ValueError("solve_triangular: a must be square")
-
-    # Diagonal fast path.
-    if a_struct == "diagonal":
-        diag = [float(a.get(i, i)) for i in range(n)]
-        # Vector RHS
-        native_vector_base = getattr(deps.native, "VectorBase", None)
-        if native_vector_base is not None and isinstance(b, native_vector_base):
-            if int(getattr(b, "size")()) != n:
-                raise ValueError("solve_triangular: shape mismatch")
-            try:
-                data = [float(b.get(i)) / diag[i] for i in range(n)]
-                return _as_pycauset_array(data, deps=deps)
-            except Exception:
-                pass
-
-        # Matrix RHS (materialize to numpy for simplicity)
-        np_module = deps.np_module
-        if np_module is None:
-            raise RuntimeError("NumPy is required for diagonal solve")
-        b_np = np_module.asarray(b)
-        x_np = b_np / np_module.asarray(diag).reshape((n, 1))
-        return _as_pycauset_array(x_np, deps=deps)
-
-    # Triangular path: use native triangular inversion (float64).
-    if a_struct not in ("upper_triangular", "lower_triangular"):
-        # If no structure claim is present, refuse (caller should use solve()).
+    if _effective_structure_for(a) not in ("upper_triangular", "lower_triangular", "diagonal", "identity"):
         raise ValueError("solve_triangular: a is not marked triangular")
-
-    a_tri = _try_convert_to_triangular_f64(a, which=a_struct, deps=deps)
-    if a_tri is None:
-        raise RuntimeError("solve_triangular: triangular conversion unavailable")
-
-    inv_a = invert(a_tri, deps=deps)
-    result = matmul(inv_a, b, deps=deps)
-    _track_and_mark_temporary_if_native(result, deps=deps)
-    return result
+    return solve(a, b, deps=deps)
 
 
 def pinv(a: Any, *, deps: OpsDeps) -> Any:
@@ -1328,8 +1088,7 @@ def matrix_rank(a: Any, tol: Any = None, *, deps: OpsDeps) -> int:
 def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
     """Integer power of a square matrix (A^n) via binary exponentiation.
 
-    Structural shortcuts: identity stays identity, zero stays zero (n > 0), and a
-    diagonal matrix is raised elementwise.
+    Structural shortcut: zero stays zero (n > 0).
     """
     _record_io_trace("matrix_power", [a], deps=deps)
     shape = _safe_rows_cols(a)
@@ -1341,9 +1100,9 @@ def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
     if n == 1:
         return a
 
+    # No identity shortcut: a scaled identity (2*I)^n is 2^n*I, and identity x identity is
+    # already O(1) in the engine (F-067).
     a_struct = _effective_structure_for(a)
-    if a_struct == "identity":
-        return a if n >= 0 else a
     if a_struct == "zero":
         if n > 0:
             return a
@@ -1517,46 +1276,17 @@ def lu(a: Any, *, deps: OpsDeps) -> Any:
 
 
 def solve(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Solve AX = B, honouring properties-as-gospel (identity/zero/triangular)."""
+    """Solve AX = B (B a matrix or a vector) in the engine: any structure, view and dtype.
+
+    The engine writes structured/viewed operands out and runs LAPACK ?gesv (F-068). There is
+    no NumPy fallback: an engine error is the answer.
+    """
     _record_io_trace("solve", [a, b], deps=deps)
-
-    a_struct = _effective_structure_for(a)
-    shape = _safe_rows_cols(a)
-
-    if a_struct == "zero":
+    if _effective_structure_for(a) == "zero":
         raise ValueError("solve: matrix marked is_zero; system is singular")
-
-    if a_struct == "identity":
-        # Treat as identity regardless of payload; check basic shape compatibility.
-        if shape is not None and shape[0] != shape[1]:
-            raise ValueError("solve: is_identity requires a square matrix for solve")
-        native_matrix_base = getattr(deps.native, "MatrixBase", None)
-        native_vector_base = getattr(deps.native, "VectorBase", None)
-        if (native_matrix_base and isinstance(b, native_matrix_base)) or (
-            native_vector_base and isinstance(b, native_vector_base)
-        ):
-            _track_and_mark_temporary_if_native(b, deps=deps)
-            return b
-        return _as_pycauset_array(b, deps=deps)
-
-    if a_struct in ("upper_triangular", "lower_triangular", "diagonal"):
-        try:
-            return solve_triangular(a, b, deps=deps)
-        except Exception:
-            pass
-
-    fn = getattr(deps.native, "solve", None)
-    if callable(fn):
-        try:
-            x = fn(a, b)
-            _track_and_mark_temporary_if_native(x, deps=deps)
-            return x
-        except Exception:
-            pass
-
-    np_module = deps.np_module
-    if np_module:
-        val = np_module.linalg.solve(_to_numpy_matrix(a, deps=deps), _to_numpy_matrix(b, deps=deps))
-        return _as_pycauset_array(val, deps=deps)
-
-    raise RuntimeError("solve failed")
+    native = (deps.native.MatrixBase, deps.native.VectorBase)
+    a = a if isinstance(a, native) else _as_pycauset_array(deps.np_module.asarray(a), deps=deps)
+    b = b if isinstance(b, native) else _as_pycauset_array(deps.np_module.asarray(b), deps=deps)
+    x = deps.native.solve(a, b)
+    _track_and_mark_temporary_if_native(x, deps=deps)
+    return x

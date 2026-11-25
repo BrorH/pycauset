@@ -179,8 +179,8 @@ double CpuDevice::frobenius_norm(const MatrixBase& m) {
 
 
 
-std::complex<double> CpuDevice::determinant(const MatrixBase& m) {
-    return solver_.determinant(m);
+LuPivots CpuDevice::lu_pivots(const MatrixBase& m) {
+    return solver_.lu_pivots(m);
 }
 
 void CpuDevice::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {

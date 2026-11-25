@@ -790,9 +790,8 @@ double AutoSolver::frobenius_norm(const MatrixBase& m) {
 
 
 
-std::complex<double> AutoSolver::determinant(const MatrixBase& m) {
-    // Always CPU for now
-    return cpu_device_->determinant(m);
+LuPivots AutoSolver::lu_pivots(const MatrixBase& m) {
+    return cpu_device_->lu_pivots(m);
 }
 
 void AutoSolver::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {

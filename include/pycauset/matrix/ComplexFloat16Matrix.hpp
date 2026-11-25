@@ -162,7 +162,7 @@ public:
         std::string new_path = copy_storage(result_file);
         auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
         auto out = std::make_unique<ComplexFloat16Matrix>(base_rows(), base_cols(), std::move(mapper));
-        out->set_scalar(scalar_ * factor);
+        out->set_scalar(scalar_ * (is_conjugated() ? std::conj(factor) : factor));  // conj(raw * scalar), F-071
         out->set_seed(seed_);
         out->set_transposed(is_transposed());
         out->set_conjugated(is_conjugated());

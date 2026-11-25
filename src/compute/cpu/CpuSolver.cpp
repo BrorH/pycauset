@@ -1816,10 +1816,13 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
             throw std::invalid_argument("Dimension mismatch");
         }
 
+        // Upper x upper: (i, j) sums k in [i, j]. Covers operands with and without a diagonal
+        // (the strict-only loop dropped the diagonal terms, F-066).
+        const bool c_diag = c_ti32->has_diagonal();
         ParallelFor(0, n, [&](size_t i) {
-            for (uint64_t j = i + 1; j < n; ++j) {
+            for (uint64_t j = c_diag ? i : i + 1; j < n; ++j) {
                 double acc = 0.0;
-                for (uint64_t k = i + 1; k < j; ++k) {
+                for (uint64_t k = i; k <= j; ++k) {
                     const double av = a.get_element_as_double(static_cast<uint64_t>(i), k);
                     const double bv = b.get_element_as_double(k, j);
                     acc += av * bv;
@@ -4492,10 +4495,10 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
 
 
 
-std::complex<double> CpuSolver::determinant(const MatrixBase& matrix) {
-    // Complex result for complex inputs (F-059: the imaginary part used to be dropped). The
-    // entry point (math/Eigen.cpp) passes plain storage only, but the structured shortcuts
-    // read through the accessors, which apply any view anyway.
+LuPivots CpuSolver::lu_pivots(const MatrixBase& matrix) {
+    // The entry points (math/Eigen.cpp) pass plain storage; the structured shortcuts read
+    // through the accessors, which apply any view anyway. Complex inputs keep their imaginary
+    // parts (F-059).
     const uint64_t n = matrix.rows();
     if (n != matrix.cols()) {
         throw std::runtime_error("Determinant requires square matrix");
@@ -4504,63 +4507,46 @@ std::complex<double> CpuSolver::determinant(const MatrixBase& matrix) {
     const auto dt = matrix.get_data_type();
     const bool use_complex = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 ||
                              dt == DataType::COMPLEX_FLOAT64 || matrix.get_scalar().imag() != 0.0;
+    LuPivots out;
+    out.pivots.resize(n);
 
     if (type == Structure::IDENTITY) {
-        return std::pow(matrix.get_scalar(), static_cast<double>(n));
+        std::fill(out.pivots.begin(), out.pivots.end(), matrix.get_scalar());
+        return out;
+    }
+    const bool strict_triangular =
+        type == Structure::TRIANGULAR && !static_cast<const TriangularMatrixBase&>(matrix).has_diagonal();
+    if (type == Structure::DIAGONAL || type == Structure::TRIANGULAR) {
+        // Every element type (F-059); a strict triangle has a zero diagonal.
+        for (uint64_t i = 0; i < n; ++i) {
+            out.pivots[i] = strict_triangular ? std::complex<double>(0.0) : matrix.get_element_as_complex(i, i);
+        }
+        return out;
     }
 
-    auto diagonal_product = [&]() {
-        std::complex<double> det = 1.0;
-        for (uint64_t i = 0; i < n; ++i) det *= matrix.get_element_as_complex(i, i);
-        return det;
-    };
-    if (type == Structure::DIAGONAL) {
-        return diagonal_product();
-    }
-    if (type == Structure::TRIANGULAR) {
-        // Every element type (F-059: only float64/int32 were checked, others returned 0).
-        const bool has_diag = static_cast<const TriangularMatrixBase&>(matrix).has_diagonal();
-        return has_diag ? diagonal_product() : std::complex<double>(0.0, 0.0);
-    }
-
-    // General case: LU (getrf), det = sign(permutation) * prod(pivots). The row-major buffer
-    // is passed as column-major, i.e. A^T is factorized: det(A^T) = det(A), and LAPACKE does
-    // not need its transposed copy.
+    // General case: LU (getrf). The row-major buffer is passed as column-major, i.e. A^T is
+    // factorized: det(A^T) = det(A), and LAPACKE does not need its transposed copy.
     const auto ni = static_cast<lapack_int>(n);
     std::vector<lapack_int> ipiv(n);
+    auto record = [&](auto&& diag_at) {
+        for (uint64_t i = 0; i < n; ++i) {
+            out.pivots[i] = diag_at(i);
+            if (ipiv[i] != static_cast<lapack_int>(i + 1)) out.odd_permutation = !out.odd_permutation;
+        }
+    };
     if (use_complex) {
         auto data = to_memory_flat_complex_square(matrix);  // folds factor and conjugation
         const lapack_int info = LAPACKE_zgetrf(LAPACK_COL_MAJOR, ni, ni,
             reinterpret_cast<lapack_complex_double*>(data.data()), ni, ipiv.data());
-        if (info > 0) return {0.0, 0.0};  // exactly singular
         if (info < 0) throw std::runtime_error("LAPACK zgetrf: illegal argument");
-        std::complex<double> det = 1.0;
-        for (uint64_t i = 0; i < n; ++i) {
-            det *= data[i * n + i];
-            if (ipiv[i] != static_cast<lapack_int>(i + 1)) det = -det;
-        }
-        return det;
+        record([&](uint64_t i) { return data[i * n + i]; });  // info > 0: an exact zero pivot
+        return out;
     }
-
-    std::vector<double> data;
-    double factor = 1.0;
-    if (const auto* dense = dynamic_cast<const DenseMatrix<double>*>(&matrix);
-        dense && !dense->is_transposed() && !dense->is_subview()) {
-        data.resize(n * n);
-        std::memcpy(data.data(), dense->data(), n * n * sizeof(double));
-        factor = std::pow(matrix.get_scalar().real(), static_cast<double>(n));  // det(sA) = s^n det(A)
-    } else {
-        data = to_memory_flat_real_square(matrix);  // folds the factor
-    }
+    auto data = to_memory_flat_real_square(matrix);  // folds the factor
     const lapack_int info = LAPACKE_dgetrf(LAPACK_COL_MAJOR, ni, ni, data.data(), ni, ipiv.data());
-    if (info > 0) return {0.0, 0.0};
     if (info < 0) throw std::runtime_error("LAPACK dgetrf: illegal argument");
-    double det = factor;
-    for (uint64_t i = 0; i < n; ++i) {
-        det *= data[i * n + i];
-        if (ipiv[i] != static_cast<lapack_int>(i + 1)) det = -det;
-    }
-    return {det, 0.0};
+    record([&](uint64_t i) { return std::complex<double>(data[i * n + i], 0.0); });
+    return out;
 }
 
 
@@ -5261,59 +5247,45 @@ void CpuSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBa
     throw std::runtime_error("SVD only implemented for float/double");
 }
 
+namespace {
+// A X = B for dense row-major storage of one dtype (LAPACK ?gesv: LU with partial pivoting,
+// the routine NumPy's np.linalg.solve uses).
+template <typename T>
+lapack_int gesv(lapack_int n, lapack_int nrhs, T* a, lapack_int* ipiv, T* b) {
+    if constexpr (std::is_same_v<T, double>) return LAPACKE_dgesv(LAPACK_ROW_MAJOR, n, nrhs, a, n, ipiv, b, nrhs);
+    else if constexpr (std::is_same_v<T, float>) return LAPACKE_sgesv(LAPACK_ROW_MAJOR, n, nrhs, a, n, ipiv, b, nrhs);
+    else if constexpr (std::is_same_v<T, std::complex<double>>) return LAPACKE_zgesv(LAPACK_ROW_MAJOR, n, nrhs, a, n, ipiv, b, nrhs);
+    else return LAPACKE_cgesv(LAPACK_ROW_MAJOR, n, nrhs, a, n, ipiv, b, nrhs);
+}
+
+template <typename T>
+bool solve_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
+    auto* A = dynamic_cast<const DenseMatrix<T>*>(&a);
+    auto* B = dynamic_cast<const DenseMatrix<T>*>(&b);
+    auto* X = dynamic_cast<DenseMatrix<T>*>(&x);
+    if (!A || !B || !X) return false;
+    debug_trace::set_last("cpu.solve.gesv");
+    const uint64_t n = a.rows(), nrhs = b.cols();
+    std::vector<T> wa(A->data(), A->data() + n * n);  // gesv overwrites A with its LU factors
+    std::vector<lapack_int> ipiv(n);
+    T* xp = X->data();
+    std::copy(B->data(), B->data() + n * nrhs, xp);
+    const lapack_int info = gesv<T>((lapack_int)n, (lapack_int)nrhs, wa.data(), ipiv.data(), xp);
+    if (info > 0) throw std::runtime_error("solve failed: matrix singular (zero pivot at " + std::to_string(info) + ")");
+    if (info < 0) throw std::runtime_error("solve: illegal argument to gesv");
+    return true;
+}
+}  // namespace
+
+// Inputs are dense, plain and of the result dtype (LinearAlgebra::solve writes them out).
 void CpuSolver::solve(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
     if (a.rows() != a.cols()) throw std::invalid_argument("solve: A must be square");
     if (a.rows() != b.rows()) throw std::invalid_argument("solve: A and B must have same row count");
-    
-    uint64_t n = a.rows();
-    uint64_t nrhs = b.cols();
-    
-    if (auto* a_d = dynamic_cast<const DenseMatrix<double>*>(&a)) {
-        if (auto* b_d = dynamic_cast<const DenseMatrix<double>*>(&b)) {
-            auto* x_d = dynamic_cast<DenseMatrix<double>*>(&x);
-            if (!x_d) throw std::runtime_error("solve result must be dense double");
-            
-            // Work buffers (LAPACK dgesv solves A*X = B in place)
-            std::vector<double> wa(n * n);
-            std::vector<double> wb(n * nrhs); // B on input, X on output
-            std::vector<lapack_int> ipiv(n);
-
-            // Copy (row-major)
-            for(size_t i=0; i<n; ++i) for(size_t j=0; j<n; ++j) wa[i*n + j] = a_d->get(i, j);
-            for(size_t i=0; i<n; ++i) for(size_t j=0; j<nrhs; ++j) wb[i*nrhs + j] = b_d->get(i, j);
-
-            // LAPACK LU with partial pivoting + forward/back substitution.
-            // info > 0 => U(i,i) is exactly zero => singular (matches NumPy's
-            // np.linalg.solve, which also uses dgesv).
-            lapack_int info = LAPACKE_dgesv(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)nrhs,
-                                            wa.data(), (lapack_int)n, ipiv.data(),
-                                            wb.data(), (lapack_int)nrhs);
-            if (info > 0) throw std::runtime_error("solve failed: matrix singular (zero pivot at " + std::to_string(info) + ")");
-            if (info < 0) throw std::runtime_error("solve: illegal argument to dgesv");
-
-            // Copy solution to X
-            double* x_ptr = x_d->data();
-            for(size_t i=0; i<n*nrhs; ++i) x_ptr[i] = wb[i];
-            
-            return;
-        }
+    if (solve_dense<double>(a, b, x) || solve_dense<float>(a, b, x) ||
+        solve_dense<std::complex<double>>(a, b, x) || solve_dense<std::complex<float>>(a, b, x)) {
+        return;
     }
-    
-    if (auto* a_f = dynamic_cast<const DenseMatrix<float>*>(&a)) {
-        if (auto* b_f = dynamic_cast<const DenseMatrix<float>*>(&b)) {
-            auto* x_f = dynamic_cast<DenseMatrix<float>*>(&x);
-            if (!x_f) throw std::runtime_error("solve result must be dense float");
-            
-            Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> matA(a_f->data(), n, n);
-            Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> matB(b_f->data(), n, nrhs);
-            Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> matX(x_f->data(), n, nrhs);
-            
-            matX = matA.partialPivLu().solve(matB);
-            return;
-        }
-    }
-    
-    throw std::runtime_error("solve only implemented for float/double");
+    throw std::runtime_error("solve: operands must be dense float32/float64/complex64/complex128");
 }
 
 } // namespace pycauset

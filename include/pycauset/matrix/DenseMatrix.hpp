@@ -265,7 +265,7 @@ public:
                                                     row_offset(),
                                                     col_offset(),
                                                     seed_,
-                                                    scalar_ * factor,
+                                                    scalar_ * (is_conjugated() ? std::conj(factor) : factor),  // value = conj(raw * scalar), F-071
                                                     is_transposed(),
                                                     is_conjugated(),
                                                     is_temporary());

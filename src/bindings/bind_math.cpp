@@ -1,3 +1,4 @@
+#include "pycauset/math/VectorOps.hpp"
 #include "bindings_common.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
@@ -49,4 +50,11 @@ void bind_math_ops(py::module_& m) {
         auto out = pycauset::solve(a, b);
         return std::shared_ptr<pycauset::MatrixBase>(out.release());
     }, py::arg("a"), py::arg("b"), "Solve linear system AX=B");
+    // b a vector: solved as an n x 1 column over the vector's storage, returned as a vector.
+    m.def("solve", [](const pycauset::MatrixBase& a, const pycauset::VectorBase& b) {
+        auto col = pycauset::as_row_matrix(b);
+        col->set_transposed(true);
+        return std::shared_ptr<pycauset::VectorBase>(
+            pycauset::as_vector(pycauset::solve(a, *col), /*transposed=*/false).release());
+    }, py::arg("a"), py::arg("b"), "Solve linear system Ax=b for a vector b");
 }

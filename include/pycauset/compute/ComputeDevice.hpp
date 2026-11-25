@@ -1,5 +1,8 @@
 #pragma once
 
+#include <vector>
+#include <complex>
+
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/vector/VectorBase.hpp"
 #include <complex>
@@ -11,6 +14,11 @@ namespace pycauset {
 template <typename T>
 class TriangularMatrix;
 struct HardwareProfile;
+
+struct LuPivots {
+    std::vector<std::complex<double>> pivots;
+    bool odd_permutation = false;
+};
 
 class ComputeDevice {
 public:
@@ -60,7 +68,9 @@ public:
     virtual double frobenius_norm(const MatrixBase& m) = 0;
 
     // Linalg utilities
-    virtual std::complex<double> determinant(const MatrixBase& m) = 0;
+    // LU pivots (U's diagonal) and permutation parity of a plain square matrix: det and
+    // slogdet both come from these (math/Eigen.cpp). Exactly singular: an exact 0 pivot.
+    virtual LuPivots lu_pivots(const MatrixBase& m) = 0;
 
     // Factorizations
     // Computes a QR factorization of `in` into `Q` and `R`.

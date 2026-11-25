@@ -2023,6 +2023,13 @@ void bind_matrix_classes(py::module_& m) {
                               dt == DataType::COMPLEX_FLOAT64 || mat.get_scalar().imag() != 0.0;
             return cplx ? py::cast(d) : py::cast(d.real());
         })
+        .def("slogdet", [](const MatrixBase& mat) -> py::tuple {
+            const auto [sign, logabs] = pycauset::slogdet(mat);
+            const DataType dt = mat.get_data_type();
+            const bool cplx = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 ||
+                              dt == DataType::COMPLEX_FLOAT64 || mat.get_scalar().imag() != 0.0;
+            return py::make_tuple(cplx ? py::cast(sign) : py::cast(sign.real()), logabs);
+        })
         .def(
             "__matmul__",
             [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) {
@@ -2237,11 +2244,13 @@ void bind_matrix_classes(py::module_& m) {
             });
         }, py::arg("value"))
         .def("__invert__", [](const MatrixBase& mat_in) -> std::shared_ptr<MatrixBase> {
-            // bitwise_not reads raw storage: materialize integer views first (F-042).
+            // bitwise_not reads raw storage of a dense matrix: write views out (F-042), and
+            // structured matrices too: ~ of a triangle is not triangular (NumPy complements
+            // every element; ~C of a causal matrix kept only the stored triangle, F-074).
             std::unique_ptr<MatrixBase> plain;
-            if (pycauset::is_integer_or_bit(mat_in.get_data_type()) && mat_in.get_data_type() != DataType::BIT &&
-                mat_in.get_scalar() != std::complex<double>(1.0, 0.0)) {
-                plain = pycauset::materialize(mat_in);
+            if (pycauset::is_integer_or_bit(mat_in.get_data_type()) &&
+                (mat_in.get_structure() != Structure::DENSE || !pycauset::is_plain(mat_in))) {
+                plain = pycauset::write_out(mat_in);
             }
             const MatrixBase& mat = plain ? *plain : mat_in;
             return pycauset::visit_matrix(mat, [&](const auto& typed) -> std::shared_ptr<MatrixBase> {
@@ -2390,6 +2399,9 @@ void bind_matrix_classes(py::module_& m) {
         if (auto* c = dynamic_cast<const pycauset::BitClosureMatrix*>(mat.get())) {
             return std::shared_ptr<MatrixBase>(c->materialized_copy().release());
         }
+        // A window's file must hold the window, not the whole storage it looks into (the view
+        // record has no offsets): saving A[1:4, 1:4] stored all of A (F-072).
+        if (mat->is_subview()) return std::shared_ptr<MatrixBase>(pycauset::write_out(*mat).release());
         return mat;
     }, py::arg("matrix"));
     m.def("materialize", [](const std::shared_ptr<MatrixBase>& mat) -> std::shared_ptr<MatrixBase> {

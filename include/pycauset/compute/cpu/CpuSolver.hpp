@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pycauset/compute/ComputeDevice.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
 #include <complex>
 #include <memory>
@@ -52,7 +53,7 @@ public:
 
     double frobenius_norm(const MatrixBase& m);
 
-    std::complex<double> determinant(const MatrixBase& m);
+    LuPivots lu_pivots(const MatrixBase& m);
     void qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R);
     void lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U);
     void svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT);

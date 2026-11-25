@@ -628,5 +628,11 @@ std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt) {
     return run_exact(a, dt, ScalarOpKind::Mul, ScalarArg::from_int64(1));
 }
 
+std::unique_ptr<MatrixBase> to_dense(const MatrixBase& a, DataType dt) {
+    if (dt == DataType::FLOAT16 || dt == DataType::COMPLEX_FLOAT16) return cast_to(a, dt);  // dense
+    if (dt == DataType::BIT) throw std::invalid_argument("to_dense: bit target");
+    return run_exact(a, dt, ScalarOpKind::Mul, ScalarArg::from_int64(1), /*keep_structure=*/false);
+}
+
 }  // namespace pycauset
 
