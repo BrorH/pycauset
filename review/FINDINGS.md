@@ -866,3 +866,18 @@ the entry (the history is useful). New findings go at the bottom with the next f
   the generic integer path (correct; slow, atlas ○).
 - Root cause class (see the session 8 LOG): kernels selected by one property (dtype) that
   silently assume others (dense, plain). Planned cure: normalise at the boundary (PLAN).
+
+### F-076 Save/load lost `has_diagonal`: a triangular matrix with a diagonal reloaded shifted
+- **Status:** fixed (session 8, atlas rerun). Same class as F-064: the file metadata had no
+  `has_diagonal`, and `_open_storage` built every typed triangle as strict, so the packed
+  rows were read with the wrong offsets. Now saved in the metadata and passed to the load
+  constructor (bit triangles are always strict).
+
+### F-077 `UnitVector.conj()` / `.T` moved the 1 to index 0
+- **Status:** fixed. Same class as F-064: the generic `VectorBase::clone` rebuilt through the
+  factory, whose mapper constructor read the active index from the seed before the seed was
+  set. `UnitVector` now has its own `clone()`.
+
+### F-078 The diagonal of `A.T` for antisymmetric A was -0.0 (`2 / A.T` gave -inf)
+- **Status:** fixed. `A.T` is stored as the factor -1 (A.T = -A), which negated the zero
+  diagonal; NumPy gives +0.0 there. The antisymmetric accessors return +0.0 on the diagonal.

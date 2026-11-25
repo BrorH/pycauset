@@ -768,6 +768,10 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
         meta["structure"] = structure
         meta["dtype"] = str(payload_obj.dtype)
         meta["payload_layout"]["kind"] = _PAYLOAD_LAYOUT[structure]
+        if structure == "triangular":
+            # The packed layout depends on it: a diagonal-including triangle loaded as strict
+            # read shifted values (F-076).
+            meta["has_diagonal"] = bool(payload_obj.has_diagonal)
 
         # Persist gospel properties (excluding cached-derived keys).
         props_all = _extract_properties_for_persistence(payload_obj)
@@ -941,7 +945,8 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
     elif structure not in ("dense", "identity") and rows != cols:
         raise ValueError(f"{structure} matrix requires rows == cols (got rows={rows}, cols={cols})")
     obj = deps.native._open_storage(
-        structure, dtype, storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed
+        structure, dtype, storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed,
+        bool(metadata.get("has_diagonal", False)),
     )
 
     if is_transposed and hasattr(obj, "set_transposed"):

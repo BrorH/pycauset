@@ -74,6 +74,18 @@ public:
     
     uint64_t get_active_index() const { return active_index_; }
 
+    // The generic VectorBase::clone rebuilds through the factory, which read the active index
+    // before setting it: u.conj() moved the 1 to index 0 (F-077).
+    std::unique_ptr<PersistentObject> clone() const override {
+        auto out = std::make_unique<UnitVector>(n_, mapper_);
+        out->active_index_ = active_index_;
+        out->set_seed(get_seed());
+        out->set_scalar(get_scalar());
+        out->set_transposed(is_transposed());
+        out->set_conjugated(is_conjugated());
+        return out;
+    }
+
     // Specialized operations
     std::unique_ptr<UnitVector> add(const UnitVector& other, const std::string& result_file = "") const {
         if (n_ != other.size()) throw std::invalid_argument("Dimension mismatch");

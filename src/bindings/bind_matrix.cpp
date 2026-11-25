@@ -1493,7 +1493,7 @@ inline py::object symmetric_from_triangular(const MatrixBase& source, bool anti)
 // Re-open stored data: the constructors take the *storage* shape and the view flags.
 inline py::object open_storage(pycauset::Structure s, DataType dt, uint64_t rows, uint64_t cols,
                                const std::string& path, size_t offset, uint64_t seed,
-                               std::complex<double> scalar, bool is_transposed) {
+                               std::complex<double> scalar, bool is_transposed, bool has_diagonal) {
     using S = pycauset::Structure;
     return pycauset::visit_dtype(dt, [&](auto tag) -> py::object {
         using T = typename decltype(tag)::type;
@@ -1510,7 +1510,11 @@ inline py::object open_storage(pycauset::Structure s, DataType dt, uint64_t rows
         } else {
             switch (s) {
                 case S::TRIANGULAR:
-                    return py::cast(std::shared_ptr<MatrixBase>(std::make_shared<TriangularMatrix<T>>(rows, path, offset, seed, scalar, is_transposed)));
+                    if constexpr (std::is_same_v<T, bool>) {  // bit triangles are always strict
+                        return py::cast(std::shared_ptr<MatrixBase>(std::make_shared<TriangularMatrix<T>>(rows, path, offset, seed, scalar, is_transposed)));
+                    } else {
+                        return py::cast(std::shared_ptr<MatrixBase>(std::make_shared<TriangularMatrix<T>>(rows, path, offset, seed, scalar, is_transposed, has_diagonal)));
+                    }
                 case S::SYMMETRIC:
                 case S::ANTISYMMETRIC:
                     return py::cast(std::shared_ptr<MatrixBase>(std::make_shared<SymmetricMatrix<T>>(rows, path, offset, seed, scalar, is_transposed, s == S::ANTISYMMETRIC)));
@@ -2387,12 +2391,13 @@ void bind_matrix_classes(py::module_& m) {
         "_open_storage",
         [](const std::string& structure, const std::string& dtype, uint64_t rows, uint64_t cols,
            const std::string& path, size_t offset, uint64_t seed, std::complex<double> scalar,
-           bool is_transposed) -> py::object {
+           bool is_transposed, bool has_diagonal) -> py::object {
             return open_storage(pycauset::parse_structure(structure), pycauset::parse_dtype_name(dtype), rows, cols,
-                                path, offset, seed, scalar, is_transposed);
+                                path, offset, seed, scalar, is_transposed, has_diagonal);
         },
         py::arg("structure"), py::arg("dtype"), py::arg("rows"), py::arg("cols"), py::arg("path"),
         py::arg("offset"), py::arg("seed"), py::arg("scalar"), py::arg("is_transposed"),
+        py::arg("has_diagonal") = false,
         "Internal: map an existing data file as a matrix or vector (storage shape; the view flags are applied).");
     m.def("_materialize_for_save", [](const std::shared_ptr<MatrixBase>& mat) -> std::shared_ptr<MatrixBase> {
         // Closure views read another object's storage layout; files store the packed result.

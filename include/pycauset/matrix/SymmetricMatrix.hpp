@@ -159,6 +159,9 @@ public:
 
     // Implement MatrixBase virtuals
     double element_as_double(uint64_t i, uint64_t j) const override {
+        // The diagonal of an antisymmetric matrix is +0.0 whatever the factor: A.T is stored as
+        // the factor -1, which turned it into -0.0 (2 / A.T gave -inf, F-078).
+        if (is_antisymmetric_ && i == j) return 0.0;
         if (scalar_ == 1.0) {
             return static_cast<double>(get(i, j));
         }
@@ -170,6 +173,7 @@ public:
     }
 
     std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override {
+        if (is_antisymmetric_ && i == j) return {0.0, 0.0};
         if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
             return {get_element_as_double(i, j), 0.0};
         } else {
