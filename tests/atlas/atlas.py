@@ -413,7 +413,11 @@ def run_cell(cell: Cell) -> Cell:
             pc.set_memory_threshold(1024)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            return _run_cell(cell, op, seed, view_fn)
+            try:
+                return _run_cell(cell, op, seed, view_fn)
+            except Exception as e:  # a bug in the atlas itself: visible, never silent
+                cell.outcome, cell.error = "harness", f"{type(e).__name__}: {str(e)[:200]}"
+                return cell
     finally:
         if cell.storage == "file":
             pc.set_memory_threshold(threshold if threshold is not None else 8 * 1024**3)
@@ -442,7 +446,7 @@ def _run_cell(cell: Cell, op: Op, seed: int, view_fn) -> Cell:
 
     # side operands for matvec / solve, in the operand's dtype
     DT[0] = xdt
-    vref = _values(xdt if xdt in DTYPES else "float64", (a.shape[1],), seed + 7)
+    vref = _values(xdt if xdt in DTYPES else "float64", (a.shape[-1],), seed + 7)
     try:
         VEC[x.dtype] = pc.vector(vref, dtype=xdt) if xdt in DTYPES else None
     except Exception:

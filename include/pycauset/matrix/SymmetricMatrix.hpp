@@ -1,5 +1,8 @@
 #pragma once
 
+#include <type_traits>
+#include <stdexcept>
+
 #include "pycauset/matrix/TriangularMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/core/MatrixTraits.hpp"
@@ -23,10 +26,20 @@ public:
 
 template <typename T>
 class SymmetricMatrix : public AntiSymmetricMatrixBase {
+    // A(j,i) = -A(i,j) has no meaning for unsigned or bit storage: the stored value wrapped
+    // (254 for -2) while the arithmetic paths negated (-5.0 for 2.5 * -2), F-065.
+    static void require_signed_if_antisymmetric(bool is_antisymmetric) {
+        if (is_antisymmetric && (std::is_unsigned_v<T> || std::is_same_v<T, bool>)) {
+            throw std::invalid_argument(
+                std::string("antisymmetric matrices need a signed dtype (got ") + MatrixTraits<T>::name + ")");
+        }
+    }
+
 public:
     SymmetricMatrix(uint64_t n, const std::string& backing_file = "", bool is_antisymmetric = false)
         : AntiSymmetricMatrixBase(n, is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
           is_antisymmetric_(is_antisymmetric) {
+        require_signed_if_antisymmetric(is_antisymmetric);
         
         has_diagonal_ = true; // Symmetric matrices always have a diagonal (even if 0 for antisymmetric)
         
@@ -53,6 +66,7 @@ public:
                      bool is_antisymmetric)
         : AntiSymmetricMatrixBase(n, is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
           is_antisymmetric_(is_antisymmetric) {
+        require_signed_if_antisymmetric(is_antisymmetric);
         
         has_diagonal_ = true;
         uint64_t size_in_bytes = calculate_triangular_offsets(sizeof(T) * 8, 64);
@@ -74,6 +88,7 @@ public:
     SymmetricMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper, bool is_antisymmetric = false)
         : AntiSymmetricMatrixBase(n, std::move(mapper), is_antisymmetric ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC, MatrixTraits<T>::data_type),
           is_antisymmetric_(is_antisymmetric) {
+        require_signed_if_antisymmetric(is_antisymmetric);
         has_diagonal_ = true;
         calculate_triangular_offsets(sizeof(T) * 8, 64);
     }

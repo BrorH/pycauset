@@ -48,6 +48,7 @@ def render(cells) -> str:
     for title, pred in [("Wrong results (✗)", lambda c: c.outcome == "wrong"),
                         ("NumPy round trips (N)", lambda c: c.outcome == "ok" and c.path == "numpy"),
                         ("Generic per-element paths (○)", lambda c: c.outcome == "ok" and c.path == "generic"),
+                        ("Atlas harness errors (fix the atlas)", lambda c: c.outcome == "harness"),
                         ("Unsupported (—)", lambda c: c.outcome == "unsupported")]:
         sel = [c for c in cells if pred(c)]
         out += [f"## {title}: {len(sel)}", ""]
@@ -61,10 +62,10 @@ def render(cells) -> str:
         out.append("")
 
     unavailable = collections.Counter((c.structure, c.dtype) for c in cells if c.outcome == "unavailable" and not c.error.startswith("view"))
-    views_missing = collections.Counter((c.structure, c.view) for c in cells if c.error.startswith("view"))
+    views_missing = collections.Counter((c.structure, c.dtype, c.view) for c in cells if c.error.startswith("view"))
     out += ["## Operand availability", "",
             "Structures not offered for a dtype: " + ", ".join(sorted({f"{s}/{d}" for s, d in unavailable})) + ".", "",
-            "Views not offered: " + ", ".join(sorted({f"{s}/{v}" for s, v in views_missing})) + ".", ""]
+            "Views not offered (structure/dtype/view): " + ", ".join(sorted({f"{s}/{d}/{v}" for s, d, v in views_missing})) + ".", ""]
 
     untraced = collections.Counter(c.op for c in cells if c.outcome == "ok" and not c.kernels)
     out += ["## Cells with no kernel trace", "", "Kernels that set no `debug_trace` name (the path is then inferred "

@@ -72,6 +72,19 @@ public:
         set_transposed(is_transposed);
     }
 
+    // The generic MatrixBase::clone rebuilds through the factory, which does not know
+    // has_diagonal (and the packed row offsets depend on it): conj() of a triangular matrix
+    // with a diagonal used to read shifted values (F-064).
+    std::unique_ptr<PersistentObject> clone() const override {
+        auto out = std::make_unique<TriangularMatrix<T>>(base_rows(), mapper_, has_diagonal_);
+        out->set_scalar(this->get_scalar());
+        out->set_conjugated(this->is_conjugated());
+        out->set_transposed(this->is_transposed());
+        out->set_seed(this->get_seed());
+        out->set_view(logical_rows_, logical_cols_, row_offset_, col_offset_);
+        return out;
+    }
+
     TriangularMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper, bool has_diagonal = false)
         : TriangularMatrixBase(n, std::move(mapper), pycauset::Structure::TRIANGULAR, MatrixTraits<T>::data_type) {
         has_diagonal_ = has_diagonal;

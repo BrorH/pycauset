@@ -777,3 +777,20 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - `pinv` used Aᵀ instead of Aᴴ: wrong for rectangular complex matrices. **Fixed.**
 - Diagonal inverse: entries with |x| < 1e-12 became 0 instead of 1/x (a tolerance deciding a
   result; an exact 0 should raise). **Fixed** (exact 0 raises).
+
+### F-064 `conj()` / `.H` of a triangular matrix with a diagonal read shifted values
+- **Status:** fixed (session 8). Found by the operation atlas on its first run (Phase C).
+  `TriangularMatrix(has_diagonal=True).conj()` exported the strict upper triangle shifted
+  by one and lost the diagonal (`[[1,3],[0,4]]` became `[[0,1],[0,0]]`); every operation on
+  the conjugated view (add, export, inv, ...) was wrong, silently, for every dtype.
+- Cause: `TriangularMatrix<T>` had no `clone()`; the generic `MatrixBase::clone` rebuilds
+  through `ObjectFactory`, which does not know `has_diagonal`, so the packed row offsets
+  were computed for a strict triangle. Fix: a `clone()` override that keeps it (as
+  `SymmetricMatrix` already had). Test: the atlas cells `*/triangular/conj|H`.
+
+### F-065 Antisymmetric matrices with unsigned or bool dtype gave contradictory values
+- **Status:** fixed (session 8, atlas). `AntiSymmetricMatrix(dtype="uint8")` stored
+  `A[1,0] = 254` for `A[0,1] = 2` (wrapped), while `A * 2.5` gave `-5.0` and bool `B + B`
+  gave `-2` where the export said `True`. There is no consistent meaning for A(j,i) = -A(i,j)
+  in unsigned or bit storage. Decision: antisymmetric requires a signed dtype; the
+  constructor raises `ValueError` for unsigned and bool (pre-alpha: no compatibility path).
