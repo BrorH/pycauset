@@ -83,24 +83,6 @@ inline bool is_dense_int32_matrix(const MatrixBase& m) {
     return dynamic_cast<const DenseMatrix<int32_t>*>(&m) != nullptr;
 }
 
-inline void maybe_warn_integer_matmul_accumulator_widen(const MatrixBase& a, const MatrixBase& b) {
-    if (!is_dense_int32_matrix(a) || !is_dense_int32_matrix(b)) {
-        return;
-    }
-
-    // Deterministic warning: this operation uses an int64 accumulator to avoid intermediate overflow,
-    // but the output storage remains int32 and will throw on overflow.
-    std::string message;
-    message.reserve(256);
-    message += "pycauset matmul: using int64 accumulator for int32 @ int32 to avoid intermediate overflow; ";
-    message += "output stored as int32 and will raise on overflow.";
-    bindings_warn::warn_once_with_category(
-        "pycauset.matmul.accum_widen.int32",
-        message,
-        "PyCausetDTypeWarning",
-        /*stacklevel=*/3);
-}
-
 inline void maybe_warn_integer_matmul_overflow_risk_preflight(const MatrixBase& a, const MatrixBase& b) {
     // ADVISORY ONLY (policy: guesses may inform, never decide). Samples a fixed,
     // deterministic set of entries to estimate max|A|, max|B| and warns early when the
@@ -175,9 +157,7 @@ inline void maybe_warn_integer_matmul_overflow_risk_preflight(const MatrixBase& 
     message += ", sampled max|B|=" + std::to_string(max_abs_b);
     message += ", estimated bound ~" + std::to_string(bound);
     message += ". The result is computed exactly; PyCauset raises OverflowError if a value does not fit.";
-    bindings_warn::warn_once_with_category(
-        "pycauset.matmul.overflow_risk_preflight.int32",
-        message,
+    bindings_warn::warn_with_category(message,
         "PyCausetOverflowRiskWarning",
         /*stacklevel=*/3);
 }
@@ -197,12 +177,6 @@ inline void maybe_warn_float_underpromotion(const char* op_name, promotion::Bina
         return;
     }
 
-    std::string key;
-    key.reserve(64);
-    key += "pycauset.";
-    key += op_name;
-    key += ".float_underpromotion.f32_f64";
-
     std::string message;
     message.reserve(256);
     message += "pycauset ";
@@ -210,7 +184,7 @@ inline void maybe_warn_float_underpromotion(const char* op_name, promotion::Bina
     message += ": mixed float32/float64 underpromotes to float32 (compute and storage in float32). ";
     message += "Cast both inputs to float64 to compute in float64.";
 
-    bindings_warn::warn_once_with_category(key, message, "PyCausetDTypeWarning", /*stacklevel=*/3);
+    bindings_warn::warn_with_category(message, "PyCausetDTypeWarning", /*stacklevel=*/3);
 }
 
 inline void maybe_warn_bit_promotes_to_int32(const char* op_name, promotion::BinaryOp op, DataType da, DataType db) {
@@ -223,12 +197,6 @@ inline void maybe_warn_bit_promotes_to_int32(const char* op_name, promotion::Bin
         return;
     }
 
-    std::string key;
-    key.reserve(96);
-    key += "pycauset.";
-    key += op_name;
-    key += ".bit_promotes_to_int32";
-
     std::string message;
     message.reserve(256);
     message += "pycauset ";
@@ -236,7 +204,7 @@ inline void maybe_warn_bit_promotes_to_int32(const char* op_name, promotion::Bin
     message += ": bit operands promote to int32 because the result can exceed {0,1} (mathematically unavoidable). ";
     message += "Even though int16 exists, bit-bit reductions commonly exceed int16; result is int32.";
 
-    bindings_warn::warn_once_with_category(key, message, "PyCausetDTypeWarning", /*stacklevel=*/3);
+    bindings_warn::warn_with_category(message, "PyCausetDTypeWarning", /*stacklevel=*/3);
 }
 
 inline void require_square_2d(const py::buffer_info& buf) {
@@ -1027,9 +995,7 @@ inline void maybe_warn_assignment_cast(const py::dtype& src_dtype) {
     msg += src_name;
     msg += " to ";
     msg += tgt_name;
-    bindings_warn::warn_once_with_category(
-        "pycauset.assign.cast.",
-        msg,
+    bindings_warn::warn_with_category(msg,
         "PyCausetDTypeWarning",
         /*stacklevel=*/3);
 
@@ -1042,9 +1008,7 @@ inline void maybe_warn_assignment_cast(const py::dtype& src_dtype) {
             risk += src_name;
             risk += " to ";
             risk += tgt_name;
-            bindings_warn::warn_once_with_category(
-                "pycauset.assign.overflow_risk.",
-                risk,
+            bindings_warn::warn_with_category(risk,
                 "PyCausetOverflowRiskWarning",
                 /*stacklevel=*/3);
         }
@@ -1641,6 +1605,82 @@ inline py::object export_dense_any(const MatrixBase& mat) {
     }
 }
 
+// Any structure / dtype (triangular, symmetric, diagonal, identity, closures, bits,
+// complex16): read every logical element in C++ (exact for integers, view-aware) into a new
+// NumPy array. Replaces a Python per-element loop (~100x slower).
+inline py::object export_generic(const MatrixBase& mat) {
+    const uint64_t rows = mat.rows(), cols = mat.cols();
+    const DataType dt = mat.get_data_type();
+    const char* np_name = nullptr;
+    switch (dt) {
+        case DataType::BIT: np_name = "bool"; break;
+        case DataType::INT8: np_name = "int8"; break;
+        case DataType::INT16: np_name = "int16"; break;
+        case DataType::INT32: np_name = "int32"; break;
+        case DataType::INT64: np_name = "int64"; break;
+        case DataType::UINT8: np_name = "uint8"; break;
+        case DataType::UINT16: np_name = "uint16"; break;
+        case DataType::UINT32: np_name = "uint32"; break;
+        case DataType::UINT64: np_name = "uint64"; break;
+        case DataType::FLOAT16: np_name = "float16"; break;
+        case DataType::FLOAT32: np_name = "float32"; break;
+        case DataType::FLOAT64: np_name = "float64"; break;
+        case DataType::COMPLEX_FLOAT16:
+        case DataType::COMPLEX_FLOAT32: np_name = "complex64"; break;
+        case DataType::COMPLEX_FLOAT64: np_name = "complex128"; break;
+        default: return py::none();
+    }
+    py::array out(py::dtype(np_name), std::vector<py::ssize_t>{static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
+    void* dst = out.mutable_data();
+    if (pycauset::is_integer_or_bit(dt)) {
+        const bool scaled = mat.get_scalar() != std::complex<double>(1.0, 0.0);
+        if (scaled && !pycauset::scalar::is_exact_int_factor(mat.get_scalar())) return py::none();
+        const int64_t k = static_cast<int64_t>(mat.get_scalar().real());
+        py::gil_scoped_release release;
+        pycauset::visit_matrix(mat, [&](const auto& typed) {
+            using E = element_of_t<std::decay_t<decltype(typed)>>;
+            if constexpr (std::is_integral_v<E>) {
+                auto* p = static_cast<E*>(dst);
+                pycauset::ParallelFor(0, rows, [&](size_t i) {
+                    for (uint64_t j = 0; j < cols; ++j) {
+                        const E v = typed.get(i, j);
+                        p[i * cols + j] = scaled ? pycauset::scalar::wrap_scale(v, k) : v;
+                    }
+                });
+            }
+        });
+        return out;
+    }
+    py::gil_scoped_release release;
+    if (dt == DataType::FLOAT16) {
+        auto* p = static_cast<uint16_t*>(dst);
+        pycauset::ParallelFor(0, rows, [&](size_t i) {
+            for (uint64_t j = 0; j < cols; ++j) p[i * cols + j] = pycauset::float16_t(mat.get_element_as_double(i, j)).bits;
+        });
+    } else if (dt == DataType::FLOAT32) {
+        auto* p = static_cast<float*>(dst);
+        pycauset::ParallelFor(0, rows, [&](size_t i) {
+            for (uint64_t j = 0; j < cols; ++j) p[i * cols + j] = static_cast<float>(mat.get_element_as_double(i, j));
+        });
+    } else if (dt == DataType::FLOAT64) {
+        auto* p = static_cast<double*>(dst);
+        pycauset::ParallelFor(0, rows, [&](size_t i) {
+            for (uint64_t j = 0; j < cols; ++j) p[i * cols + j] = mat.get_element_as_double(i, j);
+        });
+    } else if (dt == DataType::COMPLEX_FLOAT64) {
+        auto* p = static_cast<std::complex<double>*>(dst);
+        pycauset::ParallelFor(0, rows, [&](size_t i) {
+            for (uint64_t j = 0; j < cols; ++j) p[i * cols + j] = mat.get_element_as_complex(i, j);
+        });
+    } else {
+        auto* p = static_cast<std::complex<float>*>(dst);
+        pycauset::ParallelFor(0, rows, [&](size_t i) {
+            for (uint64_t j = 0; j < cols; ++j) p[i * cols + j] = static_cast<std::complex<float>>(mat.get_element_as_complex(i, j));
+        });
+    }
+    return out;
+}
+
 
 inline bool is_numpy_scalar(const py::handle& obj) {
     try {
@@ -1832,7 +1872,6 @@ void bind_matrix_classes(py::module_& m) {
                         promotion::BinaryOp::Matmul,
                         a.get_data_type(),
                         b->get_data_type());
-                    maybe_warn_integer_matmul_accumulator_widen(a, *b);
                     maybe_warn_integer_matmul_overflow_risk_preflight(a, *b);
                     auto out = pycauset::dispatch_matmul(a, *b, "");
                     return std::shared_ptr<MatrixBase>(out.release());
@@ -1850,7 +1889,7 @@ void bind_matrix_classes(py::module_& m) {
             // loop that read 64-bit integers through double and lost precision).
             py::object out = export_dense_any(mat);
             if (!out.is_none()) return out;
-            return py::none();
+            return export_generic(mat);
         }, py::arg("allow_huge") = false)
         .def(
             "__array__",
@@ -2054,7 +2093,6 @@ void bind_matrix_classes(py::module_& m) {
                         promotion::BinaryOp::Matmul,
                         a.get_data_type(),
                         b->get_data_type());
-                    maybe_warn_integer_matmul_accumulator_widen(a, *b);
                     maybe_warn_integer_matmul_overflow_risk_preflight(a, *b);
                     auto out = pycauset::dispatch_matmul(a, *b, "");
                     return std::shared_ptr<MatrixBase>(out.release());
@@ -2097,7 +2135,6 @@ void bind_matrix_classes(py::module_& m) {
                         promotion::BinaryOp::Matmul,
                         a.get_data_type(),
                         mb->get_data_type());
-                    maybe_warn_integer_matmul_accumulator_widen(a, *mb);
                     maybe_warn_integer_matmul_overflow_risk_preflight(a, *mb);
                     auto out = pycauset::dispatch_matmul(a, *mb, "");
                     return py::cast(std::shared_ptr<MatrixBase>(out.release()));
@@ -3131,7 +3168,6 @@ void bind_matrix_classes(py::module_& m) {
                     promotion::BinaryOp::Matmul,
                     a->get_data_type(),
                     b->get_data_type());
-                maybe_warn_integer_matmul_accumulator_widen(*a, *b);
                 maybe_warn_integer_matmul_overflow_risk_preflight(*a, *b);
                 auto out = pycauset::dispatch_matmul(*a, *b, "");
                 return std::shared_ptr<MatrixBase>(out.release());

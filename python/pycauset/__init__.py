@@ -8,6 +8,15 @@ except ImportError:
 
 import os
 import warnings
+
+# Thread pools: OpenMP (our element-wise kernels), our OpenBLAS, and NumPy's own bundled
+# OpenBLAS share the cores. By default each pool spins after a call (libgomp's active wait;
+# OpenBLAS spins ~2^28 cycles), starving whichever pool runs next: a 1M-element dot took
+# 1-4 ms instead of 0.1, NumPy's own matmul ran 1.7x slower next to us (FINDINGS F-012).
+# Both libraries read these once when they load, so they are set before the native module is
+# imported (NumPy's OpenBLAS may already be loaded and keep its setting). A user value wins.
+os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
+os.environ.setdefault("OPENBLAS_THREAD_TIMEOUT", "4")  # 2^4 cycles: the OpenBLAS minimum
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace as _SimpleNamespace
@@ -382,19 +391,11 @@ _VectorBaseType = getattr(_native, "VectorBase", None)
 
 
 def _guarded_array_export(self: Any, dtype: Any = None, copy: Any = None) -> Any:
-    # NumPy 2.x may pass copy=... to __array__; honor when provided.
-    copy_flag = True if copy is None else copy
-    if not copy_flag:
-        return _export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype, copy=copy_flag)
-    try:
-        arr = _export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype, copy=False)
-    except Exception:
-        arr = None
-    if arr is not None:
-        import numpy as _np_local  # type: ignore
-
-        return _np_local.array(arr, dtype=dtype, copy=True)
-    return _export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype, copy=copy_flag)
+    # NumPy 2 protocol: copy=False means "never copy". PyCauset storage can't be shared with
+    # NumPy, so that request raises; otherwise one native copy (the size guard applies).
+    if copy is False:
+        raise ValueError("a pycauset matrix can't be exported to NumPy without a copy")
+    return _export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype, copy=True)
 
 
 def _install_array_export_hook(native_type: Any) -> None:

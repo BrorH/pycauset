@@ -94,27 +94,12 @@ class TestDTypeInvariants(unittest.TestCase):
         self.assertEqual(_np(got).dtype, np.dtype(np.float32))
 
     def test_mixed_float_underpromotion_warns(self):
-        # The warning is emitted warn-once at the C++ layer, so it cannot be
-        # re-triggered in the same process. Check it in a fresh subprocess.
-        import subprocess
-        import sys
+        import warnings
 
-        code = (
-            "import warnings, pycauset as pc\n"
-            "with warnings.catch_warnings(record=True) as w:\n"
-            "    warnings.simplefilter('always')\n"
-            "    pc.ones((2, 2), dtype='float32') + pc.ones((2, 2), dtype='float64')\n"
-            "print([x.category.__name__ for x in w])\n"
-        )
-        import os
-        from pathlib import Path
-
-        src = str(Path(pc.__file__).resolve().parents[1])  # the pycauset under test
-        env = {**os.environ, "PYTHONPATH": src}
-        out = subprocess.run(
-            [sys.executable, "-c", code], capture_output=True, text=True, env=env
-        )
-        self.assertIn("PyCausetDTypeWarning", out.stdout)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            pc.ones((2, 2), dtype="float32") + pc.ones((2, 2), dtype="float64")
+        self.assertIn("PyCausetDTypeWarning", [x.category.__name__ for x in w])
 
     def test_complex_imag_not_dropped(self):
         z = pc.matrix(np.array([[1 + 2j, 0], [0, 1]]))

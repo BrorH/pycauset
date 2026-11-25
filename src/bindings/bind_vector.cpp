@@ -1,6 +1,7 @@
 ﻿#include "bindings_common.hpp"
 #include "element_conversion.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
 
 #include "binding_warnings.hpp"
@@ -51,12 +52,68 @@ inline bool is_numpy_float16(const py::array& array) {
     }
 }
 
-inline int64_t checked_add_int64(int64_t a, int64_t b) {
-    if ((b > 0 && a > (std::numeric_limits<int64_t>::max)() - b) ||
-        (b < 0 && a < (std::numeric_limits<int64_t>::min)() - b)) {
-        throw std::overflow_error("Integer dot overflow: accumulator overflow");
+// Exact integer dot product (DType System.md 5.1: reductions never wrap silently). Both
+// operands integer or bit, dense: logical elements (integer view factor applied with NumPy's
+// element wrap), accumulated in 128 bits, returned as a Python int; OverflowError past 127 bits.
+// Returns an empty object when the operands are not both integer (callers use the float path).
+inline py::object exact_int_dot(const VectorBase& a, const VectorBase& b) {
+    auto is_int = [](const VectorBase& v) {
+        const DataType dt = v.get_data_type();
+        return v.get_structure() != Structure::UNIT_VECTOR && dt != DataType::FLOAT16 &&
+               dt != DataType::FLOAT32 && dt != DataType::FLOAT64 && dt != DataType::COMPLEX_FLOAT16 &&
+               dt != DataType::COMPLEX_FLOAT32 && dt != DataType::COMPLEX_FLOAT64 &&
+               scalar::is_exact_int_factor(v.get_scalar());
+    };
+    if (!is_int(a) || !is_int(b)) return py::object();
+    if (a.get_data_type() == DataType::BIT && b.get_data_type() == DataType::BIT) {
+        // Word-level popcount kernel; a count < 2^53 is exact in double.
+        return py::int_(static_cast<int64_t>(pycauset::dot_product(a, b)));
     }
-    return a + b;
+    if (a.size() != b.size()) throw py::value_error("dot: vector sizes differ");
+    const int64_t ka = static_cast<int64_t>(a.get_scalar().real());
+    const int64_t kb = static_cast<int64_t>(b.get_scalar().real());
+    __int128 sum = 0;
+    visit_dtype(a.get_data_type(), [&](auto ta) {
+        visit_dtype(b.get_data_type(), [&](auto tb) {
+            using A = typename decltype(ta)::type;
+            using B = typename decltype(tb)::type;
+            if constexpr (std::is_integral_v<A> && std::is_integral_v<B>) {
+                const auto& va = static_cast<const typename DenseVectorOf<A>::type&>(a);
+                const auto& vb = static_cast<const typename DenseVectorOf<B>::type&>(b);
+                const uint64_t n = a.size();
+                for (uint64_t i = 0; i < n; ++i) {
+                    const __int128 x = scalar::wrap_scale<A>(va.get(i), ka);
+                    const __int128 y = scalar::wrap_scale<B>(vb.get(i), kb);
+                    __int128 term;
+                    if (__builtin_mul_overflow(x, y, &term) || __builtin_add_overflow(sum, term, &sum)) {
+                        throw std::overflow_error("dot: integer result does not fit the 128-bit accumulator");
+                    }
+                }
+            }
+        });
+    });
+    if (sum >= static_cast<__int128>(std::numeric_limits<int64_t>::min()) &&
+        sum <= static_cast<__int128>(std::numeric_limits<int64_t>::max())) {
+        return py::int_(static_cast<int64_t>(sum));
+    }
+    const bool neg = sum < 0;
+    const unsigned __int128 mag = neg ? static_cast<unsigned __int128>(-(sum + 1)) + 1 : static_cast<unsigned __int128>(sum);
+    py::object hi = py::int_(static_cast<uint64_t>(mag >> 64));
+    py::object lo = py::int_(static_cast<uint64_t>(mag));
+    py::object out = (hi.attr("__lshift__")(64)).attr("__or__")(lo);
+    return neg ? out.attr("__neg__")() : out;
+}
+
+// Inner product of two vectors (orientation ignored, no conjugation, like np.dot).
+inline py::object vector_dot(const VectorBase& a, const VectorBase& b) {
+    if (py::object exact = exact_int_dot(a, b)) return exact;
+    const auto is_complex = [](DataType dt) {
+        return dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64;
+    };
+    if (is_complex(a.get_data_type()) || is_complex(b.get_data_type())) {
+        return py::cast(pycauset::dot_product_complex(a, b));
+    }
+    return py::float_(pycauset::dot_product(a, b));
 }
 
 inline void require_1d(const py::buffer_info& buf) {
@@ -75,12 +132,6 @@ inline void maybe_warn_bit_promotes_to_int32(const char* op_name, promotion::Bin
         return;
     }
 
-    std::string key;
-    key.reserve(96);
-    key += "pycauset.";
-    key += op_name;
-    key += ".bit_promotes_to_int32";
-
     std::string message;
     message.reserve(256);
     message += "pycauset ";
@@ -88,7 +139,7 @@ inline void maybe_warn_bit_promotes_to_int32(const char* op_name, promotion::Bin
     message += ": bit operands promote to int32 because the result can exceed {0,1} (mathematically unavoidable). ";
     message += "Even though int16 exists, bit-bit reductions commonly exceed int16; result is int32.";
 
-    bindings_warn::warn_once_with_category(key, message, "PyCausetDTypeWarning", /*stacklevel=*/3);
+    bindings_warn::warn_with_category(message, "PyCausetDTypeWarning", /*stacklevel=*/3);
 }
 
 template <typename T>
@@ -599,17 +650,7 @@ void bind_vector_classes(py::module_& m) {
             })
         .def(
             "dot",
-            [](const VectorBase& a, const std::shared_ptr<VectorBase>& b) -> py::object {
-                const DataType dt_a = a.get_data_type();
-                const DataType dt_b = b->get_data_type();
-                const bool complex =
-                    (dt_a == DataType::COMPLEX_FLOAT16 || dt_a == DataType::COMPLEX_FLOAT32 || dt_a == DataType::COMPLEX_FLOAT64 ||
-                     dt_b == DataType::COMPLEX_FLOAT16 || dt_b == DataType::COMPLEX_FLOAT32 || dt_b == DataType::COMPLEX_FLOAT64);
-                if (complex) {
-                    return py::cast(pycauset::dot_product_complex(a, *b));
-                }
-                return py::float_(pycauset::dot_product(a, *b));
-            },
+            [](const VectorBase& a, const std::shared_ptr<VectorBase>& b) { return vector_dot(a, *b); },
             py::arg("other"))
         .def(
             "__add__",
@@ -739,57 +780,7 @@ void bind_vector_classes(py::module_& m) {
                     auto out = pycauset::outer_product(a, *b, "");
                     return py::cast(std::shared_ptr<MatrixBase>(out.release()));
                 }
-                // Type-stable dot for integer-like vectors
-                if (auto* ai = dynamic_cast<const DenseVector<int32_t>*>(&a)) {
-                    if (auto* bi = dynamic_cast<const DenseVector<int32_t>*>(b.get())) {
-                        bindings_warn::warn_once_with_category(
-                            "pycauset.dot.accum_widen.int32",
-                            "pycauset dot: using int64 accumulator for int32 @ int32 to avoid intermediate overflow; raises on accumulator overflow.",
-                            "PyCausetDTypeWarning",
-                            /*stacklevel=*/3);
-                        int64_t sum = 0;
-                        for (uint64_t i = 0; i < a.size(); ++i) {
-                            int64_t term = static_cast<int64_t>(ai->get(i)) * static_cast<int64_t>(bi->get(i));
-                            sum = checked_add_int64(sum, term);
-                        }
-                        return py::int_(sum);
-                    }
-                }
-                if (auto* ai16 = dynamic_cast<const DenseVector<int16_t>*>(&a)) {
-                    if (auto* bi16 = dynamic_cast<const DenseVector<int16_t>*>(b.get())) {
-                        bindings_warn::warn_once_with_category(
-                            "pycauset.dot.accum_widen.int16",
-                            "pycauset dot: using int64 accumulator for int16 @ int16 to avoid intermediate overflow; raises on accumulator overflow.",
-                            "PyCausetDTypeWarning",
-                            /*stacklevel=*/3);
-                        int64_t sum = 0;
-                        for (uint64_t i = 0; i < a.size(); ++i) {
-                            int64_t term = static_cast<int64_t>(ai16->get(i)) * static_cast<int64_t>(bi16->get(i));
-                            sum = checked_add_int64(sum, term);
-                        }
-                        return py::int_(sum);
-                    }
-                }
-                if (auto* ab = dynamic_cast<const DenseVector<bool>*>(&a)) {
-                    if (auto* bb = dynamic_cast<const DenseVector<bool>*>(b.get())) {
-                        int64_t sum = 0;
-                        for (uint64_t i = 0; i < a.size(); ++i) {
-                            sum = checked_add_int64(sum, (ab->get(i) && bb->get(i)) ? 1 : 0);
-                        }
-                        return py::int_(sum);
-                    }
-                }
-
-                const DataType dt_a = a.get_data_type();
-                const DataType dt_b = b->get_data_type();
-                const bool complex =
-                    (dt_a == DataType::COMPLEX_FLOAT16 || dt_a == DataType::COMPLEX_FLOAT32 || dt_a == DataType::COMPLEX_FLOAT64 ||
-                     dt_b == DataType::COMPLEX_FLOAT16 || dt_b == DataType::COMPLEX_FLOAT32 || dt_b == DataType::COMPLEX_FLOAT64);
-                if (complex) {
-                    return py::cast(pycauset::dot_product_complex(a, *b));
-                }
-
-                return py::float_(pycauset::dot_product(a, *b));
+                return vector_dot(a, *b);
             },
             py::is_operator())
         .def(

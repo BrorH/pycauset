@@ -14,15 +14,18 @@ from __future__ import annotations
 
 import time
 
-import numpy as np
+# pycauset first: it sets OPENBLAS_THREAD_TIMEOUT / OMP_WAIT_POLICY defaults before NumPy's own
+# OpenBLAS loads. Otherwise NumPy's BLAS threads spin ~0.1 s after each NumPy call and slow the
+# pycauset call timed next 3x (FINDINGS F-012; docs "Performance and threads").
+import pycauset as pc  # noqa: I001
 
-import pycauset as pc
+import numpy as np
 
 N = 1024  # matrix ops
 NV = 1_000_000  # vector/memory-bound ops
 
 
-def best_time(fn, repeats=3):
+def best_time(fn, repeats=9):  # 3 is too noisy on a shared 4-vCPU machine
     best = float("inf")
     for _ in range(repeats):
         t0 = time.perf_counter()
@@ -52,10 +55,9 @@ def main() -> None:
     rows = []
 
     def _materialize(x):
-        try:
-            return np.asarray(x)
-        except Exception:
-            return x
+        # Force lazy results (LAZY.md) so the computation is timed; the NumPy export is timed
+        # separately ("export" row) instead of inside every op.
+        return pc.materialize(x) if getattr(x, "is_lazy", False) else x
 
     def run(name, np_fn, pc_fn):
         np_t = best_time(np_fn)
@@ -96,6 +98,7 @@ def main() -> None:
     run("multiply", lambda: A_np * B_np, lambda: A * B)
     run("determinant", lambda: np.linalg.det(spd_np), _pc_determinant)
     run("eigh", lambda: np.linalg.eigh(spd_np), lambda: pc.eigh(spd))
+    run("export", lambda: A_np.copy(), lambda: np.asarray(A))  # to NumPy (a copy) vs ndarray.copy
 
     print("-" * 62)
     fails = [r for r in rows if r[2] == "FAIL"]

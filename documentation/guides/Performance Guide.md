@@ -2,6 +2,25 @@
 
 PyCauset picks the fastest backend for your hardware through one **Compute Context**. This guide explains how the GPU acceleration works, how precision (Float32 vs Float64) is handled, and how to achieve maximum throughput.
 
+## Threads (CPU)
+
+PyCauset's element-wise kernels use OpenMP; matrix products, solves and decompositions use
+OpenBLAS/LAPACK. NumPy brings its own OpenBLAS. By default each of these thread pools keeps
+its threads spinning after a call (OpenBLAS for about 0.1 s), which starves whichever pool
+runs next: alternating NumPy and PyCauset calls could make either one ~3× slower.
+
+`import pycauset` therefore sets two defaults before any BLAS library loads (values you set
+yourself are kept):
+
+| variable | default set by PyCauset | effect |
+|---|---|---|
+| `OMP_WAIT_POLICY` | `PASSIVE` | OpenMP threads sleep instead of spinning between kernels |
+| `OPENBLAS_THREAD_TIMEOUT` | `4` | OpenBLAS threads stop spinning almost immediately |
+
+NumPy's OpenBLAS reads the variable when NumPy is first imported, so **import pycauset
+before numpy** (or export `OPENBLAS_THREAD_TIMEOUT=4` in your shell) to cover NumPy's
+threads as well.
+
 ## 1. GPU Acceleration
 
 PyCauset has a CUDA backend. It needs no configuration: it detects a compatible GPU on its own and falls back to the CPU when there is none.

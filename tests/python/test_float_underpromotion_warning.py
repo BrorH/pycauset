@@ -5,7 +5,7 @@ import pycauset
 
 
 class TestFloatUnderpromotionWarning(unittest.TestCase):
-    def test_mixed_float_matmul_warns_once(self):
+    def test_mixed_float_matmul_warns(self):
 
         a = pycauset.DenseMatrix(2, dtype="float32")
         b = pycauset.DenseMatrix(2, dtype="float64")
@@ -20,18 +20,16 @@ class TestFloatUnderpromotionWarning(unittest.TestCase):
             c1 = a @ b
             c2 = a @ b
 
-        # The warning is warn-once and may already have been emitted earlier in
-        # the test process, so we only require <= 1 hit here.
+        # Python's warnings filter owns deduplication: under "always" every call warns.
         hits = [
             str(item.message)
             for item in w
             if issubclass(item.category, getattr(pycauset, "PyCausetDTypeWarning", Warning))
             and "underpromotes to float32" in str(item.message)
         ]
-        self.assertLessEqual(len(hits), 1)
+        self.assertEqual(len(hits), 2)
 
-        # Regardless of whether the warning fired here, mixed float matmul should
-        # produce a float32 matrix by default.
+        # Mixed float matmul produces float32.
         self.assertTrue(isinstance(c1, pycauset.DenseMatrix) and c1.dtype == "float32")
         self.assertAlmostEqual(c1.get(0, 0), 2.0, places=5)
         self.assertAlmostEqual(c1.get(1, 1), 3.0, places=5)

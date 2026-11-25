@@ -2,7 +2,7 @@
 
 PyCauset is designed for **scale-first** workloads. As a result, we must be explicit when the runtime does something that is:
 
-- surprising (dtype underpromotion, accumulator widening),
+- surprising (a result dtype that differs from NumPy's, e.g. float32/float64 underpromotion),
 - potentially expensive (slow fallback paths), or
 - potentially unsafe (overflow risk).
 
@@ -14,7 +14,9 @@ This page defines the project-wide conventions for **user-facing warnings** and 
 
 Warnings are for cases where execution can continue correctly, but the user should be informed.
 
-- **Policy surprises** (e.g., underpromotion within floats, reduction accumulator widening)
+- **Policy surprises**: a result dtype that differs from NumPy's (float32/float64
+  underpromotion, bit + bit → int32). Internal details that don't change the result
+  (e.g. which accumulator a reduction uses) are not warned about.
 - **Lossy assignments** (e.g., narrowing or float→int casts)
 - **Advisory risk estimates** (e.g., the int32 matmul overflow estimate from sampled entries)
 
@@ -26,7 +28,8 @@ but no result (values, dtype, success/failure) may depend on one.
 Warnings should be:
 
 - **actionable** (tell the user what happened and what they can do),
-- **deduplicated** (warn-once policy),
+- **deduplicated by Python's warnings filter** (the default filter shows a warning once
+  per call site; `warnings.simplefilter("always")` shows every one),
 - **filterable** (PyCauset-specific warning categories).
 
 ### Raise exceptions when
@@ -46,7 +49,7 @@ PyCauset warnings must use a package-specific category so users can filter them 
 Defined in `python/pycauset/_internal/warnings.py` and re-exported from `pycauset`:
 
 - `pycauset.PyCausetWarning` (base)
-- `pycauset.PyCausetDTypeWarning` (promotion/accumulator dtype notifications)
+- `pycauset.PyCausetDTypeWarning` (result dtypes that differ from NumPy's)
 - `pycauset.PyCausetOverflowRiskWarning` (narrowing or float→int casts on assignment;
   advisory int32 matmul overflow estimate)
 - `pycauset.PyCausetPerformanceWarning` (slow-path / performance notifications)
@@ -65,16 +68,15 @@ Warnings should follow this format:
 - Start with `pycauset <op> ...`
 - Include **operation name** (e.g., `matmul`, `dot`)
 - Include **relevant dtypes / structures** (even if the current engine is only int32/float32/float64)
-- State what was changed:
-  - accumulator dtype,
-  - output dtype/storage behavior (explicitly say if it did *not* change)
+- State what was changed (output dtype/storage behavior)
 - State the reason (e.g., “reduction-aware integer width”, “heuristic bound indicates plausible overflow”)
 - Provide a mitigation hint when reasonable (e.g., scale inputs, use float output)
 
 Noise control requirements:
 
-- Use a **warn-once** mechanism keyed by a stable identifier (usually `op + dtype tuple`).
-- Prefer `stacklevel` so the warning points to user code.
+- Emit through `bindings_warn::warn_with_category` (C++) or `warnings.warn` (Python); never
+  keep a private "already warned" set: it would override the user's warnings filter.
+- Pass `stacklevel` so the warning points to user code (Python dedupes per call site).
 
 ### Storage/cache warning guidance
 
@@ -106,7 +108,7 @@ Goal: warnings must fire for the *real user entrypoints*, not only for convenien
 Rationale:
 
 - The binding funnel has enough context to format user-facing messages.
-- The kernel should remain tight; warnings there are hard to dedupe and may hurt performance.
+- The kernel should remain tight; warnings there have no useful stack level and may hurt performance.
 
 ## Exception conventions
 
@@ -131,11 +133,10 @@ Policy notes:
 
 ## Current implemented warnings
 
-- `int32 @ int32` matmul accumulator notification (`PyCausetDTypeWarning`)
+- bit + bit / bit @ bit promote to int32 (`PyCausetDTypeWarning`; NumPy keeps bool)
 - mixed `float32/float64` underpromotion notification (`PyCausetDTypeWarning`)
 - narrowing / float→int cast on assignment (`PyCausetOverflowRiskWarning`)
 - int32 @ int32 overflow estimate from sampled entries (`PyCausetOverflowRiskWarning`,
   advisory). Overflow itself is detected exactly (int64 accumulator, `OverflowError`
   when a result doesn't fit), whether or not the advisory fired.
 
-As dtype expansion progresses, these will generalize to the resolver-selected dtype tuples.

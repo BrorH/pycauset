@@ -290,3 +290,25 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - L2b: BitClosureMatrix (C±Cᵀ over bits), _set_lazy oracle, is_lazy, pc.materialize; test_closures.py (61 cases). 3,671 passed.
 - Closure matvec word-level: n=20000 top-6 PJ-like spectrum 1.8 s, 99 MB peak. eigvals_skew via zheevd (1.8x).
 - ASan+UBSan clean after closures/bit kernels/zheevd (engine suite 2,899 passed, 0 reports).
+
+## 2026-11-25 session 6
+- Investigation: arbitrary-width integer dtypes (features/BIT_PLANES.md). No new user dtypes;
+  F-055 (exact int matmul through float64 BLAS, 50x) is the bigger lever; bit planes later as
+  an internal encoding behind value bounds. F-054 bit ops word path restored.
+- Maintainer decisions: zeros/ones/empty default float64 with `dtype=` (F-041b done); tier-A
+  last-digit float differences accepted for laziness.
+- F-047/F-056 (eigen precision, float32 vectors), F-057 (RAM storage = anonymous memory;
+  element-wise 3x faster than NumPy here), gemv matvec (23.6 -> 1.6 ms).
+
+## 2026-11-25 session 7
+- F-012: thread-pool spinning (OpenMP + our OpenBLAS + NumPy's OpenBLAS) was the dominant
+  slowdown; `import pycauset` sets OMP_WAIT_POLICY / OPENBLAS_THREAD_TIMEOUT defaults.
+  Export 250 -> 0.56 ms; dot via BLAS. r2_parity: most ops 0.8-1.1x (determinant 0.68x open).
+  Benchmark no longer times an export inside every op.
+- Warnings: removed the C++ warn-once set (it overrode Python's filter: simplefilter("always")
+  could not re-enable a warning); removed accumulator-detail warnings (noise, no surprise).
+- F-051: integer dot is an exact Python int (`vector_dot`); `v @ u` for int32/int16 had ignored
+  the vector's factor (wrong result).
+- Found: vectors lack `/`, `v - s`, `s - v`, unary `-`, `abs`, element-wise `*` and `/`; vector
+  scalar ops turn int8/int64/uint* into float64 through double. Next: route vector ops through
+  the matrix machinery (a dense vector is an n x 1 matrix over the same storage).

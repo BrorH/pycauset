@@ -205,8 +205,21 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - **Status:** largely fixed (session 6). Root causes: RAM allocation zero-filled every page
   (F-057), views read per element (F-043), matvec had no BLAS path. 3000² float64, 4 vCPU
   (pycauset vs NumPy): A+B 5.7 vs 16.4 ms, A*B 6.8 vs 20.4, 2A+3B 13.6 vs 41.3, A.T+B 11.2 vs
-  23.7, A+1.5 5.8 vs 10.7, A@B 168 vs 179, A@v 1.6 vs 1.0–6.5 ms (gemv). Re-run
-  `benchmarks/r2_parity.py` (dot, invert, determinant) in the docs pass (PLAN 5.4).
+  23.7, A+1.5 5.8 vs 10.7, A@B 168 vs 179, A@v 1.6 vs 1.0–6.5 ms (gemv).
+- Session 7 (`benchmarks/r2_parity.py`, N=1024, best of 9, ±10% machine noise): matmul 0.87–0.92,
+  solve 0.91–0.93, invert 0.7–1.1, dot 1.0–1.8, add 0.9, multiply 0.8, **determinant 0.68**
+  (open), eigh 0.89–0.98, export 0.9–1.0. Three causes fixed:
+  * **Thread-pool spinning** (the dominant one): OpenMP, our OpenBLAS and NumPy's bundled
+    OpenBLAS share the cores and each spins after a call (OpenBLAS ~2^28 cycles ≈ 0.1 s). The
+    pool that runs next is starved: pycauset matmul 24 ms right after a NumPy call vs 8 ms
+    alone; NumPy's own matmul 1.7× slower next to us; a 1M dot 1–4 ms vs 0.1. `import pycauset`
+    now sets `OMP_WAIT_POLICY=PASSIVE` and `OPENBLAS_THREAD_TIMEOUT=4` defaults (user values
+    win) before any BLAS loads; NumPy's OpenBLAS is covered only when pycauset is imported
+    first (or the user sets the variable). Documented in the performance guide.
+  * Export: `np.asarray` 250 ms → 0.56 ms for 1024² (`export_generic`, one copy, F-048 family).
+  * dot: BLAS `ddot`/`dsdot` instead of an OpenMP reduction.
+  The benchmark used to time a NumPy export inside every op (now its own "export" row) and
+  imported NumPy first.
 - Original measurement:
 - Quiet-machine measurement, `benchmarks/r2_parity.py`, N=1024, 4 vCPU, pip Release
   build: matmul **0.32×**, invert 0.72×, determinant 0.60×, add 0.24×, multiply 0.32×,
@@ -646,9 +659,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Also fixed (session 5): element-wise ops with a non-dense integer operand (symmetric, triangular,
   diagonal) or a structured integer result read through double; now exact (`exact_int_reader`).
 - **Status:** matvec and vecmat fixed (session 5: exact integer path, wrapping 64-bit accumulation,
-  `cpu.matvec.int_exact` / `cpu.vecmat.int_exact`). **Open:** `pc.dot` and `pc.sum` return a
-  float/complex for integer inputs (NumPy returns an exact integer); fix with the single operator
-  path (4.3), which owns result types.
+  `cpu.matvec.int_exact` / `cpu.vecmat.int_exact`). Integer dot fixed (session 7): `pc.dot` and
+  `v @ u` share `vector_dot` (`bind_vector.cpp`): integer/bit operands give an exact Python `int`
+  (128-bit accumulation, integer view factors applied, `OverflowError` past 127 bits; bit·bit
+  keeps the popcount kernel). Before, `pc.dot` returned a float and `v @ u` for int32/int16
+  **ignored the vector's factor** (55 instead of 165 for a factor-3 view). **Open:** `pc.sum`
+  returns a float/complex for integer inputs (NumPy returns an exact integer).
 - Was: `M @ v` with int64 entries near 2**62 off by ~57; out-of-range double->int conversion in
   the fallback is undefined behaviour. Test: `tests/engine/test_int_scale_views.py` (matvec, vecmat).
 

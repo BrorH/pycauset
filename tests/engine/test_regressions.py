@@ -296,3 +296,24 @@ def test_F055_overflow_still_raises():
     x = pc.matrix(np.full((2, 2), 200, np.int16))
     with pytest.raises(OverflowError):
         x @ x
+
+
+@pytest.mark.parametrize("dtype", ["int8", "int16", "int32", "int64", "uint8", "uint64", "bool"])
+def test_F051_integer_dot_is_an_exact_int(dtype, rng):
+    a = rng.integers(0, 2 if dtype == "bool" else 100, 50).astype(dtype)
+    b = rng.integers(0, 2 if dtype == "bool" else 100, 50).astype(dtype)
+    exact = int(np.dot(a.astype(object), b.astype(object)))
+    for got in (pc.dot(pc.vector(a), pc.vector(b)), pc.vector(a) @ pc.vector(b)):
+        assert type(got) is int and got == exact  # reductions never wrap (DType System 5.1)
+
+
+def test_F051_integer_dot_applies_the_view_factor_and_is_exact_beyond_2_53():
+    v = pc.vector(np.arange(1, 6, dtype=np.int32))
+    w = pc.vector(np.arange(1, 6, dtype=np.int32))
+    w.scalar = 3  # an integer view: logical elements 3, 6, ...
+    assert pc.dot(w, v) == v @ w == 165
+    big = pc.vector(np.array([2**62, 3], dtype=np.int64))
+    assert pc.dot(big, pc.vector(np.array([3, -1], dtype=np.int64))) == 3 * 2**62 - 3
+    with pytest.raises(OverflowError):
+        huge = pc.vector(np.full(8, 2**64 - 1, dtype=np.uint64))
+        pc.dot(huge, huge)

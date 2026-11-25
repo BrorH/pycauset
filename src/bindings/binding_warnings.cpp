@@ -1,21 +1,9 @@
 #include "binding_warnings.hpp"
 
-#include <mutex>
-#include <unordered_set>
 
 namespace pycauset::bindings_warn {
 
 namespace {
-
-struct WarningOnceState {
-    std::mutex mutex;
-    std::unordered_set<std::string> seen;
-};
-
-WarningOnceState& warning_once_state() {
-    static WarningOnceState state;
-    return state;
-}
 
 py::object resolve_warning_category(const char* category_name) {
     try {
@@ -50,20 +38,9 @@ void warn(const char* message, int stacklevel) {
     warn_impl(message, "PyCausetWarning", stacklevel);
 }
 
-void warn_once_with_category(
-    const std::string& key,
-    const std::string& message,
-    const char* category_name,
-    int stacklevel) {
-    auto& state = warning_once_state();
-    {
-        std::lock_guard<std::mutex> lock(state.mutex);
-        if (state.seen.find(key) != state.seen.end()) {
-            return;
-        }
-        state.seen.insert(key);
-    }
-
+// Deduplication is Python's job: the default warnings filter shows each warning once per call
+// site, and users control it with warnings.simplefilter (a C++ "seen" set would override that).
+void warn_with_category(const std::string& message, const char* category_name, int stacklevel) {
     warn_impl(message.c_str(), category_name, stacklevel);
 }
 

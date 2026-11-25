@@ -3202,16 +3202,18 @@ double CpuSolver::dot(const VectorBase& a, const VectorBase& b) {
     auto* b_dbl = dynamic_cast<const DenseVector<double>*>(&b);
 
     if (a_dbl && b_dbl) {
+        // BLAS ddot: the former OpenMP reduction cost ~8 ms for 1M elements (thread-team
+        // start-up next to OpenBLAS's own pool); ddot ~0.1 ms. View factors multiply in.
         debug_trace::set_last("cpu.dot.f64");
-        const double* a_data = a_dbl->data();
-        const double* b_data = b_dbl->data();
-        
-        double sum = 0.0;
-        #pragma omp parallel for reduction(+:sum)
-        for (int64_t i = 0; i < (int64_t)n; ++i) {
-            sum += a_data[i] * b_data[i];
+        const double s = cblas_ddot(static_cast<int>(n), a_dbl->data(), 1, b_dbl->data(), 1);
+        return s * (a.get_scalar() * b.get_scalar()).real();
+    }
+    if (auto* a_f = dynamic_cast<const DenseVector<float>*>(&a)) {
+        if (auto* b_f = dynamic_cast<const DenseVector<float>*>(&b)) {
+            debug_trace::set_last("cpu.dot.f32");
+            const double s = cblas_dsdot(static_cast<int>(n), a_f->data(), 1, b_f->data(), 1);
+            return s * (a.get_scalar() * b.get_scalar()).real();
         }
-        return sum;
     }
     
     // 2. BitVector * BitVector (Popcount)
