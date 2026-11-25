@@ -1409,10 +1409,9 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
 
     // 3c. Mixed Integer (Int16/Int32) -> Int32
     // PromotionResolver selects int32 if either operand is int32.
-    if (c_i32 &&
-        ((a.get_data_type() == DataType::INT16 || a.get_data_type() == DataType::INT32) &&
-         (b.get_data_type() == DataType::INT16 || b.get_data_type() == DataType::INT32)) &&
-        !(a_i32 && b_i32)) {
+    // Dense operands only: the loop reads dense storage, a structured int16/int32 operand
+    // (triangular, symmetric, diagonal) was read as zeros (F-075).
+    if (c_i32 && (a_i32 || a_i16) && (b_i32 || b_i16) && !(a_i32 && b_i32)) {
         debug_trace::set_last("cpu.matmul.mixed_int_fallback_i32");
         const uint64_t m = a.rows();
         const uint64_t k = a.cols();

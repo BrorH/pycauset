@@ -857,3 +857,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - **Status:** fixed. `~` on a structured integer/bit matrix kept the structure (NumPy
   complements every element: the lower triangle and diagonal become True). Structured and
   viewed operands are written out before the bitwise kernel.
+
+### F-075 Structured int16/int32 operands were multiplied as zeros
+- **Status:** fixed (session 8). `TriangularMatrix(int32) @ DenseMatrix(int32)` (and
+  symmetric/diagonal int16/int32 operands) took `cpu.matmul.mixed_int_fallback_i32`, chosen
+  by dtype, which reads dense storage through `DenseMatrix` casts; a structured operand
+  failed the cast and contributed zeros. The kernel now requires dense operands; others take
+  the generic integer path (correct; slow, atlas ○).
+- Root cause class (see the session 8 LOG): kernels selected by one property (dtype) that
+  silently assume others (dense, plain). Planned cure: normalise at the boundary (PLAN).
