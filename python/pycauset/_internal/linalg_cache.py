@@ -27,8 +27,9 @@ def patch_matrixbase_save(native: Any, save_func: Any) -> None:
 
 
 def make_inverse(native: Any) -> Any:
-    def _float64_matrix(arr: Any) -> Any:
-        return native.asarray(np.ascontiguousarray(arr, dtype=np.float64))
+    def _as_matrix(arr: Any) -> Any:
+        # Keep NumPy's result dtype (complex inverses stay complex: F-059 family).
+        return native.asarray(np.ascontiguousarray(arr))
 
     def _inverse(self: Any, save: bool = False) -> Any:
         """Compute or retrieve cached inverse."""
@@ -82,7 +83,7 @@ def make_inverse(native: Any) -> Any:
                 # matrices backed by the new container (likely ignoring payload offsets).
                 # Until native inversion is made container-aware, force a NumPy inverse.
                 inv_np = np.linalg.inv(np.asarray(self))
-                inv = _float64_matrix(inv_np)
+                inv = _as_matrix(inv_np)
                 self._cached_inverse = inv
 
                 if save:
@@ -108,7 +109,7 @@ def make_inverse(native: Any) -> Any:
                 # (e.g., truly singular matrices).
                 try:
                     inv_np = np.linalg.inv(np.asarray(self))
-                    inv = _float64_matrix(inv_np)
+                    inv = _as_matrix(inv_np)
                 except Exception:
                     raise exc
         else:

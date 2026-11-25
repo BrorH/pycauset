@@ -178,8 +178,8 @@ class TestOperationsExtensive(unittest.TestCase):
     def test_zero_offset_view_elementwise(self):
         """Regression: elementwise ops on zero-offset submatrix views.
 
-        A [:3,:3] slice of a 5x5 parent is a view with has_view_offset()==False
-        but strided storage (base_cols()==5). The SIMD fast paths must not treat
+        A [:3,:3] slice of a 5x5 parent has no offset
+        but strided storage (base_cols()==5): a subview. The SIMD fast paths must not treat
         it as contiguous; they must fall back to element-wise access.
         """
         rng = np.random.default_rng(7)

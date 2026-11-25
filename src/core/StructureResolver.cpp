@@ -36,7 +36,7 @@ bool is_transpose_pair(const MatrixBase& a, const MatrixBase& b) {
     if (!a.shared_mapper() || a.shared_mapper() != b.shared_mapper()) return false;
     if (a.is_transposed() == b.is_transposed()) return false;
     if (a.get_scalar() != b.get_scalar() || a.is_conjugated() != b.is_conjugated()) return false;
-    if (a.has_view_offset() || b.has_view_offset()) return false;
+    if (a.is_subview() || b.is_subview()) return false;
     return a.rows() == a.cols() && a.rows() == a.base_rows() && a.cols() == a.base_cols();
 }
 

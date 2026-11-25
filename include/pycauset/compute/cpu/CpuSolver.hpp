@@ -52,8 +52,7 @@ public:
 
     double frobenius_norm(const MatrixBase& m);
 
-    double trace(const MatrixBase& m);
-    double determinant(const MatrixBase& m);
+    std::complex<double> determinant(const MatrixBase& m);
     void qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R);
     void lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U);
     void svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT);

@@ -379,7 +379,7 @@ public:
     }
 
     std::unique_ptr<DenseMatrix<T>> multiply(const DenseMatrix<T>& other, const std::string& result_file = "") const {
-        if (has_view_offset() || other.has_view_offset()) {
+        if (is_subview() || other.is_subview()) {
             throw std::runtime_error("matmul on views with offsets is not supported; materialize with copy() first");
         }
         if (cols() != other.rows()) {
@@ -392,7 +392,7 @@ public:
     }
 
     void inverse_to(DenseMatrix<T>& out) const {
-        if (has_view_offset() || out.has_view_offset()) {
+        if (is_subview() || out.is_subview()) {
             throw std::runtime_error("inverse on views with offsets is not supported; materialize with copy() first");
         }
         if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
@@ -410,7 +410,7 @@ public:
     }
 
     std::unique_ptr<DenseMatrix<T>> inverse(const std::string& result_file = "") const {
-        if (has_view_offset()) {
+        if (is_subview()) {
             throw std::runtime_error("inverse on views with offsets is not supported; materialize with copy() first");
         }
         if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
@@ -427,7 +427,7 @@ public:
 
     std::pair<std::unique_ptr<DenseMatrix<double>>, std::unique_ptr<DenseMatrix<double>>> qr(const std::string& q_file = "",
                                                                                               const std::string& r_file = "") const {
-        if (has_view_offset()) {
+        if (is_subview()) {
             throw std::runtime_error("QR on views with offsets is not supported; materialize with copy() first");
         }
         if constexpr (!std::is_same_v<T, double>) {
@@ -512,7 +512,7 @@ public:
 
     std::pair<std::unique_ptr<DenseMatrix<double>>, std::unique_ptr<DenseMatrix<double>>> lu(const std::string& l_file = "",
                                                                                               const std::string& u_file = "") const {
-        if (has_view_offset()) {
+        if (is_subview()) {
             throw std::runtime_error("LU on views with offsets is not supported; materialize with copy() first");
         }
         if constexpr (!std::is_same_v<T, double>) {

@@ -53,7 +53,7 @@ pytest always imports from `python/` (`pythonpath` in pyproject; F-029), so the 
 artifacts must sit next to the sources, as CI does. Fast dev loop (incremental, ~1 min
 after a C++ edit) using the `build/cpp` tree from the next section:
 ```bash
-cmake --build build/cpp --target _pycauset -j4
+cmake --build build/cpp --target _pycauset -j1   # -j2+ OOMs on this 15 GB container (session 7)
 cp build/cpp/_pycauset*.so build/cpp/libpycauset_core.so python/pycauset/
 python -m pytest -q -p no:cacheprovider --timeout=300      # old + new suites
 ```

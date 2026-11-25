@@ -728,3 +728,52 @@ the entry (the history is useful). New findings go at the bottom with the next f
   for vector-shaped results (`2*v` 6.4 -> 1.2 ms, NumPy ~0.8; int `3*v` 4.9 -> 0.8 ms).
 - Test: `tests/engine/test_vector_ops.py` (vector op == row-matrix op == NumPy values).
 
+
+### F-059 Complex trace/determinant dropped the imaginary part; triangular det was 0 for most dtypes
+- **Status:** fixed (session 7): `determinant` returns complex through the device chain
+  (no tolerance), triangular uses `TriangularMatrixBase::has_diagonal()`, LAPACK called
+  column-major (no transpose copy); `trace` in `math/Reductions.cpp` (exact int / float /
+  complex); the Python wrappers no longer swallow native errors into a NumPy fallback.
+- `pc.trace` and `pc.determinant` returned `double` all the way down (device interface), so a
+  complex matrix gave only the real part: det([[1+2j, 3], [0, 2]]) = 2.0 (NumPy 2+4j); every
+  complex trace lost its imaginary part. The complex-vs-real choice also used a tolerance on
+  the scalar's imaginary part (`> 1e-14`): guesswork deciding a result.
+- Triangular matrices with a diagonal: `determinant` looked up `has_diagonal()` only on the
+  float64 and int32 classes, so float32/int16/int64/uint8/... gave det = 0 (should be the
+  diagonal product).
+- Integer trace went through double (int64 precision).
+- Plan: trace into `math/Reductions.cpp` (exact int / float / complex); determinant returns
+  complex for complex dtypes; `TriangularMatrixBase::has_diagonal()`; LAPACK called
+  column-major on the row-major buffer (det(Aᵀ) = det(A)) to skip LAPACKE's transpose copy.
+
+### F-060 `A[1:4, 1:4] @ B` raised ("views with offsets not supported")
+- **Status:** fixed (session 7): `dispatch_matmul` writes windows out first. NumPy supports it; slices should be written out (or read
+  strided) by matmul itself. `inverse`, `qr`, `lu` accept slices.
+
+### F-061 Matmul ignored conjugation: `A.H @ B`, `A.conj() @ B` were wrong for complex matrices
+- **Status:** fixed (session 7; found by a linear-algebra × view probe vs NumPy).
+- The complex matmul kernels read raw storage (transposition and the scalar factor are
+  handled; the conjugation flag is not). `A.H @ B` (the Hermitian product used for
+  Pauli-Jordan / Wightman constructions) computed `A.T @ B`. Also wrong through it:
+  `matrix_power` and `pinv` of conjugated views.
+- Fix: `dispatch_matmul` writes conjugated (and windowed, F-060) operands out before the
+  kernels; an O(n^2) copy in front of O(n^3) work.
+
+### F-062 Linear-algebra kernels ignored view factors and windows (`eigvals(2*A)`, slices)
+- **Status:** fixed (session 7). Test: `tests/engine/test_linalg_views.py` (10 ops × 7 view
+  kinds × 4 dtypes vs NumPy). `eigvals(2 * A)` for float64 returned A's eigenvalues (the
+  O(1) scale view's factor was dropped). Zero-offset slices (`A[0:3, 0:3]`) were read as the
+  first 9 storage elements in `np.asarray`, `solve`, `svdvals`, `inv` (int path), ...:
+  `has_view_offset()` is false for a window that starts at (0, 0) but is narrower than its
+  storage, and ~25 call sites used it as "plain storage" (two had local patches).
+- Fix: `MatrixBase::is_subview()` (offset OR logical dims != storage dims) replaces
+  `has_view_offset()` everywhere; linear-algebra entry points (eig*, svd, solve, det, inverse,
+  qr, lu, cholesky) write any view (factor, conjugation, transpose, window) out before the
+  kernel, so kernels only ever see plain storage.
+
+### F-063 Smaller linear-algebra defects found by the same probe
+- `pc.invert` of a complex matrix returned float64 with the imaginary part dropped (the
+  Python inverse wrapper cast NumPy's fallback result to float64). **Fixed** (session 7).
+- `pinv` used Aᵀ instead of Aᴴ: wrong for rectangular complex matrices. **Fixed.**
+- Diagonal inverse: entries with |x| < 1e-12 became 0 instead of 1/x (a tolerance deciding a
+  result; an exact 0 should raise). **Fixed** (exact 0 raises).

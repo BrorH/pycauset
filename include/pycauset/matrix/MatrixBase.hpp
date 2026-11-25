@@ -71,7 +71,12 @@ public:
 
     std::shared_ptr<MemoryMapper> shared_mapper() const { return mapper_; }
 
-    bool has_view_offset() const { return row_offset_ != 0 || col_offset_ != 0; }
+    // A window into larger storage: offset, or fewer rows/cols than the storage. Kernels that
+    // read storage directly must treat a subview as non-plain (a [0:3, 0:3] window has no
+    // offset but a different row stride: F-062).
+    bool is_subview() const {
+        return row_offset_ != 0 || col_offset_ != 0 || logical_rows_ != get_rows() || logical_cols_ != get_cols();
+    }
 
     virtual double get_element_as_double(uint64_t i, uint64_t j) const = 0;
     

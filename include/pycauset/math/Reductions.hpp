@@ -1,5 +1,5 @@
 #pragma once
-// Whole-array reductions with NumPy's result kinds (FINDINGS F-051).
+// Reductions with NumPy's result kinds (FINDINGS F-051, F-059).
 //
 //   integer / bit input -> exact integer (128-bit accumulation; view factors applied with
 //                          NumPy's element wrap; std::overflow_error beyond 127 bits)
@@ -26,6 +26,7 @@ struct ReductionValue {
 };
 
 ReductionValue sum(const MatrixBase& m);
+ReductionValue trace(const MatrixBase& m);  // sum of the main diagonal, same result kinds
 ReductionValue sum(const VectorBase& v);
 
 }  // namespace pycauset

@@ -1,5 +1,6 @@
 #include "pycauset/math/Reductions.hpp"
 
+#include <algorithm>
 #include <bit>
 #include <stdexcept>
 #include <type_traits>
@@ -135,7 +136,7 @@ ReductionValue sum(const MatrixBase& m) {
     }
 
     // Bit storage: popcount when the storage is the plain full matrix.
-    if (dt == DataType::BIT && f == std::complex<double>(1.0, 0.0) && !m.has_view_offset() &&
+    if (dt == DataType::BIT && f == std::complex<double>(1.0, 0.0) && !m.is_subview() &&
         m.rows() * m.cols() == m.base_rows() * m.base_cols()) {
         if (const auto* t = dynamic_cast<const TriangularMatrix<bool>*>(&m)) {
             out.kind = ReductionValue::Kind::Int;
@@ -184,7 +185,7 @@ ReductionValue sum(const MatrixBase& m) {
             } else {
                 const uint64_t cols = m.cols();
                 const bool contiguous = std::is_same_v<M, DenseMatrix<T>> && !m.is_transposed() &&
-                                        !m.has_view_offset() && cols == m.base_cols();
+                                        !m.is_subview() && cols == m.base_cols();
                 return k * sum_rows<double>(m.rows(), [&](uint64_t i) {
                     double acc = 0.0;
                     if constexpr (std::is_same_v<M, DenseMatrix<T>>) {
@@ -205,6 +206,41 @@ ReductionValue sum(const MatrixBase& m) {
     // float16 and complex: the virtual accessor applies every view.
     // Integer matrices with a non-integer factor are real-valued: float result.
     return sum_generic(m);
+}
+
+ReductionValue trace(const MatrixBase& m) {
+    const uint64_t n = std::min(m.rows(), m.cols());
+    const DataType dt = m.get_data_type();
+    const std::complex<double> f = m.get_scalar();
+    const bool int_like = dt != DataType::BIT && !is_float_dtype(dt) && !is_complex_dtype(dt);
+    ReductionValue out;
+    if ((int_like && !m.is_conjugated() && scalar::is_exact_int_factor(f)) ||
+        (dt == DataType::BIT && f == std::complex<double>(1.0, 0.0))) {
+        const int64_t k = int_like ? static_cast<int64_t>(f.real()) : 1;
+        out.kind = ReductionValue::Kind::Int;
+        out.i = visit_matrix(m, [&](const auto& typed) -> __int128 {
+            using T = std::decay_t<decltype(typed.get(0, 0))>;
+            if constexpr (!std::is_integral_v<T>) {
+                throw std::logic_error("trace: integer path on a non-integer matrix");
+            } else {
+                __int128 acc = 0;
+                for (uint64_t i = 0; i < n; ++i) {
+                    if constexpr (std::is_same_v<T, bool>) acc += typed.get(i, i) ? 1 : 0;
+                    else acc = checked_add(acc, scalar::wrap_scale<T>(typed.get(i, i), k));
+                }
+                return acc;
+            }
+        });
+        return out;
+    }
+    if (is_complex_dtype(dt) || f.imag() != 0.0) {
+        out.kind = ReductionValue::Kind::Complex;
+        for (uint64_t i = 0; i < n; ++i) out.c += m.get_element_as_complex(i, i);
+        return out;
+    }
+    out.kind = ReductionValue::Kind::Real;
+    for (uint64_t i = 0; i < n; ++i) out.r += m.get_element_as_double(i, i);
+    return out;
 }
 
 ReductionValue sum(const VectorBase& v) {

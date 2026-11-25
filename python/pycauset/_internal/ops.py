@@ -1190,9 +1190,9 @@ def solve_triangular(*_args: Any, **_kwargs: Any) -> Any:
 def pinv(a: Any, *, deps: OpsDeps) -> Any:
     """Moore-Penrose pseudoinverse (baseline).
 
-    Uses the normal equations:
-    - tall/square (`rows >= cols`): (A^T A)^-1 A^T
-    - wide (`rows < cols`):          A^T (A A^T)^-1
+    Uses the normal equations (Aᴴ = conjugate transpose):
+    - tall/square (`rows >= cols`): (Aᴴ A)^-1 Aᴴ
+    - wide (`rows < cols`):          Aᴴ (A Aᴴ)^-1
 
     This matches the `lstsq` baseline (normal equations) and is numerically less
     stable than an SVD-based pinv. Falls back to NumPy's SVD-based `pinv` when the
@@ -1203,11 +1203,9 @@ def pinv(a: Any, *, deps: OpsDeps) -> Any:
     shape = _safe_rows_cols(a)
     if shape is not None:
         rows, cols = shape
-        a_t = getattr(a, "T", None)
-        if a_t is None:
-            a_t = getattr(a, "transpose", None)
-            if callable(a_t):
-                a_t = a_t()
+        # Conjugate transpose (Aᴴ): for complex A the normal equations need it (F-063).
+        is_complex = "complex" in str(getattr(a, "dtype", ""))
+        a_t = getattr(a, "H" if is_complex else "T", None)
         if a_t is not None:
             try:
                 if rows >= cols:
@@ -1233,43 +1231,19 @@ def pinv(a: Any, *, deps: OpsDeps) -> Any:
 
 
 def trace(a: Any, *, deps: OpsDeps) -> Any:
-    """Return the sum of the diagonal elements."""
-    rec = _record_io_trace("trace", [a], deps=deps)
-    _prefetch_if_streaming(rec, [a], deps=deps)
-
-    # Native method or property
-    fn = getattr(a, "trace", None)
-    if callable(fn):
-        try:
-            return fn()
-        except Exception:
-            pass
-
-    # NumPy Fallback
-    np_module = deps.np_module
-    if np_module:
-        return np_module.trace(_to_numpy_matrix(a, deps=deps))
-    return 0.0
+    """Sum of the diagonal: exact int for integer matrices, float, or complex (F-059)."""
+    _record_io_trace("trace", [a], deps=deps)
+    if isinstance(a, deps.native.MatrixBase):
+        return a.trace()
+    return deps.np_module.trace(_to_numpy_matrix(a, deps=deps))
 
 
 def determinant(a: Any, *, deps: OpsDeps) -> Any:
-    """Return the determinant of a square matrix."""
-    rec = _record_io_trace("determinant", [a], deps=deps)
-    _prefetch_if_streaming(rec, [a], deps=deps)
-
-    # Native method
-    fn = getattr(a, "determinant", None)
-    if callable(fn):
-        try:
-            return fn()
-        except Exception:
-            pass
-
-    # NumPy Fallback
-    np_module = deps.np_module
-    if np_module:
-        return np_module.linalg.det(_to_numpy_matrix(a, deps=deps))
-    return 0.0
+    """Determinant of a square matrix: complex for complex matrices, else float (F-059)."""
+    _record_io_trace("determinant", [a], deps=deps)
+    if isinstance(a, deps.native.MatrixBase):
+        return a.determinant()
+    return deps.np_module.linalg.det(_to_numpy_matrix(a, deps=deps))
 
 
 def norm(x: Any, ord: Any = None, *, deps: OpsDeps) -> float:

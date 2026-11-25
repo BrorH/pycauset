@@ -82,7 +82,7 @@ static std::unique_ptr<MatrixBase> try_bit_closure(const MatrixBase& a, const Ma
     if (!a.shared_mapper() || a.shared_mapper() != b.shared_mapper()) return nullptr;
     if (a.is_transposed() == b.is_transposed()) return nullptr;
     if (a.get_scalar() != std::complex<double>(1.0, 0.0) || b.get_scalar() != std::complex<double>(1.0, 0.0)) return nullptr;
-    if (a.has_view_offset() || b.has_view_offset()) return nullptr;
+    if (a.is_subview() || b.is_subview()) return nullptr;
     if (promotion::resolve(sign_op > 0 ? promotion::BinaryOp::Add : promotion::BinaryOp::Subtract,
                            DataType::BIT, DataType::BIT).result_dtype != DataType::INT32) return nullptr;
     auto out = std::make_unique<BitClosureMatrix>(a.rows(), a.shared_mapper(), sign_op);
@@ -385,6 +385,22 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
 
     if (a.cols() != b.rows()) {
         throw std::invalid_argument("Dimension mismatch");
+    }
+
+    // The kernels read storage with transposition and fold scalar factors, but not
+    // conjugation or windows: write such operands out first (F-060, F-061).
+    {
+        auto needs_copy = [](const MatrixBase& m) {
+            const DataType d = m.get_data_type();
+            const bool cplx = d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 ||
+                              d == DataType::COMPLEX_FLOAT64;
+            return m.is_subview() || (m.is_conjugated() && cplx);
+        };
+        if (needs_copy(a) || needs_copy(b)) {
+            auto pa = needs_copy(a) ? write_out(a) : nullptr;
+            auto pb = needs_copy(b) ? write_out(b) : nullptr;
+            return dispatch_matmul(pa ? *pa : a, pb ? *pb : b, std::move(saveas));
+        }
     }
 
     // Try to cast to known types
@@ -698,6 +714,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
 }
 
 std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& result_file) {
+    if (!is_plain(a)) return cholesky(*write_out(a), result_file);  // kernels read storage (F-062)
     if (a.rows() != a.cols()) {
         throw std::invalid_argument("cholesky: matrix must be square");
     }
@@ -714,6 +731,7 @@ std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& res
 
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a, const std::string& result_file)
 {
+    if (!is_plain(a)) return lu(*write_out(a), result_file);  // kernels read storage (F-062)
     // LU decomposition: A = P * L * U
     // For now we assume typical behavior where P, L, U are returned.
     // Dimensions: A is (M, N). P is (M, M), L is (M, K), U is (K, N) where K = min(M, N).
@@ -744,6 +762,7 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique
 
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const MatrixBase& a, const std::string& result_file)
 {
+    if (!is_plain(a)) return qr(*write_out(a), result_file);  // kernels read storage (F-062)
     uint64_t m = a.rows();
     uint64_t n = a.cols();
     uint64_t k = std::min(m, n);
@@ -761,6 +780,7 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const Ma
 
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(const MatrixBase& a, const std::string& result_file)
 {
+    if (!is_plain(a)) return svd(*write_out(a), result_file);  // kernels read storage (F-062)
     uint64_t m = a.rows();
     uint64_t n = a.cols();
     uint64_t k = std::min(m, n);
@@ -788,6 +808,11 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique
 
 std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, const std::string& result_file)
 {
+    if (!is_plain(a) || !is_plain(b)) {  // kernels read storage (F-062)
+        auto pa = is_plain(a) ? nullptr : write_out(a);
+        auto pb = is_plain(b) ? nullptr : write_out(b);
+        return solve(pa ? *pa : a, pb ? *pb : b, result_file);
+    }
     if (a.rows() != a.cols()) {
         throw std::invalid_argument("solve: coefficient matrix 'a' must be square");
     }
@@ -931,6 +956,7 @@ static std::unique_ptr<MatrixBase> narrow_matrix(std::unique_ptr<MatrixBase> m, 
 }
 
 std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in, const std::string& result_file) {
+    if (!is_plain(in)) return eig(*write_out(in), result_file);  // kernels read storage (F-062)
     if (auto d = as_double_precision(in)) {
         auto r = eig(*d, result_file);
         return {narrow_vector(std::move(r.first), is_single_precision(in)), narrow_matrix(std::move(r.second), is_single_precision(in))};
@@ -947,6 +973,7 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const Ma
 }
 
 std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string& result_file) {
+    if (!is_plain(in)) return eigvals(*write_out(in), result_file);  // kernels read storage (F-062)
     if (auto d = as_double_precision(in)) return narrow_vector(eigvals(*d, result_file), is_single_precision(in));
     if (in.rows() != in.cols()) {
         throw std::invalid_argument("eigvals: matrix must be square");
@@ -958,6 +985,7 @@ std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string& res
 }
 
 std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in, const std::string& result_file) {
+    if (!is_plain(in)) return eigh(*write_out(in), result_file);  // kernels read storage (F-062)
     if (auto d = as_double_precision(in)) {
         auto r = eigh(*d, result_file);
         return {narrow_vector(std::move(r.first), is_single_precision(in)), narrow_matrix(std::move(r.second), is_single_precision(in))};
@@ -980,6 +1008,7 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const M
 }
 
 std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string& result_file) {
+    if (!is_plain(in)) return eigvalsh(*write_out(in), result_file);  // kernels read storage (F-062)
     if (auto d = as_double_precision(in)) return narrow_vector(eigvalsh(*d, result_file), is_single_precision(in));
     if (in.rows() != in.cols()) {
         throw std::invalid_argument("eigvalsh: matrix must be square");

@@ -340,7 +340,7 @@ struct TypedReader {
 
 template <typename R, typename In, typename Src>
 std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKind op, const ScalarArg& s,
-                                bool triangular_in, bool has_diag) {
+                                bool triangular_in, bool has_diag, bool keep_structure) {
     const uint64_t rows = a.rows(), cols = a.cols();
     const R sv = scalar_as<R>(s);
     TypedReader<In, Src> read{src, int_view_factor(a), is_real_float(a.get_data_type()) ? a.get_scalar().real() : 1.0};
@@ -348,7 +348,7 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
     // Triangular results for every real element type (each has a Python class since the
     // structure classes, F-032); complex results become dense.
     constexpr bool tri_capable = !std::is_same_v<R, std::complex<float>> && !std::is_same_v<R, std::complex<double>>;
-    if constexpr (tri_capable) if (triangular_in && preserves_zero(op, s)) {
+    if constexpr (tri_capable) if (keep_structure && triangular_in && preserves_zero(op, s)) {
         auto out = std::make_unique<TriangularMatrix<R>>(rows, std::string(), has_diag);
         const bool lower = a.is_transposed();
         out->set_transposed(lower);
@@ -366,7 +366,7 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
     // A == -A^T. Keeping the structure here makes the eager result the same class as the
     // lazy view (LAZY.md section 2; found by the PYCAUSET_LAZY=0 oracle run).
     if constexpr (is_symmetric_src_v<Src> && !std::is_same_v<R, std::complex<float>> &&
-                  !std::is_same_v<R, std::complex<double>>) {
+                  !std::is_same_v<R, std::complex<double>>) if (keep_structure) {
         const bool anti = a.get_structure() == Structure::ANTISYMMETRIC;
         if (!anti || preserves_zero(op, s)) {
             auto out = std::make_unique<SymmetricMatrix<R>>(rows, std::string(), anti);
@@ -386,7 +386,7 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
     // op fixed at compile time. Same arithmetic as the general loop below. Limited to R == In
     // to keep the instantiation count (and compile memory) small.
     if constexpr (std::is_same_v<Src, DenseMatrix<In>> && std::is_same_v<R, In> && !std::is_same_v<In, bool>) {
-        if (!a.is_transposed() && !a.has_view_offset() && cols == a.base_cols()) {
+        if (!a.is_transposed() && !a.is_subview() && cols == a.base_cols()) {
             const In* p = src.data();
             auto loop = [&](auto op_c) {
                 constexpr ScalarOpKind O = decltype(op_c)::value;
@@ -446,7 +446,8 @@ std::unique_ptr<MatrixBase> run_generic(const MatrixBase& a, ScalarOpKind op, co
 
 // Dispatch on the concrete input class for a fixed result type R.
 template <typename R>
-std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s) {
+std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s,
+                                           bool keep_structure) {
     // Typed paths read the factor themselves: an exact integer factor for integer inputs, a
     // real factor for float32/float64 inputs (conjugation is a no-op on real values). Other
     // views (complex factors, bit with a factor) use the generic accessor.
@@ -457,10 +458,10 @@ std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op,
                      : (is_real_float(dt) && sc.imag() == 0.0);
 #define PYCAUSET_TRY_DENSE(T)                                                              \
     if (auto* m = dynamic_cast<const DenseMatrix<T>*>(&a); m && plain)                    \
-        return run<R, T>(*m, a, op, s, false, false);
+        return run<R, T>(*m, a, op, s, false, false, keep_structure);
 #define PYCAUSET_TRY_TRI(T)                                                                \
     if (auto* m = dynamic_cast<const TriangularMatrix<T>*>(&a); m && plain)               \
-        return run<R, T>(*m, a, op, s, true, m->has_diagonal());
+        return run<R, T>(*m, a, op, s, true, m->has_diagonal(), keep_structure);
     PYCAUSET_TRY_DENSE(bool)
     PYCAUSET_TRY_DENSE(int8_t) PYCAUSET_TRY_DENSE(int16_t) PYCAUSET_TRY_DENSE(int32_t) PYCAUSET_TRY_DENSE(int64_t)
     PYCAUSET_TRY_DENSE(uint8_t) PYCAUSET_TRY_DENSE(uint16_t) PYCAUSET_TRY_DENSE(uint32_t) PYCAUSET_TRY_DENSE(uint64_t)
@@ -471,7 +472,7 @@ std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op,
     PYCAUSET_TRY_TRI(float) PYCAUSET_TRY_TRI(double)
 #define PYCAUSET_TRY_SYM(T)                                                                \
     if (auto* m = dynamic_cast<const SymmetricMatrix<T>*>(&a); m && plain && is_int(a.get_data_type())) \
-        return run<R, T>(*m, a, op, s, false, false);
+        return run<R, T>(*m, a, op, s, false, false, keep_structure);
     PYCAUSET_TRY_SYM(int8_t) PYCAUSET_TRY_SYM(int16_t) PYCAUSET_TRY_SYM(int32_t) PYCAUSET_TRY_SYM(int64_t)
     PYCAUSET_TRY_SYM(uint8_t) PYCAUSET_TRY_SYM(uint16_t) PYCAUSET_TRY_SYM(uint32_t) PYCAUSET_TRY_SYM(uint64_t)
 #undef PYCAUSET_TRY_SYM
@@ -480,20 +481,21 @@ std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op,
     return run_generic<R>(a, op, s);
 }
 
-std::unique_ptr<MatrixBase> run_exact(const MatrixBase& a, DataType out, ScalarOpKind op, const ScalarArg& s) {
+std::unique_ptr<MatrixBase> run_exact(const MatrixBase& a, DataType out, ScalarOpKind op, const ScalarArg& s,
+                                      bool keep_structure = true) {
     switch (out) {
-        case DataType::INT8: return run_for_result<int8_t>(a, op, s);
-        case DataType::INT16: return run_for_result<int16_t>(a, op, s);
-        case DataType::INT32: return run_for_result<int32_t>(a, op, s);
-        case DataType::INT64: return run_for_result<int64_t>(a, op, s);
-        case DataType::UINT8: return run_for_result<uint8_t>(a, op, s);
-        case DataType::UINT16: return run_for_result<uint16_t>(a, op, s);
-        case DataType::UINT32: return run_for_result<uint32_t>(a, op, s);
-        case DataType::UINT64: return run_for_result<uint64_t>(a, op, s);
-        case DataType::FLOAT32: return run_for_result<float>(a, op, s);
-        case DataType::FLOAT64: return run_for_result<double>(a, op, s);
-        case DataType::COMPLEX_FLOAT32: return run_for_result<std::complex<float>>(a, op, s);
-        case DataType::COMPLEX_FLOAT64: return run_for_result<std::complex<double>>(a, op, s);
+        case DataType::INT8: return run_for_result<int8_t>(a, op, s, keep_structure);
+        case DataType::INT16: return run_for_result<int16_t>(a, op, s, keep_structure);
+        case DataType::INT32: return run_for_result<int32_t>(a, op, s, keep_structure);
+        case DataType::INT64: return run_for_result<int64_t>(a, op, s, keep_structure);
+        case DataType::UINT8: return run_for_result<uint8_t>(a, op, s, keep_structure);
+        case DataType::UINT16: return run_for_result<uint16_t>(a, op, s, keep_structure);
+        case DataType::UINT32: return run_for_result<uint32_t>(a, op, s, keep_structure);
+        case DataType::UINT64: return run_for_result<uint64_t>(a, op, s, keep_structure);
+        case DataType::FLOAT32: return run_for_result<float>(a, op, s, keep_structure);
+        case DataType::FLOAT64: return run_for_result<double>(a, op, s, keep_structure);
+        case DataType::COMPLEX_FLOAT32: return run_for_result<std::complex<float>>(a, op, s, keep_structure);
+        case DataType::COMPLEX_FLOAT64: return run_for_result<std::complex<double>>(a, op, s, keep_structure);
         default:
             throw std::invalid_argument("scalar operation: unsupported result dtype " + dtype_name(out));
     }
@@ -582,6 +584,25 @@ std::unique_ptr<MatrixBase> negate(const MatrixBase& a) {
         return run_exact(a, a.get_data_type(), ScalarOpKind::Mul, minus_one);
     }
     return a.multiply_scalar(-1.0);
+}
+
+bool is_plain(const MatrixBase& a) {
+    return !a.is_transposed() && !a.is_subview() && a.get_scalar() == std::complex<double>(1.0, 0.0) &&
+           !(a.is_conjugated() && is_complex(a.get_data_type()));
+}
+
+std::unique_ptr<MatrixBase> write_out(const MatrixBase& a) {
+    const DataType dt = a.get_data_type();
+    const uint64_t rows = a.rows(), cols = a.cols();
+    if (dt == DataType::BIT) {
+        auto out = std::make_unique<DenseMatrix<bool>>(rows, cols, std::string());
+        for (uint64_t i = 0; i < rows; ++i) {
+            for (uint64_t j = 0; j < cols; ++j) out->set(i, j, a.get_element_as_double(i, j) != 0.0);
+        }
+        return out;
+    }
+    if (dt == DataType::FLOAT16 || dt == DataType::COMPLEX_FLOAT16) return cast_to(a, dt);  // dense
+    return run_exact(a, dt, ScalarOpKind::Mul, ScalarArg::from_int64(1), /*keep_structure=*/false);
 }
 
 std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt) {

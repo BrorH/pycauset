@@ -1,13 +1,13 @@
 #pragma once
 
+#include <complex>
+
 #include "pycauset/matrix/MatrixBase.hpp"
 
 namespace pycauset {
 
-// Returns trace of the matrix
-double trace(const MatrixBase& matrix);
-
-// Returns determinant of the matrix
-double determinant(const MatrixBase& matrix);
+// Determinant: complex for complex inputs (or a complex view factor), otherwise the real
+// value in the real part. (trace lives with the other reductions in math/Reductions.hpp.)
+std::complex<double> determinant(const MatrixBase& matrix);
 
 }

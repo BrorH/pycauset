@@ -321,3 +321,11 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - F-051 closed: `pc.sum` (`math/Reductions.cpp`) returns NumPy kinds (exact int / float /
   complex), deterministic float order, popcount for bit storage (|C| n=20,000 in 2 ms), O(1)
   for closures; old device/solver sum (complex, OpenMP reduction, virtual per element) deleted.
+- Linear algebra × views probe found F-059..F-063 (complex det/trace/inverse lost imaginary
+  parts; matmul ignored conjugation incl. A.H @ B; eigvals ignored scale views; zero-offset
+  windows read as contiguous in export/solve/svd; triangular det 0 for most dtypes). Fixed at
+  the root: `is_subview()` replaces `has_view_offset()`, `write_out`/`is_plain`, LA entry
+  guards. test_linalg_views.py (287 cases).
+- Maintainer: the recurring "op X on dtype/structure/view Y is wrong or slow" class must be
+  catalogued exhaustively, not found by accident: PLAN Phase C (operation atlas).
+- Build note: the normal build OOMs at -j2 now (CpuSolver + ScalarOps); use -j1.

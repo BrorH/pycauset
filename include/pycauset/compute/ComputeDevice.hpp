@@ -60,8 +60,7 @@ public:
     virtual double frobenius_norm(const MatrixBase& m) = 0;
 
     // Linalg utilities
-    virtual double trace(const MatrixBase& m) = 0;
-    virtual double determinant(const MatrixBase& m) = 0;
+    virtual std::complex<double> determinant(const MatrixBase& m) = 0;
 
     // Factorizations
     // Computes a QR factorization of `in` into `Q` and `R`.

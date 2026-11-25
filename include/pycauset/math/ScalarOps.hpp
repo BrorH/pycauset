@@ -66,4 +66,12 @@ std::unique_ptr<MatrixBase> negate(const MatrixBase& a);
 // values). Used to promote operands of mixed-dtype ops to the resolved result dtype.
 std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt);
 
+// No view metadata a kernel could ignore: not transposed, not a window, factor 1, and not a
+// conjugated complex matrix. (Structure may be anything.)
+bool is_plain(const MatrixBase& a);
+
+// Dense copy of a's logical values in a's dtype (factor, conjugation, transpose and window
+// applied; bit stays bit). For kernels that read storage directly (F-061, F-062).
+std::unique_ptr<MatrixBase> write_out(const MatrixBase& a);
+
 }  // namespace pycauset

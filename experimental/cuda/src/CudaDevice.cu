@@ -208,12 +208,8 @@ std::complex<double> CudaDevice::dot_complex(const VectorBase& a, const VectorBa
 
 
 
-double CudaDevice::trace(const MatrixBase& m) {
-    (void)m;
-    throw std::runtime_error("CudaDevice::trace not implemented");
-}
 
-double CudaDevice::determinant(const MatrixBase& m) {
+std::complex<double> CudaDevice::determinant(const MatrixBase& m) {
     (void)m;
     throw std::runtime_error("CudaDevice::determinant not implemented");
 }

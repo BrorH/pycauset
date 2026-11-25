@@ -19,7 +19,7 @@ namespace {
 // direct kernels, which honour view metadata and still work out of core through mmap
 // paging (slower), instead of producing wrong values or throwing mid-operation.
 bool plain_view(const MatrixBase& m) {
-    return !m.is_transposed() && !m.has_view_offset() && !m.is_conjugated() &&
+    return !m.is_transposed() && !m.is_subview() && !m.is_conjugated() &&
            m.get_scalar() == std::complex<double>(1.0, 0.0) &&
            m.get_structure() == Structure::DENSE;
 }
@@ -178,11 +178,8 @@ double CpuDevice::frobenius_norm(const MatrixBase& m) {
 }
 
 
-double CpuDevice::trace(const MatrixBase& m) {
-    return solver_.trace(m);
-}
 
-double CpuDevice::determinant(const MatrixBase& m) {
+std::complex<double> CpuDevice::determinant(const MatrixBase& m) {
     return solver_.determinant(m);
 }
 

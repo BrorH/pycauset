@@ -1,4 +1,5 @@
 #pragma once
+#include "pycauset/math/Reductions.hpp"
 // Python value -> matrix/vector element, with NumPy assignment semantics: integers must fit
 // the dtype (error otherwise, as NumPy 2); floats assigned to integer dtypes truncate toward
 // zero; complex values can't go into real dtypes; bit dtypes take 0/1/False/True only.
@@ -88,6 +89,17 @@ inline py::object int128_to_py(__int128 v) {
     py::object out = py::int_(static_cast<uint64_t>(mag >> 64)).attr("__lshift__")(64).attr("__or__")(
         py::int_(static_cast<uint64_t>(mag)));
     return neg ? out.attr("__neg__")() : out;
+}
+
+// NumPy result kinds of a reduction: exact int for integer/bit, float for real, complex for
+// complex (F-051, F-059).
+inline py::object reduction_to_py(const pycauset::ReductionValue& r) {
+    switch (r.kind) {
+        case pycauset::ReductionValue::Kind::Int: return int128_to_py(r.i);
+        case pycauset::ReductionValue::Kind::Real: return py::float_(r.r);
+        case pycauset::ReductionValue::Kind::Complex: return py::cast(r.c);
+    }
+    return py::none();
 }
 
 }  // namespace pycauset_bindings

@@ -789,12 +789,8 @@ double AutoSolver::frobenius_norm(const MatrixBase& m) {
 }
 
 
-double AutoSolver::trace(const MatrixBase& m) {
-    // Always CPU for now
-    return cpu_device_->trace(m);
-}
 
-double AutoSolver::determinant(const MatrixBase& m) {
+std::complex<double> AutoSolver::determinant(const MatrixBase& m) {
     // Always CPU for now
     return cpu_device_->determinant(m);
 }

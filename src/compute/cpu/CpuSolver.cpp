@@ -299,17 +299,8 @@ namespace {
         if (auto* rd = dynamic_cast<DenseMatrix<T>*>(&result)) {
             if (auto* ad = dynamic_cast<const DenseMatrix<T>*>(&a)) {
                 if (auto* bd = dynamic_cast<const DenseMatrix<T>*>(&b)) {
-                    // Check for contiguous memory layout. A matrix is only safe
-                    // to process as a raw flat pointer when it is a full span:
-                    // non-transposed, zero offset, AND its logical shape equals
-                    // its storage shape. A zero-offset submatrix view (e.g. a
-                    // [:3,:3] slice of a 5x5 parent) has has_view_offset()==false
-                    // but is strided (storage uses base_cols()), so it must fall
-                    // back to the element-wise path.
-                    auto full_span = [](const DenseMatrix<T>* m) {
-                        return !m->is_transposed() && !m->has_view_offset() &&
-                               m->rows() == m->base_rows() && m->cols() == m->base_cols();
-                    };
+                    // Raw flat pointers only for full spans (not transposed, not a window).
+                    auto full_span = [](const DenseMatrix<T>* m) { return !m->is_transposed() && !m->is_subview(); };
                     bool is_contiguous = full_span(rd) && full_span(ad) && full_span(bd);
                                          
                     if (is_contiguous &&
@@ -1149,7 +1140,7 @@ bool int_matmul_via_dgemm(const MatrixBase& a, const MatrixBase& b, DenseMatrix<
 template <typename R>
 bool try_int_matmul_via_dgemm(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     auto* c = dynamic_cast<DenseMatrix<R>*>(&result);
-    if (c == nullptr || c->is_transposed() || c->has_view_offset() || c->rows() != c->base_rows() ||
+    if (c == nullptr || c->is_transposed() || c->is_subview() || c->rows() != c->base_rows() ||
         c->cols() != c->base_cols()) return false;
     return int_matmul_via_dgemm<R>(a, b, *c);
 }
@@ -2222,15 +2213,10 @@ void CpuSolver::inverse(const MatrixBase& matrix_in, MatrixBase& matrix_out) {
             const double* in_data = in_diag->data();
             double* out_data = out_diag->data();
 
-            ParallelFor(0, n, [&](size_t i) {
-                double val = in_data[i];
-                if (std::abs(val) < 1e-12) {
-                    // Singular
-                    out_data[i] = 0.0; // Or throw?
-                } else {
-                    out_data[i] = 1.0 / val;
-                }
-            });
+            for (uint64_t i = 0; i < n; ++i) {
+                if (in_data[i] == 0.0) throw std::runtime_error("inverse: matrix is singular (zero on the diagonal)");
+            }
+            ParallelFor(0, n, [&](size_t i) { out_data[i] = 1.0 / in_data[i]; });  // no tolerance (F-063)
 
             out_diag->set_scalar(1.0 / in_diag->get_scalar());
             return;
@@ -2624,22 +2610,14 @@ namespace {
             auto* a_dense = dynamic_cast<const DenseMatrix<T>*>(&a);
             auto* b_dense = dynamic_cast<const DenseMatrix<T>*>(&b);
             
-            // Fast path: All dense, no transpose, scalar=1, and a full span
-            // (logical shape == storage shape). A zero-offset submatrix view
-            // (e.g. a [:3,:3] slice of a 5x5 parent) has has_view_offset()==false
-            // but is strided (storage uses base_cols()), so it must use the
-            // generic element-wise path below. Note a_dense/b_dense may be null
-            // (mixed-type operands), so the full-span checks are evaluated after
-            // the null guard via short-circuit evaluation.
+            // Fast path: all dense, no transpose, factor 1, full spans (not windows). a_dense /
+            // b_dense may be null (mixed-type operands): checked first.
             if (a_dense && b_dense && a_full && b_full &&
-                res_dense->rows() == res_dense->base_rows() && res_dense->cols() == res_dense->base_cols() &&
-                a_dense->rows() == a_dense->base_rows() && a_dense->cols() == a_dense->base_cols() &&
-                b_dense->rows() == b_dense->base_rows() && b_dense->cols() == b_dense->base_cols() &&
-                res_dense->get_scalar() == 1.0 && !res_dense->is_transposed() && !res_dense->has_view_offset() &&
+                res_dense->get_scalar() == 1.0 && !res_dense->is_transposed() && !res_dense->is_subview() &&
                 !res_dense->is_conjugated() &&
-                a_dense->get_scalar() == 1.0 && !a_dense->is_transposed() && !a_dense->has_view_offset() &&
+                a_dense->get_scalar() == 1.0 && !a_dense->is_transposed() && !a_dense->is_subview() &&
                 !a_dense->is_conjugated() &&
-                b_dense->get_scalar() == 1.0 && !b_dense->is_transposed() && !b_dense->has_view_offset() &&
+                b_dense->get_scalar() == 1.0 && !b_dense->is_transposed() && !b_dense->is_subview() &&
                 !b_dense->is_conjugated()) {
                 
                 const T* a_data = a_dense->data();
@@ -2661,7 +2639,7 @@ namespace {
             const bool res_plain = res_dense->rows() == res_dense->base_rows() &&
                                    res_dense->cols() == res_dense->base_cols() &&
                                    res_dense->get_scalar() == 1.0 && !res_dense->is_transposed() &&
-                                   !res_dense->has_view_offset() && !res_dense->is_conjugated();
+                                   !res_dense->is_subview() && !res_dense->is_conjugated();
             if (res_plain && make_strided_reader(a, rows, cols, ra) && make_strided_reader(b, rows, cols, rb)) {
                 T* res_data = res_dense->data();
                 constexpr uint64_t TILE = 64;
@@ -2823,9 +2801,9 @@ namespace {
         auto* a_dense = dynamic_cast<const DenseMatrix<T>*>(&a);
         
         if (a_dense &&
-            res->get_scalar() == 1.0 && !res->is_transposed() && !res->has_view_offset() &&
+            res->get_scalar() == 1.0 && !res->is_transposed() && !res->is_subview() &&
             res->rows() == res->base_rows() && res->cols() == res->base_cols() &&
-            a_dense->get_scalar() == 1.0 && !a_dense->is_transposed() && !a_dense->has_view_offset() &&
+            a_dense->get_scalar() == 1.0 && !a_dense->is_transposed() && !a_dense->is_subview() &&
             !a_dense->is_conjugated() &&
             a_dense->rows() == a_dense->base_rows() && a_dense->cols() == a_dense->base_cols()) {
             const T* a_data = a_dense->data();
@@ -4513,151 +4491,76 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
 }
 
 
-double CpuSolver::trace(const MatrixBase& matrix) {
-    const uint64_t rows = matrix.rows();
-    const uint64_t cols = matrix.cols();
-    const uint64_t n = std::min(rows, cols);
 
-    const auto type = matrix.get_structure();
-    if (type == Structure::IDENTITY) {
-        return matrix.get_scalar().real() * static_cast<double>(n);
-    }
-
-    const auto dt = matrix.get_data_type();
-    const bool is_complex = (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64);
-
-    double tr = 0.0;
-    if (is_complex) {
-        for (uint64_t i = 0; i < n; ++i) {
-            tr += matrix.get_element_as_complex(i, i).real();
-        }
-    } else {
-        for (uint64_t i = 0; i < n; ++i) {
-            tr += matrix.get_element_as_double(i, i);
-        }
-    }
-    return tr;
-}
-
-double CpuSolver::determinant(const MatrixBase& matrix) {
-    const uint64_t rows = matrix.rows();
-    const uint64_t cols = matrix.cols();
-    if (rows != cols) {
+std::complex<double> CpuSolver::determinant(const MatrixBase& matrix) {
+    // Complex result for complex inputs (F-059: the imaginary part used to be dropped). The
+    // entry point (math/Eigen.cpp) passes plain storage only, but the structured shortcuts
+    // read through the accessors, which apply any view anyway.
+    const uint64_t n = matrix.rows();
+    if (n != matrix.cols()) {
         throw std::runtime_error("Determinant requires square matrix");
     }
-
-    const uint64_t n = rows;
     const auto type = matrix.get_structure();
     const auto dt = matrix.get_data_type();
-    const bool is_complex = (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64);
+    const bool use_complex = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 ||
+                             dt == DataType::COMPLEX_FLOAT64 || matrix.get_scalar().imag() != 0.0;
 
     if (type == Structure::IDENTITY) {
-        return std::pow(matrix.get_scalar(), n).real();
+        return std::pow(matrix.get_scalar(), static_cast<double>(n));
     }
 
+    auto diagonal_product = [&]() {
+        std::complex<double> det = 1.0;
+        for (uint64_t i = 0; i < n; ++i) det *= matrix.get_element_as_complex(i, i);
+        return det;
+    };
     if (type == Structure::DIAGONAL) {
-        if (is_complex) {
-            std::complex<double> det = 1.0;
-            for (uint64_t i = 0; i < n; ++i) {
-                det *= matrix.get_element_as_complex(i, i);
-            }
-            return det.real();
-        }
-
-        double det = 1.0;
-        for (uint64_t i = 0; i < n; ++i) {
-            det *= matrix.get_element_as_double(i, i);
-        }
-        return det;
+        return diagonal_product();
     }
-
     if (type == Structure::TRIANGULAR) {
-        bool has_diag = false;
-        if (auto* m = dynamic_cast<const TriangularMatrix<double>*>(&matrix)) {
-            has_diag = m->has_diagonal();
-        } else if (auto* m = dynamic_cast<const TriangularMatrix<int32_t>*>(&matrix)) {
-            has_diag = m->has_diagonal();
-        }
-
-        if (!has_diag) {
-            return 0.0;
-        }
-
-        if (is_complex) {
-            std::complex<double> det = 1.0;
-            for (uint64_t i = 0; i < n; ++i) {
-                det *= matrix.get_element_as_complex(i, i);
-            }
-            return det.real();
-        }
-
-        double det = 1.0;
-        for (uint64_t i = 0; i < n; ++i) {
-            det *= matrix.get_element_as_double(i, i);
-        }
-        return det;
+        // Every element type (F-059: only float64/int32 were checked, others returned 0).
+        const bool has_diag = static_cast<const TriangularMatrixBase&>(matrix).has_diagonal();
+        return has_diag ? diagonal_product() : std::complex<double>(0.0, 0.0);
     }
 
-    // General case: LU determinant via LAPACK dgetrf/zgetrf. This matches NumPy's
-    // own backend (LAPACK dgetrf) so the two are on equal footing, instead of
-    // Eigen's single-threaded PartialPivLU which is ~3x slower for large dense
-    // matrices. det = sign(permutation) * prod(pivots).
-    // If there is any complex scalar/component, compute using complex LU and return the real part.
-    const bool use_complex = is_complex || std::abs(matrix.get_scalar().imag()) > 1e-14;
-
+    // General case: LU (getrf), det = sign(permutation) * prod(pivots). The row-major buffer
+    // is passed as column-major, i.e. A^T is factorized: det(A^T) = det(A), and LAPACKE does
+    // not need its transposed copy.
+    const auto ni = static_cast<lapack_int>(n);
+    std::vector<lapack_int> ipiv(n);
     if (use_complex) {
-        auto data = to_memory_flat_complex_square(matrix); // already folds scalar + conjugation
-        std::vector<lapack_int> ipiv(n);
-        lapack_int info = LAPACKE_zgetrf(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)n,
-            reinterpret_cast<lapack_complex_double*>(data.data()), (lapack_int)n, ipiv.data());
-        if (info > 0) return 0.0; // singular
+        auto data = to_memory_flat_complex_square(matrix);  // folds factor and conjugation
+        const lapack_int info = LAPACKE_zgetrf(LAPACK_COL_MAJOR, ni, ni,
+            reinterpret_cast<lapack_complex_double*>(data.data()), ni, ipiv.data());
+        if (info > 0) return {0.0, 0.0};  // exactly singular
         if (info < 0) throw std::runtime_error("LAPACK zgetrf: illegal argument");
         std::complex<double> det = 1.0;
         for (uint64_t i = 0; i < n; ++i) {
             det *= data[i * n + i];
             if (ipiv[i] != static_cast<lapack_int>(i + 1)) det = -det;
         }
-        return det.real();
+        return det;
     }
 
-    // Real path. Copy into a scratch buffer (dgetrf factorizes in place), using a
-    // raw memcpy when the matrix is a full-span DenseMatrix<double> (the common
-    // in-memory case) and the element-wise fallback otherwise.
     std::vector<double> data;
-    bool raw_copy = false;
+    double factor = 1.0;
     if (const auto* dense = dynamic_cast<const DenseMatrix<double>*>(&matrix);
-        dense && !dense->is_transposed() && !dense->has_view_offset() &&
-        dense->rows() == dense->base_rows() && dense->cols() == dense->base_cols()) {
+        dense && !dense->is_transposed() && !dense->is_subview()) {
         data.resize(n * n);
         std::memcpy(data.data(), dense->data(), n * n * sizeof(double));
-        raw_copy = true;
+        factor = std::pow(matrix.get_scalar().real(), static_cast<double>(n));  // det(sA) = s^n det(A)
     } else {
-        data = to_memory_flat_real_square(matrix); // already folds scalar
+        data = to_memory_flat_real_square(matrix);  // folds the factor
     }
-
-    std::vector<lapack_int> ipiv(n);
-    lapack_int info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, (lapack_int)n, (lapack_int)n,
-        data.data(), (lapack_int)n, ipiv.data());
-    if (info > 0) return 0.0; // singular
+    const lapack_int info = LAPACKE_dgetrf(LAPACK_COL_MAJOR, ni, ni, data.data(), ni, ipiv.data());
+    if (info > 0) return {0.0, 0.0};
     if (info < 0) throw std::runtime_error("LAPACK dgetrf: illegal argument");
-
-    double det = 1.0;
+    double det = factor;
     for (uint64_t i = 0; i < n; ++i) {
         det *= data[i * n + i];
         if (ipiv[i] != static_cast<lapack_int>(i + 1)) det = -det;
     }
-
-    // The raw memcpy path reads storage directly, so fold in the matrix scalar
-    // factor (det(s*A) = s^n * det(A)) here. The element-wise fallback already
-    // bakes the scalar into each entry; this is a no-op when scalar == 1.
-    if (raw_copy) {
-        const std::complex<double> s = matrix.get_scalar();
-        if (s != 1.0) {
-            det *= std::pow(s, static_cast<double>(n)).real();
-        }
-    }
-
-    return det;
+    return {det, 0.0};
 }
 
 
@@ -5292,7 +5195,7 @@ void CpuSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBa
     
     if (auto* in_d = dynamic_cast<const DenseMatrix<double>*>(&in)) {
          std::vector<double> a_buf(m * n);
-         if (!in_d->is_transposed() && !in_d->has_view_offset()) {
+         if (!in_d->is_transposed() && !in_d->is_subview()) {
              std::memcpy(a_buf.data(), in_d->data(), m * n * sizeof(double));
          } else {
              for(size_t i=0; i<m; ++i)
@@ -5331,7 +5234,7 @@ void CpuSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBa
     
     if (auto* in_f = dynamic_cast<const DenseMatrix<float>*>(&in)) {
          std::vector<float> a_buf(m * n);
-         if (!in_f->is_transposed() && !in_f->has_view_offset()) {
+         if (!in_f->is_transposed() && !in_f->is_subview()) {
              std::memcpy(a_buf.data(), in_f->data(), m * n * sizeof(float));
          } else {
              for(size_t i=0; i<m; ++i) for(size_t j=0; j<n; ++j) a_buf[i * n + j] = in_f->get(i, j);

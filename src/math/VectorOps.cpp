@@ -48,7 +48,7 @@ std::unique_ptr<VectorBase> as_vector(std::unique_ptr<MatrixBase> m, bool transp
     if (m->rows() != 1 && m->cols() != 1) throw std::logic_error("as_vector: result is not 1 x n");
     // Only plain row storage maps onto a vector; anything else is written out first.
     const bool plain = m->get_structure() == Structure::DENSE && m->rows() == 1 && !m->is_transposed() &&
-                       !m->is_conjugated() && !m->has_view_offset() &&
+                       !m->is_conjugated() && !m->is_subview() &&
                        m->get_scalar() == std::complex<double>(1.0, 0.0);
     if (!plain) {
         std::unique_ptr<MatrixBase> row = cast_to(*m, m->get_data_type());  // dense, factor 1

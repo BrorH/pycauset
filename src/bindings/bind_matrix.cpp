@@ -6,6 +6,7 @@
 #include "bindings_common.hpp"
 #include "element_conversion.hpp"
 #include "scalar_args.hpp"
+#include "pycauset/math/Reductions.hpp"
 #include <vector>
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #include <immintrin.h>
@@ -237,7 +238,7 @@ py::array_t<T> parallel_export_to_numpy(const DenseMatrix<T>& mat) {
 
     uint64_t rows = mat.rows();
     uint64_t cols = mat.cols();
-    const bool needs_slow_path = mat.is_transposed() || mat.has_view_offset() ||
+    const bool needs_slow_path = mat.is_transposed() || mat.is_subview() ||
         mat.is_conjugated() || mat.get_scalar() != std::complex<double>(1.0, 0.0);
     if (needs_slow_path) {
         py::array_t<T> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
@@ -1418,6 +1419,7 @@ inline void matrixbase_setitem_dispatch(MatrixBase& mat, const py::object& key, 
 }
 
 inline std::shared_ptr<MatrixBase> matrix_inverse(const MatrixBase& mat) {
+    if (!pycauset::is_plain(mat)) return matrix_inverse(*pycauset::write_out(mat));  // F-062
     return pycauset::visit_matrix(mat, [&](const auto& typed) -> std::shared_ptr<MatrixBase> {
         using M = std::decay_t<decltype(typed)>;
         // DenseMatrix<bool>::inverse is declared but has no definition.
@@ -1441,7 +1443,7 @@ inline std::shared_ptr<MatrixBase> bit_binary(const MatrixBase& a, const MatrixB
     auto out = std::make_shared<DenseBitMatrix>(x->rows(), x->cols(), "");
     // Word-level fast path for plain storage (64 elements per operation); lost in the
     // structure-class rewrite and restored (F-054).
-    if (!x->is_transposed() && !y->is_transposed() && !x->has_view_offset() && !y->has_view_offset() &&
+    if (!x->is_transposed() && !y->is_transposed() && !x->is_subview() && !y->is_subview() &&
         x->rows() == x->base_rows() && x->cols() == x->base_cols() &&
         y->rows() == y->base_rows() && y->cols() == y->base_cols() && x->shared_mapper() && y->shared_mapper()) {
         const uint64_t* pa = x->data();
@@ -1554,7 +1556,7 @@ py::object export_dense_typed(const MatrixBase& mat) {
     const uint64_t rows = mat.rows(), cols = mat.cols();
     py::array_t<NpT> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
     const bool unit_view = mat.get_scalar() == std::complex<double>(1.0, 0.0) && !mat.is_conjugated();
-    if (unit_view && !mat.is_transposed() && !mat.has_view_offset() && mat.shared_mapper()) {
+    if (unit_view && !mat.is_transposed() && !mat.is_subview() && mat.shared_mapper()) {
         if (const void* src = mat.shared_mapper()->get_data()) {
             std::memcpy(static_cast<void*>(out.request().ptr), src, rows * cols * sizeof(T));
             return out;
@@ -2012,15 +2014,14 @@ void bind_matrix_classes(py::module_& m) {
             py::arg("dtype") = py::none(),
             py::arg("copy") = py::none())
 
-        .def("trace", [](py::object self) {
-            auto& mat = self.cast<MatrixBase&>();
-            double v = pycauset::trace(mat);
-            return v;
-        })
-        .def("determinant", [](py::object self) {
-            auto& mat = self.cast<MatrixBase&>();
-            double v = pycauset::determinant(mat);
-            return v;
+        .def("trace", [](const MatrixBase& mat) { return pycauset_bindings::reduction_to_py(pycauset::trace(mat)); })
+        .def("determinant", [](const MatrixBase& mat) -> py::object {
+            // NumPy kinds: complex for complex matrices, float otherwise (F-059).
+            const std::complex<double> d = pycauset::determinant(mat);
+            const DataType dt = mat.get_data_type();
+            const bool cplx = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 ||
+                              dt == DataType::COMPLEX_FLOAT64 || mat.get_scalar().imag() != 0.0;
+            return cplx ? py::cast(d) : py::cast(d.real());
         })
         .def(
             "__matmul__",
