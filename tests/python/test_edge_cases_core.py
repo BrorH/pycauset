@@ -44,22 +44,21 @@ class TestShapeEdges(unittest.TestCase):
 
 
 class TestErrorsByDesign(unittest.TestCase):
-    def test_zeros_defaults_to_int32_without_dtype(self):
+    def test_zeros_defaults_to_float64_like_numpy(self):
         z = pc.zeros((2, 2))
         got = _np(z)
-        self.assertEqual(got.dtype, np.dtype(np.int32))
+        self.assertEqual(got.dtype, np.dtype(np.float64))
         self.assertTrue(bool((got == 0).all()))
 
-    def test_ones_defaults_to_int32_without_dtype(self):
+    def test_ones_defaults_to_float64_like_numpy(self):
         o = pc.ones((2, 2))
         got = _np(o)
-        self.assertEqual(got.dtype, np.dtype(np.int32))
+        self.assertEqual(got.dtype, np.dtype(np.float64))
         self.assertTrue(bool((got == 1).all()))
 
-    def test_empty_use_before_write_raises(self):
-        e = pc.empty((2, 2))
-        with self.assertRaises(TypeError):
-            e.get(0, 0)
+    def test_zeros_dtype_override(self):
+        self.assertEqual(pc.zeros((2, 2), dtype="int16").dtype, "int16")
+        self.assertEqual(pc.zeros(3, dtype=bool).dtype, "bool")
 
     def test_shape_mismatch_matmul_raises(self):
         a = pc.zeros((2, 3), dtype="float64")

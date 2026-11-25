@@ -93,60 +93,6 @@ class TestDotSemantics(unittest.TestCase):
         np.testing.assert_allclose(got, want)
 
 
-class TestLazyAllocation(unittest.TestCase):
-    def test_zeros_default_int32(self):
-        got = _np(pc.zeros((2, 2)))
-        self.assertEqual(got.dtype, np.dtype(np.int32))
-        self.assertTrue(bool((got == 0).all()))
-
-    def test_ones_default_int32(self):
-        got = _np(pc.ones((2, 2)))
-        self.assertEqual(got.dtype, np.dtype(np.int32))
-        self.assertTrue(bool((got == 1).all()))
-
-    def test_explicit_dtype_still_works(self):
-        self.assertTrue(isinstance(pc.ones((2, 2), dtype="float64"), pc.DenseMatrix) and pc.ones((2, 2), dtype="float64").dtype == "float64")
-        self.assertTrue(isinstance(pc.ones((2, 2), dtype="bool"), pc.DenseMatrix) and pc.ones((2, 2), dtype="bool").dtype == "bool")
-
-    def test_empty_use_before_write_raises(self):
-        with self.assertRaises(TypeError):
-            pc.empty((2, 2)).get(0, 0)
-
-    def test_empty_fill_deduces_int(self):
-        e = pc.empty((2, 2))
-        e.fill(5)
-        self.assertEqual(e.dtype, "int32")
-
-    def test_empty_fill_deduces_float(self):
-        e = pc.empty((2, 2))
-        e.fill(2.5)
-        self.assertEqual(e.dtype, "float64")
-
-    def test_empty_set_deduces_bool(self):
-        e = pc.empty((2, 2))
-        e.set(0, 0, True)
-        self.assertEqual(e.dtype, "bool")
-
-    def test_empty_set_deduces_complex(self):
-        e = pc.empty((2, 2))
-        e.set(0, 0, 1 + 2j)
-        self.assertEqual(e.dtype, "complex_float64")
-
-    def test_lazy_zeros_carries_zero_structure(self):
-        self.assertTrue(pc.zeros((2, 2)).properties.get("is_zero"))
-
-    def test_lazy_ones_carries_constant_structure(self):
-        props = pc.ones((2, 2)).properties
-        self.assertTrue(props.get("is_constant"))
-        self.assertEqual(props.get("constant_value"), 1)
-
-    def test_lazy_structures_recognized(self):
-        from pycauset._internal.ops import _effective_structure_for
-
-        self.assertEqual(_effective_structure_for(pc.zeros((2, 2))), "zero")
-        self.assertEqual(_effective_structure_for(pc.ones((2, 2))), "constant")
-
-
 class TestMixedDTypeMatmul(unittest.TestCase):
     def setUp(self):
         self.n = 12

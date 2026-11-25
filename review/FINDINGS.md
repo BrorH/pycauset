@@ -521,7 +521,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   Decide (d) as part of the storage review (PLAN 3.1/3.5).
 
 ### F-041 Python-side second-class objects and dtype guessing
-- **Status:** (a) fixed; (b) open, awaiting the maintainer (product behaviour).
+- **Status:** (a) fixed; (b) fixed (session 6, maintainer decision 2026-11-25): float64 default
+  like NumPy, documented, `dtype=` overrides; `_internal/lazy_allocation.py` deleted.
 - (a) `pc.TriangularMatrix(n)` built a pure-Python, list-of-lists toy matrix (no `@`, outside
   the engine), contradicting its own docs ("abstract base class"). It's now abstract:
   `isinstance(native_triangular, pc.TriangularMatrix)` still works; constructing it raises

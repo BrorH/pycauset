@@ -4,6 +4,34 @@ All notable changes to PyCauset are documented in this file. The project follows
 [Semantic Versioning](https://semver.org/). The documentation's **"Release 1 (R1)"**
 milestone corresponds to **v0.6.1**.
 
+## [Unreleased]
+
+Pre-alpha: these changes are breaking and come without compatibility shims.
+
+### Changed
+- One class per structure; the element type is `A.dtype`: `DenseMatrix`, `TriangularMatrix`
+  (causal matrices are dtype `bool`), `DiagonalMatrix`, `IdentityMatrix`, `SymmetricMatrix`,
+  `AntiSymmetricMatrix`, `DenseVector`, `UnitVector`. The per-dtype classes (`FloatMatrix`,
+  `IntegerMatrix`, `TriangularBitMatrix`, `Int16Vector`, ...) are removed.
+- `zeros`, `ones`, `empty` without `dtype` return float64 (as NumPy); the dtype-deferred
+  wrapper is removed.
+- `pycauset.matrix(n)` no longer switches to float32 for n >= 10,000; nested lists are always
+  dense (no structure inferred from values).
+- Saved files record `structure` and `dtype`.
+- Lazy results: integer `k * A` / `-A` are O(1) views; `C + C.T` / `C - C.T` of a causal matrix
+  are read from its bits. Floating-point results of combined lazy steps may differ from
+  step-by-step evaluation in the last digits (deterministic). `A.is_lazy`, `pycauset.materialize`.
+
+### Removed
+- `precision_mode`, the lazy expression engine (`LazyMatrix`), `pycauset.cuda` and the `[gpu]`
+  extra (CUDA moved to `experimental/cuda`, on hold), the per-class buffer protocol.
+
+### Fixed
+- Many silent wrong results (review/FINDINGS.md F-001 ... F-055), among them: integer scalar
+  multiplication, `C + C.T` dropping the lower triangle, views ignored by `.get`, writes and
+  several kernels, int64 precision in matvec and element-wise ops, false links in
+  `CausalSet.links()`.
+
 ## [0.6.1] - 2026-08-28
 
 ### Added

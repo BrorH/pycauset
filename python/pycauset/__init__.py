@@ -18,7 +18,6 @@ from ._internal import export_guard as _export_guard
 from ._internal import factories as _factories
 from ._internal import formatting as _formatting
 from ._internal import io_observability as _io_observability
-from ._internal import lazy_allocation as _lazy_allocation
 from ._internal import linalg_cache as _linalg_cache
 from ._internal import matrix_api as _matrix_api
 from ._internal import native as _native_mod
@@ -504,12 +503,7 @@ def to_numpy(obj: Any, *, allow_huge: bool = False, dtype: Any = None, copy: boo
     - By default, file-backed or over-ceiling exports hard-error.
     - Pass allow_huge=True to intentionally materialize.
     - Ceiling is controlled via set_export_max_bytes(...).
-
-    Lazy dtype-deferred allocations (zeros/ones/empty without dtype) are
-    materialized first; a still-typeless empty() raises.
     """
-    if isinstance(obj, _lazy_allocation.LazyAllocated):
-        obj = obj._materialize()
 
     return _export_guard.export_to_numpy(obj, allow_huge=allow_huge, dtype=dtype, copy=copy)
 
@@ -942,30 +936,6 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
     raise TypeError("matrix(...) expects 1D or 2D input")
 
 
-def _deduce_dtype_from_value(value: Any) -> str:
-    """Map a written Python value to a concrete dtype token.
-
-    Matches the promotion ethos: bool -> "bool", int -> "int32",
-    float -> "float64", complex -> "complex_float64". NumPy scalar types are
-    normalized through `normalize_dtype`.
-    """
-    if isinstance(value, bool):
-        return "bool"
-    if isinstance(value, int):
-        return "int32"
-    if isinstance(value, float):
-        return "float64"
-    if isinstance(value, complex):
-        return "complex_float64"
-    token = _normalize_dtype(type(value), np_module=_np)
-    if token is None:
-        raise TypeError(
-            f"cannot infer a dtype from a value of type {type(value).__name__}; "
-            "pass dtype= explicitly"
-        )
-    return token
-
-
 def _allocate_dense_matrix_by_shape(rows: int, cols: int, *, dtype: Any, kwargs: dict[str, Any]) -> Any:
     dtype_norm = _normalize_dtype(dtype, np_module=_np)
     if dtype_norm is None:
@@ -1012,66 +982,28 @@ def _allocate_like(shape: Any, kind: str, dtype: Any, kwargs: dict[str, Any]) ->
     return mat
 
 
-def _lazy_allocate(shape: Any, kind: str, kwargs: dict[str, Any]) -> Any:
-    """Build a dtype-deferred allocation wrapper for the given fill pattern."""
-    if isinstance(shape, int):
-        shp = (int(shape),)
-        ndim = 1
-    elif _is_sequence_like(shape):
-        if len(shape) == 1:
-            shp = (int(shape[0]),)
-            ndim = 1
-        elif len(shape) == 2:
-            shp = (int(shape[0]), int(shape[1]))
-            ndim = 2
-        else:
-            raise ValueError("shape must be 1D or 2D")
-    else:
-        raise TypeError("shape must be an int or a tuple")
+def zeros(shape: Any, *, dtype: Any = "float64", **kwargs: Any) -> Any:
+    """A vector (int shape) or matrix ((rows, cols) shape) filled with zeros.
 
-    def _materialize(dtype: str) -> Any:
-        return _allocate_like(shape, kind, dtype, kwargs)
-
-    return _lazy_allocation.LazyAllocated(
-        kind=kind,
-        shape=shp,
-        ndim=ndim,
-        materialize=_materialize,
-        deduce_dtype=_deduce_dtype_from_value,
-    )
-
-
-def zeros(shape: Any, *, dtype: Any = None, **kwargs: Any) -> Any:
-    """Allocate a vector/matrix filled with zeros.
-
-    With no dtype, returns a dtype-deferred wrapper that resolves to int32 on
-    first use (or to the dtype of the first written value).
+    dtype defaults to float64, as in NumPy; pass dtype= for any other element type.
     """
-    if dtype is None:
-        return _lazy_allocate(shape, "zeros", kwargs)
-    return _allocate_like(shape, "zeros", dtype, kwargs)
+    return _allocate_like(shape, "zeros", dtype if dtype is not None else "float64", kwargs)
 
 
-def ones(shape: Any, *, dtype: Any = None, **kwargs: Any) -> Any:
-    """Allocate a vector/matrix filled with ones.
+def ones(shape: Any, *, dtype: Any = "float64", **kwargs: Any) -> Any:
+    """A vector (int shape) or matrix ((rows, cols) shape) filled with ones.
 
-    With no dtype, returns a dtype-deferred wrapper that resolves to int32 on
-    first use (or to the dtype of the first written value).
+    dtype defaults to float64, as in NumPy; pass dtype= for any other element type.
     """
-    if dtype is None:
-        return _lazy_allocate(shape, "ones", kwargs)
-    return _allocate_like(shape, "ones", dtype, kwargs)
+    return _allocate_like(shape, "ones", dtype if dtype is not None else "float64", kwargs)
 
 
-def empty(shape: Any, *, dtype: Any = None, **kwargs: Any) -> Any:
-    """Allocate a vector/matrix without guaranteeing initialization.
+def empty(shape: Any, *, dtype: Any = "float64", **kwargs: Any) -> Any:
+    """A vector (int shape) or matrix ((rows, cols) shape) without initializing the elements.
 
-    With no dtype, returns a dtype-deferred wrapper; using it before a write
-    raises (no silent wrong answer).
+    dtype defaults to float64, as in NumPy; pass dtype= for any other element type.
     """
-    if dtype is None:
-        return _lazy_allocate(shape, "empty", kwargs)
-    return _allocate_like(shape, "empty", dtype, kwargs)
+    return _allocate_like(shape, "empty", dtype if dtype is not None else "float64", kwargs)
 
 
 def causal_matrix(source: Any, populate: bool = True, **kwargs: Any) -> Any:

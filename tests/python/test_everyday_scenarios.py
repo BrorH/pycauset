@@ -111,21 +111,20 @@ class ScenarioFutureCounts(unittest.TestCase):
         np.testing.assert_allclose(self.Cn.sum(axis=1), self.Cn @ np.ones(self.n, dtype=int))
 
 
-class ScenarioLazyAllocation(unittest.TestCase):
-    """Allocate a constant working matrix without a dtype, then use it."""
+class ScenarioDefaultAllocation(unittest.TestCase):
+    """Allocate a working matrix without a dtype (float64, like NumPy), then use it."""
 
-    def test_lazy_vs_explicit_bool_matmul(self):
+    def test_default_ones_matmul_with_causal(self):
         n = 12
         C = _causal(n, seed=3)
-        lazy = pc.ones((n, n))                    # no dtype: resolves on use
-        explicit = pc.ones((n, n), dtype=pc.bool_)
-        np.testing.assert_allclose(pc.to_numpy(lazy @ C), pc.to_numpy(explicit @ C))
+        ones = pc.ones((n, n))
+        self.assertEqual(ones.dtype, "float64")
+        np.testing.assert_allclose(pc.to_numpy(ones @ C), np.ones((n, n)) @ pc.to_numpy(C).astype(float))
 
-    def test_lazy_zeros_fill_then_read(self):
+    def test_zeros_fill_then_read(self):
         z = pc.zeros((4, 4))
-        z.fill(5)                                  # first write deduces int32
-        self.assertEqual(z.dtype, "int32")
-        np.testing.assert_array_equal(pc.to_numpy(z), np.full((4, 4), 5, dtype=np.int32))
+        z.fill(5)
+        np.testing.assert_array_equal(pc.to_numpy(z), np.full((4, 4), 5.0))
 
 
 class ScenarioKMatrix(unittest.TestCase):

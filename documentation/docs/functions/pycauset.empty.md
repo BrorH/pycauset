@@ -1,49 +1,28 @@
 # pycauset.empty
 
 ```python
-pycauset.empty(shape, *, dtype=None, **kwargs)
+pycauset.empty(shape, *, dtype="float64", **kwargs)
 ```
 
-Allocate a vector or matrix without guaranteeing initialization.
-
-Note: for some backends this may still be zero-initialized.
-
-When `dtype` is omitted, the result is a dtype-deferred wrapper with no dtype
-at all. Its dtype is deduced from the first value written into it (`set`,
-`fill`, or item assignment). Reading from, or operating on, a still-typeless
-`empty` raises `TypeError` (no silent wrong answer).
+A new vector (`shape` an int) or matrix (`shape` a `(rows, cols)` pair) whose elements are not initialized (fill it before reading).
 
 ## Parameters
 
-*   **shape** (*int or tuple*):
-    *   `n` allocates a length-`n` vector.
-    *   `(n,)` allocates a length-`n` vector.
-    *   `(n, m)` allocates an `n×m` matrix.
-
-    Notes:
-    *   Rectangular allocation is supported for dense numeric matrix types.
-    *   `dtype="bool"`/`dtype="bit"` uses bit-packed storage (`DenseMatrix` (dtype `bool`)) and supports rectangular `(rows, cols)` shapes.
-*   **dtype** (*str or type, optional*): Storage dtype token. When omitted, the dtype is deduced from the first written value.
-*   **kwargs**: Passed through to the backend allocator.
+* **shape** (*int or tuple*): `n` for a `DenseVector`, `(rows, cols)` for a `DenseMatrix`.
+* **dtype** (*str or type*): element type, `"float64"` by default as in NumPy. Any pycauset
+  dtype: `"bool"`, `"int8"`…`"uint64"`, `"float16"`…`"float64"`, `"complex_float16"`…
+  `"complex_float64"`; Python `int`, `float`, `bool` and NumPy dtypes are accepted too.
 
 ## Returns
 
-*   **VectorBase or MatrixBase**: A newly allocated object. With no `dtype`, a dtype-deferred wrapper is returned instead and materializes on first write.
+* **DenseVector** or **DenseMatrix** of the given dtype.
 
-## Examples
+## Example
 
 ```python
 import pycauset as pc
 
-tmp = pc.empty((256, 64), dtype="float32")
-
-late = pc.empty((4, 4))   # dtype-deferred
-late.fill(2.5)            # resolves to float64
+m = pc.empty((2, 2))
+m.fill(7.5)
+assert m.dtype == "float64" and m[0, 1] == 7.5
 ```
-
-## See also
-
-*   [[docs/functions/pycauset.zeros.md|pycauset.zeros]]
-*   [[docs/functions/pycauset.ones.md|pycauset.ones]]
-*   [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]
-*   [[guides/Matrix Guide|Matrix Guide]]

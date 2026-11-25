@@ -1,45 +1,27 @@
 # pycauset.ones
 
 ```python
-pycauset.ones(shape, *, dtype=None, **kwargs)
+pycauset.ones(shape, *, dtype="float64", **kwargs)
 ```
 
-Allocate a vector or matrix filled with ones.
-
-When `dtype` is omitted, the result is a dtype-deferred wrapper (all-equal
-"constant" structure, value `1`) that resolves to `int32` on first use, or to
-the dtype of the first value written into it. Passing `dtype` allocates a
-concrete object immediately.
+A new vector (`shape` an int) or matrix (`shape` a `(rows, cols)` pair) filled with ones.
 
 ## Parameters
 
-*   **shape** (*int or tuple*):
-    *   `n` allocates a length-`n` vector.
-    *   `(n,)` allocates a length-`n` vector.
-    *   `(n, m)` allocates an `n×m` matrix.
-
-    Notes:
-    *   Rectangular allocation is supported for dense numeric matrix types.
-    *   `dtype="bool"`/`dtype="bit"` uses bit-packed storage (`DenseMatrix` (dtype `bool`)) and supports rectangular `(rows, cols)` shapes.
-*   **dtype** (*str or type, optional*): Storage dtype token. Defaults to a deferred `int32` when omitted.
-*   **kwargs**: Passed through to the backend allocator.
+* **shape** (*int or tuple*): `n` for a `DenseVector`, `(rows, cols)` for a `DenseMatrix`.
+* **dtype** (*str or type*): element type, `"float64"` by default as in NumPy. Any pycauset
+  dtype: `"bool"`, `"int8"`…`"uint64"`, `"float16"`…`"float64"`, `"complex_float16"`…
+  `"complex_float64"`; Python `int`, `float`, `bool` and NumPy dtypes are accepted too.
 
 ## Returns
 
-*   **VectorBase or MatrixBase**: A newly allocated object. With no `dtype`, a dtype-deferred wrapper is returned instead and materializes on first use.
+* **DenseVector** or **DenseMatrix** of the given dtype.
 
-## Examples
+## Example
 
 ```python
-import pycauset
+import pycauset as pc
 
-v = pycauset.ones(5)                   # dtype-deferred; resolves to int32
-m = pycauset.ones((3, 7), dtype="float64")
+m = pc.ones((2, 2), dtype="int8")
+assert m.dtype == "int8" and m[1, 1] == 1
 ```
-
-## See also
-
-*   [[docs/functions/pycauset.zeros.md|pycauset.zeros]]
-*   [[docs/functions/pycauset.empty.md|pycauset.empty]]
-*   [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]
-*   [[guides/Matrix Guide|Matrix Guide]]
