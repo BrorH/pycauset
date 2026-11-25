@@ -5,7 +5,7 @@ class pycauset.DiagonalMatrix(n, dtype="float64")
 ```
 
 An `n × n` diagonal matrix that stores only its `n` diagonal elements. Supported dtypes:
-every dtype except `complex_float16`. See also
+every dtype. See also
 [[docs/functions/pycauset.diagonal.md|pycauset.diagonal]].
 
 ## Methods

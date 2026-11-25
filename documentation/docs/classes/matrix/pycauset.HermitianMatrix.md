@@ -6,7 +6,7 @@ class pycauset.HermitianMatrix(n, dtype="complex_float64")
 
 An `n × n` Hermitian matrix (`A == A.conj().T`, real diagonal) that stores only the upper
 triangle; writing `A[i, j]` also sets `A[j, i] = conj(value)`. Complex dtypes
-(`complex_float32`, `complex_float64`); for real dtypes a Hermitian matrix is a
+(`complex_float16`, `complex_float32`, `complex_float64`); for real dtypes a Hermitian matrix is a
 [[docs/classes/matrix/pycauset.SymmetricMatrix.md|SymmetricMatrix]].
 
 A complex `SymmetricMatrix` (`A == A.T`) is a different structure. In causal set theory,

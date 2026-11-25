@@ -6,16 +6,17 @@ PyCauset has one class per **storage structure**. The element type is an attribu
 | class | stores | dtypes |
 |---|---|---|
 | [[docs/classes/matrix/pycauset.DenseMatrix.md|DenseMatrix]] | all `rows × cols` elements | all 15 |
-| [[docs/classes/matrix/pycauset.TriangularMatrix.md|TriangularMatrix]] | the upper triangle (causal matrices: dtype `bool`) | all except `complex_float16` |
-| [[docs/classes/matrix/pycauset.SymmetricMatrix.md|SymmetricMatrix]] | the upper triangle, `A == A.T` | all except `complex_float16` |
-| [[docs/classes/matrix/pycauset.AntiSymmetricMatrix.md|AntiSymmetricMatrix]] | the strict upper triangle, `A == -A.T` | signed: integers, floats, complex (not `complex_float16`) |
-| [[docs/classes/matrix/pycauset.HermitianMatrix.md|HermitianMatrix]] | the upper triangle, `A == A.conj().T` | `complex_float32`, `complex_float64` |
-| [[docs/classes/matrix/pycauset.SkewHermitianMatrix.md|SkewHermitianMatrix]] | the upper triangle, `A == -A.conj().T` | `complex_float32`, `complex_float64` |
-| [[docs/classes/matrix/pycauset.DiagonalMatrix.md|DiagonalMatrix]] | the diagonal | all except `complex_float16` |
-| [[docs/classes/matrix/pycauset.IdentityMatrix.md|IdentityMatrix]] | nothing (read-only) | all except `complex_float16` |
+| [[docs/classes/matrix/pycauset.TriangularMatrix.md|TriangularMatrix]] | the upper triangle (causal matrices: dtype `bool`) | all 15 |
+| [[docs/classes/matrix/pycauset.SymmetricMatrix.md|SymmetricMatrix]] | the upper triangle, `A == A.T` | all 15 |
+| [[docs/classes/matrix/pycauset.AntiSymmetricMatrix.md|AntiSymmetricMatrix]] | the strict upper triangle, `A == -A.T` | signed: integers, floats, complex |
+| [[docs/classes/matrix/pycauset.HermitianMatrix.md|HermitianMatrix]] | the upper triangle, `A == A.conj().T` | complex dtypes |
+| [[docs/classes/matrix/pycauset.SkewHermitianMatrix.md|SkewHermitianMatrix]] | the upper triangle, `A == -A.conj().T` | complex dtypes |
+| [[docs/classes/matrix/pycauset.DiagonalMatrix.md|DiagonalMatrix]] | the diagonal | all 15 |
+| [[docs/classes/matrix/pycauset.IdentityMatrix.md|IdentityMatrix]] | nothing (read-only) | all 15 |
 
 A complex `SymmetricMatrix` (`A == A.T`) and a `HermitianMatrix` (`A == A.conj().T`) are
-different structures. Structured `complex_float16` storage is planned (review N.5.5).
+different structures. Structured `complex_float16` stores interleaved float16 pairs
+(4 bytes per element); dense `complex_float16` stores split real/imaginary planes.
 A combination that does not exist raises `ValueError` saying why.
 
 All of them share the methods of [[docs/classes/matrix/pycauset.MatrixBase.md|MatrixBase]].

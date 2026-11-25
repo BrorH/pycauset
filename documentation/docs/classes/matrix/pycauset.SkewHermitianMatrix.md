@@ -6,7 +6,7 @@ class pycauset.SkewHermitianMatrix(n, dtype="complex_float64")
 
 An `n × n` skew-Hermitian matrix (`A == -A.conj().T`, imaginary diagonal) that stores only
 the upper triangle; writing `A[i, j]` also sets `A[j, i] = -conj(value)`. Complex dtypes
-(`complex_float32`, `complex_float64`); for real dtypes a skew-Hermitian matrix is an
+(`complex_float16`, `complex_float32`, `complex_float64`); for real dtypes a skew-Hermitian matrix is an
 [[docs/classes/matrix/pycauset.AntiSymmetricMatrix.md|AntiSymmetricMatrix]].
 
 Writing a diagonal element with a non-zero real part raises `ValueError`. `A.T` is

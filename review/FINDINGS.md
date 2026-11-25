@@ -1050,3 +1050,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Atlas 77,372 cells (was 64,395), 0 ✗; ok cells 27,436 → 33,034.
 - Tests: `tests/engine/test_catalogue.py` (every pair constructs or raises with a reason, saves
   and loads as itself; Hermitian/skew-Hermitian rules and views).
+- N.5.5 (same session): structured complex_float16 through an interleaved `complex_half`
+  element type (two float16, 4 bytes; `core/Float16.hpp`); the catalogue maps the dtype to it
+  for every structured class (dense keeps its split planes). Atlas 0 ✗, ok 33,034 → 35,282.
+- Noted for a later fix: `float16_t(double)` rounds twice (double → float → half); NumPy
+  rounds float64 → float16 once, so rare ties differ.

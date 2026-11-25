@@ -1,4 +1,5 @@
 #pragma once
+#include <complex>
 
 #include <cstdint>
 #include <cstring>
@@ -164,5 +165,34 @@ inline float16_t operator/(float16_t a, float16_t b) { return float16_t(static_c
 
 inline bool operator==(float16_t a, float16_t b) { return static_cast<float>(a) == static_cast<float>(b); }
 inline bool operator!=(float16_t a, float16_t b) { return !(a == b); }
+
+// Interleaved complex float16 element: the storage of the structured complex_float16 classes
+// (TriangularMatrix<complex_half>, SymmetricMatrix<complex_half>, ...; review N.5.5). Dense
+// complex_float16 keeps its split planes (ComplexFloat16Matrix). Values convert through
+// std::complex; arithmetic happens in the readers and kernels, not here.
+struct complex_half {
+    float16_t re{}, im{};
+
+    complex_half() = default;
+    complex_half(int v) : re(v), im(0) {}  // T(0), T(1)
+    complex_half(double v) : re(v), im(0) {}
+    complex_half(float16_t r, float16_t i) : re(r), im(i) {}
+    template <typename V>
+    complex_half(const std::complex<V>& z) : re(static_cast<double>(z.real())), im(static_cast<double>(z.imag())) {}
+
+    float real() const { return re; }
+    float imag() const { return im; }
+    operator std::complex<float>() const { return {static_cast<float>(re), static_cast<float>(im)}; }
+    operator std::complex<double>() const { return {static_cast<double>(static_cast<float>(re)), static_cast<double>(static_cast<float>(im))}; }
+};
+
+static_assert(sizeof(complex_half) == 2 * sizeof(uint16_t), "complex_half must be exactly 4 bytes");
+
+inline complex_half operator-(complex_half a) {
+    return {float16_t(-static_cast<float>(a.re)), float16_t(-static_cast<float>(a.im))};
+}
+inline bool operator==(complex_half a, complex_half b) { return a.re == b.re && a.im == b.im; }
+inline bool operator!=(complex_half a, complex_half b) { return !(a == b); }
+inline complex_half conj(complex_half a) { return {a.re, float16_t(-static_cast<float>(a.im))}; }
 
 } // namespace pycauset

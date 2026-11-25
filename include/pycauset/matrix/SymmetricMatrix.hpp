@@ -48,8 +48,7 @@ inline bool is_symmetric_family(Structure s) {
 
 template <typename T>
 class SymmetricMatrix : public SkewHermitianMatrixBase {
-    static constexpr bool kComplex =
-        std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>;
+    static constexpr bool kComplex = is_complex_storage_v<T>;
 
     static Structure checked(Structure kind) {
         if (!is_symmetric_family(kind)) throw std::invalid_argument("SymmetricMatrix: not a symmetry kind");
@@ -217,8 +216,12 @@ private:
         else return static_cast<T>(-v);
     }
     static T conj_of(T v) {
-        if constexpr (kComplex) return std::conj(v);
-        else return v;
+        if constexpr (kComplex) {
+            using std::conj;  // std::complex; complex_half's conj is found by argument lookup
+            return T(conj(v));
+        } else {
+            return v;
+        }
     }
     void check_diagonal(T v) const {
         if (kind_ == Structure::ANTISYMMETRIC && v != T(0)) {

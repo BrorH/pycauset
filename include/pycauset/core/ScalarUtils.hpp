@@ -14,6 +14,7 @@ inline std::complex<double> to_complex_double(pycauset::float16_t v) { return {s
 inline std::complex<double> to_complex_double(int32_t v) { return {static_cast<double>(v), 0.0}; }
 inline std::complex<double> to_complex_double(int16_t v) { return {static_cast<double>(v), 0.0}; }
 inline std::complex<double> to_complex_double(bool v) { return {v ? 1.0 : 0.0, 0.0}; }
+inline std::complex<double> to_complex_double(pycauset::complex_half v) { return static_cast<std::complex<double>>(v); }
 
 template <typename T, typename = std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>>
 inline std::complex<double> to_complex_double(T v) {

@@ -31,8 +31,6 @@ CLASSES = {
 
 def offered(structure: str, dtype: str) -> bool:
     """The catalogue as data: change it only together with `offered` in DTypeDispatch.hpp."""
-    if dtype == "complex_float16":
-        return False  # structured complex_float16: review N.5.5
     if structure == "antisymmetric":
         return dtype in SIGNED
     if structure in ("hermitian", "skew_hermitian"):

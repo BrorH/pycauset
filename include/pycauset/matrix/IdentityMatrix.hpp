@@ -88,7 +88,7 @@ public:
 
     // The view rule lives in math/ViewValue.hpp (one definition, F-086).
     double element_as_double(uint64_t i, uint64_t j) const override {
-        if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+        if constexpr (is_complex_storage_v<T>) {
             throw std::runtime_error("Complex matrix does not support get_element_as_double; use get_element_as_complex");
         } else {
             return element_as_complex(i, j).real();

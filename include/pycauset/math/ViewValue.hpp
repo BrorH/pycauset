@@ -9,6 +9,12 @@
 
 namespace pycauset {
 
+// Complex element types of matrix storage (std::complex and the interleaved complex_half).
+template <typename T>
+inline constexpr bool is_complex_storage_v = std::is_same_v<T, std::complex<float>> ||
+                                             std::is_same_v<T, std::complex<double>> ||
+                                             std::is_same_v<T, complex_half>;
+
 // The one definition of an element's logical value (review PLAN N.2; see ViewRead.hpp):
 //
 //     value = conj?(raw * factor)

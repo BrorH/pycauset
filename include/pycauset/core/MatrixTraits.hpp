@@ -89,6 +89,12 @@ struct MatrixTraits<uint64_t> {
 };
 
 template <>
+struct MatrixTraits<pycauset::complex_half> {
+    static constexpr pycauset::DataType data_type = pycauset::DataType::COMPLEX_FLOAT16;
+    static constexpr const char* name = "complex_float16";
+};
+
+template <>
 struct MatrixTraits<bool> {
     static constexpr pycauset::DataType data_type = pycauset::DataType::BIT;
     static constexpr const char* name = "bit";

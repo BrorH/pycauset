@@ -210,7 +210,7 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
         (as antisymmetric is): packed upper triangle, lower read as conj(±upper), real
         (resp. imaginary) diagonal enforced on set. Complex dtypes only (for real dtypes they
         are symmetric/antisymmetric). Atlas structures `hermitian`, `skew_hermitian`.
-  - [ ] N.5.5 complex_float16 structured classes: an interleaved `complex_half` element
+  - [x] N.5.5 complex_float16 structured classes: an interleaved `complex_half` element
         type (pair of float16) for TriangularMatrix/Symmetric/Diagonal/Identity<T>.
   - [ ] N.5.6 Bit triangular with diagonal (packed rows of n - i bits).
   - [ ] N.5.7 UnitVector for every dtype.

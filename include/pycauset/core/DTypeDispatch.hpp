@@ -151,9 +151,6 @@ template <> struct DenseVectorOf<complex_float16_marker> { using type = ComplexF
             dt == DataType::UINT64)
             why = ": antisymmetric matrices need a signed dtype";
     }
-    if (why.empty() && dt == DataType::COMPLEX_FLOAT16 && s != Structure::DENSE) {
-        why = ": structured complex_float16 storage is not implemented yet (review N.5.5)";
-    }
     throw std::invalid_argument(std::string("no ") + structure_name(s) + " matrix of dtype " + dtype_name(dt) + why);
 }
 
@@ -180,8 +177,6 @@ constexpr bool offered() {
     constexpr bool signed_like = !(std::is_unsigned_v<T> || std::is_same_v<T, bool>);
     if constexpr (S == Structure::DENSE) {
         return true;
-    } else if constexpr (std::is_same_v<T, complex_float16_marker>) {
-        return false;  // structured complex_float16: review N.5.5
     } else if constexpr (S == Structure::TRIANGULAR || S == Structure::DIAGONAL || S == Structure::IDENTITY ||
                          S == Structure::SYMMETRIC) {
         return true;
@@ -194,15 +189,20 @@ constexpr bool offered() {
     }
 }
 
+// Element type of structured storage: complex_float16 is the interleaved complex_half there
+// (dense complex_float16 keeps its split planes, ComplexFloat16Matrix).
+template <typename T>
+using structured_element_t = std::conditional_t<std::is_same_v<T, complex_float16_marker>, complex_half, T>;
+
 template <Structure S, typename T> struct ClassOf { using type = void; };
 template <typename T> struct ClassOf<Structure::DENSE, T> { using type = typename DenseMatrixOf<T>::type; };
-template <typename T> struct ClassOf<Structure::TRIANGULAR, T> { using type = TriangularMatrix<T>; };
-template <typename T> struct ClassOf<Structure::DIAGONAL, T> { using type = DiagonalMatrix<T>; };
-template <typename T> struct ClassOf<Structure::IDENTITY, T> { using type = IdentityMatrix<T>; };
-template <typename T> struct ClassOf<Structure::SYMMETRIC, T> { using type = SymmetricMatrix<T>; };
-template <typename T> struct ClassOf<Structure::ANTISYMMETRIC, T> { using type = SymmetricMatrix<T>; };
-template <typename T> struct ClassOf<Structure::HERMITIAN, T> { using type = SymmetricMatrix<T>; };
-template <typename T> struct ClassOf<Structure::SKEW_HERMITIAN, T> { using type = SymmetricMatrix<T>; };
+template <typename T> struct ClassOf<Structure::TRIANGULAR, T> { using type = TriangularMatrix<structured_element_t<T>>; };
+template <typename T> struct ClassOf<Structure::DIAGONAL, T> { using type = DiagonalMatrix<structured_element_t<T>>; };
+template <typename T> struct ClassOf<Structure::IDENTITY, T> { using type = IdentityMatrix<structured_element_t<T>>; };
+template <typename T> struct ClassOf<Structure::SYMMETRIC, T> { using type = SymmetricMatrix<structured_element_t<T>>; };
+template <typename T> struct ClassOf<Structure::ANTISYMMETRIC, T> { using type = SymmetricMatrix<structured_element_t<T>>; };
+template <typename T> struct ClassOf<Structure::HERMITIAN, T> { using type = SymmetricMatrix<structured_element_t<T>>; };
+template <typename T> struct ClassOf<Structure::SKEW_HERMITIAN, T> { using type = SymmetricMatrix<structured_element_t<T>>; };
 
 template <Structure S>
 using structure_tag = std::integral_constant<Structure, S>;

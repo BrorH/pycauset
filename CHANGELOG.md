@@ -11,7 +11,8 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
 ### Changed
 - New structure x dtype combinations: `DiagonalMatrix` and `IdentityMatrix` in float16,
   float32, complex_float32/64; `TriangularMatrix`, `SymmetricMatrix`, `AntiSymmetricMatrix` in
-  complex_float32/64. New classes `HermitianMatrix` (`A == A.conj().T`) and
+  complex_float32/64; every structured class also in complex_float16 (interleaved float16
+  pairs). New classes `HermitianMatrix` (`A == A.conj().T`) and
   `SkewHermitianMatrix` (`A == -A.conj().T`) for complex dtypes; a complex `SymmetricMatrix`
   is `A == A.T`. A combination that does not exist raises `ValueError` saying why.
 - Complex division follows NumPy's algorithm (division by a signed zero gives NumPy's

@@ -14,7 +14,7 @@ with [[docs/functions/pycauset.causal_matrix.md|pycauset.causal_matrix]].
 ## Parameters
 
 * **n** (*int*): dimension.
-* **dtype** (*str*): any dtype except `complex_float16` (`bool`, integers, floats, `complex_float32/64`). Bit matrices are always
+* **dtype** (*str*): any dtype (`bool`, integers, floats, complex). Bit matrices are always
   strictly upper triangular.
 * **has_diagonal** (*bool*): also store the diagonal.
 
