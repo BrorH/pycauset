@@ -328,39 +328,14 @@ void MemoryMapper::open_file(bool create_new) {
         // NOTE: no auto-pin via cudaHostAlloc here, see the Windows branch
         // comment. GPU transfers pin on-demand (ScopedPinner) instead.
 
-#ifdef __linux__
-        // Use memfd_create for anonymous memory to give it a file descriptor
-        // This allows map_region/unmap to work correctly with persistence.
-        fd_ = memfd_create("pycauset_anon", MFD_CLOEXEC);
-        if (fd_ == -1) {
-            throw std::runtime_error("memfd_create failed: " + std::string(std::strerror(errno)));
-        }
-        if (ftruncate(fd_, data_size_) == -1) {
-            close(fd_);
-            throw std::runtime_error("ftruncate failed: " + std::string(std::strerror(errno)));
-        }
+        // RAM-backed storage is plain private anonymous memory (what malloc uses): no file
+        // descriptor, pages faulted lazily on first write, transparent huge pages allowed.
+        // The former memfd/shm + MAP_SHARED + MAP_POPULATE path zeroed and faulted every page
+        // up front, and shared-memory pages fault slower: allocating a 3000x3000 float64
+        // result took 23 ms (NumPy ~8 ms), dominating element-wise ops (F-012). unmap() /
+        // map_region() treat :memory: like the Windows VirtualAlloc path (no remapping).
+        fd_ = -1;
         offset_ = 0;
-#else
-        // macOS lacks memfd_create. Give anonymous memory a real fd via POSIX shm_open
-        // so unmap()/map_region()/map_all() can re-map and preserve content (the same
-        // role memfd plays on Linux). macOS caps shm names (ENAMETOOLONG beyond ~31
-        // chars), so keep the name short. shm_unlink is called immediately so the name
-        // does not persist; the fd keeps the backing memory alive until close.
-        static std::atomic<uint64_t> shm_counter{0};
-        std::string shm_name = "/pc" + std::to_string(getpid()) + "x"
-                               + std::to_string(shm_counter.fetch_add(1));
-        fd_ = shm_open(shm_name.c_str(), O_CREAT | O_RDWR, 0600);
-        if (fd_ == -1) {
-            throw std::runtime_error("shm_open failed: " + std::string(std::strerror(errno)));
-        }
-        shm_unlink(shm_name.c_str());
-        if (ftruncate(fd_, static_cast<off_t>(data_size_)) == -1) {
-            close(fd_);
-            fd_ = -1;
-            throw std::runtime_error("ftruncate failed: " + std::string(std::strerror(errno)));
-        }
-        offset_ = 0;
-#endif
     } else {
         std::filesystem::path path(filename_);
         if (path.has_parent_path()) {
@@ -492,21 +467,26 @@ void MemoryMapper::open_file(bool create_new) {
         }
     }
 
-    int map_flags = MAP_SHARED;
-    if (fd_ == -1) map_flags |= MAP_ANONYMOUS;
-    
+    const bool anonymous = (filename_ == ":memory:");
+    int map_flags = anonymous ? (MAP_PRIVATE | MAP_ANONYMOUS) : MAP_SHARED;
+
     // R1_SAFETY: mmap with length 0 is invalid (EINVAL).
     if (map_size == 0) {
         return;
     }
 
 #ifdef __linux__
-    // If we are creating a new file, we are likely about to write to it.
-    // MAP_POPULATE pre-faults the pages, reducing page faults during the subsequent write.
-    if (create_new) map_flags |= MAP_POPULATE;
+    // New files are about to be written: pre-fault them. Anonymous memory is not
+    // pre-faulted (first touch by the writing kernel is cheaper than populate + rewrite).
+    if (create_new && !anonymous) map_flags |= MAP_POPULATE;
 #endif
 
-    base_ptr_ = mmap(NULL, map_size, PROT_READ | PROT_WRITE, map_flags, fd_, aligned_offset);
+    base_ptr_ = mmap(NULL, map_size, PROT_READ | PROT_WRITE, map_flags, anonymous ? -1 : fd_, aligned_offset);
+#ifdef __linux__
+    if (anonymous && base_ptr_ != MAP_FAILED && map_size >= (size_t{2} << 20)) {
+        madvise(base_ptr_, map_size, MADV_HUGEPAGE);
+    }
+#endif
     
     if (base_ptr_ == MAP_FAILED) {
         if (fd_ != -1) close(fd_);
@@ -583,6 +563,7 @@ void MemoryMapper::unmap() {
         mapped_ptr_ = nullptr;
     }
 #else
+    if (filename_ == ":memory:") return;  // anonymous memory: nothing to remap (see open_file)
     if (is_pinned_) return; // Pinned memory cannot be unmapped/remapped dynamically here
 
     if (base_ptr_ && base_ptr_ != MAP_FAILED) {
@@ -656,6 +637,7 @@ void* MemoryMapper::map_region(size_t offset, size_t size) {
     }
     return ptr;
 #else
+    if (filename_ == ":memory:") return static_cast<char*>(base_ptr_) + offset;  // interior pointer
     if (fd_ == -1) throw std::runtime_error("File descriptor invalid");
 
     // R1_SAFETY: mmap offset must be page-aligned

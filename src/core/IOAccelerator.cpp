@@ -38,6 +38,10 @@ void IOAccelerator::prefetch(size_t offset, size_t size) {
 void IOAccelerator::discard(size_t offset, size_t size) {
     pycauset::debug_trace::set_last_io("io.discard");
     if (!mapper_) return;
+    // Only file-backed pages can be dropped (they reload from the file). For RAM-backed
+    // storage the OS calls below free the pages and the data reads back as zeros
+    // (MADV_DONTNEED on anonymous memory; OfferVirtualMemory on VirtualAlloc memory).
+    if (mapper_->get_filename() == ":memory:") return;
 
     uint8_t* base = static_cast<uint8_t*>(mapper_->get_data());
     if (!base) return;

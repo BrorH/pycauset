@@ -676,3 +676,13 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - **Status:** fixed (session 6). A helper promoted float32 vectors to float64 (float16 and every
   other dtype were kept), so float32 eigenvalues came back as float64 through the NumPy path
   (part of F-047). Complex 1-D arrays are now imported natively.
+
+### F-057 RAM allocation zero-filled and pre-faulted every page; "discard" zeroed RAM data
+- **Status:** fixed (session 6). Linux RAM storage was a memfd mapped MAP_SHARED|MAP_POPULATE:
+  allocating a 3000² float64 result took 23 ms (NumPy ~8 ms) and dominated element-wise ops
+  (F-012). Now private anonymous memory (as malloc / the Windows VirtualAlloc path) with
+  transparent huge pages: `A + B` 35 ms -> 5.7 ms (NumPy 16.4 ms, single-threaded here).
+- The switch exposed a latent data-loss bug: the I/O "discard" hint (`madvise(MADV_DONTNEED)`,
+  Windows `OfferVirtualMemory`) on RAM-backed storage frees the pages, so data reads back as
+  zeros (block matrices lost their blocks). Discard is now a no-op for RAM storage on all
+  platforms; on Windows this was already reachable before this change.
