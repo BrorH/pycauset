@@ -289,3 +289,4 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - ASan+UBSan clean on the engine suite after the session-5 kernel/reader changes (2,830 passed). L2a done: A±Aᵀ packed.
 - L2b: BitClosureMatrix (C±Cᵀ over bits), _set_lazy oracle, is_lazy, pc.materialize; test_closures.py (61 cases). 3,671 passed.
 - Closure matvec word-level: n=20000 top-6 PJ-like spectrum 1.8 s, 99 MB peak. eigvals_skew via zheevd (1.8x).
+- ASan+UBSan clean after closures/bit kernels/zheevd (engine suite 2,899 passed, 0 reports).
