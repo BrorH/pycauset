@@ -656,3 +656,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
   Now a native transitive reduction on the bits (`_transitive_reduction`, valid because a CausalSet's
   matrix is validated transitive): n = 20,000 in 0.05 s, no n² integer product. The NumPy export of
   the result dominates `links()` time for mid n (non-dense export is slow; F-012 family).
+
+### F-054 Bit `&`/`|`/`^` lost their word-level fast path (175× slower)
+- **Status:** fixed (session 6). The structure-class rewrite replaced the per-class bit operators
+  with a per-element loop: n = 2000 `A ^ B` 71 ms; restored word-level path: 0.4 ms.
+
+### F-055 Integer matmul has no fast path (int16 matmul 54× slower than float64 BLAS)
+- **Status:** open; planned with value bounds (F1). n = 2000: int16 @ int16 5.9 s, float64 0.11 s,
+  bit @ bit 0.05 s. Fix: when value bounds prove every partial sum < 2^53, run integer matmul
+  exactly through float64 BLAS (and narrow back). See features/BIT_PLANES.md.

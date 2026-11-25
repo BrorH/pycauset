@@ -66,6 +66,8 @@ Two tiers. Every lazy rewrite in this document is labelled E or A.
      `1e100` eager but `inf` if folded.
   3. Documented in the user docs as: "floating-point results may differ from step-by-step
      evaluation in the last digits; they're deterministic."
+- **Decided by the maintainer (2026-11-25): tier A is accepted** ("yes, definitely"), documented
+  in the user docs. Previously proposed as:
 - **Default:** tier A is on for floats (it's how BLAS, NumPy's `einsum(optimize=True)` and
   every compiler at `-O2` already behave, and float matmul is already not bit-identical to
   NumPy). **Maintainer veto point:** if bit-identical step-by-step float semantics matter

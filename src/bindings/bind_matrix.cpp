@@ -1496,6 +1496,20 @@ inline std::shared_ptr<MatrixBase> bit_binary(const MatrixBase& a, const MatrixB
         throw py::value_error("matrix dimensions must match for bitwise operations");
     }
     auto out = std::make_shared<DenseBitMatrix>(x->rows(), x->cols(), "");
+    // Word-level fast path for plain storage (64 elements per operation); lost in the
+    // structure-class rewrite and restored (F-054).
+    if (!x->is_transposed() && !y->is_transposed() && !x->has_view_offset() && !y->has_view_offset() &&
+        x->rows() == x->base_rows() && x->cols() == x->base_cols() &&
+        y->rows() == y->base_rows() && y->cols() == y->base_cols() && x->shared_mapper() && y->shared_mapper()) {
+        const uint64_t* pa = x->data();
+        const uint64_t* pb = y->data();
+        uint64_t* pcw = out->data();
+        const uint64_t words = x->stride_bytes() * x->rows() / 8;
+        pycauset::ParallelFor(0, words, [&](size_t w) {
+            pcw[w] = op == '&' ? (pa[w] & pb[w]) : op == '|' ? (pa[w] | pb[w]) : (pa[w] ^ pb[w]);
+        });
+        return out;
+    }
     for (uint64_t i = 0; i < x->rows(); ++i) {
         for (uint64_t j = 0; j < x->cols(); ++j) {
             const bool p = x->get(i, j), q = y->get(i, j);
