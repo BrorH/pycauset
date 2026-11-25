@@ -154,6 +154,11 @@ public:
         if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
             throw std::runtime_error("Complex matrix does not support get_element_as_double; use get_element_as_complex");
         }
+        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+            // Integer views: wrap like NumPy (int8 100 * 3 == 44), exactly.
+            if (scalar_ == 1.0) return static_cast<double>(get(i, j));
+            return static_cast<double>(pycauset::scalar::wrap_scale(get(i, j), static_cast<int64_t>(scalar_.real())));
+        }
         const std::complex<double> v = pycauset::scalar::to_complex_double(get(i, j));
         if (scalar_ == 1.0) {
             return v.real();
@@ -162,6 +167,9 @@ public:
     }
 
     std::complex<double> get_element_as_complex(uint64_t i, uint64_t j) const override {
+        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+            return {get_element_as_double(i, j), 0.0};
+        }
         const std::complex<double> v = pycauset::scalar::to_complex_double(get(i, j));
         std::complex<double> z = (scalar_ == 1.0) ? v : (v * scalar_);
         if (is_conjugated()) {

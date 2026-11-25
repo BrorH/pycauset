@@ -288,11 +288,26 @@ R convert_in(In v) {
     }
 }
 
+// Integer factor of an integer view (1 for plain matrices and for non-integer dtypes).
+inline int64_t int_view_factor(const MatrixBase& a) {
+    if (is_int(a.get_data_type()) && scalar::is_exact_int_factor(a.get_scalar())) {
+        return static_cast<int64_t>(a.get_scalar().real());
+    }
+    return 1;
+}
+
 // Typed source: reads element (i, j) of a concrete input class exactly.
 template <typename In, typename Src>
 struct TypedReader {
     const Src& m;
-    In operator()(uint64_t i, uint64_t j) const { return m.get(i, j); }
+    int64_t k = 1;  // integer view factor (F-042), applied with NumPy's wrapping
+    In operator()(uint64_t i, uint64_t j) const {
+        if constexpr (std::is_integral_v<In> && !std::is_same_v<In, bool>) {
+            return k == 1 ? m.get(i, j) : scalar::wrap_scale(m.get(i, j), k);
+        } else {
+            return m.get(i, j);
+        }
+    }
 };
 
 template <typename R, typename In, typename Src>
@@ -300,7 +315,7 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
                                 bool triangular_in, bool has_diag) {
     const uint64_t rows = a.rows(), cols = a.cols();
     const R sv = scalar_as<R>(s);
-    TypedReader<In, Src> read{src};
+    TypedReader<In, Src> read{src, int_view_factor(a)};
 
     // Triangular results only for element types that have a Python class
     // (TriangularIntegerMatrix = int32, TriangularFloatMatrix = float64); anything else
@@ -363,7 +378,9 @@ template <typename R>
 std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s) {
     // Exact typed paths only when the input carries no lazy scalar (integers never do
     // after F-001; a float input may, and is then read through the generic accessor).
-    const bool plain = a.get_scalar() == std::complex<double>(1.0, 0.0) && !a.is_conjugated();
+    const bool plain = !a.is_conjugated() &&
+                       (a.get_scalar() == std::complex<double>(1.0, 0.0) ||
+                        (is_int(a.get_data_type()) && scalar::is_exact_int_factor(a.get_scalar())));
 #define PYCAUSET_TRY_DENSE(T)                                                              \
     if (auto* m = dynamic_cast<const DenseMatrix<T>*>(&a); m && plain)                    \
         return run<R, T>(*m, a, op, s, false, false);
@@ -404,6 +421,18 @@ std::unique_ptr<MatrixBase> run_exact(const MatrixBase& a, DataType out, ScalarO
 
 }  // namespace
 
+// Shared-storage view of an integer matrix scaled by k (nullptr when not representable).
+std::unique_ptr<MatrixBase> int_scale_view(const MatrixBase& a, int64_t k) {
+    const Structure st = a.get_structure();
+    if ((st != Structure::DENSE && st != Structure::TRIANGULAR) || a.is_conjugated()) return nullptr;
+    int64_t f = 0;
+    if (!scalar::fold_int_factors(a.get_scalar(), k, f)) return nullptr;
+    auto c = a.clone();
+    std::unique_ptr<MatrixBase> view(static_cast<MatrixBase*>(c.release()));
+    view->set_scalar(static_cast<double>(f));
+    return view;
+}
+
 // ------------------------------------------------------------- entry points
 std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s) {
     const DataType in = a.get_data_type();
@@ -412,6 +441,14 @@ std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, cons
     if (is_integer_or_bit(in) && s.kind == ScalarArg::Kind::Int && is_int(out) && !int_fits(s, out)) {
         throw std::overflow_error("Python integer out of bounds for " + dtype_name(out) +
                                   " (scalar does not fit the matrix dtype)");
+    }
+
+    // Integer input, integer factor, dtype kept: an O(1) view sharing storage (LAZY.md L1,
+    // F-042). Dense and triangular only (their readers apply integer factors); the folded
+    // factor must stay exact, otherwise compute eagerly.
+    if (op == ScalarOpKind::Mul && is_int(in) && out == in && s.kind == ScalarArg::Kind::Int) {
+        const int64_t k = s.negative ? s.i : static_cast<int64_t>(s.u);  // mod 2^64 is exact here
+        if (auto view = int_scale_view(a, k)) return view;
     }
 
     // Float/complex input whose dtype is kept: the classes' O(1) scalar-view paths.
@@ -443,11 +480,18 @@ std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, cons
     return run_exact(a, out, op, s);
 }
 
+std::unique_ptr<MatrixBase> materialize(const MatrixBase& a) {
+    // Values through the exact view-aware reader into fresh storage (factor 1).
+    return run_exact(a, a.get_data_type(), ScalarOpKind::Add, ScalarArg::from_int64(0));
+}
+
 std::unique_ptr<MatrixBase> negate(const MatrixBase& a) {
     if (a.get_data_type() == DataType::BIT) {
         throw std::invalid_argument("negation of a bit/bool matrix is not supported (as in NumPy); use bitwise_not");
     }
     if (is_int(a.get_data_type())) {
+        // -A is the view factor -1 (unsigned negation wraps like NumPy: same arithmetic).
+        if (auto view = int_scale_view(a, -1)) return view;
         // Unsigned negation wraps (NumPy): multiply by -1 in the unsigned type.
         ScalarArg minus_one = ScalarArg::from_int64(-1);
         if (is_unsigned_int(a.get_data_type())) {

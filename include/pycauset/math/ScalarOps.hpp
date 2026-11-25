@@ -57,6 +57,9 @@ DataType scalar_result_dtype(DataType a, ScalarOpKind op, const ScalarArg& s);
 std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s);
 
 // -A. Raises std::invalid_argument for bit/bool (NumPy forbids boolean negation).
+// Plain copy of a view's values (factor applied exactly); used before consumers that read
+// raw storage. Integer and float dtypes supported by the exact scalar kernels.
+std::unique_ptr<MatrixBase> materialize(const MatrixBase& a);
 std::unique_ptr<MatrixBase> negate(const MatrixBase& a);
 
 // A converted to a dense matrix of dtype `dt` (exact where the target can represent the

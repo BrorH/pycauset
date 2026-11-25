@@ -535,8 +535,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
   to float64 like NumPy and delete the wrapper.
 
 ### F-042 Scalar factor views exist only for float dtypes (wanted feature, R1)
-- **Status:** open; designed in `features/LAZY.md` (phase L1, all dtypes × structures ×
-  vectors). Maintainer: "definitely a wanted feature … ALL dtypes and matrix types".
+- **Status:** in progress. **Done (session 5):** dense and triangular integer matrices — `k*A`
+  and `-A` are O(1) shared-storage views with an exact folded integer factor (|k| <= 2^53,
+  folded mod 2^64, NumPy wrapping on read). 3000² int32 `5*(3*(2*A))`: 85 ms -> 0.21 ms.
+  Every consumer verified by `tests/engine/test_int_scale_views.py` (7 dtypes x 4 factors x
+  17 consumers + triangular + mixed). **Remaining:** bit matrices (`2*C` needs a cast view:
+  logical dtype != storage dtype), diagonal/symmetric integer views, vectors.
 - `k * M` is meant to be O(1): the result shares `M`'s storage and records `k` in the view
   metadata (`scalar_`), and chains such as `2 * 3 * 5 * M` fold into one factor. Measured on
   3000×3000, three chained multiplies: float64 0.2 ms (view, `scalar = 30`); int32 85 ms and

@@ -106,3 +106,38 @@ def test_source_unchanged_after_writing_into_scaled_view(rng):
     v[0, 1] = 7
     assert v[0, 1] == 7 and src[0, 1] == a[0, 1]
     np.testing.assert_array_equal(to_np(src), a)
+
+
+def test_integer_scaling_is_a_view():
+    a = pc.matrix(np.arange(16, dtype=np.int32).reshape(4, 4))
+    v = 5 * (3 * (2 * a))
+    assert v.scalar == 30 and v.dtype == "int32"  # O(1): one folded factor, shared storage
+    np.testing.assert_array_equal(to_np(v), np.arange(16, dtype=np.int32).reshape(4, 4) * 30)
+
+
+@pytest.mark.parametrize("dtype", ["int16", "int64"])
+def test_triangular_integer_views(dtype):
+    t = pc.TriangularMatrix(6, dtype=dtype)
+    t[0, 3] = 7
+    t[1, 5] = -4
+    tn = to_np(t)
+    v = t * -5
+    assert type(v) is pc.TriangularMatrix and v.dtype == dtype
+    np.testing.assert_array_equal(to_np(v), tn * -5)
+    np.testing.assert_array_equal(to_np(v + 1), tn * -5 + 1)
+    np.testing.assert_array_equal(to_np(v @ t), (tn * -5) @ tn)
+    np.testing.assert_array_equal(to_np(v.T), (tn * -5).T)
+
+
+def test_mixed_consumers_of_integer_views(rng):
+    a = rng.integers(-9, 9, (6, 6)).astype(np.int32)
+    f = rng.standard_normal((6, 6))
+    v, ref = pc.matrix(a) * 3, a * 3
+    np.testing.assert_allclose(to_np(v @ pc.matrix(f)), ref @ f)
+    np.testing.assert_allclose(to_np(v + pc.matrix(f)), ref + f)
+    np.testing.assert_allclose(to_np(v * 2.5), ref * 2.5)
+    np.testing.assert_allclose(to_np(v / 2), ref / 2)
+    assert pc.trace(v) == np.trace(ref)
+    np.testing.assert_allclose(pc.norm(v), np.linalg.norm(ref))
+    c = pc.causal_matrix(6, seed=2)
+    np.testing.assert_array_equal(to_np(c @ v), to_np(c).astype(np.int32) @ ref)

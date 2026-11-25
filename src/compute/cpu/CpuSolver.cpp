@@ -2364,6 +2364,7 @@ namespace {
         const void* data = nullptr;
         int64_t base = 0, si = 0, sj = 0;
         std::complex<double> scalar = 1.0;
+        int64_t kf = 1;  // integer factor of an integer view (applied with wrapping in U)
         bool scaled = false, conj = false;
         RowFn row_fn = nullptr;
         // Fills out[0 .. j1-j0) with elements (i, j0) .. (i, j1-1).
@@ -2376,29 +2377,42 @@ namespace {
         const int64_t sj = r.sj;
         const uint64_t n = j1 - j0;
         src += static_cast<int64_t>(j0) * sj;
+        if constexpr (std::is_integral_v<U> && !std::is_same_v<U, bool>) {
+            // Integer operand: the view's value is wrap(x * k) in U, then converted to T.
+            if (r.scaled) {
+                const int64_t k = r.kf;
+                for (uint64_t q = 0; q < n; ++q) {
+                    const U v = pycauset::scalar::wrap_scale(src[static_cast<int64_t>(q) * sj], k);
+                    if constexpr (is_std_complex_v<T>) out[q] = static_cast<T>(std::complex<double>(static_cast<double>(v), 0.0));
+                    else if constexpr (std::is_integral_v<T>) out[q] = static_cast<T>(v);
+                    else out[q] = static_cast<T>(static_cast<double>(v));
+                }
+                return;
+            }
+        }
         if constexpr (is_std_complex_v<T>) {
             const bool conj = r.conj, scaled = r.scaled;
             const std::complex<double> s = r.scalar;
-            for (uint64_t k = 0; k < n; ++k) {
-                std::complex<double> z = pycauset::scalar::to_complex_double(src[static_cast<int64_t>(k) * sj]);
+            for (uint64_t q = 0; q < n; ++q) {
+                std::complex<double> z = pycauset::scalar::to_complex_double(src[static_cast<int64_t>(q) * sj]);
                 if (conj) z = std::conj(z);
                 if (scaled) z *= s;
-                out[k] = static_cast<T>(z);
+                out[q] = static_cast<T>(z);
             }
         } else if constexpr (std::is_integral_v<T>) {
-            for (uint64_t k = 0; k < n; ++k) out[k] = static_cast<T>(src[static_cast<int64_t>(k) * sj]);
+            for (uint64_t q = 0; q < n; ++q) out[q] = static_cast<T>(src[static_cast<int64_t>(q) * sj]);
         } else {
             if (r.scaled) {
                 const double s = r.scalar.real();
-                for (uint64_t k = 0; k < n; ++k) out[k] = static_cast<T>(static_cast<double>(src[static_cast<int64_t>(k) * sj]) * s);
+                for (uint64_t q = 0; q < n; ++q) out[q] = static_cast<T>(static_cast<double>(src[static_cast<int64_t>(q) * sj]) * s);
             } else if constexpr (std::is_same_v<T, U>) {
                 if (sj == 1) {
                     std::memcpy(out, src, n * sizeof(T));
                 } else {
-                    for (uint64_t k = 0; k < n; ++k) out[k] = src[static_cast<int64_t>(k) * sj];
+                    for (uint64_t q = 0; q < n; ++q) out[q] = src[static_cast<int64_t>(q) * sj];
                 }
             } else {
-                for (uint64_t k = 0; k < n; ++k) out[k] = static_cast<T>(static_cast<double>(src[static_cast<int64_t>(k) * sj]));
+                for (uint64_t q = 0; q < n; ++q) out[q] = static_cast<T>(static_cast<double>(src[static_cast<int64_t>(q) * sj]));
             }
         }
     }
@@ -2416,8 +2430,10 @@ namespace {
         } else {
             const auto* d = dynamic_cast<const DenseMatrix<U>*>(&m);
             if (d == nullptr) return false;
-            if constexpr (std::is_integral_v<T>) {
-                if (m.get_scalar() != std::complex<double>(1.0, 0.0)) return false;
+            if constexpr (std::is_integral_v<U> && !std::is_same_v<U, bool>) {
+                // Integer operands carry only exact integer factors (integer views, F-042).
+                if (!pycauset::scalar::is_exact_int_factor(m.get_scalar())) return false;
+                r.kf = static_cast<int64_t>(m.get_scalar().real());
             }
             if constexpr (!is_std_complex_v<T>) {
                 if (m.get_scalar().imag() != 0.0) return false;

@@ -2,7 +2,7 @@
 
 **Requested by:** maintainer (creative director), 2026-11-24: "make sure this is implemented
 for ALL dtypes and matrix types … very thoroughly implemented, documented and thought through."
-**Status:** designed, not started. Scheduled in PLAN.md as Phase L (L0–L6). Findings: F-042
+**Status:** L1 in progress (session 5): views read at kernel speed (F-043), integer scale views for dense/triangular (F-042), free Diagonal transpose (F-044); remaining L1 items listed under F-042. Scheduled in PLAN.md as Phase L (L0–L6). Findings: F-042
 (scalar views missing for integer/bit), F-043 (consuming a view costs 2×), F-044 (free
 transposes missed).
 **Probe:** `review/probes/view_semantics_probe.py` (which class × op is a view today, value

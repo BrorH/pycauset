@@ -1294,13 +1294,14 @@ inline py::object element_get(const MatrixBase& mat, uint64_t i, uint64_t j) {
     const DataType dt = mat.get_data_type();
     if (is_complex_dtype(dt)) return py::cast(mat.get_element_as_complex(i, j));
     if (is_real_float_dtype(dt)) return py::float_(mat.get_element_as_double(i, j));
-    if (mat.get_scalar() != std::complex<double>(1.0, 0.0)) {
-        // Integer/bit views never carry a factor (F-001); guard against a regression.
-        throw std::logic_error("integer matrix carries a scale factor");
+    const bool scaled = mat.get_scalar() != std::complex<double>(1.0, 0.0);
+    if (scaled && !pycauset::scalar::is_exact_int_factor(mat.get_scalar())) {
+        throw std::logic_error("integer matrix carries a non-integer scale factor");
     }
+    const int64_t k = static_cast<int64_t>(mat.get_scalar().real());
     return pycauset::visit_matrix(mat, [&](const auto& typed) -> py::object {
         using E = element_of_t<std::decay_t<decltype(typed)>>;
-        const E v = typed.get(i, j);
+        const E v = scaled ? pycauset::scalar::wrap_scale(typed.get(i, j), k) : typed.get(i, j);
         if constexpr (std::is_same_v<E, bool>) return py::bool_(v);
         else if constexpr (std::is_integral_v<E>) return py::int_(v);
         else throw std::logic_error("unreachable: non-integer dtype in the exact read path");
@@ -1336,24 +1337,38 @@ inline void fold_value_view_for_write(MatrixBase& mat) {
                 default: return false;
             }
         };
-        std::vector<std::tuple<uint64_t, uint64_t, double>> values;
-        for (uint64_t i = 0; i < n; ++i)
-            for (uint64_t j = 0; j < n; ++j)
-                if (stored(i, j)) values.emplace_back(i, j, mat.get_element_as_double(i, j));
-        mat.set_scalar(1.0);
-        mat.set_conjugated(false);
         pycauset::visit_matrix(mat, [&](auto& typed) {
             using E = element_of_t<std::decay_t<decltype(typed)>>;
             if constexpr (requires { typed.set(uint64_t{0}, uint64_t{0}, E{}); }) {
-                for (const auto& [i, j, v] : values) typed.set(i, j, static_cast<E>(v));
+                // Read every stored element through the view (exactly for integers), clear the
+                // factor, write back.
+                std::vector<std::tuple<uint64_t, uint64_t, E>> values;
+                const int64_t k = static_cast<int64_t>(s.real());
+                for (uint64_t i = 0; i < n; ++i)
+                    for (uint64_t j = 0; j < n; ++j)
+                        if (stored(i, j)) {
+                            if constexpr (std::is_integral_v<E> && !std::is_same_v<E, bool>) {
+                                values.emplace_back(i, j, pycauset::scalar::wrap_scale(typed.get(i, j), k));
+                            } else {
+                                values.emplace_back(i, j, static_cast<E>(mat.get_element_as_double(i, j)));
+                            }
+                        }
+                mat.set_scalar(1.0);
+                mat.set_conjugated(false);
+                for (const auto& [i, j, v] : values) typed.set(i, j, v);
             }
         });
         return;
     }
     pycauset::visit_matrix(mat, [&](auto& typed) {
         using E = element_of_t<std::decay_t<decltype(typed)>>;
-        if constexpr (std::is_same_v<E, bool> || std::is_integral_v<E>) {
-            throw std::logic_error("integer matrix carries a scale factor");
+        if constexpr (std::is_same_v<E, bool>) {
+            throw std::logic_error("bit matrix carries a scale factor");
+        } else if constexpr (std::is_integral_v<E>) {
+            const int64_t k = static_cast<int64_t>(s.real());
+            const uint64_t r = typed.rows(), c = typed.cols();
+            for (uint64_t i = 0; i < r; ++i)
+                for (uint64_t j = 0; j < c; ++j) typed.set(i, j, pycauset::scalar::wrap_scale(typed.get(i, j), k));
         } else {
             const uint64_t r = typed.rows(), c = typed.cols();
             for (uint64_t i = 0; i < r; ++i) {
@@ -1591,8 +1606,11 @@ py::object export_dense_typed(const MatrixBase& mat) {
     auto r = out.template mutable_unchecked<2>();
     for (uint64_t i = 0; i < rows; ++i) {
         for (uint64_t j = 0; j < cols; ++j) {
-            if constexpr (std::is_integral_v<T>) {
-                if (!unit_view) throw std::logic_error("integer matrix carries a lazy scalar (F-001 invariant)");
+            if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+                // Integer views (F-042): factor applied with NumPy's wrapping.
+                r(i, j) = unit_view ? m->get(i, j)
+                                    : pycauset::scalar::wrap_scale(m->get(i, j), static_cast<int64_t>(mat.get_scalar().real()));
+            } else if constexpr (std::is_integral_v<T>) {
                 r(i, j) = m->get(i, j);
             } else if constexpr (std::is_same_v<T, pycauset::float16_t>) {
                 const double v = m->get_element_as_double(i, j);
@@ -2754,7 +2772,14 @@ void bind_matrix_classes(py::module_& m) {
                 }
             });
         }, py::arg("value"))
-        .def("__invert__", [](const MatrixBase& mat) -> std::shared_ptr<MatrixBase> {
+        .def("__invert__", [](const MatrixBase& mat_in) -> std::shared_ptr<MatrixBase> {
+            // bitwise_not reads raw storage: materialize integer views first (F-042).
+            std::unique_ptr<MatrixBase> plain;
+            if (pycauset::is_integer_or_bit(mat_in.get_data_type()) && mat_in.get_data_type() != DataType::BIT &&
+                mat_in.get_scalar() != std::complex<double>(1.0, 0.0)) {
+                plain = pycauset::materialize(mat_in);
+            }
+            const MatrixBase& mat = plain ? *plain : mat_in;
             return pycauset::visit_matrix(mat, [&](const auto& typed) -> std::shared_ptr<MatrixBase> {
                 using E = element_of_t<std::decay_t<decltype(typed)>>;
                 if constexpr (std::is_integral_v<E> && requires { typed.bitwise_not(std::string()); }) {

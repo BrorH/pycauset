@@ -85,4 +85,34 @@ struct WrapMultiplies {
     constexpr auto operator()(A a, B b) const { return detail::wrapping_apply(a, b, [](auto x, auto y) { return x * y; }); }
 };
 
+// --- Integer scale factors on views (LAZY.md L1, F-042) ---------------------------------
+// An integer view stores its factor k in the object's complex<double> scalar slot. It is
+// only ever an integer with |k| <= 2^53, so the double is exact.
+inline constexpr double kMaxExactIntFactor = 9007199254740992.0;  // 2^53
+
+inline bool is_exact_int_factor(std::complex<double> s) {
+    return s.imag() == 0.0 && s.real() == static_cast<double>(static_cast<int64_t>(s.real())) &&
+           s.real() <= kMaxExactIntFactor && s.real() >= -kMaxExactIntFactor;
+}
+
+// x * k with NumPy's wrapping semantics for integer type U (mod 2^bits(U)).
+template <typename U>
+constexpr U wrap_scale(U x, int64_t k) {
+    if constexpr (std::is_same_v<U, bool> || !std::is_integral_v<U>) {
+        return x;  // only integer types carry integer view factors
+    } else {
+        return static_cast<U>(static_cast<uint64_t>(static_cast<int64_t>(x)) * static_cast<uint64_t>(k));
+    }
+}
+
+// Folds two integer factors (mod 2^64). Returns false when the result is not exactly
+// representable as a view factor; the caller then computes eagerly.
+inline bool fold_int_factors(std::complex<double> a, int64_t k, int64_t& out) {
+    if (!is_exact_int_factor(a)) return false;
+    const int64_t f = static_cast<int64_t>(static_cast<uint64_t>(static_cast<int64_t>(a.real())) * static_cast<uint64_t>(k));
+    if (static_cast<double>(f) > kMaxExactIntFactor || static_cast<double>(f) < -kMaxExactIntFactor) return false;
+    out = f;
+    return true;
+}
+
 } // namespace pycauset::scalar
