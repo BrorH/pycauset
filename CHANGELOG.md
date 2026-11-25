@@ -9,6 +9,20 @@ milestone corresponds to **v0.6.1**.
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
 ### Changed
+- Results are never cached. `sum`, `trace`, `determinant`, `norm`, eigenvalues and inverses
+  are computed on every call (cached values went stale after `M[i, j] = v`). Properties are
+  metadata only: they never change a result (`is_zero=True` no longer makes `det` 0). Save
+  files no longer have a `cached` section or `.objects/` sidecar.
+- `~A` follows NumPy for structured matrices (every element is complemented, so the result
+  is dense). `AntiSymmetricMatrix` requires a signed dtype.
+- `solve`, `solve_triangular`, `lstsq`, `pinv`, `svd`, `svdvals` and `slogdet` run in the
+  engine for every dtype, structure and view (no NumPy fallback); `svd` returns NumPy's
+  shapes, `full_matrices=True` by default.
+- Matrix products keep structure where the product has it: upper triangular @ upper
+  triangular is a `TriangularMatrix` and diagonal @ diagonal a `DiagonalMatrix` for every
+  real dtype with that class (was float64/int32 only); complex products use BLAS.
+- `A += B` / `A += s` mean `A = A + B` (one code path; the separate in-place bindings are
+  removed). float16 / complex-float16 matrices support `+ s` and `- s` with any real scalar.
 - One class per structure; the element type is `A.dtype`: `DenseMatrix`, `TriangularMatrix`
   (causal matrices are dtype `bool`), `DiagonalMatrix`, `IdentityMatrix`, `SymmetricMatrix`,
   `AntiSymmetricMatrix`, `DenseVector`, `UnitVector`. The per-dtype classes (`FloatMatrix`,
