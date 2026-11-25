@@ -169,7 +169,9 @@ or constant (bandwidth factor).
   `tests/engine/test_closures.py` compares every consumer with the eager oracle
   `_set_lazy(False)`; `A.is_lazy`, `pc.materialize(A)` added). Follow-ups: word-level
   closure matvec (today bit-by-bit), dense `eigvals_skew` is O(n³) whatever the storage
-  (L7.1 real skew solver). Original requirements: a `ClosureMatrix` class (C++) deriving the
+  (L7.1 real skew solver). **Session 5:** `eigvals_skew` now uses the Hermitian solver on iA
+  (zheevd, exact ± pairs, deterministic order): n = 1500 0.65 s -> 0.36 s. `eig_skew` (vectors)
+  still uses dgeev. Original requirements: a `ClosureMatrix` class (C++) deriving the
   Symmetric/AntiSymmetric structure bases, holding a shared pointer to the source triangular
   storage plus a sign and a logical dtype. Requirements found while designing it:
   1. `visit_matrix` (DTypeDispatch.hpp) assumes the storage class matches (structure, dtype);

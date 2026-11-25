@@ -2217,31 +2217,39 @@ void CpuSolver::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {
     const uint64_t n = a.rows();
     const int kk = std::min(k, static_cast<int>(n));
 
-    // Copy the (real) matrix into a dense row-major scratch buffer; dgeev
-    // factorizes in place, so the input must never be mutated. to_memory_flat_real_square
-    // also folds in the matrix scalar, so eigenvalues scale correctly.
+    // A real skew-symmetric A is normal with eigenvalues +-i*lambda. H = iA is Hermitian, so
+    // the Hermitian solver gives real mu with A's eigenvalues -i*mu: exact +- pairs, real
+    // arithmetic accuracy, ~2.4x faster than the general dgeev used before (L7.1).
+    // to_memory_flat_real_square folds in the matrix scalar.
     auto data = to_memory_flat_real_square(a);
-
-    std::vector<double> wr(n);
-    std::vector<double> wi(n);
-
-    // General non-symmetric eigensolver with no eigenvectors requested. For a real
-    // skew-symmetric matrix this yields pure-imaginary pairs (+-i*lambda) and a zero
-    // for odd n. This is the correctness-first baseline for the native skew
-    // eigensystem (a dedicated Paige-Van Loan tridiagonalization can come later).
-    lapack_int info = LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', 'N', static_cast<lapack_int>(n),
-        data.data(), static_cast<lapack_int>(n), wr.data(), wi.data(),
-        nullptr, static_cast<lapack_int>(n), nullptr, static_cast<lapack_int>(n));
+    std::vector<std::complex<double>> h(n * n);
+    for (uint64_t idx = 0; idx < n * n; ++idx) h[idx] = std::complex<double>(0.0, data[idx]);
+    data.clear();
+    data.shrink_to_fit();
+    std::vector<double> mu(n);
+    // Column-major view of the row-major buffer is conj(H): same (real) eigenvalues, no copy.
+    lapack_int info = LAPACKE_zheevd(LAPACK_COL_MAJOR, 'N', 'U', static_cast<lapack_int>(n),
+        reinterpret_cast<lapack_complex_double*>(h.data()), static_cast<lapack_int>(n), mu.data());
     if (info > 0) throw std::runtime_error("CpuSolver::eigvals_skew failed to converge");
     if (info < 0) throw std::runtime_error("CpuSolver::eigvals_skew: illegal argument");
 
     std::vector<std::complex<double>> evals(n);
-    for (uint64_t i = 0; i < n; ++i) {
-        evals[i] = std::complex<double>(wr[i], wi[i]);
-    }
+    for (uint64_t i = 0; i < n; ++i) evals[i] = std::complex<double>(0.0, -mu[i]);
+    // Descending magnitude; within a +-pair (magnitudes equal up to rounding: relative 1e-12 of
+    // the largest), +i first. A deterministic function of the values.
+    double scale = 0.0;
+    for (const auto& z : evals) scale = std::max(scale, std::abs(z.imag()));
+    const double tol = 1e-12 * scale;
     std::sort(evals.begin(), evals.end(), [](const std::complex<double>& x, const std::complex<double>& y) {
-        return std::norm(x) > std::norm(y);
+        return std::abs(x.imag()) > std::abs(y.imag());
     });
+    for (uint64_t i = 0; i + 1 < n; ++i) {
+        if (std::abs(std::abs(evals[i].imag()) - std::abs(evals[i + 1].imag())) <= tol &&
+            evals[i].imag() < evals[i + 1].imag()) {
+            std::swap(evals[i], evals[i + 1]);
+            ++i;
+        }
+    }
 
     for (int i = 0; i < kk; ++i) {
         out_c->set(i, evals[i]);
