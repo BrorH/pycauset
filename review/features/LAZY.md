@@ -155,6 +155,29 @@ or constant (bandwidth factor).
 - **Exactness:** E for element reads; matvec `Cx − Cᵀx` vs materialized `(C−Cᵀ)x` is E for
   ints and bits, A for floats.
 
+#### L2 implementation plan (session 5)
+- **L2a, eager but packed (small, exact):** the structure resolver recognises `A ± B` where B is
+  the transpose view of A (same mapper, opposite transpose flag, equal factor and conjugation,
+  no offsets). `A + Aᵀ` is exactly symmetric (floating-point addition commutes) and `A − Aᵀ`
+  exactly antisymmetric, so the result is stored packed: half the memory for every dtype,
+  and `eigvals_skew` / Lanczos apply directly. For a causal matrix, `C − Cᵀ` becomes an
+  int32 AntiSymmetricMatrix (n²/2 × 4 bytes instead of n² × 4); with value bounds (F1) the
+  dtype drops to int8.
+- **L2b, the closure view (the 32–64× saving):** a `ClosureMatrix` class (C++) deriving the
+  Symmetric/AntiSymmetric structure bases, holding a shared pointer to the source triangular
+  storage plus a sign and a logical dtype. Requirements found while designing it:
+  1. `visit_matrix` (DTypeDispatch.hpp) assumes the storage class matches (structure, dtype);
+     it needs a branch for closure objects (dispatch on the *source* storage type) or every
+     typed consumer breaks with "object does not match its tag".
+  2. Element reads: `C[i,j] ± C[j,i]` through the source's typed get, then cast to the logical
+     dtype (the bit -> int32 promotion).
+  3. Fast consumers: matvec = `Cx ± Cᵀx` with the bit-triangular kernels (both exist:
+     `cpu.matvec.tri_bit_x_*`), so Arnoldi/`eigvals_skew` run without materializing.
+  4. Everything else materializes once (packed, L2a) and caches the result.
+  5. Persistence saves the source storage plus the closure flag (no n² payload).
+  Gate: the reader × view grid extended with closure objects, and an "allocation" test that
+  `eigvals_skew(C − C.T)` never allocates an n² buffer (MemoryGovernor counters).
+
 ### L3 Operator expressions: sums, products, powers, inverses (asymptotic wins)
 - **What:** lazy nodes `αA + βB (+ …)`, `A @ B`, `A ** k` (matrix power), `inv(A)`, built on
   L1 views as leaves.
