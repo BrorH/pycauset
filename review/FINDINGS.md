@@ -665,7 +665,10 @@ the entry (the history is useful). New findings go at the bottom with the next f
   with a per-element loop: n = 2000 `A ^ B` 71 ms; restored word-level path: 0.4 ms.
 
 ### F-055 Integer matmul has no fast path (int16 matmul 54× slower than float64 BLAS)
-- **Status:** open; planned with value bounds (F1). n = 2000: int16 @ int16 5.9 s, float64 0.11 s,
+- **Status:** fixed (session 6) without waiting for value bounds: the bound k·max|A|·max|B| < 2^53 is
+  MEASURED on the operands (O(n²) next to the O(n³) product) and the product runs exactly through
+  float64 dgemm (`cpu.matmul.int_via_dgemm`); otherwise the exact integer kernels. n = 2000 int16:
+  5.9 s -> 0.12 s. Overflow of the output dtype still raises. Value bounds (F1) will skip the scan. n = 2000: int16 @ int16 5.9 s, float64 0.11 s,
   bit @ bit 0.05 s. Fix: when value bounds prove every partial sum < 2^53, run integer matmul
   exactly through float64 BLAS (and narrow back). See features/BIT_PLANES.md.
 

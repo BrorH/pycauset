@@ -60,6 +60,7 @@
 #include <filesystem>
 #include <vector>
 #include <cstring>
+#include <atomic>
 #include <functional>
 #include "pycauset/matrix/BitClosureMatrix.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
@@ -971,6 +972,189 @@ namespace {
     }
 } // namespace
 
+namespace {
+    // Reads element (i, j) of a dense operand as the result type T, honouring the view
+    // (transpose, offsets, broadcasting, scale factor, conjugation). Built once per operation.
+    template <typename T>
+    struct StridedReader {
+        using RowFn = void (*)(const StridedReader&, uint64_t, uint64_t, uint64_t, T*);
+        const void* data = nullptr;
+        int64_t base = 0, si = 0, sj = 0;
+        std::complex<double> scalar = 1.0;
+        int64_t kf = 1;  // integer factor of an integer view (applied with wrapping in U)
+        bool scaled = false, conj = false;
+        RowFn row_fn = nullptr;
+        // Fills out[0 .. j1-j0) with elements (i, j0) .. (i, j1-1).
+        void row(uint64_t i, uint64_t j0, uint64_t j1, T* out) const { row_fn(*this, i, j0, j1, out); }
+    };
+
+    template <typename T, typename U>
+    void strided_row(const StridedReader<T>& r, uint64_t i, uint64_t j0, uint64_t j1, T* out) {
+        const U* src = static_cast<const U*>(r.data) + r.base + static_cast<int64_t>(i) * r.si;
+        const int64_t sj = r.sj;
+        const uint64_t n = j1 - j0;
+        src += static_cast<int64_t>(j0) * sj;
+        if constexpr (std::is_integral_v<U> && !std::is_same_v<U, bool>) {
+            // Integer operand: the view's value is wrap(x * k) in U, then converted to T.
+            if (r.scaled) {
+                const int64_t k = r.kf;
+                for (uint64_t q = 0; q < n; ++q) {
+                    const U v = pycauset::scalar::wrap_scale(src[static_cast<int64_t>(q) * sj], k);
+                    if constexpr (is_std_complex_v<T>) out[q] = static_cast<T>(std::complex<double>(static_cast<double>(v), 0.0));
+                    else if constexpr (std::is_integral_v<T>) out[q] = static_cast<T>(v);
+                    else out[q] = static_cast<T>(static_cast<double>(v));
+                }
+                return;
+            }
+        }
+        if constexpr (is_std_complex_v<T>) {
+            const bool conj = r.conj, scaled = r.scaled;
+            const std::complex<double> s = r.scalar;
+            for (uint64_t q = 0; q < n; ++q) {
+                std::complex<double> z = pycauset::scalar::to_complex_double(src[static_cast<int64_t>(q) * sj]);
+                if (conj) z = std::conj(z);
+                if (scaled) z *= s;
+                out[q] = static_cast<T>(z);
+            }
+        } else if constexpr (std::is_integral_v<T>) {
+            for (uint64_t q = 0; q < n; ++q) out[q] = static_cast<T>(src[static_cast<int64_t>(q) * sj]);
+        } else {
+            if (r.scaled) {
+                const double s = r.scalar.real();
+                for (uint64_t q = 0; q < n; ++q) out[q] = static_cast<T>(static_cast<double>(src[static_cast<int64_t>(q) * sj]) * s);
+            } else if constexpr (std::is_same_v<T, U>) {
+                if (sj == 1) {
+                    std::memcpy(out, src, n * sizeof(T));
+                } else {
+                    for (uint64_t q = 0; q < n; ++q) out[q] = src[static_cast<int64_t>(q) * sj];
+                }
+            } else {
+                for (uint64_t q = 0; q < n; ++q) out[q] = static_cast<T>(static_cast<double>(src[static_cast<int64_t>(q) * sj]));
+            }
+        }
+    }
+
+    // Which (result T, operand U) pairs the strided path handles: any operand into a complex
+    // result; real operands into a real float result; integer operands into an integer result.
+    template <typename T, typename U>
+    constexpr bool strided_supported_v =
+        is_std_complex_v<T> || (!is_std_complex_v<U> && (!std::is_integral_v<T> || std::is_integral_v<U>));
+
+    template <typename T, typename U>
+    bool try_strided(const MatrixBase& m, uint64_t rows, uint64_t cols, StridedReader<T>& r) {
+        if constexpr (!strided_supported_v<T, U>) {
+            return false;
+        } else {
+            const auto* d = dynamic_cast<const DenseMatrix<U>*>(&m);
+            if (d == nullptr) return false;
+            if constexpr (std::is_integral_v<U> && !std::is_same_v<U, bool>) {
+                // Integer operands carry only exact integer factors (integer views, F-042).
+                if (!pycauset::scalar::is_exact_int_factor(m.get_scalar())) return false;
+                r.kf = static_cast<int64_t>(m.get_scalar().real());
+            }
+            if constexpr (!is_std_complex_v<T>) {
+                if (m.get_scalar().imag() != 0.0) return false;
+            }
+            const int64_t bc = static_cast<int64_t>(d->base_cols());
+            const bool tr = d->is_transposed();
+            int64_t si = tr ? 1 : bc, sj = tr ? bc : 1;
+            if (d->rows() == 1 && rows != 1) si = 0;  // broadcasting
+            if (d->cols() == 1 && cols != 1) sj = 0;
+            r.data = d->data();
+            r.base = static_cast<int64_t>(d->row_offset()) * bc + static_cast<int64_t>(d->col_offset());
+            r.si = si;
+            r.sj = sj;
+            r.scalar = m.get_scalar();
+            r.scaled = r.scalar != std::complex<double>(1.0, 0.0);
+            r.conj = m.is_conjugated();
+            r.row_fn = &strided_row<T, U>;
+            return true;
+        }
+    }
+
+    template <typename T>
+    bool make_strided_reader(const MatrixBase& m, uint64_t rows, uint64_t cols, StridedReader<T>& r) {
+        if (m.get_structure() != Structure::DENSE) return false;
+        switch (m.get_data_type()) {
+            case DataType::INT8: return try_strided<T, int8_t>(m, rows, cols, r);
+            case DataType::INT16: return try_strided<T, int16_t>(m, rows, cols, r);
+            case DataType::INT32: return try_strided<T, int32_t>(m, rows, cols, r);
+            case DataType::INT64: return try_strided<T, int64_t>(m, rows, cols, r);
+            case DataType::UINT8: return try_strided<T, uint8_t>(m, rows, cols, r);
+            case DataType::UINT16: return try_strided<T, uint16_t>(m, rows, cols, r);
+            case DataType::UINT32: return try_strided<T, uint32_t>(m, rows, cols, r);
+            case DataType::UINT64: return try_strided<T, uint64_t>(m, rows, cols, r);
+            case DataType::FLOAT32: return try_strided<T, float>(m, rows, cols, r);
+            case DataType::FLOAT64: return try_strided<T, double>(m, rows, cols, r);
+            case DataType::COMPLEX_FLOAT32: return try_strided<T, std::complex<float>>(m, rows, cols, r);
+            case DataType::COMPLEX_FLOAT64: return try_strided<T, std::complex<double>>(m, rows, cols, r);
+            default: return false;  // bit, float16, complex16: per-element path
+        }
+    }
+
+}  // namespace
+
+namespace {
+// Exact integer matmul through float64 BLAS (F-055). If every |a| <= A, |b| <= B and
+// k * A * B < 2^53, every product and partial sum is an integer that double represents
+// exactly, so dgemm returns the exact result in any summation order. The bound is MEASURED
+// on the operands (an O(n^2) pass next to the O(n^3) product), never estimated. Returns
+// false (nothing written) when not applicable; overflow of the output dtype raises as in the
+// integer kernels.
+template <typename R>
+bool int_matmul_via_dgemm(const MatrixBase& a, const MatrixBase& b, DenseMatrix<R>& c) {
+    const uint64_t m = a.rows(), k = a.cols(), n = b.cols();
+    if (m == 0 || n == 0 || k == 0) return false;
+    const size_t bytes = static_cast<size_t>((m * k + k * n + m * n) * sizeof(double));
+    if (!pycauset::core::MemoryGovernor::instance().can_fit_in_ram(bytes)) return false;
+    StridedReader<double> ra, rb;
+    if (!make_strided_reader(a, m, k, ra) || !make_strided_reader(b, k, n, rb)) return false;
+    std::vector<double> A(m * k), B(k * n), C(m * n);
+    std::vector<double> amax(m, 0.0), bmax(k, 0.0);
+    ParallelFor(0, m, [&](size_t i) {
+        ra.row(i, 0, k, A.data() + i * k);
+        double mx = 0.0;
+        for (uint64_t q = 0; q < k; ++q) mx = std::max(mx, std::abs(A[i * k + q]));
+        amax[i] = mx;
+    });
+    ParallelFor(0, k, [&](size_t i) {
+        rb.row(i, 0, n, B.data() + i * n);
+        double mx = 0.0;
+        for (uint64_t q = 0; q < n; ++q) mx = std::max(mx, std::abs(B[i * n + q]));
+        bmax[i] = mx;
+    });
+    double ma = 0.0, mb = 0.0;
+    for (double v : amax) ma = std::max(ma, v);
+    for (double v : bmax) mb = std::max(mb, v);
+    // Integer-valued doubles: products of exact integers below 2^53 are exact; the bound
+    // covers the largest partial sum.
+    if (static_cast<long double>(k) * ma * mb >= 9007199254740992.0L) return false;
+    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, static_cast<int>(m), static_cast<int>(n),
+                static_cast<int>(k), 1.0, A.data(), static_cast<int>(k), B.data(), static_cast<int>(n), 0.0,
+                C.data(), static_cast<int>(n));
+    const double lo = static_cast<double>((std::numeric_limits<R>::lowest)());
+    const double hi = static_cast<double>((std::numeric_limits<R>::max)());
+    R* dst = c.data();
+    std::atomic<bool> overflow{false};
+    ParallelFor(0, m * n, [&](size_t idx) {
+        const double v = C[idx];
+        if (v < lo || v > hi) overflow.store(true, std::memory_order_relaxed);
+        else dst[idx] = static_cast<R>(v);
+    });
+    if (overflow.load()) throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
+    c.set_scalar(1.0);
+    return true;
+}
+
+template <typename R>
+bool try_int_matmul_via_dgemm(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
+    auto* c = dynamic_cast<DenseMatrix<R>*>(&result);
+    if (c == nullptr || c->is_transposed() || c->has_view_offset() || c->rows() != c->base_rows() ||
+        c->cols() != c->base_cols()) return false;
+    return int_matmul_via_dgemm<R>(a, b, *c);
+}
+}  // namespace
+
 void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     // Dispatch to specialized implementations
     
@@ -1116,6 +1300,32 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
 
         c_cf16->set_scalar(1.0);
         return;
+    }
+
+    // 2b. Integer x integer -> integer: exact through float64 BLAS when the measured
+    // bounds allow it (F-055); otherwise the integer kernels below.
+    {
+        const DataType da = a.get_data_type(), db = b.get_data_type(), dr = result.get_data_type();
+        auto is_int = [](DataType d) { return pycauset::is_integer_or_bit(d) && d != DataType::BIT; };
+        if (is_int(da) && is_int(db) && is_int(dr) && a.get_structure() == Structure::DENSE &&
+            b.get_structure() == Structure::DENSE) {
+            bool done = false;
+            switch (dr) {
+                case DataType::INT8: done = try_int_matmul_via_dgemm<int8_t>(a, b, result); break;
+                case DataType::INT16: done = try_int_matmul_via_dgemm<int16_t>(a, b, result); break;
+                case DataType::INT32: done = try_int_matmul_via_dgemm<int32_t>(a, b, result); break;
+                case DataType::INT64: done = try_int_matmul_via_dgemm<int64_t>(a, b, result); break;
+                case DataType::UINT8: done = try_int_matmul_via_dgemm<uint8_t>(a, b, result); break;
+                case DataType::UINT16: done = try_int_matmul_via_dgemm<uint16_t>(a, b, result); break;
+                case DataType::UINT32: done = try_int_matmul_via_dgemm<uint32_t>(a, b, result); break;
+                case DataType::UINT64: done = try_int_matmul_via_dgemm<uint64_t>(a, b, result); break;
+                default: break;
+            }
+            if (done) {
+                debug_trace::set_last("cpu.matmul.int_via_dgemm");
+                return;
+            }
+        }
     }
 
     // 3. Integer (Int32)
@@ -2366,125 +2576,6 @@ void CpuSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_
 }
 
 namespace {
-    // Reads element (i, j) of a dense operand as the result type T, honouring the view
-    // (transpose, offsets, broadcasting, scale factor, conjugation). Built once per operation.
-    template <typename T>
-    struct StridedReader {
-        using RowFn = void (*)(const StridedReader&, uint64_t, uint64_t, uint64_t, T*);
-        const void* data = nullptr;
-        int64_t base = 0, si = 0, sj = 0;
-        std::complex<double> scalar = 1.0;
-        int64_t kf = 1;  // integer factor of an integer view (applied with wrapping in U)
-        bool scaled = false, conj = false;
-        RowFn row_fn = nullptr;
-        // Fills out[0 .. j1-j0) with elements (i, j0) .. (i, j1-1).
-        void row(uint64_t i, uint64_t j0, uint64_t j1, T* out) const { row_fn(*this, i, j0, j1, out); }
-    };
-
-    template <typename T, typename U>
-    void strided_row(const StridedReader<T>& r, uint64_t i, uint64_t j0, uint64_t j1, T* out) {
-        const U* src = static_cast<const U*>(r.data) + r.base + static_cast<int64_t>(i) * r.si;
-        const int64_t sj = r.sj;
-        const uint64_t n = j1 - j0;
-        src += static_cast<int64_t>(j0) * sj;
-        if constexpr (std::is_integral_v<U> && !std::is_same_v<U, bool>) {
-            // Integer operand: the view's value is wrap(x * k) in U, then converted to T.
-            if (r.scaled) {
-                const int64_t k = r.kf;
-                for (uint64_t q = 0; q < n; ++q) {
-                    const U v = pycauset::scalar::wrap_scale(src[static_cast<int64_t>(q) * sj], k);
-                    if constexpr (is_std_complex_v<T>) out[q] = static_cast<T>(std::complex<double>(static_cast<double>(v), 0.0));
-                    else if constexpr (std::is_integral_v<T>) out[q] = static_cast<T>(v);
-                    else out[q] = static_cast<T>(static_cast<double>(v));
-                }
-                return;
-            }
-        }
-        if constexpr (is_std_complex_v<T>) {
-            const bool conj = r.conj, scaled = r.scaled;
-            const std::complex<double> s = r.scalar;
-            for (uint64_t q = 0; q < n; ++q) {
-                std::complex<double> z = pycauset::scalar::to_complex_double(src[static_cast<int64_t>(q) * sj]);
-                if (conj) z = std::conj(z);
-                if (scaled) z *= s;
-                out[q] = static_cast<T>(z);
-            }
-        } else if constexpr (std::is_integral_v<T>) {
-            for (uint64_t q = 0; q < n; ++q) out[q] = static_cast<T>(src[static_cast<int64_t>(q) * sj]);
-        } else {
-            if (r.scaled) {
-                const double s = r.scalar.real();
-                for (uint64_t q = 0; q < n; ++q) out[q] = static_cast<T>(static_cast<double>(src[static_cast<int64_t>(q) * sj]) * s);
-            } else if constexpr (std::is_same_v<T, U>) {
-                if (sj == 1) {
-                    std::memcpy(out, src, n * sizeof(T));
-                } else {
-                    for (uint64_t q = 0; q < n; ++q) out[q] = src[static_cast<int64_t>(q) * sj];
-                }
-            } else {
-                for (uint64_t q = 0; q < n; ++q) out[q] = static_cast<T>(static_cast<double>(src[static_cast<int64_t>(q) * sj]));
-            }
-        }
-    }
-
-    // Which (result T, operand U) pairs the strided path handles: any operand into a complex
-    // result; real operands into a real float result; integer operands into an integer result.
-    template <typename T, typename U>
-    constexpr bool strided_supported_v =
-        is_std_complex_v<T> || (!is_std_complex_v<U> && (!std::is_integral_v<T> || std::is_integral_v<U>));
-
-    template <typename T, typename U>
-    bool try_strided(const MatrixBase& m, uint64_t rows, uint64_t cols, StridedReader<T>& r) {
-        if constexpr (!strided_supported_v<T, U>) {
-            return false;
-        } else {
-            const auto* d = dynamic_cast<const DenseMatrix<U>*>(&m);
-            if (d == nullptr) return false;
-            if constexpr (std::is_integral_v<U> && !std::is_same_v<U, bool>) {
-                // Integer operands carry only exact integer factors (integer views, F-042).
-                if (!pycauset::scalar::is_exact_int_factor(m.get_scalar())) return false;
-                r.kf = static_cast<int64_t>(m.get_scalar().real());
-            }
-            if constexpr (!is_std_complex_v<T>) {
-                if (m.get_scalar().imag() != 0.0) return false;
-            }
-            const int64_t bc = static_cast<int64_t>(d->base_cols());
-            const bool tr = d->is_transposed();
-            int64_t si = tr ? 1 : bc, sj = tr ? bc : 1;
-            if (d->rows() == 1 && rows != 1) si = 0;  // broadcasting
-            if (d->cols() == 1 && cols != 1) sj = 0;
-            r.data = d->data();
-            r.base = static_cast<int64_t>(d->row_offset()) * bc + static_cast<int64_t>(d->col_offset());
-            r.si = si;
-            r.sj = sj;
-            r.scalar = m.get_scalar();
-            r.scaled = r.scalar != std::complex<double>(1.0, 0.0);
-            r.conj = m.is_conjugated();
-            r.row_fn = &strided_row<T, U>;
-            return true;
-        }
-    }
-
-    template <typename T>
-    bool make_strided_reader(const MatrixBase& m, uint64_t rows, uint64_t cols, StridedReader<T>& r) {
-        if (m.get_structure() != Structure::DENSE) return false;
-        switch (m.get_data_type()) {
-            case DataType::INT8: return try_strided<T, int8_t>(m, rows, cols, r);
-            case DataType::INT16: return try_strided<T, int16_t>(m, rows, cols, r);
-            case DataType::INT32: return try_strided<T, int32_t>(m, rows, cols, r);
-            case DataType::INT64: return try_strided<T, int64_t>(m, rows, cols, r);
-            case DataType::UINT8: return try_strided<T, uint8_t>(m, rows, cols, r);
-            case DataType::UINT16: return try_strided<T, uint16_t>(m, rows, cols, r);
-            case DataType::UINT32: return try_strided<T, uint32_t>(m, rows, cols, r);
-            case DataType::UINT64: return try_strided<T, uint64_t>(m, rows, cols, r);
-            case DataType::FLOAT32: return try_strided<T, float>(m, rows, cols, r);
-            case DataType::FLOAT64: return try_strided<T, double>(m, rows, cols, r);
-            case DataType::COMPLEX_FLOAT32: return try_strided<T, std::complex<float>>(m, rows, cols, r);
-            case DataType::COMPLEX_FLOAT64: return try_strided<T, std::complex<double>>(m, rows, cols, r);
-            default: return false;  // bit, float16, complex16: per-element path
-        }
-    }
-
     // Exact element reader for integer results over any structure (resolved once per operand):
     // reads in the operand's own type and applies an integer view factor with wrapping.
     // Returns an empty function when the operand isn't integer/bit-typed.

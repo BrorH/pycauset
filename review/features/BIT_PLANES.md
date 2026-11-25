@@ -63,7 +63,8 @@ feature-creep risk you flagged earlier.
 ## 5. Recommendation
 1. **No new user-facing dtypes.** Users keep NumPy's 2^N dtypes; `dtype=` stays the manual
    override.
-2. **F-055 first (biggest, simplest win):** exact integer matmul through float64 BLAS when
+2. **F-055 first (biggest, simplest win) — DONE session 6** (measured bound, no value bounds
+   needed; int16 n = 2000 5.9 s -> 0.12 s): exact integer matmul through float64 BLAS when
    value bounds guarantee no partial sum exceeds 2^53. Belongs with value bounds (F1).
 3. **Bit-plane storage as an internal encoding, later, behind value bounds:** a matrix whose
    *guaranteed* bounds fit in ≤ 4 bits may be stored as bit planes while reporting its

@@ -14,6 +14,8 @@ import pytest
 import pycauset as pc
 from tests.conftest import to_np
 
+native = pc._native
+
 open_bug = lambda fid: pytest.mark.xfail(strict=True, reason=f"{fid} open (review/FINDINGS.md)")  # noqa: E731
 
 
@@ -267,3 +269,30 @@ def test_links_match_the_definition(n, seed):
     c = np.asarray(cs.C, dtype=bool)
     ci = c.astype(np.int64)
     np.testing.assert_array_equal(cs.links(), c & ~((ci @ ci) > 0))
+
+
+# F-055: integer matmul runs exactly through float64 BLAS when the measured bound
+# k * max|A| * max|B| < 2**53 holds; otherwise the exact integer kernels.
+@pytest.mark.parametrize("dtype", ["int8", "int16", "int32", "int64", "uint16", "uint64"])
+def test_F055_int_matmul_via_blas_is_exact(dtype, rng):
+    a = rng.integers(0, 3, (37, 23)).astype(dtype)
+    b = rng.integers(0, 3, (23, 19)).astype(dtype)
+    native._debug_clear_kernel_trace()
+    c = pc.matrix(a) @ pc.matrix(b)
+    assert native._debug_last_kernel_trace() == "cpu.matmul.int_via_dgemm"
+    np.testing.assert_array_equal(to_np(c), (a.astype(np.int64) @ b.astype(np.int64)).astype(dtype))
+
+
+def test_F055_beyond_the_exact_bound_uses_integer_kernel():
+    a = np.full((3, 3), 2**40, dtype=np.int64)
+    b = np.full((3, 3), 2**20, dtype=np.int64)
+    native._debug_clear_kernel_trace()
+    c = pc.matrix(a) @ pc.matrix(b)
+    assert native._debug_last_kernel_trace() != "cpu.matmul.int_via_dgemm"
+    np.testing.assert_array_equal(to_np(c), a @ b)
+
+
+def test_F055_overflow_still_raises():
+    x = pc.matrix(np.full((2, 2), 200, np.int16))
+    with pytest.raises(OverflowError):
+        x @ x
