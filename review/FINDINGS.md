@@ -628,3 +628,11 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - `SymmetricMatrix + s` was unimplemented (raised); now symmetric, and antisymmetric + s dense.
 - Complex products differ from NumPy by <= 1 ulp (multiplication formula, not views): noted, tested
   with a 1-ulp tolerance.
+
+### F-051 Integer matvec / vecmat / dot / sum went through double (int64 precision, UB on overflow)
+- **Status:** matvec and vecmat fixed (session 5: exact integer path, wrapping 64-bit accumulation,
+  `cpu.matvec.int_exact` / `cpu.vecmat.int_exact`). **Open:** `pc.dot` and `pc.sum` return a
+  float/complex for integer inputs (NumPy returns an exact integer); fix with the single operator
+  path (4.3), which owns result types.
+- Was: `M @ v` with int64 entries near 2**62 off by ~57; out-of-range double->int conversion in
+  the fallback is undefined behaviour. Test: `tests/engine/test_int_scale_views.py` (matvec, vecmat).

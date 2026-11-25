@@ -60,6 +60,8 @@
 #include <filesystem>
 #include <vector>
 #include <cstring>
+#include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/math/ScalarOps.hpp"
 #include <iostream>
 #include <limits>
 #include <random>
@@ -3542,6 +3544,48 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
         return;
     }
 
+    // Exact integer path (F-051): integer matrix x integer vector -> integer vector, read in the
+    // operands' own types and accumulated with wrapping 64-bit arithmetic (NumPy semantics).
+    // The generic fallback below goes through double, which loses int64 precision.
+    if (pycauset::is_integer_or_bit(result.get_data_type()) && result.get_data_type() != DataType::BIT &&
+        m.get_data_type() != DataType::BIT && v.get_data_type() != DataType::BIT &&
+        pycauset::is_integer_or_bit(m.get_data_type()) && pycauset::is_integer_or_bit(v.get_data_type()) &&
+        v.get_scalar() == std::complex<double>(1.0, 0.0)) {
+        StridedReader<int64_t> rm;
+        if (make_strided_reader(m, rows, cols, rm)) {
+            std::vector<int64_t> x(cols);
+            pycauset::visit_vector(v, [&](const auto& tv) {
+                using V = std::decay_t<decltype(tv)>;
+                if constexpr (!std::is_same_v<V, UnitVector>) {
+                    using E = std::decay_t<decltype(tv.get(uint64_t{0}))>;
+                    if constexpr (std::is_integral_v<E>) {
+                        for (uint64_t j = 0; j < cols; ++j) x[j] = static_cast<int64_t>(tv.get(j));
+                    }
+                }
+            });
+            debug_trace::set_last("cpu.matvec.int_exact");
+            pycauset::visit_vector(result, [&](auto& out) {
+                using V = std::decay_t<decltype(out)>;
+                if constexpr (!std::is_same_v<V, UnitVector>) {
+                    using R = std::decay_t<decltype(out.get(uint64_t{0}))>;
+                    if constexpr (std::is_integral_v<R> && !std::is_same_v<R, bool>) {
+                        ParallelFor(0, rows, [&](size_t i) {
+                            std::vector<int64_t> row(cols);
+                            rm.row(i, 0, cols, row.data());
+                            uint64_t acc = 0;
+                            for (uint64_t j = 0; j < cols; ++j) {
+                                acc += static_cast<uint64_t>(row[j]) * static_cast<uint64_t>(x[j]);
+                            }
+                            out.set(i, static_cast<R>(acc));
+                        });
+                    }
+                }
+            });
+            result.set_scalar(1.0);
+            return;
+        }
+    }
+
     // Generic Fallback
     if (auto* res_int = dynamic_cast<DenseVector<int32_t>*>(&result)) {
         ParallelFor(0, rows, [&](size_t i) {
@@ -3641,6 +3685,49 @@ void CpuSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
     const uint64_t cols = m.cols();
     if (rows != v.size()) throw std::invalid_argument("Dimension mismatch");
     if (result.size() != cols) throw std::invalid_argument("Dimension mismatch");
+
+    // Exact integer path (F-051): see matrix_vector_multiply.
+    if (pycauset::is_integer_or_bit(result.get_data_type()) && result.get_data_type() != DataType::BIT &&
+        m.get_data_type() != DataType::BIT && v.get_data_type() != DataType::BIT &&
+        pycauset::is_integer_or_bit(m.get_data_type()) && pycauset::is_integer_or_bit(v.get_data_type()) &&
+        v.get_scalar() == std::complex<double>(1.0, 0.0)) {
+        StridedReader<int64_t> rm;
+        if (make_strided_reader(m, rows, cols, rm)) {
+            std::vector<int64_t> x(rows);
+            pycauset::visit_vector(v, [&](const auto& tv) {
+                using V = std::decay_t<decltype(tv)>;
+                if constexpr (!std::is_same_v<V, UnitVector>) {
+                    using E = std::decay_t<decltype(tv.get(uint64_t{0}))>;
+                    if constexpr (std::is_integral_v<E>) {
+                        for (uint64_t r = 0; r < rows; ++r) x[r] = static_cast<int64_t>(tv.get(r));
+                    }
+                }
+            });
+            debug_trace::set_last("cpu.vecmat.int_exact");
+            pycauset::visit_vector(result, [&](auto& out) {
+                using V = std::decay_t<decltype(out)>;
+                if constexpr (!std::is_same_v<V, UnitVector>) {
+                    using R = std::decay_t<decltype(out.get(uint64_t{0}))>;
+                    if constexpr (std::is_integral_v<R> && !std::is_same_v<R, bool>) {
+                        constexpr uint64_t TILE = 256;
+                        ParallelFor(0, (cols + TILE - 1) / TILE, [&](size_t t) {
+                            const uint64_t j0 = t * TILE, j1 = std::min<uint64_t>(cols, j0 + TILE);
+                            uint64_t acc[TILE] = {};
+                            int64_t buf[TILE];
+                            for (uint64_t r = 0; r < rows; ++r) {
+                                rm.row(r, j0, j1, buf);
+                                const uint64_t xr = static_cast<uint64_t>(x[r]);
+                                for (uint64_t k = 0; k < j1 - j0; ++k) acc[k] += xr * static_cast<uint64_t>(buf[k]);
+                            }
+                            for (uint64_t k = 0; k < j1 - j0; ++k) out.set(j0 + k, static_cast<R>(acc[k]));
+                        });
+                    }
+                }
+            });
+            result.set_scalar(1.0);
+            return;
+        }
+    }
 
     // Identity Optimization
     if (m.get_structure() == Structure::IDENTITY) {
