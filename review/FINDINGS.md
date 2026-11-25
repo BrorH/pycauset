@@ -643,3 +643,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
   path (4.3), which owns result types.
 - Was: `M @ v` with int64 entries near 2**62 off by ~57; out-of-range double->int conversion in
   the fallback is undefined behaviour. Test: `tests/engine/test_int_scale_views.py` (matvec, vecmat).
+
+### F-052 Eager scalar ops on symmetric integer matrices returned dense (lazy/eager class mismatch)
+- **Status:** fixed (session 5), found by the new `PYCAUSET_LAZY=0` oracle run of the engine suite:
+  `3 * S` (int symmetric) was a SymmetricMatrix lazily but a DenseMatrix eagerly. The exact scalar
+  kernel now keeps symmetric structure (any op) and antisymmetric structure (zero-preserving ops).
+  CI runs the engine suite in both modes.

@@ -297,6 +297,11 @@ inline int64_t int_view_factor(const MatrixBase& a) {
     return 1;
 }
 
+template <typename Src>
+inline constexpr bool is_symmetric_src_v = false;
+template <typename T>
+inline constexpr bool is_symmetric_src_v<SymmetricMatrix<T>> = true;
+
 // Typed source: reads element (i, j) of a concrete input class exactly.
 template <typename In, typename Src>
 struct TypedReader {
@@ -333,6 +338,23 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
             }
         });
         return out;
+    }
+
+    // Symmetric input: every scalar op keeps A == A^T; only zero-preserving ones keep
+    // A == -A^T. Keeping the structure here makes the eager result the same class as the
+    // lazy view (LAZY.md section 2; found by the PYCAUSET_LAZY=0 oracle run).
+    if constexpr (is_symmetric_src_v<Src> && !std::is_same_v<R, std::complex<float>> &&
+                  !std::is_same_v<R, std::complex<double>>) {
+        const bool anti = a.get_structure() == Structure::ANTISYMMETRIC;
+        if (!anti || preserves_zero(op, s)) {
+            auto out = std::make_unique<SymmetricMatrix<R>>(rows, std::string(), anti);
+            for (uint64_t i = 0; i < rows; ++i) {
+                for (uint64_t j = anti ? i + 1 : i; j < cols; ++j) {
+                    out->set(i, j, apply<R>(op, convert_in<R>(read(i, j)), sv));
+                }
+            }
+            return out;
+        }
     }
 
     auto out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());

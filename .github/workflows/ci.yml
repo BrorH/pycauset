@@ -51,6 +51,11 @@ jobs:
         # testpaths in pyproject: the old suite (tests/python) and the new one (tests/engine)
         run: python -m pytest -q --tb=short -rfEs
 
+      - name: Engine suite with lazy results disabled (lazy == eager oracle, LAZY.md section 10)
+        env:
+          PYCAUSET_LAZY: "0"
+        run: python -m pytest -q --tb=short -rfEs tests/engine
+
       - name: Benchmark (parity vs NumPy, report-only)
         # R2_PERF/R2_QA visibility: this reports the numpy_time/pycauset_time
         # ratio per op (>= 0.90x = "at parity"). It is intentionally report-only,

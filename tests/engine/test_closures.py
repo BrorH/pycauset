@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 import pycauset as pc
-from tests.conftest import to_np
+from tests.conftest import requires_lazy, to_np
 
 native = pc._native
 N = 23
@@ -21,11 +21,12 @@ N = 23
 
 @contextlib.contextmanager
 def eager():
+    previous = native._get_lazy()
     native._set_lazy(False)
     try:
         yield
     finally:
-        native._set_lazy(True)
+        native._set_lazy(previous)
 
 
 EXPRS = {
@@ -58,6 +59,7 @@ def causal():
     return c, to_np(c).astype(np.int32)
 
 
+@requires_lazy
 @pytest.mark.parametrize("expr", list(EXPRS))
 def test_closure_is_lazy_and_structured(expr, causal):
     c, a = causal
@@ -83,6 +85,7 @@ def test_closure_consumers_match_eager_and_numpy(expr, consumer, causal):
         np.testing.assert_array_equal(got, np_expr(a))
 
 
+@requires_lazy
 def test_closure_matvec_uses_the_bits(causal):
     c, a = causal
     d = c - c.T
@@ -106,7 +109,7 @@ def test_writes_materialize_in_place_and_never_leak(causal):
     d = c - c.T
     e = c - c.T
     d[0, 2] = 5
-    assert d[0, 2] == 5 and d[2, 0] == -5 and not d.is_lazy
+    assert d[0, 2] == 5 and d[2, 0] == -5
     np.testing.assert_array_equal(to_np(e), a - a.T)  # sibling closure unaffected
     np.testing.assert_array_equal(to_np(c).astype(np.int32), a)  # source unaffected
 

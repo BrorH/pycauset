@@ -6,10 +6,18 @@ tests (see review/TESTS.md).
 """
 from __future__ import annotations
 
+import os
+
 import numpy as np
 import pytest
 
 import pycauset as pc
+
+# PYCAUSET_LAZY=0 runs the whole suite with lazy results (views, closures) disabled: the
+# eager paths must be correct on their own (LAZY.md section 10, the lazy == eager oracle).
+LAZY = os.environ.get("PYCAUSET_LAZY", "1") != "0"
+pc._native._set_lazy(LAZY)
+requires_lazy = pytest.mark.skipif(not LAZY, reason="asserts a lazy result; PYCAUSET_LAZY=0")
 
 
 def to_np(x):

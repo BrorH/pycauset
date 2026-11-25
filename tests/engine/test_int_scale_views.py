@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 import pycauset as pc
-from tests.conftest import to_np
+from tests.conftest import LAZY, requires_lazy, to_np
 
 N = 9
 DTYPES = ["int8", "int16", "int32", "int64", "uint8", "uint32", "uint64"]
@@ -108,6 +108,7 @@ def test_source_unchanged_after_writing_into_scaled_view(rng):
     np.testing.assert_array_equal(to_np(src), a)
 
 
+@requires_lazy
 def test_integer_scaling_is_a_view():
     a = pc.matrix(np.arange(16, dtype=np.int32).reshape(4, 4))
     v = 5 * (3 * (2 * a))
@@ -160,7 +161,9 @@ def test_symmetric_integer_views(kind, dtype, k, rng, tmp_path):
     m = _sym_int(kind, dtype, rng)
     a = to_np(m)
     v = m * k
-    assert type(v) is type(m) and v.dtype == dtype and v.scalar == k  # O(1) view
+    assert type(v) is type(m) and v.dtype == dtype
+    if LAZY:  # O(1) view carrying the factor
+        assert v.scalar == k
     ref = _np_scale(a, k)
     np.testing.assert_array_equal(to_np(v), ref)
     np.testing.assert_array_equal(np.array([[v[i, j] for j in range(N)] for i in range(N)]), ref)
