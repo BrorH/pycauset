@@ -40,14 +40,21 @@ class TestNumpyInterop(unittest.TestCase):
         self.assertEqual(len(vec), len(arr))
         self.assertTrue(np.array_equal(pycauset.to_numpy(vec), arr))
 
-    def test_vector_import_float32_promotes_to_float64(self):
+    def test_vector_import_keeps_float32(self):
+        # F-056: float32 vectors used to be promoted to float64 silently.
         arr = np.array([1.25, -2.5, 3.0], dtype=np.float32)
         vec = pycauset.vector(arr)
-        # Current contract: float32 vectors promote to float64 vectors.
-        self.assertTrue(isinstance(vec, pycauset.DenseVector) and vec.dtype == "float64")
+        self.assertTrue(isinstance(vec, pycauset.DenseVector) and vec.dtype == "float32")
         out = pycauset.to_numpy(vec)
-        self.assertEqual(out.dtype, np.dtype(np.float64))
-        self.assertTrue(np.array_equal(out, arr.astype(np.float64)))
+        self.assertEqual(out.dtype, np.dtype(np.float32))
+        self.assertTrue(np.array_equal(out, arr))
+
+    def test_vector_import_complex(self):
+        for dt, name in [(np.complex64, "complex_float32"), (np.complex128, "complex_float64")]:
+            arr = np.array([1 + 2j, -3j], dtype=dt)
+            vec = pycauset.vector(arr)
+            self.assertEqual(vec.dtype, name)
+            self.assertTrue(np.array_equal(pycauset.to_numpy(vec), arr))
 
     def test_vector_numpy_respects_max_in_ram_bytes(self):
         arr = np.arange(8, dtype=np.float64)

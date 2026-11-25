@@ -605,7 +605,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
   matrix as float64 whatever its dtype (wrong dtype after load); files now store structure + dtype.
 
 ### F-047 Eigen-decompositions don't follow under-promotion (float32 in -> float64 out)
-- **Status:** open (`tests/python/test_eigen_cpu.py::test_eigvalsh_f32` is an expectedFailure).
+- **Status:** fixed (session 6). eig/eigvals/eigh/eigvalsh compute in double and return
+  float32/complex64 for float32/complex64 input (NumPy); other inputs (float16, ints, bits) are
+  converted to double first, which also fixed `A.eigh()` raising "not implemented" for float32.
 - `pc.eigvalsh(A)` / `A.eigvalsh()` on a float32 matrix return float64 eigenvalues (NumPy returns
   float32). The removed per-class float32 method returned float32, so behaviour differed by entry
   point. Decide in the operator consolidation (4.3): result dtype = input float dtype.
@@ -666,3 +668,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - **Status:** open; planned with value bounds (F1). n = 2000: int16 @ int16 5.9 s, float64 0.11 s,
   bit @ bit 0.05 s. Fix: when value bounds prove every partial sum < 2^53, run integer matmul
   exactly through float64 BLAS (and narrow back). See features/BIT_PLANES.md.
+
+### F-056 `pycauset.vector(float32 array)` silently became float64; complex 1-D import missing
+- **Status:** fixed (session 6). A helper promoted float32 vectors to float64 (float16 and every
+  other dtype were kept), so float32 eigenvalues came back as float64 through the NumPy path
+  (part of F-047). Complex 1-D arrays are now imported natively.

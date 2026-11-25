@@ -508,32 +508,6 @@ std::shared_ptr<DenseVector<T>> dense_vector_from_numpy_1d(const py::array_t<T>&
     return result;
 }
 
-inline std::shared_ptr<DenseVector<double>> dense_vector_from_numpy_1d_float32_promote_to_float64(const py::array_t<float>& array) {
-    auto buf = array.request();
-    require_1d(buf);
-    const uint64_t n = static_cast<uint64_t>(buf.shape[0]);
-
-    auto result = std::make_shared<DenseVector<double>>(n);
-    const float* src_ptr = static_cast<const float*>(buf.ptr);
-    double* dst_ptr = result->data();
-
-    const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(float)));
-
-    // Contiguous float32 -> float64 is the hot path; parallelize only when it's worth it.
-    if (stride0 == 1) {
-        const Eigen::Index n_e = static_cast<Eigen::Index>(n);
-        Eigen::Map<const Eigen::ArrayXf> src(src_ptr, n_e);
-        Eigen::Map<Eigen::ArrayXd> dst(dst_ptr, n_e);
-        dst = src.cast<double>();
-        return result;
-    }
-
-    for (uint64_t i = 0; i < n; ++i) {
-        const ptrdiff_t idx = static_cast<ptrdiff_t>(i) * stride0;
-        dst_ptr[i] = static_cast<double>(src_ptr[idx]);
-    }
-    return result;
-}
 
 template <typename T>
 std::shared_ptr<DenseMatrix<T>> dense_row_matrix_from_numpy_1d(const py::array_t<T>& array) {
@@ -600,8 +574,13 @@ inline std::shared_ptr<VectorBase> vector_from_numpy(const py::array& array) {
         return result;
     }
     if (py::isinstance<py::array_t<float>>(array)) {
-        // Promote float32 vectors to float64 vectors for now.
-        return dense_vector_from_numpy_1d_float32_promote_to_float64(array.cast<py::array_t<float>>());
+        return dense_vector_from_numpy_1d<float>(array.cast<py::array_t<float>>());  // dtype kept (F-056)
+    }
+    if (py::isinstance<py::array_t<std::complex<float>>>(array)) {
+        return dense_vector_from_numpy_1d<std::complex<float>>(array.cast<py::array_t<std::complex<float>>>());
+    }
+    if (py::isinstance<py::array_t<std::complex<double>>>(array)) {
+        return dense_vector_from_numpy_1d<std::complex<double>>(array.cast<py::array_t<std::complex<double>>>());
     }
     throw py::type_error("Unsupported NumPy dtype for vector conversion");
 }
@@ -2982,8 +2961,13 @@ void bind_matrix_classes(py::module_& m) {
                 return py::cast(dense_vector_from_numpy_1d<double>(array.cast<py::array_t<double>>()));
             }
             if (py::isinstance<py::array_t<float>>(array)) {
-                // Promote float32 vectors to float64 vectors
-                return py::cast(dense_vector_from_numpy_1d_float32_promote_to_float64(array.cast<py::array_t<float>>()));
+                return py::cast(dense_vector_from_numpy_1d<float>(array.cast<py::array_t<float>>()));  // dtype kept (F-056)
+            }
+            if (py::isinstance<py::array_t<std::complex<float>>>(array)) {
+                return py::cast(dense_vector_from_numpy_1d<std::complex<float>>(array.cast<py::array_t<std::complex<float>>>()));
+            }
+            if (py::isinstance<py::array_t<std::complex<double>>>(array)) {
+                return py::cast(dense_vector_from_numpy_1d<std::complex<double>>(array.cast<py::array_t<std::complex<double>>>()));
             }
             if (py::isinstance<py::array_t<int32_t>>(array)) {
                 return py::cast(dense_vector_from_numpy_1d<int32_t>(array.cast<py::array_t<int32_t>>()));

@@ -41,7 +41,6 @@ class TestEigenCpu(unittest.TestCase):
         # Check Av = lambda v for one pair
         # Actually checking that is harder with raw API, let's trust Linalg diff for now.
         
-    @unittest.expectedFailure  # F-047: float32 input returns float64 eigenvalues
     def test_eigvalsh_f32(self):
         n = 10
         A_np = np.random.rand(n, n).astype(np.float32)

@@ -1135,7 +1135,51 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig_skew(
     return std::make_pair(std::move(w), std::move(v));
 }
 
+// Eigen-results follow the input's precision (NumPy; under-promotion, F-047): computed in
+// double, returned as float32 / complex64 for float32 / complex64 input.
+static bool is_single_precision(const MatrixBase& in) {
+    return in.get_data_type() == DataType::FLOAT32 || in.get_data_type() == DataType::COMPLEX_FLOAT32;
+}
+
+// The CPU eigensolvers take double precision; other inputs (float32, float16, integers, bits,
+// complex64) are converted first. Returns nullptr when `in` is already double precision.
+static std::unique_ptr<MatrixBase> as_double_precision(const MatrixBase& in) {
+    const DataType dt = in.get_data_type();
+    if (dt == DataType::FLOAT64 || dt == DataType::COMPLEX_FLOAT64) return nullptr;
+    const bool complex = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32;
+    return cast_to(in, complex ? DataType::COMPLEX_FLOAT64 : DataType::FLOAT64);
+}
+
+static std::unique_ptr<VectorBase> narrow_vector(std::unique_ptr<VectorBase> v, bool single) {
+    if (!single) return v;
+    const uint64_t n = v->size();
+    const DataType dt = v->get_data_type();
+    if (dt == DataType::FLOAT64) {
+        auto out = std::make_unique<DenseVector<float>>(n, "");
+        for (uint64_t i = 0; i < n; ++i) out->set(i, static_cast<float>(v->get_element_as_double(i)));
+        return out;
+    }
+    if (dt == DataType::COMPLEX_FLOAT64) {
+        auto out = std::make_unique<DenseVector<std::complex<float>>>(n, "");
+        for (uint64_t i = 0; i < n; ++i) out->set(i, static_cast<std::complex<float>>(v->get_element_as_complex(i)));
+        return out;
+    }
+    return v;
+}
+
+static std::unique_ptr<MatrixBase> narrow_matrix(std::unique_ptr<MatrixBase> m, bool single) {
+    if (!single) return m;
+    const DataType dt = m->get_data_type();
+    if (dt == DataType::FLOAT64) return cast_to(*m, DataType::FLOAT32);
+    if (dt == DataType::COMPLEX_FLOAT64) return cast_to(*m, DataType::COMPLEX_FLOAT32);
+    return m;
+}
+
 std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in, const std::string& result_file) {
+    if (auto d = as_double_precision(in)) {
+        auto r = eig(*d, result_file);
+        return {narrow_vector(std::move(r.first), is_single_precision(in)), narrow_matrix(std::move(r.second), is_single_precision(in))};
+    }
     if (in.rows() != in.cols()) {
         throw std::invalid_argument("eig: matrix must be square");
     }
@@ -1144,20 +1188,25 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const Ma
     auto v = ObjectFactory::create_matrix(n, n, DataType::COMPLEX_FLOAT64, Structure::DENSE, result_file.empty() ? "" : result_file + "_vecs");
     
     ComputeContext::instance().get_device()->eig(in, *w, *v);
-    return std::make_pair(std::move(w), std::move(v));
+    return std::make_pair(narrow_vector(std::move(w), is_single_precision(in)), narrow_matrix(std::move(v), is_single_precision(in)));
 }
 
 std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string& result_file) {
+    if (auto d = as_double_precision(in)) return narrow_vector(eigvals(*d, result_file), is_single_precision(in));
     if (in.rows() != in.cols()) {
         throw std::invalid_argument("eigvals: matrix must be square");
     }
     uint64_t n = in.rows();
     auto w = ObjectFactory::create_vector(n, DataType::COMPLEX_FLOAT64, Structure::VECTOR, result_file);
     ComputeContext::instance().get_device()->eigvals(in, *w);
-    return w;
+    return narrow_vector(std::move(w), is_single_precision(in));
 }
 
 std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in, const std::string& result_file) {
+    if (auto d = as_double_precision(in)) {
+        auto r = eigh(*d, result_file);
+        return {narrow_vector(std::move(r.first), is_single_precision(in)), narrow_matrix(std::move(r.second), is_single_precision(in))};
+    }
     if (in.rows() != in.cols()) {
         throw std::invalid_argument("eigh: matrix must be square");
     }
@@ -1172,17 +1221,18 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const M
     auto v = ObjectFactory::create_matrix(n, n, v_type, Structure::DENSE, result_file.empty() ? "" : result_file + "_vecs");
     
     ComputeContext::instance().get_device()->eigh(in, *w, *v, 'L');
-    return std::make_pair(std::move(w), std::move(v));
+    return std::make_pair(narrow_vector(std::move(w), is_single_precision(in)), narrow_matrix(std::move(v), is_single_precision(in)));
 }
 
 std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string& result_file) {
+    if (auto d = as_double_precision(in)) return narrow_vector(eigvalsh(*d, result_file), is_single_precision(in));
     if (in.rows() != in.cols()) {
         throw std::invalid_argument("eigvalsh: matrix must be square");
     }
     uint64_t n = in.rows();
     auto w = ObjectFactory::create_vector(n, DataType::FLOAT64, Structure::VECTOR, result_file);
     ComputeContext::instance().get_device()->eigvalsh(in, *w, 'L');
-    return w;
+    return narrow_vector(std::move(w), is_single_precision(in));
 }
 
 }
