@@ -55,18 +55,13 @@ class TestMatrixOperations(unittest.TestCase):
         m[0, 1] = 1
         
         inv = ~m
-        
-        self.assertTrue(isinstance(inv, pycauset.TriangularMatrix) and inv.dtype == "bool")
-        # (0,1) was 1, should be 0
-        self.assertEqual(inv[0, 1], 0)
-        # (0,2) was 0, should be 1
-        self.assertEqual(inv[0, 2], 1)
-        # Diagonal should still be 0 (implicit)
-        self.assertEqual(inv[0, 0], 0)
-        
-        # Check padding bits (should be 0)
-        # We can't check padding bits directly from python easily without inspecting the file
-        # but we can check that the matrix behaves correctly.
+
+        # NumPy semantics: every element is complemented, so the result is dense (F-074).
+        self.assertEqual(inv.dtype, "bool")
+        self.assertEqual(inv[0, 1], 0)  # was 1
+        self.assertEqual(inv[0, 2], 1)  # was 0
+        self.assertEqual(inv[0, 0], 1)  # diagonal and lower triangle were 0
+        self.assertEqual(inv[3, 0], 1)
 
     def test_bitwise_not_integer_matrix(self):
         n = 3

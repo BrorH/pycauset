@@ -329,3 +329,20 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Maintainer: the recurring "op X on dtype/structure/view Y is wrong or slow" class must be
   catalogued exhaustively, not found by accident: PLAN Phase C (operation atlas).
 - Build note: the normal build OOMs at -j2 now (CpuSolver + ScalarOps); use -j1.
+
+## 2026-11-25 session 8
+- Atlas C.1 done, C.2 first run: 60,738 cells. Wrong cells traced to 12 engine bugs
+  (F-064..F-075, all fixed and verified by direct reproduction) plus oracle bugs (integer
+  cast overflow, np.conj(bool) -> int8, complex inputs cast to real for norm, 6-digit sort
+  for spectra, signed zeros). Engine changes: triangular clone keeps has_diagonal;
+  antisymmetric needs a signed dtype; triangular matmul orientation/diagonal; native solve
+  for every dtype/structure + vectors (?gesv), solve_triangular/lstsq/slogdet rebuilt on it;
+  device `determinant` replaced by `lu_pivots`; conj-view complex factor; window save; ~ on
+  structures; mixed int kernel dense-only. Python: matmul/solve/matrix_power shortcuts and
+  silent fallbacks removed (F-067, F-068, F-073).
+- Maintainer asked why so many simple bugs exist. Answer recorded as Phase N in PLAN: four
+  patterns (dtype-selected kernels that assume layout; optional view flags; duplicated rules;
+  silent fallbacks) plus example-based tests that never enumerated combinations.
+- Decisions taken (maintainer may veto): `~` follows NumPy (complements every element of a
+  structured matrix); user-set properties no longer steer dispatch or change results (old
+  tests asserting that removed: test_properties_dispatch.py, two others).

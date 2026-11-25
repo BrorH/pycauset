@@ -51,27 +51,6 @@ class TestPropertiesOperatorWiring(unittest.TestCase):
         finally:
             m.close()
 
-    def test_solve_identity_property_shortcut(self):
-        a = pycauset.DenseMatrix(2, dtype="float64")
-        b = pycauset.vector([5.0, -2.0])
-        try:
-            # Payload is not identity, but properties are gospel.
-            a.set(0, 0, 10.0)
-            a.set(0, 1, 7.0)
-            a.set(1, 0, 3.0)
-            a.set(1, 1, 4.0)
-            a.properties = {"is_identity": True}
-
-            x = pycauset.solve(a, b)
-            try:
-                self.assertAlmostEqual(x.get(0), 5.0)
-                self.assertAlmostEqual(x.get(1), -2.0)
-            finally:
-                x.close()
-        finally:
-            a.close()
-            b.close()
-
     def test_solve_zero_property_is_singular(self):
         a = pycauset.DenseMatrix(2, dtype="float64")
         b = pycauset.vector([1.0, 1.0])

@@ -136,14 +136,32 @@ fast / written-out / generic / numpy-fallback / unsupported, with timings. Gener
 (`review/atlas/ATLAS.md`) + CI tests. Stops the "found one more slow or wrong combination"
 cycle by finding all of them at once. Runs before the remaining Phase 4 items, which then
 work from the report.
-- [ ] C.1 Instrumentation: kernel traces on every kernel entry; accessor counter (debug flag);
-      NumPy-fallback hook
-- [ ] C.2 Enumerator, oracle, classifier (correctness); first full run → findings
+- [x] C.1 Instrumentation (session 8): counted element accessors (`access_counter`, NVI
+      wrappers over the `element_*` virtuals), per-operation kernel log
+      (`debug_trace::start_log`), NumPy export counter (`export_guard.export_count`).
+      Kernel traces are completed lazily: the report lists ops with no trace.
+- [~] C.2 Enumerator, oracle, classifier: `tests/atlas/atlas.py` + `report.py`. First run
+      found F-064..F-075 (all fixed); oracle bugs fixed alongside. Next: triage the rerun.
 - [ ] C.3 Timing pass; generated `review/atlas/ATLAS.md`
 - [ ] C.4 CI wiring (`tests/atlas/`, explicit known-gap list); delete `support_matrix.py`,
       `tools/check_support_matrix.py`, superseded probes
 - [ ] C.5 Work the report down (no ✗ cells; no engine NumPy fallbacks; `generic` only where
       documented)
+
+## Phase N: Normalise at the boundary (session 8; the cure for the recurring bug class)
+Root cause of F-043..F-075 (see LOG session 8): kernels are chosen by one property (dtype or
+class) and silently assume others (dense storage, no transpose/conjugation/factor/window,
+upper orientation); view flags are optional for every reader; rules are re-implemented in
+several places; Python wraps engine calls in silent fallbacks. Cure, mechanism not cells:
+- [ ] N.1 Every kernel declares what it accepts (dtype set, structure, "plain" or which flags
+      it honours). One entry function per operation normalises any other operand
+      (`write_out` / `to_dense` / cast) before dispatch; kernels assert their contract.
+      Delete the ad-hoc per-branch guards and the branches the normaliser makes redundant.
+- [ ] N.2 One definition of view semantics (value = conj(raw · factor), windows, transpose)
+      in one header; every reader goes through it or through normalisation.
+- [ ] N.3 No silent fallbacks: the Python layer calls the engine and lets errors surface;
+      remove the "properties" dispatch layer (4.3: properties never change results).
+- [ ] N.4 The atlas CI gate proves it: the ✗ count must reach 0 and stay there.
 
 ## Phase 4: Structural cleanup (after the RESTRUCTURE decisions)
 Behaviour-preserving moves in their own commits, then logic consolidation.

@@ -209,39 +209,6 @@ class TestBlockMatrixPhaseFIntegration(unittest.TestCase):
                 if obj is not None:
                     obj.close()
 
-    def test_property_aware_leaf_dispatch_is_used_inside_thunks(self):
-        from pycauset._internal.blockmatrix import BlockMatrix
-        from pycauset._internal import properties as _props
-
-        a = b = None
-        try:
-            a = pycauset.DenseMatrix(2, 2, dtype="float64")
-            b = pycauset.DenseMatrix(2, 2, dtype="float64")
-
-            # Make 'a' diagonal (payload) and assert diagonal (properties).
-            a.set(0, 0, 2.0)
-            a.set(0, 1, 0.0)
-            a.set(1, 0, 0.0)
-            a.set(1, 1, 5.0)
-            _props.set_properties(a, {"is_diagonal": True})
-
-            self._fill_const(b, 3.0)
-
-            left = BlockMatrix([[a]])
-            right = BlockMatrix([[b]])
-
-            pycauset._debug_clear_kernel_trace()
-            out = pycauset.matmul(left, right)
-            _ = out.get(0, 0)
-
-            trace = pycauset._debug_last_kernel_trace()
-            self.assertIn("matmul", trace)
-            self.assertIn("diag_x_dense", trace)
-        finally:
-            for obj in (a, b):
-                if obj is not None:
-                    obj.close()
-
     def test_io_prefetch_discard_trace_emitted_during_thunk_eval(self):
         from pycauset._internal.blockmatrix import BlockMatrix
 
