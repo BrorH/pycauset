@@ -34,10 +34,12 @@ float64 first, which the atlas verifies once per operation").
    * `fast`: a typed kernel (BLAS/LAPACK, word-level bit kernel, contiguous typed loop);
    * `written-out`: the input was copied to plain storage first, then a fast kernel (fine for
      O(n³) operations; flagged for O(n²) ones);
-   * `generic`: one virtual element accessor call per element (correct, slow). For O(n²)
-     operations any accessor use counts (threshold 64 calls); for O(n³) operations up to 4n²
-     calls are operand normalisation in front of a kernel (Phase N: the normaliser converts an
-     operand once, an O(n²) cost next to the O(n³) kernel), and only more counts as generic;
+   * `generic`: virtual element accessor calls (threshold 64), also when they only convert an
+     operand in front of a fast O(n³) kernel: the timing pass measured such a conversion at
+     ~100 ns per element, which dominates the kernel up to n in the thousands (float32
+     antisymmetric @ X at n = 384: 17.5 ms vs NumPy 0.28 ms). Conversions must be typed;
+   * `fast` is a path class, not a speed: the timing pass (`tests/atlas/timing.py`,
+     `review/atlas/TIMING.md`) measures speed against NumPy per cell (target ≥ 0.9×);
    * `numpy-fallback`: the Python layer called NumPy;
    * `unsupported`: raises.
    Detection is objective, not hand-tagged: (a) the kernel trace (`debug_trace` names,

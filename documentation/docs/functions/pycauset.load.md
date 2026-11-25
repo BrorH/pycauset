@@ -26,10 +26,6 @@ Snapshot semantics:
 - Mutating an object loaded from disk does not implicitly overwrite the on-disk snapshot.
 - Persisting payload changes requires an explicit save.
 
-Caching:
-
-- Cached-derived values are restored from typed metadata when valid.
-
 ## Examples
 
 ```python

@@ -28,4 +28,3 @@ x = pycauset.solve_triangular(A, b)
 ## Notes
 
 - Properties are authoritative; the solver does not scan payloads to verify structure.
-- Cached-derived values and other properties are maintained via the properties health-check system.

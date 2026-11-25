@@ -16,10 +16,8 @@ Vectors are persistent objects (RAM-backed for small sizes; disk-backed for larg
 
 Vectors expose `v.properties`, a typed mapping used for:
 
-- gospel assertions (e.g. ordering-related hints such as `is_sorted`), and
-- cached-derived values (e.g. `norm`, `sum`) with strict validity.
-
-Gospel assertions are authoritative (not truth-validated), and incompatible asserted states raise immediately (no payload scan).
+- user metadata and assertions (e.g. `is_sorted`), saved with the vector. They are not
+  checked against the values and never change results; contradictory assertions raise.
 
 See [[guides/Storage and Memory.md|Storage and Memory]].
 

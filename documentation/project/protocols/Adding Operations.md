@@ -49,16 +49,16 @@ When adding a new operation, you must decide and/or implement support in each of
     - Add/modify API docs in `documentation/docs/` and guides in `documentation/guides/`.
     - Add tests (Python and/or C++) covering dtype permutations and “error-by-design” cases.
 
-7. **Properties (R1_PROPERTIES)**
-    - Decide which properties the op **consumes** (e.g., `is_upper_triangular`, `is_hermitian`).
-    - Decide whether the op **produces/propagates/changes** properties on its outputs.
-    - Enforce the **no-scan rule**: properties must never be validated by scanning payload data.
-    - Document “power user” semantics where relevant: properties are gospel and may override payload truth.
+7. **Properties**
+    - Properties are user metadata: the op must not read them to choose a path or a result,
+      and must not cache its result anywhere (review F-081). Structure that the op exploits
+      comes from the operand's class (`TriangularMatrix`, `DiagonalMatrix`, ...), never from a
+      property.
 
-8. **Cached-derived properties (R1_PROPERTIES)**
-    - Decide which cached-derived properties (e.g., `trace`) the op **invalidates** (default: invalidate all cached-derived values on any payload mutation).
-    - If the op is a metadata-only transform, decide which cached-derived values can be **propagated** via explicit $O(1)$ rules (otherwise clear).
-    - If the op is parallelized, decide whether it should emit a constant-size **effect summary** to help the post-op health check update metadata without a second payload pass.
+8. **Atlas**
+    - Add the op to `tests/atlas/atlas.py` (`OPS`, with its NumPy reference). The atlas then
+      checks it in every dtype x structure x view x storage cell; `python -m tests.atlas.timing`
+      measures it against NumPy.
 
 9. **Traits/Tags (Phase 3: property mirroring)**
     - If the op depends on properties for routing, consult the C++ property flags (`include/pycauset/core/PropertyFlags.hpp`).
@@ -260,13 +260,8 @@ Use this when adding or modifying **low-level CUDA kernels** (beyond the host dr
 
 If the op is property-aware (R1_PROPERTIES):
 
-- [ ] The op’s behavior with properties is documented (which properties it reads, and which it writes/propagates).
-- [ ] Property behavior is deterministic and respects the “no truth validation / no data scans” rule.
-
-If the op interacts with cached-derived properties (R1_PROPERTIES):
-
-- [ ] Cache behavior is documented (which cached-derived values can be preserved/propagated vs must be cleared).
-- [ ] Cache behavior is deterministic and uses only $O(1)$ rules (no scans / no extra passes).
+- [ ] The op reads no properties and caches no result (F-081).
+- [ ] The op is in the atlas (`tests/atlas/atlas.py`) and its CI test passes.
 
 For `bit` specifically, always state whether the new op is:
 

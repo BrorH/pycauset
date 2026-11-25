@@ -19,11 +19,6 @@ This page is the developer-facing hub for how storage works in Release 1. User-f
 - Frequently changing runtime epochs stay in memory; header `hot_offset`/`hot_length` remain 0 in R1.
 - Saving writes a new snapshot (base file, plus sidecar for block matrices). Overwrites replace the header slot generation and metadata pointer but keep the payload offset stable.
 
-## Cache semantics (small + big blobs)
-- `payload_uuid` identifies the persisted payload snapshot; `view_signature` captures view-state (`scalar`, `is_transposed`, `is_conjugated`). Both are used to validate cached-derived values without scanning.
-- Small cached-derived values live under `cached.*` with a validity signature and surface into `obj.properties` on load when valid.
-- Big-blob caches are persisted as independent `.pycauset` objects in `BASE.pycauset.objects/<object_id>.pycauset`; the base metadata stores a typed reference (`ref_kind = sibling_object_store`, `object_id`, `signature`). Missing/unreadable/stale references raise `PyCausetStorageWarning` and are treated as cache misses (ignored), with **no implicit recomputation**.
-
 ## Crash-consistent update path
 1) Append the new typed metadata block (framing: `PCMB`, block_version=1, encoding_version=1, payload_crc32 validated).
 2) Flush if the implementation uses explicit flush.

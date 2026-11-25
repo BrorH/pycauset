@@ -911,9 +911,51 @@ the entry (the history is useful). New findings go at the bottom with the next f
   kernel dtype (float16 computes in float32, complex float16 in complex64). Triangular and
   diagonal results now keep their structure for every dtype with a class (was float64/int32
   only). Net -930 lines.
-- Atlas: matmul 847 of 847 correct cells fast (was 328). The classifier counts up to 4n²
-  accessor calls on an O(n³) operation as normalisation, not per-element compute (ATLAS.md §3).
+- Atlas: matmul 557 of 847 correct cells fast (was 328), 290 generic (was 519). The 290 are
+  operand conversions through the virtual accessor (float16 / complex float16, conjugated
+  complex, symmetric, antisymmetric, diagonal, identity): fixed by a typed converter (N.2).
+  An interim classifier rule that counted up to 4n² accessor calls as "normalisation" was
+  reverted after the timing pass measured such a conversion (F-083).
 - Semantics (documented in the code): structured rules skip structural zeros, so they differ
   from NumPy only where a skipped 0·inf or 0·nan would give nan. Integer matmul raises on
   overflow (F-055 policy) where NumPy wraps: unchanged, listed for the maintainer.
 - Tests: `tests/engine/test_matmul_rules.py` (result structure per rule, overflow guards).
+
+### F-081 Cached results went stale on mutation; trace/det answered from user flags
+- **Status:** fixed (session 8, found by the timing pass). The Python properties layer cached
+  `sum`, `trace`, `determinant`, `norm`, `rank`, eigenvalues/eigenvectors and the inverse on the
+  object, propagated them through `*`, `+`, `-`, `.T`, `.conj()` without computing, and persisted
+  them in save files (plus "big-blob" sibling files for inverses and eigenvectors). Invalidation
+  hooked `.set()` only, so after `M[0, 0] = 100` `pc.sum(M)` and `pc.determinant(M)` returned
+  the old values (66 instead of 156). The `trace()` / `determinant()` wrappers also answered
+  from user-set flags (`is_zero` → det 0, `is_identity` → trace n, `diagonal_value` →
+  det dv**n) without computing: properties changing results, against the approved rule.
+  `m.invert()` on a file-backed float64 matrix was forced through NumPy (a stale comment
+  claimed the native inverse was wrong there; the atlas file-storage cells show it is right),
+  and any native inverse error fell back to NumPy silently.
+- Fix: all derived-value caching removed (properties.py cached keys, propagation and the
+  trace/determinant wrappers; `linalg_cache.py`, `big_blob_cache.py`; the `cached` metadata
+  namespace; eigen cache reads/writes in ops.py; the norm/sum caches in `__init__`). Results
+  are computed on every call. User properties remain as metadata (their removal is N.3).
+  Old tests that asserted caching (including two named `..._prefers_properties_even_if_wrong`)
+  deleted; docs (storage guide, container format, API contract, Adding Operations protocol)
+  rewritten. Regression: `test_F081_*` (results follow `M[i,j] = v` and `.set`; flags never
+  change trace/det/sum).
+
+### F-082 `pc.symmetric` / `pc.antisymmetric` / `pc.diagonal` predate the structure classes
+- **Status:** open. They return a dense matrix with a property flag for integer input (not a
+  `SymmetricMatrix`), fill floats with per-element Python loops, and their docstrings
+  describe the pre-F-032 classes ("SymmetricMatrix is float64"). To be rebuilt on the
+  structure classes with a native fill, or removed (the classes' constructors cover them).
+
+### F-083 "fast" was a path label, not a speed; per-call overhead 30-50 µs
+- **Status:** measured (session 8, timing pass `tests/atlas/timing.py`, `review/atlas/TIMING.md`).
+  The atlas's `fast` only meant "no per-element virtual calls". Measured against NumPy on the
+  same data: see TIMING.md for the per-operation medians. Causes found so far: (a) per-call
+  overhead of the Python/binding layers, 30-50 µs per `+` or `@` vs NumPy's 0.3-0.6 µs; (b)
+  operand conversion through the virtual accessor (~100 ns/element; float32 antisymmetric @ X
+  at n = 384: 17.5 ms vs 0.28 ms); (c) `bool @ bool.T` took the per-element branch of the
+  popcount kernel (104 ms vs 1.4 ms).
+- Policy (ATLAS.md §5): an `ok` cell must reach ≥ 0.9× NumPy at the reference size, or carry a
+  finding that explains why.
+

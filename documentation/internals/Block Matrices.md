@@ -139,7 +139,6 @@ Save policies (Release 1):
 - Stale thunks fail save deterministically (no implicit recompute).
 - Overwrite cleanup deletes only deterministic child filenames within the sidecar.
 - Saves stage child files (and nested sidecars) then commit/rename to reduce partial updates.
-- No block-level cached-derived persistence (trace/determinant/norm/sum) is defined; caches remain per leaf child.
 
 View blocks on save:
 

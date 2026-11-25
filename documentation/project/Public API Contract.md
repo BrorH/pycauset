@@ -52,13 +52,12 @@ All public matrix/vector objects expose a `properties` mapping.
 Contract:
 
 - `obj.properties` is the single user-facing metadata container.
-- Properties are **gospel**: they are not truth-validated by scanning payload bytes.
+- Properties are user metadata: not validated against the values, and never used to compute
+  a result (no operation answers from, or is steered by, a property).
 - Boolean-like properties use tri-state semantics via key presence:
   - unset means the key is absent,
   - explicit `False` is preserved.
-- Some keys (e.g. `trace`, `determinant`) may be treated as **cached-derived** values:
-  - they are persisted with validity signatures under `cached.*`,
-  - and are surfaced back into `obj.properties` on load only when valid.
+- Computed results are never cached: every call computes from the current values.
 
 ### Functions
 

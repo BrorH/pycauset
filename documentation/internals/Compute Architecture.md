@@ -130,10 +130,9 @@ The CPU backend covers eigensolvers through LAPACK, with special handling per ma
 
 #### Hermitian/Symmetric Eigensolvers
 *   **`eigh(A)`**: Computes eigenvalues and eigenvectors for Hermitian (complex) or symmetric (real) matrices
-    *   **Backend**: LAPACK `dsyev` (double), `ssyev` (float), `zheev` (complex double), `cheev` (complex float)
+    *   **Backend**: currently NumPy (`np.linalg.eigh`) through the Python layer; a native LAPACK path is planned (review PLAN Phase N.3)
     *   **Requirements**: Square, contiguous dense matrix (no block-matrix support)
     *   **Streaming**: Not supported (LAPACK requires full matrix in memory)
-    *   **Caching**: Eigenvalues and eigenvectors cached as derived metadata using big-blob persistence
 *   **`eigvalsh(A)`**: Computes eigenvalues only (faster when eigenvectors not needed)
     *   Uses same LAPACK routines but skips eigenvector computation
 
@@ -168,14 +167,6 @@ All eigen operations declare their capabilities in `OpRegistry`:
 *   **Non-square matrices**: Rejected with clear error message mentioning "square matrix required"
 *   **Block matrices**: Rejected with error indicating LAPACK requires dense contiguous layout
 *   **IO Trace**: All eigen operations record routing decisions (`direct` for LAPACK ops, `streaming` potential for Arnoldi)
-
-#### Cached-Derived Metadata
-Eigenvalues and eigenvectors are expensive to compute, so they are cached:
-*   **Storage**: Big-blob cache when large, attached to matrix backing file
-*   **Signature**: View signature ensures cache matches current matrix state
-*   **Invalidation**: Cache cleared on matrix modification
-*   **Load-miss**: Warns and recomputes if cache missing (no implicit retry)
-*   **Persistence**: Cache survives save/reload cycles when matrix has backing file
 
 ### 2.6 Additional Linear Algebra Operations (Phase 7: R1_CPU)
 

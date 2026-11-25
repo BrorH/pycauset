@@ -358,4 +358,14 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   lines). Atlas: matmul generic 519 -> 0, total generic 8,942 -> 6,386; still 0 wrong cells.
   Classifier: on O(n³) ops up to 4n² accessor calls are normalisation (documented).
   Old test `test_bit_mixed_fastpaths.py` now asserts the one `cpu.matmul.bit_x_dense` tag.
+- Maintainer asked: does Phase N scale to new views/structures/ops; why no float16 diagonal;
+  is "fast" NumPy speed. Answers: a shared converter (N.2) + declarative normaliser (N.1b)
+  make a new view/structure one change; the structure gaps have no obstacle (N.5, one
+  decision on complex symmetric vs Hermitian); "fast" was only a path label, so the timing
+  pass (C.3) was built first.
+- Timing pass findings: F-081 (cached sum/det/trace/norm/eigen/inverse went stale on
+  `M[i,j] = v`; trace/det answered from user flags; file-backed inverse forced to NumPy):
+  all result caching removed (~1,000 lines, 2 modules, 2 test files). F-083: per-call
+  overhead 30-50 µs; virtual-call conversions dominate cubic kernels; the interim
+  "4n² is normalisation" classifier rule reverted (matmul honest count: 557 fast, 290 generic).
 

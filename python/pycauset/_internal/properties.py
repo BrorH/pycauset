@@ -5,19 +5,6 @@ from typing import Any
 
 _PROPERTIES_ATTR = "_pycauset_properties"
 
-# Cached-derived keys (never semantic structure) that must be cleared on any
-# payload mutation.
-_CACHED_DERIVED_KEYS: tuple[str, ...] = (
-    "trace",
-    "determinant",
-    "rank",
-    "norm",
-    "sum",
-    "eigenvalues",
-    "eigenvectors",
-)
-
-
 def _ensure_store(obj: Any) -> dict[str, Any]:
     store = getattr(obj, _PROPERTIES_ATTR, None)
     if store is None or not isinstance(store, dict):
@@ -154,11 +141,6 @@ def _validate_properties_compatibility(obj: Any, props: dict[str, Any]) -> None:
     for k in requires_square_true:
         if props.get(k) is True and square_n is None and shape is not None:
             raise ValueError(f"{k}=True requires a square matrix")
-
-    # Cached-derived shape constraints
-    for k in ("trace", "determinant"):
-        if k in props and square_n is None and shape is not None:
-            raise ValueError(f"{k} is only defined for square matrices")
 
     # Internal contradictions / implication conflicts
     if props.get("is_identity") is True:
@@ -336,22 +318,8 @@ def _bump_payload_epoch(obj: Any) -> None:
         pass
 
 
-def _invalidate_cached_derived(obj: Any) -> None:
-    props = _get_store(obj)
-    for k in _CACHED_DERIVED_KEYS:
-        props.pop(k, None)
-
-    # Large derived-cache (inverse) lives outside obj.properties.
-    try:
-        if hasattr(obj, "_cached_inverse"):
-            delattr(obj, "_cached_inverse")
-    except Exception:
-        pass
-
-
 def _post_payload_mutation(obj: Any) -> None:
     _bump_payload_epoch(obj)
-    _invalidate_cached_derived(obj)
 
 
 def _replace_properties_store(obj: Any, new_mapping: dict[str, Any]) -> None:
@@ -372,28 +340,6 @@ def _post_view_transform_inplace(obj: Any, *, op: str) -> None:
 def _apply_scalar_ratio_inplace(obj: Any, *, ratio: Any) -> None:
     store = _get_store(obj)
     ratio = _as_number(ratio)
-
-    # Cached-derived values (including scalar=0, when the cache key is present).
-    if "trace" in store:
-        store["trace"] = _as_number(store["trace"]) * ratio
-    if "sum" in store:
-        if isinstance(store["sum"], int):
-            # Integer elements wrap individually under scaling: sum(k*A) != k*sum(A). Recompute.
-            store.pop("sum", None)
-        else:
-            store["sum"] = _as_number(store["sum"]) * ratio
-    if "determinant" in store:
-        n = _get_square_dim(obj)
-        if n is None:
-            store.pop("determinant", None)
-        else:
-            store["determinant"] = _as_number(store["determinant"]) * (ratio**n)
-    if "norm" in store:
-        store["norm"] = _as_number(store["norm"]) * abs(ratio)
-    if "rank" in store:
-        # scaling by nonzero preserves rank; scaling by zero yields rank 0.
-        if ratio == 0:
-            store["rank"] = 0
 
     # Scalar affects constant-diagonal metadata deterministically.
     if "diagonal_value" in store:
@@ -580,8 +526,6 @@ def _propagate_mapping(mapping: dict[str, Any], *, op: str, is_real: bool) -> di
 
         _unset("is_unitary")
 
-        # Cached-derived values
-        # trace, determinant, eigenvalues: preserved under transpose when present.
         return out
 
     if op == "conj":
@@ -593,15 +537,6 @@ def _propagate_mapping(mapping: dict[str, Any], *, op: str, is_real: bool) -> di
             _unset("is_skew_hermitian")
 
         _unset("is_unitary")
-
-        if "trace" in out:
-            out["trace"] = _conj_value(out["trace"])
-        if "determinant" in out:
-            out["determinant"] = _conj_value(out["determinant"])
-        if "sum" in out:
-            out["sum"] = _conj_value(out["sum"])
-        if "eigenvalues" in out and isinstance(out.get("eigenvalues"), list):
-            out["eigenvalues"] = [_conj_value(v) for v in out["eigenvalues"]]
 
         return out
 
@@ -825,151 +760,6 @@ def effective_structure(obj: Any) -> str:
     return effective_structure_from_properties(get_properties(obj))
 
 
-def apply_properties_arithmetic_patches(*, classes: list[Any]) -> None:
-    """Patch arithmetic operators to propagate cached-derived values where safe.
-
-    This is Phase A/D glue: scalar multiply and add/sub cached-derived propagation.
-    """
-    for cls in classes:
-        if cls is None:
-            continue
-
-        # __mul__ / __rmul__ (scalar multiply)
-        for op_name, scalar_side in (("__mul__", "right"), ("__rmul__", "left")):
-            orig = getattr(cls, op_name, None)
-            if not callable(orig) or getattr(orig, "_pycauset_props_arith_wrapped", False):
-                continue
-
-            def _make_mul_wrapper(orig_method: Any, *, side: str) -> Any:
-                def _wrapped(self: Any, other: Any, *args: Any, **kwargs: Any) -> Any:
-                    out = orig_method(self, other, *args, **kwargs)
-
-                    # Only handle scalar multiply; leave matrix-matrix and other overloads alone.
-                    scalar = other if side == "right" else other
-                    if not _is_scalar_value(scalar):
-                        return out
-
-                    try:
-                        parent = self
-                        parent_store = _get_store(parent)
-                        new_props = dict(parent_store)
-                        _replace_properties_store(out, new_props)
-                        _apply_scalar_ratio_inplace(out, ratio=_as_number(scalar))
-                    except Exception:
-                        pass
-                    return out
-
-                _wrapped._pycauset_props_arith_wrapped = True  # type: ignore[attr-defined]
-                _wrapped._pycauset_props_arith_op = op_name  # type: ignore[attr-defined]
-                return _wrapped
-
-            try:
-                setattr(cls, op_name, _make_mul_wrapper(orig, side=scalar_side))
-            except Exception:
-                pass
-
-        # __add__ / __sub__ (cached-derived propagation)
-        for op_name in ("__add__", "__sub__"):
-            orig = getattr(cls, op_name, None)
-            if not callable(orig) or getattr(orig, "_pycauset_props_arith_wrapped", False):
-                continue
-
-            def _make_addsub_wrapper(orig_method: Any, *, op: str) -> Any:
-                def _wrapped(self: Any, other: Any, *args: Any, **kwargs: Any) -> Any:
-                    out = orig_method(self, other, *args, **kwargs)
-
-                    try:
-                        left = _get_store(self)
-                        right = _get_store(other)
-                        new_props: dict[str, Any] = {}
-
-                        # Cached-derived: trace can be propagated if both known.
-                        if "trace" in left and "trace" in right:
-                            if op == "add":
-                                new_props["trace"] = _as_number(left["trace"]) + _as_number(right["trace"])
-                            else:
-                                new_props["trace"] = _as_number(left["trace"]) - _as_number(right["trace"])
-
-                        # Cached-derived: sum can be propagated if both known.
-                        if "sum" in left and "sum" in right:
-                            if op == "add":
-                                new_props["sum"] = _as_number(left["sum"]) + _as_number(right["sum"])
-                            else:
-                                new_props["sum"] = _as_number(left["sum"]) - _as_number(right["sum"])
-
-                        # determinant/rank/norm: conservative unset (per table).
-                        _replace_properties_store(out, new_props)
-                    except Exception:
-                        pass
-                    return out
-
-                _wrapped._pycauset_props_arith_wrapped = True  # type: ignore[attr-defined]
-                _wrapped._pycauset_props_arith_op = op_name  # type: ignore[attr-defined]
-                return _wrapped
-
-            try:
-                setattr(cls, op_name, _make_addsub_wrapper(orig, op=("add" if op_name == "__add__" else "sub")))
-            except Exception:
-                pass
-
-
-def apply_properties_operator_patches(*, classes: list[Any]) -> None:
-    """Patch scalar-returning operators to consult `obj.properties` first.
-
-    Phase E minimal: trace() and determinant().
-    """
-
-    for cls in classes:
-        if cls is None:
-            continue
-
-        # trace()
-        orig_trace = getattr(cls, "trace", None)
-        if callable(orig_trace) and not getattr(orig_trace, "_pycauset_props_wrapped", False):
-
-            def _make_trace_wrapper(orig: Any) -> Any:
-                def _wrapped(self: Any, *args: Any, **kwargs: Any) -> Any:
-                    props = get_properties(self)
-                    if "trace" in props:
-                        return _as_number(props["trace"])
-
-                    n = _get_square_dim(self)
-                    if props.get("is_zero") is True:
-                        val = 0
-                        props["trace"] = val
-                        return val
-
-                    if props.get("is_identity") is True and n is not None:
-                        val = n
-                        props["trace"] = val
-                        return val
-
-                    # Constant diagonal shortcut when user asserts diagonal.
-                    is_diag = props.get("is_diagonal") is True or (
-                        props.get("is_upper_triangular") is True and props.get("is_lower_triangular") is True
-                    )
-                    if is_diag and n is not None and "diagonal_value" in props:
-                        dv = _as_number(props["diagonal_value"])
-                        val = dv * n
-                        props["trace"] = val
-                        return val
-
-                    val = orig(self, *args, **kwargs)
-                    try:
-                        props["trace"] = _as_number(val)
-                    except Exception:
-                        pass
-                    return val
-
-                _wrapped._pycauset_props_wrapped = True  # type: ignore[attr-defined]
-                return _wrapped
-
-            try:
-                setattr(cls, "trace", _make_trace_wrapper(orig_trace))
-            except Exception:
-                pass
-
-
 def apply_properties_mutation_patches(*, classes: list[Any]) -> None:
     """Patch known in-place mutation methods to invalidate cached-derived values."""
 
@@ -1130,22 +920,13 @@ def apply_properties_mutation_patches(*, classes: list[Any]) -> None:
                         try:
                             old_n = _as_number(old)
                             new_n = _as_number(new)
-                            if old_n == 0:
-                                _invalidate_cached_derived(self)
-                            else:
+                            if old_n != 0:
                                 _apply_scalar_ratio_inplace(self, ratio=(new_n / old_n))
                         except Exception:
-                            # Conservative: if ratio math fails, clear cached-derived.
-                            _invalidate_cached_derived(self)
+                            pass
                         return out
 
-                    # set_temporary or unknown view-state mutation: conservative.
-                    out = orig_method(self, *args, **kwargs)
-                    try:
-                        _invalidate_cached_derived(self)
-                    except Exception:
-                        pass
-                    return out
+                    return orig_method(self, *args, **kwargs)
 
                 _wrapped._pycauset_props_view_mutation_wrapped = True  # type: ignore[attr-defined]
                 _wrapped._pycauset_props_view_mutation_method = method_name  # type: ignore[attr-defined]
@@ -1153,50 +934,5 @@ def apply_properties_mutation_patches(*, classes: list[Any]) -> None:
 
             try:
                 setattr(cls, name, _make_view_wrapper(name, orig))
-            except Exception:
-                pass
-
-        # determinant()
-        orig_det = getattr(cls, "determinant", None)
-        if callable(orig_det) and not getattr(orig_det, "_pycauset_props_wrapped", False):
-
-            def _make_det_wrapper(orig: Any) -> Any:
-                def _wrapped(self: Any, *args: Any, **kwargs: Any) -> Any:
-                    props = get_properties(self)
-                    if "determinant" in props:
-                        return _as_number(props["determinant"])
-
-                    n = _get_square_dim(self)
-                    if props.get("is_zero") is True:
-                        val = 0
-                        props["determinant"] = val
-                        return val
-
-                    if props.get("is_identity") is True:
-                        val = 1
-                        props["determinant"] = val
-                        return val
-
-                    is_diag = props.get("is_diagonal") is True or (
-                        props.get("is_upper_triangular") is True and props.get("is_lower_triangular") is True
-                    )
-                    if is_diag and n is not None and "diagonal_value" in props:
-                        dv = _as_number(props["diagonal_value"])
-                        val = dv**n
-                        props["determinant"] = val
-                        return val
-
-                    val = orig(self, *args, **kwargs)
-                    try:
-                        props["determinant"] = _as_number(val)
-                    except Exception:
-                        pass
-                    return val
-
-                _wrapped._pycauset_props_wrapped = True  # type: ignore[attr-defined]
-                return _wrapped
-
-            try:
-                setattr(cls, "determinant", _make_det_wrapper(orig_det))
             except Exception:
                 pass

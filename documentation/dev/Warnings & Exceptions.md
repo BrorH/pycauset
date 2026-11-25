@@ -23,7 +23,6 @@ Warnings are for cases where execution can continue correctly, but the user shou
 Guesses may inform, never decide: a warning may be based on sampling or a heuristic,
 but no result (values, dtype, success/failure) may depend on one.
 - **Performance hazards** (e.g., a fallback that will be much slower than expected)
-  - Example: a cached-derived value (including a “big blob cache” like an inverse) cannot be loaded because its referenced storage object is missing/corrupt; the runtime will warn and ignore the cached entry (no implicit recompute).
 
 Warnings should be:
 
@@ -77,16 +76,6 @@ Noise control requirements:
 - Emit through `bindings_warn::warn_with_category` (C++) or `warnings.warn` (Python); never
   keep a private "already warned" set: it would override the user's warnings filter.
 - Pass `stacklevel` so the warning points to user code (Python dedupes per call site).
-
-### Storage/cache warning guidance
-
-When a cached-derived value cannot be used (missing/stale/malformed signature; referenced big-blob object missing or corrupt), execution can typically continue correctly by **ignoring the cached entry**.
-If you want the derived result again, you must request it explicitly (and optionally re-persist it).
-
-Policy:
-
-- Prefer a warning (not an exception) when the runtime can safely ignore the cached entry without changing user-visible results.
-- Use `pycauset.PyCausetStorageWarning` for missing/corrupt/stale cached storage objects (including big-blob caches).
 
 Slicing/indexing assignment warnings
 

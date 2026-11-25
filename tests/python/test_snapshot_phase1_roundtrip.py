@@ -125,39 +125,6 @@ def test_metadata_only_update_does_not_rewrite_payload(tmp_path: Path) -> None:
                 pass
 
 
-def test_properties_and_cached_values_roundtrip(tmp_path: Path) -> None:
-    m = pycauset.DenseMatrix(2, dtype="float64")
-    m[0, 0] = 1.0
-    m[1, 1] = 2.0
-
-    # Gospel properties and cached-derived entries.
-    m.properties["label"] = "phase1"
-    m.properties["trace"] = 3.0
-    m.properties["determinant"] = 4.0
-    m.properties["norm"] = 5.0
-    m.properties["sum"] = 6.0 + 1.0j
-    m.properties["eigenvalues"] = [1.0 + 0.0j, 2.0 + 0.0j]
-
-    path = tmp_path / "props.pycauset"
-    try:
-        pycauset.save(m, path)
-        loaded = pycauset.load(path)
-        try:
-            props = loaded.properties
-            assert props.get("label") == "phase1"
-            assert props.get("trace") == pytest.approx(3.0)
-            assert props.get("determinant") == pytest.approx(4.0)
-            assert props.get("norm") == pytest.approx(5.0)
-            assert props.get("sum") == pytest.approx(6.0 + 1.0j)
-            eig = props.get("eigenvalues")
-            assert eig is not None
-            assert [complex(v) for v in eig] == [complex(1.0, 0.0), complex(2.0, 0.0)]
-        finally:
-            loaded.close()
-    finally:
-        m.close()
-
-
 def test_temp_backing_roundtrip_matches_snapshot(tmp_path: Path) -> None:
     orig_threshold = pycauset.get_memory_threshold()
     orig_dir = pycauset._storage_root()

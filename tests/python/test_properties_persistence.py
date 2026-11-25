@@ -106,54 +106,5 @@ class TestPropertiesPersistence(unittest.TestCase):
             f.write(new_header)
             f.write(new_payload)
 
-    def test_cached_scalars_surface_only_with_valid_signature(self):
-        m = None
-        m2 = None
-        try:
-            m = pycauset.DenseMatrix(3, dtype="float64")
-            m.set(0, 0, 2.0)
-            m.set(1, 1, 3.0)
-            m.set(2, 2, 4.0)
-
-            # Populate cached-derived values into runtime properties.
-            self.assertEqual(m.trace(), 9.0)
-            self.assertEqual(m.determinant(), 24.0)
-            self.assertAlmostEqual(pycauset.norm(m), 5.385164807134504)
-            self.assertEqual(pycauset.sum(m), 9.0 + 0.0j)
-            self.assertIn("trace", m.properties)
-            self.assertIn("determinant", m.properties)
-            self.assertIn("norm", m.properties)
-            self.assertIn("sum", m.properties)
-
-            path = self.test_dir / "cached_scalars.pycauset"
-            pycauset.save(m, path)
-
-            # Break validity by changing payload_uuid only.
-            self._tamper_payload_uuid_only(path)
-
-            m2 = pycauset.load(path)
-
-            # Cached-derived scalars should NOT be surfaced when signature mismatches.
-            self.assertNotIn("trace", m2.properties)
-            self.assertNotIn("determinant", m2.properties)
-            self.assertNotIn("norm", m2.properties)
-            self.assertNotIn("sum", m2.properties)
-
-            # Calls still work; they just compute and then populate properties.
-            self.assertEqual(m2.trace(), 9.0)
-            self.assertEqual(m2.determinant(), 24.0)
-            self.assertAlmostEqual(pycauset.norm(m2), 5.385164807134504)
-            self.assertEqual(pycauset.sum(m2), 9.0 + 0.0j)
-            self.assertEqual(m2.properties.get("trace"), 9.0)
-            self.assertEqual(m2.properties.get("determinant"), 24.0)
-            self.assertAlmostEqual(m2.properties.get("norm"), 5.385164807134504)
-            self.assertEqual(m2.properties.get("sum"), 9.0 + 0.0j)
-        finally:
-            if m2 is not None:
-                m2.close()
-            if m is not None:
-                m.close()
-
-
 if __name__ == "__main__":
     unittest.main()

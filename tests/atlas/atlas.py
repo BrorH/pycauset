@@ -605,9 +605,10 @@ def _check(op: Op, cell: Cell, got, a, b, arith: str, xdt: str, ydt: str) -> boo
 def classify(cell: Cell, op: Op) -> str:
     if cell.exports > 0:
         return "numpy"
-    # O(n^2) ops: any per-element accessor use is the generic path. O(n^3) ops: up to 4 n^2
-    # accesses is operand normalisation in front of a kernel (Phase N), not per-element compute.
-    if cell.accesses >= 64 if op.o_n2 else cell.accesses > 4 * N * N:
+    # Any per-element accessor use beyond a few calls is the generic path, also for O(n^3)
+    # operations: a virtual-call conversion costs ~100x a BLAS flop, so it dominates the kernel
+    # up to n in the thousands (measured by the timing pass, tests/atlas/timing.py).
+    if cell.accesses >= 64:
         return "generic"
     if "write_out" in cell.kernels:
         return "written-out" if op.o_n2 else "fast"

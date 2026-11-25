@@ -345,3 +345,44 @@ def test_F051_causal_sums_count_relations(n):
         assert pc.sum(c) == pc.sum(c.T) == rel
         assert pc.sum(c + c.T) == 2 * rel and pc.sum(c - c.T) == 0
         assert pc.sum(3 * (c + c.T)) == 6 * rel
+
+
+# ---------------------------------------------------------------- F-081
+_F081_OPS = {
+    "sum": lambda m: pc.sum(m),
+    "trace": lambda m: m.trace(),
+    "det": lambda m: pc.determinant(m),
+    "norm": lambda m: pc.norm(m),
+    "inv": lambda m: to_np(pc.invert(m)),
+    "eigvalsh": lambda m: np.sort(to_np(pc.eigvalsh(m))),
+}
+
+
+@pytest.mark.parametrize("op", sorted(_F081_OPS))
+@pytest.mark.parametrize("write", ["setitem", "set"])
+def test_F081_results_follow_mutation(op, write):
+    a = np.array([[4.0, 1.0, 0.0], [1.0, 5.0, 2.0], [0.0, 2.0, 6.0]])
+    m = pc.matrix(a)
+    f = _F081_OPS[op]
+    f(m)  # a first call must not pin the answer
+    if write == "setitem":
+        m[1, 1] = 9.0
+    else:
+        m.set(1, 1, 9.0)
+    a[1, 1] = 9.0
+    ref = {"sum": a.sum(), "trace": np.trace(a), "det": np.linalg.det(a), "norm": np.linalg.norm(a),
+           "inv": np.linalg.inv(a), "eigvalsh": np.linalg.eigvalsh(a)}[op]
+    np.testing.assert_allclose(f(m), ref, rtol=1e-12)
+
+
+@pytest.mark.parametrize("flags", [{"is_zero": True}, {"is_identity": True}, {"diagonal_value": 7.0, "is_diagonal": True}])
+def test_F081_properties_never_change_results(flags):
+    a = np.array([[2.0, 0.0], [0.0, 3.0]])
+    m = pc.matrix(a)
+    try:
+        m.properties.update(flags)
+    except ValueError:
+        pytest.skip("flags rejected as incompatible with the values")
+    assert m.trace() == pytest.approx(5.0)
+    assert pc.determinant(m) == pytest.approx(6.0)
+    assert pc.sum(m) == pytest.approx(5.0)

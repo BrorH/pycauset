@@ -142,7 +142,11 @@ work from the report.
       Kernel traces are completed lazily: the report lists ops with no trace.
 - [x] C.2 Enumerator, oracle, classifier: `tests/atlas/atlas.py` + `report.py` (58,935 cells,
       26 s, deterministic). Runs found F-064..F-079, all fixed: **0 wrong cells** (session 8).
-- [ ] C.3 Timing pass (speed vs NumPy and vs float64 dense at reference sizes)
+- [~] C.3 Timing pass: `tests/atlas/timing.py` → `review/atlas/TIMING.md` (fast cells, RAM,
+      views plain/T/scaled_float/conj; n = 1024 for O(n²), 384 for O(n³), vectors 1M; lazy
+      off while timing; per-call overhead table). First run found F-081 (stale caches) and
+      F-083 (fast ≠ NumPy speed). Open: wire the ≥ 0.9× NumPy target into the report as a
+      gate per operation once the N.2 converter lands.
 - [~] C.4 CI: `tests/atlas/test_atlas.py` (fails on any ✗, harness error, or regression vs the
       committed `review/atlas/atlas.json.gz`; KNOWN_GAPS empty). Still to do: delete
       `support_matrix.py`, `tools/check_support_matrix.py`, superseded probes
@@ -167,7 +171,21 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
       element-wise div/mul/add/sub, scalar ops (~2,600 together), matvec/vecmat (957), neg,
       export/save_load, sum, invert, matrix_power.
 - [ ] N.2 One definition of view semantics (value = conj(raw · factor), windows, transpose)
-      in one header; every reader goes through it or through normalisation.
+      in one header; every reader goes through it or through normalisation. Concretely, next:
+      one typed converter `to_dense(any operand, dtype)` with a typed reader per structure
+      (dense, triangular, symmetric/antisymmetric, diagonal, identity, float16/complex16
+      storage) and the view applied once, no per-element virtual call. Every normaliser uses
+      it, so a new structure or view is taught in one place and every op is correct with it
+      (fast once a kernel reads it natively). Measured need: F-083 (b); matmul's 290 generic
+      cells are all conversions.
+- [ ] N.1b Generalise the matmul normaliser into a shared, declarative one (operation =
+      contract + plain-dense kernel + optional structure rules), then norm, element-wise and
+      scalar ops, matvec/vecmat on it. Rewrite `protocols/Adding Operations.md` around it.
+- [ ] N.5 Structure × dtype gaps (no technical obstacle; factory switches never got the
+      cases): diagonal/identity float16, float32, complex; triangular/symmetric complex
+      (maintainer decision: complex symmetric A = Aᵀ vs Hermitian A = Aᴴ, recommended both as
+      flags like symmetric/antisymmetric); bit triangular with diagonal; antisymmetric complex;
+      unit vectors beyond float64. Generate the factory dispatch from one dtype list.
 - [ ] N.3 No silent fallbacks: the Python layer calls the engine and lets errors surface;
       remove the "properties" dispatch layer (4.3: properties never change results).
       Pattern (done for solve, svd/svdvals/pinv, lstsq, slogdet in session 8): one engine entry

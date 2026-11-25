@@ -27,7 +27,6 @@ from ._internal import export_guard as _export_guard
 from ._internal import factories as _factories
 from ._internal import formatting as _formatting
 from ._internal import io_observability as _io_observability
-from ._internal import linalg_cache as _linalg_cache
 from ._internal import matrix_api as _matrix_api
 from ._internal import native as _native_mod
 from ._internal import ops as _ops
@@ -643,8 +642,8 @@ def convert_file(
     return dst
 
 
-_linalg_cache.patch_matrixbase_save(_native, save)
-_linalg_cache.patch_inverse(native=_native, classes=list(_MATRIX_CLASSES))
+_native.MatrixBase.save = save
+_native.VectorBase.save = save
 
 _formatting.configure(np_module=_np, edge_items=4)
 
@@ -717,18 +716,6 @@ _properties.apply_properties_view_patches(
     mark_temporary_if_auto=_mark_temporary_if_auto,
 )
 
-_properties.apply_properties_operator_patches(
-    classes=[
-        *_MATRIX_CLASSES,
-    ]
-)
-
-_properties.apply_properties_arithmetic_patches(
-    classes=[
-        *_MATRIX_CLASSES,
-        *_VECTOR_CLASSES,
-    ]
-)
 
 
 
@@ -1122,7 +1109,7 @@ def divide(a: Any, b: Any) -> Any:
 def norm(x: Any, ord: Any = None) -> float:
     """Return the norm of a vector or matrix.
 
-    - ord=None: Frobenius norm (matrix) / L2 norm (vector), cached.
+    - ord=None: Frobenius norm (matrix) / L2 norm (vector).
     - ord='fro': Frobenius norm.
     - ord=2: spectral norm (matrix, largest singular value) / L2 norm (vector).
     - ord=1, ord=inf, ord='nuc': 1-norm, infinity-norm, nuclear norm.
@@ -1133,31 +1120,10 @@ def norm(x: Any, ord: Any = None) -> float:
         # (2) norm and routes 1/inf/nuc through NumPy.
         return _ops.norm(x, ord=ord, deps=_OPS_DEPS)
 
-    # Cached-derived fast path (R1_PROPERTIES): if the object exposes a properties
-    # mapping and already has a cached norm, use it.
-    try:
-        props = getattr(x, "properties", None)
-        if props is not None:
-            cached = props.get("norm")  # type: ignore[union-attr]
-            if cached is not None:
-                return float(cached)
-    except Exception:
-        pass
-
     fn = getattr(_native, "norm", None)
     if fn is None:
         raise RuntimeError("Native function norm is not available")
-    out = float(fn(x))
-
-    # Best-effort populate cache.
-    try:
-        props = getattr(x, "properties", None)
-        if props is not None:
-            props["norm"] = out  # type: ignore[index]
-    except Exception:
-        pass
-
-    return out
+    return float(fn(x))
 
 
 def sum(x: Any) -> int | float | complex:
@@ -1167,15 +1133,7 @@ def sum(x: Any) -> int | float | complex:
     128 bits), real floats a ``float``, complex inputs a ``complex``. Float sums are
     deterministic (fixed summation order, independent of the thread count).
     """
-    props = getattr(x, "properties", None)
-    if props is not None:
-        cached = props.get("sum")
-        if cached is not None:
-            return cached
-    out = _native.sum(x)
-    if props is not None:
-        props["sum"] = out
-    return out
+    return _native.sum(x)
 
 def compute_k(matrix: Any, a: float):
     """

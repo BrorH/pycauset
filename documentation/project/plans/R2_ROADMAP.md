@@ -601,17 +601,8 @@ SJ flagship runs within the R2_PERF bar on flat-Minkowski causets.
 
 ### R2_EIGCACHE, Eigen-Cache Persistence
 
-Status: - [x] (`eigh`/`eigvalsh`/`eig` already persist their eigenvalues/eigenvectors through the big-blob cache (`_internal/ops.py` → `big_blob_cache.persist_cached_object`); reload hits the cache with a matching view signature. Verified end-to-end and pinned by `test_eigen_caching.py::test_eigen_cache_persistence_hits_cache` (a reloaded `eigh` never calls `np.linalg.eigh`). Minor follow-up: a signature *mismatch* recomputes but does not yet emit an explicit warning, it falls through as a silent cache miss)
-
-Goal: persist cached-derived eigen metadata to the `.pycauset` container so reloads don't recompute
-eigendecompositions.
-
-Deliverables: eigen-cache persistence through the big-blob cache path (stable signatures, no
-implicit recompute on miss, warning on signature mismatch), consistent with the caching model in
-`archive/R1_PROPERTIES_PLAN.md`.
-
-DoD: save → load hits the cache (no recompute) with matching signatures; a signature mismatch warns
-and recomputes; round-trip correctness pinned by test.
+Status: withdrawn (2026 review, F-081). Result caching (eigen, inverse, scalar reductions) was
+removed: caches went stale on mutation. Results are computed on every call.
 
 ### R2_HARDEN, Robustness + Polish Backlog
 

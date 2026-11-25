@@ -3,9 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from . import big_blob_cache as _big_blob_cache
 from . import export_guard, io_observability
-from . import linalg_cache as _linalg_cache
 from . import properties as _props
 
 
@@ -612,15 +610,6 @@ def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     rec = _record_io_trace("eigh", [a], deps=deps, supports_streaming=False)
     _prefetch_if_streaming(rec, [a], deps=deps)
     
-    # Check Cache
-    ctx_w = _try_load_eigen_cache(a, "eigenvalues", deps)
-    
-    ctx_v = _try_load_eigen_cache(a, "eigenvectors", deps)
-    
-    if ctx_w is not None and ctx_v is not None:
-        _discard_if_streaming(rec, [a], None, deps=deps)
-        return ctx_w, ctx_v
-
     result_w = None
     result_v = None
 
@@ -633,15 +622,6 @@ def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
         w, v = np_module.linalg.eigh(_to_numpy_matrix(a, deps=deps))
         result_w = _as_pycauset_array(w, deps=deps)
         result_v = _as_pycauset_array(v, deps=deps)
-
-    # Save to Cache
-    try:
-        if getattr(a, "get_backing_file", lambda: None)() and _linalg_cache._is_new_container(a.get_backing_file()): # Reuse helper
-             view_sig = _big_blob_cache.compute_view_signature(a)
-             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvalues", obj=result_w, view_signature=view_sig)
-             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvectors", obj=result_v, view_signature=view_sig)
-    except Exception:
-        pass
 
     _discard_if_streaming(rec, [a], None, deps=deps)
     return result_w, result_v
@@ -663,9 +643,7 @@ def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
         pass
     """Eigenvalues for real symmetric / complex Hermitian matrices.
 
-    Phase E wiring:
-    - If cached-derived `a.properties["eigenvalues"]` exists, prefer it.
-    - If `is_hermitian` is explicitly False, reject.
+    Rejects input whose `is_hermitian` property is explicitly False.
     """
 
     props = None
@@ -678,19 +656,6 @@ def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
         if props.get("is_hermitian") is False:
             raise ValueError("eigvalsh requires is_hermitian != False")
 
-        # Preferred: Big Blob Cache (supports full vectors)
-        # We try this first before the small property list
-        ctx_w = _try_load_eigen_cache(a, "eigenvalues", deps)
-        if ctx_w is not None:
-             _discard_if_streaming(rec, [a], ctx_w, deps=deps)
-             return ctx_w
-
-        if "eigenvalues" in props:
-            try:
-                return _as_pycauset_array(props["eigenvalues"], deps=deps)
-            except Exception:
-                pass
-
     result_w = None
 
     # Correctness-first (2026-08-24): native eigvalsh (R1_CPU Phase 6) crashes; use NumPy.
@@ -701,51 +666,9 @@ def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
         w = np_module.linalg.eigvalsh(_to_numpy_matrix(a, deps=deps))
         result_w = _as_pycauset_array(w, deps=deps)
 
-    # Save to Cache
-    try:
-        if getattr(a, "get_backing_file", lambda: None)() and _linalg_cache._is_new_container(a.get_backing_file()): # Reuse helper
-             view_sig = _big_blob_cache.compute_view_signature(a)
-             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvalues", obj=result_w, view_signature=view_sig)
-    except Exception:
-        pass
-
-    if props is not None:
-        try:
-            # Also populate legacy small cache if possible/reasonable? 
-            # Actually, let's keep it for compatibility if it's small enough, but maybe not worth specific logic here.
-            # We skip writing to props["eigenvalues"] to encourage big blob usage.
-            pass
-        except Exception:
-            pass
-
     _discard_if_streaming(rec, [a], result_w, deps=deps)
     return result_w
 
-
-
-def _try_load_eigen_cache(a: Any, name: str, deps: OpsDeps) -> Any | None:
-    try:
-        backing = getattr(a, "get_backing_file", lambda: None)()
-        if not backing:
-            return None
-        
-        # Must be a .pycauset container to support big_blob_cache
-        if not backing.endswith(".pycauset") or not os.path.exists(backing):
-            return None
-
-        view_sig = _big_blob_cache.compute_view_signature(a)
-        
-        res = _big_blob_cache.try_load_cached_matrix(
-            backing,
-            name=name,
-            view_signature=view_sig,
-            native=deps.native,
-        )
-        if res is not None:
-             _track_and_mark_temporary_if_native(res, deps=deps)
-        return res
-    except Exception:
-        return None
 
 
 def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
@@ -756,14 +679,6 @@ def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     rec = _record_io_trace("eig", [a], deps=deps, supports_streaming=False)
     _prefetch_if_streaming(rec, [a], deps=deps)
     
-    # Check Cache
-    ctx_w = _try_load_eigen_cache(a, "eigenvalues", deps)
-    ctx_v = _try_load_eigen_cache(a, "eigenvectors", deps)
-    
-    if ctx_w is not None and ctx_v is not None:
-        _discard_if_streaming(rec, [a], None, deps=deps)
-        return ctx_w, ctx_v
-
     result_w = None
     result_v = None
 
@@ -788,15 +703,6 @@ def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
         result_w = _as_pycauset_vector(w, deps=deps)
         result_v = _as_pycauset_array(v, deps=deps)
 
-    # Save to Cache
-    try:
-        if getattr(a, "get_backing_file", lambda: None)() and _linalg_cache._is_new_container(a.get_backing_file()): # Reuse helper
-             view_sig = _big_blob_cache.compute_view_signature(a)
-             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvalues", obj=result_w, view_signature=view_sig)
-             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvectors", obj=result_v, view_signature=view_sig)
-    except Exception:
-        pass
-
     _discard_if_streaming(rec, [a], None, deps=deps)
     return result_w, result_v
 
@@ -808,12 +714,6 @@ def eigvals(a: Any, *, deps: OpsDeps) -> Any:
         raise ValueError("eigvals requires a square matrix")
     rec = _record_io_trace("eigvals", [a], deps=deps)
     _prefetch_if_streaming(rec, [a], deps=deps)
-
-    # Check Cache
-    ctx_w = _try_load_eigen_cache(a, "eigenvalues", deps)
-    if ctx_w is not None:
-         _discard_if_streaming(rec, [a], ctx_w, deps=deps)
-         return ctx_w
 
     result_w = None
 
@@ -833,14 +733,6 @@ def eigvals(a: Any, *, deps: OpsDeps) -> Any:
 
         w = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
         result_w = _as_pycauset_vector(w, deps=deps)
-
-    # Save to Cache
-    try:
-         if getattr(a, "get_backing_file", lambda: None)() and _linalg_cache._is_new_container(a.get_backing_file()):
-             view_sig = _big_blob_cache.compute_view_signature(a)
-             _big_blob_cache.persist_cached_object(a.get_backing_file(), name="eigenvalues", obj=result_w, view_signature=view_sig)
-    except Exception:
-        pass
 
     _discard_if_streaming(rec, [a], result_w, deps=deps)
     return result_w

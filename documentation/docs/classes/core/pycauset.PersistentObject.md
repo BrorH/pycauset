@@ -13,7 +13,7 @@ Instead, these behaviors surface through:
 
 - **Backed by disk or RAM:** the API is the same either way.
 - **Snapshots are immutable by default:** `load()` does not implicitly overwrite the file you loaded.
-- **Metadata-first:** shape, dtype, view-state, and semantic properties are stored/propagated without scanning payload.
+- **Metadata-first:** shape, dtype, view-state and properties are stored without scanning the payload.
 
 The canonical Release 1 persistence semantics and container format are documented in:
 
@@ -23,8 +23,7 @@ The canonical Release 1 persistence semantics and container format are documente
 
 Matrices and vectors expose `obj.properties`, a typed mapping used for:
 
-- gospel semantic assertions (e.g. `is_upper_triangular=True`), and
-- cached-derived values (e.g. `trace`, `determinant`, `norm`) with strict validity.
+- user metadata and assertions (e.g. `is_upper_triangular=True`), saved with the object; they never change results.
 
 ## See also
 

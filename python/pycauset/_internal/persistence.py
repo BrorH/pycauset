@@ -10,19 +10,6 @@ from pathlib import Path
 from typing import Any, Protocol
 
 
-def _compute_view_signature(*, is_transposed: bool, is_conjugated: bool, scalar: object) -> str:
-    if isinstance(scalar, dict) and "real" in scalar and "imag" in scalar:
-        scalar = complex(float(scalar["real"]), float(scalar["imag"]))
-    if isinstance(scalar, complex):
-        sr = float(scalar.real)
-        si = float(scalar.imag)
-    else:
-        sr = float(scalar)  # type: ignore[arg-type]
-        si = 0.0
-
-    return f"t={int(bool(is_transposed))};c={int(bool(is_conjugated))};sr={sr:g};si={si:g}"
-
-
 class _HasCopyStorage(Protocol):
     def copy_storage(self, path: str) -> None: ...
 
@@ -51,31 +38,6 @@ _PAYLOAD_LAYOUT = {
     "diagonal": "raw_diagonal",
 }
 
-_CACHED_DERIVED_PROPERTY_KEYS = {"trace", "determinant", "norm", "sum", "eigenvalues"}
-_CACHED_SCALAR_KEYS = ("trace", "determinant", "norm", "sum")
-
-
-def _encode_number(value: Any) -> Any:
-    """JSON form of a cached scalar keeping its kind: int (exact, as a string), float, [re, im]."""
-    if isinstance(value, complex):
-        return [float(value.real), float(value.imag)]
-    if isinstance(value, int) and not isinstance(value, bool):
-        return {"int": str(value)}
-    return float(value)
-
-
-def _decode_number(value: Any) -> Any:
-    """Inverse of _encode_number; None for anything malformed."""
-    try:
-        if isinstance(value, dict) and "int" in value:
-            return int(value["int"])
-        if isinstance(value, list) and len(value) == 2:
-            return complex(float(value[0]), float(value[1]))
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            return float(value)
-    except (TypeError, ValueError):
-        return None
-    return None
 
 
 def _extract_properties_for_persistence(obj: Any) -> dict[str, Any]:
@@ -433,144 +395,6 @@ def read_typed_metadata(path: str | Path) -> dict[str, Any]:
     return typed_meta
 
 
-def try_get_cached_big_blob_ref(
-    path: str | Path,
-    *,
-    name: str,
-    view_signature: str | None = None,
-) -> dict[str, Any] | None:
-    """Return the cached big-blob reference for cached.<name> if present and valid.
-
-    Expected shape (typed metadata):
-
-    cached[name] = {
-      "value": {"ref_kind": "sibling_object_store", "object_id": "..."},
-      "signature": {"payload_uuid": "...", "view_signature": "..."}
-    }
-    """
-    typed_meta = read_typed_metadata(path)
-
-    payload_uuid = typed_meta.get("payload_uuid")
-    if not isinstance(payload_uuid, str) or not payload_uuid:
-        raise ValueError("invalid file: missing payload_uuid in typed metadata")
-
-    cached = typed_meta.get("cached")
-    if not isinstance(cached, dict):
-        return None
-    entry = cached.get(name)
-    if not isinstance(entry, dict):
-        return None
-
-    sig = entry.get("signature")
-    if not (isinstance(sig, dict) and sig.get("payload_uuid") == payload_uuid):
-        return None
-
-    if view_signature is not None and sig.get("view_signature") != view_signature:
-        return None
-
-    value = entry.get("value")
-    if not isinstance(value, dict):
-        return None
-    ref_kind = value.get("ref_kind")
-    object_id = value.get("object_id")
-    if not (isinstance(ref_kind, str) and isinstance(object_id, str) and object_id):
-        return None
-    return {"ref_kind": ref_kind, "object_id": object_id}
-
-
-def _object_store_dir_for_base(base_path: str | Path) -> Path:
-    base_path = Path(base_path)
-    # Sidecar directory living next to the base snapshot. Keeps caches colocated.
-    return base_path.with_suffix(base_path.suffix + ".objects")
-
-
-def object_store_path_for_id(base_path: str | Path, *, object_id: str) -> Path:
-    store_dir = _object_store_dir_for_base(base_path)
-    return store_dir / f"{object_id}.pycauset"
-
-
-def new_object_id() -> str:
-    """Return a stable identifier for a persisted big-blob object."""
-    return uuid.uuid4().hex
-
-
-def write_cached_big_blob_ref(
-    base_path: str | Path,
-    *,
-    name: str,
-    ref_kind: str,
-    object_id: str,
-    signature: dict[str, Any],
-) -> None:
-    """Append a metadata update that stores a big-blob cache reference under cached.<name>.
-
-    This does not write the big-blob object itself. The caller must ensure the referenced
-    object is fully written/published before calling this.
-    """
-    base_path = Path(base_path)
-    if not _is_new_container(base_path):
-        raise ValueError("unsupported file format (expected new .pycauset container)")
-
-    active, active_name, typed_meta = _read_active_slot_and_typed_metadata(base_path)
-
-    inactive_slot_offset = _SLOT_B_OFFSET if active_name == "A" else _SLOT_A_OFFSET
-    new_generation = int(active.get("generation", 0)) + 1
-
-    cached = typed_meta.get("cached")
-    if not isinstance(cached, dict):
-        cached = {}
-
-    cached[name] = {
-        "value": {"ref_kind": str(ref_kind), "object_id": str(object_id)},
-        "signature": dict(signature),
-    }
-    typed_meta["cached"] = cached
-
-    with base_path.open("r+b") as f:
-        f.seek(0, os.SEEK_END)
-        cur = f.tell()
-        meta_offset = _align_up(cur, 16)
-        if meta_offset != cur:
-            f.write(b"\x00" * (meta_offset - cur))
-
-        meta_payload = _encode_metadata_top_map(typed_meta)
-        block_payload_crc = _crc32(meta_payload)
-        block_header = (
-            _METADATA_BLOCK_MAGIC
-            + struct.pack(
-                "<III",
-                _METADATA_BLOCK_VERSION,
-                _METADATA_ENCODING_VERSION,
-                0,
-            )
-            + struct.pack("<Q", len(meta_payload))
-            + struct.pack("<I", block_payload_crc)
-            + struct.pack("<I", 0)
-        )
-        if len(block_header) != 32:
-            raise AssertionError("metadata block header size mismatch")
-        f.write(block_header)
-        f.write(meta_payload)
-        meta_length = 32 + len(meta_payload)
-
-        new_slot = _pack_slot(
-            generation=new_generation,
-            payload_offset=int(active["payload_offset"]),
-            payload_length=int(active["payload_length"]),
-            metadata_offset=int(meta_offset),
-            metadata_length=int(meta_length),
-            hot_offset=int(active.get("hot_offset", 0)),
-            hot_length=int(active.get("hot_length", 0)),
-        )
-        f.seek(inactive_slot_offset)
-        f.write(new_slot)
-        f.flush()
-        try:
-            os.fsync(f.fileno())
-        except Exception:
-            pass
-
-
 def _read_new_container_metadata_and_offset(path: Path) -> tuple[dict[str, Any], int]:
     file_size = path.stat().st_size
     with path.open("rb") as f:
@@ -773,35 +597,9 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             # read shifted values (F-076).
             meta["has_diagonal"] = bool(payload_obj.has_diagonal)
 
-        # Persist gospel properties (excluding cached-derived keys).
-        props_all = _extract_properties_for_persistence(payload_obj)
-        props_gospel = {k: v for k, v in props_all.items() if k not in _CACHED_DERIVED_PROPERTY_KEYS}
-        if props_gospel:
-            meta["properties"] = props_gospel
-
-        # Persist cached-derived values in the `cached.*` shape.
-        cached: dict[str, Any] = {}
-        payload_uuid = meta.get("payload_uuid")
-        view_sig = _compute_view_signature(
-            is_transposed=bool(view["is_transposed"]),
-            is_conjugated=bool(view["is_conjugated"]),
-            scalar=scalar,
-        )
-        for key in _CACHED_SCALAR_KEYS:
-            value = props_all.get(key)
-            if value is not None:
-                cached[key] = {
-                    "value": _encode_number(value),
-                    "signature": {"payload_uuid": payload_uuid, "view_signature": view_sig},
-                }
-        eigen_val = props_all.get("eigenvalues")
-        if eigen_val is not None:
-            cached["eigenvalues"] = {
-                "value": [[float(z.real), float(z.imag)] for z in eigen_val],
-                "signature": {"payload_uuid": payload_uuid, "view_signature": view_sig},
-            }
-        if cached:
-            meta["cached"] = cached
+        props = _extract_properties_for_persistence(payload_obj)
+        if props:
+            meta["properties"] = props
 
         # Write file: header placeholder, then payload, then metadata block, then header slots.
         payload_offset = _HEADER_BYTES
@@ -925,11 +723,6 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
     if not isinstance(payload_uuid, str) or not payload_uuid:
         raise ValueError("invalid file: missing payload_uuid in typed metadata")
 
-    view_sig = _compute_view_signature(
-        is_transposed=is_transposed,
-        is_conjugated=is_conjugated,
-        scalar=scalar,
-    )
 
     # The header records the *logical* shape plus the view flags, while the rectangular
     # `_from_storage` constructors take the *storage* shape and then apply the transpose.
@@ -968,33 +761,6 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
             obj.properties = persisted_props
         except Exception:
             pass
-
-    cached = metadata.get("cached", {})
-    if isinstance(cached, dict):
-        for key in _CACHED_SCALAR_KEYS:
-            entry = cached.get(key)
-            if (
-                isinstance(entry, dict)
-                and isinstance(entry.get("signature"), dict)
-                and entry["signature"].get("payload_uuid") == payload_uuid
-                and entry["signature"].get("view_signature") == view_sig
-            ):
-                value = _decode_number(entry.get("value"))
-                if value is not None:
-                    obj.properties[key] = value
-
-        eigen_entry = cached.get("eigenvalues")
-        if (
-            isinstance(eigen_entry, dict)
-            and eigen_entry.get("value") is not None
-            and isinstance(eigen_entry.get("signature"), dict)
-            and eigen_entry["signature"].get("payload_uuid") == payload_uuid
-            and eigen_entry["signature"].get("view_signature") == view_sig
-        ):
-            try:
-                obj.properties["eigenvalues"] = [complex(r, i) for r, i in eigen_entry["value"]]
-            except Exception:
-                pass
 
     if metadata.get("object_type") == "CausalSet":
         st_meta = metadata.get("spacetime", {})

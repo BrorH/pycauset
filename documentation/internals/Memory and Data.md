@@ -128,19 +128,10 @@ the other way around).
 All metadata is a typed top-level map. The important namespaces:
 
 - `view` — view state (scalar, transpose, conjugation).
-- `properties` — user-facing "gospel" assertions (semantic hints, not validated).
-- `cached` — cached-derived values (scalars and big-blob references).
+- `properties` — user metadata (not validated, never used to compute results).
 
-### Big-blob caches
-
-A big-blob cache is a cached-derived value that is itself large (another matrix or
-vector), so it is persisted as its own `.pycauset` object next to the base.
-
-- The base stores `cached.<name>.value` as a reference: `ref_kind` and `object_id`.
-- The object lives in `BASE.pycauset.objects/<object_id>.pycauset`.
-- Validity is checked with a `signature` derived from the base payload, so a stale
-  or missing reference is just a cache miss (a `PyCausetStorageWarning`, then
-  continue; it is not recomputed implicitly).
+No computed results are cached or persisted (removed in the 2026 review, F-081: caches went
+stale on mutation and answered from user assertions).
 
 ## Matrix & vector hierarchy
 

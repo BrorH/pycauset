@@ -29,7 +29,7 @@ assert N[0, 0] == 42
 Most PyCauset objects have the same basic structure on disk, and the stored file can be broken into two sections:
 
 - **Payload (data bytes):** the matrix/vector entries themselves.
-- **Metadata (info bytes):** small structured information that explains what the payload means (shape, dtype, layout) and how to interpret it (transpose, scalar, conjugation), plus optional properties and caches.
+- **Metadata (info bytes):** small structured information that explains what the payload means (shape, dtype, layout) and how to interpret it (transpose, scalar, conjugation), plus optional user properties.
 
 The important consequence is that PyCauset can scale because it does *not* require the payload to be in RAM all at once. The operating system will automatically keep recently-used parts in memory.
 
@@ -50,7 +50,7 @@ Conceptually, the saved file contains:
    - shape: 2 rows, 3 cols
    - dtype: float32
    - view-state: “not transposed”, “scalar = 1.0”, etc.
-   - optional: user properties and cached results
+   - optional: user properties
 
 You can think of metadata like the “label on the box” and payload like “what’s inside the box”.
 
@@ -61,36 +61,31 @@ This specific format enables two user-facing behaviors:
 1) **Gigantic matrices actually work:** the payload lives on disk and is paged in as needed.
 2) **Some operations are instant:** things like transpose or scaling can be represented by changing metadata (no rewrite of the large payload).
 
-## Semantic Properties (Metadata)
+## Properties (user metadata)
 
-In addition to physical metadata (shape/dtype), you can attach **Semantic Properties**. These are asserted facts about the matrix that are "gospel" (authoritative) and can drastically speed up computations.
+In addition to physical metadata (shape/dtype), you can attach **properties**: labels and
+assertions you want to keep with the object (for example `is_symmetric=True` or a `label`).
 
 ### What `properties` is
 
 - `obj.properties` is a mapping (`str` keys → typed values) exposed on every matrix/vector.
-- It stores **gospel assertions** (e.g., `is_upper_triangular=True`) which the system accepts without truth-validation.
-- It also stores **cached-derived values** (e.g., `determinant`) which are invalidated on mutation.
+- It is saved and loaded with the object.
+- Properties **never change results**: every operation computes from the stored values and the
+  view-state (transpose, conjugation, scalar). Setting `is_zero=True` does not make the
+  determinant 0, and nothing is answered from a stored value.
+- PyCauset does not cache computed results (`sum`, `trace`, `determinant`, `norm`, inverses,
+  eigenvalues): a result always reflects the current values, also after `M[i, j] = v`.
 
 ### Common keys
 
-These keys are treated as **semantic structure claims** (no truth validation):
+Conventional keys (stored as given, not validated against the values):
 - **Structure:** `is_symmetric`, `is_hermitian`, `is_upper_triangular`, `is_lower_triangular`, `is_diagonal`
-- **Identity:** `is_identity` (implies diagonal, symmetric, etc.)
+- **Identity:** `is_identity`
 - **Vector hints:** `is_sorted`, `is_unit_norm`
 
-Example:
-```python
-A = pc.identity(3)
-# Gospel assertion: solver is allowed to treat off-triangle entries as zero.
-A.properties["is_upper_triangular"] = True
-```
-
-### Technical Implementation (Python-Managed)
-
-Currently, the property system is implemented primarily in the **Python layer**:
-- The `properties` dictionary is injected into the native object at runtime (via `python/pycauset/_internal/properties.py`).
-- C++ kernels currently see physical metadata (shape/dtype) but not these semantic properties directly.
-- **Future Integration:** A mechanism to mirror these high-impact flags to C++ (e.g., via a bitmask) is planned so that C++ kernels can inspect them without crossing the Python boundary.
+For structure that operations should exploit, use a structured class (`TriangularMatrix`,
+`SymmetricMatrix`, `DiagonalMatrix`, ...): the structure is then part of the storage, so it
+cannot disagree with the values.
 
 ## Where backing files go (temporary storage)
 
@@ -136,7 +131,7 @@ In concrete terms, **spill** means that the live object switches from a *RAM-onl
 Important details:
 
 - Spilling writes the **payload bytes only** to a temporary `.tmp` backing file under the current backing dir.
-- The live Python object keeps its **metadata, properties, and any already-computed cached values** in memory.
+- The live Python object keeps its **metadata and properties** in memory.
 - Spilling does **not** create a `.pycauset` snapshot container. If you want the object to remain on your disk, you must explicitly call `save()`.
 
 ## `.tmp` vs `.raw_tmp` vs `.pycauset`
@@ -145,7 +140,7 @@ You may see these extensions in your backing directory:
 
 - `.tmp`: temporary backing files that hold **payload bytes** during a session (including spill/eviction and large auto-allocations).
 - `.raw_tmp`: a staging file used while writing a snapshot via `save()`. It is only renamed/committed to `.pycauset` when the write completes.
-- `.pycauset`: a **snapshot container** you created explicitly via `save()` (plus optional sibling cached objects like `X.pycauset.objects/...`).
+- `.pycauset`: a **snapshot container** you created explicitly via `save()`.
 
 ## NumPy conversion safety: when materialization is allowed
 
@@ -179,7 +174,7 @@ This is intentionally NumPy-like: `np.load(...)` gives you an array in memory; m
 - Mutating the object does **not** implicitly overwrite the object saved at `path`.
 - If you want a new persisted version, explicitly `pc.save(obj, new_path)`.
 
-Why this exists: it protects expensive “baseline” snapshots (and their cached artifacts) from accidental overwrite during exploratory work.
+Why this exists: it protects expensive “baseline” snapshots from accidental overwrite during exploratory work.
 
 ## Metadata-driven “views” (fast operations without rewriting payload)
 
@@ -214,53 +209,6 @@ assert V[1, 0] == M[0, 1]
 ```
 
 This is why the container format reserves a `view` namespace in metadata: view-state is part of the object’s meaning, and it must survive `save()` / `load()`.
-
-## Properties and caches: what gets remembered (and when it is trusted)
-
-PyCauset separates two ideas that often get mixed up:
-
-### 1) Gospel properties (`obj.properties`)
-
-`obj.properties` is a power-user escape hatch for *semantic assertions* that algorithms are allowed to trust.
-
-- Example: if you set `obj.properties["is_upper_triangular"] = True`, structure-aware algorithms may treat entries below the diagonal as zero.
-- PyCauset does not scan payload data to validate these assertions.
-- Booleans are tri-state via key presence: “unknown” = key absent, “known false” = key present with `False`.
-
-### 2) Cached-derived values (compute-once)
-
-Cached-derived values are results PyCauset can recompute from payload + view-state (trace, determinant, norm, etc.).
-
-They are only used when they’re known to match the current object state. Cache validity is checked in $O(1)$ via a signature:
-
-- `payload_uuid`: identity of the persisted payload bytes.
-- `view_signature`: compact signature derived from view-state.
-
-On disk, cached-derived values live under `cached.*` (with their signature). At runtime they’re surfaced via `obj.properties` for convenience.
-
-### Big-blob caches (e.g., persisted inverse)
-
-Some cached results are too large to store directly inside metadata. In that case, PyCauset stores them as separate sibling `.pycauset` objects and links to them from the base snapshot.
-
-Example:
-
-```python
-pc.save(pc.DenseMatrix(2, dtype="float64"), "A.pycauset")
-A = pc.load("A.pycauset")
-
-# Persist the inverse as a sibling cached object.
-inv = A.invert(save=True)
-```
-
-On disk, the cached object lives in a sibling directory:
-
-- Base snapshot: `A.pycauset`
-- Object store: `A.pycauset.objects/<object_id>.pycauset`
-
-Failure behavior:
-
-- If a referenced cached object is missing or unreadable, PyCauset emits `PyCausetStorageWarning` and treats that cache entry as unusable.
-- PyCauset does **not** implicitly recompute or “repair” missing big-blob cache objects. If you want that cached result again, you must request it explicitly (for example, `A.invert(save=True)` to rebuild a missing inverse cache).
 
 ## Multi-file snapshots: BlockMatrix sidecars
 
@@ -319,7 +267,6 @@ If you’re writing tooling, debugging a corrupted file, or just curious about t
 
 - For a plain matrix snapshot, copying the single `X.pycauset` file is sufficient.
 - For block matrices, also copy `X.pycauset.blocks/`.
-- For persisted big-blob caches (inverse, etc.), also copy `X.pycauset.objects/`.
 
 ## Memory efficiency (why causal sets fit)
 
