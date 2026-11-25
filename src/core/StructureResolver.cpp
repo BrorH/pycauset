@@ -4,6 +4,8 @@
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
 
+#include <cmath>
+
 namespace pycauset::structure {
 
 namespace {
@@ -24,6 +26,29 @@ bool is_strict_upper(const MatrixBase& m) {
     if (m.is_transposed()) return false;
     const auto* tri = dynamic_cast<const TriangularMatrixBase*>(&m);
     return tri != nullptr && !tri->has_diagonal();
+}
+
+// B is the transpose view of A: same storage, opposite transpose flag, same factor and
+// conjugation, full square span. Then A + B is exactly symmetric and A - B exactly
+// antisymmetric (LAZY.md L2a).
+bool is_transpose_pair(const MatrixBase& a, const MatrixBase& b) {
+    if (a.get_structure() != b.get_structure()) return false;
+    if (!a.shared_mapper() || a.shared_mapper() != b.shared_mapper()) return false;
+    if (a.is_transposed() == b.is_transposed()) return false;
+    if (a.get_scalar() != b.get_scalar() || a.is_conjugated() != b.is_conjugated()) return false;
+    if (a.has_view_offset() || b.has_view_offset()) return false;
+    return a.rows() == a.cols() && a.rows() == a.base_rows() && a.cols() == a.base_cols();
+}
+
+// A - A^T has an exactly zero diagonal unless A's diagonal holds inf/NaN (inf - inf = NaN),
+// which packed antisymmetric storage can't represent. Integers: always zero. O(n) check.
+bool diagonal_is_finite(const MatrixBase& a) {
+    const DataType dt = a.get_data_type();
+    if (dt != DataType::FLOAT16 && dt != DataType::FLOAT32 && dt != DataType::FLOAT64) return true;
+    for (uint64_t i = 0; i < a.rows(); ++i) {
+        if (!std::isfinite(a.get_element_as_double(i, i))) return false;
+    }
+    return true;
 }
 
 // Structured result classes that exist (and are registered with Python) per dtype.
@@ -57,6 +82,11 @@ Structure resolve_result_structure(promotion::BinaryOp op, const MatrixBase& a, 
     if (a.rows() != a.cols() || b.rows() != b.cols()) return Structure::DENSE;
 
     if (op == BinaryOp::Add || op == BinaryOp::Subtract) {
+        // A + A^T / A - A^T (e.g. the comparability matrix C + C^T, Pauli-Jordan-like C - C^T).
+        if (is_transpose_pair(a, b)) {
+            if (op == BinaryOp::Add) return or_dense(Structure::SYMMETRIC, dt);
+            if (diagonal_is_finite(a)) return or_dense(Structure::ANTISYMMETRIC, dt);
+        }
         // Non-zero pattern is the union of the operands' patterns.
         if (is_diagonal_like(a) && is_diagonal_like(b)) return or_dense(Structure::DIAGONAL, dt);
         if (is_symmetric_like(a) && is_symmetric_like(b)) return or_dense(Structure::SYMMETRIC, dt);

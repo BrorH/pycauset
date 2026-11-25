@@ -156,7 +156,8 @@ or constant (bandwidth factor).
   ints and bits, A for floats.
 
 #### L2 implementation plan (session 5)
-- **L2a, eager but packed (small, exact):** the structure resolver recognises `A ± B` where B is
+- **L2a, eager but packed (small, exact) — DONE session 5** (n = 6000 causal: `C − Cᵀ` 72 MB
+  packed vs 144 MB dense; tests in `test_regressions.py`): the structure resolver recognises `A ± B` where B is
   the transpose view of A (same mapper, opposite transpose flag, equal factor and conjugation,
   no offsets). `A + Aᵀ` is exactly symmetric (floating-point addition commutes) and `A − Aᵀ`
   exactly antisymmetric, so the result is stored packed: half the memory for every dtype,

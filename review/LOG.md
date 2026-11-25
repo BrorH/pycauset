@@ -286,3 +286,4 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Causal-set lazy forms checked (n=600): K strictly upper triangular; W = (sqrt(AᵀA)+iA)/2 holds (rel 6e-8 via the squared route); real eigh 22 ms vs complex 87 ms; sum(C@C) = (1ᵀC)(C1) exactly. Added LAZY.md L7.
 - F-043 fixed for element-wise ops (StridedReader); F-049 int64 view precision, F-050 conj/transpose/symmetric-clone view bugs fixed; tests/engine/test_views.py (326 cases). Suite 3,151 passed.
 - L1: integer scale views (dense+triangular) on; readers: get/getitem/export/strided/matvec/fold/~ via materialize; 5*(3*(2*A)) int32 85 -> 0.21 ms.
+- ASan+UBSan clean on the engine suite after the session-5 kernel/reader changes (2,830 passed). L2a done: A±Aᵀ packed.

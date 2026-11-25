@@ -215,3 +215,40 @@ def test_structured_results_keep_structure_for_every_dtype(kind, dtype):
         assert type(a * 3) is cls  # scaling keeps the structure
         if not dtype.startswith("float"):
             assert type(a + 0) is cls  # exact integer kernel: zero-preserving ops keep it too
+
+
+# L2a: A ± A^T is stored packed (exactly symmetric / antisymmetric), values unchanged.
+@pytest.mark.parametrize("src", ["causal", "float", "int16"])
+def test_transpose_pair_sums_are_packed(src, rng):
+    if src == "causal":
+        m = pc.causal_matrix(12, seed=4)
+        a = to_np(m).astype(np.int32)
+    elif src == "float":
+        a = rng.standard_normal((12, 12))
+        m = pc.matrix(a)
+    else:
+        a = rng.integers(-50, 50, (12, 12)).astype(np.int16)
+        m = pc.matrix(a)
+    s, d, e = m + m.T, m - m.T, m.T - m
+    assert type(s) is pc.SymmetricMatrix and type(d) is pc.AntiSymmetricMatrix and type(e) is pc.AntiSymmetricMatrix
+    np.testing.assert_array_equal(to_np(s), a + a.T)
+    np.testing.assert_array_equal(to_np(d), a - a.T)
+    np.testing.assert_array_equal(to_np(e), a.T - a)
+
+
+def test_transpose_pair_with_nonfinite_diagonal_stays_dense():
+    a = np.eye(4)
+    a[2, 2] = np.inf
+    m = pc.matrix(a)
+    d = m - m.T
+    assert type(d) is pc.DenseMatrix  # inf - inf = nan on the diagonal
+    np.testing.assert_array_equal(to_np(d), a - a.T)
+
+
+def test_pauli_jordan_like_spectrum_from_packed_result():
+    c = pc.causal_matrix(60, seed=7)
+    a = to_np(c).astype(np.float64)
+    d = c - c.T
+    w = np.sort(np.abs(to_np(pc.eigvals_skew(d, 6))))
+    ref = np.sort(np.abs(np.linalg.eigvals(a - a.T)))[-6:]
+    np.testing.assert_allclose(np.sort(w), np.sort(ref), rtol=1e-8)
