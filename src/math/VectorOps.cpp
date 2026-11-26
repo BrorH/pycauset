@@ -11,14 +11,26 @@
 #include "pycauset/vector/ComplexFloat16Vector.hpp"
 #include "pycauset/vector/DenseVector.hpp"
 #include "pycauset/vector/UnitVector.hpp"
+#include "pycauset/core/ObjectFactory.hpp"
 
 namespace pycauset {
 
 std::unique_ptr<MatrixBase> as_row_matrix(const VectorBase& v) {
     const uint64_t n = v.size();
     if (v.get_structure() == Structure::UNIT_VECTOR) {
-        auto out = std::make_unique<DenseMatrix<double>>(1, n, std::string());
-        for (uint64_t i = 0; i < n; ++i) out->set(0, i, v.get_element_as_double(i));
+        // One non-zero, already through the view rule; zeros stay zero under any view.
+        const auto& u = static_cast<const UnitVector&>(v);
+        auto out = ObjectFactory::create_matrix(1, n, v.get_data_type(), Structure::DENSE, "");
+        const std::complex<double> z = u.active_value();
+        visit_matrix(*out, [&](auto& typed) {
+            using E = std::decay_t<decltype(typed.get(0, 0))>;
+            const uint64_t k = u.get_active_index();
+            if constexpr (std::is_same_v<E, bool>) typed.set(0, k, z.real() != 0.0);
+            else if constexpr (std::is_same_v<E, std::complex<double>>) typed.set(0, k, z);  // incl. complex_float16
+            else if constexpr (std::is_same_v<E, std::complex<float>>) typed.set(0, k, E(z));
+            else if constexpr (std::is_integral_v<E>) typed.set(0, k, static_cast<E>(static_cast<int64_t>(z.real())));
+            else typed.set(0, k, static_cast<E>(z.real()));
+        });
         return out;
     }
     return visit_dtype(v.get_data_type(), [&](auto tag) -> std::unique_ptr<MatrixBase> {

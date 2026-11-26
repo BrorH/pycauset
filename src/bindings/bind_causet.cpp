@@ -96,7 +96,7 @@ std::shared_ptr<pycauset::MatrixBase> transitive_reduction(const pycauset::Trian
 void bind_causet_classes(py::module_& m) {
     m.def("_transitive_reduction", [](const std::shared_ptr<pycauset::MatrixBase>& c) {
         const auto* tri = dynamic_cast<const pycauset::TriangularMatrix<bool>*>(c.get());
-        if (tri == nullptr || c->is_transposed() || c->get_scalar() != std::complex<double>(1.0, 0.0)) {
+        if (tri == nullptr || tri->has_diagonal() || c->is_transposed() || c->get_scalar() != std::complex<double>(1.0, 0.0)) {
             throw py::type_error("_transitive_reduction expects a causal matrix (TriangularMatrix of dtype 'bool')");
         }
         return transitive_reduction(*tri);

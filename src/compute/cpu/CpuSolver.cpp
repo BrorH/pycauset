@@ -2927,6 +2927,7 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
 
     // TriangularBitMatrix x DenseVector<int32_t> (scale-first).
     auto* m_tbm = dynamic_cast<const TriangularMatrix<bool>*>(&m);
+    if (m_tbm && m_tbm->has_diagonal()) m_tbm = nullptr;  // the packed-row kernels below read strict rows
     if (m_tbm && v_i32 && res_i32 && !m_tbm->is_transposed()) {
         debug_trace::set_last("cpu.matvec.tri_bit_x_i32");
         const uint64_t n = rows;
@@ -3647,6 +3648,9 @@ std::unique_ptr<TriangularMatrix<double>> CpuSolver::compute_k_matrix(
     int num_threads
 ) {
     (void)num_threads; // ParallelFor uses global ThreadPool settings
+    if (C.has_diagonal()) {
+        throw std::invalid_argument("compute_k_matrix expects a causal (strictly upper triangular) matrix");
+    }
 
     const uint64_t n = C.rows();
     auto K = std::make_unique<TriangularMatrix<double>>(n, output_path);

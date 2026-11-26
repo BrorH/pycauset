@@ -1,6 +1,7 @@
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
+#include "pycauset/matrix/TriangularMatrix.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/compute/AutoSolver.hpp"
 #include <memory>
@@ -55,7 +56,12 @@ MatrixBase::MatrixBase(uint64_t rows,
 }
 
 std::unique_ptr<PersistentObject> MatrixBase::clone() const {
-    auto out = ObjectFactory::clone_matrix(mapper_, base_rows(), base_cols(), data_type_, structure_, seed_, scalar_, is_transposed_);
+    // The triangular layout (row lengths) depends on has_diagonal: a clone without it read
+    // shifted values (F-064; the bit triangle with a diagonal hit it again, N.5.6).
+    const auto* tri = dynamic_cast<const TriangularMatrixBase*>(this);
+    const bool has_diagonal = tri != nullptr && structure_ == Structure::TRIANGULAR && tri->has_diagonal();
+    auto out = ObjectFactory::clone_matrix(mapper_, base_rows(), base_cols(), data_type_, structure_, seed_, scalar_,
+                                           is_transposed_, has_diagonal);
     out->set_conjugated(is_conjugated());
     if (auto* m = dynamic_cast<MatrixBase*>(out.get())) {
         m->set_view(logical_rows_, logical_cols_, row_offset_, col_offset_);

@@ -152,9 +152,7 @@ def build(structure: str, dtype: str, ref: np.ndarray, seed: int):
         if structure == "vector":
             return pc.vector(ref, dtype=dtype)
         if structure == "unit_vector":
-            if dtype != "float64":
-                raise Unavailable("UnitVector is float64 only")
-            return pc.UnitVector(N, seed % N)
+            return pc.UnitVector(N, seed % N, dtype=dtype)
         if structure == "identity":
             return pc.IdentityMatrix(N, dtype=dtype)
         if structure in ("triangular", "strict_triangular"):

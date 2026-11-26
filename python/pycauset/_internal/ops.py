@@ -535,29 +535,14 @@ def invert(matrix: Any, *, deps: OpsDeps) -> Any:
                 return streaming_res
     except Exception:
         pass
-    native_exc: Exception | None = None
-    if hasattr(matrix, "invert"):
-        try:
-            result = matrix.invert()
-        except Exception as exc:
-            native_exc = exc
-        else:
-            _track_and_mark_temporary_if_native(result, deps=deps)
-            _discard_if_streaming(rec, [matrix], result, deps=deps)
-            return result
-
-    np_module = deps.np_module
-    if np_module is not None:
-        try:
-            result = np_module.linalg.inv(matrix)
-            result_arr = _as_pycauset_array(result, deps=deps)
-            _discard_if_streaming(rec, [matrix], result_arr, deps=deps)
-            return result_arr
-        except Exception:
-            if native_exc is not None:
-                raise native_exc
-
-    raise TypeError("Object does not support matrix inversion.")
+    if not isinstance(matrix, deps.native.MatrixBase):
+        raise TypeError("Object does not support matrix inversion.")
+    # The engine inverts every dtype, structure and view (LinearAlgebra.cpp `inverse`); a
+    # singular matrix raises. No NumPy fallback.
+    result = matrix.invert()
+    _track_and_mark_temporary_if_native(result, deps=deps)
+    _discard_if_streaming(rec, [matrix], result, deps=deps)
+    return result
 
 
 def lstsq(a: Any, b: Any, *, deps: OpsDeps) -> Any:

@@ -72,7 +72,6 @@ public:
 
     // Matrix Inversion (Linear Algebra)
     // Throws exception as boolean matrices are not invertible in the standard sense here.
-    std::unique_ptr<DenseMatrix<double>> inverse(const std::string& result_file = "") const;
 
     uint64_t stride_bytes() const { return stride_bytes_; }
 

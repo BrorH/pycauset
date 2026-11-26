@@ -277,13 +277,6 @@ std::unique_ptr<MatrixBase> build_matrix(Structure s, DataType dt, const BuildAr
                     else if constexpr (B == Build::Open)
                         return std::make_unique<C>(a.rows, a.cols, a.file, a.offset, a.seed, a.scalar, a.transposed);
                     else return std::make_unique<C>(a.rows, a.cols, a.mapper);
-                } else if constexpr (S == Structure::TRIANGULAR && std::is_same_v<T, bool>) {
-                    // Bit triangles are strictly upper triangular (with-diagonal: review N.5.6).
-                    if (a.opts.has_diagonal) throw std::invalid_argument("bit triangular matrices are strictly upper triangular");
-                    if constexpr (B == Build::Create) return std::make_unique<C>(n, a.file);
-                    else if constexpr (B == Build::Open)
-                        return std::make_unique<C>(n, a.file, a.offset, a.seed, a.scalar, a.transposed);
-                    else return std::make_unique<C>(n, a.mapper);
                 } else if constexpr (S == Structure::TRIANGULAR) {
                     const bool d = a.opts.has_diagonal;
                     if constexpr (B == Build::Create) return std::make_unique<C>(n, a.file, d);

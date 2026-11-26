@@ -15,8 +15,9 @@ namespace pycauset {
 
 // Explicit template instantiation if needed, but we are defining the specialization here.
 
-TriangularMatrix<bool>::TriangularMatrix(uint64_t n, const std::string& backing_file)
+TriangularMatrix<bool>::TriangularMatrix(uint64_t n, const std::string& backing_file, bool has_diagonal)
     : TriangularMatrixBase(n, pycauset::Structure::TRIANGULAR, pycauset::DataType::BIT) {
+    has_diagonal_ = has_diagonal;
     // Calculate offsets for bits (1 bit per element), aligned to 64 bits
     uint64_t size_in_bytes = calculate_triangular_offsets(1, 64);
     initialize_storage(size_in_bytes, backing_file, "causal_matrix", 8, 
@@ -29,8 +30,10 @@ TriangularMatrix<bool>::TriangularMatrix(uint64_t n,
                                          size_t offset,
                                          uint64_t seed,
                                          std::complex<double> scalar,
-                                         bool is_transposed)
+                                         bool is_transposed,
+                                         bool has_diagonal)
     : TriangularMatrixBase(n, pycauset::Structure::TRIANGULAR, pycauset::DataType::BIT) {
+    has_diagonal_ = has_diagonal;
     
     uint64_t size_in_bytes = calculate_triangular_offsets(1, 64);
     initialize_storage(size_in_bytes, backing_file, "", 8, 
@@ -42,8 +45,9 @@ TriangularMatrix<bool>::TriangularMatrix(uint64_t n,
     set_transposed(is_transposed);
 }
 
-TriangularMatrix<bool>::TriangularMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
+TriangularMatrix<bool>::TriangularMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper, bool has_diagonal)
     : TriangularMatrixBase(n, std::move(mapper), pycauset::Structure::TRIANGULAR, pycauset::DataType::BIT) {
+    has_diagonal_ = has_diagonal;
     // Calculate offsets for bits (1 bit per element), aligned to 64 bits
     calculate_triangular_offsets(1, 64);
 }
@@ -53,10 +57,13 @@ void TriangularMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
     if (is_transposed()) {
         std::swap(i, j);
     }
-    if (i >= j) throw std::invalid_argument("Strictly upper triangular");
+    if (j < first_col(i)) {
+        if (!value) return;  // writing a zero outside the triangle is a no-op
+        throw std::invalid_argument(has_diagonal_ ? "Upper triangular" : "Strictly upper triangular");
+    }
     if (j >= cols()) throw std::out_of_range("Index out of bounds");
 
-    uint64_t bit_offset = j - (i + 1);
+    uint64_t bit_offset = j - first_col(i);
     uint64_t word_index = bit_offset / 64;
     uint64_t bit_index = bit_offset % 64;
 
@@ -76,9 +83,9 @@ bool TriangularMatrix<bool>::get(uint64_t i, uint64_t j) const {
     if (is_transposed()) {
         std::swap(i, j);
     }
-    if (i >= j || j >= cols()) return false;
+    if (j < first_col(i) || j >= cols()) return false;
 
-    uint64_t bit_offset = j - (i + 1);
+    uint64_t bit_offset = j - first_col(i);
     uint64_t word_index = bit_offset / 64;
     uint64_t bit_index = bit_offset % 64;
 
@@ -107,7 +114,7 @@ std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::random(uint64_t 
 
 std::unique_ptr<MatrixBase> TriangularMatrix<bool>::transpose(const std::string& result_file) const {
     (void)result_file;
-    auto out = std::make_unique<TriangularMatrix<bool>>(base_rows(), mapper_);
+    auto out = std::make_unique<TriangularMatrix<bool>>(base_rows(), mapper_, has_diagonal_);
     out->set_transposed(!is_transposed());
     out->set_scalar(scalar_);
     out->set_seed(seed_);
@@ -115,42 +122,10 @@ std::unique_ptr<MatrixBase> TriangularMatrix<bool>::transpose(const std::string&
     return out;
 }
 
-std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::bitwise_not(const std::string& result_file) const {
-    const uint64_t n = rows();
-    auto result = std::make_unique<TriangularMatrix<bool>>(n, result_file);
-    
-    const uint64_t* src_data = data();
-    uint64_t* dst_data = result->data();
-
-    for (uint64_t i = 0; i < n; ++i) {
-        uint64_t row_len = (n - 1) - i; // Number of bits in this row
-        if (row_len == 0) continue;
-
-        uint64_t words = (row_len + 63) / 64;
-        // Row offsets are guaranteed to be 64-bit aligned by calculate_triangular_offsets(1, 64)
-        uint64_t word_offset = get_row_offset(i) / 8;
-
-        for (uint64_t w = 0; w < words; ++w) {
-            dst_data[word_offset + w] = ~src_data[word_offset + w];
-        }
-
-        // Mask padding bits in the last word to ensure they remain 0
-        uint64_t valid_bits = row_len % 64;
-        if (valid_bits > 0) {
-            uint64_t mask = (1ULL << valid_bits) - 1;
-            dst_data[word_offset + words - 1] &= mask;
-        }
-    }
-    
-    result->set_scalar(scalar_);
-    return result;
-}
-
-std::unique_ptr<TriangularMatrix<double>> TriangularMatrix<bool>::inverse(const std::string& result_file) const {
-    throw std::runtime_error("TriangularMatrix<bool> is strictly upper triangular and therefore singular (not invertible).");
-}
-
 std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(const TriangularMatrix<bool>& other, const std::string& result_file) const {
+    if (has_diagonal_ || other.has_diagonal()) {
+        throw std::logic_error("TriangularMatrix<bool>::multiply: kernel contract is strictly upper operands");
+    }
     const uint64_t n = rows();
     if (rows() != other.rows() || cols() != other.cols()) {
         throw std::invalid_argument("Matrix dimensions must match");
@@ -248,46 +223,6 @@ std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(cons
         f.get();
     }
     
-    result->set_scalar(scalar_ * other.get_scalar());
-
-    return result;
-}
-
-std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::elementwise_multiply(const TriangularMatrix<bool>& other,
-                                                                const std::string& result_file) const {
-    const uint64_t n = rows();
-    if (rows() != other.rows() || cols() != other.cols()) {
-        throw std::invalid_argument("Matrix dimensions must match");
-    }
-
-    auto result = std::make_unique<TriangularMatrix<bool>>(n, result_file);
-    const char* lhs_base = static_cast<const char*>(require_mapper()->get_data());
-    const char* rhs_base = static_cast<const char*>(other.require_mapper()->get_data());
-    char* dst_base = static_cast<char*>(result->require_mapper()->get_data());
-
-    for (uint64_t i = 0; i < n; ++i) {
-        uint64_t row_len = (n - 1) - i;
-        if (row_len == 0) {
-            continue;
-        }
-        uint64_t words = (row_len + 63) / 64;
-
-        const auto* lhs_row = reinterpret_cast<const uint64_t*>(lhs_base + row_offsets_[i]);
-        const auto* rhs_row = reinterpret_cast<const uint64_t*>(rhs_base + other.get_row_offset(i));
-        auto* dst_row = reinterpret_cast<uint64_t*>(dst_base + result->get_row_offset(i));
-
-        for (uint64_t w = 0; w < words; ++w) {
-            dst_row[w] = lhs_row[w] & rhs_row[w];
-        }
-
-        uint64_t valid_bits = row_len % 64;
-        if (valid_bits > 0) {
-            uint64_t mask = (1ULL << valid_bits) - 1;
-            dst_row[words - 1] &= mask;
-        }
-    }
-    
-    // Result scalar = s1 * s2
     result->set_scalar(scalar_ * other.get_scalar());
 
     return result;
@@ -445,7 +380,7 @@ void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t>
 
 std::unique_ptr<MatrixBase> TriangularMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {
     (void)result_file;
-    auto out = std::make_unique<TriangularMatrix<bool>>(base_rows(), mapper_);
+    auto out = std::make_unique<TriangularMatrix<bool>>(base_rows(), mapper_, has_diagonal_);
     out->set_scalar(scalar_ * factor);
     out->set_seed(seed_);
     out->set_transposed(is_transposed());

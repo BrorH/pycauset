@@ -38,7 +38,8 @@ public:
         Structure mtype,
         uint64_t seed = 0,
         std::complex<double> scalar = 1.0,
-        bool is_transposed = false
+        bool is_transposed = false,
+        bool has_diagonal = false  // triangular storage layout (F-064)
     );
 
     // --- Vector Creation ---

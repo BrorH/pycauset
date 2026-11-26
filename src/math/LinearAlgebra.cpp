@@ -5,6 +5,7 @@
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
 #include "pycauset/matrix/BitClosureMatrix.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
+#include "pycauset/core/DTypeDispatch.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/IdentityMatrix.hpp"
@@ -80,6 +81,8 @@ static std::unique_ptr<MatrixBase> try_bit_closure(const MatrixBase& a, const Ma
     if (a.is_transposed() == b.is_transposed()) return nullptr;
     if (a.get_scalar() != std::complex<double>(1.0, 0.0) || b.get_scalar() != std::complex<double>(1.0, 0.0)) return nullptr;
     if (a.is_subview() || b.is_subview()) return nullptr;
+    // The closure reads the bits of a strictly upper C (C ± C^T); a diagonal goes the dense way.
+    if (static_cast<const TriangularMatrixBase&>(a).has_diagonal()) return nullptr;
     if (promotion::resolve(sign_op > 0 ? promotion::BinaryOp::Add : promotion::BinaryOp::Subtract,
                            DataType::BIT, DataType::BIT).result_dtype != DataType::INT32) return nullptr;
     auto out = std::make_unique<BitClosureMatrix>(a.rows(), a.shared_mapper(), sign_op);
@@ -415,7 +418,10 @@ std::pair<double, double> mm_int_range(DataType r) {
     }
 }
 
-bool mm_has_diagonal_class(DataType r) { return r == DataType::FLOAT64 || mm_int(r); }
+// Real dtypes (every diagonal class exists, N.5): the product of two float32 or float16 values
+// is exact in double, so one rounding matches NumPy. Complex: dense rule (the writer below is
+// real-valued).
+bool mm_has_diagonal_class(DataType r) { return r != DataType::BIT && !mm_complex(r) && r != DataType::UNKNOWN; }
 
 template <typename T>
 std::unique_ptr<MatrixBase> mm_make_triangular_t(uint64_t n, const std::string& saveas, bool diag) {
@@ -490,7 +496,8 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
                (x.get_structure() == Structure::DENSE || x.get_structure() == Structure::TRIANGULAR);
     };
     if (r == DataType::INT32 && bit_ready(a) && bit_ready(b)) {
-        if (sa == Structure::TRIANGULAR && sb == Structure::TRIANGULAR && !a.is_transposed() && !b.is_transposed()) {
+        if (sa == Structure::TRIANGULAR && sb == Structure::TRIANGULAR && !a.is_transposed() && !b.is_transposed() &&
+            !mm_has_diagonal(a) && !mm_has_diagonal(b)) {  // the path-count kernel: strict operands
             debug_trace::set_last("cpu.matmul.bit_triangular");
             return static_cast<const TriangularMatrix<bool>&>(a).multiply(static_cast<const TriangularMatrix<bool>&>(b),
                                                                           saveas);
@@ -689,6 +696,68 @@ std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, cons
 
     auto x = ObjectFactory::create_matrix(B.rows(), B.cols(), dt, Structure::DENSE, result_file);
     ComputeContext::instance().get_device()->solve(A, B, *x);
+    return x;
+}
+
+// Matrix inverse, as NumPy's inv computes it: solve(A, I) by LU with partial pivoting (?gesv)
+// in the LAPACK dtype (solve_dtype: integers and bit in float64, float16/32 in float32, complex
+// stays complex). Singular input raises. Structure rules (review Adding Operations §3):
+//   identity:            (s I)^-1 = I / s, O(1)
+//   diagonal:            reciprocal diagonal, O(n)
+//   strictly triangular: singular by structure (zero diagonal)
+//   upper triangular:    the inverse is upper triangular (partial pivoting swaps no rows of an
+//                        upper triangle, so the dense solve's lower part is exactly zero)
+// Replaces the per-class inverse() methods (float32/float64 dense only, a triangular one that
+// called every triangle singular) and the silent NumPy fallback in Python.
+std::unique_ptr<MatrixBase> inverse(const MatrixBase& a) {
+    if (a.rows() != a.cols()) throw std::invalid_argument("inverse: matrix must be square");
+    const uint64_t n = a.rows();
+    const DataType in = a.get_data_type();
+    const DataType dt = solve_dtype(in, in);
+    const Structure st = a.get_structure();
+    auto singular = []() -> std::unique_ptr<MatrixBase> { throw std::runtime_error("inverse: matrix is singular"); };
+    auto set_complex = [](MatrixBase& m, uint64_t i, uint64_t j, std::complex<double> z) {
+        visit_matrix(m, [&](auto& typed) {
+            using E = std::decay_t<decltype(typed.get(0, 0))>;
+            if constexpr (std::is_same_v<E, float> || std::is_same_v<E, double>) typed.set(i, j, static_cast<E>(z.real()));
+            else if constexpr (std::is_same_v<E, std::complex<float>> || std::is_same_v<E, std::complex<double>>)
+                typed.set(i, j, E(z));
+            else throw std::logic_error("inverse: result is not in a LAPACK dtype");
+        });
+    };
+    if (n == 0) return make_matrix(Structure::DENSE, dt, 0, 0);
+
+    if (st == Structure::IDENTITY) {
+        const std::complex<double> s = view_value(1.0, a.get_scalar(), a.is_conjugated());
+        if (s == std::complex<double>(0.0, 0.0)) return singular();
+        auto out = make_matrix(Structure::IDENTITY, dt, n, n);
+        out->set_scalar(1.0 / s);
+        return out;
+    }
+    if (st == Structure::TRIANGULAR && !static_cast<const TriangularMatrixBase&>(a).has_diagonal()) return singular();
+    if (st == Structure::DIAGONAL) {
+        auto out = make_matrix(Structure::DIAGONAL, dt, n, n);
+        for (uint64_t i = 0; i < n; ++i) {
+            const std::complex<double> d = a.get_element_as_complex(i, i);
+            if (d == std::complex<double>(0.0, 0.0)) return singular();
+            set_complex(*out, i, i, scalar::true_divide(std::complex<double>(1.0, 0.0), d));
+        }
+        return out;
+    }
+
+    auto eye = make_matrix(Structure::DENSE, dt, n, n);
+    for (uint64_t i = 0; i < n; ++i) set_complex(*eye, i, i, 1.0);
+    auto x = solve(a, *eye, "");
+
+    if (st == Structure::TRIANGULAR && !a.is_transposed() && !a.is_subview()) {
+        MatrixOptions opts;
+        opts.has_diagonal = true;
+        auto tri = make_matrix(Structure::TRIANGULAR, dt, n, n, "", opts);
+        const MatrixBase& X = *x;
+        for (uint64_t i = 0; i < n; ++i)
+            for (uint64_t j = i; j < n; ++j) set_complex(*tri, i, j, X.get_element_as_complex(i, j));
+        return tri;
+    }
     return x;
 }
 

@@ -18,9 +18,10 @@ namespace pycauset {
 template <>
 class TriangularMatrix<bool> : public TriangularMatrixBase {
 public:
-    // Constructor: Creates a new matrix of size n*n
-    // If backingFile is provided, it uses disk storage.
-    TriangularMatrix(uint64_t n, const std::string& backingFile = "");
+    // Bit-packed upper triangle: strictly upper (a causal matrix) or, with has_diagonal, upper
+    // including the diagonal (e.g. the reflexive closure C + I). Row i holds the bits of
+    // columns first_col(i) .. n-1, padded to 64-bit words.
+    TriangularMatrix(uint64_t n, const std::string& backingFile = "", bool has_diagonal = false);
 
     // Constructor for loading with explicit metadata
     TriangularMatrix(uint64_t n, 
@@ -28,15 +29,23 @@ public:
                      size_t offset,
                      uint64_t seed,
                      std::complex<double> scalar,
-                     bool is_transposed);
+                     bool is_transposed,
+                     bool has_diagonal = false);
 
     // Constructor for loading from existing mapper
-    TriangularMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper);
+    TriangularMatrix(uint64_t n, std::shared_ptr<MemoryMapper> mapper, bool has_diagonal = false);
 
-    // Set bit at (i, j). Only valid for i < j.
+    // First stored column of row i, and the number of stored bits in it.
+    uint64_t first_col(uint64_t i) const { return has_diagonal_ ? i : i + 1; }
+    uint64_t row_bits(uint64_t i) const {
+        const uint64_t n = base_rows();
+        return first_col(i) < n ? n - first_col(i) : 0;
+    }
+
+    // Set bit at (i, j); only stored positions (j > i, or j >= i with a diagonal).
     void set(uint64_t i, uint64_t j, bool value);
 
-    // Get bit at (i, j). Returns 0 if i >= j.
+    // Get bit at (i, j); 0 outside the stored triangle.
     bool get(uint64_t i, uint64_t j) const;
     
     // Generic accessor
@@ -47,13 +56,10 @@ public:
         set(i, j, value != 0.0);
     }
 
-    // Standard Matrix Multiplication: Result = this * other
-    // Returns a TriangularMatrix<int32_t> (strictly upper triangular)
+    // Path counts: strictly upper x strictly upper -> strictly upper int32 (word-level popcounts).
+    // Both operands must be strict (dispatch_matmul's bit rule checks; others go dense).
     std::unique_ptr<TriangularMatrix<int32_t>> multiply(const TriangularMatrix<bool>& other, const std::string& result_file) const;
-    
-    // Logical AND between two boolean matrices; mirrors numpy.multiply for bool arrays.
-    std::unique_ptr<TriangularMatrix<bool>> elementwise_multiply(const TriangularMatrix<bool>& other, const std::string& result_file) const;
-    
+
     // Scalar multiplication
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override;
 
@@ -63,14 +69,6 @@ public:
 
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override;
-
-    // Bitwise inversion (NOT)
-    // Returns a new matrix where every bit in the upper triangle is flipped.
-    std::unique_ptr<TriangularMatrix<bool>> bitwise_not(const std::string& result_file = "") const;
-
-    // Matrix Inversion (Linear Algebra)
-    // Throws exception as strictly upper triangular matrices are singular.
-    std::unique_ptr<TriangularMatrix<double>> inverse(const std::string& result_file = "") const;
 
     // Get the raw data pointer (useful for bulk operations)
     const uint64_t* data() const { return static_cast<const uint64_t*>(require_mapper()->get_data()); }

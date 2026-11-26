@@ -239,10 +239,6 @@ public:
         return result;
     }
 
-    // Inverse (throws)
-    std::unique_ptr<TriangularMatrix<double>> inverse(const std::string& result_file = "") const {
-        throw std::runtime_error("Strictly upper triangular matrices are singular (not invertible).");
-    }
 };
 
 } // namespace pycauset

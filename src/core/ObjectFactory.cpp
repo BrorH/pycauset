@@ -99,11 +99,12 @@ std::unique_ptr<MatrixBase> ObjectFactory::clone_matrix(
     Structure mtype,
     uint64_t seed,
     std::complex<double> scalar,
-    bool is_transposed
+    bool is_transposed,
+    bool has_diagonal
 ) {
-    // Classes whose storage depends on more than (structure, dtype) (triangular has_diagonal,
-    // the symmetric kind) override clone() themselves; this serves the others.
-    auto mat = adopt_matrix(mtype, dtype, std::move(mapper), rows, cols);
+    MatrixOptions opts;
+    opts.has_diagonal = has_diagonal;
+    auto mat = adopt_matrix(mtype, dtype, std::move(mapper), rows, cols, opts);
     mat->set_seed(seed);
     mat->set_scalar(scalar);
     mat->set_transposed(is_transposed);
@@ -124,7 +125,7 @@ std::unique_ptr<VectorBase> ObjectFactory::clone_vector(
     std::unique_ptr<VectorBase> vec;
 
     if (mtype == Structure::UNIT_VECTOR) {
-        vec = std::make_unique<UnitVector>(n, mapper);
+        vec = std::make_unique<UnitVector>(n, mapper, dtype);
     } else {
         switch (dtype) {
             case DataType::BIT: vec = std::make_unique<DenseVector<bool>>(n, mapper); break;

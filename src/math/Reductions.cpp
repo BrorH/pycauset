@@ -44,12 +44,12 @@ Acc sum_rows(uint64_t rows, RowFn&& row_sum, Acc zero) {
     return total;
 }
 
-// Number of set bits of a causal (strictly upper triangular) bit matrix: row popcounts.
+// Number of set bits of a bit triangle (strict or with diagonal): row popcounts.
 __int128 count_ones(const TriangularMatrix<bool>& c) {
     const uint64_t n = c.base_rows();
     const auto* base = reinterpret_cast<const char*>(c.data());
     return sum_rows<__int128>(n, [&](uint64_t i) -> __int128 {
-        const uint64_t len = n - 1 - i;  // bits in row i
+        const uint64_t len = c.row_bits(i);  // bits in row i
         if (len == 0) return 0;
         const uint64_t* w = reinterpret_cast<const uint64_t*>(base + c.get_row_offset(i));
         const uint64_t words = (len + 63) / 64;

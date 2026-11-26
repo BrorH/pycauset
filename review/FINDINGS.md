@@ -1055,3 +1055,25 @@ the entry (the history is useful). New findings go at the bottom with the next f
   for every structured class (dense keeps its split planes). Atlas 0 ✗, ok 33,034 → 35,282.
 - Noted for a later fix: `float16_t(double)` rounds twice (double → float → half); NumPy
   rounds float64 → float16 once, so rare ties differ.
+
+### F-088 Bit triangle with a diagonal; UnitVector in every dtype; native inverse
+- **Status:** fixed (session 8, N.5.6, N.5.7, N.3 inv).
+- N.5.6: `TriangularMatrix(n, dtype="bool", has_diagonal=True)` (packed rows of n - i bits,
+  e.g. the reflexive closure C + I). Every function of the bit class is written against
+  `first_col(i)` / `row_bits(i)`; the strict-only kernels (path-count matmul, the C ± Cᵀ
+  closure, bit matvec, compute_k, transitive reduction) decline a diagonal in their contract
+  and the normaliser routes it to the general path; popcount `sum` handles both layouts. The
+  generic `MatrixBase::clone` now passes `has_diagonal` (the F-064 class: a conj view of the
+  new type read with the strict layout). Deleted as dead: the bit class's `bitwise_not`,
+  `elementwise_multiply`, `inverse`, and `UnitVector::add`.
+- N.5.7: `UnitVector(n, k, dtype=...)` for every dtype; the active value is
+  `view_value(1, s, conj)` in the dtype; the 1 x n bridge builds the row in the dtype.
+- inverse (N.3): one entry `pycauset::inverse` = solve(A, I) (NumPy's algorithm) in the LAPACK
+  dtype, with structure rules (identity O(1), diagonal O(n), strict triangle singular, upper
+  triangle stays triangular). Replaced: per-class `inverse()` methods (dense float32/float64
+  only; the triangular one called every triangle singular, also invertible ones with a
+  diagonal; the bit-dense one was declared and never defined) and the silent
+  `np.linalg.inv` fallback in `ops.invert`. Atlas: inv 0 NumPy cells (was all non-float).
+- Build-procedure trap found on the way: editing a source while its compile runs leaves an
+  object newer than the source but with the old code (make keeps it); noted in CLAUDE.md.
+- Atlas 77,372 cells, 0 ✗, ok 37,806 (35,282 before N.5.6/7); NumPy round trips 4,906 → 4,209.

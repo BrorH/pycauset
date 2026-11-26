@@ -14,6 +14,7 @@
 #include "pycauset/vector/VectorBase.hpp"
 #include "pycauset/vector/DenseVector.hpp"
 #include "pycauset/vector/UnitVector.hpp"
+#include "pycauset/math/ViewValue.hpp"
 #include "pycauset/vector/ComplexFloat16Vector.hpp"
 
 #include "pycauset/matrix/MatrixBase.hpp"
@@ -271,7 +272,9 @@ inline py::object vector_element_get(const VectorBase& v, uint64_t i) {
     return pycauset::visit_vector(v, [&](const auto& typed) -> py::object {
         using V = std::decay_t<decltype(typed)>;
         if constexpr (std::is_same_v<V, UnitVector>) {
-            return py::float_(typed.get_element_as_double(i));
+            const double x = typed.get_element_as_double(i);  // integer / bit dtypes: exact small values
+            if (dt == DataType::BIT) return py::bool_(x != 0.0);
+            return py::int_(static_cast<int64_t>(x));
         } else {
         using E = vec_element_t<V>;
         const E x = typed.get(i);
@@ -295,8 +298,7 @@ inline void vector_fold_value_view(VectorBase& v) {
             throw std::logic_error("integer vector carries a scale factor");
         } else {
             for (uint64_t i = 0; i < typed.size(); ++i) {
-                std::complex<double> x = pycauset::scalar::to_complex_double(typed.get(i)) * s;
-                if (conj) x = std::conj(x);
+                const std::complex<double> x = pycauset::view_value(typed.get(i), s, conj);  // the one view rule
                 if constexpr (std::is_same_v<E, std::complex<double>> || std::is_same_v<E, std::complex<float>>) {
                     typed.set(i, static_cast<E>(x));
                 } else if constexpr (std::is_same_v<V, ComplexFloat16Vector>) {
@@ -721,7 +723,10 @@ void bind_vector_classes(py::module_& m) {
              py::arg("n"), py::arg("dtype") = "float64");
 
     py::class_<UnitVector, VectorBase, std::shared_ptr<UnitVector>>(m, "UnitVector", "Standard basis vector e_k (read-only).")
-        .def(py::init<uint64_t, uint64_t>(), py::arg("n"), py::arg("active_index"))
+        .def(py::init([](uint64_t n, uint64_t active_index, const std::string& dtype) {
+                 return std::make_shared<UnitVector>(n, active_index, "", pycauset::parse_dtype_name(dtype));
+             }),
+             py::arg("n"), py::arg("active_index"), py::arg("dtype") = "float64")
         .def_property_readonly("active_index", &UnitVector::get_active_index);
 
     // Encourage NumPy to prefer VectorBase's reverse ops over coercion.

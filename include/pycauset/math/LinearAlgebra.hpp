@@ -16,6 +16,10 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
 std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
 std::unique_ptr<MatrixBase> elementwise_divide(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
 std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBase& b, std::string saveas = "");
+
+// Matrix inverse (NumPy inv): solve(A, I) in the LAPACK dtype; structure rules for identity,
+// diagonal and triangular input. Raises std::runtime_error when singular.
+std::unique_ptr<MatrixBase> inverse(const MatrixBase& a);
 std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& result_file = "");
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a, const std::string& result_file = "");
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const MatrixBase& a, const std::string& result_file = "");

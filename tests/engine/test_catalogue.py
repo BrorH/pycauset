@@ -107,3 +107,43 @@ def test_diagonal_rules(cls, value, message):
 def test_hermitian_needs_a_complex_dtype():
     with pytest.raises(ValueError, match="complex"):
         pc.HermitianMatrix(3, dtype="float64")
+
+
+def test_bit_triangular_with_diagonal(tmp_path):
+    rng = np.random.default_rng(3)
+    ref = np.triu(rng.integers(0, 2, (70, 70)).astype(bool))  # 70 > 64: rows span two words
+    m = pc.TriangularMatrix(70, dtype="bool", has_diagonal=True)
+    for i, j in zip(*np.nonzero(ref)):
+        m[int(i), int(j)] = True
+    assert m.has_diagonal and m.dtype == "bool"
+    np.testing.assert_array_equal(to_np(m), ref)
+    assert pc.sum(m) == int(ref.sum())
+    path = tmp_path / "c.pycauset"
+    pc.save(m, path)
+    back = pc.load(path)
+    try:
+        assert back.has_diagonal
+        np.testing.assert_array_equal(to_np(back), ref)
+    finally:
+        back.close()
+    counts = ref.astype(np.int32)
+    np.testing.assert_array_equal(to_np(m @ m), counts @ counts)  # not the strict path-count kernel
+    np.testing.assert_array_equal(to_np(m.T @ m), counts.T @ counts)
+
+
+@pytest.mark.parametrize("dtype", DTYPES)
+def test_unit_vector_every_dtype(dtype, tmp_path):
+    u = pc.UnitVector(5, 2, dtype=dtype)
+    assert u.dtype == dtype and u.active_index == 2
+    want = np.zeros(5)
+    want[2] = 1
+    np.testing.assert_array_equal(to_np(u).astype(np.complex128), want)
+    if dtype in COMPLEX:
+        np.testing.assert_allclose(to_np(u.conj() * 2j), np.conj(want) * 2j)
+    path = tmp_path / "u.pycauset"
+    pc.save(u, path)
+    back = pc.load(path)
+    try:
+        assert back.dtype == dtype and back.active_index == 2
+    finally:
+        back.close()

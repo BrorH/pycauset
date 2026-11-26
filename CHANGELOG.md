@@ -9,6 +9,11 @@ milestone corresponds to **v0.6.1**.
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
 ### Changed
+- `TriangularMatrix(n, dtype="bool", has_diagonal=True)`: bit triangles with a diagonal.
+  `UnitVector(n, k, dtype=...)` for every dtype.
+- `invert` / `inverse` run in the engine for every dtype, structure and view (NumPy's
+  algorithm, no NumPy fallback); the inverse of an upper triangular matrix is a
+  `TriangularMatrix`; singular input raises `RuntimeError`.
 - New structure x dtype combinations: `DiagonalMatrix` and `IdentityMatrix` in float16,
   float32, complex_float32/64; `TriangularMatrix`, `SymmetricMatrix`, `AntiSymmetricMatrix` in
   complex_float32/64; every structured class also in complex_float16 (interleaved float16

@@ -1419,16 +1419,7 @@ inline void matrixbase_setitem_dispatch(MatrixBase& mat, const py::object& key, 
 }
 
 inline std::shared_ptr<MatrixBase> matrix_inverse(const MatrixBase& mat) {
-    if (!pycauset::is_plain(mat)) return matrix_inverse(*pycauset::write_out(mat));  // F-062
-    return pycauset::visit_matrix(mat, [&](const auto& typed) -> std::shared_ptr<MatrixBase> {
-        using M = std::decay_t<decltype(typed)>;
-        // DenseMatrix<bool>::inverse is declared but has no definition.
-        if constexpr (!std::is_same_v<M, DenseBitMatrix> && requires { typed.inverse(std::string()); }) {
-            return std::shared_ptr<MatrixBase>(typed.inverse("").release());
-        } else {
-            throw py::type_error("inverse is not supported for " + describe(mat));
-        }
-    });
+    return std::shared_ptr<MatrixBase>(pycauset::inverse(mat).release());  // one entry (LinearAlgebra.cpp)
 }
 
 inline std::shared_ptr<MatrixBase> bit_binary(const MatrixBase& a, const MatrixBase& b, char op) {
@@ -1502,10 +1493,10 @@ inline py::object open_storage(pycauset::Structure s, DataType dt, uint64_t rows
         });
     }
     if (s == S::UNIT_VECTOR) {
-        return py::cast(std::shared_ptr<VectorBase>(std::make_shared<UnitVector>(rows, seed, path, offset, seed, scalar, is_transposed)));
+        return py::cast(std::shared_ptr<VectorBase>(std::make_shared<UnitVector>(rows, seed, path, offset, seed, scalar, is_transposed, dt)));
     }
     pycauset::MatrixOptions opts;
-    opts.has_diagonal = has_diagonal && dt != DataType::BIT;  // bit triangles are always strict
+    opts.has_diagonal = has_diagonal;
     auto m = pycauset::open_matrix(s, dt, rows, cols, path, offset, seed, scalar, is_transposed, opts);
     return py::cast(std::shared_ptr<MatrixBase>(m.release()));
 }

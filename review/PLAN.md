@@ -212,8 +212,8 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
         are symmetric/antisymmetric). Atlas structures `hermitian`, `skew_hermitian`.
   - [x] N.5.5 complex_float16 structured classes: an interleaved `complex_half` element
         type (pair of float16) for TriangularMatrix/Symmetric/Diagonal/Identity<T>.
-  - [ ] N.5.6 Bit triangular with diagonal (packed rows of n - i bits).
-  - [ ] N.5.7 UnitVector for every dtype.
+  - [x] N.5.6 Bit triangular with diagonal (packed rows of n - i bits).
+  - [x] N.5.7 UnitVector for every dtype.
   - [x] N.5.8 `Adding Types.md` rewritten around the catalogue (what a new structure or
         dtype must provide: class template, catalogue entry, typed get/set, view reader,
         persistence layout, atlas entry).
@@ -222,7 +222,7 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
       Pattern (done for solve, svd/svdvals/pinv, lstsq, slogdet in session 8): one engine entry
       that normalises to dense in the LAPACK dtype (`to_dense` + the NumPy dtype rule) and one
       templated LAPACK kernel for float32/float64/complex64/complex128. Remaining NumPy calls in
-      `_internal/ops.py` (session 8 count, 15): inv (2), eig/eigvals (4), eigh/eigvalsh (3),
+      `_internal/ops.py` (session 8 count, 15; inv done, F-088): inv (2), eig/eigvals (4), eigh/eigvalsh (3),
       qr, cholesky, det, norm (ord != None), matrix_rank, svd-based cond.
 - [ ] N.4 The atlas CI gate proves it: the ✗ count must reach 0 and stay there.
 

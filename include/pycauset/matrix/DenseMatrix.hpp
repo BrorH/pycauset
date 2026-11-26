@@ -321,40 +321,6 @@ public:
         }
     }
 
-    void inverse_to(DenseMatrix<T>& out) const {
-        if (is_subview() || out.is_subview()) {
-            throw std::runtime_error("inverse on views with offsets is not supported; materialize with copy() first");
-        }
-        if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
-            throw std::runtime_error("inverse is only supported for dense float64 and float32 matrices");
-        } else {
-            if (rows() != cols()) {
-                throw std::runtime_error("Inverse requires a square matrix");
-            }
-            const uint64_t n = rows();
-            if (out.rows() != n || out.cols() != n) {
-                throw std::runtime_error("Output matrix dimension mismatch");
-            }
-            pycauset::ComputeContext::instance().get_device()->inverse(*this, out);
-        }
-    }
-
-    std::unique_ptr<DenseMatrix<T>> inverse(const std::string& result_file = "") const {
-        if (is_subview()) {
-            throw std::runtime_error("inverse on views with offsets is not supported; materialize with copy() first");
-        }
-        if constexpr (!std::is_same_v<T, double> && !std::is_same_v<T, float>) {
-            throw std::runtime_error("inverse is only supported for dense float64 and float32 matrices");
-        } else {
-            if (rows() != cols()) {
-                throw std::runtime_error("Inverse requires a square matrix");
-            }
-            auto result = std::make_unique<DenseMatrix<T>>(rows(), cols(), result_file);
-            pycauset::ComputeContext::instance().get_device()->inverse(*this, *result);
-            return result;
-        }
-    }
-
     std::pair<std::unique_ptr<DenseMatrix<double>>, std::unique_ptr<DenseMatrix<double>>> qr(const std::string& q_file = "",
                                                                                               const std::string& r_file = "") const {
         if (is_subview()) {
