@@ -1638,10 +1638,6 @@ void CudaDevice::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m
     throw std::runtime_error("CudaDevice::vector_matrix_multiply not implemented");
 }
 
-void CudaDevice::outer_product(const VectorBase& a, const VectorBase& b, MatrixBase& result) {
-    throw std::runtime_error("CudaDevice::outer_product not implemented");
-}
-
 void CudaDevice::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     throw std::runtime_error("CudaDevice::elementwise_multiply not implemented");
 }
@@ -2043,13 +2039,6 @@ double CudaDevice::l2_norm(const VectorBase& v) {
 
 
 
-
-void CudaDevice::cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) {
-    (void)a;
-    (void)b;
-    (void)result;
-    throw std::runtime_error("CudaDevice::cross_product not implemented");
-}
 
 std::unique_ptr<TriangularMatrix<double>> CudaDevice::compute_k_matrix(
     const TriangularMatrix<bool>& C,

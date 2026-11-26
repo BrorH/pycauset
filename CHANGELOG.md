@@ -24,6 +24,17 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   `eigh`/`eigvalsh`/`cholesky` read the lower triangle, as NumPy; `eigvalsh` no longer
   consults the `is_hermitian` property. `cholesky` of a matrix that is not positive definite
   raises `ValueError`. `qr` supports `mode='reduced'|'complete'|'r'`; `'raw'` raises.
+- `lu`, `outer`, `cross`, `vecdot`, `norm(x, ord)`, `matrix_rank` and `cond` run in the
+  engine for every dtype (`lu` was float32/float64 only; the others were NumPy). `outer`
+  takes vectors of any lengths and follows NumPy's multiply dtype (it used to require equal
+  lengths); `cross` follows NumPy's dtype (it was float64) and rejects bool.
+- Fixed: `matrix_rank` of a triangular (e.g. causal) matrix counted its non-zero diagonal;
+  a strictly triangular matrix of ones now has rank n - 1, not 0.
+- Properties no longer change results anywhere: `eigvalsh` ignores `is_hermitian`, `solve`
+  and `matrix_power` ignore `is_zero`, `norm` ignores `is_zero` / identity.
+- File-backed operands (or ones above the IO streaming threshold) no longer make `matmul`
+  and `invert` run element by element in Python through NumPy (matmul returned float for
+  every dtype on that path).
 - New structure x dtype combinations: `DiagonalMatrix` and `IdentityMatrix` in float16,
   float32, complex_float32/64; `TriangularMatrix`, `SymmetricMatrix`, `AntiSymmetricMatrix` in
   complex_float32/64; every structured class also in complex_float16 (interleaved float16

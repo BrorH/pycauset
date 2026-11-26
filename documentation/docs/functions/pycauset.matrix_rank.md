@@ -9,7 +9,7 @@ Returns the numerical rank of a matrix (the number of singular values above `tol
 ## Parameters
 
 *   **a** (matrix): The input matrix.
-*   **tol** (float, optional): Singular-value threshold. Defaults to NumPy's default.
+*   **tol** (float, optional): Singular-value threshold. Defaults to NumPy's default tolerance.
 
 ## Returns
 
@@ -17,13 +17,8 @@ An integer rank.
 
 ## Notes
 
-Structural shortcuts avoid an SVD:
-
-*   `is_zero` returns `0`.
-*   `is_identity` returns `min(rows, cols)`.
-*   `is_diagonal` / triangular returns the count of non-zero diagonal entries.
-
-Otherwise a NumPy SVD-based rank is computed.
+The number of singular values of the engine's SVD above `tol`; the default is NumPy's,
+`max(s) * max(m, n) * eps`. Every dtype, structure and view.
 
 ## Examples
 

@@ -298,6 +298,7 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
             # were here (symmetric -> dense float64, triangular/diagonal -> float64) changed
             # result dtypes and duplicated engine paths (F-073).
             result = a @ b
+            _annotate_impl(rec, "native", deps=deps)
             deps.track_matrix(result)
             deps.mark_temporary_if_auto(result)
 
@@ -386,6 +387,7 @@ def invert(matrix: Any, *, deps: OpsDeps) -> Any:
     # The engine inverts every dtype, structure and view (LinearAlgebra.cpp `inverse`); a
     # singular matrix raises. No NumPy fallback.
     result = matrix.invert()
+    _annotate_impl(rec, "native", deps=deps)
     _track_and_mark_temporary_if_native(result, deps=deps)
     _discard_if_streaming(rec, [matrix], result, deps=deps)
     return result
@@ -410,25 +412,19 @@ def slogdet(a: Any, *, deps: OpsDeps) -> tuple[Any, float]:
 
 
 def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
-    """Condition number of a matrix, with NumPy's definition and default (F-003).
-
-    p = None or 2: ratio of largest to smallest singular value; p = -2: the inverse
-    ratio; p in {1, -1, inf, -inf, 'fro', 'nuc'}: ||A||_p * ||A^-1||_p. A singular
-    matrix gives inf, as in NumPy.
-    """
-    np_module = deps.np_module
+    """Condition number, NumPy's definition (F-003): p None/2 is smax/smin, -2 is smin/smax
+    (singular values from the engine's SVD); other p is ||A||_p * ||A^-1||_p. Singular: inf."""
+    _record_io_trace("cond", [a], deps=deps)
+    a = _engine_matrix(a, deps=deps)
     if p is None or p == 2 or p == -2:
-        # Singular values via NumPy (same path as svdvals; native SVD routing is F-011).
-        s = np_module.linalg.svd(_to_numpy_matrix(a, deps=deps), compute_uv=False)
-        if s.size == 0:
-            raise ValueError("cond of an empty matrix is undefined")
-        smax, smin = float(s.max()), float(s.min())
+        smax = deps.native.matrix_norm(a, "2")
+        smin = deps.native.matrix_norm(a, "-2")
         if p == -2:
             return smin / smax if smax != 0 else float("inf")
         return smax / smin if smin != 0 else float("inf")
     try:
         inv_a = invert(a, deps=deps)
-    except Exception:  # singular: NumPy returns inf here too
+    except RuntimeError:  # singular: NumPy returns inf here too
         return float("inf")
     return float(norm(a, p, deps=deps) * norm(inv_a, p, deps=deps))
 
@@ -496,8 +492,7 @@ def eigvals_skew(a: Any, k: int, *, deps: OpsDeps) -> Any:
 
     A real skew-symmetric matrix (A == -A.T) has purely imaginary eigenvalues
     that come in +/-i*lambda pairs (plus a zero eigenvalue for odd dimension).
-    Prefers the native `eigvals_skew` when available; otherwise falls back to
-    NumPy's general eigensolver and returns the top-|k| by magnitude.
+    Engine only (LAPACK on the skew-symmetric tridiagonal form); no NumPy fallback.
     """
 
     if k <= 0:
@@ -506,23 +501,9 @@ def eigvals_skew(a: Any, k: int, *, deps: OpsDeps) -> Any:
     if shape is not None and shape[0] != shape[1]:
         raise ValueError("eigvals_skew requires a square matrix")
 
-    native_fn = getattr(deps.native, "eigvals_skew", None)
-    if callable(native_fn):
-        try:
-            result = native_fn(a, k)
-            _track_and_mark_temporary_if_native(result, deps=deps)
-            return result
-        except Exception:
-            pass
-
-    np_module = deps.np_module
-    if np_module is None:
-        raise NotImplementedError("eigvals_skew is not available (no native/NumPy fallback)")
-
-    eigs = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
-    eigs_sorted = sorted(eigs, key=lambda x: abs(x), reverse=True)
-    top = np_module.array(eigs_sorted[:k])
-    return _as_pycauset_vector(top, deps=deps)
+    result = deps.native.eigvals_skew(_engine_matrix(a, deps=deps), k)
+    _track_and_mark_temporary_if_native(result, deps=deps)
+    return result
 
 
 def eig_skew(a: Any, k: int, *, deps: OpsDeps) -> tuple[Any, Any]:
@@ -541,25 +522,7 @@ def eig_skew(a: Any, k: int, *, deps: OpsDeps) -> tuple[Any, Any]:
     if shape is not None and shape[0] != shape[1]:
         raise ValueError("eig_skew requires a square matrix")
 
-    native_fn = getattr(deps.native, "eig_skew", None)
-    if callable(native_fn):
-        try:
-            w, v = native_fn(a, k)
-            _track_and_mark_temporary_if_native(w, deps=deps)
-            _track_and_mark_temporary_if_native(v, deps=deps)
-            return w, v
-        except Exception:
-            pass
-
-    np_module = deps.np_module
-    if np_module is None:
-        raise NotImplementedError("eig_skew is not available (no native/NumPy fallback)")
-
-    w, v = np_module.linalg.eig(_to_numpy_matrix(a, deps=deps))
-    idx = sorted(range(len(w)), key=lambda i: abs(w[i]), reverse=True)[:k]
-    top_w = np_module.array([w[i] for i in idx])
-    top_v = np_module.stack([v[:, i] for i in idx], axis=1)
-    return _as_pycauset_vector(top_w, deps=deps), _as_pycauset_array(top_v, deps=deps)
+    return _native_result(tuple(deps.native.eig_skew(_engine_matrix(a, deps=deps), k)), deps=deps)
 
 
 def solve_triangular(a: Any, b: Any, *, deps: OpsDeps) -> Any:
@@ -584,54 +547,38 @@ def pinv(a: Any, *, deps: OpsDeps) -> Any:
 def trace(a: Any, *, deps: OpsDeps) -> Any:
     """Sum of the diagonal: exact int for integer matrices, float, or complex (F-059)."""
     _record_io_trace("trace", [a], deps=deps)
-    if isinstance(a, deps.native.MatrixBase):
-        return a.trace()
-    return deps.np_module.trace(_to_numpy_matrix(a, deps=deps))
+    return _engine_matrix(a, deps=deps).trace()
 
 
 def determinant(a: Any, *, deps: OpsDeps) -> Any:
     """Determinant of a square matrix: complex for complex matrices, else float (F-059)."""
     _record_io_trace("determinant", [a], deps=deps)
-    if isinstance(a, deps.native.MatrixBase):
-        return a.determinant()
-    return deps.np_module.linalg.det(_to_numpy_matrix(a, deps=deps))
+    return _engine_matrix(a, deps=deps).determinant()
+
+
+def _ord_name(ord: Any) -> str:
+    if isinstance(ord, str):
+        return ord
+    if ord in (float("inf"), float("-inf")):
+        return "inf" if ord > 0 else "-inf"
+    if ord in (1, -1, 2, -2):
+        return str(int(ord))
+    raise ValueError(f"norm: invalid norm order {ord!r} for matrices")
 
 
 def norm(x: Any, ord: Any = None, *, deps: OpsDeps) -> float:
-    """Matrix or vector norm.
+    """Matrix or vector norm with NumPy's orders, in the engine.
 
-    ord=None or 'fro': Frobenius norm (matrix) / L2 norm (vector), native.
-    ord=2: spectral norm (matrix, largest singular value) / L2 norm (vector).
-    Other ord values (1, inf, 'nuc', ...) use the NumPy fallback.
+    Matrices: None/'fro', 'nuc', 1, -1, 2, -2, inf, -inf. Vectors: None (2-norm), any real p,
+    inf, -inf, 0 (count of non-zeros).
     """
-    rec = _record_io_trace("norm", [x], deps=deps)
-    _prefetch_if_streaming(rec, [x], deps=deps)
-
-    # Structural shortcuts for the default (Frobenius) norm.
-    x_struct = _effective_structure_for(x)
-    shape = _safe_rows_cols(x)
-    if ord is None or ord == 'fro':
-        if x_struct == "zero":
-            return 0.0
-        if x_struct == "identity" and shape is not None and shape[0] > 0:
-            return float(min(shape) ** 0.5)
-
-    # Native norm only for the default Frobenius/L2 case. For ord=2 on a matrix,
-    # the native function computes Frobenius, not the spectral norm, so route
-    # ord=2 and every other ord through NumPy (which is correct).
-    if ord is None or ord == 'fro':
-        fn = getattr(deps.native, "norm", None)
-        if callable(fn):
-            try:
-                return float(fn(x))
-            except Exception:
-                pass
-
-    # NumPy Fallback
-    np_module = deps.np_module
-    if np_module:
-        return float(np_module.linalg.norm(_to_numpy_matrix(x, deps=deps), ord=ord))
-    return 0.0
+    _record_io_trace("norm", [x], deps=deps)
+    if isinstance(x, deps.native.VectorBase):
+        return float(deps.native.norm(x) if ord is None else deps.native.vector_norm(x, float(ord)))
+    x = _engine_matrix(x, deps=deps)
+    if ord is None or ord == "fro":
+        return float(deps.native.norm(x))
+    return float(deps.native.matrix_norm(x, _ord_name(ord)))
 
 
 def svdvals(a: Any, *, deps: OpsDeps) -> Any:
@@ -642,34 +589,12 @@ def svdvals(a: Any, *, deps: OpsDeps) -> Any:
 
 
 def matrix_rank(a: Any, tol: Any = None, *, deps: OpsDeps) -> int:
-    """Numerical rank of a matrix (number of singular values above `tol`).
-
-    Structural shortcuts avoid an SVD: zero -> 0, identity -> min(m, n), and
-    diagonal/triangular -> count of non-zero diagonal entries.
-    """
+    """Numerical rank: singular values above tol (NumPy's default tol when None), from the
+    engine's SVD. The structural shortcuts that were here counted the non-zero diagonal of a
+    triangular matrix (wrong: a strictly triangular matrix of ones has rank n - 1) and
+    trusted properties (F-090)."""
     _record_io_trace("matrix_rank", [a], deps=deps)
-
-    a_struct = _effective_structure_for(a)
-    shape = _safe_rows_cols(a)
-    if a_struct == "zero":
-        return 0
-    if a_struct == "identity":
-        return min(shape) if shape else 0
-    if a_struct in ("diagonal", "upper_triangular", "lower_triangular"):
-        n = min(shape) if shape else 0
-        non_zero = 0
-        for i in range(n):
-            try:
-                if a.get(i, i) != 0:
-                    non_zero += 1
-            except Exception:
-                pass
-        return non_zero
-
-    np_module = deps.np_module
-    if np_module is None:
-        raise RuntimeError("matrix_rank requires NumPy")
-    return int(np_module.linalg.matrix_rank(_to_numpy_matrix(a, deps=deps), tol=tol))
+    return int(deps.native.matrix_rank(_engine_matrix(a, deps=deps), -1.0 if tol is None else float(tol)))
 
 
 def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
@@ -689,12 +614,7 @@ def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
 
     # No identity shortcut: a scaled identity (2*I)^n is 2^n*I, and identity x identity is
     # already O(1) in the engine (F-067).
-    a_struct = _effective_structure_for(a)
-    if a_struct == "zero":
-        if n > 0:
-            return a
-        raise ValueError("matrix_power: zero matrix has no negative power")
-
+    # No is_zero shortcut either: properties never change results (F-090).
     if n < 0:
         inv = invert(a, deps=deps)
         return matrix_power(inv, -n, deps=deps)
@@ -727,45 +647,34 @@ def _identity_like(a: Any, shape: Any, deps: OpsDeps) -> Any:
     raise RuntimeError("matrix_power: cannot build identity matrix")
 
 
-def outer(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Outer product of two vectors: out[i, j] = a[i] * b[j]."""
-    _record_io_trace("outer", [a, b], deps=deps)
+def _engine_vector(x: Any, *, deps: OpsDeps) -> Any:
+    """A PyCauset vector as is; an array-like flattened into one (NumPy's ravel). A PyCauset
+    matrix raises: outer/cross/vecdot take vectors."""
+    if isinstance(x, deps.native.VectorBase):
+        return x
+    if isinstance(x, deps.native.MatrixBase):
+        raise TypeError("expected a vector, got a matrix")
+    import pycauset  # the public constructor (every dtype); the package is loaded by now
 
-    np_module = deps.np_module
-    if np_module is None:
-        raise RuntimeError("outer requires NumPy")
-    a_np = np_module.asarray(_to_numpy_matrix(a, deps=deps)).ravel()
-    b_np = np_module.asarray(_to_numpy_matrix(b, deps=deps)).ravel()
-    return _as_pycauset_array(np_module.outer(a_np, b_np), deps=deps)
+    return pycauset.vector(deps.np_module.ravel(deps.np_module.asarray(x)))
+
+
+def outer(a: Any, b: Any, *, deps: OpsDeps) -> Any:
+    """Outer product out[i, j] = a[i] * b[j], as NumPy's outer (any lengths, multiply dtype)."""
+    _record_io_trace("outer", [a, b], deps=deps)
+    return _native_result(deps.native.outer(_engine_vector(a, deps=deps), _engine_vector(b, deps=deps)), deps=deps)
 
 
 def cross(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Cross product of two 3-element vectors."""
+    """Cross product of two 3-element vectors, as NumPy's cross (multiply dtype; bool raises)."""
     _record_io_trace("cross", [a, b], deps=deps)
-
-    np_module = deps.np_module
-    if np_module is None:
-        raise RuntimeError("cross requires NumPy")
-    a_np = np_module.asarray(_to_numpy_matrix(a, deps=deps)).ravel()
-    b_np = np_module.asarray(_to_numpy_matrix(b, deps=deps)).ravel()
-    if a_np.size != 3 or b_np.size != 3:
-        raise ValueError("cross product requires vectors of length 3")
-    return _as_pycauset_vector(np_module.cross(a_np, b_np), deps=deps)
+    return _native_result(deps.native.cross(_engine_vector(a, deps=deps), _engine_vector(b, deps=deps)), deps=deps)
 
 
 def vecdot(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Conjugate dot product: sum(conj(a) * b). For real inputs this equals dot."""
+    """Conjugate dot product sum(conj(a) * b), as NumPy's vdot; for real input this is dot."""
     _record_io_trace("vecdot", [a, b], deps=deps)
-
-    np_module = deps.np_module
-    if np_module is None:
-        raise RuntimeError("vecdot requires NumPy")
-    a_np = np_module.asarray(_to_numpy_matrix(a, deps=deps)).ravel()
-    b_np = np_module.asarray(_to_numpy_matrix(b, deps=deps)).ravel()
-    result = np_module.vdot(a_np, b_np)
-    if np_module.iscomplexobj(result):
-        return complex(result)
-    return float(result)
+    return _engine_vector(a, deps=deps).conj().dot(_engine_vector(b, deps=deps))
 
 
 def cholesky(a: Any, *, deps: OpsDeps) -> Any:
@@ -800,19 +709,9 @@ def svd(a: Any, full_matrices: bool = True, compute_uv: bool = True, *, deps: Op
 
 
 def lu(a: Any, *, deps: OpsDeps) -> Any:
-    """Return LU decomposition (P, L, U)."""
+    """(P, L, U) with A = P L U, as SciPy's lu: P real (m×m), L unit lower (m×k), U (k×n)."""
     _record_io_trace("lu", [a], deps=deps)
-    
-    fn = getattr(deps.native, "lu", None)
-    if callable(fn):
-        p, l_mat, u = fn(a)
-        _track_and_mark_temporary_if_native(p, deps=deps)
-        _track_and_mark_temporary_if_native(l_mat, deps=deps)
-        _track_and_mark_temporary_if_native(u, deps=deps)
-        return p, l_mat, u
-
-    # Scipy Fallback is not standard here as scipy is not in standard deps
-    raise NotImplementedError("lu requires native implementation")
+    return _native_result(tuple(deps.native.lu(_engine_matrix(a, deps=deps))), deps=deps)
 
 
 def solve(a: Any, b: Any, *, deps: OpsDeps) -> Any:
@@ -822,8 +721,6 @@ def solve(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     no NumPy fallback: an engine error is the answer.
     """
     _record_io_trace("solve", [a, b], deps=deps)
-    if _effective_structure_for(a) == "zero":
-        raise ValueError("solve: matrix marked is_zero; system is singular")
     native = (deps.native.MatrixBase, deps.native.VectorBase)
     a = a if isinstance(a, native) else _as_pycauset_array(deps.np_module.asarray(a), deps=deps)
     b = b if isinstance(b, native) else _as_pycauset_array(deps.np_module.asarray(b), deps=deps)

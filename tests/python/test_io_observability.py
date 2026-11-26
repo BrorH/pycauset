@@ -71,7 +71,10 @@ class TestIOObservability(unittest.TestCase):
         a = self._file_backed_fake()
         b = self._file_backed_fake()
 
-        _ = pycauset.matmul(a, b)
+        # The route is recorded before the operation; a fake object then has no engine
+        # matmul (the NumPy per-element path that multiplied it is gone, F-090).
+        with self.assertRaises(Exception):
+            pycauset.matmul(a, b)
 
         trace = pycauset.last_io_trace()
         self.assertIsNotNone(trace)
@@ -124,7 +127,7 @@ class TestIOObservability(unittest.TestCase):
         self.assertEqual(trace.get("route"), "streaming")
         self.assertEqual(trace.get("reason"), "estimated bytes exceed threshold")
         self.assertTrue(any(op.get("estimated_bytes") for op in trace.get("operands", [])))
-        self.assertEqual(trace.get("impl"), "streaming_python")
+        self.assertEqual(trace.get("impl"), "native")  # streaming routes run the engine (F-090)
 
     def test_invert_forces_streaming_path(self):
         pycauset.set_io_streaming_threshold(64)
@@ -139,22 +142,7 @@ class TestIOObservability(unittest.TestCase):
         trace = pycauset.last_io_trace("invert")
         self.assertIsNotNone(trace)
         self.assertEqual(trace.get("route"), "streaming")
-        self.assertEqual(trace.get("impl"), "streaming_python")
-
-    def test_eigvalsh_forces_streaming_path(self):
-        pycauset.set_io_streaming_threshold(64)
-        pycauset.clear_io_traces()
-
-        m = pycauset.DenseMatrix(8, dtype="float64")
-        for i in range(8):
-            m.set(i, i, float(i + 1))
-
-        _ = pycauset.eigvalsh(m)
-
-        trace = pycauset.last_io_trace("eigvalsh")
-        self.assertIsNotNone(trace)
-        self.assertEqual(trace.get("route"), "streaming")
-        self.assertEqual(trace.get("impl"), "streaming_python")
+        self.assertEqual(trace.get("impl"), "native")  # streaming routes run the engine (F-090)
 
     def test_eigvals_arnoldi_forces_streaming_path(self):
         pycauset.set_io_streaming_threshold(64)

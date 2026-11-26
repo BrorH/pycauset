@@ -199,8 +199,7 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
                 return Decision{complex_from_rank(r), false, DataType::UNKNOWN};
             }
             case BinaryOp::MatrixVectorMultiply:
-            case BinaryOp::VectorMatrixMultiply:
-            case BinaryOp::OuterProduct: {
+            case BinaryOp::VectorMatrixMultiply: {
                 const uint8_t ra = float_rank(a);
                 const uint8_t rb = float_rank(b);
                 uint8_t r = 0;
@@ -304,9 +303,6 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
             case BinaryOp::MatrixVectorMultiply:
             case BinaryOp::VectorMatrixMultiply:
                 return Decision{DataType::INT32, false, DataType::UNKNOWN};
-            case BinaryOp::OuterProduct:
-                // Outer product is elementwise products (no sum reduction), so BIT is sufficient.
-                return Decision{DataType::BIT, false, DataType::UNKNOWN};
             case BinaryOp::ElementwiseMultiply:
                 return Decision{DataType::BIT, false, DataType::UNKNOWN};
             case BinaryOp::Divide:

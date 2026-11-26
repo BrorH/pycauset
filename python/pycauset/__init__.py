@@ -1215,7 +1215,7 @@ def slogdet(a: Any) -> tuple[float, float]:
 
 
 def cond(a: Any, p: Any = None) -> float:
-    """Condition number estimate via `norm(a) * norm(invert(a))`."""
+    """Condition number with NumPy's definition: smax/smin for p None/2, else ||A||_p ||A^-1||_p."""
     return _ops.cond(a, deps=_OPS_DEPS, p=p)
 
 

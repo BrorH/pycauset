@@ -29,6 +29,18 @@ void bind_math_ops(py::module_& m) {
         return std::shared_ptr<pycauset::MatrixBase>(pycauset::pinv(a).release());
     }, py::arg("a"), "Moore-Penrose pseudoinverse (NumPy's default cutoff)");
 
+    m.def("matrix_norm", &pycauset::matrix_norm, py::arg("a"), py::arg("ord"), "NumPy matrix norm of order ord");
+    m.def("vector_norm", &pycauset::vector_norm, py::arg("v"), py::arg("p"), "NumPy vector p-norm");
+    m.def("matrix_rank", &pycauset::matrix_rank, py::arg("a"), py::arg("tol") = -1.0, "NumPy matrix_rank");
+
+    m.def("outer", [](const pycauset::VectorBase& a, const pycauset::VectorBase& b) {
+        return std::shared_ptr<pycauset::MatrixBase>(pycauset::outer_product(a, b).release());
+    }, py::arg("a"), py::arg("b"), "Outer product a[i] * b[j] (NumPy's multiply dtype)");
+
+    m.def("cross", [](const pycauset::VectorBase& a, const pycauset::VectorBase& b) {
+        return std::shared_ptr<pycauset::VectorBase>(pycauset::cross_product(a, b).release());
+    }, py::arg("a"), py::arg("b"), "Cross product of two 3-vectors (NumPy's multiply dtype)");
+
     m.def("lu", [](const pycauset::MatrixBase& a) {
         auto [p, l, u] = pycauset::lu(a);
         return py::make_tuple(

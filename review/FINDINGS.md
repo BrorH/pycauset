@@ -1097,3 +1097,42 @@ the entry (the history is useful). New findings go at the bottom with the next f
   matmul overflow raises, F-055: 79; signed ⊕ uint64 raises, F-035b: 24). ok cells 39,123.
 - Also: the hand-maintained support matrix (`support_matrix.py`, its checker and test) and the
   three probes the atlas superseded are deleted (PLAN C.4).
+
+### F-090 Linear algebra fell back to NumPy for most dtypes; three wrong shortcuts
+- **Status:** fixed (session 8, PLAN N.3). eig/eigvals worked natively for float64 dense only
+  (everything else: `np.linalg` behind the call); eigh/eigvalsh always ran in NumPy ("native
+  crashes", 2026-08-24, no longer true); cholesky and qr: float32/float64 dense, else NumPy
+  (qr's 'complete'/'r'/'raw' modes always NumPy); lu: float32/float64 only (908 atlas cells
+  raised); pinv was assembled in Python; outer, cross, vecdot, norm(ord), matrix_rank and
+  cond were NumPy outright. Single-precision input was computed in double and narrowed.
+- Fix: `compute/cpu/CpuLinalg.cpp` holds one LAPACK kernel template per family for float32,
+  float64, complex64, complex128 (?syevd/?heevd, ?geev, ?potrf, ?geqrf+?orgqr/?ungqr,
+  ?getrf); contract: plain dense in the LAPACK dtype. The entries normalise with `to_dense`
+  to NumPy's LAPACK dtype (`solve_dtype`) and compute single precision natively. New engine
+  entries: `pinv` (SVD + matmul, NumPy's cutoff), `qr(a, complete)`, `matrix_norm`,
+  `vector_norm`, `matrix_rank`, typed `outer` (any lengths, NumPy's multiply dtype, packed
+  bits for bool) and `cross` (NumPy's dtype; the old engine `cross_product` always returned
+  float64 and was never bound). Deleted: the old per-dtype kernels (~700 lines in
+  CpuSolver.cpp), `as_double_precision`/`narrow_*`, the `outer_product`/`cross_product`
+  device chain (interface, CPU, AutoSolver, CUDA stub), `BinaryOp::OuterProduct`, every NumPy
+  call in `_internal/ops.py` (eig, eigh, eigvalsh incl. a per-element streaming path,
+  eigvals, eig_skew, eigvals_skew, cholesky, qr, outer, cross, vecdot, norm, matrix_rank,
+  cond, trace/det on array-likes).
+- Wrong results found on the way:
+  - `matrix_rank` of a triangular matrix counted its non-zero diagonal (a strictly
+    triangular matrix of ones, rank n - 1, gave 0; every causal matrix gave 0).
+  - `eigvalsh` raised when the `is_hermitian` property was False, `solve` raised when
+    `is_zero` was set, `norm` returned 0 / sqrt(n) from the zero / identity properties:
+    properties changed results (forbidden, 4.3).
+- Deliberate differences from NumPy: eig/eigvals are always complex (NumPy returns a real
+  array when every eigenvalue happens to be real: a value-dependent dtype); `qr(mode='raw')`
+  is not offered; `cholesky` of a non-positive-definite matrix raises ValueError (NumPy's
+  LinAlgError is one).
+
+### F-091 File-backed operands made matmul and invert run in Python through NumPy
+- **Status:** fixed (session 8). The IO observer routes any file-backed operand (or one
+  above the streaming threshold) to "streaming"; `ops.matmul` and `ops.invert` then took a
+  Python path that read every element with `get(i, j)` into NumPy tiles (matmul: a float
+  result for every dtype, so a saved int matrix squared came back float; invert:
+  `np.linalg.inv`). Both paths are deleted; the route is still recorded and the trace says
+  `impl = native`.

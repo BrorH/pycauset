@@ -21,6 +21,7 @@
 #include "pycauset/core/Float16.hpp"
 #include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/math/ViewValue.hpp"
+#include "pycauset/math/VectorOps.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/compute/ComputeDevice.hpp"
 #include <stdexcept>
@@ -30,6 +31,9 @@
 #include <iostream>
 #include <complex>
 #include <limits>
+#include <cmath>
+#include <algorithm>
+#include <numeric>
 
 namespace pycauset {
 
@@ -238,37 +242,108 @@ std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& 
     return ComputeContext::instance().get_device()->dot_complex(a, b);
 }
 
-std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b, const std::string& result_file) {
-    if (a.size() != 3 || b.size() != 3) {
-        throw std::invalid_argument("Cross product only defined for 3D vectors");
-    }
-
-    auto result = std::make_unique<DenseVector<double>>(3, result_file);
-    ComputeContext::instance().get_device()->cross_product(a, b, *result);
-    return result;
+// Cross product of two 3-vectors, NumPy's cross: NumPy's multiply dtype (bool raises, as
+// NumPy's subtract does); integers wrap. float16 / complex32: each product is rounded to the
+// dtype, then the difference (NumPy computes every step in the dtype).
+std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b, const std::string&) {
+    if (a.size() != 3 || b.size() != 3) throw std::invalid_argument("cross: vectors must have 3 elements");
+    const DataType r = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, a.get_data_type(), b.get_data_type()).result_dtype;
+    if (r == DataType::BIT) throw std::domain_error("cross: not defined for bool vectors (NumPy's subtract rejects bool)");
+    const DataType c = r == DataType::FLOAT16 ? DataType::FLOAT32 : r == DataType::COMPLEX_FLOAT16 ? DataType::COMPLEX_FLOAT32 : r;
+    auto ra = to_dense(*as_row_matrix(a), c);
+    auto rb = to_dense(*as_row_matrix(b), c);
+    auto out = ObjectFactory::create_matrix(1, 3, c, Structure::DENSE, "");
+    debug_trace::set_last("cpu.cross");
+    visit_dtype(c, [&](auto tag) {
+        using T = typename decltype(tag)::type;
+        if constexpr (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>) {
+            const T* x = static_cast<const DenseMatrix<T>&>(*ra).data();
+            const T* y = static_cast<const DenseMatrix<T>&>(*rb).data();
+            T* z = static_cast<DenseMatrix<T>&>(*out).data();
+            auto mul = [&](T p, T q) -> T {
+                if constexpr (std::is_integral_v<T>) return static_cast<T>(scalar::WrapMultiplies{}(p, q));
+                else if (r == DataType::FLOAT16) return static_cast<T>(static_cast<float>(float16_t(p * q)));
+                else return p * q;
+            };
+            auto sub = [](T p, T q) -> T {
+                if constexpr (std::is_integral_v<T>) return static_cast<T>(scalar::WrapMinus{}(p, q));
+                else return p - q;
+            };
+            for (int k = 0; k < 3; ++k) {
+                const int i1 = (k + 1) % 3, i2 = (k + 2) % 3;
+                z[k] = sub(mul(x[i1], y[i2]), mul(x[i2], y[i1]));
+            }
+        } else if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+            const T* x = static_cast<const DenseMatrix<T>&>(*ra).data();
+            const T* y = static_cast<const DenseMatrix<T>&>(*rb).data();
+            T* z = static_cast<DenseMatrix<T>&>(*out).data();
+            auto mul = [&](T p, T q) -> T {
+                if (r != DataType::COMPLEX_FLOAT16) return p * q;
+                const T v = p * q;
+                return T(static_cast<float>(float16_t(v.real())), static_cast<float>(float16_t(v.imag())));
+            };
+            for (int k = 0; k < 3; ++k) {
+                const int i1 = (k + 1) % 3, i2 = (k + 2) % 3;
+                z[k] = mul(x[i1], y[i2]) - mul(x[i2], y[i1]);
+            }
+        } else {
+            throw std::logic_error(std::string("cross: no kernel for ") + dtype_name(c));
+        }
+    });
+    std::unique_ptr<MatrixBase> res = c != r ? cast_to(*out, r) : std::move(out);
+    return as_vector(std::move(res), false);
 }
-
-
-
-
-
 
 // --- Matrix-Vector Operations ---
 
+// Outer product, NumPy's outer: out[i, j] = a[i] * b[j] for vectors of any lengths n and m, in
+// NumPy's multiply dtype (integers wrap; bool is logical and). Normaliser: each vector as a
+// dense 1 x len row in the computation dtype (as_row_matrix + to_dense: every dtype and view).
+// Kernel: one loop per element type; bool copies b's packed row into each row where a[i] is
+// set. float16 / complex32 are computed in float32 / complex64 (a product of two float16 is
+// exact there) and rounded once. Replaces a square-only, per-dtype, virtual-call kernel that
+// read integers through double (CpuSolver::outer_product).
 std::unique_ptr<MatrixBase> outer_product(const VectorBase& a, const VectorBase& b, const std::string& result_file) {
-    if (a.size() != b.size()) {
-        throw std::invalid_argument("outer_product: vectors must be same size (square matrices only)");
+    const uint64_t n = a.size(), m = b.size();
+    const DataType r = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, a.get_data_type(), b.get_data_type()).result_dtype;
+    const DataType c = r == DataType::FLOAT16 ? DataType::FLOAT32 : r == DataType::COMPLEX_FLOAT16 ? DataType::COMPLEX_FLOAT32 : r;
+    auto ra = to_dense(*as_row_matrix(a), c);
+    auto rb = to_dense(*as_row_matrix(b), c);
+    auto out = ObjectFactory::create_matrix(n, m, c, Structure::DENSE, c == r ? result_file : std::string());
+    debug_trace::set_last("cpu.outer");
+    if (c == DataType::BIT) {
+        auto& o = static_cast<DenseMatrix<bool>&>(*out);
+        const auto& x = static_cast<const DenseMatrix<bool>&>(*ra);
+        const auto& y = static_cast<const DenseMatrix<bool>&>(*rb);
+        const uint64_t words = o.stride_bytes() / 8;  // same column count: same row stride as y
+        uint64_t* dst = o.data();
+        const uint64_t* src = y.data();
+        ParallelFor(0, n, [&](size_t i) {
+            if (x.get(0, i)) std::copy(src, src + words, dst + i * words);
+        });
+        return out;
     }
-    uint64_t n = a.size();
-    
-    // Determine result type
-    DataType res_dtype = promotion::resolve(promotion::BinaryOp::OuterProduct, a.get_data_type(), b.get_data_type()).result_dtype;
-    
-    auto result = ObjectFactory::create_matrix(n, res_dtype, Structure::DENSE, result_file);
-    
-    ComputeContext::instance().get_device()->outer_product(a, b, *result);
-    
-    return result;
+    visit_dtype(c, [&](auto tag) {
+        using T = typename decltype(tag)::type;
+        if constexpr (std::is_arithmetic_v<T> || std::is_same_v<T, std::complex<float>> ||
+                      std::is_same_v<T, std::complex<double>>) {
+            if constexpr (!std::is_same_v<T, bool>) {
+                const T* x = static_cast<const DenseMatrix<T>&>(*ra).data();
+                const T* y = static_cast<const DenseMatrix<T>&>(*rb).data();
+                T* z = static_cast<DenseMatrix<T>&>(*out).data();
+                ParallelFor(0, n, [&](size_t i) {
+                    for (uint64_t j = 0; j < m; ++j) {
+                        if constexpr (std::is_integral_v<T>) z[i * m + j] = static_cast<T>(scalar::WrapMultiplies{}(x[i], y[j]));
+                        else z[i * m + j] = x[i] * y[j];
+                    }
+                });
+                return;
+            }
+        }
+        throw std::logic_error(std::string("outer: no kernel for ") + dtype_name(c));
+    });
+    if (c != r) return cast_to(*out, r);
+    return out;
 }
 
 std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, const std::string& result_file) {
@@ -616,34 +691,17 @@ std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& res
     return out;
 }
 
-std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a, const std::string& result_file)
+// LU with partial pivoting, SciPy's lu (NumPy has none): A = P L U with P (m, m) real,
+// L (m, k) unit lower, U (k, n); any dtype, structure and view in the LAPACK dtype.
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a, const std::string&)
 {
-    if (!is_plain(a)) return lu(*write_out(a), result_file);  // kernels read storage (F-062)
-    // LU decomposition: A = P * L * U
-    // For now we assume typical behavior where P, L, U are returned.
-    // Dimensions: A is (M, N). P is (M, M), L is (M, K), U is (K, N) where K = min(M, N).
-    // However, typical LAPACK getrf returns packed LU and permutation vector.
-    // The device implementation will likely handle the specifics, but here we allocate space.
-    // If wrapping standard LAPACK, we might return P as indices, but the python interface typically wants a matrix for P if requested, or just L, U.
-    // Let's stick to returning Matrices for P, L, U to match the signature.
-    
-    // For simplicity in this binding layer, we allocate same-sized or appropriately sized matrices.
-    // L and U are stored in 'a' usually for in-place, but here we want separate outputs.
-    // We'll let the device implementation handle the complexity of unpacking if needed, or we just allocate standard sizes.
-    // P: (M, M), L: (M, K), U: (K, N). K=min(M,N).
-    
-    uint64_t m = a.rows();
-    uint64_t n = a.cols();
-    uint64_t k = std::min(m, n);
-    
-    DataType dtype = a.get_data_type();
-    
-    auto p = ObjectFactory::create_matrix(m, m, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_p");
-    auto l = ObjectFactory::create_matrix(m, k, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_l");
-    auto u = ObjectFactory::create_matrix(k, n, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_u");
-
-    ComputeContext::instance().get_device()->lu(a, *p, *l, *u);
-    
+    DataType dt;
+    auto h = lapack_input(a, dt);
+    const uint64_t m = a.rows(), n = a.cols(), k = std::min(m, n);
+    auto p = ObjectFactory::create_matrix(m, m, real_dtype(dt), Structure::DENSE, "");
+    auto l = ObjectFactory::create_matrix(m, k, dt, Structure::DENSE, "");
+    auto u = ObjectFactory::create_matrix(k, n, dt, Structure::DENSE, "");
+    ComputeContext::instance().get_device()->lu(h ? *h : a, *p, *l, *u);
     return std::make_tuple(std::move(p), std::move(l), std::move(u));
 }
 
@@ -854,6 +912,82 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig_skew(
 
     ComputeContext::instance().get_device()->eig_skew(a, *w, *v, kk);
     return std::make_pair(std::move(w), std::move(v));
+}
+
+// |x| of every element of a (any dtype, structure, view) as a dense row-major float64 buffer,
+// through the shared typed reader (to_dense in float64 or complex128).
+static std::vector<double> abs_values(const MatrixBase& a) {
+    const DataType dt = a.get_data_type();
+    const bool cplx = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64;
+    auto d = to_dense(a, cplx ? DataType::COMPLEX_FLOAT64 : DataType::FLOAT64);
+    const uint64_t total = a.rows() * a.cols();
+    std::vector<double> out(total);
+    if (cplx) {
+        const auto* p = static_cast<const DenseMatrix<std::complex<double>>&>(*d).data();
+        for (uint64_t i = 0; i < total; ++i) out[i] = std::abs(p[i]);
+    } else {
+        const auto* p = static_cast<const DenseMatrix<double>&>(*d).data();
+        for (uint64_t i = 0; i < total; ++i) out[i] = std::abs(p[i]);
+    }
+    return out;
+}
+
+static std::vector<double> singular_values(const MatrixBase& a) {
+    auto s = std::get<1>(svd(a, false));
+    std::vector<double> out(s->size());
+    for (uint64_t i = 0; i < s->size(); ++i) out[i] = s->get_element_as_double(i);
+    return out;
+}
+
+// NumPy's matrix norms: 'fro', 'nuc', 2 / -2 (largest / smallest singular value), 1 / -1
+// (max / min column sum of |a|), inf / -inf (max / min row sum). Computed in double precision.
+double matrix_norm(const MatrixBase& a, const std::string& ord) {
+    if (ord == "fro") return norm(a);
+    if (ord == "nuc" || ord == "2" || ord == "-2") {
+        const auto s = singular_values(a);
+        if (s.empty()) throw std::invalid_argument("norm: empty matrix");
+        if (ord == "nuc") return std::accumulate(s.begin(), s.end(), 0.0);
+        return ord == "2" ? *std::max_element(s.begin(), s.end()) : *std::min_element(s.begin(), s.end());
+    }
+    const bool cols = ord == "1" || ord == "-1";
+    if (!cols && ord != "inf" && ord != "-inf") throw std::invalid_argument("norm: invalid norm order '" + ord + "' for matrices");
+    const uint64_t m = a.rows(), n = a.cols();
+    if (m == 0 || n == 0) throw std::invalid_argument("norm: empty matrix");
+    const auto v = abs_values(a);
+    std::vector<double> sums(cols ? n : m, 0.0);
+    for (uint64_t i = 0; i < m; ++i)
+        for (uint64_t j = 0; j < n; ++j) sums[cols ? j : i] += v[i * n + j];
+    const bool largest = ord == "1" || ord == "inf";
+    return largest ? *std::max_element(sums.begin(), sums.end()) : *std::min_element(sums.begin(), sums.end());
+}
+
+// NumPy's vector norms: p = inf (max |x|), -inf (min |x|), 0 (count of non-zeros), otherwise
+// (sum |x|^p)^(1/p). Computed in double precision.
+double vector_norm(const VectorBase& v, double p) {
+    const auto x = abs_values(*as_row_matrix(v));
+    if (std::isinf(p)) {
+        if (x.empty()) throw std::invalid_argument("norm: empty vector");
+        return p > 0 ? *std::max_element(x.begin(), x.end()) : *std::min_element(x.begin(), x.end());
+    }
+    if (p == 0) return static_cast<double>(std::count_if(x.begin(), x.end(), [](double t) { return t != 0.0; }));
+    if (p == 2) return norm(v);
+    double acc = 0;
+    for (double t : x) acc += p == 1 ? t : std::pow(t, p);
+    return p == 1 ? acc : std::pow(acc, 1.0 / p);
+}
+
+// NumPy's matrix_rank: singular values above tol; tol < 0 means NumPy's default
+// max(s) * max(m, n) * eps (eps of the SVD's precision).
+int64_t matrix_rank(const MatrixBase& a, double tol) {
+    if (a.rows() == 0 || a.cols() == 0) return 0;
+    const auto s = singular_values(a);
+    if (tol < 0) {
+        const bool single = solve_dtype(a.get_data_type(), a.get_data_type()) == DataType::FLOAT32 ||
+                            solve_dtype(a.get_data_type(), a.get_data_type()) == DataType::COMPLEX_FLOAT32;
+        const double eps = single ? std::numeric_limits<float>::epsilon() : std::numeric_limits<double>::epsilon();
+        tol = *std::max_element(s.begin(), s.end()) * static_cast<double>(std::max(a.rows(), a.cols())) * eps;
+    }
+    return std::count_if(s.begin(), s.end(), [tol](double t) { return t > tol; });
 }
 
 // Eigen decompositions, NumPy's eig / eigvals / eigh / eigvalsh: any dtype, structure and view

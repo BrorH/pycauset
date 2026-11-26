@@ -603,6 +603,9 @@ def _check(op: Op, cell: Cell, got, a, b, arith: str, xdt: str, ydt: str) -> boo
     if op.compare == "eig":  # A v = v diag(w): residual relative to |A|
         w, v = (np.asarray(t).astype(np.complex128) for t in got)
         ac = a.astype(np.complex128)
+        if op.name == "eigh":  # the Hermitian matrix the lower triangle defines (LAPACK, NumPy)
+            low = np.tril(ac, -1)
+            ac = low + low.conj().T + np.diag(ac.diagonal().real)
         return _close(ac @ v, v * w, arith, True)
     if op.compare == "lu":
         p, l, u = got

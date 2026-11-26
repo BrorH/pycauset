@@ -13,7 +13,9 @@ Returns the outer product of two vectors: `out[i, j] = a[i] * b[j]`.
 
 ## Returns
 
-A matrix whose shape is `(len(a), len(b))`.
+A dense matrix of shape `(len(a), len(b))` in NumPy's multiply dtype (integers wrap; bool
+is logical and). Any dtype and view of either vector; the lengths may differ. Array-likes are
+flattened, as NumPy does; a PyCauset matrix raises `TypeError`.
 
 ## Examples
 

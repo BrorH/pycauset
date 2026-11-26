@@ -34,7 +34,6 @@ public:
     // Matrix-Vector Operations
     void matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) override;
     void vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) override;
-    void outer_product(const VectorBase& a, const VectorBase& b, MatrixBase& result) override;
 
     // Element-wise Operations
     void add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
@@ -47,7 +46,6 @@ public:
     std::complex<double> dot_complex(const VectorBase& a, const VectorBase& b) override;
     double l2_norm(const VectorBase& v) override;
 
-    void cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) override;
 
     std::unique_ptr<TriangularMatrix<double>> compute_k_matrix(
         const TriangularMatrix<bool>& C,

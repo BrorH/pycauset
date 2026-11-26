@@ -12,7 +12,6 @@ class TestPromotionResolver(unittest.TestCase):
             "matmul",
             "matvec",
             "vecmat",
-            "outer_product",
         ]
         dtypes = [
             "bit",
@@ -49,7 +48,6 @@ class TestPromotionResolver(unittest.TestCase):
                         "matmul",
                         "matvec",
                         "vecmat",
-                        "outer_product",
                     ):
                         with self.assertRaises(Exception):
                             pycauset._debug_resolve_promotion(op, a, b)

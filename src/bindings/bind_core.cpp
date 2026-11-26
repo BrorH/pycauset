@@ -78,7 +78,6 @@ inline pycauset::promotion::BinaryOp parse_op(const std::string& s_raw) {
     if (s == "matmul") return pycauset::promotion::BinaryOp::Matmul;
     if (s == "matvec" || s == "matrix_vector_multiply") return pycauset::promotion::BinaryOp::MatrixVectorMultiply;
     if (s == "vecmat" || s == "vector_matrix_multiply") return pycauset::promotion::BinaryOp::VectorMatrixMultiply;
-    if (s == "outer_product" || s == "outer") return pycauset::promotion::BinaryOp::OuterProduct;
     throw std::invalid_argument("Unknown op: " + s_raw);
 }
 

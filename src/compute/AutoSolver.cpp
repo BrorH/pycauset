@@ -588,11 +588,6 @@ void AutoSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m
     cpu_device_->vector_matrix_multiply(v, m, result);
 }
 
-void AutoSolver::outer_product(const VectorBase& a, const VectorBase& b, MatrixBase& result) {
-    // CUDA outer_product is not implemented; keep this CPU-only.
-    cpu_device_->outer_product(a, b, result);
-}
-
 void AutoSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     uint64_t m = a.rows();
     uint64_t n = a.cols();
@@ -767,11 +762,6 @@ double AutoSolver::l2_norm(const VectorBase& v) {
 
 
 
-
-void AutoSolver::cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) {
-    // Always CPU for now
-    cpu_device_->cross_product(a, b, result);
-}
 
 std::unique_ptr<TriangularMatrix<double>> AutoSolver::compute_k_matrix(
     const TriangularMatrix<bool>& C,

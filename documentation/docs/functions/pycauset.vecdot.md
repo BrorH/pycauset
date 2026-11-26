@@ -6,7 +6,8 @@ pycauset.vecdot(a, b)
 
 Returns the conjugate dot product: `sum(conj(a) * b)`.
 
-For real inputs this equals the ordinary dot product.
+For real inputs this equals the ordinary dot product. Computed as `a.conj().dot(b)` in the
+engine (the conjugate is an O(1) view).
 
 ## Parameters
 

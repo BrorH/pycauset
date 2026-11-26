@@ -14,7 +14,6 @@ enum class BinaryOp : uint8_t {
     Matmul,
     MatrixVectorMultiply,
     VectorMatrixMultiply,
-    OuterProduct,
 };
 
 struct Decision {

@@ -1,46 +1,41 @@
-﻿# pycauset.norm
+# pycauset.norm
 
 ```python
-pycauset.norm(x) -> float
+pycauset.norm(x, ord=None) -> float
 ```
 
-Compute the norm of a vector or matrix.
-
-- **Vector input**: returns the $\ell_2$ (Euclidean) norm.
-- **Matrix input**: returns the **Frobenius** norm.
+Norm of a vector or matrix with NumPy's `ord` values, computed in the engine for every dtype,
+structure and view (double precision).
 
 ## Parameters
 
-- `x`: A vector or matrix.
+- `x`: a vector or matrix (array-likes become a dense matrix).
+- `ord`:
+  - matrices: `None` / `'fro'` (Frobenius), `'nuc'` (sum of singular values), `2` / `-2`
+    (largest / smallest singular value), `1` / `-1` (max / min column sum of `|x|`),
+    `inf` / `-inf` (max / min row sum);
+  - vectors: `None` (2-norm), any real `p` (`(sum |x|^p)^(1/p)`), `inf` / `-inf` (max / min
+    `|x|`), `0` (number of non-zeros).
 
 ## Returns
 
-- `float`: The computed norm.
+- `float`.
 
-## Exceptions
+## Raises
 
-- Raises `TypeError` if `x` is not a `VectorBase` or `MatrixBase`.
+- `ValueError`: an `ord` NumPy does not define for that input, or an empty matrix with a
+  singular-value or row/column order.
 
 ## Examples
 
 ```python
 import pycauset as pc
 
-v = pc.vector([3.0, 4.0], dtype="float64")
+v = pc.vector([3.0, 4.0])
 assert pc.norm(v) == 5.0
+assert pc.norm(v, 1) == 7.0
 
-A = pc.matrix(
-    [
-        [3.0, 4.0],
-        [0.0, 0.0],
-    ],
-    dtype="float64",
-)
+A = pc.matrix([[3.0, 4.0], [0.0, 0.0]])
 assert pc.norm(A) == 5.0
+assert pc.norm(A, 1) == 4.0
 ```
-
-## See also
-
-- [[docs/functions/pycauset.dot.md|pycauset.dot]]
-- [[docs/functions/pycauset.matmul.md|pycauset.matmul]]
-- [[docs/functions/pycauset.sum.md|pycauset.sum]]

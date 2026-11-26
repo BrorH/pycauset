@@ -40,7 +40,6 @@ public:
     // Matrix-Vector Operations
     virtual void matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) = 0;
     virtual void vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) = 0;
-    virtual void outer_product(const VectorBase& a, const VectorBase& b, MatrixBase& result) = 0;
 
     // Element-wise Operations
     virtual void add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
@@ -55,7 +54,6 @@ public:
     virtual double l2_norm(const VectorBase& v) = 0;
 
     // Specialized vector ops
-    virtual void cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) = 0;
 
     // Special solvers / structured ops
     virtual std::unique_ptr<TriangularMatrix<double>> compute_k_matrix(

@@ -4,13 +4,14 @@
 pycauset.cond(a, p=None)
 ```
 
-Compute a condition number estimate.
+Condition number with NumPy's definition.
 
 ## Parameters
 
-* **a** (*MatrixBase*): Input matrix.
-* **p**: Currently not supported (must be `None`).
+* **a** (*MatrixBase*): input matrix.
+* **p**: `None` or `2` (largest over smallest singular value), `-2` (the inverse ratio), or
+  `1`, `-1`, `inf`, `-inf`, `'fro'`, `'nuc'` (`norm(a, p) * norm(inv(a), p)`).
 
 ## Returns
 
-* **float**: A condition number estimate computed as `norm(a) * norm(invert(a))`.
+* **float**; `inf` for a singular matrix, as NumPy.

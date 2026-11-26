@@ -1,5 +1,6 @@
 #pragma once
 #include <complex>
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -46,6 +47,11 @@ double dot_product(const VectorBase& a, const VectorBase& b);
 std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& b);
 double norm(const VectorBase& v);
 double norm(const MatrixBase& m);
+// NumPy's ord-norms: matrix ord in {"fro", "nuc", "1", "-1", "2", "-2", "inf", "-inf"}; vector p
+// any real or +-inf. matrix_rank: tol < 0 is NumPy's default tolerance.
+double matrix_norm(const MatrixBase& a, const std::string& ord);
+double vector_norm(const VectorBase& v, double p);
+int64_t matrix_rank(const MatrixBase& a, double tol = -1.0);
 std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b, const std::string& result_file = "");
 
 // Scalar operations on vectors

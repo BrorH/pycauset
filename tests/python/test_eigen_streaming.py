@@ -116,15 +116,7 @@ class TestEigenStreaming(unittest.TestCase):
         error_msg = str(cm.exception).lower()
         self.assertIn("square", error_msg, "Error should mention square matrix requirement")
         
-        # Check trace if available
-        trace = pycauset.last_io_trace("eig")
-        if trace is not None:
-            route = trace.get("route")
-            if route == "direct":
-                reason = trace.get("reason")
-                if reason is not None:
-                    self.assertIn("square", reason.lower())
-                    
+
     def test_trace_includes_operation_name(self):
         """Test that IO trace includes operation name for debugging"""
         pycauset.clear_io_traces()

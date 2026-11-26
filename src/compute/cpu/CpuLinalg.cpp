@@ -24,6 +24,7 @@
 
 #include "pycauset/compute/cpu/CpuSolver.hpp"
 #include "pycauset/core/DebugTrace.hpp"
+#include "pycauset/math/ScalarOps.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/vector/DenseVector.hpp"
 
@@ -45,9 +46,7 @@ template <typename T>
 bool copy_input(const MatrixBase& in, std::vector<T>& buf) {
     auto* m = dynamic_cast<const DenseMatrix<T>*>(&in);
     if (m == nullptr) return false;
-    if (m->is_transposed() || m->is_subview() || m->is_conjugated() || m->get_scalar() != std::complex<double>(1.0, 0.0)) {
-        return false;
-    }
+    if (!is_plain(in)) return false;  // the one definition (conj of real storage is plain)
     buf.assign(m->data(), m->data() + in.rows() * in.cols());
     return true;
 }
@@ -207,6 +206,40 @@ bool qr_t(const MatrixBase& in, MatrixBase& qm, MatrixBase& rm) {
     return true;
 }
 
+// --- LU with partial pivoting (?getrf): A = P L U, P m x m (real), L m x k unit lower, U k x n.
+// A singular A still factors (U has a zero pivot), as SciPy's lu.
+template <typename T>
+bool lu_t(const MatrixBase& in, MatrixBase& pm, MatrixBase& lm, MatrixBase& um) {
+    std::vector<T> a;
+    if (!copy_input<T>(in, a)) return false;
+    const lapack_int m = static_cast<lapack_int>(in.rows()), n = static_cast<lapack_int>(in.cols());
+    const lapack_int k = std::min(m, n);
+    std::vector<lapack_int> ipiv(std::max<lapack_int>(k, 1));
+    lapack_int info = 0;
+    debug_trace::set_last("cpu.lu.getrf");
+    if (k > 0) {
+        if constexpr (std::is_same_v<T, float>) info = LAPACKE_sgetrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, ipiv.data());
+        else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, ipiv.data());
+        else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cgetrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, ipiv.data());
+        else info = LAPACKE_zgetrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, ipiv.data());
+    }
+    if (info < 0) throw std::runtime_error("lu: illegal argument to ?getrf");
+    T* u = out_matrix<T>(um, "lu").data();
+    for (lapack_int i = 0; i < k; ++i)
+        for (lapack_int j = 0; j < n; ++j) u[i * n + j] = j >= i ? a[i * n + j] : T(0);
+    T* l = out_matrix<T>(lm, "lu").data();
+    for (lapack_int i = 0; i < m; ++i)
+        for (lapack_int j = 0; j < k; ++j) l[i * k + j] = j < i ? a[i * n + j] : (j == i ? T(1) : T(0));
+    using R = real_t<T>;
+    R* p = out_matrix<R>(pm, "lu").data();
+    std::fill(p, p + static_cast<size_t>(m) * m, R(0));
+    std::vector<lapack_int> perm(m);
+    for (lapack_int i = 0; i < m; ++i) perm[i] = i;
+    for (lapack_int i = 0; i < k; ++i) std::swap(perm[i], perm[ipiv[i] - 1]);
+    for (lapack_int i = 0; i < m; ++i) p[perm[i] * m + i] = R(1);
+    return true;
+}
+
 }  // namespace
 
 void CpuSolver::eigh(const MatrixBase& in, VectorBase& w, MatrixBase& v, char) {
@@ -242,6 +275,12 @@ void CpuSolver::cholesky(const MatrixBase& in, MatrixBase& out) {
     if (cholesky_t<float>(in, out) || cholesky_t<double>(in, out) || cholesky_t<std::complex<float>>(in, out) ||
         cholesky_t<std::complex<double>>(in, out)) return;
     contract("cholesky");
+}
+
+void CpuSolver::lu(const MatrixBase& in, MatrixBase& p, MatrixBase& l, MatrixBase& u) {
+    if (lu_t<float>(in, p, l, u) || lu_t<double>(in, p, l, u) || lu_t<std::complex<float>>(in, p, l, u) ||
+        lu_t<std::complex<double>>(in, p, l, u)) return;
+    contract("lu");
 }
 
 void CpuSolver::qr(const MatrixBase& in, MatrixBase& q, MatrixBase& r) {

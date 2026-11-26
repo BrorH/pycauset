@@ -217,13 +217,14 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
   - [x] N.5.8 `Adding Types.md` rewritten around the catalogue (what a new structure or
         dtype must provide: class template, catalogue entry, typed get/set, view reader,
         persistence layout, atlas entry).
-- [ ] N.3 No silent fallbacks: the Python layer calls the engine and lets errors surface;
-      remove the "properties" dispatch layer (4.3: properties never change results).
-      Pattern (done for solve, svd/svdvals/pinv, lstsq, slogdet in session 8): one engine entry
-      that normalises to dense in the LAPACK dtype (`to_dense` + the NumPy dtype rule) and one
-      templated LAPACK kernel for float32/float64/complex64/complex128. Remaining NumPy calls in
-      `_internal/ops.py` (session 8 count, 15; inv done, F-088): inv (2), eig/eigvals (4), eigh/eigvalsh (3),
-      qr, cholesky, det, norm (ord != None), matrix_rank, svd-based cond.
+- [x] N.3 No silent fallbacks (F-090, F-091): every linear-algebra and vector-product entry
+      runs in the engine for every dtype, structure and view; `_internal/ops.py` makes no
+      NumPy computation (it imports array-likes only). Pattern: one engine entry that
+      normalises to dense in the LAPACK dtype (`to_dense` + `solve_dtype`) and one templated
+      LAPACK kernel for float32/float64/complex64/complex128 (`compute/cpu/CpuLinalg.cpp`).
+  - [ ] N.3b Remove the "properties" dispatch layer (`_effective_structure_for`: still
+        consulted by matmul result tagging and solve_triangular). Needs the maintainer's
+        call on what properties are for once they never change results.
 - [ ] N.4 The atlas CI gate proves it: the ✗ count must reach 0 and stay there.
 
 ## Phase 4: Structural cleanup (after the RESTRUCTURE decisions)

@@ -82,10 +82,6 @@ void CpuDevice::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m,
     solver_.vector_matrix_multiply(v, m, result);
 }
 
-void CpuDevice::outer_product(const VectorBase& a, const VectorBase& b, MatrixBase& result) {
-    solver_.outer_product(a, b, result);
-}
-
 void CpuDevice::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     auto& governor = core::MemoryGovernor::instance();
     size_t required = (a.size() + b.size() + result.size()) * 8; 
@@ -159,10 +155,6 @@ double CpuDevice::l2_norm(const VectorBase& v) {
 
 
 
-
-void CpuDevice::cross_product(const VectorBase& a, const VectorBase& b, VectorBase& result) {
-    solver_.cross_product(a, b, result);
-}
 
 std::unique_ptr<TriangularMatrix<double>> CpuDevice::compute_k_matrix(
     const TriangularMatrix<bool>& C,
