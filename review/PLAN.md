@@ -147,7 +147,7 @@ work from the report.
       off while timing; per-call overhead table). First run found F-081 (stale caches) and
       F-083 (fast ≠ NumPy speed). Open: wire the ≥ 0.9× NumPy target into the report as a
       gate per operation once the N.2 converter lands.
-- [~] C.4 CI: `tests/atlas/test_atlas.py` (fails on any ✗, harness error, or regression vs the
+- [x] C.4 CI: `tests/atlas/test_atlas.py` (fails on any ✗, harness error, or regression vs the
       committed `review/atlas/atlas.json.gz`; KNOWN_GAPS empty). Still to do: delete
       `support_matrix.py`, `tools/check_support_matrix.py`, superseded probes
 - [ ] C.5 Work the report down (no ✗ cells; no engine NumPy fallbacks; `generic` only where

@@ -291,36 +291,6 @@ public:
         return out;
     }
 
-    std::unique_ptr<DenseMatrix<T>> bitwise_not(const std::string& result_file = "") const {
-        if constexpr (!std::is_integral_v<T> || std::is_same_v<T, bool>) {
-            throw std::runtime_error("bitwise_not only supported for integer DenseMatrix types");
-        } else {
-            auto result = std::make_unique<DenseMatrix<T>>(rows(), cols(), result_file);
-
-            const bool full_span = row_offset() == 0 && col_offset() == 0 && !is_transposed() && rows() == base_rows() && cols() == base_cols();
-            if (full_span) {
-                const T* src = data();
-                T* dst = result->data();
-                const uint64_t total = base_rows() * base_cols();
-                pycauset::ParallelFor(0, total, [&](size_t i) { dst[i] = static_cast<T>(~src[i]); });
-            } else {
-                for (uint64_t i = 0; i < rows(); ++i) {
-                    for (uint64_t j = 0; j < cols(); ++j) {
-                        result->set(i, j, static_cast<T>(~get(i, j)));
-                    }
-                }
-            }
-
-            result->set_scalar(scalar_);
-            result->set_seed(seed_);
-            result->set_transposed(is_transposed());
-            if (result_file.empty()) {
-                result->set_temporary(true);
-            }
-            return result;
-        }
-    }
-
     std::pair<std::unique_ptr<DenseMatrix<double>>, std::unique_ptr<DenseMatrix<double>>> qr(const std::string& q_file = "",
                                                                                               const std::string& r_file = "") const {
         if (is_subview()) {

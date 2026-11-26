@@ -14,6 +14,7 @@
 #include "pycauset/vector/VectorBase.hpp"
 #include "pycauset/vector/DenseVector.hpp"
 #include "pycauset/vector/UnitVector.hpp"
+#include "pycauset/math/Bitwise.hpp"
 #include "pycauset/math/ViewValue.hpp"
 #include "pycauset/vector/ComplexFloat16Vector.hpp"
 
@@ -335,6 +336,25 @@ inline uint64_t vector_index(const VectorBase& v, py::ssize_t i) {
 // Vector arithmetic: `a op other` (or `other op a` when reflected) for another vector, a 1-D
 // NumPy array or a scalar. Everything runs through the matrix machinery (math/VectorOps.hpp),
 // so result dtypes follow NumPy and integers are exact. Anything else: NotImplemented.
+// b == nullptr: ~a.
+inline std::shared_ptr<VectorBase> vector_bitwise(const VectorBase& a, const VectorBase* b, pycauset::BitwiseOp op) {
+    try {
+        auto ra = pycauset::as_row_matrix(a);
+        std::unique_ptr<MatrixBase> out;
+        if (b == nullptr) {
+            out = pycauset::bitwise_not(*ra);
+        } else {
+            auto rb = pycauset::as_row_matrix(*b);
+            out = pycauset::bitwise(*ra, *rb, op);
+        }
+        return std::shared_ptr<VectorBase>(pycauset::as_vector(std::move(out), a.is_transposed()).release());
+    } catch (const std::domain_error& e) {
+        throw py::type_error(e.what());
+    } catch (const std::invalid_argument& e) {
+        throw py::value_error(e.what());
+    }
+}
+
 inline py::object vector_arith(const VectorBase& a, const py::object& other, Arith op, bool reflected) {
     std::shared_ptr<VectorBase> b;
     if (py::isinstance<VectorBase>(other)) {
@@ -675,6 +695,11 @@ void bind_vector_classes(py::module_& m) {
             "dot",
             [](const VectorBase& a, const std::shared_ptr<VectorBase>& b) { return vector_dot(a, *b); },
             py::arg("other"))
+        // Bitwise ops through the matrix machinery (1 x n bridge, math/Bitwise.cpp).
+        .def("__and__", [](const VectorBase& a, const VectorBase& b) { return vector_bitwise(a, &b, pycauset::BitwiseOp::And); }, py::is_operator())
+        .def("__or__", [](const VectorBase& a, const VectorBase& b) { return vector_bitwise(a, &b, pycauset::BitwiseOp::Or); }, py::is_operator())
+        .def("__xor__", [](const VectorBase& a, const VectorBase& b) { return vector_bitwise(a, &b, pycauset::BitwiseOp::Xor); }, py::is_operator())
+        .def("__invert__", [](const VectorBase& a) { return vector_bitwise(a, nullptr, pycauset::BitwiseOp::And); }, py::is_operator())
         .def("__add__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Add, false); }, py::is_operator())
         .def("__radd__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Add, true); }, py::is_operator())
         .def("__sub__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Sub, false); }, py::is_operator())

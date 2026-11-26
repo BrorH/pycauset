@@ -9,6 +9,9 @@ milestone corresponds to **v0.6.1**.
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
 ### Changed
+- `&`, `|`, `^`, `~` work for bool and integer matrices and vectors of every structure and
+  view, with NumPy's dtype rules (`pc.bitwise_and` on integers is an integer operation; it
+  used to cast to bool). Float/complex operands raise `TypeError`.
 - `TriangularMatrix(n, dtype="bool", has_diagonal=True)`: bit triangles with a diagonal.
   `UnitVector(n, k, dtype=...)` for every dtype.
 - `invert` / `inverse` run in the engine for every dtype, structure and view (NumPy's

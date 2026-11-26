@@ -1,22 +1,36 @@
 # pycauset.bitwise_and
 
 ```python
-pycauset.bitwise_and(a, b)
+pycauset.bitwise_and(a, b)    # a & b
 ```
 
-Elementwise bitwise AND of two bit matrices or bit vectors.
+Element-wise bitwise AND (`a & b`). For matrices and vectors of dtype `bool` or an integer dtype.
+
+Works for every structure and view (results are dense); operands of equal shape.
+
+dtype rule (NumPy): `bool` op `bool` is `bool`; integer operands promote as NumPy does
+(`int8` op `uint8` is `int16`; `bool` op `int32` is `int32`). Float and complex operands
+raise `TypeError`, as in NumPy.
 
 ## Parameters
 
-*   **a** (matrix or vector): First operand.
-*   **b** (matrix or vector): Second operand.
+*   **a**, **b** (matrix or vector): operands of equal shape.
 
 ## Returns
 
-A bit matrix or bit vector (`DenseMatrix` (dtype `bool`) / `DenseVector` (dtype `bool`)).
+A dense matrix (or vector) of the result dtype.
+
+## Example
+
+```python
+import pycauset as pc
+import numpy as np
+
+a = pc.matrix(np.array([[1, 2], [3, 4]], dtype=np.int8))
+b = pc.matrix(np.array([[3, 3], [3, 3]], dtype=np.int8))
+print(pc.bitwise_and(a, b))
+```
 
 ## See also
 
-* [[docs/functions/pycauset.bitwise_or.md|pycauset.bitwise_or]]
-* [[docs/functions/pycauset.bitwise_xor.md|pycauset.bitwise_xor]]
-* [[docs/functions/pycauset.bitwise_not.md|pycauset.bitwise_not]]
+[[docs/functions/pycauset.bitwise_or.md|bitwise_or]] · [[docs/functions/pycauset.bitwise_xor.md|bitwise_xor]] · [[docs/functions/pycauset.bitwise_nand.md|bitwise_nand]] · [[docs/functions/pycauset.bitwise_nor.md|bitwise_nor]] · [[docs/functions/pycauset.bitwise_xnor.md|bitwise_xnor]] · [[docs/functions/pycauset.bitwise_not.md|bitwise_not]]

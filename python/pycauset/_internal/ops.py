@@ -450,60 +450,26 @@ def compute_k(matrix: Any, a: float, *, deps: OpsDeps) -> Any:
 
 
 def bitwise_not(matrix: Any, *, deps: OpsDeps) -> Any:
-    if hasattr(matrix, "__invert__"):
-        return ~matrix
-
-    np_module = deps.np_module
-    if np_module is not None:
-        try:
-            return np_module.invert(matrix)
-        except Exception:
-            pass
-
-    raise TypeError("Object does not support bitwise inversion.")
-
-
-def _bitwise_binop(a: Any, b: Any, kind: str, *, deps: OpsDeps) -> Any:
-    """Bitwise AND/OR/XOR that always returns a bit structure."""
-    op_name = {"and": "__and__", "or": "__or__", "xor": "__xor__"}[kind]
-    fn = getattr(a, op_name, None)
-    if callable(fn):
-        try:
-            result = fn(b)
-            _track_and_mark_temporary_if_native(result, deps=deps)
-            return result
-        except Exception:
-            pass
-
-    np_module = deps.np_module
-    if np_module is None:
-        raise RuntimeError(f"bitwise_{kind} requires NumPy")
-    a_np = np_module.asarray(_to_numpy_matrix(a, deps=deps)).astype(bool)
-    b_np = np_module.asarray(_to_numpy_matrix(b, deps=deps)).astype(bool)
-    fn_np = {"and": np_module.bitwise_and, "or": np_module.bitwise_or,
-             "xor": np_module.bitwise_xor}[kind]
-    result = fn_np(a_np, b_np)
-    if result.ndim == 1:
-        return _as_pycauset_vector(result, deps=deps)
-    return _as_pycauset_array(result, deps=deps)
+    """~x (NumPy invert): logical not for bool, bitwise not for integers. Engine only."""
+    return ~matrix
 
 
 def bitwise_and(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Elementwise bitwise AND. Always returns a bit matrix or bit vector."""
+    """a & b with NumPy's dtype rules (bool & bool is bool; integers promote). Engine only."""
     _record_io_trace("bitwise_and", [a, b], deps=deps)
-    return _bitwise_binop(a, b, "and", deps=deps)
+    return a & b
 
 
 def bitwise_or(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Elementwise bitwise OR. Always returns a bit matrix or bit vector."""
+    """a | b with NumPy's dtype rules. Engine only."""
     _record_io_trace("bitwise_or", [a, b], deps=deps)
-    return _bitwise_binop(a, b, "or", deps=deps)
+    return a | b
 
 
 def bitwise_xor(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Elementwise bitwise XOR. Always returns a bit matrix or bit vector."""
+    """a ^ b with NumPy's dtype rules. Engine only."""
     _record_io_trace("bitwise_xor", [a, b], deps=deps)
-    return _bitwise_binop(a, b, "xor", deps=deps)
+    return a ^ b
 
 
 def bitwise_nand(a: Any, b: Any, *, deps: OpsDeps) -> Any:

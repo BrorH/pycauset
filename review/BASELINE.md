@@ -96,9 +96,9 @@ Importing pycauset from the staged copy *before* pytest runs makes the tests' ow
 
 ### Probes (review/probes/)
 ```bash
-PYTHONPATH=python python review/probes/dtype_matrix_probe.py --verbose   # dtype × op vs NumPy
-PYTHONPATH=python python review/probes/numpy_fallback_probe.py           # which ops call numpy.linalg
-PYTHONPATH=python python review/probes/out_of_core_probe.py              # forced-disk correctness
+PYTHONPATH=python python -m tests.atlas.report        # every op x dtype x structure x view x storage vs NumPy
+                                                      # (replaced the dtype, NumPy-fallback and out-of-core probes)
+PYTHONPATH=python python -m tests.atlas.timing        # speed vs NumPy
 PYTHONPATH=$PWD/python python review/probes/run_doc_snippets.py          # execute doc examples
 ```
 ⚠ **Disk:** doc examples allocate large matrices (one asks for a 1M-element causal

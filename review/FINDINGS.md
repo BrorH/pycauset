@@ -1077,3 +1077,23 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Build-procedure trap found on the way: editing a source while its compile runs leaves an
   object newer than the source but with the old code (make keeps it); noted in CLAUDE.md.
 - Atlas 77,372 cells, 0 ✗, ok 37,806 (35,282 before N.5.6/7); NumPy round trips 4,906 → 4,209.
+
+### F-089 Bitwise & | ^ existed for dense bool matrices only
+- **Status:** fixed (session 8; first operation family built with the Adding Operations
+  protocol from scratch). `&`, `|`, `^` were bound on the DenseMatrix class only and accepted
+  only DenseMatrix<bool>: every integer dtype and every structured matrix raised (~1,300 of
+  the atlas's 1,420 unsupported cells). `pc.bitwise_and/or/xor` swallowed that error, fell
+  back to NumPy and cast to bool ("always returns a bit structure", contradicting NumPy on
+  integers). `~` dispatched to per-class `bitwise_not` methods.
+- Fix: `math/Bitwise.cpp` (own translation unit): `bitwise(a, b, op)` and `bitwise_not(a)`.
+  Result dtype: NumPy's (bool op bool is bool; integers promote; signed with uint64 and
+  float/complex operands raise TypeError, as NumPy). Normaliser: plain packed bits for bool
+  results (word-level kernel, 64 elements per operation), the shared typed `to_dense` for
+  integer results; one flat loop per integer type. Bound on MatrixBase and VectorBase (1 x n
+  bridge); the Python wrappers are thin; nand/nor/xnor are ~(a op b). Deleted: the dense-only
+  `bit_binary`, `DenseMatrix<T>::bitwise_not`, `TriangularMatrix<T>::bitwise_not`, the NumPy
+  fallbacks.
+- Atlas: unsupported 1,420 → 103; the 103 are exactly the two recorded decisions (integer
+  matmul overflow raises, F-055: 79; signed ⊕ uint64 raises, F-035b: 24). ok cells 39,123.
+- Also: the hand-maintained support matrix (`support_matrix.py`, its checker and test) and the
+  three probes the atlas superseded are deleted (PLAN C.4).

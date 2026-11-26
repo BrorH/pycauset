@@ -138,24 +138,17 @@ This declaration is part of the operation’s contract (and is tested).
 
 ## 7) Signed/unsigned mixing
 
-Unsigned integers are supported (`uint8/16/32/64`).
+Unsigned integers are supported (`uint8/16/32/64`). Mixing signed and unsigned operands follows
+NumPy: the result is the narrowest signed integer that holds both ranges (`uint32 + int32 ->
+int64`, `int8 & uint8 -> int16`). No integer holds a signed range and uint64's: NumPy then
+gives `float64`, which silently rounds above 2^53, so PyCauset raises instead (decision F-035b;
+to be resolved exactly with value bounds, review Phase F1). Bitwise operations raise
+`TypeError` there, as NumPy does.
 
-When mixing signed and unsigned integer operands, PyCauset selects a supported result dtype that can represent the required numeric range.
+## 8) Coverage and enforcement
 
-Important consequences:
-
-- Result dtypes are restricted to the supported widths (8/16/32/64). PyCauset will not invent intermediate 33-bit or 65-bit integers.
-- Some mixed signed/unsigned operations will promote to the next wider signed integer type.
-
-Example (typical outcome):
-
-- `uint32 + int32 -> int64`
-
-## 8) Support matrix + enforcement
-
-PyCauset's dtype coverage is declared and enforced via an executable support matrix (ops x dtypes x rank).
-
-- The declared matrix lives in `pycauset._internal.support_matrix`.
-- The enforcement test is `tests/python/test_support_matrix.py`.
-
-User-facing documentation should describe the intended behavior, but the support matrix is the no-regressions gate that ensures what is claimed is actually implemented.
+Which (structure, dtype) pairs exist is decided by one catalogue
+(`include/pycauset/core/DTypeDispatch.hpp`, see the Adding Types protocol). What every
+operation does on every pair, view and storage mode is enumerated against NumPy by the
+operation atlas (`tests/atlas/`, report in `review/atlas/ATLAS.md`); its CI test fails on any
+wrong result or regression. (The hand-maintained support matrix it replaced is removed.)

@@ -205,40 +205,6 @@ public:
         return out;
     }
 
-    std::unique_ptr<TriangularMatrix<T>> bitwise_not(const std::string& result_file = "") const {
-        const uint64_t n = rows();
-        auto result = std::make_unique<TriangularMatrix<T>>(n, result_file, has_diagonal_);
-        
-        const T* src_data = data();
-        T* dst_data = result->data();
-        
-        for (uint64_t i = 0; i < n; ++i) {
-            uint64_t row_len = has_diagonal_ ? ((n > i) ? (n - i) : 0) : ((n > i) ? (n - 1 - i) : 0);
-            if (row_len == 0) continue;
-            
-            uint64_t row_offset_bytes = get_row_offset(i);
-            const T* row_src = reinterpret_cast<const T*>(
-                reinterpret_cast<const char*>(src_data) + row_offset_bytes);
-            T* row_dst = reinterpret_cast<T*>(
-                reinterpret_cast<char*>(dst_data) + row_offset_bytes);
-                
-            if constexpr (std::is_floating_point_v<T>) {
-                 const uint64_t* src_bits = reinterpret_cast<const uint64_t*>(row_src);
-                 uint64_t* dst_bits = reinterpret_cast<uint64_t*>(row_dst);
-                 for (uint64_t k = 0; k < row_len; ++k) {
-                     dst_bits[k] = ~src_bits[k];
-                 }
-            } else {
-                for (uint64_t k = 0; k < row_len; ++k) {
-                    row_dst[k] = ~row_src[k];
-                }
-            }
-        }
-        
-        result->set_scalar(scalar_);
-        return result;
-    }
-
 };
 
 } // namespace pycauset

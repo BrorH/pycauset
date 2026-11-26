@@ -1,19 +1,19 @@
 # pycauset.bitwise_not
 
 ```python
-pycauset.bitwise_not(matrix: Any) -> Any
+pycauset.bitwise_not(a)    # ~a
 ```
 
-Compute the bitwise inversion (NOT) of a matrix.
+Element-wise NOT (NumPy's `invert`): logical not for dtype `bool`, two's-complement not for
+integer dtypes (`~5 == -6` in `int8`). Works for every structure and view; the result is
+dense (the complement of a triangular matrix is not triangular). Float and complex operands
+raise `TypeError`.
 
-## Parameters
+## Example
 
-*   **matrix** (*MatrixBase* or *array-like*): The matrix to invert. Must be a `TriangularMatrix` (dtype `bool`), `DenseMatrix` (dtype `int32`), or similar bit-supporting type.
+```python
+import pycauset as pc
 
-## Returns
-
-*   **MatrixBase** or *array-like*: A new matrix with inverted bits.
-
-## Raises
-
-*   **TypeError**: If the object does not support bitwise inversion.
+C = pc.causal_matrix(4)
+not_c = ~C          # dense bool: True below the diagonal and on it
+```

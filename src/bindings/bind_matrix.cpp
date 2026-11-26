@@ -1,5 +1,6 @@
 #include "pycauset/math/ScalarOps.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/math/Bitwise.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
 #include <cmath>
 #include <limits>
@@ -1418,41 +1419,20 @@ inline void matrixbase_setitem_dispatch(MatrixBase& mat, const py::object& key, 
     });
 }
 
-inline std::shared_ptr<MatrixBase> matrix_inverse(const MatrixBase& mat) {
-    return std::shared_ptr<MatrixBase>(pycauset::inverse(mat).release());  // one entry (LinearAlgebra.cpp)
+// Bitwise ops (math/Bitwise.cpp): a float/complex operand is a TypeError, as in NumPy.
+template <typename F>
+inline std::shared_ptr<MatrixBase> bitwise_call(F&& f) {
+    try {
+        return std::shared_ptr<MatrixBase>(f().release());
+    } catch (const std::domain_error& e) {
+        throw py::type_error(e.what());
+    } catch (const std::invalid_argument& e) {
+        throw py::value_error(e.what());
+    }
 }
 
-inline std::shared_ptr<MatrixBase> bit_binary(const MatrixBase& a, const MatrixBase& b, char op) {
-    const auto* x = dynamic_cast<const DenseBitMatrix*>(&a);
-    const auto* y = dynamic_cast<const DenseBitMatrix*>(&b);
-    if (x == nullptr || y == nullptr) {
-        throw py::type_error(std::string("bitwise ") + op + " is supported for dense matrices of dtype 'bool'");
-    }
-    if (x->rows() != y->rows() || x->cols() != y->cols()) {
-        throw py::value_error("matrix dimensions must match for bitwise operations");
-    }
-    auto out = std::make_shared<DenseBitMatrix>(x->rows(), x->cols(), "");
-    // Word-level fast path for plain storage (64 elements per operation); lost in the
-    // structure-class rewrite and restored (F-054).
-    if (!x->is_transposed() && !y->is_transposed() && !x->is_subview() && !y->is_subview() &&
-        x->rows() == x->base_rows() && x->cols() == x->base_cols() &&
-        y->rows() == y->base_rows() && y->cols() == y->base_cols() && x->shared_mapper() && y->shared_mapper()) {
-        const uint64_t* pa = x->data();
-        const uint64_t* pb = y->data();
-        uint64_t* pcw = out->data();
-        const uint64_t words = x->stride_bytes() * x->rows() / 8;
-        pycauset::ParallelFor(0, words, [&](size_t w) {
-            pcw[w] = op == '&' ? (pa[w] & pb[w]) : op == '|' ? (pa[w] | pb[w]) : (pa[w] ^ pb[w]);
-        });
-        return out;
-    }
-    for (uint64_t i = 0; i < x->rows(); ++i) {
-        for (uint64_t j = 0; j < x->cols(); ++j) {
-            const bool p = x->get(i, j), q = y->get(i, j);
-            out->set(i, j, op == '&' ? (p && q) : op == '|' ? (p || q) : (p != q));
-        }
-    }
-    return out;
+inline std::shared_ptr<MatrixBase> matrix_inverse(const MatrixBase& mat) {
+    return std::shared_ptr<MatrixBase>(pycauset::inverse(mat).release());  // one entry (LinearAlgebra.cpp)
 }
 
 // Construct a structure of a dtype given by name, through the one factory.
@@ -2181,25 +2161,17 @@ void bind_matrix_classes(py::module_& m) {
                 }
             });
         }, py::arg("value"))
-        .def("__invert__", [](const MatrixBase& mat_in) -> std::shared_ptr<MatrixBase> {
-            // bitwise_not reads raw storage of a dense matrix: write views out (F-042), and
-            // structured matrices too: ~ of a triangle is not triangular (NumPy complements
-            // every element; ~C of a causal matrix kept only the stored triangle, F-074).
-            std::unique_ptr<MatrixBase> plain;
-            if (pycauset::is_integer_or_bit(mat_in.get_data_type()) &&
-                (mat_in.get_structure() != Structure::DENSE || !pycauset::is_plain(mat_in))) {
-                plain = pycauset::write_out(mat_in);
-            }
-            const MatrixBase& mat = plain ? *plain : mat_in;
-            return pycauset::visit_matrix(mat, [&](const auto& typed) -> std::shared_ptr<MatrixBase> {
-                using E = element_of_t<std::decay_t<decltype(typed)>>;
-                if constexpr (std::is_integral_v<E> && requires { typed.bitwise_not(std::string()); }) {
-                    return std::shared_ptr<MatrixBase>(typed.bitwise_not("").release());
-                } else {
-                    throw py::type_error(std::string("~ (bitwise not) is not supported for ") + describe(mat));
-                }
-            });
-        }, py::is_operator())
+        .def("__invert__", [](const MatrixBase& a) { return bitwise_call([&] { return pycauset::bitwise_not(a); }); },
+             py::is_operator())
+        .def("__and__", [](const MatrixBase& a, const MatrixBase& b) {
+                 return bitwise_call([&] { return pycauset::bitwise(a, b, pycauset::BitwiseOp::And); });
+             }, py::is_operator())
+        .def("__or__", [](const MatrixBase& a, const MatrixBase& b) {
+                 return bitwise_call([&] { return pycauset::bitwise(a, b, pycauset::BitwiseOp::Or); });
+             }, py::is_operator())
+        .def("__xor__", [](const MatrixBase& a, const MatrixBase& b) {
+                 return bitwise_call([&] { return pycauset::bitwise(a, b, pycauset::BitwiseOp::Xor); });
+             }, py::is_operator())
         .def_property_readonly("is_lazy", [](const MatrixBase& mat) {
             if (auto* c = dynamic_cast<const pycauset::BitClosureMatrix*>(&mat)) {
                 if (!c->is_materialized()) return true;
@@ -2239,9 +2211,6 @@ void bind_matrix_classes(py::module_& m) {
                 }
             });
         })
-        .def("__and__", [](const MatrixBase& a, const MatrixBase& b) { return bit_binary(a, b, '&'); }, py::is_operator())
-        .def("__or__", [](const MatrixBase& a, const MatrixBase& b) { return bit_binary(a, b, '|'); }, py::is_operator())
-        .def("__xor__", [](const MatrixBase& a, const MatrixBase& b) { return bit_binary(a, b, '^'); }, py::is_operator())
         .def_static(
             "random",
             [](uint64_t rows, std::optional<uint64_t> cols, double p, std::optional<uint64_t> seed) {
