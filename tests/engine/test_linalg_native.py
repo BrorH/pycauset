@@ -161,10 +161,15 @@ def test_outer_any_lengths_numpy_dtype(da, db):
     rng = np.random.default_rng(7)
     a = rng.integers(0, 100, 4).astype(da)
     b = rng.integers(0, 100, 6).astype(db)
-    got = pc.outer(pc.vector(a), pc.vector(b))
+    x, y = pc.vector(a), pc.vector(b)
+    got = pc.outer(x, y)
     want = np.outer(a, b)
-    assert got.dtype == _pc(want.dtype)
-    np.testing.assert_array_equal(to_np(got), want)  # integers wrap as NumPy's
+    # The engine's multiply dtype (NumPy's, except within-float under-promotion, F-034).
+    assert got.dtype == pc._debug_resolve_promotion("elementwise_multiply", x.dtype, y.dtype)["result_dtype"].replace("bit", "bool")
+    if want.dtype.kind in "biu":
+        np.testing.assert_array_equal(to_np(got), want)  # integers wrap as NumPy's
+    else:
+        np.testing.assert_allclose(to_np(got), want, rtol=1e-3)
 
 
 def test_outer_of_views():

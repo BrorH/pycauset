@@ -307,8 +307,10 @@ std::unique_ptr<MatrixBase> outer_product(const VectorBase& a, const VectorBase&
     const uint64_t n = a.size(), m = b.size();
     const DataType r = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, a.get_data_type(), b.get_data_type()).result_dtype;
     const DataType c = r == DataType::FLOAT16 ? DataType::FLOAT32 : r == DataType::COMPLEX_FLOAT16 ? DataType::COMPLEX_FLOAT32 : r;
-    auto ra = to_dense(*as_row_matrix(a), c);
-    auto rb = to_dense(*as_row_matrix(b), c);
+    // bool result: both operands are bool; write_out keeps packed bits (to_dense has no bit target).
+    auto row = [c](const VectorBase& v) { return c == DataType::BIT ? write_out(*as_row_matrix(v)) : to_dense(*as_row_matrix(v), c); };
+    auto ra = row(a);
+    auto rb = row(b);
     auto out = ObjectFactory::create_matrix(n, m, c, Structure::DENSE, c == r ? result_file : std::string());
     debug_trace::set_last("cpu.outer");
     if (c == DataType::BIT) {

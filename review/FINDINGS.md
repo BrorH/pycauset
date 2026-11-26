@@ -1128,6 +1128,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   array when every eigenvalue happens to be real: a value-dependent dtype); `qr(mode='raw')`
   is not offered; `cholesky` of a non-positive-definite matrix raises ValueError (NumPy's
   LinAlgError is one).
+- Atlas: 79,781 cells (new ops eig, eigh), 0 ✗; NumPy round trips 4,209 → 0; ok 39,123 →
+  41,570; unsupported 103 (the two recorded decisions).
 
 ### F-091 File-backed operands made matmul and invert run in Python through NumPy
 - **Status:** fixed (session 8). The IO observer routes any file-backed operand (or one

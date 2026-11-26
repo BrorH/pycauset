@@ -381,3 +381,12 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   dtype pairs + Hermitian/skew-Hermitian; the new pairs found 5 existing bugs (45 atlas ✗),
   all fixed at the root. Atlas 77,372 cells, 0 ✗.
 
+- N.3 (F-090, F-091): every linear-algebra and vector-product entry in the engine.
+  `CpuLinalg.cpp` templated LAPACK kernels (eigh, eig, cholesky, qr, lu) for the four
+  LAPACK dtypes; native pinv, qr modes, outer (any lengths), cross, norm(ord), matrix_rank,
+  cond. `_internal/ops.py` makes no NumPy computation. Found on the way: matrix_rank of a
+  triangular matrix counted its diagonal (every causal matrix had rank 0); four property
+  shortcuts changed results; file-backed operands sent matmul/invert through a per-element
+  NumPy path (float results). New atlas ops eig, eigh (residual checks; eigh against the
+  Hermitian matrix of the lower triangle, as LAPACK reads it). Atlas 79,781 cells: 0 ✗,
+  NumPy round trips 4,209 -> 0, ok 39,123 -> 41,570 (lu's 908 raises gone).
