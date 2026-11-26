@@ -29,6 +29,7 @@
 #include <functional>
 #include <iostream>
 #include <complex>
+#include <limits>
 
 namespace pycauset {
 
@@ -569,19 +570,49 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     return res;
 }
 
+// Result dtype of solve/svd (LAPACK dtypes), NumPy's rule: integers and bit solve in float64, float16/float32 in
+// float32, complex stays complex (complex64 only when nothing needs double precision).
+static DataType solve_dtype(DataType a, DataType b) {
+    auto cplx = [](DataType d) {
+        return d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 || d == DataType::COMPLEX_FLOAT64;
+    };
+    auto single = [](DataType d) {
+        return d == DataType::FLOAT16 || d == DataType::FLOAT32 || d == DataType::COMPLEX_FLOAT16 ||
+               d == DataType::COMPLEX_FLOAT32;
+    };
+    const bool sp = single(a) && single(b);
+    if (cplx(a) || cplx(b)) return sp ? DataType::COMPLEX_FLOAT32 : DataType::COMPLEX_FLOAT64;
+    return sp ? DataType::FLOAT32 : DataType::FLOAT64;
+}
+
+// The LAPACK kernels (compute/cpu/CpuLinalg.cpp) read a plain dense matrix in a LAPACK dtype;
+// every other dtype, structure and view is written out with the shared typed reader first.
+static std::unique_ptr<MatrixBase> lapack_input(const MatrixBase& a, DataType& dt) {
+    dt = solve_dtype(a.get_data_type(), a.get_data_type());
+    if (a.get_structure() == Structure::DENSE && a.get_data_type() == dt && is_plain(a)) return nullptr;
+    return to_dense(a, dt);
+}
+
+static DataType real_dtype(DataType d) {
+    return d == DataType::COMPLEX_FLOAT32 ? DataType::FLOAT32 : d == DataType::COMPLEX_FLOAT64 ? DataType::FLOAT64 : d;
+}
+
+static DataType complex_dtype(DataType d) {
+    return d == DataType::FLOAT32 ? DataType::COMPLEX_FLOAT32 : d == DataType::FLOAT64 ? DataType::COMPLEX_FLOAT64 : d;
+}
+
+static void require_square(const MatrixBase& a, const char* op) {
+    if (a.rows() != a.cols()) throw std::invalid_argument(std::string(op) + ": matrix must be square");
+}
+
+// Cholesky, NumPy's cholesky: lower L with A = L L^H, reading the lower triangle; any dtype,
+// structure and view in the LAPACK dtype. Not positive definite: std::domain_error.
 std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& result_file) {
-    if (!is_plain(a)) return cholesky(*write_out(a), result_file);  // kernels read storage (F-062)
-    if (a.rows() != a.cols()) {
-        throw std::invalid_argument("cholesky: matrix must be square");
-    }
-
-    const DataType dtype = a.get_data_type();
-    if (dtype != DataType::FLOAT32 && dtype != DataType::FLOAT64) {
-        throw std::runtime_error("cholesky: only float32/float64 are supported");
-    }
-
-    auto out = ObjectFactory::create_matrix(a.rows(), a.cols(), dtype, Structure::DENSE, result_file);
-    ComputeContext::instance().get_device()->cholesky(a, *out);
+    require_square(a, "cholesky");
+    DataType dt;
+    auto h = lapack_input(a, dt);
+    auto out = ObjectFactory::create_matrix(a.rows(), a.cols(), dt, Structure::DENSE, result_file);
+    ComputeContext::instance().get_device()->cholesky(h ? *h : a, *out);
     return out;
 }
 
@@ -616,37 +647,16 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique
     return std::make_tuple(std::move(p), std::move(l), std::move(u));
 }
 
-std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const MatrixBase& a, const std::string& result_file)
-{
-    if (!is_plain(a)) return qr(*write_out(a), result_file);  // kernels read storage (F-062)
-    uint64_t m = a.rows();
-    uint64_t n = a.cols();
-    uint64_t k = std::min(m, n);
-    
-    DataType dtype = a.get_data_type();
-
-    // Mode 'reduced' is typical default. Q is (M, K), R is (K, N).
-    auto q = ObjectFactory::create_matrix(m, k, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_q");
-    auto r = ObjectFactory::create_matrix(k, n, dtype, Structure::DENSE, result_file.empty() ? "" : result_file + "_r");
-
-    ComputeContext::instance().get_device()->qr(a, *q, *r);
-    
+// QR, NumPy's qr: reduced Q (m, k) and R (k, n), or complete Q (m, m) and R (m, n); any dtype,
+// structure and view in the LAPACK dtype.
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const MatrixBase& a, bool complete) {
+    DataType dt;
+    auto h = lapack_input(a, dt);
+    const uint64_t m = a.rows(), n = a.cols(), k = complete ? m : std::min(m, n);
+    auto q = ObjectFactory::create_matrix(m, k, dt, Structure::DENSE, "");
+    auto r = ObjectFactory::create_matrix(k, n, dt, Structure::DENSE, "");
+    ComputeContext::instance().get_device()->qr(h ? *h : a, *q, *r);
     return std::make_tuple(std::move(q), std::move(r));
-}
-
-// Result dtype of solve/svd (LAPACK dtypes), NumPy's rule: integers and bit solve in float64, float16/float32 in
-// float32, complex stays complex (complex64 only when nothing needs double precision).
-static DataType solve_dtype(DataType a, DataType b) {
-    auto cplx = [](DataType d) {
-        return d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 || d == DataType::COMPLEX_FLOAT64;
-    };
-    auto single = [](DataType d) {
-        return d == DataType::FLOAT16 || d == DataType::FLOAT32 || d == DataType::COMPLEX_FLOAT16 ||
-               d == DataType::COMPLEX_FLOAT32;
-    };
-    const bool sp = single(a) && single(b);
-    if (cplx(a) || cplx(b)) return sp ? DataType::COMPLEX_FLOAT32 : DataType::COMPLEX_FLOAT64;
-    return sp ? DataType::FLOAT32 : DataType::FLOAT64;
 }
 
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(
@@ -846,108 +856,89 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig_skew(
     return std::make_pair(std::move(w), std::move(v));
 }
 
-// Eigen-results follow the input's precision (NumPy; under-promotion, F-047): computed in
-// double, returned as float32 / complex64 for float32 / complex64 input.
-static bool is_single_precision(const MatrixBase& in) {
-    return in.get_data_type() == DataType::FLOAT32 || in.get_data_type() == DataType::COMPLEX_FLOAT32;
+// Eigen decompositions, NumPy's eig / eigvals / eigh / eigvalsh: any dtype, structure and view
+// in the LAPACK dtype (float16 and float32 in single precision, as NumPy). eig: complex
+// eigenvalues and right eigenvectors (?geev); eigh: real ascending eigenvalues of the lower
+// triangle (?syevd / ?heevd) and eigenvectors in the input's LAPACK dtype.
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in, const std::string&) {
+    require_square(in, "eig");
+    DataType dt;
+    auto h = lapack_input(in, dt);
+    const uint64_t n = in.rows();
+    auto w = ObjectFactory::create_vector(n, complex_dtype(dt), Structure::VECTOR, "");
+    auto v = ObjectFactory::create_matrix(n, n, complex_dtype(dt), Structure::DENSE, "");
+    ComputeContext::instance().get_device()->eig(h ? *h : in, *w, *v);
+    return std::make_pair(std::move(w), std::move(v));
 }
 
-// The CPU eigensolvers take double precision; other inputs (float32, float16, integers, bits,
-// complex64) are converted first. Returns nullptr when `in` is already double precision.
-static std::unique_ptr<MatrixBase> as_double_precision(const MatrixBase& in) {
-    const DataType dt = in.get_data_type();
-    if (dt == DataType::FLOAT64 || dt == DataType::COMPLEX_FLOAT64) return nullptr;
-    const bool complex = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32;
-    return cast_to(in, complex ? DataType::COMPLEX_FLOAT64 : DataType::FLOAT64);
+std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string&) {
+    require_square(in, "eigvals");
+    DataType dt;
+    auto h = lapack_input(in, dt);
+    auto w = ObjectFactory::create_vector(in.rows(), complex_dtype(dt), Structure::VECTOR, "");
+    ComputeContext::instance().get_device()->eigvals(h ? *h : in, *w);
+    return w;
 }
 
-static std::unique_ptr<VectorBase> narrow_vector(std::unique_ptr<VectorBase> v, bool single) {
-    if (!single) return v;
-    const uint64_t n = v->size();
-    const DataType dt = v->get_data_type();
-    if (dt == DataType::FLOAT64) {
-        auto out = std::make_unique<DenseVector<float>>(n, "");
-        for (uint64_t i = 0; i < n; ++i) out->set(i, static_cast<float>(v->get_element_as_double(i)));
-        return out;
-    }
-    if (dt == DataType::COMPLEX_FLOAT64) {
-        auto out = std::make_unique<DenseVector<std::complex<float>>>(n, "");
-        for (uint64_t i = 0; i < n; ++i) out->set(i, static_cast<std::complex<float>>(v->get_element_as_complex(i)));
-        return out;
-    }
-    return v;
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in, const std::string&) {
+    require_square(in, "eigh");
+    DataType dt;
+    auto h = lapack_input(in, dt);
+    const uint64_t n = in.rows();
+    auto w = ObjectFactory::create_vector(n, real_dtype(dt), Structure::VECTOR, "");
+    auto v = ObjectFactory::create_matrix(n, n, dt, Structure::DENSE, "");
+    ComputeContext::instance().get_device()->eigh(h ? *h : in, *w, *v, 'L');
+    return std::make_pair(std::move(w), std::move(v));
 }
 
-static std::unique_ptr<MatrixBase> narrow_matrix(std::unique_ptr<MatrixBase> m, bool single) {
-    if (!single) return m;
-    const DataType dt = m->get_data_type();
-    if (dt == DataType::FLOAT64) return cast_to(*m, DataType::FLOAT32);
-    if (dt == DataType::COMPLEX_FLOAT64) return cast_to(*m, DataType::COMPLEX_FLOAT32);
-    return m;
+std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string&) {
+    require_square(in, "eigvalsh");
+    DataType dt;
+    auto h = lapack_input(in, dt);
+    auto w = ObjectFactory::create_vector(in.rows(), real_dtype(dt), Structure::VECTOR, "");
+    ComputeContext::instance().get_device()->eigvalsh(h ? *h : in, *w, 'L');
+    return w;
 }
 
-std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in, const std::string& result_file) {
-    if (!is_plain(in)) return eig(*write_out(in), result_file);  // kernels read storage (F-062)
-    if (auto d = as_double_precision(in)) {
-        auto r = eig(*d, result_file);
-        return {narrow_vector(std::move(r.first), is_single_precision(in)), narrow_matrix(std::move(r.second), is_single_precision(in))};
-    }
-    if (in.rows() != in.cols()) {
-        throw std::invalid_argument("eig: matrix must be square");
-    }
-    uint64_t n = in.rows();
-    auto w = ObjectFactory::create_vector(n, DataType::COMPLEX_FLOAT64, Structure::VECTOR, result_file.empty() ? "" : result_file + "_vals");
-    auto v = ObjectFactory::create_matrix(n, n, DataType::COMPLEX_FLOAT64, Structure::DENSE, result_file.empty() ? "" : result_file + "_vecs");
-    
-    ComputeContext::instance().get_device()->eig(in, *w, *v);
-    return std::make_pair(narrow_vector(std::move(w), is_single_precision(in)), narrow_matrix(std::move(v), is_single_precision(in)));
-}
-
-std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string& result_file) {
-    if (!is_plain(in)) return eigvals(*write_out(in), result_file);  // kernels read storage (F-062)
-    if (auto d = as_double_precision(in)) return narrow_vector(eigvals(*d, result_file), is_single_precision(in));
-    if (in.rows() != in.cols()) {
-        throw std::invalid_argument("eigvals: matrix must be square");
-    }
-    uint64_t n = in.rows();
-    auto w = ObjectFactory::create_vector(n, DataType::COMPLEX_FLOAT64, Structure::VECTOR, result_file);
-    ComputeContext::instance().get_device()->eigvals(in, *w);
-    return narrow_vector(std::move(w), is_single_precision(in));
-}
-
-std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in, const std::string& result_file) {
-    if (!is_plain(in)) return eigh(*write_out(in), result_file);  // kernels read storage (F-062)
-    if (auto d = as_double_precision(in)) {
-        auto r = eigh(*d, result_file);
-        return {narrow_vector(std::move(r.first), is_single_precision(in)), narrow_matrix(std::move(r.second), is_single_precision(in))};
-    }
-    if (in.rows() != in.cols()) {
-        throw std::invalid_argument("eigh: matrix must be square");
-    }
-    uint64_t n = in.rows();
-    // eigh returns real eigenvalues for Hermitian matrices
-    auto w = ObjectFactory::create_vector(n, DataType::FLOAT64, Structure::VECTOR, result_file.empty() ? "" : result_file + "_vals");
-    // Check if input is complex to determine eigenvector type
-    // If input is real/symmetric, eigenvectors are real. If complex/hermitian, complex.
-    DataType v_type = (in.get_data_type() == DataType::COMPLEX_FLOAT32 || in.get_data_type() == DataType::COMPLEX_FLOAT64) 
-                      ? DataType::COMPLEX_FLOAT64 : DataType::FLOAT64;
-
-    auto v = ObjectFactory::create_matrix(n, n, v_type, Structure::DENSE, result_file.empty() ? "" : result_file + "_vecs");
-    
-    ComputeContext::instance().get_device()->eigh(in, *w, *v, 'L');
-    return std::make_pair(narrow_vector(std::move(w), is_single_precision(in)), narrow_matrix(std::move(v), is_single_precision(in)));
-}
-
-std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string& result_file) {
-    if (!is_plain(in)) return eigvalsh(*write_out(in), result_file);  // kernels read storage (F-062)
-    if (auto d = as_double_precision(in)) return narrow_vector(eigvalsh(*d, result_file), is_single_precision(in));
-    if (in.rows() != in.cols()) {
-        throw std::invalid_argument("eigvalsh: matrix must be square");
-    }
-    uint64_t n = in.rows();
-    auto w = ObjectFactory::create_vector(n, DataType::FLOAT64, Structure::VECTOR, result_file);
-    ComputeContext::instance().get_device()->eigvalsh(in, *w, 'L');
-    return narrow_vector(std::move(w), is_single_precision(in));
+// Moore-Penrose pseudoinverse, NumPy's pinv: A = U S V^H, A+ = V S+ U^H, singular values at or
+// below max(m, n) * eps * max(s) treated as zero (NumPy's default rtol). V S+ is formed in
+// place (columns of V^H scaled) and multiplied by U^H through dispatch_matmul.
+std::unique_ptr<MatrixBase> pinv(const MatrixBase& a) {
+    auto [u, s, vt] = svd(a, false);
+    const uint64_t m = a.rows(), n = a.cols(), k = s->size();
+    const DataType dt = u->get_data_type();
+    return visit_dtype(dt, [&](auto tag) -> std::unique_ptr<MatrixBase> {
+        using T = typename decltype(tag)::type;
+        if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double> || std::is_same_v<T, std::complex<float>> ||
+                      std::is_same_v<T, std::complex<double>>) {
+            using R = std::conditional_t<std::is_same_v<T, float> || std::is_same_v<T, std::complex<float>>, float, double>;
+            const R* sp = static_cast<const DenseVector<R>&>(*s).data();
+            R smax = 0;
+            for (uint64_t l = 0; l < k; ++l) smax = std::max(smax, sp[l]);
+            const R cutoff = static_cast<R>(std::max(m, n)) * std::numeric_limits<R>::epsilon() * smax;
+            auto conj = [](T x) {
+                if constexpr (std::is_same_v<T, R>) return x;
+                else return std::conj(x);
+            };
+            // VS: n x k, VS[i][l] = conj(VT[l][i]) / s_l (0 for s_l <= cutoff). UH: k x m.
+            const T* up = static_cast<const DenseMatrix<T>&>(*u).data();
+            const T* vp = static_cast<const DenseMatrix<T>&>(*vt).data();
+            auto vs = std::make_unique<DenseMatrix<T>>(n, k, std::string());
+            auto uh = std::make_unique<DenseMatrix<T>>(k, m, std::string());
+            T* vsp = vs->data();
+            T* uhp = uh->data();
+            for (uint64_t l = 0; l < k; ++l) {
+                const R inv = sp[l] > cutoff ? R(1) / sp[l] : R(0);
+                for (uint64_t i = 0; i < n; ++i) vsp[i * k + l] = conj(vp[l * n + i]) * inv;
+                for (uint64_t j = 0; j < m; ++j) uhp[l * m + j] = conj(up[j * k + l]);
+            }
+            debug_trace::set_last("cpu.pinv.svd");
+            if (k == 0) return make_matrix(Structure::DENSE, dt, n, m);
+            return dispatch_matmul(*vs, *uh);
+        } else {
+            throw std::logic_error("pinv: SVD gave a non-LAPACK dtype");
+        }
+    });
 }
 
 }

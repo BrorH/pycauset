@@ -424,6 +424,7 @@ set(PYCAUSET_SOURCES
     src/compute/StreamingManager.cpp
     src/compute/cpu/CpuDevice.cpp
     src/compute/cpu/CpuSolver.cpp
+    src/compute/cpu/CpuLinalg.cpp
     src/compute/cpu/CpuComputeWorker.cpp
     src/math/Eigen.cpp
     src/math/LinearAlgebra.cpp

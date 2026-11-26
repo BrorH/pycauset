@@ -253,20 +253,6 @@ for _desc in (
         guard=_streaming_manager._square_guard,
     ),
     _streaming_manager.StreamingDescriptor(
-        op="eigvalsh",
-        access_pattern="symmetric_eigvals",
-        tile_budget_fn=_streaming_manager._square_tile_budget,
-        queue_depth_fn=_streaming_manager._unary_queue_depth,
-        guard=_streaming_manager._square_guard,
-    ),
-    _streaming_manager.StreamingDescriptor(
-        op="eigh",
-        access_pattern="symmetric_eigh",
-        tile_budget_fn=_streaming_manager._square_tile_budget,
-        queue_depth_fn=_streaming_manager._unary_queue_depth,
-        guard=_streaming_manager._square_guard,
-    ),
-    _streaming_manager.StreamingDescriptor(
         op="eigvals_arnoldi",
         access_pattern="arnoldi_topk",
         tile_budget_fn=_streaming_manager._square_tile_budget,
@@ -1234,12 +1220,12 @@ def cond(a: Any, p: Any = None) -> float:
 
 
 def eigh(a: Any) -> tuple[Any, Any]:
-    """Eigen-decomposition for symmetric/Hermitian matrices (NumPy fallback)."""
+    """Eigenvalues (real, ascending) and eigenvectors of a symmetric/Hermitian matrix (lower triangle)."""
     return _ops.eigh(a, deps=_OPS_DEPS)
 
 
 def eigvalsh(a: Any) -> Any:
-    """Eigenvalues for symmetric/Hermitian matrices (NumPy fallback)."""
+    """Eigenvalues (real, ascending) of a symmetric/Hermitian matrix (lower triangle)."""
     return _ops.eigvalsh(a, deps=_OPS_DEPS)
 
 
@@ -1257,16 +1243,17 @@ def solve_triangular(*args: Any, **kwargs: Any) -> Any:
 
 
 def pinv(a: Any) -> Any:
+    """Moore-Penrose pseudoinverse (NumPy's default cutoff)."""
     return _ops.pinv(a, deps=_OPS_DEPS)
 
 
 def eig(a: Any) -> tuple[Any, Any]:
-    """Eigen-decomposition for general matrices (NumPy fallback)."""
+    """Complex eigenvalues and right eigenvectors of a general square matrix."""
     return _ops.eig(a, deps=_OPS_DEPS)
 
 
 def eigvals(a: Any) -> Any:
-    """Eigenvalues for general matrices (NumPy fallback)."""
+    """Complex eigenvalues of a general square matrix."""
     return _ops.eigvals(a, deps=_OPS_DEPS)
 
 
@@ -1300,12 +1287,12 @@ def trace(a: Any) -> Any:
 
 
 def cholesky(a: Any) -> Any:
-    """Return the Cholesky decomposition."""
+    """Lower Cholesky factor L with A = L Lᴴ; ValueError when not positive definite."""
     return _ops.cholesky(a, deps=_OPS_DEPS)
 
 
 def qr(a: Any, mode: str = 'reduced') -> Any:
-    """Return QR decomposition."""
+    """QR decomposition; mode 'reduced', 'complete' or 'r' (NumPy's shapes)."""
     return _ops.qr(a, mode=mode, deps=_OPS_DEPS)
 
 

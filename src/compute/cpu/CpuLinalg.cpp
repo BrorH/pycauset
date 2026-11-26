@@ -1,0 +1,253 @@
+// LAPACK kernels for eigen decompositions, Cholesky and QR (review PLAN N.3), one template per
+// family for float, double, complex<float>, complex<double>.
+//
+// Kernel contract: the input is a plain DenseMatrix<T> (the entry functions in
+// math/LinearAlgebra.cpp normalise every dtype, structure and view with to_dense in NumPy's
+// LAPACK dtype); outputs are DenseMatrix / DenseVector of the documented element types.
+// Anything else is a contract violation and throws. Replaces per-dtype hand-written kernels
+// (float64/float32 only; no complex eigh or Cholesky), behind which the Python layer fell back
+// to NumPy for every other input.
+#include <complex>
+#define lapack_complex_float std::complex<float>
+#define lapack_complex_double std::complex<double>
+#if __has_include(<lapacke.h>)
+#include <lapacke.h>
+#else
+#include <openblas/lapacke.h>
+#endif
+
+#include <algorithm>
+#include <stdexcept>
+#include <string>
+#include <type_traits>
+#include <vector>
+
+#include "pycauset/compute/cpu/CpuSolver.hpp"
+#include "pycauset/core/DebugTrace.hpp"
+#include "pycauset/matrix/DenseMatrix.hpp"
+#include "pycauset/vector/DenseVector.hpp"
+
+namespace pycauset {
+namespace {
+
+template <typename T> struct real_of { using type = T; };
+template <typename V> struct real_of<std::complex<V>> { using type = V; };
+template <typename T> using real_t = typename real_of<T>::type;
+template <typename T> constexpr bool is_cplx_v = !std::is_same_v<T, real_t<T>>;
+
+[[noreturn]] void contract(const char* op) {
+    throw std::invalid_argument(std::string("CpuSolver::") + op +
+                                ": kernel contract is a plain dense float32/float64/complex64/complex128 input");
+}
+
+// A plain dense input of element type T copied into a row-major buffer (LAPACK overwrites it).
+template <typename T>
+bool copy_input(const MatrixBase& in, std::vector<T>& buf) {
+    auto* m = dynamic_cast<const DenseMatrix<T>*>(&in);
+    if (m == nullptr) return false;
+    if (m->is_transposed() || m->is_subview() || m->is_conjugated() || m->get_scalar() != std::complex<double>(1.0, 0.0)) {
+        return false;
+    }
+    buf.assign(m->data(), m->data() + in.rows() * in.cols());
+    return true;
+}
+
+template <typename T>
+DenseMatrix<T>& out_matrix(MatrixBase& m, const char* op) {
+    auto* d = dynamic_cast<DenseMatrix<T>*>(&m);
+    if (d == nullptr) contract(op);
+    d->set_scalar(1.0);
+    return *d;
+}
+
+template <typename T>
+DenseVector<T>& out_vector(VectorBase& v, const char* op) {
+    auto* d = dynamic_cast<DenseVector<T>*>(&v);
+    if (d == nullptr) contract(op);
+    d->set_scalar(1.0);
+    return *d;
+}
+
+// --- Hermitian / symmetric eigen decomposition (?syevd / ?heevd), lower triangle (NumPy's UPLO).
+template <typename T>
+lapack_int heevd(char jobz, lapack_int n, T* a, real_t<T>* w) {
+    if constexpr (std::is_same_v<T, float>) return LAPACKE_ssyevd(LAPACK_ROW_MAJOR, jobz, 'L', n, a, n, w);
+    else if constexpr (std::is_same_v<T, double>) return LAPACKE_dsyevd(LAPACK_ROW_MAJOR, jobz, 'L', n, a, n, w);
+    else if constexpr (std::is_same_v<T, std::complex<float>>) return LAPACKE_cheevd(LAPACK_ROW_MAJOR, jobz, 'L', n, a, n, w);
+    else return LAPACKE_zheevd(LAPACK_ROW_MAJOR, jobz, 'L', n, a, n, w);
+}
+
+template <typename T>
+bool eigh_t(const MatrixBase& in, VectorBase& w, MatrixBase* v) {
+    std::vector<T> a;
+    if (!copy_input<T>(in, a)) return false;
+    const lapack_int n = static_cast<lapack_int>(in.rows());
+    auto& wv = out_vector<real_t<T>>(w, "eigh");
+    debug_trace::set_last(v ? "cpu.eigh.heevd" : "cpu.eigvalsh.heevd");
+    const lapack_int info = heevd<T>(v ? 'V' : 'N', n, a.data(), wv.data());
+    if (info > 0) throw std::runtime_error("eigh: eigenvalues did not converge");
+    if (info < 0) throw std::runtime_error("eigh: illegal argument to ?heevd");
+    if (v) {
+        auto& vm = out_matrix<T>(*v, "eigh");
+        std::copy(a.begin(), a.end(), vm.data());
+    }
+    return true;
+}
+
+// --- General eigen decomposition (?geev), right eigenvectors.
+template <typename T>
+bool eig_t(const MatrixBase& in, VectorBase& w, MatrixBase* v) {
+    using C = std::complex<real_t<T>>;
+    std::vector<T> a;
+    if (!copy_input<T>(in, a)) return false;
+    const lapack_int n = static_cast<lapack_int>(in.rows());
+    auto& wv = out_vector<C>(w, "eig");
+    std::vector<T> vr(v ? static_cast<size_t>(n) * n : 1);
+    const char jobvr = v ? 'V' : 'N';
+    const lapack_int ldvr = v ? n : 1;
+    lapack_int info = 0;
+    debug_trace::set_last(v ? "cpu.eig.geev" : "cpu.eigvals.geev");
+    if constexpr (is_cplx_v<T>) {
+        if constexpr (std::is_same_v<T, std::complex<float>>)
+            info = LAPACKE_cgeev(LAPACK_ROW_MAJOR, 'N', jobvr, n, a.data(), n, wv.data(), nullptr, 1, vr.data(), ldvr);
+        else
+            info = LAPACKE_zgeev(LAPACK_ROW_MAJOR, 'N', jobvr, n, a.data(), n, wv.data(), nullptr, 1, vr.data(), ldvr);
+        if (v) {
+            auto& vm = out_matrix<C>(*v, "eig");
+            std::copy(vr.begin(), vr.end(), vm.data());
+        }
+    } else {
+        std::vector<T> wr(n), wi(n);
+        if constexpr (std::is_same_v<T, float>)
+            info = LAPACKE_sgeev(LAPACK_ROW_MAJOR, 'N', jobvr, n, a.data(), n, wr.data(), wi.data(), nullptr, 1, vr.data(), ldvr);
+        else
+            info = LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', jobvr, n, a.data(), n, wr.data(), wi.data(), nullptr, 1, vr.data(), ldvr);
+        C* wp = wv.data();
+        for (lapack_int i = 0; i < n; ++i) wp[i] = C(wr[i], wi[i]);
+        if (v) {
+            // A complex pair (j, j+1) stores v_j = vr[:, j] + i vr[:, j+1]; v_{j+1} = conj(v_j).
+            auto& vm = out_matrix<C>(*v, "eig");
+            C* dst = vm.data();
+            for (lapack_int j = 0; j < n; ++j) {
+                if (wi[j] != 0 && j + 1 < n) {
+                    for (lapack_int r = 0; r < n; ++r) {
+                        const C z(vr[r * n + j], vr[r * n + j + 1]);
+                        dst[r * n + j] = z;
+                        dst[r * n + j + 1] = std::conj(z);
+                    }
+                    ++j;
+                } else {
+                    for (lapack_int r = 0; r < n; ++r) dst[r * n + j] = C(vr[r * n + j], 0);
+                }
+            }
+        }
+    }
+    if (info > 0) throw std::runtime_error("eig: eigenvalues did not converge");
+    if (info < 0) throw std::runtime_error("eig: illegal argument to ?geev");
+    return true;
+}
+
+// --- Cholesky (?potrf), lower: A = L L^H.
+template <typename T>
+bool cholesky_t(const MatrixBase& in, MatrixBase& out) {
+    std::vector<T> a;
+    if (!copy_input<T>(in, a)) return false;
+    const lapack_int n = static_cast<lapack_int>(in.rows());
+    lapack_int info = 0;
+    debug_trace::set_last("cpu.cholesky.potrf");
+    if constexpr (std::is_same_v<T, float>) info = LAPACKE_spotrf(LAPACK_ROW_MAJOR, 'L', n, a.data(), n);
+    else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dpotrf(LAPACK_ROW_MAJOR, 'L', n, a.data(), n);
+    else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cpotrf(LAPACK_ROW_MAJOR, 'L', n, a.data(), n);
+    else info = LAPACKE_zpotrf(LAPACK_ROW_MAJOR, 'L', n, a.data(), n);
+    if (info > 0) throw std::domain_error("cholesky: matrix is not positive definite");
+    if (info < 0) throw std::runtime_error("cholesky: illegal argument to ?potrf");
+    auto& o = out_matrix<T>(out, "cholesky");
+    T* dst = o.data();
+    for (lapack_int i = 0; i < n; ++i)
+        for (lapack_int j = 0; j < n; ++j) dst[i * n + j] = j <= i ? a[i * n + j] : T(0);
+    return true;
+}
+
+// --- QR (?geqrf + ?orgqr / ?ungqr), k = min(m, n) reflectors. Reduced: Q m x k, R k x n.
+// Complete: Q m x m, R m x n (the shapes of the outputs say which).
+template <typename T>
+bool qr_t(const MatrixBase& in, MatrixBase& qm, MatrixBase& rm) {
+    std::vector<T> a;
+    if (!copy_input<T>(in, a)) return false;
+    const lapack_int m = static_cast<lapack_int>(in.rows()), n = static_cast<lapack_int>(in.cols());
+    const lapack_int k = std::min(m, n);
+    const lapack_int qc = static_cast<lapack_int>(qm.cols()), rr = static_cast<lapack_int>(rm.rows());
+    if (qm.rows() != in.rows() || (qc != k && qc != m) || rr != qc || rm.cols() != in.cols()) contract("qr");
+    std::vector<T> tau(std::max<lapack_int>(k, 1));
+    lapack_int info = 0;
+    debug_trace::set_last("cpu.qr.geqrf");
+    if (k > 0) {
+        if constexpr (std::is_same_v<T, float>) info = LAPACKE_sgeqrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, tau.data());
+        else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, tau.data());
+        else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cgeqrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, tau.data());
+        else info = LAPACKE_zgeqrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, tau.data());
+        if (info != 0) throw std::runtime_error("qr: ?geqrf failed");
+    }
+    auto& r = out_matrix<T>(rm, "qr");
+    T* rp = r.data();
+    for (lapack_int i = 0; i < rr; ++i)
+        for (lapack_int j = 0; j < n; ++j) rp[i * n + j] = (i < k && j >= i) ? a[i * n + j] : T(0);
+    std::vector<T> q(static_cast<size_t>(m) * qc, T(0));
+    for (lapack_int i = 0; i < m; ++i)
+        for (lapack_int j = 0; j < std::min(qc, n); ++j) q[i * qc + j] = a[i * n + j];
+    if (qc > 0) {
+        if constexpr (std::is_same_v<T, float>) info = LAPACKE_sorgqr(LAPACK_ROW_MAJOR, m, qc, k, q.data(), qc, tau.data());
+        else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, m, qc, k, q.data(), qc, tau.data());
+        else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cungqr(LAPACK_ROW_MAJOR, m, qc, k, q.data(), qc, tau.data());
+        else info = LAPACKE_zungqr(LAPACK_ROW_MAJOR, m, qc, k, q.data(), qc, tau.data());
+        if (info != 0) throw std::runtime_error("qr: ?orgqr failed");
+    }
+    auto& qo = out_matrix<T>(qm, "qr");
+    std::copy(q.begin(), q.end(), qo.data());
+    return true;
+}
+
+}  // namespace
+
+void CpuSolver::eigh(const MatrixBase& in, VectorBase& w, MatrixBase& v, char) {
+    if (in.rows() != in.cols()) throw std::invalid_argument("eigh: matrix must be square");
+    if (eigh_t<float>(in, w, &v) || eigh_t<double>(in, w, &v) || eigh_t<std::complex<float>>(in, w, &v) ||
+        eigh_t<std::complex<double>>(in, w, &v)) return;
+    contract("eigh");
+}
+
+void CpuSolver::eigvalsh(const MatrixBase& in, VectorBase& w, char) {
+    if (in.rows() != in.cols()) throw std::invalid_argument("eigvalsh: matrix must be square");
+    if (eigh_t<float>(in, w, nullptr) || eigh_t<double>(in, w, nullptr) || eigh_t<std::complex<float>>(in, w, nullptr) ||
+        eigh_t<std::complex<double>>(in, w, nullptr)) return;
+    contract("eigvalsh");
+}
+
+void CpuSolver::eig(const MatrixBase& in, VectorBase& w, MatrixBase& v) {
+    if (in.rows() != in.cols()) throw std::invalid_argument("eig: matrix must be square");
+    if (eig_t<float>(in, w, &v) || eig_t<double>(in, w, &v) || eig_t<std::complex<float>>(in, w, &v) ||
+        eig_t<std::complex<double>>(in, w, &v)) return;
+    contract("eig");
+}
+
+void CpuSolver::eigvals(const MatrixBase& in, VectorBase& w) {
+    if (in.rows() != in.cols()) throw std::invalid_argument("eigvals: matrix must be square");
+    if (eig_t<float>(in, w, nullptr) || eig_t<double>(in, w, nullptr) || eig_t<std::complex<float>>(in, w, nullptr) ||
+        eig_t<std::complex<double>>(in, w, nullptr)) return;
+    contract("eigvals");
+}
+
+void CpuSolver::cholesky(const MatrixBase& in, MatrixBase& out) {
+    if (in.rows() != in.cols()) throw std::invalid_argument("cholesky: matrix must be square");
+    if (cholesky_t<float>(in, out) || cholesky_t<double>(in, out) || cholesky_t<std::complex<float>>(in, out) ||
+        cholesky_t<std::complex<double>>(in, out)) return;
+    contract("cholesky");
+}
+
+void CpuSolver::qr(const MatrixBase& in, MatrixBase& q, MatrixBase& r) {
+    if (qr_t<float>(in, q, r) || qr_t<double>(in, q, r) || qr_t<std::complex<float>>(in, q, r) ||
+        qr_t<std::complex<double>>(in, q, r)) return;
+    contract("qr");
+}
+
+}  // namespace pycauset

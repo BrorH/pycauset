@@ -4,27 +4,29 @@
 pycauset.qr(a, mode='reduced')
 ```
 
-Returns the QR decomposition of a matrix: `A = Q R`.
+QR decomposition `A = Q R`, as `numpy.linalg.qr`.
 
 ## Parameters
 
-*   **a** (matrix): The input matrix.
-*   **mode** (str): `'reduced'` (default), `'complete'`, `'r'`, or `'raw'` (mirrors NumPy).
+*   **a** (matrix): any shape.
+*   **mode** (str): `'reduced'` (default; Q is m×k, R is k×n, k = min(m, n)), `'complete'`
+    (Q is m×m, R is m×n) or `'r'` (R only, k×n). NumPy's `'raw'` (LAPACK's Householder
+    form) is not offered: ValueError.
 
 ## Returns
 
-A tuple `(Q, R)`, except for NumPy's `mode='r'` / `'raw'` behaviors which are forwarded.
+`(Q, R)`, or `R` for `mode='r'`.
 
 ## Notes
 
-`mode='reduced'` uses the native LAPACK path (`dgeqrf`/`dorgqr`) when available; other modes fall back to NumPy.
+Every dtype, structure and view. Computed in NumPy's LAPACK dtype: integers and bool in float64, float16/float32 in float32, complex32/complex64 in complex64, complex128 as is. LAPACK `?geqrf` + `?orgqr` / `?ungqr`.
 
 ## Examples
 
 ```python
 import pycauset as pc
 
-A = pc.matrix([ [1.0, 2.0], [3.0, 4.0] ])
+A = pc.matrix([[1.0, 2.0], [3.0, 4.0]])
 Q, R = pc.qr(A)
 ```
 

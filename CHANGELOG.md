@@ -17,6 +17,13 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
 - `invert` / `inverse` run in the engine for every dtype, structure and view (NumPy's
   algorithm, no NumPy fallback); the inverse of an upper triangular matrix is a
   `TriangularMatrix`; singular input raises `RuntimeError`.
+- `eig`, `eigvals`, `eigh`, `eigvalsh`, `cholesky`, `qr` and `pinv` run in the engine for
+  every dtype, structure and view, in NumPy's LAPACK dtype (single precision for
+  float16/float32/complex32/complex64 input); no NumPy fallback. `eig`/`eigvals` always return
+  complex results (NumPy returns a real array when every eigenvalue happens to be real).
+  `eigh`/`eigvalsh`/`cholesky` read the lower triangle, as NumPy; `eigvalsh` no longer
+  consults the `is_hermitian` property. `cholesky` of a matrix that is not positive definite
+  raises `ValueError`. `qr` supports `mode='reduced'|'complete'|'r'`; `'raw'` raises.
 - New structure x dtype combinations: `DiagonalMatrix` and `IdentityMatrix` in float16,
   float32, complex_float32/64; `TriangularMatrix`, `SymmetricMatrix`, `AntiSymmetricMatrix` in
   complex_float32/64; every structured class also in complex_float16 (interleaved float16

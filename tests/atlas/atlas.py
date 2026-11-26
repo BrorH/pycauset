@@ -303,6 +303,8 @@ OPS: list[Op] = [
     Op("det", "linalg", lambda x, y: pc.determinant(x), lambda a, b: np.linalg.det(a), linalg=True, o_n2=False),
     Op("slogdet", "linalg", lambda x, y: pc.slogdet(x), lambda a, b: np.linalg.slogdet(a), linalg=True, o_n2=False, compare="slogdet"),
     Op("eigvals", "linalg", lambda x, y: pc.eigvals(x), lambda a, b: np.linalg.eigvals(a), linalg=True, o_n2=False, compare="sorted"),
+    Op("eig", "linalg", lambda x, y: pc.eig(x), lambda a, b: None, linalg=True, o_n2=False, compare="eig"),
+    Op("eigh", "linalg", lambda x, y: pc.eigh(x), lambda a, b: None, linalg=True, o_n2=False, compare="eig"),
     Op("eigvalsh", "linalg", lambda x, y: pc.eigvalsh(x), lambda a, b: np.linalg.eigvalsh(a), linalg=True, o_n2=False, compare="sorted"),
     Op("svdvals", "linalg", lambda x, y: pc.svdvals(x), lambda a, b: _svals(a), linalg=True, o_n2=False, compare="sorted"),
     Op("qr", "linalg", lambda x, y: pc.qr(x), lambda a, b: None, linalg=True, o_n2=False, compare="qr"),
@@ -580,7 +582,7 @@ def _numpy_rejects(op: Op, cell: Cell) -> bool:
     """Cells NumPy itself has no meaning for: raising is the right answer."""
     if op.group == "bitwise" and kind(cell.dtype) in "fc":
         return True
-    if op.name in ("eigvalsh", "cholesky") and not _hermitian_input(cell.structure, cell.dtype):
+    if op.name in ("eigvalsh", "eigh", "cholesky") and not _hermitian_input(cell.structure, cell.dtype):
         return True  # not Hermitian/positive definite: no defined answer
     return False
 
@@ -598,6 +600,10 @@ def _check(op: Op, cell: Cell, got, a, b, arith: str, xdt: str, ydt: str) -> boo
     if op.compare == "qr":
         q, r_ = got
         return _close(q @ r_, a.astype(np.complex128), arith, True)
+    if op.compare == "eig":  # A v = v diag(w): residual relative to |A|
+        w, v = (np.asarray(t).astype(np.complex128) for t in got)
+        ac = a.astype(np.complex128)
+        return _close(ac @ v, v * w, arith, True)
     if op.compare == "lu":
         p, l, u = got
         recon = np.asarray(p) @ np.asarray(l) @ np.asarray(u)
@@ -666,7 +672,7 @@ def applicable(op: Op, dtype: str, structure: str, view: str) -> bool:
         return False
     if op.name == "dot" and view not in ("plain", "conj", "T"):
         return False
-    if op.name in ("eigvalsh", "cholesky") and not _hermitian_input(structure, dtype):
+    if op.name in ("eigvalsh", "eigh", "cholesky") and not _hermitian_input(structure, dtype):
         return False  # defined for Hermitian input only (NumPy reads one triangle and trusts it)
     if op.name == "cholesky" and view == "lazy_sum" and dtype == "bool":
         return False

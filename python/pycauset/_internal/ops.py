@@ -211,106 +211,6 @@ def _append_event(record: Any, *, event_type: str, detail: str) -> None:
         return
 
 
-def _streaming_invert(matrix: Any, *, deps: OpsDeps, rec: Any) -> Any | None:
-    np_module = deps.np_module
-    if np_module is None:
-        return None
-
-    shape = _safe_rows_cols(matrix)
-    if shape is None:
-        return None
-
-    try:
-        data = np_module.array([[matrix.get(i, j) for j in range(shape[1])] for i in range(shape[0])])
-    except Exception:
-        return None
-
-    try:
-        inv_np = np_module.linalg.inv(data)
-    except Exception:
-        return None
-
-    out = _as_pycauset_array(inv_np, deps=deps)
-    _annotate_impl(rec, "streaming_python", deps=deps)
-    return out
-
-
-def _streaming_eigvalsh(matrix: Any, *, deps: OpsDeps, rec: Any) -> Any | None:
-    np_module = deps.np_module
-    if np_module is None:
-        return None
-
-    shape = _safe_rows_cols(matrix)
-    if shape is None:
-        return None
-
-    try:
-        data = np_module.array([[matrix.get(i, j) for j in range(shape[1])] for i in range(shape[0])])
-    except Exception:
-        return None
-
-    try:
-        vals = np_module.linalg.eigvalsh(data)
-    except Exception:
-        return None
-
-    out = _as_pycauset_array(vals, deps=deps)
-    _annotate_impl(rec, "streaming_python", deps=deps)
-    return out
-
-
-def _streaming_matmul_tiles(a: Any, b: Any, *, deps: OpsDeps, rec: Any) -> Any | None:
-    np_module = deps.np_module
-    if np_module is None:
-        return None
-
-    shape_a = _safe_rows_cols(a)
-    shape_b = _safe_rows_cols(b)
-    if shape_a is None or shape_b is None:
-        return None
-    a_rows, a_cols = shape_a
-    b_rows, b_cols = shape_b
-    if a_cols != b_rows:
-        return None
-
-    tile = rec.get("tile_shape") if isinstance(rec, dict) else None
-    try:
-        t_r, t_c = int(tile[0]), int(tile[1]) if tile is not None else (64, 64)
-    except Exception:
-        t_r, t_c = 64, 64
-
-    res = deps.Matrix(np_module.zeros((a_rows, b_cols), dtype=float))
-
-    set_fn = getattr(res, "set", None)
-
-    for i0 in range(0, a_rows, t_r):
-        i1 = min(i0 + t_r, a_rows)
-        for j0 in range(0, b_cols, t_c):
-            j1 = min(j0 + t_c, b_cols)
-            block = np_module.zeros((i1 - i0, j1 - j0), dtype=float)
-            for k0 in range(0, a_cols, t_c):
-                k1 = min(k0 + t_c, a_cols)
-
-                a_tile = np_module.array(
-                    [[a.get(i, k) for k in range(k0, k1)] for i in range(i0, i1)]
-                )
-                b_tile = np_module.array(
-                    [[b.get(k, j) for j in range(j0, j1)] for k in range(k0, k1)]
-                )
-                block += np_module.matmul(a_tile, b_tile)
-
-            for ii in range(i0, i1):
-                for jj in range(j0, j1):
-                    val = block[ii - i0, jj - j0]
-                    if callable(set_fn):
-                        set_fn(ii, jj, float(val))
-                    else:
-                        res[ii, jj] = float(val)
-
-    _annotate_impl(rec, "streaming_python", deps=deps)
-    return res
-
-
 def _set_result_structure_properties(result: Any, *, structure: str) -> None:
     try:
         mapping: dict[str, Any] = {}
@@ -374,18 +274,6 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 
     native_matrix_base = getattr(deps.native, "MatrixBase", None)
     native_vector_base = getattr(deps.native, "VectorBase", None)
-
-    # Streaming-enforced path: if routed streaming and not blockmatrix, use tile-based matmul.
-    try:
-        if isinstance(rec, dict) and rec.get("route") == "streaming":
-            streaming_res = _streaming_matmul_tiles(a, b, deps=deps, rec=rec)
-            if streaming_res is not None:
-                deps.track_matrix(streaming_res)
-                deps.mark_temporary_if_auto(streaming_res)
-                _discard_if_streaming(rec, [a, b], streaming_res, deps=deps)
-                return streaming_res
-    except Exception:
-        pass
 
     # NumPy-like behavior: allow vectors in matmul by deferring to the native
     # operator implementation (which encodes the 1D rules).
@@ -493,14 +381,6 @@ def bitwise_xnor(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 def invert(matrix: Any, *, deps: OpsDeps) -> Any:
     rec = _record_io_trace("invert", [matrix], deps=deps)
     _prefetch_if_streaming(rec, [matrix], deps=deps)
-    try:
-        if isinstance(rec, dict) and rec.get("route") == "streaming":
-            streaming_res = _streaming_invert(matrix, deps=deps, rec=rec)
-            if streaming_res is not None:
-                _discard_if_streaming(rec, [matrix], streaming_res, deps=deps)
-                return streaming_res
-    except Exception:
-        pass
     if not isinstance(matrix, deps.native.MatrixBase):
         raise TypeError("Object does not support matrix inversion.")
     # The engine inverts every dtype, structure and view (LinearAlgebra.cpp `inverse`); a
@@ -553,141 +433,45 @@ def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
     return float(norm(a, p, deps=deps) * norm(inv_a, p, deps=deps))
 
 
+def _engine_matrix(a: Any, *, deps: OpsDeps) -> Any:
+    """A PyCauset matrix as is; anything else (NumPy array, nested lists) as a dense one."""
+    if isinstance(a, deps.native.MatrixBase):
+        return a
+    return deps.Matrix(deps.np_module.asarray(a))
+
+
+def _native_result(out: Any, *, deps: OpsDeps) -> Any:
+    for item in out if isinstance(out, tuple) else (out,):
+        _track_and_mark_temporary_if_native(item, deps=deps)
+    return out
+
+
+# Eigen decompositions, Cholesky, QR and pinv run in the engine (math/LinearAlgebra.cpp,
+# compute/cpu/CpuLinalg.cpp) for every dtype, structure and view, in NumPy's LAPACK dtype;
+# no NumPy fallback (F-090). eigh/eigvalsh/cholesky read the lower triangle, as NumPy does.
+
 def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
-    """Eigen-decomposition for real symmetric / complex Hermitian matrices (native preferred)."""
-    shape = _safe_rows_cols(a)
-    if shape is not None and shape[0] != shape[1]:
-        raise ValueError("eigh requires a square matrix")
-    rec = _record_io_trace("eigh", [a], deps=deps, supports_streaming=False)
-    _prefetch_if_streaming(rec, [a], deps=deps)
-    
-    result_w = None
-    result_v = None
-
-    # Correctness-first (2026-08-24): native eigh (R1_CPU Phase 6) crashes; use NumPy.
-    # NumPy Fallback
-    if result_w is None:
-        np_module = deps.np_module
-        if np_module is None:
-            raise RuntimeError("NumPy is required for eigh")
-        w, v = np_module.linalg.eigh(_to_numpy_matrix(a, deps=deps))
-        result_w = _as_pycauset_array(w, deps=deps)
-        result_v = _as_pycauset_array(v, deps=deps)
-
-    _discard_if_streaming(rec, [a], None, deps=deps)
-    return result_w, result_v
+    """Eigenvalues (real, ascending) and eigenvectors of a symmetric / Hermitian matrix."""
+    _record_io_trace("eigh", [a], deps=deps, supports_streaming=False)
+    return _native_result(tuple(deps.native.eigh(_engine_matrix(a, deps=deps))), deps=deps)
 
 
 def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
-    shape = _safe_rows_cols(a)
-    if shape is not None and shape[0] != shape[1]:
-        raise ValueError("eigvalsh requires a square matrix")
-    rec = _record_io_trace("eigvalsh", [a], deps=deps)
-    _prefetch_if_streaming(rec, [a], deps=deps)
-    try:
-        if isinstance(rec, dict) and rec.get("route") == "streaming":
-            streaming_res = _streaming_eigvalsh(a, deps=deps, rec=rec)
-            if streaming_res is not None:
-                _discard_if_streaming(rec, [a], streaming_res, deps=deps)
-                return streaming_res
-    except Exception:
-        pass
-    """Eigenvalues for real symmetric / complex Hermitian matrices.
-
-    Rejects input whose `is_hermitian` property is explicitly False.
-    """
-
-    props = None
-    try:
-        props = _props.get_properties(a)
-    except Exception:
-        props = None
-
-    if props is not None:
-        if props.get("is_hermitian") is False:
-            raise ValueError("eigvalsh requires is_hermitian != False")
-
-    result_w = None
-
-    # Correctness-first (2026-08-24): native eigvalsh (R1_CPU Phase 6) crashes; use NumPy.
-    if result_w is None:
-        np_module = deps.np_module
-        if np_module is None:
-            raise RuntimeError("NumPy is required for eigvalsh")
-        w = np_module.linalg.eigvalsh(_to_numpy_matrix(a, deps=deps))
-        result_w = _as_pycauset_array(w, deps=deps)
-
-    _discard_if_streaming(rec, [a], result_w, deps=deps)
-    return result_w
-
+    """Eigenvalues (real, ascending) of a symmetric / Hermitian matrix."""
+    _record_io_trace("eigvalsh", [a], deps=deps, supports_streaming=False)
+    return _native_result(deps.native.eigvalsh(_engine_matrix(a, deps=deps)), deps=deps)
 
 
 def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
-    """Eigen-decomposition for general matrices (native preferred, NumPy fallback)."""
-    shape = _safe_rows_cols(a)
-    if shape is not None and shape[0] != shape[1]:
-        raise ValueError("eig requires a square matrix")
-    rec = _record_io_trace("eig", [a], deps=deps, supports_streaming=False)
-    _prefetch_if_streaming(rec, [a], deps=deps)
-    
-    result_w = None
-    result_v = None
-
-    # Try the native backend first (routes to CPU or GPU via AutoSolver). The
-    # 2026-08-24 "native eig crashes" workaround is obsolete: the native general
-    # eig is verified correct on both CPU and GPU.
-    try:
-        native_eig = getattr(deps.native, "eig", None)
-        if native_eig is not None:
-            result_w, result_v = native_eig(a)
-    except Exception:
-        result_w = None
-        result_v = None
-
-    # NumPy Fallback
-    if result_w is None:
-        np_module = deps.np_module
-        if np_module is None:
-            raise RuntimeError("NumPy is required for eig")
-
-        w, v = np_module.linalg.eig(_to_numpy_matrix(a, deps=deps))
-        result_w = _as_pycauset_vector(w, deps=deps)
-        result_v = _as_pycauset_array(v, deps=deps)
-
-    _discard_if_streaming(rec, [a], None, deps=deps)
-    return result_w, result_v
+    """Complex eigenvalues and right eigenvectors of a general square matrix."""
+    _record_io_trace("eig", [a], deps=deps, supports_streaming=False)
+    return _native_result(tuple(deps.native.eig(_engine_matrix(a, deps=deps))), deps=deps)
 
 
 def eigvals(a: Any, *, deps: OpsDeps) -> Any:
-    """Eigenvalues for general matrices (native preferred, NumPy fallback)."""
-    shape = _safe_rows_cols(a)
-    if shape is not None and shape[0] != shape[1]:
-        raise ValueError("eigvals requires a square matrix")
-    rec = _record_io_trace("eigvals", [a], deps=deps)
-    _prefetch_if_streaming(rec, [a], deps=deps)
-
-    result_w = None
-
-    # Try the native backend first (routes to CPU or GPU via AutoSolver).
-    try:
-        native_eigvals = getattr(deps.native, "eigvals", None)
-        if native_eigvals is not None:
-            result_w = native_eigvals(a)
-    except Exception:
-        result_w = None
-
-    # NumPy Fallback
-    if result_w is None:
-        np_module = deps.np_module
-        if np_module is None:
-            raise RuntimeError("NumPy is required for eigvals")
-
-        w = np_module.linalg.eigvals(_to_numpy_matrix(a, deps=deps))
-        result_w = _as_pycauset_vector(w, deps=deps)
-
-    _discard_if_streaming(rec, [a], result_w, deps=deps)
-    return result_w
-
+    """Complex eigenvalues of a general square matrix."""
+    _record_io_trace("eigvals", [a], deps=deps, supports_streaming=False)
+    return _native_result(deps.native.eigvals(_engine_matrix(a, deps=deps)), deps=deps)
 
 
 def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any:
@@ -791,30 +575,10 @@ def solve_triangular(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 
 
 def pinv(a: Any, *, deps: OpsDeps) -> Any:
-    """Moore-Penrose pseudoinverse through the engine's SVD, as NumPy computes it.
-
-    A = U S Vᴴ → A⁺ = V S⁺ Uᴴ, with singular values at or below NumPy's default cutoff
-    max(m, n) · eps · max(s) treated as zero. The normal equations used before ((AᴴA)⁻¹Aᴴ)
-    squared the condition number and gave wrong answers for ill-conditioned input (F-079); the
-    NumPy fallback behind them is gone.
-    """
+    """Moore-Penrose pseudoinverse, as NumPy's pinv: A = U S Vᴴ → A⁺ = V S⁺ Uᴴ, singular values
+    at or below max(m, n) · eps · max(s) treated as zero (F-079, F-090)."""
     _record_io_trace("pinv", [a], deps=deps)
-    np_module = deps.np_module
-    if not isinstance(a, deps.native.MatrixBase):
-        a = deps.Matrix(np_module.asarray(a))
-    rows, cols = a.shape
-    u, s, vt = deps.native.svd(a, False)
-    k = len(s)
-    s_np = np_module.asarray(s)
-    eps = np_module.finfo(s_np.dtype).eps
-    cutoff = max(rows, cols) * eps * (float(s_np.max()) if k else 0.0)
-    inv_s = np_module.where(s_np > cutoff, 1.0 / np_module.where(s_np > cutoff, s_np, 1), 0).astype(s_np.dtype)
-    uk_h = u[0:rows, 0:k].H  # k x rows
-    vk_h = vt[0:k, 0:cols].H  # cols x k
-    scaled = deps.Matrix(inv_s.reshape(k, 1)) * uk_h  # rows of Uᴴ scaled by 1/s
-    result = matmul(vk_h, scaled, deps=deps)
-    _track_and_mark_temporary_if_native(result, deps=deps)
-    return result
+    return _native_result(deps.native.pinv(_engine_matrix(a, deps=deps)), deps=deps)
 
 
 def trace(a: Any, *, deps: OpsDeps) -> Any:
@@ -1005,51 +769,22 @@ def vecdot(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 
 
 def cholesky(a: Any, *, deps: OpsDeps) -> Any:
-    """Return the Cholesky decomposition."""
-    rec = _record_io_trace("cholesky", [a], deps=deps)
-    _prefetch_if_streaming(rec, [a], deps=deps)
-
-    fn = getattr(deps.native, "cholesky", None)
-    if callable(fn):
-        try:
-            out = fn(a)
-            _track_and_mark_temporary_if_native(out, deps=deps)
-            return out
-        except Exception:
-            pass
-            
-    # NumPy Fallback
-    np_module = deps.np_module
-    if np_module:
-        val = np_module.linalg.cholesky(_to_numpy_matrix(a, deps=deps))
-        return _as_pycauset_array(val, deps=deps)
-    raise RuntimeError("cholesky failed")
+    """Lower Cholesky factor L, A = L Lᴴ (reads the lower triangle, as NumPy). Not positive
+    definite: ValueError (NumPy's LinAlgError is a ValueError)."""
+    _record_io_trace("cholesky", [a], deps=deps)
+    return _native_result(deps.native.cholesky(_engine_matrix(a, deps=deps)), deps=deps)
 
 
 def qr(a: Any, mode: str = 'reduced', *, deps: OpsDeps) -> Any:
-    """Return QR decomposition."""
-    rec = _record_io_trace("qr", [a], deps=deps)
-    _prefetch_if_streaming(rec, [a], deps=deps)
-    
-    # Native default is reduced
-    if mode == 'reduced':
-        fn = getattr(deps.native, "qr", None)
-        if callable(fn):
-            try:
-                q, r = fn(a)
-                _track_and_mark_temporary_if_native(q, deps=deps)
-                _track_and_mark_temporary_if_native(r, deps=deps)
-                return q, r
-            except Exception:
-                pass
-
-    np_module = deps.np_module
-    if np_module:
-        q_np, r_np = np_module.linalg.qr(_to_numpy_matrix(a, deps=deps), mode=mode)
-        q = _as_pycauset_array(q_np, deps=deps)
-        r = _as_pycauset_array(r_np, deps=deps)
-        return q, r
-    raise RuntimeError("qr failed")
+    """QR decomposition with NumPy's modes 'reduced' (Q m×k, R k×n), 'complete' (Q m×m, R m×n)
+    and 'r' (R only). NumPy's 'raw' (LAPACK's Householder form) is not offered."""
+    _record_io_trace("qr", [a], deps=deps)
+    if mode not in ("reduced", "complete", "r"):
+        raise ValueError(f"qr: mode must be 'reduced', 'complete' or 'r' (got {mode!r})")
+    q, r = deps.native.qr(_engine_matrix(a, deps=deps), mode == "complete")
+    if mode == "r":
+        return _native_result(r, deps=deps)
+    return _native_result((q, r), deps=deps)
 
 
 def svd(a: Any, full_matrices: bool = True, compute_uv: bool = True, *, deps: OpsDeps) -> Any:

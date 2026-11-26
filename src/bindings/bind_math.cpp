@@ -18,17 +18,16 @@ void bind_math_ops(py::module_& m) {
         return pycauset::norm(v);
     }, py::arg("x"), "Compute the L2 norm of a vector");
 
-    m.def("cholesky", [](const pycauset::MatrixBase& a) {
-        auto out = pycauset::cholesky(a);
-        return std::shared_ptr<pycauset::MatrixBase>(out.release());
-    }, py::arg("a"), "Compute Cholesky decomposition");
-
-    m.def("qr", [](const pycauset::MatrixBase& a) {
-        auto [q, r] = pycauset::qr(a);
+    m.def("qr", [](const pycauset::MatrixBase& a, bool complete) {
+        auto [q, r] = pycauset::qr(a, complete);
         return py::make_tuple(
             std::shared_ptr<pycauset::MatrixBase>(q.release()),
             std::shared_ptr<pycauset::MatrixBase>(r.release()));
-    }, py::arg("a"), "Compute QR decomposition");
+    }, py::arg("a"), py::arg("complete") = false, "QR (NumPy reduced/complete shapes; any dtype, structure, view)");
+
+    m.def("pinv", [](const pycauset::MatrixBase& a) {
+        return std::shared_ptr<pycauset::MatrixBase>(pycauset::pinv(a).release());
+    }, py::arg("a"), "Moore-Penrose pseudoinverse (NumPy's default cutoff)");
 
     m.def("lu", [](const pycauset::MatrixBase& a) {
         auto [p, l, u] = pycauset::lu(a);

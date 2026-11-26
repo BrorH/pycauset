@@ -22,11 +22,14 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
 std::unique_ptr<MatrixBase> inverse(const MatrixBase& a);
 std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& result_file = "");
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a, const std::string& result_file = "");
-std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const MatrixBase& a, const std::string& result_file = "");
+// NumPy's qr: reduced (Q m x k, R k x n) or complete (Q m x m, R m x n).
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const MatrixBase& a, bool complete = false);
 // NumPy's svd: any dtype/structure/view; U (m, m|k), S (k,) real, VT (n|k, n).
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(
     const MatrixBase& a, bool full_matrices = false);
 std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
+// NumPy's pinv (default rtol): through svd, any dtype/structure/view.
+std::unique_ptr<MatrixBase> pinv(const MatrixBase& a);
 
 std::unique_ptr<VectorBase> eigvals_arnoldi(const MatrixBase& a, int k, int m, double tol, const std::string& result_file = "");
 std::unique_ptr<VectorBase> eigvals_skew(const MatrixBase& a, int k, const std::string& result_file = "");

@@ -4,23 +4,18 @@
 pycauset.eig(a)
 ```
 
-Eigen-decomposition for general (non-symmetric) square matrices.
+Eigenvalues and right eigenvectors of a general square matrix, as `numpy.linalg.eig`.
 
 ## Returns
 
-A pair `(w, v)` where:
+A pair `(w, v)`:
 
-- `w` is a complex vector of eigenvalues.
-- `v` is a complex matrix whose columns are the corresponding right eigenvectors.
-
-## Backend
-
-- Native: LAPACK `geev` on the CPU.
-- Falls back to NumPy (`numpy.linalg.eig`) if the native backend cannot handle
-  the input.
+- `w`: complex eigenvalues (complex64 or complex128), in LAPACK's order.
+- `v`: a complex matrix whose columns are the normalised right eigenvectors.
 
 ## Notes
 
-- Complex conjugate eigenvalue pairs share a pair of eigenvector columns,
-  matching LAPACK/NumPy conventions.
-- For symmetric/Hermitian inputs prefer `pycauset.eigh` / `pycauset.eigvalsh`.
+- Every dtype, structure and view. Computed in NumPy's LAPACK dtype: integers and bool in float64, float16/float32 in float32, complex32/complex64 in complex64, complex128 as is. LAPACK `?geev`.
+- For real input, complex-conjugate eigenvalue pairs have complex-conjugate eigenvector
+  columns, as in NumPy.
+- For symmetric or Hermitian input prefer `pycauset.eigh` / `pycauset.eigvalsh`.
