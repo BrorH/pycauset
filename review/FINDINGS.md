@@ -1230,6 +1230,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
     collapsing the region later: a freshly imported 1024 x 1024 float64 matrix read 50x
     slower for its first several calls (norm 32 ms, then 3 ms, then 0.6 ms), which is what
     the timing pass measured for most O(n^2) cells. The hint is gone.
+  - with NumPy imported before PyCauset, NumPy's OpenBLAS (a second OpenBLAS in the process)
+    keeps spinning after each call and PyCauset's BLAS work beside it ran up to 50x slower
+    (norm 1024^2: 32 ms vs 0.7 ms). The thread-timeout PyCauset sets comes too late for an
+    already loaded NumPy; PyCauset now warns in that case, the docs say so, and the atlas,
+    timing harness and test conftest import pycauset first. A build against NumPy's own
+    OpenBLAS (one pool in the process) is the full fix: PLAN 6.x.
   - the timing harness took the best of 3 runs; on a shared machine sub-millisecond
     operations swung by 100x between passes. It now samples each side until 0.05 s and
     alternates NumPy and PyCauset rounds. Its operand cache was unbounded (14 GB, OOM-killed

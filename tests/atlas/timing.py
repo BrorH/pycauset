@@ -25,9 +25,9 @@ import time
 import warnings
 import zlib
 
-import numpy as np
 
-import pycauset as pc
+import pycauset as pc  # before NumPy: one quiet BLAS thread policy (F-096)
+import numpy as np
 from tests.atlas import atlas as A
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "review", "atlas")

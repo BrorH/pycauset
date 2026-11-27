@@ -312,6 +312,9 @@ are engine-owned metadata on the storage).
 - [ ] 5.5 ARCHITECTURE.md moves into `documentation/internals/` as the canonical map
 
 ## Phase 6: Performance (only after correctness)
+- [ ] 6.0 One OpenBLAS per process: link against NumPy's bundled scipy-openblas (or share its
+      thread pool) instead of the system OpenBLAS; two spinning pools cost up to 50x on BLAS
+      calls when NumPy is imported first (F-096). Today: a warning and an import-order rule.
 - [ ] 6.1 Elementwise/vector parity (F-012): profile the wrapper stack vs the kernels
 - [ ] 6.2 Thread-pool consolidation (F-014)
 - [ ] 6.3 Out-of-core paths for eigh/svd/rank (F-011) or document them as in-RAM only

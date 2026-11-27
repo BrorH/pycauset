@@ -16,6 +16,12 @@ import warnings
 # 1-4 ms instead of 0.1, NumPy's own matmul ran 1.7x slower next to us (FINDINGS F-012).
 # Both libraries read these once when they load, so they are set before the native module is
 # imported (NumPy's OpenBLAS may already be loaded and keep its setting). A user value wins.
+import sys as _sys
+
+# NumPy imported first, with no timeout set: its OpenBLAS threads already spin after every call
+# and PyCauset's BLAS operations next to them ran up to 50x slower (norm of 1024 x 1024: 32 ms
+# instead of 0.6 ms; F-096). Nothing can be changed in NumPy's library now; say how to avoid it.
+_NUMPY_FIRST = "numpy" in _sys.modules and "OPENBLAS_THREAD_TIMEOUT" not in os.environ
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("OPENBLAS_THREAD_TIMEOUT", "4")  # 2^4 cycles: the OpenBLAS minimum
 from contextlib import contextmanager
@@ -39,6 +45,7 @@ from ._internal.dtypes import normalize_dtype as _normalize_dtype
 from ._internal.warnings import (
     PyCausetDTypeWarning as PyCausetDTypeWarning,
 )
+
 from ._internal.warnings import (
     PyCausetOverflowRiskWarning as PyCausetOverflowRiskWarning,
 )
@@ -51,6 +58,15 @@ from ._internal.warnings import (
 from ._internal.warnings import (
     PyCausetWarning as PyCausetWarning,
 )
+
+if _NUMPY_FIRST:
+    warnings.warn(
+        "numpy was imported before pycauset: NumPy's OpenBLAS threads spin after each call and "
+        "slow PyCauset's BLAS/LAPACK operations (up to 50x for small ones). Import pycauset "
+        "first, or set OPENBLAS_THREAD_TIMEOUT=4 in the environment before starting Python.",
+        PyCausetPerformanceWarning,
+        stacklevel=2,
+    )
 
 try:  # NumPy is optional at runtime
     import numpy as _np

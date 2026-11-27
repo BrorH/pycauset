@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import os
 
-import numpy as np
 import pytest
 
-import pycauset as pc
+import pycauset as pc  # before NumPy: one quiet BLAS thread policy (F-096)
+import numpy as np
 
 # PYCAUSET_LAZY=0 runs the whole suite with lazy results (views, closures) disabled: the
 # eager paths must be correct on their own (LAZY.md section 10, the lazy == eager oracle).

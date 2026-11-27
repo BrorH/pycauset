@@ -32,9 +32,9 @@ import zlib
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-import numpy as np
 
-import pycauset as pc
+import pycauset as pc  # before NumPy: one quiet BLAS thread policy (F-096)
+import numpy as np
 from pycauset._internal import export_guard
 
 N = 16  # matrix side; even (antisymmetric inverses), > the accessor threshold's square root

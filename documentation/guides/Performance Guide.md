@@ -22,7 +22,11 @@ yourself are kept):
 
 NumPy's OpenBLAS reads the variable when NumPy is first imported, so **import pycauset
 before numpy** (or export `OPENBLAS_THREAD_TIMEOUT=4` in your shell) to cover NumPy's
-threads as well.
+threads as well. This matters: with NumPy imported first, NumPy's OpenBLAS threads spin after
+every NumPy call and PyCauset's BLAS/LAPACK operations run next to them up to 50x slower
+(measured: Frobenius norm of a 1024 x 1024 matrix 32 ms instead of 0.7 ms; 384 x 384 matmul
+4-12 ms instead of 1.1 ms). PyCauset warns (`PyCausetPerformanceWarning`) when it is imported
+after NumPy without the variable set.
 
 ## How fast, compared with NumPy
 
