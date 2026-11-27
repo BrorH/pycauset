@@ -554,17 +554,10 @@ std::unique_ptr<MatrixBase> narrow_wide(const MatrixBase& wide, ScalarOpKind op,
         out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
     }
     R* dst = out->data();
-    if constexpr (!std::is_same_v<W, std::complex<double>>) {
-        for_each_span(rows * cols, [&](uint64_t begin, uint64_t end) {
-            apply_span<R, W>(op, src + begin, dst + begin, end - begin, sv, 1, 1.0);
-        });
-        return out;
-    }
-    for_each_block(rows, cols, [&](uint64_t idx, uint64_t, uint64_t) {
-        R v;
-        if constexpr (std::is_same_v<W, std::complex<double>>) v = from_logical<R>(src[idx]);
-        else v = convert_in<R>(src[idx]);
-        dst[idx] = apply<R>(op, v, sv);
+    // complex128 wide values go to complex results only (run_generic picks W by R's kind), so
+    // convert_in is the plain conversion here as well.
+    for_each_span(rows * cols, [&](uint64_t begin, uint64_t end) {
+        apply_span<R, W>(op, src + begin, dst + begin, end - begin, sv, 1, 1.0);
     });
     return out;
 }
@@ -607,6 +600,13 @@ std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op,
         // Complex inputs (complex results only): typed and contiguous instead of a full copy
         // through the wide reader (c + 1j was 5 ms for 1024 x 1024).
         PYCAUSET_TRY_DENSE(std::complex<float>) PYCAUSET_TRY_DENSE(std::complex<double>)
+        // Structured complex inputs: the typed bulk-tile path (they went through a full
+        // complex128 copy and a per-element operator switch: 0.25x NumPy).
+        PYCAUSET_TRY_TRI(std::complex<float>) PYCAUSET_TRY_TRI(std::complex<double>)
+        if (auto* m = dynamic_cast<const SymmetricMatrix<std::complex<float>>*>(&a); m && plain)
+            return run<R, std::complex<float>>(*m, a, op, s, false, false, keep_structure);
+        if (auto* m = dynamic_cast<const SymmetricMatrix<std::complex<double>>*>(&a); m && plain)
+            return run<R, std::complex<double>>(*m, a, op, s, false, false, keep_structure);
     }
     PYCAUSET_TRY_TRI(bool)
     PYCAUSET_TRY_TRI(int8_t) PYCAUSET_TRY_TRI(int16_t) PYCAUSET_TRY_TRI(int32_t) PYCAUSET_TRY_TRI(int64_t)

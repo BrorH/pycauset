@@ -697,3 +697,7 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   type a tile of rows at a time (no written-out copy of each operand): int32 1024 tri & tri
   0.64 -> 0.28 ms, diag & diag 1.2 -> 0.23 ms, ~tri 0.34 -> 0.24 ms (NumPy 0.28-0.35 ms).
   Atlas 0 wrong.
+- Complex scalar ops: structured complex inputs (triangular, symmetric family) take the typed
+  bulk-tile path, and the complex128 wide path applies the operator through apply_span (it
+  had a per-element switch): complex128 1024 tri + (1+2j) 5.6 -> 0.9 ms (NumPy 1.3). Atlas
+  0 wrong.
