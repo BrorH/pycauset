@@ -507,3 +507,16 @@ def test_vector_arith_with_numpy_operand(dtype, step):
     want = np.ones(len(x), dtype=dtype) + x
     assert np.asarray(got).dtype == want.dtype
     np.testing.assert_array_equal(np.asarray(got), want)
+
+
+@pytest.mark.parametrize("make", [lambda: pc.vector([1, 2]), lambda: pc.matrix([[1, 2], [3, 4]]),
+                                  lambda: pc.vector(np.array([1.0, 2.0]), dtype=int),
+                                  lambda: pc.zeros((2, 2), dtype="int")])
+def test_F103_python_integers_default_to_int32(make):
+    """Deliberate difference from NumPy (DType System §3.2)."""
+    assert make().dtype == "int32"
+
+
+def test_F103_typed_input_keeps_its_dtype():
+    assert pc.vector(np.array([1, 2], dtype=np.int64)).dtype == "int64"
+    assert pc.matrix(np.array([[1]], dtype=np.int8)).dtype == "int8"

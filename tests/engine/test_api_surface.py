@@ -86,7 +86,7 @@ def test_pc_bool_is_a_dtype_token():
 def test_vector_from_python_list(data):
     v = pc.vector(data)
     np.testing.assert_array_equal(to_np(v), np.array(data))
-    if not all(type(x) is int for x in data):  # integer default dtype: F-103 (open)
+    if not all(type(x) is int for x in data):  # Python ints: int32 by design (F-103)
         assert np.asarray(v).dtype == np.array(data).dtype
 
 

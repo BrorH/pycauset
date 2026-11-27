@@ -1352,7 +1352,10 @@ the entry (the history is useful). New findings go at the bottom with the next f
   broadcast rules apply.
 
 ### F-103 Python integers default to int32; NumPy (and PyCauset's own NumPy import) use int64
-- **Status:** open, maintainer decision (session 9). `pc.vector([1, 2])`, `pc.matrix([[1, 2]])`,
+- **Status:** decided (maintainer, session 9): keep int32 as a deliberate under-promotion
+  default (option c), documented in DType System §3.2 and the matrix/vector pages; typed
+  input keeps its dtype; automatic narrowing belongs to value bounds (F1), not to the
+  constructor. Pinned by `test_F103_*`. `pc.vector([1, 2])`, `pc.matrix([[1, 2]])`,
   `dtype=int` and `dtype="int"` give int32; `np.array([1, 2])` is int64, and so is
   `pc.matrix(np.array([[1, 2]]))`: the same data gives two dtypes depending on whether it went
   through NumPy first. The rule is not documented (DType System, matrix/vector pages).

@@ -76,6 +76,19 @@ PyCauset applies the same ethos to integer widths as to floats: if an operation 
 
 This is independent from overflow policy (see below): widening is a dtype/semantics decision; it is not an overflow workaround.
 
+### 3.2) Default integer dtype: int32 (a deliberate difference from NumPy)
+
+Data without a dtype of its own gets **int32** where NumPy picks int64: Python integer
+literals (`pycauset.vector([1, 2])`, `pycauset.matrix([[1, 2]])`) and the type tokens `int` /
+`"int"` (`"uint"` is uint32). Half the memory of int64, values up to 2^31 - 1.
+
+Data that already has a dtype keeps it: a NumPy int64 array imports as int64. PyCauset never
+narrows typed input, and it never picks a dtype from the values (1..500 fitting in int16 says
+nothing about `x * x`, and element-wise integer results wrap like NumPy's). For smaller
+storage pass `dtype="int16"` (or `int8`) explicitly. Overflow is guarded where it is most
+likely: integer matmul raises `OverflowError` (§5.1). Choosing widths automatically from
+known value ranges is the value-bounds feature (review/features/VALUE_BOUNDS.md).
+
 ## 4) Complex numbers
 
 ### 4.1 Complex floats

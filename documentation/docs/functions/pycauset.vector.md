@@ -11,7 +11,7 @@ This is a data constructor (aligned with 1D `np.array([...])`).
 ## Parameters
 
 *   **source** (*sequence or numpy.ndarray*): 1D data (e.g. list) or a 1D NumPy array.
-*   **dtype** (*str or type, optional*): Coerce storage dtype (e.g. `"float64"`, `"int32"`, `float`, `int`).
+*   **dtype** (*str or type, optional*): Coerce storage dtype (e.g. `"float64"`, `"int32"`, `float`, `int`). Without it, a NumPy array keeps its dtype, and Python integers become **int32** (NumPy: int64), as do `int` and `"int"`; see [[internals/DType System|DType System]] §3.2.
 *   **max_in_ram_bytes** (*int or None, optional*): When constructing from a NumPy array, route through the internal `native.asarray` import path if the estimated materialized size exceeds this cap to avoid overcommitting RAM (falls back to native regardless when supported dtypes are used).
 *   **kwargs**: Passed through to the backend constructor.
 
