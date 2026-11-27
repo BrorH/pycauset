@@ -506,3 +506,12 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   tagging alone publishes nothing), Installation guide (build.ps1 flags that do not exist).
   `requires-python` 3.8 -> 3.10 (`Path | None` in _storage.py already needed it) and
   `numpy>=2.0` (NumPy 2 is the oracle).
+- PLAN 5.3 (part): the executed plan archive (20 files) and R1_EXECUTION.md deleted (the
+  live plan is review/PLAN.md; git keeps them); the R2 physics plans and the causal-math
+  catalog moved to experimental/physics/docs/plans. Merging TODO.md / R2_ROADMAP /
+  R2_PLAN_MAP into one roadmap waits for the maintainer (it decides release content).
+- The docs site did not build: an empty "Concepts:" nav section made mkdocs abort, so
+  docs.yml could not deploy. Fixed; four broken links fixed; the nav now lists every page
+  (the Functions list is generated from the files; a Developers section holds dev/ and
+  project/). docs.yml installs requirements-docs.txt. Remaining build warnings are
+  roamlinks reading `[[1, 2], [3, 4]]` in code blocks as links (rendering is correct).

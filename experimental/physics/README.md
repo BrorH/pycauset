@@ -18,7 +18,7 @@ kernel).
 | `python/spacetime.py` | the pre-R1 spacetime library: Python `Spacetime` base and registry, Minkowski cylinder / box, de Sitter, anti-de Sitter, FLRW, Schwarzschild, transformed / restricted / conformal / periodic spacetimes |
 | `python/causet.py`, `python/synthetic.py` | the pre-R1 versions (Python-defined spacetimes); the package has the R1 versions |
 | `include/Spacetime.hpp`, `src/bind_causet.cpp` | the native cylinder and box and their bindings |
-| `tests/`, `docs/`, `scripts/` | their tests, doc pages and guides (Field Theory, Spacetime, Tutorials), the gallery script, the field / spacetime demos and the continuum-limit benchmark |
+| `tests/`, `docs/`, `scripts/` | their tests, doc pages and guides (Field Theory, Spacetime, Tutorials), the gallery script, the field / spacetime demos and the continuum-limit benchmark; `docs/plans/` holds the R2 physics plans (fields, spacetime library and creation, the causal-math optimization catalog) |
 
 ## Before bringing something back
 

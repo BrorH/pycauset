@@ -1,9 +1,8 @@
 # PyCauset TODO
 
 The forward-looking work list. Release 1 (R1) shipped the correctness-focused linear
-algebra foundation; this file tracks everything that remains after R1. The original
-sequence-based R1 roadmap is retained at the bottom for reference, and the live R1
-status lives in `R1_EXECUTION.md`.
+algebra foundation; this file tracks everything that remains after R1. The live engine
+plan and its status are in the review workspace (`review/PLAN.md`, `review/FINDINGS.md`).
 
 ## What's next (post-R1)
 
@@ -69,4 +68,3 @@ status lives in `R1_EXECUTION.md`.
 
 ## R1 is complete
 
-The R1 roadmap and node details now live in `internals/plans/R1_EXECUTION.md`, and the per-node planning docs are under `internals/plans/archive/`. They are history; this file only tracks forward-looking work.

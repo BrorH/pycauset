@@ -145,7 +145,7 @@ engine's StreamingManager; others run directly on memory-mapped storage. The eng
 
 `pc.last_io_trace(op)` reports what a call read and how it ran: each operand's shape, dtype
 and storage (`"memory"`, `"file"`, `"temp"`), the kernels the engine ran, and `streamed`
-([[docs/functions/pycauset.last_io_trace|pycauset.last_io_trace]]).
+([[docs/functions/pycauset.last_io_trace.md|pycauset.last_io_trace]]).
 
 ## Snapshots vs working copies
 
@@ -283,7 +283,7 @@ See [[guides/Numpy Integration.md|Numpy Integration]] for details.
 - [[docs/functions/pycauset.convert_file.md|pycauset.convert_file]]
 - [[dev/Storage Semantics.md|Storage Semantics]]
 - [[internals/Memory and Data.md|Memory and Data]]
-- [[internals/plans/archive/R1_STORAGE_PLAN.md|R1_STORAGE_PLAN]]
+- [[dev/PyCauset Container Format|PyCauset Container Format]]
 - [[project/protocols/Documentation Protocol.md|Documentation Protocol]]
 
 ## Crash Consistency (R1_SAFETY)

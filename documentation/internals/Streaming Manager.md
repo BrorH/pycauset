@@ -41,7 +41,7 @@ use at most 80% of the RAM the MemoryGovernor reports as available. A tile is at
 
 - `pc.last_io_trace(op)` lists the kernels the engine ran for the last traced call and sets
   `streamed` when one of them was a `streaming.*` kernel
-  ([[docs/functions/pycauset.last_io_trace|pycauset.last_io_trace]]).
+  ([[docs/functions/pycauset.last_io_trace.md|pycauset.last_io_trace]]).
 - `pc._native._debug_last_kernel_trace()` is the label of the last kernel that ran.
 - Tests force the streaming path with a huge RAM safety margin, so that nothing "fits":
   `pc._native._set_ram_safety_margin(1 << 62)` (see `tests/engine/test_streaming.py`).

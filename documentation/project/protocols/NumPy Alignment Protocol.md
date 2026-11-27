@@ -115,4 +115,4 @@ Minimum expectation:
 ## See also
 
 - `documentation/project/protocols/Documentation Protocol.md`
-- `documentation/internals/plans/archive/R1_SHAPES_PLAN.md`
+- [[guides/NxM Support|NxM Support]]

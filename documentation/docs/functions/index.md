@@ -1,6 +1,5 @@
 # Functions
 
-* **[[docs/functions/pycauset.field.md|pycauset.field]]**
 * **[[docs/functions/pycauset.show.md|pycauset.show]]**
 * **[[docs/functions/pycauset.I.md|pycauset.I]]**
 * **[[docs/functions/pycauset.identity.md|pycauset.identity]]**

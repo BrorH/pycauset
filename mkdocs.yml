@@ -99,7 +99,6 @@ nav:
       - Causal Sets: guides/Causal Sets.md
       - Analyzing a Causal Set: guides/Analyzing a Causal Set.md
       - Visualization: guides/Visualization.md
-    - Concepts:
     - Walkthroughs:
       - Examples: guides/Examples.md
     - Data in and out:
@@ -137,6 +136,8 @@ nav:
         - docs/classes/matrix/pycauset.SymmetricMatrix.md
         - docs/classes/matrix/pycauset.AntiSymmetricMatrix.md
         - docs/classes/matrix/pycauset.DiagonalMatrix.md
+        - docs/classes/matrix/pycauset.HermitianMatrix.md
+        - docs/classes/matrix/pycauset.SkewHermitianMatrix.md
       - Vector:
         - docs/classes/vector/index.md
         - docs/classes/vector/pycauset.VectorBase.md
@@ -149,60 +150,85 @@ nav:
         - docs/classes/core/pycauset.MemoryHint.md
     - Functions:
       - docs/functions/index.md
-      - docs/functions/pycauset.matrix.md
-      - docs/functions/pycauset.vector.md
-      - docs/functions/pycauset.zeros.md
-      - docs/functions/pycauset.ones.md
-      - docs/functions/pycauset.empty.md
-      - docs/functions/pycauset.identity.md
       - docs/functions/pycauset.I.md
+      - docs/functions/pycauset.antisymmetric.md
       - docs/functions/pycauset.asarray.md
+      - docs/functions/pycauset.bitwise_and.md
+      - docs/functions/pycauset.bitwise_nand.md
+      - docs/functions/pycauset.bitwise_nor.md
       - docs/functions/pycauset.bitwise_not.md
+      - docs/functions/pycauset.bitwise_or.md
+      - docs/functions/pycauset.bitwise_xnor.md
+      - docs/functions/pycauset.bitwise_xor.md
+      - docs/functions/pycauset.bool.md
       - docs/functions/pycauset.causal_matrix.md
       - docs/functions/pycauset.causet.md
-      - docs/functions/pycauset.synthetic.md
-      - docs/functions/pycauset.plot_embedding.md
-      - docs/functions/pycauset.plot_hasse.md
-      - docs/functions/pycauset.plot_causal_matrix.md
-      - docs/functions/pycauset.show.md
       - docs/functions/pycauset.cholesky.md
+      - docs/functions/pycauset.clear_io_traces.md
       - docs/functions/pycauset.compute_k.md
       - docs/functions/pycauset.compute_k_matrix.md
       - docs/functions/pycauset.cond.md
       - docs/functions/pycauset.convert_file.md
+      - docs/functions/pycauset.cross.md
+      - docs/functions/pycauset.det.md
+      - docs/functions/pycauset.determinant.md
+      - docs/functions/pycauset.diagonal.md
       - docs/functions/pycauset.divide.md
       - docs/functions/pycauset.dot.md
       - docs/functions/pycauset.eig.md
+      - docs/functions/pycauset.eig_skew.md
       - docs/functions/pycauset.eigh.md
       - docs/functions/pycauset.eigvals.md
       - docs/functions/pycauset.eigvals_arnoldi.md
       - docs/functions/pycauset.eigvals_skew.md
-      - docs/functions/pycauset.eig_skew.md
       - docs/functions/pycauset.eigvalsh.md
+      - docs/functions/pycauset.empty.md
       - docs/functions/pycauset.get_memory_threshold.md
       - docs/functions/pycauset.get_num_threads.md
+      - docs/functions/pycauset.hermitian.md
+      - docs/functions/pycauset.identity.md
       - docs/functions/pycauset.invert.md
+      - docs/functions/pycauset.last_io_trace.md
+      - docs/functions/pycauset.load.md
+      - docs/functions/pycauset.load_npy.md
+      - docs/functions/pycauset.load_npz.md
       - docs/functions/pycauset.lstsq.md
       - docs/functions/pycauset.lu.md
-      - docs/functions/pycauset.matmul.md
       - docs/functions/pycauset.materialize.md
+      - docs/functions/pycauset.matmul.md
+      - docs/functions/pycauset.matrix.md
+      - docs/functions/pycauset.matrix_power.md
+      - docs/functions/pycauset.matrix_rank.md
       - docs/functions/pycauset.norm.md
+      - docs/functions/pycauset.ones.md
+      - docs/functions/pycauset.outer.md
       - docs/functions/pycauset.pinv.md
+      - docs/functions/pycauset.plot_causal_matrix.md
+      - docs/functions/pycauset.plot_embedding.md
+      - docs/functions/pycauset.plot_hasse.md
+      - docs/functions/pycauset.qr.md
+      - docs/functions/pycauset.rank.md
       - docs/functions/pycauset.save.md
+      - docs/functions/pycauset.save_npy.md
+      - docs/functions/pycauset.save_npz.md
       - docs/functions/pycauset.set_backing_dir.md
       - docs/functions/pycauset.set_export_max_bytes.md
       - docs/functions/pycauset.set_memory_threshold.md
       - docs/functions/pycauset.set_num_threads.md
+      - docs/functions/pycauset.show.md
       - docs/functions/pycauset.slogdet.md
       - docs/functions/pycauset.solve.md
       - docs/functions/pycauset.solve_triangular.md
       - docs/functions/pycauset.sum.md
       - docs/functions/pycauset.svd.md
+      - docs/functions/pycauset.svdvals.md
+      - docs/functions/pycauset.symmetric.md
+      - docs/functions/pycauset.synthetic.md
       - docs/functions/pycauset.to_numpy.md
-      - docs/functions/pycauset.load.md
-      - docs/functions/pycauset.bool.md
-      - docs/functions/pycauset.clear_io_traces.md
-      - docs/functions/pycauset.last_io_trace.md
+      - docs/functions/pycauset.trace.md
+      - docs/functions/pycauset.vecdot.md
+      - docs/functions/pycauset.vector.md
+      - docs/functions/pycauset.zeros.md
     - Parameters:
       - docs/parameters/index.md
       - docs/parameters/pycauset.keep_temp_files.md
@@ -210,15 +236,42 @@ nav:
   - Internals:
     - internals/index.md
     - DType System: internals/DType System.md
-    - DType Complex Overflow Plan: internals/plans/archive/DTYPE_COMPLEX_OVERFLOW_PLAN.md
     - Compute Architecture: internals/Compute Architecture.md
     - Block Matrices: internals/Block Matrices.md
     - Memory and Data: internals/Memory and Data.md
     - Streaming Manager: internals/Streaming Manager.md
     - Algorithms: internals/Algorithms.md
     - Philosophy: project/Philosophy.md
+    - Roadmap: internals/plans/TODO.md
+  - Developers:
+    - dev/index.md
+    - Handbook:
+      - dev/Bindings & Dispatch.md
+      - dev/Build System.md
+      - dev/Codebase Structure.md
+      - dev/MACOS_WHEEL_PORTABILITY.md
+      - dev/PyCauset Container Format.md
+      - dev/Python Internals.md
+      - dev/Repository Hygiene.md
+      - dev/Square-only Assumptions.md
+      - dev/Storage Semantics.md
+      - dev/Testing & Benchmarks.md
+      - dev/Warnings & Exceptions.md
+    - Project:
+      - project/index.md
+      - project/Contributing.md
+      - project/Public API Contract.md
+    - Protocols:
+      - project/protocols/index.md
+      - project/protocols/Adding Operations.md
+      - project/protocols/Adding Types.md
+      - project/protocols/Documentation Protocol.md
+      - project/protocols/NumPy Alignment Protocol.md
+      - project/protocols/Pre-alpha Policy.md
+      - project/protocols/Release Process.md
+      - project/protocols/Testing and Bug Tracking.md
     - Plans:
-      - internals/plans/SUPPORT_READINESS_FRAMEWORK.md
-      - internals/plans/OPTIMIZATION_STATUS.md
-      - internals/plans/SRP2_CATALOG.md
-      - Plan Archive: internals/plans/archive/index.md
+      - project/plans/index.md
+      - project/plans/R2_PLAN_MAP.md
+      - project/plans/R2_ROADMAP.md
+      - project/plans/R2_API_DESIGN.md
