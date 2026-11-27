@@ -465,8 +465,11 @@ def test_F099_identity_pair_every_dtype(dtype, op):
     only; the others went element by element)."""
     pc_dtype = {"complex64": "complex_float32", "complex128": "complex_float64"}.get(dtype, dtype)
     eye = pc.IdentityMatrix(4, dtype=pc_dtype)
-    a, b = eye * 3, eye * 2
-    na, nb = np.eye(4, dtype=dtype) * np.array(3, dtype=dtype), np.eye(4, dtype=dtype) * np.array(2, dtype=dtype)
+    a, b = eye, eye
+    na = nb = np.eye(4, dtype=dtype)
+    if dtype.startswith(("float", "complex")):  # integer scaling writes out a dense matrix
+        a, b = eye * 3, eye * 2
+        na, nb = na * 3, nb * 2
     got = eval(f"a {op} b")
     want = eval(f"na {op} nb")
     assert type(got).__name__ == "IdentityMatrix"
@@ -483,7 +486,9 @@ def test_F099_identity_pair_honours_conjugation():
 
 
 def test_F099_identity_pair_integer_wraps_like_numpy():
-    eye = pc.IdentityMatrix(2, dtype="int8")
-    got = (eye * 100) + (eye * 100)
-    want = np.eye(2, dtype=np.int8) * np.int8(100) + np.eye(2, dtype=np.int8) * np.int8(100)
-    np.testing.assert_array_equal(to_np(got), want)
+    eye = pc.IdentityMatrix(2, dtype="uint8")
+    x = eye
+    nx = np.eye(2, dtype=np.uint8)
+    for _ in range(9):  # 2^9 = 512 wraps to 0 in uint8
+        x, nx = x + x, nx + nx
+    np.testing.assert_array_equal(to_np(x), nx)

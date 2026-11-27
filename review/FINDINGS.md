@@ -1337,3 +1337,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
     a raise); it now runs only for objects without a native exporter.
   - `normalize_dtype`: 9 `try/except: pass` around `np.dtype` comparisons -> one name table.
 - Shared `_safe_rows_cols` (copied in four modules) -> `coercion.safe_rows_cols`.
+- (session 9, F-099 follow-up) identity (+ - *) identity is one rule for every dtype (was
+  float64/int32 copies that ignored conjugation); the private `_elementwise_*` bindings (a
+  second entry point for `+ - * /`) are gone. Seen on the way: an integer scalar times an
+  identity writes out a dense matrix instead of a scaled view (open, with the scalar-op rules).
