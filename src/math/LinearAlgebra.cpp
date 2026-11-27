@@ -117,7 +117,27 @@ static std::unique_ptr<MatrixBase> try_bit_closure(const MatrixBase& a, const Ma
     return out;
 }
 
+// Normaliser rule: A^T op B^T for dense A, B of one shape is (A op B)^T. The kernel then reads
+// both operands contiguously and the result is returned viewed transposed, as NumPy keeps
+// column order (strided reads made dense.T + dense.T 0.27x NumPy). Bit and complex32 storage
+// are their own classes and go the general way.
+template <typename Op>
+static std::unique_ptr<MatrixBase> transposed_pair(const MatrixBase& a, const MatrixBase& b,
+                                                   const std::string& result_file, Op op) {
+    if (!result_file.empty()) return nullptr;
+    if (a.get_structure() != Structure::DENSE || b.get_structure() != Structure::DENSE) return nullptr;
+    if (!a.is_transposed() || !b.is_transposed() || a.is_subview() || b.is_subview()) return nullptr;
+    if (a.rows() != b.rows() || a.cols() != b.cols()) return nullptr;
+    for (DataType dt : {a.get_data_type(), b.get_data_type()}) {
+        if (dt == DataType::BIT || dt == DataType::COMPLEX_FLOAT16) return nullptr;
+    }
+    const auto at = a.transpose();
+    const auto bt = b.transpose();
+    return op(*at, *bt)->transpose();
+}
+
 std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
+    if (auto r = transposed_pair(a, b, result_file, [](const MatrixBase& x, const MatrixBase& y) { return add(x, y); })) return r;
     if (auto r = identity_pair(a, b, promotion::BinaryOp::Add, "add", result_file)) return r;
 
     if (auto closure = try_bit_closure(a, b, +1, result_file)) return closure;
@@ -150,6 +170,7 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
 }
 
 std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
+    if (auto r = transposed_pair(a, b, result_file, [](const MatrixBase& x, const MatrixBase& y) { return subtract(x, y); })) return r;
     if (auto r = identity_pair(a, b, promotion::BinaryOp::Subtract, "subtract", result_file)) return r;
 
     if (auto closure = try_bit_closure(a, b, -1, result_file)) return closure;
@@ -182,6 +203,7 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
 }
 
 std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
+    if (auto r = transposed_pair(a, b, result_file, [](const MatrixBase& x, const MatrixBase& y) { return elementwise_multiply(x, y); })) return r;
     if (auto r = identity_pair(a, b, promotion::BinaryOp::ElementwiseMultiply, "elementwise_multiply", result_file)) return r;
 
     const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "elementwise_multiply");
@@ -213,6 +235,7 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
 }
 
 std::unique_ptr<MatrixBase> elementwise_divide(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
+    if (auto r = transposed_pair(a, b, result_file, [](const MatrixBase& x, const MatrixBase& y) { return elementwise_divide(x, y); })) return r;
     const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "elementwise_divide");
 
     DataType type_a = a.get_data_type();

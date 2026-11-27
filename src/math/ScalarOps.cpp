@@ -254,7 +254,9 @@ R apply(ScalarOpKind op, R x, R s) {
             case ScalarOpKind::Add: return x + s;
             case ScalarOpKind::Sub: return x - s;
             case ScalarOpKind::RSub: return s - x;
-            case ScalarOpKind::Mul: return scalar::multiply(x, s);
+            // x * 1 is x. Not computed: complex (inf + 0j) * (1 + 0j) is inf + nan j, and
+            // to_dense / dtype conversions are "multiply by 1" (F-113).
+            case ScalarOpKind::Mul: return s == R(1) ? x : scalar::multiply(x, s);
             case ScalarOpKind::TrueDiv: return scalar::true_divide(x, s);
             case ScalarOpKind::RTrueDiv: return scalar::true_divide(s, x);
         }

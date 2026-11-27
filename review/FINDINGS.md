@@ -1480,3 +1480,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
   integer-indexed axis and returns picked elements as 1-D. Dense `__getitem__` now returns a
   `DenseVector` in those cases (every dtype). Found running the Matrix Guide (its comment
   documented the 1 x 2 shape). `test_F112_*`.
+
+### F-113 Writing out a complex view multiplied by 1 + 0j (inf became nan)
+- **Status:** fixed (session 9). `to_dense` and the dtype conversions are "scalar multiply by
+  1" (run_exact), and the complex product (inf + 0j)(1 + 0j) = inf + nan j. So exporting any
+  non-plain complex matrix (`m.T`, a window, a structured class) turned an infinity into
+  inf + nan j, and a scaled view was multiplied twice: `pc.matrix(a) * 2` exported nan + nan j
+  where NumPy gives inf + nan j. Found when the new transposed-pair rule (below, LOG) routed
+  `A.T / B.T` through an export of a transposed result and the atlas reported WRONG cells.
+  `x * 1` now returns x in the scalar kernel. `test_F113_*`.

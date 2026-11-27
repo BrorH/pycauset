@@ -4,6 +4,7 @@
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/math/ScalarOps.hpp"
 
 #include <cmath>
 
@@ -73,6 +74,16 @@ ResultStructure triangular_or_dense(bool has_diagonal, DataType dt) {
 }
 ResultStructure of(Structure t, DataType dt) { return {or_dense(t, dt), false}; }
 
+// Both operands are stored as structure t in the result dtype, with no view: the packed
+// element-wise kernel computes the result over the stored elements. That is the only way a
+// complex structured result is written (the per-element structured paths are real-only), so
+// the Hermitian rules below require it.
+bool packed_same(const MatrixBase& a, const MatrixBase& b, Structure t, DataType dt) {
+    return dt != DataType::COMPLEX_FLOAT16 &&  // its own storage class and kernel
+           a.get_structure() == t && b.get_structure() == t && a.get_data_type() == dt &&
+           b.get_data_type() == dt && is_plain(a) && is_plain(b) && is_offered(t, dt);
+}
+
 }  // namespace
 
 ResultStructure resolve_result_structure(promotion::BinaryOp op, const MatrixBase& a, const MatrixBase& b,
@@ -96,6 +107,10 @@ ResultStructure resolve_result_structure(promotion::BinaryOp op, const MatrixBas
         if ((is_upper(a) && is_diagonal_like(b)) || (is_diagonal_like(a) && is_upper(b))) {
             return triangular_or_dense(true, dt);
         }
+        // Hermitian +- Hermitian is Hermitian; skew-Hermitian +- skew-Hermitian is skew-Hermitian.
+        for (Structure t : {Structure::HERMITIAN, Structure::SKEW_HERMITIAN}) {
+            if (packed_same(a, b, t, dt)) return {t, false};
+        }
         return {};
     }
     if (op == BinaryOp::ElementwiseMultiply) {
@@ -112,6 +127,8 @@ ResultStructure resolve_result_structure(promotion::BinaryOp op, const MatrixBas
         if ((is_symmetric_like(a) && is_antisymmetric(b)) || (is_antisymmetric(a) && is_symmetric_like(b))) {
             return of(Structure::ANTISYMMETRIC, dt);
         }
+        // The element-wise product of Hermitian matrices is Hermitian (conj(x) conj(y) = conj(xy)).
+        if (packed_same(a, b, Structure::HERMITIAN, dt)) return {Structure::HERMITIAN, false};
         return {};
     }
     // Division (0/0 = NaN breaks every zero pattern) and anything else: dense.

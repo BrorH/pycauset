@@ -594,3 +594,16 @@ def test_F112_integer_index_drops_the_axis_as_in_numpy(dtype):
         got = m[key]
         assert got.shape == a[key].shape, key
         np.testing.assert_array_equal(np.asarray(got), a[key])
+
+
+def test_F113_complex_infinities_survive_views_and_export():
+    """Writing out a view multiplied every element by 1 + 0j, and (inf + 0j)(1 + 0j) is
+    inf + nan j: a transposed complex matrix exported inf as inf + nan j, a scaled one twice
+    multiplied (nan + nan j where NumPy gives inf + nan j)."""
+    a = np.array([[np.inf, 1j], [-np.inf + 2j, 3]], dtype=complex)
+    m = pc.matrix(a)
+    np.testing.assert_array_equal(np.asarray(m.T), a.T)
+    with np.errstate(all="ignore"):
+        np.testing.assert_array_equal(np.asarray(m * 2), a * 2)
+        b = np.array([[3 + 4j, 1], [1, 1]], dtype=complex)
+        np.testing.assert_array_equal(np.asarray(m.T / pc.matrix(b).T), a.T / b.T)

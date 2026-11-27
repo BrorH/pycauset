@@ -10,7 +10,9 @@ before that, so they are still views. Best of three runs each.
 
     speed = numpy_time / pycauset_time      (1.0 = as fast as NumPy; target >= 0.9)
 
-Writes review/atlas/TIMING.md (committed) and review/atlas/timing.json (scratch).
+Writes review/atlas/TIMING.md (committed) and review/atlas/timing.json (scratch). With
+operation names, only those are re-timed; their rows replace the old ones in timing.json and
+the report covers everything timed so far.
 Not a test: timings depend on the machine. The table is what "fast" means in numbers.
 """
 from __future__ import annotations
@@ -191,7 +193,11 @@ def main(argv=None) -> None:
     A.N = 16
     A.W = 14
     overhead = _call_overhead()
-    with open(os.path.join(OUT, "timing.json"), "w") as f:
+    path = os.path.join(OUT, "timing.json")
+    if only and os.path.exists(path):  # a subset run replaces its operations' rows, keeps the rest
+        with open(path) as f:
+            rows = [r for r in json.load(f) if r["op"] not in only] + rows
+    with open(path, "w") as f:
         json.dump(rows, f, separators=(",", ":"))
     with open(os.path.join(OUT, "TIMING.md"), "w") as f:
         f.write(render(rows, overhead))

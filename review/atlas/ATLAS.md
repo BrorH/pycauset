@@ -33,18 +33,18 @@ Symbols: ✓ ok, fast kernel · ◐ ok, input written out first (O(n²) op) · �
 * **matmul** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **matvec** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **vecmat** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
-* **inv** ×6 — cpu.solve.gesv: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
-* **solve** ×6 — cpu.solve.gesv: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
+* **inv** ×6 — cpu.solve.getrf_trsm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
+* **solve** ×6 — cpu.solve.getrf_trsm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **det** ×6 — cpu.det.getrf: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **slogdet** ×6 — cpu.det.getrf: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **eigvals** ×6 — cpu.eigvals.geev: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **eig** ×6 — cpu.eig.geev: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **svdvals** ×6 — cpu.svd.gesdd: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
-* **qr** ×6 — cpu.qr.geqrf: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
+* **qr** ×6 — cpu.qr.gelqf: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **lu** ×6 — cpu.lu.getrf: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **pinv** ×6 — cpu.svd.gesdd,cpu.pinv.svd,cpu.matmul.f64: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **matrix_power** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
-* **lstsq** ×6 — cpu.svd.gesdd,cpu.pinv.svd,cpu.matmul.f64: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
+* **lstsq** ×6 — cpu.lstsq.gelsd: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **neg** ×2 — no error: bool/c_plus_ct/H, bool/c_plus_ct/conj
 * **trace** ×2 — no error: bool/c_plus_ct/H, bool/c_plus_ct/conj
 

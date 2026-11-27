@@ -547,3 +547,18 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   answers (rank-deficient minimum-norm included). The lstsq page described the normal
   equations; rewritten. experimental/cuda README notes the new device method.
   Gates: 4,193 + 4,135, atlas CI 42, ctest 5/5.
+- 6.1 started (element-wise), from the atlas timing of `add` (219 of 441 cells below 0.9):
+  * the packed element-wise kernel accepts transposed diagonal / symmetric operands
+    (transposing them changes no element): diag.T + diag.T 7.1 -> 0.04 ms (1.14x NumPy);
+  * Hermitian +- Hermitian, Hermitian * Hermitian, skew-Hermitian +- skew-Hermitian keep
+    their class (StructureResolver), when both operands are plain and of the result dtype so
+    the packed kernel computes them (the per-element structured paths are real-only):
+    13 -> 1.1 ms (1.12x), and the result is a HermitianMatrix (was dense);
+  * normaliser rule A.T op B.T = (A op B).T for dense operands (add, subtract, multiply,
+    divide): contiguous reads, result returned viewed transposed as NumPy keeps column
+    order: 2.2 -> 0.33 ms (1.8x);
+  * the atlas CI caught two regressions on the way: complex32 Hermitian (own storage class,
+    now excluded) and F-113 (fixed). tests/atlas/timing.py: a subset run merges into
+    timing.json instead of overwriting the report with one operation.
+  Still open: bool structured operands (bit storage into int32 results, ~11 ms), small
+  per-call overhead, complex32 vectors.

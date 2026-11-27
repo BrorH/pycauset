@@ -390,6 +390,15 @@ namespace {
         return true;
     }
 
+    // Reads exactly its storage: plain, or a transposed diagonal / symmetric matrix (transposing
+    // those changes no element).
+    bool reads_as_stored(const MatrixBase& m) {
+        if (is_plain(m)) return true;
+        const Structure s = m.get_structure();
+        return (s == Structure::DIAGONAL || s == Structure::SYMMETRIC) && !m.is_subview() &&
+               m.get_scalar() == std::complex<double>(1.0, 0.0) && !m.is_conjugated();
+    }
+
     template <typename T, typename Op>
     void binary_op_impl(const MatrixBase& a, const MatrixBase& b, MatrixBase& result, Op op) {
         const uint64_t rows = result.rows();
@@ -409,7 +418,7 @@ namespace {
         // element type, same triangle / symmetry kind, no view): the op runs over the stored
         // elements directly, contiguous and O(stored). Diagonal + diagonal read n^2 logical
         // elements for an O(n) result before (0.1x NumPy for every structured operand).
-        if (a_full && b_full && is_plain(a) && is_plain(b) && is_plain(result)) {
+        if (a_full && b_full && reads_as_stored(a) && reads_as_stored(b) && is_plain(result)) {
             auto packed = [&](auto* res_c) -> bool {
                 using C = std::remove_pointer_t<decltype(res_c)>;
                 if constexpr (std::is_same_v<T, bool>) {
@@ -504,9 +513,16 @@ namespace {
                 return;
             }
 
-            // Any other operand (bit, float16, structured, mixed dtypes): the typed row reader.
-            if (rows_binary<T>(a, b, rows, cols, op, [](uint64_t, uint64_t) { return true; },
-                               [&](uint64_t i, uint64_t j, T v) { res_dense->set(i, j, v); })) {
+            // Any other operand (bit, float16, structured, mixed dtypes): the typed row reader,
+            // writing straight into a plain result (set() checks and dispatches per element).
+            if (res_plain) {
+                T* res_data = res_dense->data();
+                if (rows_binary<T>(a, b, rows, cols, op, [](uint64_t, uint64_t) { return true; },
+                                   [res_data, cols](uint64_t i, uint64_t j, T v) { res_data[i * cols + j] = v; })) {
+                    return;
+                }
+            } else if (rows_binary<T>(a, b, rows, cols, op, [](uint64_t, uint64_t) { return true; },
+                                      [&](uint64_t i, uint64_t j, T v) { res_dense->set(i, j, v); })) {
                 return;
             }
             // Per-element fallback: lazy closures and windows of structured classes.
