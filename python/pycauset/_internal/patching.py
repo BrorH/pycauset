@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 _METHODS_RETURNING_MATRIX = [
-    "multiply",
+
     "invert",
     "__invert__",
     "__add__",

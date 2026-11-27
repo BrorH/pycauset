@@ -434,3 +434,10 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   `set_io_streaming_threshold` controlled nothing (a test that "forced streaming" with it never
   streamed). Planner deleted; traces now carry operand facts and the engine's kernel log.
   Gates: 4,448 + 3,735 passed, atlas 88,361 cells 0 wrong, CI gate 42 passed.
+- Test retirement (4.5, TESTS.md §4): per-file Python coverage plus a C++ coverage build
+  (`build/cov`) comparison. 40 old files deleted once their unique lines were covered by three
+  new files (warnings, API surface, interop); 19 physics files moved to `tests/physics/`.
+  The new interop tests found and fixed F-102 (matrix + vector), F-104 (`m[...]` broken by
+  a null `py::slice()`, list / NumPy-integer indices, `ndarray @ matrix`); the five matmul
+  bindings are one helper and `.multiply` is gone. F-103 (Python int -> int32 vs NumPy int64)
+  is open for the maintainer. Gates: 4,443 + 3,923 passed, atlas 0 wrong, CI gate 42.

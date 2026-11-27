@@ -99,6 +99,15 @@ few hundred lines.
 5. When `tests/python/` is empty: remove the CI `.so` copy step and the `sys.path`
    hacks, and make sanitizer jobs run with `-s`.
 
+### Progress
+- Session 9: tools `review/scripts/retire_analysis.py` (Python) and `cpp_retire_analysis.py`
+  (C++, from the `build/cov` coverage build; run pytest with `-o pythonpath=<cov package>`,
+  or pyproject's `pythonpath` silently imports the normal build). First batch: 40 old files
+  (4,185 lines) deleted after their unique Python and C++ lines were covered by new tests
+  (`test_warnings.py`, `test_api_surface.py`, `test_interop.py`). Writing those tests found
+  F-102, F-103, F-104. Physics tests moved to `tests/physics/` (kept; smoke tier for R1).
+  `tests/python` has 44 files left.
+
 ## 5. Running tests cheaply (for agents)
 - Default: `pytest -q -p no:warnings --tb=short` → one line on success.
 - While working on one area: `pytest tests/engine/test_conformance.py -k matmul`.

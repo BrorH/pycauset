@@ -1,4 +1,5 @@
 #include "pycauset/math/ScalarOps.hpp"
+#include "pycauset/math/VectorOps.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
 #include "pycauset/math/Bitwise.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
@@ -177,6 +178,16 @@ inline SliceInfo slice_from_object(const py::handle& obj, uint64_t dim) {
     if (py::isinstance<py::int_>(obj)) {
         return make_scalar_index(obj.cast<py::ssize_t>(), dim);
     }
+    // NumPy integer scalars index like ints (they implement __index__; bool does not count).
+    if (!PyBool_Check(obj.ptr()) && !py::isinstance<py::array>(obj) && PyIndex_Check(obj.ptr())) {
+        const py::ssize_t idx = PyNumber_AsSsize_t(obj.ptr(), PyExc_IndexError);
+        if (idx == -1 && PyErr_Occurred()) throw py::error_already_set();
+        return make_scalar_index(idx, dim);
+    }
+    // A Python list is an index array, as in NumPy (m[[0, 2], :]).
+    if (py::isinstance<py::list>(obj)) {
+        return slice_from_object(py::array::ensure(obj), dim);
+    }
     if (py::isinstance<py::slice>(obj)) {
         py::slice s = obj.cast<py::slice>();
         py::ssize_t start, stop, step, slicelength;
@@ -242,19 +253,21 @@ inline SliceInfo slice_from_object(const py::handle& obj, uint64_t dim) {
 }
 
 inline ParsedIndex parse_matrix_subscript(const py::handle& key, uint64_t rows, uint64_t cols) {
-    // Normalize to exactly two entries (row, col). Ellipsis expands to full slices.
+    // Normalize to exactly two entries (row, col). Ellipsis expands to full slices: a real
+    // slice(None) object (pybind11's default py::slice() is a null handle, so `m[...]` raised).
+    const auto full = [] { return py::reinterpret_steal<py::object>(PySlice_New(nullptr, nullptr, nullptr)); };
     py::object first;
     py::object second;
 
     if (py::isinstance<py::ellipsis>(key)) {
-        first = py::slice();
-        second = py::slice();
+        first = full();
+        second = full();
     } else if (py::isinstance<py::tuple>(key) || py::isinstance<py::list>(key)) {
         py::sequence seq = key.cast<py::sequence>();
         if (seq.size() == 1) {
             if (py::isinstance<py::ellipsis>(seq[0])) {
-                first = py::slice();
-                second = py::slice();
+                first = full();
+                second = full();
             } else {
                 throw py::type_error("Matrix indices must be (row, col)");
             }
@@ -262,10 +275,10 @@ inline ParsedIndex parse_matrix_subscript(const py::handle& key, uint64_t rows, 
             first = seq[0];
             second = seq[1];
             if (py::isinstance<py::ellipsis>(first)) {
-                first = py::slice();
+                first = full();
             }
             if (py::isinstance<py::ellipsis>(second)) {
-                second = py::slice();
+                second = full();
             }
         } else {
             throw py::type_error("Matrix indices must be 2D (row, col) for matrices/vectors");
@@ -959,6 +972,25 @@ py::object export_numpy(const MatrixBase& mat) {
 // reflected) for another matrix, any Python/NumPy scalar, or a NumPy array. Scalars go to
 // scalar_op (NumPy result dtypes, exact integers, O(1) float views); matrices to the
 // element-wise ops. Anything else returns NotImplemented (e.g. BlockMatrix handles it).
+// One matmul binding path (review 4.3): `@`, `.matmul`, `pycauset._native.matmul` and NumPy
+// operands all come here. The warnings are advisory and never change the result.
+inline std::shared_ptr<MatrixBase> matmul_mm(const MatrixBase& a, const MatrixBase& b) {
+    return translate_invalid_argument([&]() {
+        maybe_warn_float_underpromotion("matmul", promotion::BinaryOp::Matmul, a, b);
+        maybe_warn_bit_promotes_to_int32("matmul", promotion::BinaryOp::Matmul, a.get_data_type(), b.get_data_type());
+        maybe_warn_integer_matmul_overflow_risk_preflight(a, b);
+        return std::shared_ptr<MatrixBase>(pycauset::dispatch_matmul(a, b, "").release());
+    });
+}
+
+inline std::shared_ptr<VectorBase> matvec(const MatrixBase& a, const VectorBase& v) {
+    return translate_invalid_argument([&]() {
+        maybe_warn_bit_promotes_to_int32("matmul", promotion::BinaryOp::MatrixVectorMultiply, a.get_data_type(),
+                                         v.get_data_type());
+        return std::shared_ptr<VectorBase>(pycauset::matrix_vector_multiply(a, v, "").release());
+    });
+}
+
 inline py::object matrix_arith(const MatrixBase& a, const py::object& other, Arith op, bool reflected) {
     std::shared_ptr<MatrixBase> b;
     if (py::isinstance<MatrixBase>(other)) {
@@ -967,6 +999,9 @@ inline py::object matrix_arith(const MatrixBase& a, const py::object& other, Ari
         return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, scalar_kind(op, reflected), s).release()));
     } else if (py::isinstance<py::array>(other)) {
         b = elementwise_operand_matrix_from_numpy(other.cast<py::array>());
+    } else if (py::isinstance<VectorBase>(other)) {
+        // A 1-D operand broadcasts as a row, as in NumPy (F-102): the vector's 1 x n view.
+        b = std::shared_ptr<MatrixBase>(pycauset::as_row_matrix(other.cast<const VectorBase&>()).release());
     } else {
         return py::reinterpret_borrow<py::object>(Py_NotImplemented);
     }
@@ -1065,22 +1100,6 @@ void bind_matrix_classes(py::module_& m) {
         .def("size", &MatrixBase::size)
         .def("rows", &MatrixBase::rows)
         .def("cols", &MatrixBase::cols)
-        .def(
-            "multiply",
-            [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) {
-                return translate_invalid_argument([&]() {
-                    maybe_warn_float_underpromotion("matmul", promotion::BinaryOp::Matmul, a, *b);
-                    maybe_warn_bit_promotes_to_int32(
-                        "matmul",
-                        promotion::BinaryOp::Matmul,
-                        a.get_data_type(),
-                        b->get_data_type());
-                    maybe_warn_integer_matmul_overflow_risk_preflight(a, *b);
-                    auto out = pycauset::dispatch_matmul(a, *b, "");
-                    return std::shared_ptr<MatrixBase>(out.release());
-                });
-            },
-            py::arg("other"))
         .def("get_element_as_double", &MatrixBase::get_element_as_double)
         .def("get_element_as_complex", &MatrixBase::get_element_as_complex)
         .def("_to_numpy_fast", [](const MatrixBase& mat, bool allow_huge) -> py::object {
@@ -1117,60 +1136,33 @@ void bind_matrix_classes(py::module_& m) {
         })
         .def(
             "__matmul__",
-            [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) {
-                return translate_invalid_argument([&]() {
-                    maybe_warn_float_underpromotion("matmul", promotion::BinaryOp::Matmul, a, *b);
-                    maybe_warn_bit_promotes_to_int32(
-                        "matmul",
-                        promotion::BinaryOp::Matmul,
-                        a.get_data_type(),
-                        b->get_data_type());
-                    maybe_warn_integer_matmul_overflow_risk_preflight(a, *b);
-                    auto out = pycauset::dispatch_matmul(a, *b, "");
-                    return std::shared_ptr<MatrixBase>(out.release());
-                });
-            },
+            [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) { return matmul_mm(a, *b); },
             py::is_operator())
         .def(
             "__matmul__",
-            [](const MatrixBase& a, const std::shared_ptr<VectorBase>& v) {
-                return translate_invalid_argument([&]() {
-                    maybe_warn_bit_promotes_to_int32(
-                        "matmul",
-                        promotion::BinaryOp::MatrixVectorMultiply,
-                        a.get_data_type(),
-                        v->get_data_type());
-                    auto out = pycauset::matrix_vector_multiply(a, *v, "");
-                    return std::shared_ptr<VectorBase>(out.release());
-                });
-            },
+            [](const MatrixBase& a, const std::shared_ptr<VectorBase>& v) { return matvec(a, *v); },
             py::is_operator())
         .def(
             "__matmul__",
             [](const MatrixBase& a, const py::array& b) -> py::object {
-                auto buf = b.request();
-                if (buf.ndim == 1) {
-                    auto vb = vector_from_numpy(b);
-                    maybe_warn_bit_promotes_to_int32(
-                        "matmul",
-                        promotion::BinaryOp::MatrixVectorMultiply,
-                        a.get_data_type(),
-                        vb->get_data_type());
-                    auto out = pycauset::matrix_vector_multiply(a, *vb, "");
-                    return py::cast(std::shared_ptr<VectorBase>(out.release()));
+                if (b.ndim() == 1) return py::cast(matvec(a, *vector_from_numpy(b)));
+                if (b.ndim() == 2) return py::cast(matmul_mm(a, *matrix_from_numpy(b)));
+                throw py::value_error("Unsupported array rank for matmul");
+            },
+            py::is_operator())
+        .def(
+            "__rmatmul__",
+            // ndarray @ matrix: NumPy defers (`__array_ufunc__ = None`). A 1-D array is a row
+            // vector (NumPy's vector @ matrix), returned as a vector.
+            [](const MatrixBase& a, const py::array& b) -> py::object {
+                if (b.ndim() == 1) {
+                    return py::cast(translate_invalid_argument([&]() {
+                        auto out = pycauset::vector_matrix_multiply(*vector_from_numpy(b), a, "");
+                        out->set_transposed(false);  // a 1-D result, as NumPy's (not a 1 x n row)
+                        return std::shared_ptr<VectorBase>(out.release());
+                    }));
                 }
-                if (buf.ndim == 2) {
-                    auto mb = matrix_from_numpy(b);
-                    maybe_warn_float_underpromotion("matmul", promotion::BinaryOp::Matmul, a, *mb);
-                    maybe_warn_bit_promotes_to_int32(
-                        "matmul",
-                        promotion::BinaryOp::Matmul,
-                        a.get_data_type(),
-                        mb->get_data_type());
-                    maybe_warn_integer_matmul_overflow_risk_preflight(a, *mb);
-                    auto out = pycauset::dispatch_matmul(a, *mb, "");
-                    return py::cast(std::shared_ptr<MatrixBase>(out.release()));
-                }
+                if (b.ndim() == 2) return py::cast(matmul_mm(*matrix_from_numpy(b), a));
                 throw py::value_error("Unsupported array rank for matmul");
             },
             py::is_operator())
@@ -1273,9 +1265,7 @@ void bind_matrix_classes(py::module_& m) {
         }, "True when the elements are computed on read (a view or closure) rather than stored.")
         .def("inverse", [](const MatrixBase& mat) { return matrix_inverse(mat); })
         .def("invert", [](const MatrixBase& mat) { return matrix_inverse(mat); })
-        .def("matmul", [](const MatrixBase& a, const MatrixBase& b) {
-            return std::shared_ptr<MatrixBase>(pycauset::dispatch_matmul(a, b, "").release());
-        }, py::arg("other"))
+        .def("matmul", [](const MatrixBase& a, const MatrixBase& b) { return matmul_mm(a, b); }, py::arg("other"))
         .def("eig", [](const MatrixBase& mat) {
             auto r = pycauset::eig(mat);
             return py::make_tuple(std::shared_ptr<VectorBase>(r.first.release()), std::shared_ptr<MatrixBase>(r.second.release()));
@@ -1654,19 +1644,7 @@ void bind_matrix_classes(py::module_& m) {
 
     m.def(
         "matmul",
-        [](std::shared_ptr<MatrixBase> a, std::shared_ptr<MatrixBase> b) {
-            return translate_invalid_argument([&]() {
-                maybe_warn_float_underpromotion("matmul", promotion::BinaryOp::Matmul, *a, *b);
-                maybe_warn_bit_promotes_to_int32(
-                    "matmul",
-                    promotion::BinaryOp::Matmul,
-                    a->get_data_type(),
-                    b->get_data_type());
-                maybe_warn_integer_matmul_overflow_risk_preflight(*a, *b);
-                auto out = pycauset::dispatch_matmul(*a, *b, "");
-                return std::shared_ptr<MatrixBase>(out.release());
-            });
-        },
+        [](std::shared_ptr<MatrixBase> a, std::shared_ptr<MatrixBase> b) { return matmul_mm(*a, *b); },
         py::arg("a"),
         py::arg("b"));
 

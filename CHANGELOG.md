@@ -9,6 +9,9 @@ milestone corresponds to **v0.6.1**.
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
 ### Changed
+- `matrix (+ - * /) vector` broadcasts the vector as a row, as NumPy does with a 1-D operand
+  (it raised `TypeError`). `ndarray @ matrix` works (1-D left operand: a 1-D result).
+- Indexing: `m[...]`, Python lists (`m[[0, 2], :]`) and NumPy integer scalars index as in NumPy.
 - `&`, `|`, `^`, `~` work for bool and integer matrices and vectors of every structure and
   view, with NumPy's dtype rules (`pc.bitwise_and` on integers is an integer operation; it
   used to cast to bool). Float/complex operands raise `TypeError`.
@@ -96,6 +99,7 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   the int32 accumulator notices are removed.
 
 ### Removed
+- `MatrixBase.multiply(other)`: an undocumented alias of `@`; use `a @ b` or `a.matmul(b)`.
 - `pc.set_io_streaming_threshold` / `pc.get_io_streaming_threshold`: they changed only what the
   IO trace *said*; whether an operation runs out of core is the engine's decision (F-100).
   `pc.last_io_trace()` now reports facts: operand shape/dtype/storage, the kernels the engine

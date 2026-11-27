@@ -1343,7 +1343,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   identity writes out a dense matrix instead of a scaled view (open, with the scalar-op rules).
 
 ### F-102 matrix (+ - * /) PyCauset vector raises; NumPy broadcasts
-- **Status:** open (session 9, found while retiring old tests). `m + np.arange(n)` broadcasts
+- **Status:** fixed (session 9): `matrix_arith` takes a vector as its 1 x n row
+  (`as_row_matrix`); tests in `tests/engine/test_interop.py`. Found while retiring old tests. `m + np.arange(n)` broadcasts
   like NumPy (the 1-D array is imported as a 1 x n row), but `m + pc.vector(...)` raises
   `TypeError`: the matrix binding has no overload for a VectorBase operand. NumPy treats a
   1-D operand as a row and broadcasts it. Fix: the element-wise entry takes a vector as its
@@ -1359,3 +1360,15 @@ the entry (the history is useful). New findings go at the bottom with the next f
   under-promotion default, document it, and apply it to NumPy int64 input too (no: that
   silently narrows user data); (c) keep int32 for Python literals only and document the split.
   Tech-lead recommendation: (a).
+
+### F-104 Indexing and reflected matmul gaps against NumPy
+- **Status:** fixed (session 9). Cause of `m[...]`: the subscript parser expanded an Ellipsis
+  into `py::slice()`, which in pybind11 is a null handle, not `slice(None)`, so every `...`
+  branch raised. Lists and NumPy integer scalars are now indices; `__rmatmul__` takes NumPy
+  operands (a 1-D left operand gives a 1-D result). While there: the five matmul bindings
+  (`@` x3, `.matmul`, `_native.matmul`) are one helper, and the undocumented `.multiply`
+  alias (a second entry point for `@`) is gone.
+  - `m[...]` raises TypeError (NumPy: the whole array).
+  - `m[[0, 2], :]` (a Python list as an index) raises; `m[np.array([0, 2]), cols]` works.
+  - `ndarray @ m` raises TypeError: `__array_ufunc__ = None` makes NumPy defer, but there is
+    no `__rmatmul__`.
