@@ -12,8 +12,8 @@ moves to `experimental/`, RESTRUCTURE §3.1) and new features.
 **Physics for R1 (maintainer, 2026-11-27):** causal sets are R1 (the tools to create and
 test with): `CausalSet` / `pc.causet`, sprinkling into the d-dimensional Minkowski diamond,
 the order methods (links, chains, layers, intervals, past/future), Myrheim-Meyer, synthetic
-orders, save/load. Fields, plots and the rest of the spacetime library are parked in
-`experimental/physics`. No backwards compatibility (no users yet).
+orders, save/load, and lightweight plots (`pc.vis`; a later release is about visualization).
+Fields and the rest of the spacetime library are parked in `experimental/physics`. No backwards compatibility (no users yet).
 
 **Priority for R1 (maintainer, 2026-11-24):** the *engine*, meaning linear
 algebra and "NumPy for causal sets". The physics suite is **deprioritized**: smoke
@@ -127,7 +127,7 @@ risk: storage and object model first, since everything rests on them.
 | 3.9 | Persistence & caches: persistence, big_blob_cache, linalg_cache, export_guard, container format | | 2,300 |
 | 3.10 | Block matrices: blockmatrix, submatrix_view, thunks, dense_python | | 1,200 |
 | 3.11 | Physics: causet, spacetime, field, synthetic, Sprinkler.cpp, Spacetime.hpp **(post-R1; smoke tests only before)** | | 2,300 |
-| 3.12 | Visualization: vis.py **(post-R1)** | | 435 |
+| 3.12 | Visualization: vis.py **(R1: lightweight plots only)** | | 435 |
 | 3.13 | Build, packaging, CI, release: CMakeLists, pyproject, workflows, tools/*.ps1 | | 1,000 |
 | 3.14 | Old tests: superseded by TESTS.md migration (no line-by-line review of old tests) | `tests/` | 16,700 |
 | 3.15 | Benchmarks, demos, scripts, tools | | 2,200 |

@@ -32,7 +32,7 @@ Generates a Hasse diagram of the Causal Set.
 
 A Hasse diagram displays the transitive reduction of the partial order. Elements are placed at their spacetime coordinates, and lines are drawn only between immediate causal neighbors (links). This reveals the "skeleton" of the causal structure.
 
-The function automatically applies coordinate transformations for supported spacetimes (e.g., `MinkowskiDiamond`, `MinkowskiCylinder`) to improve readability.
+Elements are drawn at their coordinates, with the spacetime's outline.
 
 ## See Also
 

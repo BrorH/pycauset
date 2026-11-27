@@ -26,9 +26,8 @@ Visualize the spacetime embedding of a causal set.
 
 ## Description
 
-The plot reads the spacetime's authored `to_embedding` / `boundary` / `display_axes`
-declarations to draw the shape; a geometry-free custom spacetime renders its raw
-coordinates with generic axis labels. Embedding dimensions beyond 3 are shown as the
+The plot reads the spacetime's `boundary()` and `display_axes()` to draw its outline and
+name the axes. Embedding dimensions beyond 3 are shown as the
 first three axes with an explicit warning. Points are colored by their time
 coordinate.
 

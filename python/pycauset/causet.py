@@ -2,8 +2,9 @@
 
 A `CausalSet` is a bit (dtype "bool") `TriangularMatrix` of causal relations plus provenance
 (a spacetime and a seed). It carries the order methods (`links`, `past` / `future`,
-`interval`, chains / antichains, layers) and the Myrheim-Meyer dimension estimate. Fields,
-plots and the rest of the spacetime library are parked in `experimental/physics`.
+`interval`, chains / antichains, layers), the Myrheim-Meyer dimension estimate and three
+lightweight plots. Fields and the rest of the spacetime library are parked in
+`experimental/physics`.
 
 **Natural ordering (a core invariant).** Elements are labelled by time (ascending coordinate
 0), so the causal matrix is strictly upper triangular: ``i < j`` whenever ``i`` precedes
@@ -309,6 +310,23 @@ class CausalSet:
             else:
                 hi = mid
         return (lo + hi) / 2.0
+
+    # --- plots (pycauset.vis; lightweight, lazy Plotly import) ---
+
+    def plot_embedding(self, **kwargs):
+        """Scatter plot of the elements at their coordinates. Returns a Plotly Figure."""
+        from .vis import plot_embedding
+        return plot_embedding(self, **kwargs)
+
+    def plot_hasse(self, **kwargs):
+        """The Hasse diagram: elements at their coordinates, lines along the links."""
+        from .vis import plot_hasse
+        return plot_hasse(self, **kwargs)
+
+    def plot_causal_matrix(self, **kwargs):
+        """The causal matrix as a heatmap."""
+        from .vis import plot_causal_matrix
+        return plot_causal_matrix(self, **kwargs)
 
     def __repr__(self):
         return f"<CausalSet n={self._n} spacetime={self._spacetime}>"

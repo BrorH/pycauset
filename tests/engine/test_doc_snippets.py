@@ -11,7 +11,8 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CHECKED = ["README.md", "documentation/guides/Quickstart.md", "documentation/guides/Examples.md",
            "documentation/guides/User Guide.md", "documentation/guides/Saving and Loading Data.md",
-           "documentation/guides/Causal Sets.md", "documentation/guides/Analyzing a Causal Set.md"]
+           "documentation/guides/Causal Sets.md", "documentation/guides/Analyzing a Causal Set.md",
+           "documentation/guides/Visualization.md"]
 
 
 @pytest.mark.parametrize("page", CHECKED)
@@ -19,6 +20,12 @@ def test_guide_code_runs(page, tmp_path, monkeypatch):
     blocks = re.findall(r"```python\n(.*?)```", (ROOT / page).read_text(), re.S)
     assert blocks, f"{page} has no python blocks"
     monkeypatch.chdir(tmp_path)  # files the guide writes land in a temporary directory
+    try:  # guides call fig.show(); no browser in tests
+        import plotly.basedatatypes
+
+        monkeypatch.setattr(plotly.basedatatypes.BaseFigure, "show", lambda self, *a, **k: None)
+    except ImportError:
+        pass
     import warnings
 
     import pycauset as pc

@@ -23,6 +23,7 @@ flowchart LR
 
 - **[[guides/Causal Sets|Causal Sets]]** — sprinkle into the Minkowski diamond, read the order.
 - **[[guides/Analyzing a Causal Set|Analyzing a Causal Set]]** — links, chains, layers, intervals, dimension.
+- **[[guides/Visualization|Visualization]]** — plot the embedding, the Hasse diagram, the causal matrix.
 
 ## Data in and out
 

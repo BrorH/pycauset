@@ -75,23 +75,15 @@ figure you can do here (change the template, add traces, save to file).
 
 ## Coordinates and boundaries
 
-The plotter does not guess the shape of a spacetime. Each `Spacetime` can declare
-three presentation hooks — `to_embedding(coords)` (display transform), `boundary()`
-(paths in embedding coordinates), and `display_axes()` (axis labels) — and the viz
-layer just reads them:
+The plotter does not guess the shape of a spacetime; the spacetime declares it.
+`MinkowskiDiamond` gives its outline (`boundary()`: the diamond in 2D, its rim circle and
+tip-to-tip lines in 3D) and its axis names (`display_axes()`: `t`, `x`, `y`, ...). Time is
+the vertical axis.
 
-- `MinkowskiDiamond` (2D): lightcone coordinates $(u, v)$ rotated to Cartesian
-  $(t, x)$, diamond boundary drawn in white.
-- `MinkowskiCylinder` (2D): mapped to a 3D cylinder, top and bottom rings in white.
-- `MinkowskiBox` (2D): Cartesian $(t, x)$ with a rectangular boundary.
+Lightweight by design: three plots and `show`. Causal-set visualization gets a release of
+its own later.
 
-![Minkowski cylinder embedding](../docs/assets/gallery/cylinder_embedding.png)
-
-*The same causal set machinery on a cylinder: the plotter reads the spacetime's
-authored shape and draws the 3D cylinder with its end rings.*
-
-A geometry-free custom spacetime renders its raw coordinates with generic
-`c0, c1, …` axis labels. Embeddings with more than 3 dimensions show the first three
+Embeddings with more than 3 dimensions show the first three
 axes and warn explicitly; nothing is silently truncated.
 
 ![4D diamond, first three axes](../docs/assets/gallery/diamond_4d_embedding.png)
@@ -133,5 +125,4 @@ elements below the diagonal are never in the past of anything above it.*
 
 The default cap is 2,000 points; above that it subsets with a warning.
 
-See [[docs/pycauset.vis/index.md|pycauset.vis]] for the exact signatures, and
-[[guides/Spacetime|Spacetime]] for how spacetimes author their own shapes.
+See [[docs/pycauset.vis/index.md|pycauset.vis]] for the exact signatures.

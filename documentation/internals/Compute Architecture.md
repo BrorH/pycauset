@@ -1,381 +1,93 @@
-# Compute System Architecture
+# Compute Architecture
 
-This document details the computational backend of PyCauset, including the CPU/GPU abstraction layer, parallelization strategies, and hardware-specific optimizations.
+How an operation reaches a kernel. R1 runs on the CPU only; the CUDA backend is parked in
+`experimental/cuda` (its README lists the dormant hooks still in the core).
 
-## 1. Architecture Overview
-
-PyCauset uses a unified compute architecture that abstracts the underlying hardware (CPU or GPU) from the high-level matrix operations via the **`ComputeWorker`** interface.
+## The path of an operation
 
 ```mermaid
-classDiagram
-    class ComputeContext {
-        +instance()
-        +get_worker()
-        +enable_gpu()
-    }
-    
-    class ComputeWorker {
-        <<interface>>
-        +matmul_tile()
-        +elementwise_tile()
-        +triangular_solve_tile()
-    }
-    
-    class CpuComputeWorker {
-        +solver_: CpuSolver
-    }
-    
-    class CudaComputeWorker {
-        +cublasHandle
-        +cusolverHandle
-    }
-
-    class StreamingManager {
-         +execute_plan(worker, plan)
-    }
-
-    ComputeContext --> ComputeWorker : manages
-    ComputeWorker <|-- CpuComputeWorker
-    ComputeWorker <|-- CudaComputeWorker
-    StreamingManager --> ComputeWorker : drives tiles
-    CpuComputeWorker --> CpuSolver : delegates
+flowchart LR
+    Py["Python entry function<br/>(pycauset/_internal/ops.py)"] --> Bind["binding<br/>(src/bindings)"]
+    Bind --> Entry["engine entry function<br/>(structure rules, normaliser)"]
+    Entry --> Ctx["ComputeContext::get_device()"]
+    Ctx --> Auto["AutoSolver"]
+    Auto --> Cpu["CpuDevice"]
+    Cpu -->|"fits in RAM"| Solver["CpuSolver kernels"]
+    Cpu -->|"out of core"| SM["StreamingManager"]
+    SM --> Worker["CpuComputeWorker<br/>(tile kernels)"]
+    Worker --> Solver
 ```
 
-### 1.1 ComputeContext
-The `ComputeContext` is a singleton that serves as the entry point. It manages the lifecycle of the compute workers (`CpuComputeWorker` and `CudaComputeWorker`) and handles the dynamic loading of the CUDA backend.
-
-### 1.2 ComputeWorker (Shared Interface)
-The `ComputeWorker` interface is the heart of the R1 architecture. It exposes tiled, streaming-friendly operations (`matmul_tile`, etc.) that the `StreamingManager` can drive.
-*   **CpuComputeWorker**: Implements the worker interface for CPU, delegating to `CpuSolver` for SIMD/tiled execution.
-*   **CudaComputeWorker**: Implements the interface for NVIDIA GPUs using cuBLAS/cuSOLVER.
-*   **Cost Model Dispatch**: Dispatch compares GPU transfer+compute time against CPU compute time using:
-    $$ T_{gpu} = \frac{\text{Bytes}}{\text{BW}_{pci}} + \frac{\text{Ops}}{\text{FLOPS}_{gpu}} + T_{latency} $$
-    If no valid profile is available, routing falls back to CPU (pessimistic).
-*   **Hardware Availability**: If no GPU is detected, it falls back to the CPU.
-*   **Operation + Type Support**: GPU routing is operation-specific and gated by matrix type + dtype compatibility (for example, dense float32/float64 with matching dtypes). Many operations are intentionally CPU-only for now (e.g., matrix-vector multiply, outer product, elementwise multiply/divide, dot/sum/norm).
-*   **Manual Overrides**: `pycauset.cuda.force_backend("cpu"|"gpu"|"auto")` can override routing at runtime.
-
-#### Routing pipeline (summary)
-1. Frontend validates shapes/dtypes and allocates outputs.
-2. AutoSolver checks user preference (`force_backend`) and hardware availability.
-3. If GPU is eligible, AutoSolver evaluates cost model vs CPU.
-4. If streaming is required, the Streaming Manager provides a plan and IO trace annotations.
-5. Device-specific workers execute kernels; errors trigger deterministic fallback.
-
-
-### 1.3 IO Acceleration Integration
-To minimize page faults during computation, the compute backend integrates with the **IO Accelerator** (see [[internals/Memory and Data|Memory & Data]]).
-
-*   **Prefetching**: Before starting a heavy operation (like `matmul` or `inverse`), the solver calls `matrix->get_accelerator()->prefetch()`. This hints the OS to load the data into RAM asynchronously.
-*   **Discarding**: For temporary intermediate results, the solver may call `discard()` after usage to free up memory immediately.
-
-### 1.4 Debug trace tags (kernel vs IO)
-
-For deterministic testing and debugging (especially device routing and “did this trigger evaluation?” checks), PyCauset exposes a small trace surface:
-
-- Kernel trace (thread-local):
-    - `pycauset._debug_clear_kernel_trace()`
-    - `pycauset._debug_last_kernel_trace()`
-
-- IO trace (separate channel, thread-local):
-    - `pycauset._debug_clear_io_trace()`
-    - `pycauset._debug_last_io_trace()`
-
-The IO trace is intentionally separate so IO hints (prefetch/discard) don’t clobber kernel dispatch traces.
-
-### 1.5 Streaming Manager integration
-The Streaming Manager is the policy layer for out-of-core execution. AutoSolver consults it to decide when to stream, how to tile, and which route to annotate. Streaming plans are recorded in the IO trace so tests can assert the expected routing without timing-dependent checks.
-
-## 2. CPU Backend
-
-The CPU backend handles small-to-medium workloads with low latency, and it is the fallback for everything.
-
-### 2.1 CpuDevice & CpuSolver
-*   **`CpuDevice`**: A thin wrapper that implements the `ComputeDevice` interface. It routes operations to the appropriate execution strategy:
-    *   **Direct Execution**: For small matrices that fit in memory, calls `CpuSolver` directly.
-    *   **Streaming Execution**: For large matrices, delegates to `StreamingManager`, which tiles the operation and executes it using `CpuComputeWorker`.
-*   **`CpuSolver`**: The core implementation class containing the mathematical algorithms.
-    *   **Dense Matrix Ops**: Blocked matrix multiplication (tiled for cache efficiency) via `gemm`.
-    *   **Lazy Initialization**: Uses dynamic `beta` parameter (0.0 for first block, 1.0 for others) to avoid global zero-filling of output matrices. This prevents unnecessary page faults for out-of-core datasets.
-    *   **Bit Matrix Ops**: Optimized using `std::popcount` (AVX-512/NEON) for 30x speedups over naive loops.
-
-### 2.2 Streaming Manager (C++)
-To handle out-of-core workloads efficiently on the CPU, a C++ `StreamingManager` is used (mirroring the Python-side logic but closer to the metal).
-*   **Memory Budgeting**: Consults `MemoryGovernor` to calculate optimal tile sizes that fit within the `working_memory_bytes` limit.
-*   **Execution Loop**: Orchestrates the tiling loops (e.g., M, N, K loops for matmul).
-*   **Worker Abstraction**: Uses `IComputeWorker` interface to dispatch work, allowing the same tiling logic to potentially drive other backends or thread pools in the future.
-*   **CpuComputeWorker**: The concrete worker that calls `CpuSolver::gemm` on individual tiles.
-    *   **Element-wise Ops**: Parallelized addition, subtraction, and multiplication.
-
-### 2.3 SIMD and Vectorization
-The CPU backend explicitly employs SIMD (AVX2/AVX-512) for critical paths:
-*   **Elementwise Ops**: `add`, `sub`, `mul`, `div` use runtime-dispatched SIMD kernels.
-    *   **Runtime Dispatch**: At runtime, `CpuSolver` detects CPU features (via `cpuid`) and selects the optimal kernel (Scalar fallback, AVX2, or AVX-512).
-    *   **Coverage**: Optimized implementations exist for `float32`, `float64`, `int32`, `int64`. Other types rely on compiler auto-vectorization of the scalar fallback loops.
-*   **Bit Ops**: `popcount` accelerated via hardware instructions.
-
-### 2.4 Parallelization (`ParallelUtils`)
-PyCauset uses a custom thread pool (`ThreadPool`) to manage parallelism with a **Dynamic Scheduling** model (Work-Stealing Approximation).
-
-*   **`ParallelFor`**: A helper function that splits loops across available threads.
-*   **Dynamic Scheduling**: Unlike static partitioning (which suffers from stalls if one thread hits a page fault), `ParallelFor` uses an atomic index to hand out small chunks of work (`grain_size`) to threads as they finish previous tasks.
-*   **Load balancing**: if one thread blocks on I/O or paging, the others keep going.
-*   **Granularity**: The grain size is tuned (heuristic: `range / (threads * 4)`) to balance load distribution against atomic contention overhead.
-
-### 2.5 Eigensolvers (Phase 6: R1_CPU)
-
-The CPU backend covers eigensolvers through LAPACK, with special handling per matrix type:
-
-#### Hermitian/Symmetric Eigensolvers
-*   **`eigh(A)`**: Computes eigenvalues and eigenvectors for Hermitian (complex) or symmetric (real) matrices
-    *   **Backend**: currently NumPy (`np.linalg.eigh`) through the Python layer; a native LAPACK path is planned (review PLAN Phase N.3)
-    *   **Requirements**: Square, contiguous dense matrix (no block-matrix support)
-    *   **Streaming**: Not supported (LAPACK requires full matrix in memory)
-*   **`eigvalsh(A)`**: Computes eigenvalues only (faster when eigenvectors not needed)
-    *   Uses same LAPACK routines but skips eigenvector computation
-
-#### General Eigensolvers
-*   **`eig(A)`**: Computes eigenvalues and eigenvectors for general (non-symmetric) matrices
-    *   **Backend**: LAPACK `dgeev` (double), `sgeev` (float)
-    *   **Returns**: Complex eigenvalues/eigenvectors even for real matrices (general eigenvalues can be complex)
-    *   **Requirements**: Square, dense only
-    *   **Streaming**: Not supported
-*   **`eigvals(A)`**: Eigenvalues only for general matrices
-
-#### Arnoldi Iteration (Large/Sparse Eigenproblems)
-*   **`eigvals_arnoldi(A, k, m, tol)`**: Computes top-k eigenvalues using Arnoldi iteration
-    *   **Method**: Iterative Arnoldi algorithm - only requires matrix-vector products
-    *   **Advantage**: Can work with disk-backed matrices (A doesn't need to fit in RAM)
-    *   **Streaming**: **Supported** - operates via matrix-vector products, enabling out-of-core execution
-    *   **Use cases**: Large matrices where only a few eigenvalues are needed
-    *   **Parameters**:
-        *   `k`: Number of eigenvalues to compute
-        *   `m`: Krylov subspace dimension (typically `m = 2*k` to `3*k`)
-        *   `tol`: Convergence tolerance
-    *   **Requirements**: Square matrix (can be disk-backed)
-    *   **Block-matrix**: Not currently supported (but underlying A can be out-of-core dense)
-
-#### Routing and Deterministic Rejection
-*   **Non-square matrices**: Rejected with clear error message mentioning "square matrix required"
-*   **Block matrices**: Rejected with error indicating LAPACK requires dense contiguous layout
-*   **IO trace**: `pycauset.last_io_trace(op)` lists the kernels that ran (see [[internals/Streaming Manager|Streaming Manager]])
-
-### 2.6 Additional Linear Algebra Operations (Phase 7: R1_CPU)
-
-Beyond eigensolvers, the CPU backend provides:
-
-#### Streaming-Safe Operations (Disk-Friendly)
-*   **`trace(A)`**: Computes sum of diagonal elements
-    *   **Streaming**: **Supported** - only accesses diagonal (O(n) memory)
-    *   **Implementation**: Direct diagonal sum with optimizations for Identity/Diagonal matrices
-    *   **Block-matrix**: Supported - can sum block diagonals
-    *   **Non-square**: Works on rectangular matrices (trace of min(m,n) diagonal)
-*   **`frobenius_norm(A)`**: Computes √(Σ|aᵢⱼ|²)
-    *   **Streaming**: **Supported** - sum of squares across tiles
-    *   **Implementation**: Parallelized sum using ParallelFor
-    *   **Block-matrix**: Supported - can sum block norms
-    *   **Memory**: O(tile_size) for out-of-core matrices
-
-#### LAPACK Factorizations (In-Memory)
-All factorizations use LAPACK and require the full matrix in contiguous memory:
-
-*   **`qr(A)`**: QR decomposition (A = Q×R)
-    *   **Backend**: LAPACK `geqrf` + `orgqr`/`ungqr`
-    *   **Returns**: Q (orthogonal), R (upper triangular)
-    *   **Reduced QR**: Q is m×k, R is k×n where k=min(m,n)
-    *   **Streaming**: Not supported (LAPACK constraint)
-    *   **Use case**: Least squares, orthogonalization
-*   **`lu(A)`**: LU decomposition with partial pivoting (PA = LU)
-    *   **Backend**: LAPACK `getrf`
-    *   **Returns**: P (permutation), L (lower triangular), U (upper triangular)
-    *   **Streaming**: Not supported (LAPACK constraint)
-    *   **Requirements**: Square matrix
-*   **`svd(A)`**: Singular Value Decomposition (A = U×Σ×Vᵀ)
-    *   **Backend**: LAPACK `gesdd` (default), fallback to `gesvd`
-    *   **Returns**: U, S (singular values), Vᵀ
-    *   **Streaming**: Not supported (LAPACK constraint)
-    *   **Full vs Reduced**: Supports both full and reduced SVD
-*   **`solve(A, b)`**: Solves linear system Ax = b
-    *   **Backend**: LAPACK `getrf` + `getrs` (LU-based)
-    *   **Streaming**: Not supported (LAPACK constraint)
-    *   **Requirements**: A must be square and invertible
-
-#### Determinant
-*   **`determinant(A)`**: Computes determinant of square matrix
-    *   **Method**: LU decomposition + diagonal product for dense matrices
-    *   **Optimizations**: 
-        *   Identity: det = scalar^n
-        *   Diagonal: det = product of diagonal
-        *   Triangular: det = product of diagonal (if has_diagonal)
-    *   **Streaming**: Not supported (uses LU for general case)
-    *   **Block-matrix**: Supported via block determinant formula
-    *   **Requirements**: Square matrix
-
-#### Op Contract Declarations
-Phase 7 operations declare their capabilities:
-*   **Streaming-safe**: `trace`, `frobenius_norm` (can process tiles)
-*   **LAPACK-constrained**: `qr`, `lu`, `svd`, `solve` (require full matrix)
-*   **Block-matrix support**: `trace`, `determinant`, `frobenius_norm`
-*   **Square requirement**: `lu`, `solve`, `determinant`
-
-## 3. GPU Backend (CUDA)
-
-The GPU backend uses CUDA for the $O(N^3)$ operations, like matmul and inversion.
-
-### 3.1 CudaDevice
-*   **Libraries**: Wraps `cuBLAS` (for matrix multiplication) and `cuSOLVER` (for decomposition/inversion).
-*   **Memory Management**: Maintains persistent device buffers (`d_A`, `d_B`, `d_C`) to avoid `cudaMalloc` overhead on every call.
-
-### 3.2 Custom Kernels
-For operations not supported by standard libraries, PyCauset implements custom CUDA kernels:
-*   **BitMatrix Multiplication**: Uses a "Transpose-then-Popcount" strategy.
-    1.  Transpose Matrix B using warp shuffles (`__ballot_sync`).
-    2.  Perform bitwise AND + POPCOUNT on 64-bit words.
-    3.  Achieves theoretical peak throughput (64 ops/cycle/thread).
-*   **Selected Element-wise Ops**: `k_add`, `k_sub`, `k_mul_scalar` are available for dense float matrices when the `AutoSolver` routes the operation to CUDA. Some elementwise operations (notably elementwise multiply/divide) are currently CPU-only.
-
-### 3.3 Pinned Memory
-To maximize data transfer speeds, PyCauset uses **Pinned Memory** (Page-Locked Memory) when a GPU is active.
-*   **Mechanism**: Uses `cudaHostAlloc` instead of `malloc`.
-*   **Benefit**: Allows the GPU's DMA engine to read/write directly to host RAM, bypassing CPU staging buffers. This typically doubles transfer bandwidth.
-*   **Budgeting**: The `MemoryGovernor` enforces a dynamic pinning budget ($\min(0.5\cdot\text{RAM}, 0.8\cdot\text{FreeRAM}, 8\text{GB})$). Users can override via `pycauset.cuda.set_pinning_budget(bytes)`.
-
-## 4. Hardware Detection & Capabilities
-
-PyCauset uses a `ComputeDevice` abstraction to manage hardware backends. The `CudaDevice` implementation includes logic to query NVIDIA GPU properties and determine the optimal execution strategy.
-
-### Compute Capability Heuristics
-
-The `preferred_precision()` method in `CudaDevice` returns an integer code:
-*   `1`: Float32 (Single Precision)
-*   `2`: Float64 (Double Precision)
-
-#### Logic
-The decision is based on the GPU's Compute Capability (CC):
-
-| CC | Architecture | Example Cards | FP64 Rate | Preference |
-|----|--------------|---------------|-----------|------------|
-| 6.0 | Pascal | Tesla P100 | 1/2 FP32 | Float64 |
-| 6.1 | Pascal | GTX 10-series | 1/32 FP32 | **Float32** |
-| 7.0 | Volta | Tesla V100 | 1/2 FP32 | Float64 |
-| 7.5 | Turing | RTX 20-series | 1/32 FP32 | **Float32** |
-| 8.0 | Ampere | Tesla A100 | 1/2 FP32 | Float64 |
-| 8.6 | Ampere | RTX 30-series | 1/64 FP32 | **Float32** |
-
-### Python Binding Integration
-
-PyCauset’s Python bindings include an internal “NumPy → PyCauset” import helper (referred to in code as `native.asarray`) that converts NumPy arrays into PyCauset vectors/matrices based on shape and dtype.
-
-Note: this is **not** a public `pycauset.asarray` API; the user-facing constructors are `pycauset.vector(...)` and `pycauset.matrix(...)`.
-*   **Shape**: Supports 1D (vector) and 2D (matrix) arrays.
-*   **Dtype policy (current)**:
-    *   1D `float32` vectors are **promoted to float64** vectors.
-    *   2D `float32` matrices remain `float32` matrices.
-    *   This conversion does not currently depend on GPU availability or `preferred_precision()`.
-
-## 5. Async GPU Architecture & Streaming
-
-PyCauset uses an **Asynchronous Heterogeneous Computing** model to handle matrices larger than GPU memory. Instead of blocking the CPU while the GPU computes, or blocking the GPU while the CPU loads data, we use a **Double-Buffered Pipeline**.
-
-### The `AsyncStreamer` Class
-
-The core of this architecture is the `AsyncStreamer<T>` class (`src/accelerators/cuda/AsyncStreamer.hpp`).
-
-#### Responsibilities
-1.  **Pinned Memory Management**: Allocates `cudaMallocHost` memory, which is required for asynchronous DMA transfers.
-2.  **Stream Management**: Maintains a dedicated `transfer_stream` separate from the `compute_stream`.
-3.  **Synchronization**: Uses `cudaEvent_t` to coordinate the CPU (Producer) and GPU (Consumer) without blocking the CPU thread unnecessarily.
-
-### Pipeline Logic
-
-The pipeline uses two buffers (index 0 and index 1) and runs CPU and GPU in parallel.
-
-1.  **CPU Phase (Producer)**:
-    *   **Wait**: Waits for Buffer $i$ to be free (consumed by GPU in previous cycle).
-    *   **Fill (Parallelized)**: Uses `pycauset::ParallelFor` (Thread Pool) to pack data from the source matrix into the Pinned Memory Buffer $i$. This multi-threaded approach ensures that memory bandwidth is maximized and the CPU does not become a bottleneck for fast GPUs.
-    *   **Submit**: Submits an asynchronous `cudaMemcpyAsync` on the `transfer_stream`.
-    *   **Record**: Records `event_transfer_complete`.
-
-2.  **GPU Phase (Consumer)**:
-    *   **Wait**: The `compute_stream` waits for `event_transfer_complete`.
-    *   **Compute**: Executes kernels (e.g., `cublasDgemm`) reading from Buffer $i$ (Device Memory).
-    *   **Record**: Records `event_compute_complete`.
-
-This architecture allows for **True Overlap**:
-*   **Time $T$**: GPU computes Batch $k$.
-*   **Time $T$**: CPU threads pack Batch $k+1$.
-*   **Time $T$**: DMA Engine transfers Batch $k+1$ (once packing is done).
-
-### Supported Operations
-
-#### 1. Matrix Multiplication (`matmul`)
-*   **Function**: `CudaDevice::matmul_streaming`
-*   **Strategy**: Tiled GEMM.
-*   **Pipeline**:
-    *   Streams tiles of Matrix A and Matrix B.
-    *   Accumulates results into a persistent tile of Matrix C on the GPU.
-    *   Allows multiplying matrices of arbitrary size, limited only by system RAM.
-
-#### 2. Eigenvalue Solver (`batch_gemv`)
-*   **Function**: `CudaDevice::batch_gemv_streaming`
-*   **Strategy**: Blocked Matrix-Vector Multiplication.
-*   **Pipeline**:
-    *   Keeps vectors $X$ and $Y$ in VRAM.
-    *   Streams Matrix $A$ in chunks from Host to Device.
-    *   Computes $Y += A_{chunk} \times X$.
-
-#### 3. Matrix Inversion (`inverse`)
-*   **Function**: `CudaSolver::invert`
-*   **Strategy**: Right-Looking Blocked LU Decomposition.
-*   **Pipeline**:
-    *   **Panel Factorization**: Loads a block column, factorizes it in VRAM.
-    *   **Trailing Update**: Streams the trailing submatrix and updates it using the factorized panel ($A' = A - L \times U$).
-    *   Reuses the `matmul_streaming` infrastructure for the update step.
-*   **Performance**: Enables inversion of matrices significantly larger than GPU memory.
-
-## 6. Optimization Roadmap & Future Work
-
-This section outlines the plan to address the remaining gaps in the PyCauset acceleration layer.
-
-### Phase 1: Dense Eigenvalues on GPU (Complete)
-*   **Status**: ✅ Complete (General non-symmetric via `geev`)
-*   **Implementation**: `eig` / `eigvals` use `cusolverDnXgeev` (the 64-bit generic API) for Float32/Float64, returning complex eigenvalues and, for `eig`, complex right eigenvectors. Row-major input is transposed on device so the column-major solver sees `A` (not `Aᵀ`) and returns the correct right eigenvectors. Symmetric `eigvalsh`/`eigh` remain CPU-backed until the symmetric GPU kernels are wired.
-
-### Phase 2: Element-wise Operations on GPU (Partial)
-*   **Status**: 🟡 Partial
-*   **Implementation**: CUDA supports `add`, `subtract`, and `multiply_scalar` for dense float32/float64 with matching dtypes. Elementwise multiply/divide are currently CPU-only.
-
-### Phase 3: BitMatrix Optimization (Complete)
-*   **Status**: ✅ Complete
-*   **Implementation**: "Bit-Packed GEMM" kernel implemented using `__popc` and shared memory tiling.
-
-### Phase 4: Precision Control
-*   **Objective**: Allow users to force Float64 on consumer GPUs.
-*   **Plan**: Add `PrecisionMode` enum (`AUTO`, `FORCE_FLOAT32`, `FORCE_FLOAT64`) to `AcceleratorConfig`.
-
-### 1.5 Resilience & Fallback (R1_SAFETY)
-
-To survive hardware failures (GPU driver crashes, out of memory), AutoSolver has a circuit breaker:
-
-1.  **Pessimistic Initialization**: GPU context creation is wrapped in try-catch. If it fails, the GPU is disabled for the session.
-2.  **Operation Guard**: Every GPU operation (matmul, inverse, etc.) is guarded.
-3.  **Fallback**: If a GPU operation throws a hardware exception:
-    *   A warning is logged to stderr.
-    *   AutoSolver disables GPU for the remainder of the session.
-
-### 1.6 Testing hooks (internal)
-
-For deterministic tests that need a stable GPU profile without hardware access, the CUDA backend supports a test-only environment override:
-
-- `PYCAUSET_TEST_CUDA_PROFILE` (key=value pairs) supplies a synthetic hardware profile used by `pycauset.cuda.benchmark()`.
-
-This hook is internal and intended for tests that validate routing and profile parsing.
+- **Entry function.** Each operation has one: it applies the structure rules (which class
+  the result is), the normaliser (views read in place) and allocates the result. The
+  procedure is [[project/protocols/Adding Operations|Adding Operations]].
+- **`ComputeContext`** (`src/compute/ComputeContext.cpp`): a singleton whose device is an
+  `AutoSolver`.
+- **`AutoSolver`** (`src/compute/AutoSolver.cpp`): the device router. With no GPU device
+  loaded (always, in R1) every call goes to `CpuDevice`. Its GPU routing, cost model and
+  pinned-memory calls are dormant CUDA hooks, kept by design (review/DEADCODE.md).
+- **`CpuDevice`** (`src/compute/cpu/CpuDevice.cpp`): picks in-memory or out-of-core
+  execution. Matmul and element-wise operations stream when the operands and result do not
+  fit (`out_of_core`); everything else runs in memory.
+- **`CpuSolver`**: the kernels, split by family:
+
+| File | Kernels |
+|---|---|
+| `CpuMatmul.cpp` | dense GEMM (BLAS), structured and bit matmul (`popcount`) |
+| `CpuElementwise.cpp` | `+ - * /`, bitwise ops, packed structured element-wise |
+| `CpuLinalg.cpp` | LAPACK factorizations and eigensolvers (`eigh`, `eig`, `cholesky`, `lu`, `qr`) |
+| `CpuSolver.cpp` | dot, norms, matrix-vector, `compute_k`, `svd`, `solve` |
+| `CpuIterative.cpp` | Arnoldi, skew eigensolvers, batched matrix-vector |
+| `CpuKernelsCommon.hpp` | shared helpers |
+
+## Out-of-core execution
+
+`StreamingManager` (`src/compute/StreamingManager.cpp`) tiles a matmul or element-wise
+operation to fit the `MemoryGovernor` budget and hands each tile to a `ComputeWorker`
+(`include/pycauset/compute/ComputeWorker.hpp`: `matmul_tile`, `elementwise_tile`). The only
+worker is `CpuComputeWorker`, which calls the in-memory kernels on the tile. Details:
+[[internals/Streaming Manager|Streaming Manager]].
+
+## LAPACK
+
+Factorizations and eigen problems call LAPACKE in the operand's precision (single stays
+single, as in NumPy) and need the matrix in memory:
+
+| Operation | LAPACK |
+|---|---|
+| `eigh`, `eigvalsh` | `?syevd` / `?heevd` |
+| `eig`, `eigvals` | `?geev` |
+| `svd` | `?gesdd` |
+| `solve`, `invert` | `?gesv` (`invert` solves `A X = I`, as NumPy does) |
+| `lu`, `determinant`, `slogdet` | `?getrf` |
+| `cholesky` | `?potrf` |
+| `qr` | `?geqrf` + `?orgqr` / `?ungqr` |
+| `pinv`, `lstsq` | via `svd` (`lstsq` is `pinv(a) @ b`) |
+
+Structure shortcuts come first: the determinant of a triangular or diagonal matrix is the
+product of its diagonal, an identity's is `scale^n`, and so on.
+
+`eigvals_arnoldi(a, k, m, tol)` needs only matrix-vector products, so it works on
+file-backed matrices that do not fit in RAM.
+
+## Parallelism and SIMD
+
+- **`ParallelFor`** (`include/pycauset/core/ParallelUtils.hpp`): a thread pool with dynamic
+  chunks; threads take `range / (threads * 4)`-sized chunks from an atomic counter, so one
+  thread stalled on a page fault does not hold the others. `pc.set_num_threads` caps it.
+- **SIMD:** dense float32 / float64 `+ - * /` have AVX2 kernels, chosen at run time
+  (`cpuid`); other dtypes use compiler-vectorised loops. Bit matrices use hardware
+  `popcount`.
+
+## Seeing what ran
+
+- `pc.last_io_trace(op)`: the kernels an operation ran, its operands and whether it
+  streamed ([[internals/Streaming Manager|Streaming Manager]]).
+- `pc._debug_last_kernel_trace()` / `pc._debug_clear_kernel_trace()`: the engine's kernel
+  log (thread-local), used by the tests and the operation atlas.
 
 ## See also
 
-- [[internals/Streaming Manager.md|Streaming Manager]]
-- [[docs/functions/pycauset.cuda.enable.md|pycauset.cuda.enable]]
-- [[docs/functions/pycauset.cuda.benchmark.md|pycauset.cuda.benchmark]]
-- [[docs/functions/pycauset.cuda.force_backend.md|pycauset.cuda.force_backend]]
-- [[docs/parameters/pycauset.pinning_budget.md|pinning_budget]]
-- [[guides/Performance Guide.md|Performance Guide]]
+- [[internals/Streaming Manager|Streaming Manager]]
+- [[internals/Memory and Data|Memory and Data]]
+- [[internals/Algorithms|Algorithms]]

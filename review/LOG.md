@@ -462,3 +462,18 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   diamond, one native implementation), F-107 fixed (validation path counts). Fields, plots,
   other spacetimes stay parked. No backwards-compatibility shims (no users). Causal-set docs
   and guides back, edited to R1 and run in test_doc_snippets.py.
+- Maintainer: lightweight plotting is R1 (a later release is about visualization). Back in
+  the package: `pc.vis` (embedding, Hasse diagram, causal matrix, `show`), the CausalSet plot
+  methods; `MinkowskiDiamond` declares `boundary()` / `display_axes()`. Tests in
+  tests/engine/test_plots*.py (cylinder / box / custom-spacetime cases dropped); the
+  Visualization guide and vis pages edited to the diamond and run in test_doc_snippets.py
+  (`fig.show()` stubbed).
+- `plot_hasse` drew links from a NumPy `C & ~(C @ C)` product; it now uses the engine's
+  transitive reduction (`CausalSet.links()`, or of the induced suborder when subsampled).
+  The unused `to_embedding` hook is gone from vis.py.
+- Docs truth pass (Phase 5): Compute Architecture rewritten (CPU-only path, kernel file map,
+  LAPACK routines per operation, dormant GPU hooks named); Algorithms rewritten (no GPU, the
+  real sprinkler: it holds all coordinates while it runs, serial O(n²) pair loop, on the
+  Phase 6 list); Memory and Data direct-path rule (no pinning tiers); Block Matrices leaf
+  dispatch (by type, no fallback); NumPy Integration (`copy=False` never gave a view:
+  export is always one copy). Next: documentation/dev and documentation/project.

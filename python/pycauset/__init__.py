@@ -1385,6 +1385,28 @@ I = getattr(_native, "IdentityMatrix", None)  # noqa: E741 (public identity alia
 det = determinant
 rank = matrix_rank
 
+# Plots (pycauset.vis): lightweight, lazy Plotly import. Causal-set visualization is a
+# future release of its own.
+def plot_embedding(causet, **kwargs):
+    from .vis import plot_embedding as _f
+    return _f(causet, **kwargs)
+
+
+def plot_hasse(causet, **kwargs):
+    from .vis import plot_hasse as _f
+    return _f(causet, **kwargs)
+
+
+def plot_causal_matrix(causet, **kwargs):
+    from .vis import plot_causal_matrix as _f
+    return _f(causet, **kwargs)
+
+
+def show(causet):
+    """Plot a causal set's embedding and open it in the browser."""
+    return causet.plot_embedding().show()
+
+
 def __getattr__(name):
     if name == "bool":
         return "bool"
@@ -1414,6 +1436,10 @@ __all__ = [
 # IMPORTANT: Only include names that actually resolve; otherwise
 # `from pycauset import *` can fail if a symbol is not exported by the native module.
 _extra_exports = [
+    "plot_embedding",
+    "plot_hasse",
+    "plot_causal_matrix",
+    "show",
     "causet",
     "CausalSet",
     "spacetime",

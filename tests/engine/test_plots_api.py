@@ -1,4 +1,4 @@
-"""R2_VIZ, CausalSet.plot_* methods, lazy top-level verbs, and the subset policy."""
+"""CausalSet.plot_* methods, lazy top-level verbs, and the subset policy."""
 
 import sys
 import unittest
@@ -13,7 +13,6 @@ except ImportError:
     sys.modules.setdefault("plotly.express", MagicMock())
 
 import pycauset as pc
-from pycauset import spacetime as sp
 from pycauset._internal.warnings import PyCausetPerformanceWarning
 
 
@@ -79,43 +78,22 @@ class TestAuthoredShapes(unittest.TestCase):
         self.assertEqual(_axis_title(fig, "xaxis"), "x")
         self.assertEqual(_axis_title(fig, "yaxis"), "t")
 
-    def test_cylinder_3d_boundary(self):
-        c = pc.CausalSet(n=20, spacetime=pc.spacetime.MinkowskiCylinder(2, 5.0, 3.0), seed=1)
+    def test_diamond_3d_boundary(self):
+        c = pc.CausalSet(n=20, spacetime=pc.spacetime.MinkowskiDiamond(3), seed=1)
         fig = c.plot_embedding()
-        # event trace + two boundary circles (top and bottom)
-        self.assertGreaterEqual(len(fig.data), 3)
+        # event trace + the rim circle + four rim-to-tip lines
+        self.assertGreaterEqual(len(fig.data), 6)
         self.assertEqual(_axis_title(fig, "scene", "xaxis"), "x")
         self.assertEqual(_axis_title(fig, "scene", "yaxis"), "y")
         self.assertEqual(_axis_title(fig, "scene", "zaxis"), "t")
 
     def test_higher_d_warns_not_silently_truncated(self):
-        c = pc.CausalSet(n=20, spacetime=pc.spacetime.MinkowskiBox(4, 2.0, 1.0), seed=1)
+        c = pc.CausalSet(n=20, spacetime=pc.spacetime.MinkowskiDiamond(4), seed=1)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             fig = c.plot_embedding()
         self.assertIsNotNone(fig)
         self.assertTrue(any("rendering the first 3" in str(x.message) for x in w))
-
-    def test_geometry_free_custom_spacetime_renders_raw(self):
-        class Raw(sp.Spacetime):
-            def dimension(self):
-                return 2
-
-            def volume(self):
-                return 1.0
-
-            def sample(self, rng, n):
-                return rng.uniform(size=(n, 2))
-
-            def is_causal(self, u, v):
-                return u[0] < v[0]
-
-        c = pc.CausalSet(n=15, spacetime=Raw(), seed=2)
-        fig = c.plot_embedding()
-        self.assertIsNotNone(fig)
-        # no authored shape → generic fallback axis labels
-        self.assertEqual(_axis_title(fig, "xaxis"), "c1")
-        self.assertEqual(_axis_title(fig, "yaxis"), "c0")
 
 
 if __name__ == "__main__":

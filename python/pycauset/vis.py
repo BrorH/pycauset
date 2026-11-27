@@ -16,7 +16,7 @@ from .causet import CausalSet
 
 
 def _subset(n: int, max_points: Optional[int], force: bool, kind: str):
-    """Return (indices_or_None, note) for the large-set policy (R2_VIZ).
+    """Return (indices_or_None, note) for the large-set policy .
 
     Above ``max_points`` a seeded random subset is drawn and a
     `PyCausetPerformanceWarning` is emitted; ``force=True`` (or ``max_points=None``)
@@ -46,26 +46,10 @@ def _spacetime_of(causet: CausalSet):
     return getattr(causet, "_spacetime", None)
 
 
-def _embedding(coords, st):
-    """Apply the spacetime's authored embedding (default: identity).
-
-    Uses the `Spacetime.to_embedding` hook. If it is absent (geometry-free custom
-    spacetime), the raw coordinates are used, never inferred.
-    """
-    coords = np.asarray(coords, dtype=float)
-    if st is None:
-        return coords
-    fn = getattr(st, "to_embedding", None)
-    if fn is None:
-        return coords
-    return np.asarray(fn(coords), dtype=float)
-
-
 def _boundary_paths(st):
     """Boundary paths in embedding coordinates (default: none).
 
-    Uses the `Spacetime.boundary` hook. The declared paths are already in display
-    (embedding) coordinates.
+    Uses the spacetime's ``boundary()``, in its own coordinates.
     """
     if st is None:
         return []
@@ -126,9 +110,8 @@ def plot_embedding(
 ):
     """Visualize the spacetime embedding of the Causal Set.
 
-    The spacetime's authored ``to_embedding`` / ``boundary`` / ``display_axes``
-    declarations drive the plot; a geometry-free custom spacetime renders raw with
-    generic axis labels (never inferred). Embedding dimensions beyond 3 are shown
+    The spacetime's ``boundary()`` / ``display_axes()`` draw its outline and name the
+    axes (generic ``c0, c1, ...`` labels without them). Embedding dimensions beyond 3 are shown
     as the first three axes with an explicit warning (never silently truncated).
 
     When ``show_relations`` is true, a faint line is drawn for every causal pair
@@ -143,7 +126,7 @@ def plot_embedding(
     indices, note = _subset(n, max_points, force, "plot_embedding")
 
     st = _spacetime_of(causet)
-    coords = _embedding(causet.coordinates(indices=indices), st)
+    coords = np.asarray(causet.coordinates(indices=indices), dtype=float)
     dim = coords.shape[1]
     labels = _axis_labels(st, dim)
 
@@ -273,24 +256,27 @@ def plot_hasse(
 
     A Hasse diagram displays the transitive reduction of the partial order.
     Elements are placed at their spacetime coordinates, and lines are drawn only
-    between immediate causal neighbors (links). Uses the spacetime's authored
-    embedding; dimensions beyond 3 are shown as the first three axes with a warning.
+    between immediate causal neighbors (links, from the engine's transitive reduction).
+    Dimensions beyond 3 are shown as the first three axes with a warning.
     """
     _check_plotly()
 
     indices, _ = _subset(causet.n, max_points, force, "plot_hasse")
 
-    if indices is not None:
+    if indices is not None:  # the Hasse diagram of the induced suborder
+        from . import causal_matrix
+
         coords = causet.coordinates(indices=indices)
-        C_dense = np.array(causet.C, dtype=int)[np.ix_(indices, indices)]
+        sub = np.asarray(causet.C, dtype=bool)[np.ix_(indices, indices)]
+        L = CausalSet(n=len(indices), matrix=causal_matrix(sub), validate=False).links()
         node_ids = indices
     else:
         coords = causet.coordinates()
-        C_dense = np.array(causet.C, dtype=int)
+        L = causet.links()  # the engine's transitive reduction
         node_ids = list(range(causet.n))
 
     st = _spacetime_of(causet)
-    coords = _embedding(coords, st)
+    coords = np.asarray(coords, dtype=float)
     dim = coords.shape[1]
     labels = _axis_labels(st, dim)
 
@@ -305,9 +291,6 @@ def plot_hasse(
         labels = labels[:3]
         dim = 3
 
-    # Transitive reduction (links): L = C & ~(C @ C)
-    paths_len_2 = (C_dense @ C_dense) > 0
-    L = C_dense & (~paths_len_2)
     link_indices = np.argwhere(L)
 
     edge_x, edge_y, edge_z = [], [], []

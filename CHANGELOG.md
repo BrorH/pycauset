@@ -13,8 +13,9 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   are uniform in |x| < min(t, 1 - t) with coordinates (t, x), and the order is Minkowski
   causality (for d > 2 it was a coordinate-wise order on a cube). Coordinates are (t, x) in
   d = 2 too (were lightcone coordinates); `volume()` is the true volume (1/2 in d = 2).
-- Fields, plots and spacetimes other than the Minkowski diamond are parked in
-  `experimental/physics` for R1.
+- Fields and spacetimes other than the Minkowski diamond are parked in
+  `experimental/physics` for R1. Lightweight plots stay (`pc.vis`: `plot_embedding`,
+  `plot_hasse`, `plot_causal_matrix`, `show`); the diamond declares its outline and axes.
 - Element-wise `+ - *` of upper triangular matrices return a `TriangularMatrix` (with a
   diagonal exactly when the result can be non-zero there), also with a diagonal or identity
   operand; these were dense results before. Values and dtypes unchanged.

@@ -1,100 +1,64 @@
-# Algorithms and Math
+# Algorithms
 
-This document details the mathematical algorithms implemented in PyCauset for linear algebra, causal set analysis, and spacetime generation.
+The algorithms behind the operations, as they run in R1 (CPU only; see
+[[internals/Compute Architecture|Compute Architecture]] for the dispatch and the file map).
 
-## 1. Algorithms and Solvers
+## Matrix multiplication
 
-PyCauset implements a hybrid CPU/GPU strategy for eigenvalue computation and matrix operations.
+- **float32 / float64 / complex:** BLAS `?gemm` (OpenBLAS), called directly for in-memory
+  operands; out-of-core operands are tiled by the [[internals/Streaming Manager|Streaming Manager]].
+- **Integers:** exact through float64 `dgemm` when the measured operand bounds guarantee
+  every partial sum is an integer below 2^53 (F-055); otherwise integer loops parallelised
+  with `ParallelFor`. Overflow of the result dtype raises.
+- **Bit matrices** (`bool`): each entry of `C @ C` is a popcount of `row_i AND column_j` over
+  64-bit words: AVX-512 `VPOPCNTDQ` when the CPU has it (checked at run time), else
+  `std::popcount`. The result counts paths (int32), as NumPy's integer matmul does.
+- **Structured operands:** identity and diagonal products are O(N²) scalings; triangular
+  products skip the zero triangle and keep the class when the result has it.
 
-### Eigenvalue Solvers
+## Eigenvalues
 
-#### A. Dense Solver (Small/Medium Scale)
-**Target:** $N \le 2000$ (CPU) or VRAM-limited (GPU)
-**Complexity:** $O(N^3)$
+- **Dense:** LAPACK `?syevd` / `?heevd` for symmetric and Hermitian input, `?geev`
+  otherwise, in the operand's precision.
+- **`eigvals_arnoldi(a, k, m, tol)`:** the top-k eigenvalues by magnitude through Spectra's
+  restarted Krylov solvers (Lanczos for symmetric input, Arnoldi otherwise). It needs only
+  matrix-vector products, so `a` may be file-backed. Non-convergence raises (no partial
+  answers); problems too small for the Krylov parameters use the dense solver.
+- **Skew matrices:** `eigvals_skew` / `eig_skew` use the real-antisymmetric structure
+  (purely imaginary pairs).
 
-*   **GPU (Preferred):** Uses NVIDIA `cuSolver` (`cusolverDn<t>geev`).
-    *   Computes all eigenvalues using the QR algorithm on the GPU.
-    *   Automatically handles memory workspace queries.
-    *   **Fallback:** If VRAM is insufficient, automatically falls back to CPU.
-*   **CPU (Fallback):** Implicit QR Algorithm.
-    *   **Hessenberg Reduction:** Reduces $A$ to upper Hessenberg form $H = Q^T A Q$ using Blocked Householder updates. Parallelized.
-    *   **QR Iteration:** Francis steps to converge to Schur form. Sequential.
+## Inverse and solves
 
-#### B. Block Arnoldi Iteration (Massive Scale)
-**Target:** $N > 2000$, up to $N=10^6+$
-**Complexity:** $O(m \cdot N^2)$
+`invert` is NumPy's algorithm: `solve(A, I)` by LU with partial pivoting (`?gesv`). An
+upper triangular matrix's inverse is upper triangular (the class is kept), a diagonal's is
+elementwise, an identity's is `1/scale`. `solve_triangular` checks that `A` is triangular,
+diagonal or identity by class and then runs `solve`.
 
-*   **GPU Acceleration:** The dominant cost, Matrix-Vector Multiplication ($V = A \times Q_{block}$), is offloaded to the GPU using `cublasDgemm` / `cublasSgemm`.
-*   **CPU Orchestration:** The orthogonalization (Gram-Schmidt) and basis management remain on CPU to allow the basis size to exceed GPU memory if necessary.
+## Structure-aware shortcuts
 
-**Algorithm:**
-1.  **Block Multiplication:** Compute $W = A \times Q_{[m:m+b]}$ (GPU Accelerated).
-2.  **Block Gram-Schmidt:** Orthogonalize $b$ new vectors against basis $Q$ (CPU Parallel).
-3.  **Projection:** Update Hessenberg matrix $H$.
+Structure is the class, so a shortcut can never disagree with the values: identity and
+diagonal matmul / inverse / determinant are O(N) or O(1), a triangular determinant is the
+product of its diagonal, Hermitian and symmetric eigen problems use `?heevd` / `?syevd`. Each
+operation's entry function lists its structure rules
+([[project/protocols/Adding Operations|Adding Operations]] §3).
 
-### Matrix Inversion
+## Sprinkling
 
-*   **GPU (Preferred):** Uses `cuSolver`.
-    1.  **LU Factorization:** `cusolverDn<t>getrf`. Computes $P A = L U$.
-    2.  **Inversion:** `cusolverDn<t>getri`. Computes $A^{-1}$ using LU factors.
-*   **CPU (Fallback):** Block Gauss-Jordan Elimination.
-    *   Matrix is processed in blocks.
-    *   Off-diagonal updates are fully parallelized using the custom `ThreadPool`.
+`pc.causet(n, spacetime=MinkowskiDiamond(d), seed)` (`src/causet/Sprinkler.cpp`):
 
-### Matrix Multiplication
+1. Points are drawn in blocks of 10,000; block `b` has its own generator seeded by a hash
+   of `(seed, b)` (SplitMix64), so the points depend only on `(spacetime, n, seed)`.
+   Each point is drawn uniformly in the diamond by rejection from its bounding box.
+2. The points are sorted by time (stable), which labels the elements so that every
+   relation lands in the upper triangle.
+3. For every pair `i < j` the spacetime's causality test (Minkowski: `dt > 0` and
+   `dt² > |dx|²`) sets bit `(i, j)` of a `TriangularMatrix<bool>`.
 
-Matrix multiplication uses a dynamic dispatch system:
+The `CausalSet` keeps only the seed: `coordinates()` regenerates the points (all `n` of
+them, then picks the requested indices). Sprinkling holds all `n·d` coordinates in RAM while
+it runs and the pair loop is serial O(n²); both are on the speed list (review PLAN Phase 6).
 
-*   **GPU:** Uses `cuBLAS` (Float32/Float64) and custom kernels (BitMatrix).
-    *   **Streaming Mode:** If matrices exceed VRAM, a hybrid tiling approach is used. CPU threads pack tiles of $A$ and stream them to the GPU.
-*   **CPU:** 
-    *   **Float/Double:** Uses OpenBLAS/MKL (if linked) or blocked multiplication parallelized via `ThreadPool`.
-    *   **BitMatrix:** Uses AVX-512 optimized kernels (`_mm512_popcnt_epi64`) for bit-packed operations, achieving significant speedups over naive implementations.
-    *   **Direct Path:** For RAM-resident data, the "Streaming Solver" overhead is bypassed, calling BLAS/LAPACK directly.
-*   **Specialized:**
-    *   **Bit Matrices:**
-        *   **CPU**: Uses `std::popcount` (AVX-512/NEON hardware instruction) for ultra-fast boolean matrix multiplication and dot products. This replaces naive loops, achieving ~30x speedups.
-        *   **GPU**: Uses a custom "Transpose-then-Popcount" kernel that packs 32x32 bit tiles into registers, achieving massive throughput for path counting and transitive closure.
-    *   **Triangular Matrices:** Optimized block-based algorithms for inversion and multiplication.
-
-### Structure-aware shortcuts
-
-Structure comes from the class (DTypeDispatch.hpp catalogue), so a shortcut can never
-disagree with the values: identity and diagonal matmul/inverse/det are O(N) or O(1), a
-triangular det is the product of its diagonal and its inverse stays triangular, Hermitian and
-symmetric eigen problems use ?heevd/?syevd. Each operation's entry function lists its structure
-rules (`documentation/project/protocols/Adding Operations.md` §3).
-
-## 2. Stateless Sprinkling (Spacetime Generation)
-
-One of the key features of `pycauset` is its ability to handle extremely large causal sets-potentially billions of elements-without exhausting system RAM. This is achieved through a technique we call **Stateless Sprinkling**.
-
-### The Problem
-
-For $N = 10^9$ (1 billion) in $D=4$ dimensions, storing the coordinates alone would require ~32 GB of RAM.
-
-### The Solution
-
-`pycauset` avoids storing the coordinates entirely. Instead of keeping the positions of all $N$ points in memory, we only store the **seed** used to generate them.
-
-#### Block-Based Matrix Generation
-
-When generating the causal matrix (which is stored on disk as a memory-mapped payload inside a single-file `.pycauset` container), we process the points in blocks that fit comfortably in the CPU cache (e.g., 1024 points at a time).
-
-1.  **Generate Block A**: We generate the coordinates for a small block of points (Row Block).
-2.  **Generate Block B**: We generate the coordinates for another small block (Column Block).
-3.  **Compute Sub-matrix**: We compute the causality relations between points in Block A and Block B.
-4.  **Discard Coordinates**: Once the sub-matrix is computed and written to disk, the coordinates for Block A and Block B are discarded.
-
-#### Coordinate Recovery Algorithm
-
-Since coordinates are not stored, retrieving the position of a specific element $i$ (where $0 \le i < N$) requires re-running the generation process for that specific point. To make this efficient, we do not restart from index 0. Instead, we use a **Block-Skipping** algorithm.
-
-1.  **Block Decomposition**: $B = \lfloor i / \text{BLOCK\_SIZE} \rfloor$, $k = i \pmod{\text{BLOCK\_SIZE} }$.
-2.  **Block Seeding**: We compute a unique, deterministic seed for block $B$ using a hash of the global seed and the block index.
-3.  **Fast-Forwarding**: We initialize a PRNG with `block_seed` and generate $k$ points to reach the target.
-
-## 3. Mathematical Derivation: Retarded Propagator ($K_R$)
+## Derivation: Retarded Propagator ($K_R$)
 
 We need to calculate the Retarded Propagator matrix $K_R$ for massive causal sets ($N \approx 10^6$). The generalized definition for a scalar field on a causal set is:
 
@@ -118,8 +82,10 @@ $$ K_R = -\frac{1}{b} \left[ C (\alpha_{eff}I + C)^{-1} \right] $$
 
 The term in the brackets, $X = C(\alpha_{eff}I + C)^{-1}$, is exactly the form solved by our existing `compute_k` kernel (which solves $X = C(a_{kernel}I+C)^{-1}$).
 
-### Why This Approach Works So Well
+### How `compute_k` computes it
 
-1.  **Computational Complexity**: $O(N^3) \to O(N^2 \cdot d)$. The term $C_{im}$ is **binary** and sparse. We only perform additions where $C_{im}=1$.
-2.  **Memory Efficiency**: $O(N^2) \to O(N)$. We only need to store ONE column of $K$ in RAM at a time.
-3.  **Parallelism**: Since each column $j$ is independent, we can compute all $N$ columns in parallel.
+$X (\alpha I + C) = C$ with $C$ strictly upper triangular gives each column of $X$ by back
+substitution, $X_{ij} = (C_{ij} - \sum_{i<m<j} C_{im} X_{mj}) / \alpha$, where the sum runs only
+over the set bits of row $i$ of $C$ (`std::countr_zero` on the packed words). Columns are
+independent and run in parallel (`ParallelFor`), each needing one column of workspace. The
+result is a `TriangularMatrix` (`CpuSolver::compute_k_matrix`).

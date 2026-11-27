@@ -92,20 +92,12 @@ mean_val = np.mean(v)
 std_val = np.std(v)
 ```
 
-### Zero-Copy Views (`copy=False`)
+### One copy, always
 
-By default, conversion creates a copy (safe). However, if you want high-performance access without duplication, you can request a view using `pc.to_numpy(..., copy=False)`.
-
-*   **Success**: Returns a read-only NumPy array viewing the PyCauset memory.
-*   **Fallback**: If the object cannot be viewed (e.g., bit-packed matrices or complex expression templates), it issues a `UserWarning` and falls back to a copy.
-
-```python
-M = pc.matrix(np.eye(1000))
-
-# Try to get a view
-# Warning: The returned array is READ-ONLY. Modifying it is undefined behavior.
-view = pc.to_numpy(M, copy=False) 
-```
+Conversion is always one copy into a new NumPy array, made by the engine for every class,
+dtype and view (a bit matrix becomes a `bool` array, a transposed view its transpose). There
+are no NumPy views of PyCauset storage: NumPy could not respect bit packing, triangular
+storage or a pending scale. `pc.to_numpy(M, dtype=...)` converts the copy.
 
 ### Safety rules (materialization)
 

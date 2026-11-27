@@ -4,7 +4,7 @@ This section documents the internal architecture and design decisions of PyCause
 
 ## Architecture
 
-*   **[[internals/Compute Architecture|Compute Architecture]]**: The unified CPU/GPU compute architecture, including `ComputeContext`, `AutoSolver`, and parallelization strategies.
+*   **[[internals/Compute Architecture|Compute Architecture]]**: How an operation reaches a CPU kernel: `ComputeContext`, `CpuDevice`, the kernel files, LAPACK, parallelism.
 *   **[[internals/Memory and Data|Memory & Data]]**: Tiered storage, the Memory Governor, the IO Accelerator, the `.pycauset` format, and the object hierarchy.
 *   **[[internals/Streaming Manager|Streaming Manager]]**: Shared policy for streaming/direct routing, tiling, queue depths, and IO observability.
 *   **[[internals/Algorithms|Algorithms]]**: Details of the solvers (Eigenvalue, Matrix Multiplication) and their implementations.

@@ -1,4 +1,4 @@
-# experimental/physics: fields, plots, the spacetime library (parked for R1)
+# experimental/physics: fields and the spacetime library (parked for R1)
 
 **Status:** parked (maintainer decision, 2026-11-27). Nothing here is built, imported, tested
 or documented with the package; the same arrangement as `experimental/cuda`.
@@ -6,8 +6,8 @@ or documented with the package; the same arrangement as `experimental/cuda`.
 **What R1 keeps in the package** (the tools to create causal sets and test the engine with):
 `CausalSet` / `pc.causet`, `pc.spacetime.MinkowskiDiamond(d)` (the true diamond in any
 dimension, one native implementation), the order methods (links, chains, layers, intervals,
-past / future), the Myrheim-Meyer estimate, `pc.synthetic`, save / load, and the engine's
-causal-matrix operations (`causal_matrix`, lazy `C ± C.T`, `compute_k`, the link-matrix
+past / future), the Myrheim-Meyer estimate, `pc.synthetic`, save / load, and lightweight plots (`pc.vis`: embedding, Hasse diagram,
+causal matrix), and the engine's causal-matrix operations (`causal_matrix`, lazy `C ± C.T`, `compute_k`, the link-matrix
 kernel).
 
 ## What is here
@@ -15,11 +15,10 @@ kernel).
 | Path | Contents |
 |---|---|
 | `python/field.py` | `pycauset.field` (`Field`, `CorrelatedField`, `ContinuumCorrelatedField`, `State`) |
-| `python/vis.py` | `plot_embedding`, `plot_hasse`, `plot_causal_matrix`, `show` |
 | `python/spacetime.py` | the pre-R1 spacetime library: Python `Spacetime` base and registry, Minkowski cylinder / box, de Sitter, anti-de Sitter, FLRW, Schwarzschild, transformed / restricted / conformal / periodic spacetimes |
-| `python/causet.py`, `python/synthetic.py` | the pre-R1 versions (plot methods, Python-defined spacetimes); the package has the R1 versions |
+| `python/causet.py`, `python/synthetic.py` | the pre-R1 versions (Python-defined spacetimes); the package has the R1 versions |
 | `include/Spacetime.hpp`, `src/bind_causet.cpp` | the native cylinder and box and their bindings |
-| `tests/`, `docs/`, `scripts/` | their tests, doc pages and guides (Field Theory, Spacetime, Visualization, Tutorials), the gallery script |
+| `tests/`, `docs/`, `scripts/` | their tests, doc pages and guides (Field Theory, Spacetime, Tutorials), the gallery script |
 
 ## Before bringing something back
 

@@ -60,16 +60,11 @@ if (MemoryGovernor::instance().request_ram(size_bytes)) {
 ### Direct path (the "anti-nanny" rule)
 
 For operations that fit in RAM, streaming them through the tiled/out-of-core path
-is slower than just letting the OS page them. `should_use_direct_path(bytes)`
-encodes that:
-
-1. Fits in the pinned-memory budget -> pin and use the BLAS direct path.
-2. Fits in available RAM but not the pin budget -> use the direct path without
-   pinning (trust the OS pager).
-3. Exceeds available RAM -> use the streaming/out-of-core solver.
-
-The CPU solver's `attempt_direct_path<T>` tries these in order before falling back
-to tiled streaming.
+is slower than just letting the OS page them. `should_use_direct_path(bytes)` is true
+when the operation's operands and result fit in available RAM (with the safety margin);
+then the kernels run directly on the storage (BLAS on the mapped pages, the OS pager does
+the I/O). Otherwise matmul and element-wise operations stream tile by tile
+([[internals/Streaming Manager|Streaming Manager]]).
 
 ## IO Accelerator
 
@@ -200,8 +195,7 @@ PyCauset does not silently widen your types ("anti-promotion"): float32 in, floa
 out. It only promotes when you mix types (float32 with float64 -> float64).
 
 Dispatch is templated, not virtual-per-element. At the operation level the code
-picks the instantiation for the operand dtype (and on the GPU, the matching cuBLAS
-call). See [[internals/DType System]].
+picks the instantiation for the operand dtype. See [[internals/DType System]].
 
 ## See also
 

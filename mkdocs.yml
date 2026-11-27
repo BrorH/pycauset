@@ -98,6 +98,7 @@ nav:
       - User Guide: guides/User Guide.md
       - Causal Sets: guides/Causal Sets.md
       - Analyzing a Causal Set: guides/Analyzing a Causal Set.md
+      - Visualization: guides/Visualization.md
     - Concepts:
     - Walkthroughs:
       - Examples: guides/Examples.md
@@ -121,6 +122,11 @@ nav:
         - docs/classes/spacetime/pycauset.CausalSet.md
         - docs/classes/spacetime/pycauset.spacetime.md
         - docs/classes/spacetime/pycauset.spacetime.MinkowskiDiamond.md
+      - pycauset.vis:
+        - docs/pycauset.vis/index.md
+        - docs/pycauset.vis/plot_embedding.md
+        - docs/pycauset.vis/plot_hasse.md
+        - docs/pycauset.vis/plot_causal_matrix.md
       - docs/classes/index.md
       - Matrix:
         - docs/classes/matrix/index.md
@@ -155,6 +161,10 @@ nav:
       - docs/functions/pycauset.causal_matrix.md
       - docs/functions/pycauset.causet.md
       - docs/functions/pycauset.synthetic.md
+      - docs/functions/pycauset.plot_embedding.md
+      - docs/functions/pycauset.plot_hasse.md
+      - docs/functions/pycauset.plot_causal_matrix.md
+      - docs/functions/pycauset.show.md
       - docs/functions/pycauset.cholesky.md
       - docs/functions/pycauset.compute_k.md
       - docs/functions/pycauset.compute_k_matrix.md

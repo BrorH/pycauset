@@ -8,7 +8,7 @@ The `pycauset.vis` module provides tools for visualizing Causal Sets.
 *   [[docs/pycauset.vis/plot_hasse.md|pycauset.vis.plot_hasse]]: Generate a Hasse diagram of a causal set.
 *   [[docs/pycauset.vis/plot_causal_matrix.md|pycauset.vis.plot_causal_matrix]]: Visualize a causal matrix as a heatmap.
 
-## Call surface (R2)
+## Call surface
 
 The same plotters are also reachable as `CausalSet` methods (`c.plot_embedding()`,
 `c.plot_hasse()`, `c.plot_causal_matrix()`) and as lazy top-level aliases
