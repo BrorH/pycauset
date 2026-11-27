@@ -58,6 +58,8 @@ private:
 #endif
     bool is_pinned_ = false;
     bool private_ = false;
+    bool heap_ = false;  // small :memory: storage from the heap (no mapping)
+    static constexpr size_t kHeapLimit = size_t{256} << 10;  // 256 KiB
 
     void open_file(bool create_new);
     void close_file();

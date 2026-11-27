@@ -116,15 +116,6 @@ def _resolve_numpy_dtype(token: Any, np_module: Any) -> Any:
             return target
 
 
-def _infer_numpy_dtype(obj: Any, requested: Any, np_module: Any) -> Any:
-    if requested is not None:
-        return _resolve_numpy_dtype(requested, np_module)
-
-    token = _normalize_dtype_token(getattr(obj, "dtype", None))
-    token = "bool" if token == "bit" else token
-    return _resolve_numpy_dtype(token, np_module)
-
-
 def estimate_materialized_bytes(obj: Any) -> int | None:
     shape = _safe_shape(obj)
     if shape is None:
@@ -189,121 +180,23 @@ def ensure_export_allowed(obj: Any, *, allow_huge: bool, ceiling_bytes: int | No
         )
 
 
-def _materialize_via_memoryview(obj: Any, dtype: Any, np_module: Any, *, copy: bool) -> Any:
-    try:
-        mv = memoryview(obj)
-        resolved = _resolve_numpy_dtype(dtype, np_module)
-        if copy:
-            return np_module.array(mv, copy=True, dtype=resolved)
-        # Prefer a zero-copy view when possible.
-        return np_module.asarray(mv, dtype=resolved)
-    except Exception:
-        return None
-
-
 # Number of exports since import. The operation atlas (tests/atlas) reads it around an
 # operation: an operation that exports its input to NumPy is a "numpy-fallback" path.
 export_count = 0
 
 
 def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool = True) -> Any:
+    """One copy into a new NumPy array, natively (every class, dtype and view: the engine's
+    exporter, bind_matrix.cpp export_numpy). `dtype` converts afterwards. No fallback: an
+    engine error is the answer. Objects that are not engine matrices/vectors (BlockMatrix,
+    submatrix views) export through their own __array__."""
     global export_count
     export_count += 1
     ensure_export_allowed(obj, allow_huge=allow_huge, ceiling_bytes=_EXPORT_MAX_BYTES)
+    import numpy as np  # type: ignore
 
-    try:
-        import numpy as np  # type: ignore
-    except Exception as e:  # pragma: no cover - numpy optional at runtime
-        raise RuntimeError("NumPy is required for export") from e
-
-    # Native export (one copy; every structure and dtype). There is no zero-copy path:
-    # pycauset storage is never shared with NumPy.
     fast_export = getattr(obj, "_to_numpy_fast", None)
-    if callable(fast_export):
-        try:
-            arr = fast_export(allow_huge=allow_huge)
-            if arr is not None:
-                if dtype is not None:
-                    return np.array(arr, dtype=dtype, copy=copy)
-                return arr
-        except Exception:
-            pass
-
-    target_dtype = _infer_numpy_dtype(obj, dtype, np)
-
-    # When allow_huge=True, the caller explicitly wants to bypass the safety policy.
-    # Avoid the memoryview/buffer fast-path because native buffer exports cannot see
-    # the allow_huge flag and may enforce the global ceiling.
-    if not allow_huge:
-        arr = _materialize_via_memoryview(obj, target_dtype, np, copy=copy)
-        if arr is not None:
-            return arr
-
-    shape = _safe_shape(obj)
-    if shape is None:
-        # Fallback to NumPy's own coercion (may be slower but avoids infinite recursion).
-        return np.array(obj, dtype=dtype, copy=copy)
-
-    rows, cols = shape
-    get_fn = getattr(obj, "get", None)
-    get_double = getattr(obj, "get_element_as_double", None)
-    get_complex = getattr(obj, "get_element_as_complex", None)
-    use_complex = np.issubdtype(target_dtype, np.complexfloating)
-
-    getter = get_fn
-    if use_complex and callable(get_complex):
-        getter = get_complex
-    elif np.issubdtype(target_dtype, np.integer) and callable(get_fn):
-        # Integers: read exactly. Through get_element_as_double, int64/uint64 values
-        # beyond 2**53 lose precision (and near 2**64 overflow on conversion).
-        getter = get_fn
-    elif callable(get_double):
-        getter = get_double
-
-    is_vector_like = False
-    if callable(getter) and not hasattr(obj, "cols"):
-        # Vector types may present a 2D shape when transposed (e.g. (1, N)), but their
-        # get(...) accessor still accepts a single index. Detect that and export correctly.
-        if rows > 0 and cols > 0:
-            try:
-                getter(0, 0)
-            except TypeError:
-                is_vector_like = True
-            except Exception:
-                # Any non-TypeError indicates the signature accepts (i, j).
-                is_vector_like = False
-        else:
-            is_vector_like = True
-
-    if callable(getter) and is_vector_like:
-        if cols == 1:
-            out = np.empty((rows,), dtype=target_dtype)
-            for i in range(rows):
-                out[i] = getter(i)
-            return out
-        if rows == 1:
-            out = np.empty((1, cols), dtype=target_dtype)
-            for j in range(cols):
-                out[0, j] = getter(j)
-            return out
-
-    is_vector = cols == 1 and not hasattr(obj, "cols")
-    out_shape = (rows,) if is_vector else (rows, cols)
-    out = np.empty(out_shape, dtype=target_dtype)
-
-    if callable(getter):
-        for i in range(rows):
-            if is_vector:
-                out[i] = getter(i)
-            else:
-                for j in range(cols):
-                    out[i, j] = getter(i, j)
-        return out
-
-    if is_vector:
-        for i in range(rows):
-            out[i] = obj[i]
-        return out
-
-    # Last resort
-    return np.array(obj, dtype=target_dtype, copy=copy)
+    arr = fast_export(allow_huge=allow_huge) if callable(fast_export) else np.asarray(obj)
+    if dtype is not None:
+        return np.array(arr, dtype=_resolve_numpy_dtype(dtype, np), copy=copy)
+    return arr
