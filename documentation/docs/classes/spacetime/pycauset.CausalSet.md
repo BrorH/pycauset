@@ -4,13 +4,13 @@
 class CausalSet(n=None, density=None, spacetime=None, seed=None, matrix=None, validate=True)
 ```
 
-The `CausalSet` class represents a causal set, a discrete partial order. It is the primary object of PyCauset: a `TriangularMatrix` (dtype `bool`) (the causal relations) plus provenance (the spacetime + seed it was sprinkled from, or an attached embedding).
+The `CausalSet` class represents a causal set, a discrete partial order. It is the primary object of PyCauset: a `TriangularMatrix` of dtype `bool` (the causal relations, one bit each) plus provenance (the spacetime and seed it was sprinkled from). Elements are labelled by time, so the matrix is strictly upper triangular.
 
 ## Parameters
 
 *   **n** (*int, optional*): The number of elements to sprinkle. Either `n` or `density` is required.
 *   **density** (*float, optional*): The sprinkling density; `n` is drawn as `Poisson(density × volume)`.
-*   **spacetime** (*Spacetime, optional*): The spacetime to sprinkle into. Defaults to a 2D Minkowski diamond.
+*   **spacetime** (*[[docs/classes/spacetime/pycauset.spacetime.MinkowskiDiamond.md|MinkowskiDiamond]], optional*): the region to sprinkle into. Defaults to the 2D diamond.
 *   **seed** (*int | str, optional*): The random seed. Defaults to a random seed.
 *   **matrix** (*TriangularMatrix (bool), optional*): A pre-existing causal matrix (used by `load()`). If provided, sprinkling is skipped.
 *   **validate** (*bool*): When `True` (default), a supplied `matrix` is validated as a strict partial order.
@@ -48,19 +48,10 @@ The sprinkling density, `n / volume`.
 
 ```python
 @property
-def spacetime(self) -> Spacetime
+def spacetime(self) -> MinkowskiDiamond
 ```
 
 The spacetime used for sprinkling.
-
-### embedding
-
-```python
-@property
-def embedding(self) -> np.ndarray | None
-```
-
-The attached coordinate embedding (time-labelled), or `None` for a native (regenerated) causet.
 
 ## Methods
 
@@ -78,7 +69,7 @@ Validates that the order is a strict partial order (reflexive-free, antisymmetri
 def coordinates(self, indices=None, force=False) -> np.ndarray
 ```
 
-Returns the spacetime coordinates of the elements, the attached embedding for a custom-`Spacetime` causet, or regenerated from `(spacetime, seed)` for a native causet. Raises `UserWarning` above 100,000 elements unless `force=True`.
+Returns the spacetime coordinates of the elements, `(n, d)`, regenerated from `(spacetime, seed)` (the sprinkle's RNG stream) and time-labelled like the matrix. Raises `UserWarning` above 100,000 elements unless `force=True`.
 
 ### links
 
@@ -144,17 +135,7 @@ The fraction of element pairs that are causally related (`R / C(n, 2)`).
 def myrheim_meyer_dimension(self) -> float
 ```
 
-The Myrheim–Meyer dimension estimate, inverting the relation fraction `f(d) = Γ(d+1)Γ(d/2)/(2Γ(3d/2))`.
-
-### plot_embedding / plot_hasse / plot_causal_matrix
-
-```python
-def plot_embedding(self, **kwargs) -> Figure
-def plot_hasse(self, **kwargs) -> Figure
-def plot_causal_matrix(self, **kwargs) -> Figure
-```
-
-Visualization methods (lazy Plotly import). See [[docs/pycauset.vis/plot_embedding.md|plot_embedding]] et al.
+The Myrheim–Meyer dimension estimate, inverting the relation fraction `f(d) = Γ(d+1)Γ(d/2)/(2Γ(3d/2))`. Unbiased for a sprinkled Minkowski diamond in any dimension; the statistical error shrinks like `1/sqrt(n)`.
 
 ### save / load
 
@@ -171,7 +152,7 @@ Save/load to/from the single-file `.pycauset` container.
 ```python
 import pycauset as pc
 
-c = pc.causet(n=500, spacetime=pc.MinkowskiDiamond(2), seed=42)
+c = pc.causet(n=500, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=42)
 c.validate()
 links = c.links()
 d = c.myrheim_meyer_dimension()
@@ -179,7 +160,6 @@ d = c.myrheim_meyer_dimension()
 
 ## See also
 
-- [[docs/classes/spacetime/pycauset.spacetime.Spacetime.md|Spacetime]]
 - [[docs/classes/spacetime/pycauset.spacetime.MinkowskiDiamond.md|MinkowskiDiamond]]
 - [[guides/Causal Sets.md|Causal Sets guide]]
 - [[docs/functions/pycauset.causet.md|pc.causet]]

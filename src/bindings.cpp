@@ -9,6 +9,7 @@ PYBIND11_MODULE(_pycauset, m) {
     bind_matrix_classes(m);
     bind_vector_classes(m);
     bind_math_ops(m);
+    bind_causet_classes(m);
 
     // --- Memory Governor ---
     py::class_<pycauset::core::MemoryGovernor>(m, "MemoryGovernor")

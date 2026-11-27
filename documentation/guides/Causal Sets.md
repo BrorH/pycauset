@@ -70,16 +70,15 @@ The `c` object itself is extremely lightweight. It is essentially a metadata wra
 
 The "End Product" of the initialization is the **Causal Matrix** stored on disk. The [[pycauset.CausalSet]] instance is just your handle to access that matrix and remember how it was created.
 
-## Large Scale Simulations
+## Large causal sets
 
-`pycauset` is designed for large-scale simulations. The [[pycauset.CausalSet]] class uses a **stateless sprinkling** technique (see [Stateless Sprinkling](../internals/Algorithms.md#2-stateless-sprinkling-spacetime-generation)) that avoids storing the coordinates of the points. This means you can generate causal sets with billions of elements without running out of RAM, provided you have enough disk space to store the resulting bit matrix.
+The causal matrix is stored one bit per pair and moves to a memory-mapped file above the
+memory threshold, so the matrix is not what limits the size. Sprinkling computes every pair's
+relation once (O(n²) work), and the coordinates are not stored: `coordinates()` regenerates
+them from the seed.
 
 ```python
-# Generating a very large causal set (e.g., 1 million elements)
-# This is memory-safe!
-c_large = pycauset.CausalSet(1_000_000)
-
-# The matrix is stored on disk, mapped into memory only as needed
+c_large = pycauset.CausalSet(20_000, seed=1)   # 25 MB of bits
 C_large = c_large.C
 ```
 
@@ -99,14 +98,15 @@ diamond = spacetime.MinkowskiDiamond(dimension=2)
 c = pycauset.CausalSet(n=1000, spacetime=diamond)
 ```
 
-### Minkowski Cylinder
-A flat spacetime with periodic spatial boundary conditions ($S^1 \times \mathbb{R}$).
+### Higher dimensions
+The diamond exists in any dimension $d \ge 2$; the order is Minkowski causality.
 
 ```python
-# A cylinder with height 2.0 and circumference 5.0
-cyl = spacetime.MinkowskiCylinder(dimension=2, height=2.0, circumference=5.0)
-c = pycauset.CausalSet(n=1000, spacetime=cyl)
+c4 = pycauset.CausalSet(n=1000, spacetime=spacetime.MinkowskiDiamond(dimension=4), seed=1)
 ```
+
+The rest of the spacetime library (cylinders, boxes, curved spacetimes) is parked in
+`experimental/physics` for R1.
 
 ## Sprinkling Modes
 
@@ -121,8 +121,7 @@ c = pycauset.CausalSet(n=1000)
 Specify `density` ($\rho$) to generate elements based on a Poisson process. The actual number of elements $N$ will vary according to the Poisson distribution $N \sim \text{Poisson}(\rho V)$.
 
 ```python
-# Sprinkle with density 100.0
-# If volume is 1.0, expected N is 100
+# Sprinkle with density 100.0 into the 2D diamond (volume 1/2): N is about 50
 c = pycauset.CausalSet(density=100.0)
 print(f"Realized N: {c.N}")
 print(f"Realized Density: {c.rho}")
@@ -141,23 +140,12 @@ c.save("my_simulation.pycauset")
 c_loaded = pycauset.CausalSet.load("my_simulation.pycauset")
 ```
 
-## Adding Matter (Fields)
-
-Once you have a causal set, you can define quantum fields on it to study particle propagation and entanglement. PyCauset separates the geometry (the set) from the matter (the field).
-
-See the [[Field Theory]] guide for details on how to define fields and compute propagators.
-
-```python
-phi = pc.field("scalar", mass=1.0)
-Q = phi.on(c)
-K = Q.retarded()
-```
-
 ## Analyzing the causal structure
 
 The causal set is a partial order; its structure methods are first-class on `CausalSet`:
 
 ```python
+x, y = 0, c.n - 1
 c.validate()              # verify reflexive-free, antisymmetric, transitive
 links = c.links()         # the Hasse / link matrix (transitive reduction)
 past = c.past(x)          # indices i with i ≺ x

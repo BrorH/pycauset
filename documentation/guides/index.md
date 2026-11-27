@@ -19,6 +19,11 @@ flowchart LR
 - **[[guides/User Guide|User Guide]]** — the guided tour of the engine.
 - **[[guides/Examples|Examples]]** — short, copy-paste recipes.
 
+## Causal sets
+
+- **[[guides/Causal Sets|Causal Sets]]** — sprinkle into the Minkowski diamond, read the order.
+- **[[guides/Analyzing a Causal Set|Analyzing a Causal Set]]** — links, chains, layers, intervals, dimension.
+
 ## Data in and out
 
 - **[[guides/Saving and Loading Data|Saving and Loading Data]]** — save, load, and convert `.pycauset` / `.npy` / `.npz`.

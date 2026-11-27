@@ -235,3 +235,5 @@ def to_numpy(obj: Any, *, allow_huge: bool = False, dtype: Any = None, copy: boo
 
 keep_temp_files: bool
 seed: Optional[int]
+
+def causet(*, n: Optional[int] = ..., density: Optional[float] = ..., spacetime: Any = ..., seed: Optional[Union[int, str]] = ..., matrix: Any = ...) -> Any: ...

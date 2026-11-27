@@ -96,6 +96,8 @@ nav:
       - Installation: guides/Installation.md
       - Quickstart: guides/Quickstart.md
       - User Guide: guides/User Guide.md
+      - Causal Sets: guides/Causal Sets.md
+      - Analyzing a Causal Set: guides/Analyzing a Causal Set.md
     - Concepts:
     - Walkthroughs:
       - Examples: guides/Examples.md
@@ -115,6 +117,10 @@ nav:
   - API Reference:
     - docs/index.md
     - Classes:
+      - Causal sets:
+        - docs/classes/spacetime/pycauset.CausalSet.md
+        - docs/classes/spacetime/pycauset.spacetime.md
+        - docs/classes/spacetime/pycauset.spacetime.MinkowskiDiamond.md
       - docs/classes/index.md
       - Matrix:
         - docs/classes/matrix/index.md
@@ -147,6 +153,8 @@ nav:
       - docs/functions/pycauset.asarray.md
       - docs/functions/pycauset.bitwise_not.md
       - docs/functions/pycauset.causal_matrix.md
+      - docs/functions/pycauset.causet.md
+      - docs/functions/pycauset.synthetic.md
       - docs/functions/pycauset.cholesky.md
       - docs/functions/pycauset.compute_k.md
       - docs/functions/pycauset.compute_k_matrix.md

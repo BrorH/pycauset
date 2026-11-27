@@ -2,6 +2,12 @@
 
 This section contains the detailed API documentation for the PyCauset library.
 
+## Causal sets
+
+*   **[[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]]** / **[[docs/functions/pycauset.causet.md|pycauset.causet]]**: a causal set (sprinkled, or from a causal matrix).
+*   **[[docs/classes/spacetime/pycauset.spacetime.MinkowskiDiamond.md|pycauset.spacetime.MinkowskiDiamond]]**: the Minkowski diamond in any dimension.
+*   **[[docs/functions/pycauset.synthetic.md|pycauset.synthetic]]**: synthetic orders (chain, antichain, percolation, ...).
+
 ## Data Structures
 
 *   **[[docs/classes/matrix/index.md|Matrix classes]]**: Dense, triangular, bit-packed, and structured matrices.

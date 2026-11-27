@@ -181,7 +181,12 @@ configure_openblas_threads()
 
 from ._storage import cleanup_storage, set_temporary_file
 
-# Physics (causal sets, spacetimes, fields, plots) is parked in experimental/physics for R1.
+# Causal sets (R1: sprinkling into the Minkowski diamond, the order methods, synthetic
+# orders). Fields, plots and the rest of the spacetime library are parked in
+# experimental/physics.
+from . import spacetime as spacetime
+from . import synthetic as synthetic
+from .causet import CausalSet
 
 
 def _debug_resolve_promotion(
@@ -444,7 +449,7 @@ def to_numpy(obj: Any, *, allow_huge: bool = False, dtype: Any = None, copy: boo
 
     return _export_guard.export_to_numpy(obj, allow_huge=allow_huge, dtype=dtype, copy=copy)
 
-_PERSISTENCE_DEPS = _SimpleNamespace(native=_native)
+_PERSISTENCE_DEPS = _SimpleNamespace(CausalSet=CausalSet, native=_native)
 
 
 def save(obj: Any, path: str | Path) -> None:
@@ -929,6 +934,18 @@ def causal_matrix(source: Any, populate: bool = True, **kwargs: Any) -> Any:
 causal_matrix.random = TriangularMatrix.random
 
 
+def causet(
+    *,
+    n: int | None = None,
+    density: float | None = None,
+    spacetime=None,
+    seed: int | str | None = None,
+    matrix=None,
+) -> CausalSet:
+    """A causal set: sprinkled (`n` or `density`, `spacetime`, `seed`) or from a causal matrix."""
+    return CausalSet(n=n, density=density, spacetime=spacetime, seed=seed, matrix=matrix)
+
+
 _OPS_DEPS = _ops.OpsDeps(
     native=_native,
     np_module=_np,
@@ -1397,6 +1414,10 @@ __all__ = [
 # IMPORTANT: Only include names that actually resolve; otherwise
 # `from pycauset import *` can fail if a symbol is not exported by the native module.
 _extra_exports = [
+    "causet",
+    "CausalSet",
+    "spacetime",
+    "synthetic",
     "save",
     "load",
     "to_numpy",

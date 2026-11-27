@@ -436,6 +436,7 @@ set(PYCAUSET_SOURCES
     src/math/VectorOps.cpp
     src/math/Reductions.cpp
     src/math/CausalMatrix.cpp
+    src/causet/Sprinkler.cpp
 )
 
 # Create a shared library for the core functionality to avoid recompiling for every test
@@ -490,6 +491,7 @@ python_add_library(_pycauset MODULE
     src/bindings/bind_matrix.cpp
     src/bindings/bind_vector.cpp
     src/bindings/bind_math.cpp
+    src/bindings/bind_causet.cpp
 )
 
 # Include directories

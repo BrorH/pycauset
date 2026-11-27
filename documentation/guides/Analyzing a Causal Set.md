@@ -76,30 +76,17 @@ Myrheim-Meyer inverts the relation fraction to estimate the dimension of the
 spacetime a causet was sprinkled into, from the order alone:
 
 ```python
-for d in (2, 3):
+for d in (2, 3, 4):
     st = pc.spacetime.MinkowskiDiamond(dimension=d)
     c = pc.causet(n=300, spacetime=st, seed=42)
     print(f"built in {d}D -> fraction {c.relation_fraction():.3f}, "
           f"estimate {c.myrheim_meyer_dimension():.2f}")
 ```
 
-At n=300 this prints roughly `1.96` for 2D and `2.88` for 3D. The estimate gets
-tighter as n grows. This is the discrete version of "measuring the dimension of
+At n = 300 the estimates land within a few tenths of 2, 3 and 4; the error shrinks like
+`1/sqrt(n)`. This is the discrete version of "measuring the dimension of
 spacetime", the kind of quantity causal set research reads off the order.
-
-## Entanglement entropy
-
-Entanglement entropy lives on the field side, not the set:
-
-```python
-phi = pc.field("scalar", mass=1.0)
-Q = phi.on(c)
-S = Q.entanglement_entropy([0, 1, 2, 3, 4])   # region = list of indices
-```
-
-See [[guides/Field Theory|Field Theory]] for the conventions.
 
 ---
 
-See [[guides/Causal Sets|Causal Sets]] for making the set in the first place, and
-[[guides/Tutorials|Tutorials]] for these methods used end to end.
+See [[guides/Causal Sets|Causal Sets]] for making the set in the first place.

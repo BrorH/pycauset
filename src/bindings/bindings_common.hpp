@@ -10,6 +10,7 @@ void bind_core_classes(py::module_& m);
 void bind_matrix_classes(py::module_& m);
 void bind_vector_classes(py::module_& m);
 void bind_math_ops(py::module_& m);
+void bind_causet_classes(py::module_& m);
 
 // ---------------------------------------------------------------------------
 // One Python class per structure (review/RESTRUCTURE.md 3.1 item 4).

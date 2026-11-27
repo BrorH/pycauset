@@ -1,47 +1,32 @@
-# experimental/physics: causal sets, spacetimes, fields, plots (parked for R1)
+# experimental/physics: fields, plots, the spacetime library (parked for R1)
 
-**Status:** parked (maintainer decision, 2026-11-27). R1 is the linear-algebra engine, "NumPy
-for causal sets"; the physics layer comes back after it. Nothing here is built, imported,
-tested or documented with the package. This is the same arrangement as `experimental/cuda`.
+**Status:** parked (maintainer decision, 2026-11-27). Nothing here is built, imported, tested
+or documented with the package; the same arrangement as `experimental/cuda`.
+
+**What R1 keeps in the package** (the tools to create causal sets and test the engine with):
+`CausalSet` / `pc.causet`, `pc.spacetime.MinkowskiDiamond(d)` (the true diamond in any
+dimension, one native implementation), the order methods (links, chains, layers, intervals,
+past / future), the Myrheim-Meyer estimate, `pc.synthetic`, save / load, and the engine's
+causal-matrix operations (`causal_matrix`, lazy `C ± C.T`, `compute_k`, the link-matrix
+kernel).
 
 ## What is here
 
-| Path | Was |
+| Path | Contents |
 |---|---|
-| `python/causet.py` | `pycauset.CausalSet`, `pycauset.causet(...)` |
-| `python/spacetime.py` | `pycauset.spacetime` (Minkowski diamond / cylinder / box, de Sitter, FLRW, Schwarzschild, ...) |
 | `python/field.py` | `pycauset.field` (`Field`, `CorrelatedField`, `ContinuumCorrelatedField`, `State`) |
-| `python/synthetic.py` | `pycauset.synthetic` (chains, antichains, test orders) |
-| `python/vis.py` | `pycauset.plot_embedding`, `plot_hasse`, `plot_causal_matrix`, `show` |
-| `src/Sprinkler.cpp`, `include/Spacetime.hpp`, `include/Sprinkler.hpp` | native sprinkling and spacetimes (`src/causet/`, `include/pycauset/causet/`) |
-| `src/bind_causet.cpp` | their bindings (`_native.MinkowskiDiamond`, `sprinkle`, `make_coordinates`, ...) |
-| `tests/` | `tests/physics/` and the physics tests from `tests/engine` |
-| `docs/` | the CausalSet, spacetime and field class pages, the function pages, and the guides (Causal Sets, Analyzing a Causal Set, Spacetime, Field Theory, Visualization) |
+| `python/vis.py` | `plot_embedding`, `plot_hasse`, `plot_causal_matrix`, `show` |
+| `python/spacetime.py` | the pre-R1 spacetime library: Python `Spacetime` base and registry, Minkowski cylinder / box, de Sitter, anti-de Sitter, FLRW, Schwarzschild, transformed / restricted / conformal / periodic spacetimes |
+| `python/causet.py`, `python/synthetic.py` | the pre-R1 versions (plot methods, Python-defined spacetimes); the package has the R1 versions |
+| `include/Spacetime.hpp`, `src/bind_causet.cpp` | the native cylinder and box and their bindings |
+| `tests/`, `docs/`, `scripts/` | their tests, doc pages and guides (Field Theory, Spacetime, Visualization, Tutorials), the gallery script |
 
-## What stayed in the engine
+## Before bringing something back
 
-Everything that is linear algebra on causal matrices: `pycauset.causal_matrix` (a
-`TriangularMatrix` of dtype `bool`), `TriangularMatrix.random`, the lazy `C ± C.T` closures,
-`compute_k` / `compute_k_matrix`, and the link-matrix kernel (`_native._transitive_reduction`,
-now `src/math/CausalMatrix.cpp`). A `.pycauset` file saved from a `CausalSet` still loads:
-its payload is the causal matrix, which `load` returns (the spacetime metadata is not read).
-
-## Open physics findings (review/FINDINGS.md)
-
-- **F-105:** `MinkowskiDiamond(d > 2)` samples the cube `[0,1]^d` with a coordinate-wise
-  order (a random d-dimensional order), not d-dimensional Minkowski space, without a warning.
-  Decide before bringing it back: raise for d > 2, warn, or implement the real sampler.
-- PLAN 4.7: one Minkowski implementation (Python and native duplicate each other;
-  `tests/test_minkowski_paths_agree.py` pins that they agree).
-
-## Bringing it back
-
-1. Move the Python modules back to `python/pycauset/` and restore the imports and exports in
-   `__init__.py` (`field`, `spacetime`, `synthetic`, `CausalSet`, `causet`, `plot_*`, `show`,
-   and the field classes) and the `CausalSet` branches of `_internal/persistence.py`
-   (`save` wrote `object_type`, `spacetime` and `seed` metadata; `load` rebuilt the object).
-2. Move the C++ back (`src/causet/`, `include/pycauset/causet/`, `src/bindings/bind_causet.cpp`),
-   re-add both to `CMakeLists.txt` and `bind_causet_classes(m)` to `src/bindings.cpp`.
-3. Move the tests to `tests/physics/` and add it to `testpaths` in `pyproject.toml`; move the
-   docs back and restore their mkdocs nav entries.
-4. Resolve F-105 and PLAN 4.7 first.
+- The native cylinder and box use the coordinate-wise placeholder for d > 2 that F-105 fixed
+  for the diamond; give them the same treatment (sample the region uniformly, Minkowski
+  causality, exact volume).
+- One implementation per spacetime (PLAN 4.7): the Python class describes it; sampling and
+  causality are native.
+- Restore the exports in `__init__.py`, the CMake sources, the tests (`testpaths` in
+  `pyproject.toml`), the doc pages and their mkdocs nav entries.

@@ -374,6 +374,7 @@ def _read_new_container_metadata_and_offset(path: Path) -> tuple[dict[str, Any],
 
 
 class PersistenceDeps(Protocol):
+    CausalSet: type
     native: Any  # the native module
 
 
@@ -398,7 +399,11 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
 
     temp_raw = path.with_suffix(".raw_tmp")
 
+    causet_obj: Any | None = None
     payload_obj = obj
+    if isinstance(obj, deps.CausalSet):  # its payload is the causal matrix
+        causet_obj = obj
+        payload_obj = obj.causal_matrix
 
     # Closure views (LAZY.md L2b) read another object's storage; save their packed result.
     if isinstance(payload_obj, deps.native.MatrixBase):
@@ -445,6 +450,12 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             "view": view,
             "payload_layout": {"kind": "raw_native", "params": {}},
         }
+
+        if causet_obj is not None:
+            meta["object_type"] = "CausalSet"
+            meta["n"] = int(causet_obj.n)
+            meta["spacetime"] = {"type": "MinkowskiDiamond", "args": {"dimension": causet_obj.spacetime.dimension()}}
+            meta["seed"] = int(causet_obj._seed)
 
         # Structure and dtype come straight from the object (one class per structure).
         structure = deps.native._structure_of(payload_obj)
@@ -613,8 +624,15 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         obj.set_conjugated(True)
 
 
-    # Files saved as a CausalSet (physics, parked in experimental/physics for R1) hold a causal
-    # matrix payload: it loads as that matrix; the spacetime metadata is not read.
+    if metadata.get("object_type") == "CausalSet":
+        from ..spacetime import MinkowskiDiamond
+
+        st = metadata.get("spacetime", {})
+        if st.get("type") != "MinkowskiDiamond":
+            raise ValueError(f"unsupported spacetime in file: {st.get('type')!r}")
+        # Written by save(), which only saves valid orders: no O(n^3) validation on load.
+        return deps.CausalSet(n=int(metadata["n"]), spacetime=MinkowskiDiamond(int(st["args"]["dimension"])),
+                              seed=int(metadata["seed"]), matrix=obj, validate=False)
     return obj
 
 

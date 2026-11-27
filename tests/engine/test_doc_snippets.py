@@ -10,7 +10,8 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CHECKED = ["README.md", "documentation/guides/Quickstart.md", "documentation/guides/Examples.md",
-           "documentation/guides/User Guide.md", "documentation/guides/Saving and Loading Data.md"]
+           "documentation/guides/User Guide.md", "documentation/guides/Saving and Loading Data.md",
+           "documentation/guides/Causal Sets.md", "documentation/guides/Analyzing a Causal Set.md"]
 
 
 @pytest.mark.parametrize("page", CHECKED)

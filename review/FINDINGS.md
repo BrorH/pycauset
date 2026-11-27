@@ -1376,8 +1376,11 @@ the entry (the history is useful). New findings go at the bottom with the next f
     no `__rmatmul__`.
 
 ### F-105 MinkowskiDiamond(d > 2) is not Minkowski space, silently
-- **Status:** parked with physics (session 9; `experimental/physics/README.md` lists it as a
-  precondition for bringing physics back). For d > 2 both implementations (Python
+- **Status:** fixed (session 9). One native implementation for every d: uniform rejection
+  sampling of the diamond |x| < min(t, 1 - t) in (t, x) coordinates, causality by the
+  Minkowski interval, exact volume. The Python class only describes it. Tests check the
+  causal matrix against an independent NumPy statement of the interval for d = 2..5 and the
+  Myrheim-Meyer estimate (within 0.25 of d = 2, 3, 4 at n = 2000). For d > 2 both implementations (Python
   `spacetime.MinkowskiDiamond` and native `causet/Spacetime.hpp`) sample the cube [0,1]^d
   and order points coordinate-wise (a random d-dimensional order), documented in the
   docstring as a placeholder ("tracked under R2_MINK"). Causality in (d-1)+1 Minkowski space
@@ -1396,3 +1399,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
   A declarative store beside the code drifts from it (the same failure as the old property
   flags, F-092). Removed with its binding, gtest, three Python test files and the doc section;
   also the never-collected script `tests/python/phase3_4_verification.py`.
+
+### F-107 Causal-set validation passed intransitive orders (uint8 path counts wrapped)
+- **Status:** fixed (session 9). `validate_causal_matrix` checked transitivity with a NumPy
+  `uint8` product: 256 two-step paths wrapped to 0, so an order missing `0 < 257` with 256
+  paths between them validated (the same wrap as F-053). Now the engine's exact product
+  (bit matrices multiply in int32). `test_F107_*`.

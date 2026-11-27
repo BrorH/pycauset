@@ -457,3 +457,8 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   portable `countr_zero`). Docs pass started with the pages physics touched: README,
   Quickstart, Examples, the three index pages; their code runs in `test_doc_snippets.py`
   (which caught `pc.inverse` in my own Quickstart draft).
+- Maintainer: causal sets are R1. Back in the package: CausalSet / causet, spacetime
+  (MinkowskiDiamond only), synthetic, the native sprinkler. F-105 fixed (true d-dimensional
+  diamond, one native implementation), F-107 fixed (validation path counts). Fields, plots,
+  other spacetimes stay parked. No backwards-compatibility shims (no users). Causal-set docs
+  and guides back, edited to R1 and run in test_doc_snippets.py.

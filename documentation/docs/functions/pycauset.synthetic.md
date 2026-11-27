@@ -31,4 +31,3 @@ Each generator applies the transitive closure internally and returns a validated
 
 - [[docs/classes/spacetime/pycauset.CausalSet.md|CausalSet]]
 - [[guides/Causal Sets.md|Causal Sets guide]]
-- [[project/plans/R2_SPACETIME_LIBRARY.md|R2 Spacetime Library]]

@@ -9,6 +9,12 @@ milestone corresponds to **v0.6.1**.
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
 ### Changed
+- `spacetime.MinkowskiDiamond(d)` is the Minkowski causal diamond in every dimension: points
+  are uniform in |x| < min(t, 1 - t) with coordinates (t, x), and the order is Minkowski
+  causality (for d > 2 it was a coordinate-wise order on a cube). Coordinates are (t, x) in
+  d = 2 too (were lightcone coordinates); `volume()` is the true volume (1/2 in d = 2).
+- Fields, plots and spacetimes other than the Minkowski diamond are parked in
+  `experimental/physics` for R1.
 - Element-wise `+ - *` of upper triangular matrices return a `TriangularMatrix` (with a
   diagonal exactly when the result can be non-zero there), also with a diagonal or identity
   operand; these were dense results before. Values and dtypes unchanged.
@@ -112,6 +118,8 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   extra (CUDA moved to `experimental/cuda`, on hold), the per-class buffer protocol.
 
 ### Fixed
+- `CausalSet` validation counted two-step paths in uint8 and accepted intransitive orders
+  with 256 or more such paths.
 - `pycauset.sum` returns `int` for integer/bool inputs (exact), `float` for real, `complex` for
   complex (was always `complex`).
 - Many silent wrong results (review/FINDINGS.md F-001 ... F-058), among them: integer scalar
