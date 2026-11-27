@@ -21,7 +21,21 @@ $$
 
 ## Notes
 
-This is an endpoint-first baseline.
+- Returns only `x`, NumPy's `lstsq(a, b)[0]` (NumPy returns a tuple with the residuals, rank
+  and singular values too).
+- NumPy's algorithm: LAPACK `?gelsd` with NumPy's default cutoff (singular values at or below
+  `eps * max(m, n) * max(s)` count as zero), so a rank-deficient `a` gives the minimum-norm
+  solution. Integers compute in float64, single precision stays single. Any structure and
+  view.
 
-- It currently returns only `x` (unlike `numpy.linalg.lstsq`, which returns a tuple).
-- The baseline implementation uses normal equations: $x = (A^T A)^{-1} A^T b$.
+## Example
+
+```python
+import numpy as np
+import pycauset as pc
+
+a = np.array([[1.0, 0.0], [1.0, 1.0], [1.0, 2.0]])
+b = np.array([1.0, 2.0, 2.0])
+x = pc.lstsq(pc.matrix(a), pc.vector(b))
+np.testing.assert_allclose(np.asarray(x), np.linalg.lstsq(a, b, rcond=None)[0])
+```

@@ -33,3 +33,5 @@ review/features/LAZY.md), and restore the tests and docs.
 The `pip install pycauset[gpu]` extra (NVIDIA runtime wheels `nvidia-cuda-runtime-cu12`,
 `nvidia-cublas-cu12`, `nvidia-cusolver-cu12`, all `>=12.6`) was removed from `pyproject.toml`
 along with the move; restore it with the plugin.
+- `ComputeDevice` gained `lstsq` (session 9, CPU `?gelsd`): `CudaDevice` needs an override
+  (forward to the CPU device) before it compiles again.

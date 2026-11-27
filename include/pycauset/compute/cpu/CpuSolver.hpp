@@ -53,6 +53,7 @@ public:
     void lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U);
     void svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT);
     void solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X);
+    void lstsq(const MatrixBase& A, const MatrixBase& B, MatrixBase& X);
 
     // Eigen Solvers
     // Hermitian/Symmetric (Real eigenvalues)

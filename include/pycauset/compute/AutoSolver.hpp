@@ -71,6 +71,7 @@ public:
     void lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U) override;
     void svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT) override;
     void solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) override;
+    void lstsq(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) override;
     void eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) override;
     void eigvals_skew(const MatrixBase& a, VectorBase& out, int k) override;
     void eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBase& eigenvectors, int k) override;

@@ -39,7 +39,7 @@ first. `benchmarks/r2_parity.py`: 9/9 operations at or above 0.90x.
 | `svd` / values only | 436 / 219 ms | 343 / 166 ms | 1.3x |
 | `pinv`, `matrix_rank` | 425 / 181 ms | 354 / 145 ms | 1.2x |
 | `eig` (n = 512) | 207 ms | 211 ms | 1.0x |
-| `lstsq` (vector) | 203 ms | 312 ms | 0.65x (computes `pinv(a) @ b`; NumPy's `?gelsd` is next) |
+| `lstsq` (vector) | 253 ms | 210 ms | 1.2x |
 
 Two fixes got the LAPACK operations here from 0.5-0.7x (review F-108): LAPACK is called
 column-major on the row-major buffers (LAPACKE's row-major interface transposed every

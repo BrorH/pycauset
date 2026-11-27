@@ -1083,10 +1083,8 @@ def invert(a: Any) -> Any:
 
 
 def lstsq(a: Any, b: Any) -> Any:
-    """Least-squares solve (endpoint-first baseline).
-
-    Returns only the solution `x` (unlike NumPy, which returns a tuple).
-    """
+    """x minimizing ||a @ x - b|| (minimum norm if rank-deficient): NumPy's lstsq(a, b)[0],
+    computed with LAPACK ?gelsd. Returns only x (NumPy returns a tuple)."""
     return _ops.lstsq(a, b, deps=_OPS_DEPS)
 
 

@@ -197,14 +197,18 @@ def invert(matrix: Any, *, deps: OpsDeps) -> Any:
     return result
 
 
+@_traced("lstsq", 2)
 def lstsq(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Least-squares solution x minimizing ||a @ x - b|| (minimum norm when rank-deficient).
 
-    x = pinv(a) @ b, through the SVD: the same answer as NumPy's lstsq (which uses ?gelsd).
-    The normal equations (A^T A)^-1 A^T b used before squared the condition number and used
-    A^T instead of A^H for complex input (F-069).
+    The engine runs NumPy's routine, LAPACK ?gelsd with NumPy's default cutoff, for every
+    dtype, structure and view (it was pinv(a) @ b: the same answer, 1.5x slower; before that
+    the normal equations, F-069).
     """
-    result = matmul(pinv(a, deps=deps), b, deps=deps)
+    native = (deps.native.MatrixBase, deps.native.VectorBase)
+    a = a if isinstance(a, native) else _as_pycauset_array(deps.np_module.asarray(a), deps=deps)
+    b = b if isinstance(b, native) else _as_pycauset_array(deps.np_module.asarray(b), deps=deps)
+    result = deps.native.lstsq(a, b)
     _track_and_mark_temporary_if_native(result, deps=deps)
     return result
 

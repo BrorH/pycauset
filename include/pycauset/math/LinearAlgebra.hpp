@@ -36,6 +36,9 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const Ma
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(
     const MatrixBase& a, bool full_matrices = false, bool compute_uv = true);
 std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
+// NumPy's lstsq solution: x minimizing ||a x - b||, minimum norm when rank-deficient (?gelsd,
+// rcond = eps * max(m, n)). Any dtype/structure/view; x is n x b.cols().
+std::unique_ptr<MatrixBase> lstsq(const MatrixBase& a, const MatrixBase& b);
 // NumPy's pinv (default rtol): through svd, any dtype/structure/view.
 std::unique_ptr<MatrixBase> pinv(const MatrixBase& a);
 

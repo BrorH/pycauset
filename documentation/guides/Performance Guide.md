@@ -39,8 +39,7 @@ vary by about ±10% between runs):
 | `A + B`, `A * B` | 2.7–3.2× faster (multithreaded) |
 | `solve`, `inv`, `det`, `slogdet` | 1.6–1.8× faster |
 | `cholesky` | 2.4× faster |
-| `svd`, `pinv`, `matrix_rank` | 1.2–1.3× faster |
-| `lstsq` | 0.65× (computed through the pseudoinverse) |
+| `svd`, `pinv`, `matrix_rank`, `lstsq` | 1.2–1.3× faster |
 
 Where PyCauset is structurally ahead:
 

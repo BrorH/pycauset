@@ -788,6 +788,25 @@ std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, cons
     return x;
 }
 
+std::unique_ptr<MatrixBase> lstsq(const MatrixBase& a, const MatrixBase& b)
+{
+    if (a.rows() != b.rows()) {
+        throw std::invalid_argument("lstsq: 'b' must have the same number of rows as 'a'");
+    }
+    // As solve: the kernel reads dense storage of one LAPACK dtype; anything else is written out.
+    const DataType dt = lapack_dtype(a.get_data_type(), b.get_data_type());
+    auto ready = [dt](const MatrixBase& m) {
+        return m.get_structure() == Structure::DENSE && m.get_data_type() == dt && is_plain(m);
+    };
+    std::unique_ptr<MatrixBase> pa = ready(a) ? nullptr : to_dense(a, dt);
+    std::unique_ptr<MatrixBase> pb = ready(b) ? nullptr : to_dense(b, dt);
+    const MatrixBase& A = pa ? *pa : a;
+    const MatrixBase& B = pb ? *pb : b;
+    auto x = ObjectFactory::create_matrix(A.cols(), B.cols(), dt, Structure::DENSE, "");
+    ComputeContext::instance().get_device()->lstsq(A, B, *x);
+    return x;
+}
+
 // Matrix inverse, as NumPy's inv computes it: solve(A, I) by LU with partial pivoting (?gesv)
 // in the LAPACK dtype (solve_dtype: integers and bit in float64, float16/32 in float32, complex
 // stays complex). Singular input raises. Structure rules (review Adding Operations §3):

@@ -80,4 +80,13 @@ void bind_math_ops(py::module_& m) {
         return std::shared_ptr<pycauset::VectorBase>(
             pycauset::as_vector(pycauset::solve(a, *col), /*transposed=*/false).release());
     }, py::arg("a"), py::arg("b"), "Solve linear system Ax=b for a vector b");
+    m.def("lstsq", [](const pycauset::MatrixBase& a, const pycauset::MatrixBase& b) {
+        return std::shared_ptr<pycauset::MatrixBase>(pycauset::lstsq(a, b).release());
+    }, py::arg("a"), py::arg("b"), "Least-squares solution of a x = b (NumPy's lstsq x, ?gelsd)");
+    m.def("lstsq", [](const pycauset::MatrixBase& a, const pycauset::VectorBase& b) {
+        auto col = pycauset::as_row_matrix(b);
+        col->set_transposed(true);
+        return std::shared_ptr<pycauset::VectorBase>(
+            pycauset::as_vector(pycauset::lstsq(a, *col), /*transposed=*/false).release());
+    }, py::arg("a"), py::arg("b"), "Least-squares solution of a x = b for a vector b");
 }

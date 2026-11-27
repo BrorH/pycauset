@@ -795,6 +795,10 @@ void AutoSolver::solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) 
     cpu_device_->solve(A, B, X);
 }
 
+void AutoSolver::lstsq(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) {
+    cpu_device_->lstsq(A, B, X);
+}
+
 void AutoSolver::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) {
     DataType dt = a.get_data_type();
     bool use_gpu = false;

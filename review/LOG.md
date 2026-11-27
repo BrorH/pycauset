@@ -542,3 +542,8 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   NumPy / PyCauset interleaving. r2_parity 9/9 at parity; BENCHMARKS.md, Performance Guide,
   Compute Architecture updated. QR now equals NumPy's to the last bit of sign convention.
   Gates: 4,192 + 4,134 passed, atlas CI 42.
+- 6.0b: `lstsq` is an engine operation (entry in LinearAlgebra.cpp, device method, CPU
+  kernel ?gelsd with NumPy's cutoff, column-major copies): 0.65x -> 1.2x NumPy, same
+  answers (rank-deficient minimum-norm included). The lstsq page described the normal
+  equations; rewritten. experimental/cuda README notes the new device method.
+  Gates: 4,193 + 4,135, atlas CI 42, ctest 5/5.

@@ -157,6 +157,10 @@ void CpuDevice::solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) {
     solver_.solve(A, B, X);
 }
 
+void CpuDevice::lstsq(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) {
+    solver_.lstsq(A, B, X);
+}
+
 void CpuDevice::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol) {
     solver_.eigvals_arnoldi(a, out, k, m, tol);
 }

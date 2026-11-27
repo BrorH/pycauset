@@ -84,6 +84,7 @@ public:
     
     // Solves linear system AX = B
     virtual void solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) = 0;
+    virtual void lstsq(const MatrixBase& A, const MatrixBase& B, MatrixBase& X) = 0;
 
     // Eigenvalues (Arnoldi/Lanczos-style top-k)
     // Contract: out is a pre-allocated real vector of length k.

@@ -517,6 +517,56 @@ bool solve_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
 }
 }  // namespace
 
+namespace {
+// min ||A X - B|| with LAPACK ?gelsd (SVD, divide and conquer): NumPy's lstsq, with NumPy's
+// cutoff rcond = eps * max(m, n). gelsd is column-major only in effect (its B must have
+// max(m, n) rows), so A and B are copied column-major (gelsd destroys both anyway) and X is
+// copied back: O(mn) next to the O(mn min(m, n)) solve.
+template <typename T>
+bool lstsq_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
+    using R = real_of_t<T>;
+    auto* A = dynamic_cast<const DenseMatrix<T>*>(&a);
+    auto* B = dynamic_cast<const DenseMatrix<T>*>(&b);
+    auto* X = dynamic_cast<DenseMatrix<T>*>(&x);
+    if (!A || !B || !X) return false;
+    debug_trace::set_last("cpu.lstsq.gelsd");
+    const uint64_t m = a.rows(), n = a.cols(), k = b.cols();
+    T* xp = X->data();
+    std::fill(xp, xp + n * k, T(0));
+    if (m == 0 || n == 0 || k == 0) return true;
+    const uint64_t ldb = std::max(m, n);
+    std::vector<T> ac(m * n), bc(ldb * k, T(0));
+    const T* ap = A->data();
+    const T* bp = B->data();
+    for (uint64_t i = 0; i < m; ++i)
+        for (uint64_t j = 0; j < n; ++j) ac[j * m + i] = ap[i * n + j];
+    for (uint64_t i = 0; i < m; ++i)
+        for (uint64_t c = 0; c < k; ++c) bc[c * ldb + i] = bp[i * k + c];
+    std::vector<R> s(std::min(m, n));
+    const R rcond = std::numeric_limits<R>::epsilon() * static_cast<R>(std::max(m, n));
+    lapack_int rank = 0, info = 0;
+    const auto M = static_cast<lapack_int>(m), N = static_cast<lapack_int>(n), K = static_cast<lapack_int>(k);
+    const auto LDB = static_cast<lapack_int>(ldb);
+    if constexpr (std::is_same_v<T, double>) info = LAPACKE_dgelsd(LAPACK_COL_MAJOR, M, N, K, ac.data(), M, bc.data(), LDB, s.data(), rcond, &rank);
+    else if constexpr (std::is_same_v<T, float>) info = LAPACKE_sgelsd(LAPACK_COL_MAJOR, M, N, K, ac.data(), M, bc.data(), LDB, s.data(), rcond, &rank);
+    else if constexpr (std::is_same_v<T, std::complex<double>>) info = LAPACKE_zgelsd(LAPACK_COL_MAJOR, M, N, K, ac.data(), M, bc.data(), LDB, s.data(), rcond, &rank);
+    else info = LAPACKE_cgelsd(LAPACK_COL_MAJOR, M, N, K, ac.data(), M, bc.data(), LDB, s.data(), rcond, &rank);
+    if (info > 0) throw std::runtime_error("lstsq: SVD did not converge");
+    if (info < 0) throw std::runtime_error("lstsq: illegal argument to gelsd");
+    for (uint64_t i = 0; i < n; ++i)
+        for (uint64_t c = 0; c < k; ++c) xp[i * k + c] = bc[c * ldb + i];
+    return true;
+}
+}  // namespace
+
+void CpuSolver::lstsq(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
+    if (lstsq_dense<double>(a, b, x) || lstsq_dense<float>(a, b, x) ||
+        lstsq_dense<std::complex<double>>(a, b, x) || lstsq_dense<std::complex<float>>(a, b, x)) {
+        return;
+    }
+    throw std::runtime_error("lstsq: operands must be dense float32/float64/complex64/complex128");
+}
+
 // Inputs are dense, plain and of the result dtype (LinearAlgebra::solve writes them out).
 void CpuSolver::solve(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
     if (a.rows() != a.cols()) throw std::invalid_argument("solve: A must be square");

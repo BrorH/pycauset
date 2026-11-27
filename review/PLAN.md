@@ -374,7 +374,7 @@ are engine-owned metadata on the storage).
       calls when NumPy is imported first (F-096). Today: a warning and an import-order rule.
 - [x] 6.0a LAPACK without row-major LAPACKE transposes (F-108; done: see BENCHMARKS.md): solve / invert / det / eigh at
       0.5-0.7x NumPy, the column-major call on the same buffer is 2x faster than NumPy
-- [ ] 6.0b `lstsq` through `?gelsd` (NumPy's routine) instead of `pinv(a) @ b` (0.65x)
+- [x] 6.0b `lstsq` through `?gelsd` (NumPy's routine) instead of `pinv(a) @ b` (0.65x)
 - [ ] 6.1 Elementwise/vector parity (F-012): profile the wrapper stack vs the kernels
 - [ ] 6.2 Thread-pool consolidation (F-014)
 - [ ] 6.3 Out-of-core paths for eigh/svd/rank (F-011) or document them as in-RAM only

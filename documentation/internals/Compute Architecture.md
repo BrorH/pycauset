@@ -66,7 +66,8 @@ F-108). Each routine is chosen so that `A^T` gives `A`'s answer:
 | `lu` | `?getrf` (row-major: the factors of `A` itself are returned) |
 | `cholesky` | `?potrf('U')` on `A^T`: `L` lands in the buffer's lower triangle |
 | `qr` | `?gelqf` + `?orglq` / `?unglq` on `A^T`: the LQ of `A^T` is NumPy's QR of `A` transposed (same signs) |
-| `pinv`, `lstsq` | via `svd` (`lstsq` is `pinv(a) @ b`) |
+| `pinv` | via `svd` |
+| `lstsq` | `?gelsd` (NumPy's routine and cutoff), on column-major copies |
 | `eig`, `eigvals` | `?geev` (row-major: the transposes are small next to it) |
 
 Structure shortcuts come first: the determinant of a triangular or diagonal matrix is the
