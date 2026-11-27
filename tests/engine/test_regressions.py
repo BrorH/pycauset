@@ -660,3 +660,15 @@ def test_bit_bulk_reader_matches_numpy():
         np.testing.assert_array_equal(np.asarray(m * 2.5), a * 2.5)
         np.testing.assert_allclose(np.asarray(m / (m + 1)), a / (a + 1.0))
         assert pc.norm(m) == pytest.approx(np.linalg.norm(a))
+
+
+def test_antisymmetric_diagonal_reads_plus_zero_in_bulk_reads():
+    """A materialized `anti * -1.0` stores 0 * -1 = -0.0 on the diagonal; the logical diagonal
+    is +0.0 (F-078), so 1 / A is +inf there. The bulk reader must not pass the stored sign."""
+    x = np.array([[0, 1.0, 2], [-1, 0, 3], [-2, -3, 0]])
+    a = pc.antisymmetric(x) * -1.0
+    d = pc.matrix(np.ones((3, 3)))
+    with np.errstate(divide="ignore"):
+        got = np.asarray(d / a)
+    assert np.all(np.diag(got) == np.inf)
+    assert np.all(np.diag(np.asarray(1.0 / a)) == np.inf)
