@@ -1,3 +1,5 @@
+#include <atomic>
+#include <chrono>
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/PersistentObject.hpp" // We will need this later for eviction
 #include <iostream>
@@ -46,6 +48,17 @@ MemoryGovernor::~MemoryGovernor() {
 }
 
 void MemoryGovernor::refresh_system_stats() const {
+    // At most every 20 ms: reading /proc/meminfo (or the OS equivalent) on every allocation
+    // and every kernel's direct-path check cost ~6 us each, most of a small operation
+    // (review N.6, F-096). Storage placement is a heuristic, never a result.
+    {
+        using clock = std::chrono::steady_clock;
+        static std::atomic<int64_t> last_ns{0};
+        const int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(clock::now().time_since_epoch()).count();
+        const int64_t prev = last_ns.load(std::memory_order_relaxed);
+        if (prev != 0 && now - prev < 20'000'000 && cached_total_ram_ != 0) return;
+        last_ns.store(now, std::memory_order_relaxed);
+    }
 #ifdef _WIN32
     MEMORYSTATUSEX statex;
     statex.dwLength = sizeof(statex);

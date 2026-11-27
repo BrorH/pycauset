@@ -442,6 +442,16 @@ void bind_vector_classes(py::module_& m) {
             return py::make_tuple(v.size());
         })
         .def(
+            "_to_numpy_fast",
+            [](const VectorBase& v, bool allow_huge) -> py::object {
+                // pycauset.to_numpy: the same exporter as __array__, with the allow_huge policy.
+                if (!allow_huge) pycauset::bindings::ensure_numpy_export_allowed(v);
+                py::object out = pycauset_bindings::export_matrix_numpy(*pycauset::as_row_matrix(v));
+                if (!v.is_transposed()) out = out.attr("reshape")(static_cast<py::ssize_t>(v.size()));
+                return out;
+            },
+            py::arg("allow_huge") = false)
+        .def(
             "__array__",
             [](const VectorBase& v, py::object dtype, py::object /*copy*/) -> py::object {
                 // The matrix exporter over the 1 x n bridge (every dtype and view, one path).

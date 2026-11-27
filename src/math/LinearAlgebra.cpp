@@ -22,6 +22,7 @@
 #include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/math/ViewValue.hpp"
 #include "pycauset/math/VectorOps.hpp"
+#include "pycauset/math/ViewRead.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/compute/ComputeDevice.hpp"
 #include <stdexcept>
@@ -221,6 +222,23 @@ double dot_product(const VectorBase& a, const VectorBase& b) {
         dt_b == DataType::COMPLEX_FLOAT16 || dt_b == DataType::COMPLEX_FLOAT32 || dt_b == DataType::COMPLEX_FLOAT64) {
         throw std::invalid_argument("dot_product: complex vectors not supported yet");
     }
+    if (a.size() != b.size()) throw std::invalid_argument("dot: vector sizes differ");
+    // Plain dense float64 / float32 pairs and bit pairs: the device kernels (BLAS, popcount).
+    auto plain = [](const VectorBase& v) {
+        return v.get_structure() == Structure::VECTOR && v.get_scalar() == std::complex<double>(1.0, 0.0);
+    };
+    if (plain(a) && plain(b) && dt_a == dt_b &&
+        (dt_a == DataType::FLOAT64 || dt_a == DataType::FLOAT32 || dt_a == DataType::BIT)) {
+        return ComputeContext::instance().get_device()->dot(a, b);
+    }
+    // Every other dtype, view and UnitVector: the typed row reader over the 1 x n bridge.
+    std::vector<double> x(a.size()), y(b.size());
+    if (read_rows(*as_row_matrix(a), 0, 1, x.data()) && read_rows(*as_row_matrix(b), 0, 1, y.data())) {
+        debug_trace::set_last("cpu.dot.typed");
+        double acc = 0.0;
+        for (uint64_t i = 0; i < x.size(); ++i) acc += x[i] * y[i];
+        return acc;
+    }
     return ComputeContext::instance().get_device()->dot(a, b);
 }
 
@@ -238,6 +256,13 @@ std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& 
     const uint64_t n = a.size();
     if (b.size() != n) {
         throw std::invalid_argument("Vector dimensions mismatch");
+    }
+    std::vector<std::complex<double>> x(n), y(n);
+    if (read_rows(*as_row_matrix(a), 0, 1, x.data()) && read_rows(*as_row_matrix(b), 0, 1, y.data())) {
+        debug_trace::set_last("cpu.dot.typed_complex");
+        std::complex<double> acc{0.0, 0.0};
+        for (uint64_t i = 0; i < n; ++i) acc += x[i] * y[i];  // no conjugation (np.dot)
+        return acc;
     }
     return ComputeContext::instance().get_device()->dot_complex(a, b);
 }
@@ -539,29 +564,52 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
         }
     }
 
-    // R4 diagonal. Entries are read through the view-aware accessor; integer results are
-    // formed exactly only while every product stays below 2^53 (measured), otherwise dense.
-    if (sa == Structure::DIAGONAL && sb == Structure::DIAGONAL && mm_has_diagonal_class(r) && !a.is_subview() &&
-        !b.is_subview()) {
-        std::vector<double> d(m);
-        bool exact = true;
-        for (uint64_t i = 0; i < m && exact; ++i) {
-            const std::complex<double> x = a.get_element_as_complex(i, i) * b.get_element_as_complex(i, i);
-            d[i] = x.real();
-            if (mm_int(r) && !(std::abs(d[i]) < 9007199254740992.0)) exact = false;
-        }
-        if (exact) {
-            if (mm_int(r)) {
+    // R4 diagonal: the typed diagonal reader (any dtype); integer products are exact (128 bits)
+    // and raise when they leave the result dtype (F-055).
+    if (sa == Structure::DIAGONAL && sb == Structure::DIAGONAL && m == n && r != DataType::BIT &&
+        !a.is_subview() && !b.is_subview()) {
+        auto res = ObjectFactory::create_matrix(m, n, r, Structure::DIAGONAL, saveas);
+        auto write = [&](auto&& value_at) {
+            visit_matrix(*res, [&](auto& typed) {
+                using E = std::decay_t<decltype(typed.get(0, 0))>;
+                if constexpr (requires { typed.set_diagonal(uint64_t{0}, E{}); }) {
+                    for (uint64_t i = 0; i < m; ++i) typed.set_diagonal(i, value_at.template operator()<E>(i));
+                } else {
+                    throw std::logic_error("matmul: diagonal result has no typed setter");
+                }
+            });
+        };
+        if (mm_int(r)) {
+            std::vector<int64_t> x(m), y(m);
+            if (read_diagonal(a, x.data()) && read_diagonal(b, y.data())) {
+                const bool u64 = r == DataType::UINT64;
                 const auto [lo, hi] = mm_int_range(r);
-                for (double v : d) {
-                    if (v < lo || v > hi) {
+                std::vector<__int128> p(m);
+                for (uint64_t i = 0; i < m; ++i) {
+                    p[i] = u64 ? static_cast<__int128>(static_cast<uint64_t>(x[i])) * static_cast<uint64_t>(y[i])
+                               : static_cast<__int128>(x[i]) * y[i];
+                    if (static_cast<double>(p[i]) < lo || static_cast<double>(p[i]) > hi) {
                         throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
                     }
                 }
+                debug_trace::set_last("cpu.matmul.diagonal");
+                write([&]<typename E>(uint64_t i) { return static_cast<E>(p[i]); });
+                return res;
             }
-            auto res = ObjectFactory::create_matrix(m, n, r, Structure::DIAGONAL, saveas);
-            for (uint64_t i = 0; i < m; ++i) res->set_element_as_double(i, i, d[i]);
-            return res;
+        } else if (mm_complex(r)) {
+            std::vector<std::complex<double>> x(m), y(m);
+            if (read_diagonal(a, x.data()) && read_diagonal(b, y.data())) {
+                debug_trace::set_last("cpu.matmul.diagonal");
+                write([&]<typename E>(uint64_t i) { return E(x[i] * y[i]); });
+                return res;
+            }
+        } else {
+            std::vector<double> x(m), y(m);
+            if (read_diagonal(a, x.data()) && read_diagonal(b, y.data())) {
+                debug_trace::set_last("cpu.matmul.diagonal");
+                write([&]<typename E>(uint64_t i) { return static_cast<E>(x[i] * y[i]); });
+                return res;
+            }
         }
     }
 
@@ -736,13 +784,15 @@ std::unique_ptr<MatrixBase> inverse(const MatrixBase& a) {
     }
     if (st == Structure::TRIANGULAR && !static_cast<const TriangularMatrixBase&>(a).has_diagonal()) return singular();
     if (st == Structure::DIAGONAL) {
-        auto out = make_matrix(Structure::DIAGONAL, dt, n, n);
-        for (uint64_t i = 0; i < n; ++i) {
-            const std::complex<double> d = a.get_element_as_complex(i, i);
-            if (d == std::complex<double>(0.0, 0.0)) return singular();
-            set_complex(*out, i, i, scalar::true_divide(std::complex<double>(1.0, 0.0), d));
+        std::vector<std::complex<double>> d(n);
+        if (read_diagonal(a, d.data())) {  // typed (windows of a diagonal read the general path)
+            auto out = make_matrix(Structure::DIAGONAL, dt, n, n);
+            for (uint64_t i = 0; i < n; ++i) {
+                if (d[i] == std::complex<double>(0.0, 0.0)) return singular();
+                set_complex(*out, i, i, scalar::true_divide(std::complex<double>(1.0, 0.0), d[i]));
+            }
+            return out;
         }
-        return out;
     }
 
     auto eye = make_matrix(Structure::DENSE, dt, n, n);
@@ -750,13 +800,7 @@ std::unique_ptr<MatrixBase> inverse(const MatrixBase& a) {
     auto x = solve(a, *eye, "");
 
     if (st == Structure::TRIANGULAR && !a.is_transposed() && !a.is_subview()) {
-        MatrixOptions opts;
-        opts.has_diagonal = true;
-        auto tri = make_matrix(Structure::TRIANGULAR, dt, n, n, "", opts);
-        const MatrixBase& X = *x;
-        for (uint64_t i = 0; i < n; ++i)
-            for (uint64_t j = i; j < n; ++j) set_complex(*tri, i, j, X.get_element_as_complex(i, j));
-        return tri;
+        return pack_as(*x, Structure::TRIANGULAR, /*has_diagonal=*/true);  // upper part, typed
     }
     return x;
 }

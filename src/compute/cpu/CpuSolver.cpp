@@ -427,6 +427,36 @@ namespace {
         return (in_dim == 1) ? 0 : out_index;
     }
 
+    // Logical rows of an operand, as T, through the typed row reader (ViewRead.hpp): int64 for
+    // integer results (lossless for every integer type, wrapping views exact), double for real,
+    // complex128 for complex results. Rows [i0, i1) of the RESULT, broadcast from the operand
+    // (one row or one column). Returns false when the reader cannot read the operand (lazy
+    // closures, windows of structured classes).
+    template <typename T>
+    using wide_of_t = std::conditional_t<is_std_complex_v<T>, std::complex<double>,
+                                         std::conditional_t<std::is_integral_v<T>, int64_t, double>>;
+
+    template <typename T>
+    bool load_rows(const MatrixBase& m, uint64_t i0, uint64_t i1, uint64_t cols, std::vector<T>& dst) {
+        using W = wide_of_t<T>;
+        const uint64_t mr = m.rows(), mc = m.cols();
+        const uint64_t r0 = mr == 1 ? 0 : i0, r1 = mr == 1 ? 1 : i1;
+        std::vector<W> w((r1 - r0) * mc);
+        if (!pycauset::read_rows(m, r0, r1, w.data())) return false;
+        dst.resize((i1 - i0) * cols);
+        for (uint64_t i = i0; i < i1; ++i) {
+            const W* src = w.data() + (mr == 1 ? 0 : i - i0) * mc;
+            T* out = dst.data() + (i - i0) * cols;
+            for (uint64_t j = 0; j < cols; ++j) {
+                const W v = src[mc == 1 ? 0 : j];
+                if constexpr (std::is_same_v<T, bool>) out[j] = v != W(0);
+                else if constexpr (std::is_same_v<T, pycauset::float16_t>) out[j] = pycauset::float16_t(v);
+                else out[j] = static_cast<T>(v);
+            }
+        }
+        return true;
+    }
+
     template <typename Op>
     void binary_op_complex16_impl(const MatrixBase& a, const MatrixBase& b, ComplexFloat16Matrix& out, Op op) {
         const uint64_t rows = out.rows();
@@ -442,6 +472,32 @@ namespace {
         const uint64_t storage_cols = out.base_cols();
         pycauset::float16_t* rdst = out.real_data();
         pycauset::float16_t* idst = out.imag_data();
+
+        // Operands through the typed row reader (complex128 rows, a block at a time), rounded
+        // once to complex32; the per-element accessor only for operands it cannot read.
+        {
+            const uint64_t block = std::max<uint64_t>(1, (uint64_t{1} << 18) / std::max<uint64_t>(cols, 1));
+            std::vector<std::complex<double>> ba, bb;
+            bool typed = true;
+            for (uint64_t i0 = 0; i0 < rows && typed; i0 += block) {
+                const uint64_t i1 = std::min(rows, i0 + block);
+                if (!(typed = load_rows<std::complex<double>>(a, i0, i1, cols, ba) &&
+                              load_rows<std::complex<double>>(b, i0, i1, cols, bb))) break;
+                ParallelFor(i0, i1, [&](size_t ii) {
+                    const uint64_t i = static_cast<uint64_t>(ii);
+                    for (uint64_t j = 0; j < cols; ++j) {
+                        const std::complex<double> vc = op(ba[(i - i0) * cols + j], bb[(i - i0) * cols + j]);
+                        const uint64_t idx = t_c ? (j * storage_cols + i) : (i * storage_cols + j);
+                        rdst[idx] = pycauset::float16_t(vc.real());
+                        idst[idx] = pycauset::float16_t(vc.imag());
+                    }
+                });
+            }
+            if (typed) {
+                out.set_scalar(1.0);
+                return;
+            }
+        }
 
         ParallelFor(0, rows, [&](size_t i) {
             for (size_t j = 0; j < cols; ++j) {
@@ -1772,36 +1828,6 @@ void CpuSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_
 }
 
 namespace {
-    // Logical rows of an operand, as T, through the typed row reader (ViewRead.hpp): int64 for
-    // integer results (lossless for every integer type, wrapping views exact), double for real,
-    // complex128 for complex results. Rows [i0, i1) of the RESULT, broadcast from the operand
-    // (one row or one column). Returns false when the reader cannot read the operand (lazy
-    // closures, windows of structured classes).
-    template <typename T>
-    using wide_of_t = std::conditional_t<is_std_complex_v<T>, std::complex<double>,
-                                         std::conditional_t<std::is_integral_v<T>, int64_t, double>>;
-
-    template <typename T>
-    bool load_rows(const MatrixBase& m, uint64_t i0, uint64_t i1, uint64_t cols, std::vector<T>& dst) {
-        using W = wide_of_t<T>;
-        const uint64_t mr = m.rows(), mc = m.cols();
-        const uint64_t r0 = mr == 1 ? 0 : i0, r1 = mr == 1 ? 1 : i1;
-        std::vector<W> w((r1 - r0) * mc);
-        if (!pycauset::read_rows(m, r0, r1, w.data())) return false;
-        dst.resize((i1 - i0) * cols);
-        for (uint64_t i = i0; i < i1; ++i) {
-            const W* src = w.data() + (mr == 1 ? 0 : i - i0) * mc;
-            T* out = dst.data() + (i - i0) * cols;
-            for (uint64_t j = 0; j < cols; ++j) {
-                const W v = src[mc == 1 ? 0 : j];
-                if constexpr (std::is_same_v<T, bool>) out[j] = v != W(0);
-                else if constexpr (std::is_same_v<T, pycauset::float16_t>) out[j] = pycauset::float16_t(v);
-                else out[j] = static_cast<T>(v);
-            }
-        }
-        return true;
-    }
-
     // a op b over result rows in blocks: operands through load_rows, then write(i, j, value)
     // for the stored positions stored(i, j) of the result. False if an operand is unreadable.
     template <typename T, typename Op, typename Stored, typename Write>
