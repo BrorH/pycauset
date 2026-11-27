@@ -693,3 +693,7 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Scalar ops: `apply` is force-inlined (out of line it was a call per element: int16 vector *
   2j 3.8 -> 0.64 ms, NumPy 1.4 ms). dot of two unit vectors (real, complex, integer: exact
   int) is one product or none (0.3 us; it read every element). Full atlas 0 wrong.
+- Integer & | ^ ~ read structured, transposed and windowed operands stored in the result
+  type a tile of rows at a time (no written-out copy of each operand): int32 1024 tri & tri
+  0.64 -> 0.28 ms, diag & diag 1.2 -> 0.23 ms, ~tri 0.34 -> 0.24 ms (NumPy 0.28-0.35 ms).
+  Atlas 0 wrong.

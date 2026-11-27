@@ -25,10 +25,6 @@ Symbols: ✓ ok, fast kernel · ◐ ok, input written out first (O(n²) op) · �
 * **div_scalar** ×6 — no error: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **rdiv_scalar** ×6 — no error: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **mul_scalar_complex** ×6 — no error: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
-* **and** ×6 — cpu.bitwise.int: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
-* **or** ×6 — cpu.bitwise.int: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
-* **xor** ×6 — cpu.bitwise.int: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
-* **invert** ×6 — cpu.bitwise.not_int: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **norm** ×6 — cpu.norm.closure: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **matmul** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **matvec** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
@@ -45,6 +41,10 @@ Symbols: ✓ ok, fast kernel · ◐ ok, input written out first (O(n²) op) · �
 * **pinv** ×6 — cpu.svd.gesdd,cpu.pinv.svd,cpu.matmul.f64: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **matrix_power** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **lstsq** ×6 — cpu.lstsq.gelsd: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
+* **and** ×6 — cpu.bitwise.int: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
+* **or** ×6 — cpu.bitwise.int: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
+* **xor** ×6 — cpu.bitwise.int: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
+* **invert** ×6 — cpu.bitwise.not_int: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **neg** ×2 — no error: bool/c_plus_ct/H, bool/c_plus_ct/conj
 * **trace** ×2 — no error: bool/c_plus_ct/H, bool/c_plus_ct/conj
 

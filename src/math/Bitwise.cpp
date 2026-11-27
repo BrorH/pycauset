@@ -10,6 +10,8 @@
 #include "pycauset/math/Bitwise.hpp"
 
 #include <algorithm>
+#include <atomic>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -19,6 +21,7 @@
 #include "pycauset/core/PromotionResolver.hpp"
 #include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/math/ScalarOps.hpp"
+#include "pycauset/math/RawRows.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 
@@ -54,28 +57,66 @@ T apply_op(BitwiseOp op, T x, T y) {
     }
 }
 
+// An operand stored in T with no view, readable in bulk (math/RawRows.hpp): rows are read
+// tile by tile, nothing is written out first. Returns false otherwise.
+template <typename T>
+bool bulk_readable(const MatrixBase& m) {
+    if (m.get_scalar() != std::complex<double>(1.0, 0.0) || m.is_conjugated()) return false;
+    bool ok = false;
+    visit_matrix(m, [&](const auto& typed) {
+        using M = std::decay_t<decltype(typed)>;
+        using In = std::decay_t<decltype(typed.get(0, 0))>;
+        if constexpr (std::is_same_v<In, T> && has_raw_rows_v<T, M>) ok = !m.is_subview() || std::is_same_v<M, DenseMatrix<T>>;
+    });
+    return ok;
+}
+
+template <typename T>
+bool read_tile(const MatrixBase& m, uint64_t r0, uint64_t r1, T* dst) {
+    bool ok = false;
+    visit_matrix(m, [&](const auto& typed) {
+        using M = std::decay_t<decltype(typed)>;
+        using In = std::decay_t<decltype(typed.get(0, 0))>;
+        if constexpr (std::is_same_v<In, T> && has_raw_rows_v<T, M>) ok = raw_rows<T>(typed, r0, r1, dst);
+    });
+    return ok;
+}
+
 template <typename T>
 std::unique_ptr<MatrixBase> int_bitwise(const MatrixBase& a, const MatrixBase& b, BitwiseOp op, DataType r) {
-    std::unique_ptr<MatrixBase> ha = plain_dense<T>(a) ? nullptr : to_dense(a, r);
-    std::unique_ptr<MatrixBase> hb = plain_dense<T>(b) ? nullptr : to_dense(b, r);
-    const T* x = static_cast<const DenseMatrix<T>&>(ha ? *ha : a).data();
-    const T* y = static_cast<const DenseMatrix<T>&>(hb ? *hb : b).data();
+    // Plain dense operands are read in place; other bulk-readable ones a tile of rows at a
+    // time; the rest (other element types, views) written out once as before.
+    const bool pa = plain_dense<T>(a), pb = plain_dense<T>(b);
+    const bool ta = !pa && bulk_readable<T>(a), tb = !pb && bulk_readable<T>(b);
+    std::unique_ptr<MatrixBase> ha = (pa || ta) ? nullptr : to_dense(a, r);
+    std::unique_ptr<MatrixBase> hb = (pb || tb) ? nullptr : to_dense(b, r);
+    const T* x = ta ? nullptr : static_cast<const DenseMatrix<T>&>(ha ? *ha : a).data();
+    const T* y = tb ? nullptr : static_cast<const DenseMatrix<T>&>(hb ? *hb : b).data();
     std::unique_ptr<DenseMatrix<T>> out;
     {
         UninitializedStorage u;  // every element is written below
         out = std::make_unique<DenseMatrix<T>>(a.rows(), a.cols(), std::string());
     }
     T* z = out->data();
-    const uint64_t total = a.rows() * a.cols();
+    const uint64_t rows = a.rows(), cols = a.cols();
     debug_trace::set_last("cpu.bitwise.int");
     // The operator chosen outside the loop: a switch per element kept it scalar.
     auto run = [&](auto f) {
-        ParallelForRange(0, total, [&](size_t i0, size_t i1) {
-            const T* __restrict xr = x;
-            const T* __restrict yr = y;
-            T* __restrict zr = z;
-            for (size_t i = i0; i < i1; ++i) zr[i] = static_cast<T>(f(xr[i], yr[i]));
+        const uint64_t tile = std::clamp<uint64_t>(rows / 32, 1, 32);
+        std::atomic<bool> ok{true};
+        ParallelFor(0, (rows + tile - 1) / tile, [&](size_t t) {
+            const uint64_t r0 = t * tile, r1 = std::min(rows, r0 + tile), len = (r1 - r0) * cols;
+            std::unique_ptr<T[]> bx, by;
+            const T* xs = x ? x + r0 * cols : nullptr;
+            const T* ys = y ? y + r0 * cols : nullptr;
+            if (!xs) { bx.reset(new T[len]); if (!read_tile<T>(a, r0, r1, bx.get())) { ok = false; return; } xs = bx.get(); }
+            if (!ys) { by.reset(new T[len]); if (!read_tile<T>(b, r0, r1, by.get())) { ok = false; return; } ys = by.get(); }
+            const T* __restrict xr = xs;
+            const T* __restrict yr = ys;
+            T* __restrict zr = z + r0 * cols;
+            for (uint64_t i = 0; i < len; ++i) zr[i] = static_cast<T>(f(xr[i], yr[i]));
         });
+        if (!ok) throw std::logic_error("bitwise: a bulk-readable operand could not be read");
     };
     switch (op) {
         case BitwiseOp::And: run([](T p, T q) { return p & q; }); break;
@@ -146,8 +187,9 @@ std::unique_ptr<MatrixBase> bitwise_not(const MatrixBase& a) {
     return visit_dtype(d, [&](auto tag) -> std::unique_ptr<MatrixBase> {
         using T = typename decltype(tag)::type;
         if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-            std::unique_ptr<MatrixBase> h = plain_dense<T>(a) ? nullptr : to_dense(a, d);
-            const T* x = static_cast<const DenseMatrix<T>&>(h ? *h : a).data();
+            const bool p = plain_dense<T>(a), tiled = !p && bulk_readable<T>(a);
+            std::unique_ptr<MatrixBase> h = (p || tiled) ? nullptr : to_dense(a, d);
+            const T* x = tiled ? nullptr : static_cast<const DenseMatrix<T>&>(h ? *h : a).data();
             std::unique_ptr<DenseMatrix<T>> out;
             {
                 UninitializedStorage u;  // every element is written below
@@ -155,11 +197,19 @@ std::unique_ptr<MatrixBase> bitwise_not(const MatrixBase& a) {
             }
             T* z = out->data();
             debug_trace::set_last("cpu.bitwise.not_int");
-            ParallelForRange(0, a.rows() * a.cols(), [&](size_t i0, size_t i1) {
-                const T* __restrict xr = x;
-                T* __restrict zr = z;
-                for (size_t i = i0; i < i1; ++i) zr[i] = static_cast<T>(~xr[i]);
+            const uint64_t rows = a.rows(), cols = a.cols();
+            const uint64_t tile = std::clamp<uint64_t>(rows / 32, 1, 32);
+            std::atomic<bool> ok{true};
+            ParallelFor(0, (rows + tile - 1) / tile, [&](size_t t) {
+                const uint64_t r0 = t * tile, r1 = std::min(rows, r0 + tile), len = (r1 - r0) * cols;
+                std::unique_ptr<T[]> buf;
+                const T* xs = x ? x + r0 * cols : nullptr;
+                if (!xs) { buf.reset(new T[len]); if (!read_tile<T>(a, r0, r1, buf.get())) { ok = false; return; } xs = buf.get(); }
+                const T* __restrict xr = xs;
+                T* __restrict zr = z + r0 * cols;
+                for (uint64_t i = 0; i < len; ++i) zr[i] = static_cast<T>(~xr[i]);
             });
+            if (!ok) throw std::logic_error("bitwise_not: a bulk-readable operand could not be read");
             return out;
         } else {
             throw std::logic_error("bitwise_not: not an integer dtype");
