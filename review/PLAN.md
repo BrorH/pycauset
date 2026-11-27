@@ -86,8 +86,9 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
       windows, conj / H views, Hermitian, scaled and transposed antisymmetric): for every matrix class, element access ==
       NumPy export == `sum` == matmul-with-identity, after each of {scale,
       transpose, conj, slice} (catches the F-001 class of bugs).
-- [ ] **1.7 Doc-snippet test in CI** (`review/probes/run_doc_snippets.py` → `tests/docs/`),
-      with a file-size rlimit.
+- [x] **1.7 Doc-snippet test in CI**: `tests/engine/test_doc_snippets.py` runs every page's
+      Python (README, guides, API pages) in a temporary directory (session 9; the probe script
+      it replaced is deleted).
 - [ ] **1.8 Warnings as errors** for our own code (`-Wall -Wextra -Werror` on
       `src/`, not `_deps`), after fixing F-020. Ruff in CI with the current baseline
       frozen (no new findings).

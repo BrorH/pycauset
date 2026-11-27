@@ -99,7 +99,7 @@ Importing pycauset from the staged copy *before* pytest runs makes the tests' ow
 PYTHONPATH=python python -m tests.atlas.report        # every op x dtype x structure x view x storage vs NumPy
                                                       # (replaced the dtype, NumPy-fallback and out-of-core probes)
 PYTHONPATH=python python -m tests.atlas.timing        # speed vs NumPy
-PYTHONPATH=$PWD/python python review/probes/run_doc_snippets.py          # execute doc examples
+PYTHONPATH=$PWD/python python -m pytest tests/engine/test_doc_snippets.py   # execute doc examples (was review/probes/run_doc_snippets.py)
 ```
 ⚠ **Disk:** doc examples allocate large matrices (one asks for a 1M-element causal
 set, about 125 GB). The snippet runner caps files at 1 GiB per process
