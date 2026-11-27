@@ -1,11 +1,6 @@
 # Functions
 
 * **[[docs/functions/pycauset.field.md|pycauset.field]]**
-* **[[docs/functions/pycauset.spacetime.create.md|spacetime.create]]**
-* **[[docs/functions/pycauset.spacetime.register.md|spacetime.register]]**
-* **[[docs/functions/pycauset.spacetime.export_python.md|spacetime.export_python]]**
-* **[[docs/functions/pycauset.spacetime.get_registry.md|spacetime.get_registry]]**
-* **[[docs/functions/pycauset.synthetic.md|pycauset.synthetic]]**
 * **[[docs/functions/pycauset.show.md|pycauset.show]]**
 * **[[docs/functions/pycauset.I.md|pycauset.I]]**
 * **[[docs/functions/pycauset.identity.md|pycauset.identity]]**
@@ -19,7 +14,6 @@
 * **[[docs/functions/pycauset.ones.md|pycauset.ones]]**
 * **[[docs/functions/pycauset.empty.md|pycauset.empty]]**
 * **[[docs/functions/pycauset.causal_matrix.md|pycauset.causal_matrix]]**
-* **[[docs/functions/pycauset.causet.md|pycauset.causet]]**
 * **[[docs/functions/pycauset.bitwise_not.md|bitwise_not]]**
 * **[[docs/functions/pycauset.bitwise_and.md|bitwise_and]]**
 * **[[docs/functions/pycauset.bitwise_or.md|bitwise_or]]**

@@ -90,7 +90,6 @@ Canonical public entrypoints:
 - `pycauset.matrix(...)` and `pycauset.vector(...)` construct from data.
 - `pycauset.zeros/ones/empty(..., dtype=...)` allocate by shape.
 - `pycauset.causal_matrix(...)` constructs causal matrices.
-- `pycauset.causet(...)` is the convenience factory returning a `CausalSet`.
 
 Policy:
 

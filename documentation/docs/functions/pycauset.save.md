@@ -34,7 +34,6 @@ pc.save(BM, "bm.pycauset")  # writes bm.pycauset and bm.pycauset.blocks/
 
 ## See Also
 
-*   `pycauset.CausalSet.save`: Method on [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]].
 
 *   [[guides/Storage and Memory]]: Persistence overview, including cache persistence.
 

@@ -273,7 +273,6 @@ Temporary file types you may see in the backing directory:
 ### Saving a Matrix
 Matrices are backed by temporary files that are deleted when the program exits, unless [[pycauset.keep_temp_files]] is set to `True`. To permanently save a specific matrix, use [[pycauset.save]]. 
 
-**Note:** If you are working with a [[pycauset.CausalSet]], you should use its `.save()` method (or `pycauset.save(causet)`) to save the entire object including metadata. The method below is for raw matrices.
 
 ```python
 # Save the matrix to a permanent location
