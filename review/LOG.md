@@ -606,3 +606,7 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   antisymmetric inputs of the same element type run over the packed storage (int8 sym + 7:
   ~8 ms -> 0.19 ms, parity; still a SymmetricMatrix). Full atlas: 0 wrong of 88,361.
   Per-call: the IO-trace context manager is a class (3.2 -> 2.9 us for pc.trace).
+- Frobenius norm: a transposed / conjugated dense matrix reads its whole storage (it took the
+  per-element path, 0.03x); other dense dtypes one contiguous pass; complex through BLAS ?dotc
+  (2x NumPy). Full atlas timing after this round: 6,057 of 11,295 cells below 0.9x (8,445 at
+  the session start).

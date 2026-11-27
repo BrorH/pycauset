@@ -41,6 +41,11 @@ first. `benchmarks/parity.py`: 9/9 operations at or above 0.90x.
 | `eig` (n = 512) | 207 ms | 211 ms | 1.0x |
 | `lstsq` (vector) | 253 ms | 210 ms | 1.2x |
 
+Across the whole operation atlas (`review/atlas/TIMING.md`: every op x dtype x structure x
+view, 11,295 cells) 6,057 cells are below 0.9x, down from 8,445 at the start of this round;
+what is left is mostly small per-call overhead, bool and complex32 storage, matrix-vector
+products of structured and bit matrices, and unit-vector special cases.
+
 Two fixes got the LAPACK operations here from 0.5-0.7x (review F-108): LAPACK is called
 column-major on the row-major buffers (LAPACKE's row-major interface transposed every
 operand in and out), and OpenBLAS threads spin for about 0.1 ms after a call instead of

@@ -425,8 +425,11 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
             }
         }
         const double af = std::abs(f);
+        // The Frobenius norm is the same for A, A^T and conj(A): any dense matrix that is not
+        // a window is its whole storage (a transposed view took the per-element path, 0.03x).
+        const bool whole = !typed.is_subview() && rows * cols == typed.base_rows() * typed.base_cols();
         if constexpr (std::is_same_v<M, DenseMatrix<double>> || std::is_same_v<M, DenseMatrix<float>>) {
-            if (!typed.is_transposed() && !typed.is_subview() && cols == typed.base_cols()) {
+            if (whole) {
                 debug_trace::set_last("cpu.norm.blas");
                 const T* p = typed.data();
                 const uint64_t total = rows * cols;
@@ -438,6 +441,56 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
                     const int len = static_cast<int>(std::min(total, lo + kBlock) - lo);
                     if constexpr (std::is_same_v<T, double>) part[blk] = cblas_ddot(len, p + lo, 1, p + lo, 1);
                     else part[blk] = cblas_dsdot(len, p + lo, 1, p + lo, 1);
+                });
+                double sum = 0.0;
+                for (double q : part) sum += q;
+                return af * std::sqrt(sum);
+            }
+        }
+        if constexpr (std::is_same_v<M, DenseMatrix<std::complex<double>>> || std::is_same_v<M, DenseMatrix<std::complex<float>>>) {
+            if (whole) {  // sum |z|^2 = Re(z^H z): BLAS ?dotc per block
+                debug_trace::set_last("cpu.norm.blas_complex");
+                const T* p = typed.data();
+                const uint64_t total = rows * cols;
+                constexpr uint64_t kBlock = 1u << 16;
+                const uint64_t blocks = (total + kBlock - 1) / kBlock;
+                std::vector<double> part(blocks, 0.0);
+                ParallelFor(0, blocks, [&](size_t blk) {
+                    const uint64_t lo = static_cast<uint64_t>(blk) * kBlock;
+                    const int len = static_cast<int>(std::min(total, lo + kBlock) - lo);
+                    T r;
+                    if constexpr (std::is_same_v<T, std::complex<double>>) cblas_zdotc_sub(len, p + lo, 1, p + lo, 1, &r);
+                    else cblas_cdotc_sub(len, p + lo, 1, p + lo, 1, &r);
+                    part[blk] = static_cast<double>(r.real());
+                });
+                double sum = 0.0;
+                for (double q : part) sum += q;
+                return af * std::sqrt(sum);
+            }
+        }
+        if constexpr (std::is_same_v<M, DenseMatrix<T>> && !std::is_same_v<T, bool> &&
+                      !std::is_same_v<T, pycauset::float16_t>) {
+            if (whole) {  // other dense dtypes: one contiguous pass over the storage
+                debug_trace::set_last("cpu.norm.dense");
+                const T* p = typed.data();
+                const uint64_t total = rows * cols;
+                constexpr uint64_t kBlock = 1u << 16;
+                const uint64_t blocks = (total + kBlock - 1) / kBlock;
+                std::vector<double> part(blocks, 0.0);
+                ParallelFor(0, blocks, [&](size_t blk) {
+                    const uint64_t lo = static_cast<uint64_t>(blk) * kBlock, hi = std::min(total, lo + kBlock);
+                    const T* __restrict q = p;
+                    double acc = 0.0;
+                    for (uint64_t k = lo; k < hi; ++k) {
+                        if constexpr (is_std_complex_v<T>) {
+                            const double re = static_cast<double>(q[k].real()), im = static_cast<double>(q[k].imag());
+                            acc += re * re + im * im;
+                        } else {
+                            const double x = static_cast<double>(q[k]);
+                            acc += x * x;
+                        }
+                    }
+                    part[blk] = acc;
                 });
                 double sum = 0.0;
                 for (double q : part) sum += q;

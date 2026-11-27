@@ -315,7 +315,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   idioms and CI only tests 3.12.
 
 ### F-022 Doc/plan drift and naming archaeology
-- **Status:** open
+- **Status:** fixed (session 9): the R2 QA audit and both Restructure Plan pages are deleted, milestone names are out of code and docs (PLAN 4.6b), CMake no longer declares a version (setuptools_scm is the one source). Merging TODO.md and the R2 roadmap waits for the maintainer (PLAN 5.3).
 - `R2 QA` audit references `guides/R2 Feature Menu.md`, which does not exist.
 - `TODO.md` says the ThreadPool singleton is leaked; it isn't.
 - Code, tests and docs carry milestone names (`R1_*`, `R2_*`, `phase3_4`,
@@ -326,7 +326,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   CHANGELOG is at 0.6.1.
 
 ### F-023 The test harness depends on copying binaries into the source tree
-- **Status:** open
+- **Status:** partly fixed: no test inserts paths any more (one conftest, pyproject `pythonpath`); CI still copies the built extension into python/pycauset/ so that pythonpath finds it. Testing the installed package directly is open.
 - Tests do `sys.path.insert(0, "<repo>/python")` (15 files), so the installed wheel
   is shadowed by the source tree. CI copies `_pycauset.so` and `libpycauset_core.so`
   into `python/pycauset/`. Fix: no path hacks. Test the installed package (or an
@@ -1300,6 +1300,11 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Also seen: `add` has a hand-written identity + identity branch for float64 and int32 only
   (a per-dtype copy, forbidden by the protocol §5); to go in the same cleanup.
 
+- **Session 9, later:** transposed diagonal / symmetric operands use the packed kernel; the
+  Hermitian family keeps its class (H ± H, H * H, S ± S); A.T op B.T computes contiguously and
+  returns a transposed result; scalar ops on symmetric inputs run over the packed storage;
+  char-type aliasing fixed in the element-wise and bitwise kernels (ParallelForRange). Left:
+  bool structured operands into int32 results (mixed element types), complex32 everywhere.
 ### F-100 The IO trace reports a Python guess, not what the engine did
 - **Status:** fixed (session 9, PLAN 4.7). The trace now holds operand facts and the engine's
   kernel log (`streamed` = a `streaming.*` kernel ran); kernel logs nest. Deleted:
