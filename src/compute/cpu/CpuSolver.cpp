@@ -1864,6 +1864,46 @@ namespace {
         const bool a_full = (a.rows() == rows) && (a.cols() == cols);
         const bool b_full = (b.rows() == rows) && (b.cols() == cols);
         
+        // Structure rule: both operands and the result share one packed layout (same class and
+        // element type, same triangle / symmetry kind, no view): the op runs over the stored
+        // elements directly, contiguous and O(stored). Diagonal + diagonal read n^2 logical
+        // elements for an O(n) result before (0.1x NumPy for every structured operand).
+        if (a_full && b_full && is_plain(a) && is_plain(b) && is_plain(result)) {
+            auto packed = [&](auto* res_c) -> bool {
+                using C = std::remove_pointer_t<decltype(res_c)>;
+                if constexpr (std::is_same_v<T, bool>) {
+                    return false;  // bit storage: the word kernels (math/Bitwise.cpp)
+                } else {
+                const auto* ca = dynamic_cast<const C*>(&a);
+                const auto* cb = dynamic_cast<const C*>(&b);
+                if (!res_c || !ca || !cb) return false;
+                if (a.get_structure() != result.get_structure() || b.get_structure() != result.get_structure())
+                    return false;  // e.g. an IdentityMatrix is a DiagonalMatrix without storage
+                if constexpr (requires { res_c->has_diagonal(); }) {
+                    if (ca->has_diagonal() != res_c->has_diagonal() || cb->has_diagonal() != res_c->has_diagonal())
+                        return false;
+                }
+                const size_t bytes = res_c->shared_mapper()->get_data_size();
+                if (ca->shared_mapper()->get_data_size() != bytes || cb->shared_mapper()->get_data_size() != bytes)
+                    return false;
+                const T* x = ca->data();
+                const T* y = cb->data();
+                T* z = res_c->data();
+                debug_trace::set_last("cpu.elementwise.packed");
+                ParallelFor(0, bytes / sizeof(T), [&](size_t k) { z[k] = static_cast<T>(op(x[k], y[k])); });
+                return true;
+                }
+            };
+            if (result.get_structure() == Structure::TRIANGULAR) {
+                if (packed(dynamic_cast<TriangularMatrix<T>*>(&result))) return;
+            } else if (result.get_structure() == Structure::DIAGONAL) {
+                if (packed(dynamic_cast<DiagonalMatrix<T>*>(&result))) return;
+            } else if (result.get_structure() == Structure::SYMMETRIC || result.get_structure() == Structure::ANTISYMMETRIC ||
+                       result.get_structure() == Structure::HERMITIAN || result.get_structure() == Structure::SKEW_HERMITIAN) {
+                if (packed(dynamic_cast<SymmetricMatrix<T>*>(&result))) return;
+            }
+        }
+
         // 1. DenseMatrix Result
         if (auto* res_dense = dynamic_cast<DenseMatrix<T>*>(&result)) {
             auto* a_dense = dynamic_cast<const DenseMatrix<T>*>(&a);

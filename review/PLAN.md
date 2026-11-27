@@ -17,6 +17,16 @@ until after R1.
 **Companion strategies:** `TESTS.md` (new compact test suite) and `DEADCODE.md`
 (dead-code program). Both run *through* the phases below.
 
+**Order from here (2026-11-27, maintainer prompt, tech-lead decision):** the safety net now
+exists (atlas: 88k cells, 0 wrong; both suites green), so cleanup comes *before* further speed
+work and before any feature:
+1. Phase 4 cleanup: 4.1 dead code B–D, 4.2 split the giant files, 4.8 silent-exception sweep,
+   4.3 the Python patch stack, 4.7 one StreamingManager.
+2. Phase 1 test health and 4.5 (retire the old suite).
+3. Phase 5 documentation truth pass.
+4. Then Phase 6 speed (open gaps in FINDINGS F-096/F-099) and the features D, L, F1.
+Speed and features built on code that is about to be split or deleted get done twice.
+
 **How to use this file:** phases run roughly in order, but within a phase the work
 items are independent and can be claimed by different agents. Claim an item by
 writing your session/agent name next to it; tick it when it's merged. Record every

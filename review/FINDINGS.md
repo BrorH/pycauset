@@ -1279,3 +1279,18 @@ the entry (the history is useful). New findings go at the bottom with the next f
   checked), the inverse's diagonal and triangular rules (`read_diagonal`, `pack_as`), complex32
   element-wise ops. Atlas: generic 1,556 -> 239 (the remainder: lazy closures and windows of
   structured classes, read virtually by design, and integer matmul_power rules).
+
+### F-099 Structured element-wise ops ran at 0.06–0.14× NumPy
+- **Status:** partly fixed (session 9). `sym ± sym`, `diag ± diag` and the products of two
+  plain operands of the same structured class went through the per-element row reader
+  (8–10 ms at n = 1024 against NumPy's 1 ms).
+- Fix: a structure rule in `binary_op_impl` (`cpu.elementwise.packed`). When both operands and
+  the result belong to the same plain structured class with the same packed size, it runs one
+  flat loop over the packed storage. Measured at n = 1024: sym+sym 1.5× NumPy, diag+diag 21×.
+- **Open:** `tri ± tri` with a diagonal still builds a dense result. `resolve_result_structure`
+  returns a `Structure` alone, so the factory can only make a *strict* triangle; only
+  strict + strict keeps the class. Fix: carry `has_diagonal` in the resolved result shape
+  (resolver → `ObjectFactory::create_matrix`). Scheduled with Phase 4.3, after the split of
+  CpuSolver.cpp.
+- Also seen: `add` has a hand-written identity + identity branch for float64 and int32 only
+  (a per-dtype copy, forbidden by the protocol §5); to go in the same cleanup.
