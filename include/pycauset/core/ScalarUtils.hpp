@@ -104,9 +104,27 @@ struct WrapMinus {
     template <typename A, typename B>
     constexpr auto operator()(A a, B b) const { return detail::wrapping_apply(a, b, [](auto x, auto y) { return x - y; }); }
 };
+// x * y as NumPy computes it. Complex: the plain formula (ac - bd, ad + bc), as NumPy does;
+// std::complex's operator* calls __muldc3 (C99 Annex G inf/NaN recovery) per element, 3-4x
+// slower and different from NumPy for infinite operands. Real types: plain multiplication.
+template <typename T>
+constexpr T multiply(const T& x, const T& y) {
+    if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
+        return T(x.real() * y.real() - x.imag() * y.imag(), x.real() * y.imag() + x.imag() * y.real());
+    } else {
+        return x * y;
+    }
+}
+
 struct WrapMultiplies {
     template <typename A, typename B>
-    constexpr auto operator()(A a, B b) const { return detail::wrapping_apply(a, b, [](auto x, auto y) { return x * y; }); }
+    constexpr auto operator()(A a, B b) const {
+        if constexpr (std::is_same_v<A, B> && (std::is_same_v<A, std::complex<float>> || std::is_same_v<A, std::complex<double>>)) {
+            return multiply(a, b);
+        } else {
+            return detail::wrapping_apply(a, b, [](auto x, auto y) { return x * y; });
+        }
+    }
 };
 
 // --- Integer scale factors on views (LAZY.md L1, F-042) ---------------------------------

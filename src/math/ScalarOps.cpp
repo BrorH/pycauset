@@ -252,7 +252,7 @@ R apply(ScalarOpKind op, R x, R s) {
             case ScalarOpKind::Add: return x + s;
             case ScalarOpKind::Sub: return x - s;
             case ScalarOpKind::RSub: return s - x;
-            case ScalarOpKind::Mul: return x * s;
+            case ScalarOpKind::Mul: return scalar::multiply(x, s);
             case ScalarOpKind::TrueDiv: return scalar::true_divide(x, s);
             case ScalarOpKind::RTrueDiv: return scalar::true_divide(s, x);
         }
