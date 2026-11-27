@@ -90,7 +90,7 @@ Suggested message pattern:
 Goal: warnings must fire for the *real user entrypoints*, not only for convenience wrappers.
 
 - Prefer emitting warnings at the **binding funnel** for Python operator calls.
-  - Example: `MatrixBase.__matmul__` and `pycauset._pycauset.matmul`.
+  - Example: the one matmul helper in `bind_matrix.cpp` that `A @ B` and `pc.matmul` share.
 - Emit warnings in Python wrappers only when the Python wrapper is the canonical entrypoint.
 - Avoid emitting warnings deep inside hot kernels.
 
@@ -98,6 +98,11 @@ Rationale:
 
 - The binding funnel has enough context to format user-facing messages.
 - The kernel should remain tight; warnings there have no useful stack level and may hurt performance.
+
+**The engine never prints.** No `std::cout` / `std::cerr` in `src/`: information is a
+warning, an exception, the IO trace (`pc.last_io_trace`) or `pc.debug_mode` output. (The
+parked CUDA hooks in `AutoSolver` / `ComputeContext` still print; see
+`experimental/cuda/README.md`.)
 
 ## Exception conventions
 

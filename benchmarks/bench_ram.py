@@ -47,7 +47,7 @@ def main() -> None:
     pc.set_memory_threshold(budget_mb * 1024 * 1024)
 
     print(f"Creating a {n} x {n} float64 matrix ({size_gb:.2f} GB) with a {budget_mb} MB RAM budget...")
-    m = pc.FloatMatrix(n)
+    m = pc.ones((n, n))
     bf = m.get_backing_file()
     on_disk = bf != ":memory:" and bf is not None
     print(f"  backing: {'disk (' + bf + ')' if on_disk else bf}")
@@ -58,8 +58,7 @@ def main() -> None:
     print(f"  PyCauset RAM budget: {budget_mb / 1024:.2f} GB (the rest on disk).")
 
     # Verify operations still work on the disk-backed matrix.
-    m.set_identity()
-    print(f"  trace(identity) = {pc.trace(m)} (expect {n})")
+    print(f"  trace(ones) = {pc.trace(m)} (expect {n}), sum = {pc.sum(m)} (expect {n * n})")
 
     pc.set_memory_threshold(orig)
 

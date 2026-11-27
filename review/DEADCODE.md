@@ -168,3 +168,15 @@ Other rarely used features: tech lead proposes per feature in Phase 3.
    wasn't dead: revert, record why in the candidate list.
 5. Note the removal in LOG.md; tick it in this file.
 6. Re-run the §2 pipeline after each area to refresh the snapshots.
+
+## Session 9 removals (scripts, tools, public surface)
+- [x] benchmarks/bench_coverage.py, bench_structures.py (superseded by the atlas / timing)
+- [x] tools/stress_100gb_matrix.py, macos_hang_diagnose.py, check_native_exports.py,
+      audit_public_surface.py (now `test_every_public_name_has_a_doc_page`)
+- [x] tests/stability/ (FloatMatrix; `test_stress.py` covers it), empty tests/physics/
+- [x] `pc.seed` (nothing read it), the `_debug_resolve_promotion` Python wrapper
+- [x] vis `to_embedding` hook (no R1 spacetime defines it)
+- [x] C++: every stdout / stderr print outside the parked CUDA hooks, the
+      `PYCAUSET_DEBUG_PERSISTENT_CLOSE` switch, commented-out debug blocks (F-109)
+- [ ] `MemoryGovernor::should_use_direct_path` is `can_fit_in_ram` under another name;
+      `CpuDevice::out_of_core` tests both. Fold into one (Phase 6, with the memory work).

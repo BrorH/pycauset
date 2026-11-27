@@ -13,7 +13,6 @@ pycauset::UninitializedStorage::~UninitializedStorage() { --g_uninitialized_dept
 bool pycauset::UninitializedStorage::active() { return g_uninitialized_depth > 0; }
 
 #include "pycauset/compute/ComputeContext.hpp"
-#include <iostream>
 #include <filesystem>
 #include <cstring>
 
@@ -157,7 +156,7 @@ void MemoryMapper::open_file(bool create_new) {
             }
             if (std::memcmp(header.magic, "PYCAUSET", 8) != 0) {
                 CloseHandle(hFile_);
-                throw std::runtime_error("Invalid file format: Bad magic");
+                throw std::runtime_error("Invalid file format (bad magic): " + filename_);
             }
             if (header.version != 1) {
                 CloseHandle(hFile_);
@@ -177,6 +176,10 @@ void MemoryMapper::open_file(bool create_new) {
             
             if (is_simple_header && offset_ == 0) {
                 offset_ += sizeof(FileHeader);
+            } else if (offset_ == 0) {
+                // A container header opened without its payload offset (see the POSIX branch).
+                CloseHandle(hFile_);
+                throw std::runtime_error("Container file opened without a payload offset: " + filename_);
             }
         }
     }
@@ -205,10 +208,8 @@ void MemoryMapper::open_file(bool create_new) {
             // This requires SE_MANAGE_VOLUME_NAME privilege.
             // If it fails, we just proceed (OS will zero-fill on write/fault).
             if (EnablePrivilege(SE_MANAGE_VOLUME_NAME)) {
-                if (!SetFileValidData(hFile_, liSize.QuadPart)) {
-                    // Fallback: Just ignore failure, performance will be lower but correct.
-                    // std::cerr << "Warning: SetFileValidData failed." << std::endl;
-                }
+                // On failure Windows zero-fills on first write: slower, still correct.
+                (void)SetFileValidData(hFile_, liSize.QuadPart);
             }
         }
     } else {
@@ -308,14 +309,6 @@ void MemoryMapper::open_file(bool create_new) {
     
     mapped_ptr_ = static_cast<char*>(base_ptr_) + adjustment;
     
-    // Debug: print first byte if size > 0
-    /*
-    if (data_size_ > 0) {
-        unsigned char val = static_cast<unsigned char>(static_cast<char*>(mapped_ptr_)[0]);
-        std::cout << "MemoryMapper: mapped " << data_size_ << " bytes at offset " << offset_ 
-                  << ". First byte: " << (int)val << std::endl;
-    }
-    */
 }
 
 void MemoryMapper::close_file() {
@@ -402,11 +395,7 @@ void MemoryMapper::open_file(bool create_new) {
             }
             if (std::memcmp(header.magic, "PYCAUSET", 8) != 0) {
                 close(fd_);
-                std::cerr << "MemoryMapper Error: Bad magic in file: " << filename_ << std::endl;
-                // Print what we read
-                std::string bad_magic(header.magic, 8);
-                std::cerr << "Read magic: " << bad_magic << std::endl;
-                throw std::runtime_error("Invalid file format: Bad magic");
+                throw std::runtime_error("Invalid file format (bad magic): " + filename_);
             }
             if (header.version != 1) {
                 close(fd_);
@@ -424,11 +413,10 @@ void MemoryMapper::open_file(bool create_new) {
             if (is_simple_header && offset_ == 0) {
                 offset_ += sizeof(FileHeader);
             } else if (offset_ == 0) {
-                 std::cerr << "Debug: Simple header check failed. Reserved bytes not zero?" << std::endl;
-                 for(int i=0; i<52; ++i) { 
-                     if (header.reserved[i] != 0) std::cerr << "Res["<<i<<"]="<<(int)header.reserved[i]<<" "; 
-                 }
-                 std::cerr << std::endl;
+                // A container header (non-zero fields after the version) opened without its
+                // payload offset: mapping from byte 0 would read the header as data.
+                close(fd_);
+                throw std::runtime_error("Container file opened without a payload offset: " + filename_);
             }
         }
     }

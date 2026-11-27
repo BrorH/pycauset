@@ -49,9 +49,9 @@ static std::shared_ptr<TriangularBitMatrix> sprinkle_to_tbm(
 // Causal-set sprinkling (R1: the Minkowski diamond in any dimension). The rest of the
 // spacetime library is parked in experimental/physics.
 void bind_causet_classes(py::module_& m) {
-    py::class_<CausalSpacetime, std::shared_ptr<CausalSpacetime>>(m, "CausalSpacetime");
+    py::class_<CausalSpacetime, std::shared_ptr<CausalSpacetime>>(m, "_CausalSpacetime");
 
-    py::class_<MinkowskiDiamond, CausalSpacetime, std::shared_ptr<MinkowskiDiamond>>(m, "MinkowskiDiamond")
+    py::class_<MinkowskiDiamond, CausalSpacetime, std::shared_ptr<MinkowskiDiamond>>(m, "_MinkowskiDiamond")
         .def(py::init<int>(), py::arg("dimension"))
         .def("dimension", &MinkowskiDiamond::dimension)
         .def("volume", &MinkowskiDiamond::volume)
@@ -59,7 +59,7 @@ void bind_causet_classes(py::module_& m) {
              "True when u is in the causal past of v.");
 
     m.def(
-        "sprinkle",
+        "_sprinkle",
         [](const std::shared_ptr<CausalSpacetime>& spacetime, uint64_t n, uint64_t seed) {
             if (!spacetime) {
                 throw std::invalid_argument("spacetime must not be None");
@@ -71,7 +71,7 @@ void bind_causet_classes(py::module_& m) {
         py::arg("seed"));
 
     m.def(
-        "make_coordinates",
+        "_make_coordinates",
         [](const std::shared_ptr<CausalSpacetime>& spacetime,
            uint64_t n,
            uint64_t seed,

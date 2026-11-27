@@ -185,6 +185,7 @@ nav:
       - docs/functions/pycauset.lstsq.md
       - docs/functions/pycauset.lu.md
       - docs/functions/pycauset.matmul.md
+      - docs/functions/pycauset.materialize.md
       - docs/functions/pycauset.norm.md
       - docs/functions/pycauset.pinv.md
       - docs/functions/pycauset.save.md
@@ -205,7 +206,7 @@ nav:
     - Parameters:
       - docs/parameters/index.md
       - docs/parameters/pycauset.keep_temp_files.md
-      - docs/parameters/pycauset.seed.md
+      - docs/parameters/pycauset.debug_mode.md
   - Internals:
     - internals/index.md
     - DType System: internals/DType System.md

@@ -81,7 +81,7 @@ The macOS CI job hung deterministically at
 out after 10 minutes. Windows and Linux were unaffected.
 
 **Reproduction**:
-The hang was isolated with `tools/macos_hang_diagnose.py`, which prints a line
+The hang was isolated with a diagnostic script (deleted once fixed), which printed a line
 between each step. On macOS the last line before the timeout was
 `STEP direct: matmul(a, b)`, so the stall was inside the OpenBLAS GEMM call, not
 matrix construction or `to_numpy`.

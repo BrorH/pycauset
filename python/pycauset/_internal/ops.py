@@ -233,8 +233,8 @@ def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
     (singular values from the engine's SVD); other p is ||A||_p * ||A^-1||_p. Singular: inf."""
     a = _engine_matrix(a, deps=deps)
     if p is None or p == 2 or p == -2:
-        smax = deps.native.matrix_norm(a, "2")
-        smin = deps.native.matrix_norm(a, "-2")
+        smax = deps.native._matrix_norm(a, "2")
+        smin = deps.native._matrix_norm(a, "-2")
         if p == -2:
             return smin / smax if smax != 0 else float("inf")
         return smax / smin if smin != 0 else float("inf")
@@ -391,11 +391,11 @@ def norm(x: Any, ord: Any = None, *, deps: OpsDeps) -> float:
     inf, -inf, 0 (count of non-zeros).
     """
     if isinstance(x, deps.native.VectorBase):
-        return float(deps.native.norm(x) if ord is None else deps.native.vector_norm(x, float(ord)))
+        return float(deps.native.norm(x) if ord is None else deps.native._vector_norm(x, float(ord)))
     x = _engine_matrix(x, deps=deps)
     if ord is None or ord == "fro":
         return float(deps.native.norm(x))
-    return float(deps.native.matrix_norm(x, _ord_name(ord)))
+    return float(deps.native._matrix_norm(x, _ord_name(ord)))
 
 
 @_traced("svdvals")

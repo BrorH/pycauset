@@ -65,6 +65,7 @@
 * **[[docs/functions/pycauset.convert_file.md|convert_file]]**
 * **[[docs/functions/pycauset.to_numpy.md|to_numpy]]**
 * **[[docs/functions/pycauset.matmul.md|matmul]]**
+* **[[docs/functions/pycauset.materialize.md|materialize]]**
 * **[[docs/functions/pycauset.save.md|save]]**
 * **[[docs/functions/pycauset.set_backing_dir.md|set_backing_dir]]**
 * **[[docs/functions/pycauset.set_export_max_bytes.md|set_export_max_bytes]]**

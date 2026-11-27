@@ -15,7 +15,7 @@
   Performs an editable install (`pip install -e .`).
 
 .EXAMPLE
-  ./build.ps1 -PythonVersion 3.12 -CMakeArg "-DENABLE_CUDA=ON"
+  ./build.ps1 -PythonVersion 3.12 -CMakeArg "-DBUILD_TESTS=ON"
 
 .EXAMPLE
   ./build.ps1 -Action wheel -CMakeArg "-DCMAKE_BUILD_TYPE=Release"

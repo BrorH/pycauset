@@ -25,7 +25,7 @@ class MinkowskiDiamond:
     """
 
     def __init__(self, dimension: int = 2):
-        self._native = _native.MinkowskiDiamond(int(dimension))
+        self._native = _native._MinkowskiDiamond(int(dimension))
 
     def dimension(self) -> int:
         return self._native.dimension()

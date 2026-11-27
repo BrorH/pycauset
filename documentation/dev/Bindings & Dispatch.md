@@ -1,79 +1,42 @@
-# Bindings & Dispatch (Python ↔ C++ Engine)
+# Bindings & Dispatch
 
-This page explains how Python calls reach the C++ engine, and how CPU/GPU dispatch works.
+How Python calls reach the C++ engine. The engine-side path (entry function, device,
+kernel) is [[internals/Compute Architecture]].
 
-## High-level architecture
+## Layers
 
-- **Python public API** lives at `pycauset.*`.
-- **Native extension module** is imported as `pycauset._pycauset`.
-- **C++ engine** provides:
-  - storage/memory mapping,
-  - matrix/vector types,
-  - compute dispatch (CPU/GPU),
-  - solvers (BLAS/LAPACK, streaming kernels, CUDA plugin).
+- **`pycauset.*`** (`python/pycauset/__init__.py`): the public names. Thin: argument
+  checks, then the engine.
+- **`pycauset._pycauset`**: the pybind11 module. `src/bindings.cpp` is the
+  `PYBIND11_MODULE` entry; the bindings live in `src/bindings/`, one file per subsystem:
 
-## Dispatch path (device selection)
+| File | Binds |
+|---|---|
+| `bind_core.cpp` | threads, memory threshold, `sum`, the lazy switch, kernel / IO / access traces |
+| `bind_matrix.cpp` | the matrix classes, operators, indexing, NumPy export |
+| `bind_vector.cpp` | the vector classes |
+| `bind_math.cpp` | linear algebra and reductions |
+| `bind_causet.cpp` | the Minkowski diamond and the sprinkler |
+| `numpy_import.hpp` | NumPy arrays as operands (one importer for every binding) |
+| `numpy_export_guard.hpp` | the size guard on export to NumPy |
 
-- `ComputeContext` owns the active device configuration.
-- `AutoSolver` routes operations:
-  - CPU for small problems or unsupported types,
-  - GPU for large problems when available and supported.
-- “Direct vs streaming” selection is coordinated by memory/governor logic and solvers.
+## Rules
 
-## Why bindings are a high-risk zone
+- **One binding helper per operation.** Every spelling of an operation (`A @ B`,
+  `pc.matmul`, `ndarray @ A`, vector operands) goes through the same helper and the same
+  engine entry function.
+- **NumPy operands are imported, never computed with.** `numpy_import.hpp` turns an array
+  into an engine matrix or vector; the engine computes.
+- **Public or internal by name.** Every native name without a leading underscore is
+  public: `pycauset.__all__` lists it and it needs a page under `documentation/docs/`
+  (`tests/engine/test_api_surface.py` checks). Helpers the Python layer calls
+  (`_sprinkle`, `_matrix_norm`, ...) start with an underscore.
+- **No fallbacks.** If Python needs a native symbol, the build provides it; a missing
+  symbol is an import error, not a silent alternative.
 
-Bindings are where drift happens:
-- Python may assume a class/function exists in native code.
-- Native bindings may expose a different name or only a subset.
+## Adding a binding
 
-**Rule:** if Python expects a native symbol, it must be guaranteed (or Python must provide a deliberate fallback with tests).
-
-## Binding checklist (when adding a new feature)
-
-When adding a new matrix type, dtype, or operation:
-
-1. **C++ engine:** implement or route the capability.
-2. **Bindings:** expose the capability to Python.
-3. **Python surface:** ensure it is reachable via a top-level API (`pycauset.*`).
-4. **Tests:** add/extend tests under `tests/engine/` and an atlas entry (Adding Operations protocol).
-5. **Docs:** update `documentation/docs/`, `documentation/guides/`, and (if architectural) `documentation/internals/`.
-
-## Bindings layout (modular translation units)
-
-The native extension is built as one module, but the binding code is intentionally split across multiple translation units:
-
-- `src/bindings.cpp` is a thin `PYBIND11_MODULE` entrypoint.
-- `src/bindings/` contains the binding implementations, grouped by subsystem.
-  - Examples include: `bind_core.cpp`, `bind_matrix.cpp`, `bind_vector.cpp`, `bind_causet.cpp`, `bind_complex.cpp`.
-
-When adding a new bound type or function:
-
-- Put the binding code in the most appropriate `src/bindings/bind_*.cpp` file (or add a new one if needed).
-- Ensure the symbol is exported under the expected name in `pycauset._pycauset`.
-- Add/extend a Python test that imports it through the intended public surface (usually `pycauset.*`).
-
-## Drift check (native exports)
-
-Bindings refactors can silently drop exports that Python relies on.
-
-Run the repo-level drift check from the project root:
-
-- `python tools/check_native_exports.py`
-
-It imports the in-tree Python package (`python/pycauset`) and asserts that `pycauset._pycauset` exports the required symbols.
-
-Options:
-
-- `python tools/check_native_exports.py --no-smoke` (presence-only)
-- `python tools/check_native_exports.py --strict` (fail on optional exports too)
-
-## Naming rule (public API stability)
-
-Internal modules/folders may be reorganized. Prefer keeping the user entrypoints stable and top-level:
-- `pycauset.matrix`
-- `pycauset.causal_matrix`
-- `pycauset.matmul`
-- `pycauset.inverse` / `~M`
-- `MatrixBase.trace` / `MatrixBase.determinant`
-
-Pre-alpha note: the surface *may* change if it improves the architecture, but treat it as a major design decision: get explicit approval and update Philosophy + Protocols + tests.
+1. The engine function, per [[project/protocols/Adding Operations|Adding Operations]].
+2. The binding in the subsystem's `bind_*.cpp`.
+3. The public entry in `__init__.py` (or none, for an internal `_name`).
+4. Tests in `tests/engine/`, an atlas entry for an operation, and the doc page.

@@ -86,3 +86,21 @@ def test_writing_outside_the_stored_triangle_raises(make):
     m = make()
     with pytest.raises(ValueError):
         m[2, 0] = 1
+
+
+def test_the_engine_never_prints():
+    """Information reaches the user as a warning, an exception, the IO trace or debug_mode,
+    never as stdout / stderr from C++ (streamed matmuls and file-backed allocations used to
+    print). The parked CUDA hooks are the one exception (experimental/cuda/README.md)."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    allowed = {"AutoSolver.cpp", "ComputeContext.cpp"}
+    offenders = [
+        f"{p.relative_to(root)}:{i}"
+        for d in ("src", "include") for p in sorted((root / d).rglob("*.[ch]pp")) if p.name not in allowed
+        for i, line in enumerate(p.read_text(errors="replace").splitlines(), 1)
+        if re.search(r"std::(cout|cerr)|\bprintf\(", line) and not line.lstrip().startswith("//")
+    ]
+    assert not offenders, offenders

@@ -348,8 +348,10 @@ are engine-owned metadata on the storage).
 - session 9 (started with the pages physics touched): README, Quickstart, User Guide,
   Examples, Saving and Loading, the three index pages, save/load, Public API Contract. Their
   code runs in `tests/engine/test_doc_snippets.py` (add each page as it is rewritten).
-  Known stale: `internals/Compute Architecture.md` still documents `pycauset.cuda` routing
-  and pinning (CUDA is in experimental/); next.
+  Then internals/ (Compute Architecture, Algorithms, Memory and Data, Block Matrices) and
+  dev/ (all pages; four historical ones deleted), BENCHMARKS.md, the Visualization guide.
+  Every public name now needs a doc page (test). Next: documentation/project (Philosophy,
+  Contributing, protocols, Public API Contract) and the R2 plans under project/plans.
 - [ ] 5.1 Fix every broken snippet (F-008); the snippet test is green. Includes removing GPU
       prose from guides/internals (pages moved in 4.0; prose left for this pass)
 - [ ] 5.2 API reference generated from docstrings, one page per public function/class
@@ -359,13 +361,16 @@ are engine-owned metadata on the storage).
       no restating the name as a sentence, no "powerful/seamless/robust", no padding
       sections. Every example is executed in CI.
 - [ ] 5.3 Delete historical plans/archive; one ROADMAP; merge dev/ + internals/
-- [ ] 5.4 README and BENCHMARKS claims re-measured ("≥0.90× NumPy", "bigger than RAM")
+- [~] 5.4 README and BENCHMARKS claims re-measured (BENCHMARKS done on Linux, F-108; the
+      maintainer's Windows numbers next) ("≥0.90× NumPy", "bigger than RAM")
 - [ ] 5.5 ARCHITECTURE.md moves into `documentation/internals/` as the canonical map
 
 ## Phase 6: Performance (only after correctness)
 - [ ] 6.0 One OpenBLAS per process: link against NumPy's bundled scipy-openblas (or share its
       thread pool) instead of the system OpenBLAS; two spinning pools cost up to 50x on BLAS
       calls when NumPy is imported first (F-096). Today: a warning and an import-order rule.
+- [ ] 6.0a LAPACK without row-major LAPACKE transposes (F-108): solve / invert / det / eigh at
+      0.5-0.7x NumPy, the column-major call on the same buffer is 2x faster than NumPy
 - [ ] 6.1 Elementwise/vector parity (F-012): profile the wrapper stack vs the kernels
 - [ ] 6.2 Thread-pool consolidation (F-014)
 - [ ] 6.3 Out-of-core paths for eigh/svd/rank (F-011) or document them as in-RAM only

@@ -252,3 +252,30 @@ def test_vector_conjugate_and_writes_into_views():
     w = pc.vector(np.array([1.0, 2.0, 3.0])) * 2.0  # a scaled view
     w[0] = 10.0  # the write folds the view into storage first; the other values are kept
     np.testing.assert_array_equal(to_np(w), [10.0, 4.0, 6.0])
+
+
+def test_every_public_name_has_a_doc_page():
+    """Every name in `pycauset.__all__` has a page `pycauset.<name>.md` (the submodules
+    `spacetime`, `synthetic` and `vis` have their own pages). Internal native helpers start
+    with an underscore so they stay out of `__all__`."""
+    from pathlib import Path
+
+    docs = Path(__file__).resolve().parents[2] / "documentation" / "docs"
+    pages = {p.stem for p in docs.rglob("*.md")}
+    missing = [n for n in sorted(pc.__all__) if f"pycauset.{n}" not in pages and n not in ("spacetime", "synthetic", "vis")]
+    assert not missing, f"public names without a doc page: {missing}"
+
+
+@pytest.mark.parametrize("dtype", ["float64", "int32", "complex_float64"])
+def test_antisymmetric_storage_writes(dtype):
+    """Writing below the diagonal stores the negated value above it; a non-zero diagonal
+    raises, zero is accepted (moved from the retired tests/test_symmetric_matrix.cpp)."""
+    a = pc.AntiSymmetricMatrix(4, dtype=dtype)
+    a[2, 1] = 3
+    assert a[1, 2] == -3 and a[2, 1] == 3
+    with pytest.raises(ValueError, match="must be zero"):
+        a[0, 0] = 1
+    a[0, 0] = 0
+    s = pc.SymmetricMatrix(4, dtype=dtype)
+    s[3, 0] = 5
+    assert s[0, 3] == 5

@@ -15,31 +15,20 @@ Nothing in `_internal/` should be treated as a public API.
 - When adding functionality, default to putting helper logic into `_internal/` and re-exporting only the intended entrypoint at `pycauset.*`.
 - If you change the public surface (names, semantics, import paths), treat it as a major decision: get explicit approval and update tests + docs.
 
-## Current `_internal/` modules (what they own)
+## `_internal/` modules
 
-These modules exist today and are the canonical homes for their responsibilities:
-
-- `python/pycauset/_internal/runtime.py`
-  - Runtime/bootstrap policy (platform checks, environment setup).
-- `python/pycauset/_internal/native.py`
-  - Native import helpers and thin wrappers around `pycauset._pycauset`.
-- `python/pycauset/_internal/persistence.py`
-  - Persistence and storage helpers used by the public API.
-- `python/pycauset/_internal/linalg_cache.py`
-  - Linear algebra caching/glue (Python-level).
-- `python/pycauset/_internal/factories.py`
-  - Object construction helpers (Matrix/Vector creation, convenience factories).
-- `python/pycauset/_internal/ops.py`
-  - Operation “glue” that keeps the top-level API thin.
-  - Examples (as of today): `matmul`, `compute_k`, `bitwise_not`, `invert`.
-- `python/pycauset/_internal/coercion.py`
-  - Argument coercion and dtype-like normalization for Python entrypoints.
-- `python/pycauset/_internal/patching.py`
-  - Patch/update helpers (used by persistence and runtime/storage workflows).
-- `python/pycauset/_internal/formatting.py`
-  - String formatting / repr helpers.
-- `python/pycauset/_internal/matrix_api.py`
-  - Python-side Matrix API helpers (methods/properties that wrap native behavior).
+| Module | Owns |
+|---|---|
+| `native.py`, `native_setup.py` | importing the extension (Windows DLL paths); the OpenBLAS thread default |
+| `runtime.py` | backing-directory roots and temporary-file cleanup at exit |
+| `ops.py` | the glue of the linear algebra entry points (`solve`, `lstsq`, `pinv`, `norm`, ...), each traced for `last_io_trace` |
+| `matrix_api.py`, `factories.py`, `coercion.py`, `dtypes.py` | constructing matrices and vectors from data, dtype tokens |
+| `patching.py`, `formatting.py` | Python methods and `repr` / `str` added to the native classes |
+| `export_guard.py`, `native_threshold.py` | export to NumPy and its size guard; scoped memory-threshold changes |
+| `persistence.py` | the `.pycauset` container: save, load, metadata |
+| `io_observability.py` | IO traces (`last_io_trace`) |
+| `blockmatrix.py`, `submatrix_view.py`, `thunks.py`, `dense_python.py` | block matrices: blocks, windows into them, lazy block products |
+| `warnings.py` | the warning categories |
 
 If you’re unsure where a new helper belongs, prefer `_internal/` first.
 
@@ -48,8 +37,10 @@ If you’re unsure where a new helper belongs, prefer `_internal/` first.
 1. Implement the logic in an `_internal/` module.
 2. Add a thin wrapper/re-export at `pycauset.<name>` in `python/pycauset/__init__.py`.
 3. Add or update a test under `tests/engine/` (usually `test_api_surface.py`) that uses the symbol through `pycauset.*`.
-4. If the feature relies on native bindings, update [[dev/Bindings & Dispatch]] and run the drift check (`python tools/check_native_exports.py`).
+4. Add its doc page under `documentation/docs/` (`test_api_surface.py` fails for a public name without one).
+5. If the feature needs a new native binding, follow [[dev/Bindings & Dispatch]].
 
-## Status note
+## Status
 
-The repo has already moved a lot of logic into `_internal/`. Ongoing work should continue shrinking `python/pycauset/__init__.py` into a readable facade and keeping this doc aligned with the current layout.
+`__init__.py` is still large (about 1,500 lines); splitting it is review PLAN 4.4, after the
+Python patch stack goes (4.3).

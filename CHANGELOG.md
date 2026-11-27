@@ -9,6 +9,12 @@ milestone corresponds to **v0.6.1**.
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
 ### Changed
+- Internal native helpers are no longer public names (`pc.sprinkle`, `pc.make_coordinates`,
+  `pc.CausalSpacetime`, the native `pc.MinkowskiDiamond`, `pc.matrix_norm`,
+  `pc.vector_norm`); use `pc.causet`, `pc.spacetime.MinkowskiDiamond`, `pc.norm`.
+  `pc.seed` (read by nothing) is removed.
+- The engine no longer prints to stdout / stderr (streamed matmuls and large file-backed
+  allocations printed a line each). A failed spill to disk raises instead of printing.
 - `spacetime.MinkowskiDiamond(d)` is the Minkowski causal diamond in every dimension: points
   are uniform in |x| < min(t, 1 - t) with coordinates (t, x), and the order is Minkowski
   causality (for d > 2 it was a coordinate-wise order on a cube). Coordinates are (t, x) in

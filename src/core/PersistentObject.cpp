@@ -9,7 +9,6 @@
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
-#include <iostream>
 
 #include "pycauset/core/StorageUtils.hpp"
 
@@ -71,16 +70,6 @@ std::string PersistentObject::get_backing_file() const {
 
 void PersistentObject::close() {
     if (mapper_) {
-        static const bool kDebugClose = []() {
-            const char* v = std::getenv("PYCAUSET_DEBUG_PERSISTENT_CLOSE");
-            if (!v) {
-                return false;
-            }
-            return std::string(v) == "1";
-        }();
-        if (kDebugClose) {
-            std::cout << "DEBUG: PersistentObject::close() called for " << (void*)this << std::endl;
-        }
         // Unregister from Governor if we were in RAM
         if (storage_state_ == pycauset::core::StorageState::RAM_ONLY) {
             pycauset::core::MemoryGovernor::instance().unregister_object(this);
@@ -89,25 +78,15 @@ void PersistentObject::close() {
         bool temp = is_temporary_;
         std::string path = mapper_->get_filename();
         const long use_count = mapper_.use_count();
-        // std::cout << "Closing object. Temp: " << temp << ", Path: " << path << std::endl;
         mapper_.reset(); // Close file mapping
 
         // Only delete temporary files when this object is the last owner of the mapping.
         // Many operations return metadata-only views that share storage (CoW semantics).
         if (temp && use_count == 1 && !path.empty() && path != ":memory:") {
-            try {
-                // Use char8_t cast for UTF-8 string to handle Unicode paths
-                std::filesystem::path p(reinterpret_cast<const char8_t*>(path.c_str()));
-                if (std::filesystem::remove(p)) {
-                    // std::cout << "Deleted temp file: " << path << std::endl;
-                } else {
-                    // std::cerr << "Failed to delete temp file: " << path << std::endl;
-                }
-            } catch (const std::exception& e) {
-                // std::cerr << "Exception deleting temp file: " << path << " - " << e.what() << std::endl;
-            } catch (...) {
-                // std::cerr << "Unknown exception deleting temp file: " << path << std::endl;
-            }
+            // close() runs from destructors and cannot throw: a temporary file that cannot be
+            // deleted (another process holds it) stays in the backing directory.
+            std::error_code ec;
+            std::filesystem::remove(std::filesystem::path(reinterpret_cast<const char8_t*>(path.c_str())), ec);
         }
     }
 }
@@ -172,11 +151,6 @@ bool PersistentObject::spill_to_disk() {
     std::string temp_path = pycauset::make_unique_storage_file("spill");
     size_t size = mapper_->get_data_size();
 
-    // Log warning for large files
-    if (size > 1024 * 1024 * 100) { // 100MB
-        std::cout << "PyCauset: Evicting object to disk to free RAM (" << (size / 1024 / 1024) << " MB)..." << std::endl;
-    }
-
     try {
         storage_state_ = pycauset::core::StorageState::TRANSITIONING;
 
@@ -199,11 +173,11 @@ bool PersistentObject::spill_to_disk() {
         pycauset::core::MemoryGovernor::instance().unregister_object(this);
 
         return true;
-    } catch (const std::exception& e) {
-        std::cerr << "Failed to spill object to disk: " << e.what() << std::endl;
-        // Revert state (data is still in RAM)
+    } catch (...) {
+        // The data is still in RAM; the error (disk full, unwritable backing directory) is the
+        // caller's answer, not a message on stderr.
         storage_state_ = pycauset::core::StorageState::RAM_ONLY;
-        return false;
+        throw;
     }
 }
 
@@ -233,11 +207,7 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
             use_ram = true;
             path = ":memory:";
         } else {
-            // Fallback to disk if RAM is full
-            if (final_size > 1024 * 1024 * 100) { // Log for >100MB
-                 std::cout << "PyCauset: RAM full (or object too large), falling back to disk for " 
-                           << (final_size / 1024 / 1024) << " MB object." << std::endl;
-            }
+            // Above the memory threshold (or no RAM left): file-backed, by design.
             path = resolve_backing_file("", fallback_prefix);
         }
     } else {

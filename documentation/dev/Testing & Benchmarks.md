@@ -11,30 +11,19 @@ The strategy is `review/TESTS.md`.
 | Directory | What | Style |
 |---|---|---|
 | `tests/atlas/` | every op x dtype x structure x view x storage against NumPy; `pytest tests/atlas` is the CI gate, `python -m tests.atlas.report` writes `review/atlas/ATLAS.md` | generated |
-| `tests/engine/` | the engine suite, by subject: `test_conformance` (grid), `test_invariants`, `test_regressions` (one `test_F<id>` per fixed bug), linear algebra, matmul rules, views, scalar ops, bitwise, `test_interop` (NumPy in and out, indexing), `test_storage`, `test_persistence` (container robustness), `test_io_trace`, `test_streaming` (forced out-of-core), `test_warnings`, `test_api_surface`, `test_stress` (fuzzing, threads, leaks) | NumPy oracle |
-| `tests/physics/` | causal sets, spacetimes, fields, plots (smoke tier for R1) | examples |
+| `tests/engine/` | the engine suite, by subject: `test_conformance` (grid), `test_invariants`, `test_regressions` (one `test_F<id>` per fixed bug), linear algebra, matmul rules, views, scalar ops, bitwise, `test_interop` (NumPy in and out, indexing), `test_storage`, `test_persistence` (container robustness), `test_io_trace`, `test_streaming` (forced out-of-core), `test_warnings`, `test_api_surface`, `test_stress` (fuzzing, threads, leaks), `test_causet` and `test_plots*` (causal sets, sprinkling, plots), `test_doc_snippets` (the code in the guides runs) | NumPy oracle |
 | `tests/blockmatrix/` | the BlockMatrix feature (construction, views, refinement, lazy thunks, persistence) | examples |
-| `tests/*.cpp` | gtest: MemoryGovernor, IO accelerator, CoW, ParallelUtils, symmetric storage, CPU worker contract | unit |
+| `tests/*.cpp` | gtest: MemoryGovernor, IO accelerator, CoW, ParallelUtils, CPU worker contract | unit |
 
 Coverage-based retirement of the old `tests/python/` suite (TESTS.md §4) is complete; the
 tools are `review/scripts/retire_analysis.py` and `cpp_retire_analysis.py`.
 
 ## Benchmarks
 
-Location:
-- `benchmarks/`
-
-Benchmarks exist to compare:
-- PyCauset vs NumPy for in-memory matrices,
-- direct vs streaming paths,
-- CPU vs GPU paths.
-
-Key harnesses:
-- `benchmarks/benchmark_numpy_parity.py`: **Critical.** Measures 1:1 throughput vs NumPy for import/export gates.
-- `benchmarks/benchmark_io_smoke.py`: Measures basic save/load wall time and MB/s.
-
-Recommended baseline:
-- run the “CPU vs NumPy” benchmark suite after solver changes.
+`BENCHMARKS.md` (repository root) lists the scripts and the current numbers. The two that
+matter most: `python benchmarks/r2_parity.py` (headline ops; CI runs it, report-only) and
+`python -m tests.atlas.timing [op ...]` (every atlas cell against NumPy, written to
+`review/atlas/TIMING.md`).
 
 ## Protocol
 
@@ -50,9 +39,8 @@ The authoritative checklist for dtype/op coverage and readiness gates is:
 
 - `review/atlas/ATLAS.md` (operation x dtype x structure x view coverage; `tests/atlas/`)
 
-When a checklist item changes status:
-- ensure a corresponding test exists (or is added),
-- ensure a benchmark script exists (or is updated).
+A new operation enters the atlas (correctness) and its timing (speed) together
+([[project/protocols/Adding Operations|Adding Operations]]).
 
 ### Stress and safety (`tests/engine/test_stress.py`)
 

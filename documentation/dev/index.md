@@ -9,16 +9,16 @@ This section is the canonical onboarding path for contributors working on PyCaus
 
 ## Read order
 
-1. [[dev/Restructure Plan]]
+1. `CLAUDE.md` (repository root): the short version, and the review workspace `review/README.md`
 2. [[dev/Codebase Structure]]
-3. [[dev/Python Internals]]
-4. [[guides/Storage and Memory]]
-5. [[dev/Build System]]
-6. [[dev/Bindings & Dispatch]]
-7. [[dev/Warnings & Exceptions]]
-8. [[dev/Testing & Benchmarks]]
-9. [[dev/Repository Hygiene]]
-10. [[internals/Streaming Manager]]
+3. [[project/protocols/Adding Operations|Adding Operations]] and [[project/protocols/Adding Types|Adding Types]]
+4. [[dev/Python Internals]]
+5. [[dev/Bindings & Dispatch]]
+6. [[dev/Build System]]
+7. [[dev/Testing & Benchmarks]]
+8. [[dev/Warnings & Exceptions]]
+9. [[dev/Storage Semantics]] and [[dev/PyCauset Container Format]]
+10. [[dev/Square-only Assumptions]], [[dev/Repository Hygiene]], [[dev/MACOS_WHEEL_PORTABILITY]]
 
 ## Related
 

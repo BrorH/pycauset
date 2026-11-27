@@ -4,7 +4,6 @@
 #include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include <cmath>
-#include <iostream>
 #include <algorithm>
 #include <cstring>
 #include <vector>
@@ -65,9 +64,6 @@ void StreamingManager::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBa
 
     size_t n = a.rows(); // Assuming square-ish for blocking logic, but loops handle rectangular
     size_t block_size = calculate_block_size(n, elem_size);
-
-    std::cout << "[PyCauset] Streaming MatMul: BlockSize=" << block_size 
-              << " (" << (block_size * block_size * elem_size) / (1024.0 * 1024.0) << " MB/tile)" << std::endl;
 
     // TODO: Use ObjectFactory or scratch allocators instead of raw vectors + casting?
     // For now, we manually manage buffers to ensure we stay within the budget we calculated.

@@ -189,16 +189,8 @@ from . import synthetic as synthetic
 from .causet import CausalSet
 
 
-def _debug_resolve_promotion(
-    op: str,
-    a_dtype: str,
-    b_dtype: str,
-) -> dict[str, object]:
-    """Internal/test helper: return promotion resolver decision without running kernels."""
-    fn = getattr(_native, "_debug_resolve_promotion", None)
-    if fn is None:
-        raise RuntimeError("Native helper _debug_resolve_promotion is not available")
-    return fn(op, a_dtype, b_dtype)
+# Internal/test helper: the promotion resolver's decision for (op, a_dtype, b_dtype).
+_debug_resolve_promotion = _native._debug_resolve_promotion
 
 
 # Internal/test helpers: the last dispatched kernel tag (thread-local), and clearing it.
@@ -241,7 +233,6 @@ _runtime = _runtime_mod.Runtime(
 )
 
 keep_temp_files: bool = False
-seed: int | None = None
 _EXPORT_MAX_BYTES: int | None = None
 _DEFAULT_MEMORY_THRESHOLD = getattr(_native, "get_memory_threshold", lambda: None)()
 _IO_OBS = _io_observability.IOObservability(_native)
@@ -1454,7 +1445,6 @@ _extra_exports = [
     "last_io_trace",
     "clear_io_traces",
     "keep_temp_files",
-    "seed",
     "bool",
     "matrix",
     "vector",

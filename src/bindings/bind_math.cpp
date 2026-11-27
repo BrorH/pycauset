@@ -40,8 +40,8 @@ void bind_math_ops(py::module_& m) {
         return std::shared_ptr<pycauset::MatrixBase>(pycauset::pinv(a).release());
     }, py::arg("a"), "Moore-Penrose pseudoinverse (NumPy's default cutoff)");
 
-    m.def("matrix_norm", &pycauset::matrix_norm, py::arg("a"), py::arg("ord"), "NumPy matrix norm of order ord");
-    m.def("vector_norm", &pycauset::vector_norm, py::arg("v"), py::arg("p"), "NumPy vector p-norm");
+    m.def("_matrix_norm", &pycauset::matrix_norm, py::arg("a"), py::arg("ord"), "NumPy matrix norm of order ord");
+    m.def("_vector_norm", &pycauset::vector_norm, py::arg("v"), py::arg("p"), "NumPy vector p-norm");
     m.def("matrix_rank", &pycauset::matrix_rank, py::arg("a"), py::arg("tol") = -1.0, "NumPy matrix_rank");
 
     m.def("outer", [](const pycauset::VectorBase& a, const pycauset::VectorBase& b) {

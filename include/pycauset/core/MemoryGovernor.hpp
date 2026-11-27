@@ -56,7 +56,8 @@ public:
      * 
      * If sufficient RAM is available, it returns true.
      * If RAM is full, it attempts to evict lower-priority objects to make space.
-     * If eviction fails or is insufficient, it returns false (caller must use disk).
+     * If eviction frees too little, it returns false (caller must use disk); if writing an
+     * evicted object to disk fails, that error propagates.
      * 
      * @param size_bytes The amount of memory requested.
      * @return true if allocation is allowed in RAM, false otherwise.

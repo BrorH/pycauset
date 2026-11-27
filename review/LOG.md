@@ -477,3 +477,26 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   Phase 6 list); Memory and Data direct-path rule (no pinning tiers); Block Matrices leaf
   dispatch (by type, no fallback); NumPy Integration (`copy=False` never gave a view:
   export is always one copy). Next: documentation/dev and documentation/project.
+- Docs truth pass, documentation/dev: Codebase Structure, Bindings & Dispatch, Python
+  Internals, Testing & Benchmarks, Build System, Square-only Assumptions rewritten to the
+  code; Warnings & Exceptions gains "the engine never prints"; Restructure Plan,
+  performance_optimizations, R2_QA_AUDIT, R2_PERF_FINDINGS deleted (history, wrong now).
+  BENCHMARKS.md rewritten: how to measure, today's numbers (LAPACK ops 0.5-0.7x, F-108),
+  where PyCauset is ahead by construction; the stale Windows-era graphs deleted.
+- Scripts: benchmarks/bench_coverage and bench_structures (superseded by the atlas and its
+  timing; bench_structures used the removed properties), tools/stress_100gb_matrix
+  (FloatMatrix, a maintainer-local path), tools/macos_hang_diagnose (its bug is fixed),
+  tools/check_native_exports (a list of class names removed long ago),
+  tools/audit_public_surface (now a test) and tests/stability (FloatMatrix; test_stress
+  covers it) deleted. bench_ram fixed. The continuum-limit benchmark and the field /
+  spacetime demos moved to experimental/physics/scripts, install_cuda12.ps1 to
+  experimental/cuda/tools. Empty tests/physics removed.
+- F-109 (engine prints; header mapped as data) and F-110 (internal native helpers public;
+  dead `pc.seed`) fixed. `_debug_resolve_promotion` is the native function (the Python
+  wrapper only re-checked that it exists).
+- C++ tests: `tests/test_symmetric_matrix.cpp` no longer compiled (old SymmetricMatrix
+  constructor and AntiSymmetricMatrix class; an assert-based main linked with gtest_main),
+  so the CI C++ job could not build. Deleted; its one uncovered behaviour (antisymmetric
+  diagonal writes raise, lower writes store the negation) is `test_antisymmetric_storage_writes`.
+  ctest: 5/5 suites pass. Stale binaries of removed tests (op registry, lazy) cleared.
+- Gates: 4,111 + 4,053 (lazy off) passed, atlas CI 42, ctest 5/5.

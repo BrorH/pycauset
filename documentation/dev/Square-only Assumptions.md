@@ -1,63 +1,24 @@
 # Square-only assumptions (NxN)
 
-PyCauset supports rectangular dense matrices (rows×cols) in the core engine, including bit-packed boolean matrices. This document tracks what is *still* square-only, either by mathematical definition or by implementation constraints.
+Dense matrices of every dtype are rectangular (rows x cols), bit-packed `bool` included.
+What is still square is square by definition.
 
-## C++ engine: remaining square-only areas
+## Square by structure
 
-### Square-only types (by definition)
+Triangular (causal matrices included), symmetric, antisymmetric, Hermitian,
+skew-Hermitian and diagonal matrices are square: `ObjectFactory` rejects `rows != cols`
+for them, and so do their Python constructors. Identity matrices are shape-flexible:
+`pc.identity([rows, cols])` has ones on the diagonal up to `min(rows, cols)`.
 
-Some matrix families are inherently square:
+## Square by mathematics
 
-- Triangular matrices (including causal matrices)
-- Symmetric / antisymmetric matrices
-- Diagonal matrices
+`determinant`, `slogdet`, `invert`, `solve` (its `A`), `cholesky`, `eig`, `eigh` and
+the other eigen problems, `matrix_power`.
+They raise `ValueError` for a rectangular operand. `svd`, `qr`, `lu`, `pinv`, `lstsq`,
+`matrix_rank`, `norm` and `trace` take rectangular matrices, as in NumPy.
 
-Identity matrices are **shape-flexible** in PyCauset: `IdentityMatrix(rows, cols)` (and `pycauset.identity([rows, cols])`) creates an identity-like matrix with ones on the diagonal up to `min(rows, cols)`.
+## Where rectangular shapes are carried
 
-The factory enforces this at creation time: these `Structure`s reject `rows != cols` (triangular/causal, diagonal, symmetric/antisymmetric).
-
-### DenseMatrix (bool) is bit-packed (implementation detail)
-
-`DenseMatrix` (dtype `bool`) (`DenseMatrix<bool>`) is stored in bit-packed row layout with a per-row stride determined by `cols` (not by `n`). Rectangular `(rows, cols)` shapes are supported.
-
-### Square-only operations
-
-Some operations require square matrices even for dense numeric types:
-
-- Determinant
-- Inverse
-
-These should fail fast with a clear error when `rows != cols`.
-
-### Optional algorithms / build-dependent APIs
-
-Some higher-level solvers (for example, eigensolvers) are build-dependent. Tests and docs should treat these as optional and skip/disable features when the bindings are not present.
-
-### Triangular types are inherently square
-
-- Triangular matrices (and causal matrices) are square by definition.
-
-Implication: NxM support does **not** apply to triangular/causal matrices as a general concept; NxM primarily targets dense/symmetric/rectangular operations.
-
-## What is no longer square-only (Phase 1)
-
-- `MatrixBase` / `PersistentObject` track `rows` and `cols`; `size()` is total elements (`rows * cols`).
-- Dense numeric matrices support rectangular storage and indexing.
-- `ObjectFactory::create_matrix(rows, cols, ...)` exists and is used in core math paths.
-- Persistence stores `rows`/`cols` in typed metadata and loaders prefer rectangular constructors.
-- Python allocation (`zeros` / `ones` / `empty`) supports rectangular shapes for dense numeric dtypes.
-
-## Python layer: remaining square-only surfaces
-
-- Triangular/causal matrix constructors are square-only by definition.
-
-## See also
-
-- [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]]
-- [[internals/Memory and Data|internals/Memory and Data]]
-- [[docs/functions/pycauset.zeros.md|pycauset.zeros]]
-- [[docs/functions/pycauset.matmul.md|pycauset.matmul]]
-
-## Bindings
-
-- The pybind `shape` property is derived from `rows()` and `cols()`, so rectangular dense numeric matrices surface correct `(rows, cols)` shapes in Python.
+`MatrixBase` / `PersistentObject` store `rows` and `cols`; `ObjectFactory::create_matrix`
+takes both; the container stores both; `shape` in Python is `(rows, cols)`. See
+[[guides/NxM Support|NxM Support]].

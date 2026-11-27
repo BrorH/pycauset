@@ -35,9 +35,9 @@ vary by about ±10% between runs):
 
 | operation | PyCauset vs NumPy |
 |---|---|
-| `A @ B`, `solve`, `eigh`, `dot`, export to NumPy | at parity (0.9–1.1×) |
-| `A + B`, `A * B`, `A + s` | at parity at N = 1024; 2–3× faster at N = 3000 (multithreaded) |
-| `inv`, `det` | 0.7–1.0× |
+| `A @ B`, `dot`, export to NumPy | at parity (0.9–1.1×) |
+| `A + B`, `A * B` | 2–3× faster (multithreaded) |
+| `solve`, `inv`, `det`, `eigh` | 0.5–0.7× (being fixed: the LAPACK calls copy their operands twice) |
 
 Where PyCauset is structurally ahead:
 

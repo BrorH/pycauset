@@ -94,7 +94,7 @@ See also: [[dev/Warnings & Exceptions|Warnings & Exceptions]].
 Some public configuration is intentionally exposed as module-level parameters.
 
 - `pycauset.keep_temp_files` (documented under `documentation/docs/parameters/`)
-- `pycauset.seed` (documented under `documentation/docs/parameters/`)
+- `pycauset.debug_mode` (documented under `documentation/docs/parameters/`)
 
 ---
 
@@ -131,8 +131,7 @@ Checklist:
 1. Update the API reference page(s) under `documentation/docs/`.
 2. Update any affected guides under `documentation/guides/`.
 3. Update tests under `tests/engine/`.
-4. If native exports are involved, run the drift check:
-   - `python tools/check_native_exports.py`
+4. Every public name needs its page: `tests/engine/test_api_surface.py` fails otherwise.
 
 Related protocols:
 

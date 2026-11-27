@@ -563,12 +563,6 @@ if(BUILD_TESTS)
     target_link_libraries(test_cow PRIVATE GTest::gtest_main pycauset_core)
     add_test(NAME CoWTests COMMAND test_cow)
 
-    # Symmetric Matrix Tests
-    add_executable(test_symmetric_matrix tests/test_symmetric_matrix.cpp)
-    target_include_directories(test_symmetric_matrix PRIVATE include)
-    target_link_libraries(test_symmetric_matrix PRIVATE GTest::gtest_main pycauset_core)
-    add_test(NAME SymmetricMatrixTests COMMAND test_symmetric_matrix)
-
 
 
     # CPU compute-worker contract

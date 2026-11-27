@@ -152,7 +152,7 @@ class CausalSet:
             if validate:
                 validate_causal_matrix(matrix, context="CausalSet(matrix=...)")
         else:
-            self._matrix = _native.sprinkle(self._spacetime._native_spacetime(), self._n, self._seed)
+            self._matrix = _native._sprinkle(self._spacetime._native_spacetime(), self._n, self._seed)
 
     @property
     def causal_matrix(self):
@@ -358,7 +358,7 @@ class CausalSet:
             indices = list(range(self.n))
 
         indices = [int(i) for i in indices]
-        coords = _native.make_coordinates(self._spacetime._native_spacetime(), self._n, self._seed, indices)
+        coords = _native._make_coordinates(self._spacetime._native_spacetime(), self._n, self._seed, indices)
 
         if _np:
             return _np.array(coords)

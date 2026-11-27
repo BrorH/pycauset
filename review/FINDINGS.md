@@ -1405,3 +1405,43 @@ the entry (the history is useful). New findings go at the bottom with the next f
   `uint8` product: 256 two-step paths wrapped to 0, so an order missing `0 < 257` with 256
   paths between them validated (the same wrap as F-053). Now the engine's exact product
   (bit matrices multiply in int32). `test_F107_*`.
+
+### F-108 Row-major LAPACKE calls cost half of solve / invert / det / eigh
+- **Status:** open (Phase 6, item 6.0a). Found in the docs pass: `benchmarks/r2_parity.py`
+  (N = 1024 float64, 4 vCPU) gives solve 0.50-0.56x NumPy, invert 0.61-0.66x, determinant
+  0.65-0.69x, eigh 0.52-0.63x, while the Performance Guide said "at parity" (measured when
+  solve and eigh still ran NumPy, before N.3).
+- **Cause:** every LAPACK call is `LAPACKE_?xxx(LAPACK_ROW_MAJOR, ...)`. Reference LAPACKE
+  then transposes every input into a column-major copy and every output back, with naive
+  single-threaded loops. Measured with the same system OpenBLAS: `dgesv` 1024x1024 with 1024
+  right-hand sides takes 0.024 s column-major and 0.058 s row-major; NumPy takes 0.052 s.
+- **Fix (no copies where the algebra allows):** a row-major buffer is the column-major
+  transpose. `det(A^T) = det(A)` and `inv(A^T) = inv(A)^T`, so `getrf` / inverse run
+  column-major on the buffer as is. `solve`: `getrf` on `A^T` (= P L U), then two row-major
+  `cblas_?trsm` (U^T lower, L^T upper unit) and the row interchanges in reverse. `eigh`: a
+  real symmetric buffer is its own transpose (Hermitian: the conjugate, same eigenvalues,
+  conjugated vectors); only V needs one (blocked, parallel) transpose. Check `svd`, `qr`,
+  `cholesky`, `lu` and `eig` the same way.
+- Also measured: importing a non-contiguous (sliced) float64 NumPy array runs at 0.59x
+  (`benchmarks/benchmark_numpy_parity.py`).
+
+### F-109 The engine printed to stdout / stderr, and a header check mapped a header as data
+- **Status:** fixed (session 9). Every streamed matmul printed its block size to stdout;
+  every file-backed allocation above 100 MB and every spill printed a line; a failed spill
+  printed to stderr and was swallowed (the data stayed in RAM, the error was lost). A file
+  with a `PYCAUSET` v1 header whose reserved bytes were non-zero, opened without a payload
+  offset, printed "Debug: Simple header check failed" and mapped from byte 0, header bytes
+  included (POSIX; on Windows the same case was silent). Now: no prints (information is the
+  IO trace or `pc.debug_mode`), a failed spill raises its error, the header case raises.
+  `test_the_engine_never_prints` scans `src/` and `include/` (the parked CUDA hooks in
+  AutoSolver / ComputeContext excepted).
+
+### F-110 Internal native helpers were public names
+- **Status:** fixed (session 9). `__all__` lists every native name without an underscore,
+  so `pc.sprinkle`, `pc.make_coordinates`, `pc.CausalSpacetime`, the native
+  `pc.MinkowskiDiamond` (not the `pc.spacetime` class), `pc.matrix_norm` and
+  `pc.vector_norm` were public and undocumented; `pc.seed` was a module global nothing read
+  (its page described a `causal_matrix.random` that does not exist). The helpers are
+  `_`-prefixed, `pc.seed` is gone, `pc.materialize` and `pc.debug_mode` got pages, and
+  `test_every_public_name_has_a_doc_page` keeps it so (it replaces
+  `tools/audit_public_surface.py`).
