@@ -14,7 +14,11 @@ namespace pycauset::structure {
 // triangle), strictness (diagonal included or not) and which structured classes exist
 // for `result_dtype` (F-032), and falls back to DENSE_FLOAT whenever it can't prove the
 // structure holds. Used by the eager add / subtract / elementwise_multiply paths.
-Structure resolve_result_structure(promotion::BinaryOp op, const MatrixBase& a, const MatrixBase& b,
-                                    DataType result_dtype);
+struct ResultStructure {
+    Structure structure = Structure::DENSE;
+    bool has_diagonal = false;  // TRIANGULAR: the result stores its diagonal
+};
+ResultStructure resolve_result_structure(promotion::BinaryOp op, const MatrixBase& a, const MatrixBase& b,
+                                          DataType result_dtype);
 
 } // namespace pycauset::structure

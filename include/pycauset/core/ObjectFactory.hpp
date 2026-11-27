@@ -5,6 +5,7 @@
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/vector/VectorBase.hpp"
 #include "pycauset/core/StorageUtils.hpp"
+#include "pycauset/core/DTypeDispatch.hpp"
 
 namespace pycauset {
 
@@ -12,21 +13,15 @@ class ObjectFactory {
 public:
     // --- Matrix Creation ---
     
-    // Creates a new matrix with the specified dimensions and types (square)
-    static std::unique_ptr<MatrixBase> create_matrix(
-        uint64_t n, 
-        DataType dtype, 
-        Structure mtype, 
-        const std::string& backing_file = ""
-    );
-
-    // Creates a new matrix with the specified dimensions and types (rectangular)
+    // Creates a new matrix with the specified dimensions, dtype and structure
+    // (`opts.has_diagonal`: triangular results that keep a diagonal).
     static std::unique_ptr<MatrixBase> create_matrix(
         uint64_t rows,
         uint64_t cols,
         DataType dtype,
         Structure mtype,
-        const std::string& backing_file = ""
+        const std::string& backing_file = "",
+        const MatrixOptions& opts = {}
     );
 
     // Clones a matrix (Lazy Copy / CoW) sharing the same storage

@@ -127,7 +127,8 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
     DataType type_b = b.get_data_type();
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::Add, type_a, type_b).result_dtype;
-    Structure res_mtype = structure::resolve_result_structure(promotion::BinaryOp::Add, a, b, res_dtype);
+    const auto res_shape = structure::resolve_result_structure(promotion::BinaryOp::Add, a, b, res_dtype);
+    const Structure res_mtype = res_shape.structure;
     // Structure rule: bool + bool of one shape counts from the packed words.
     if (type_a == DataType::BIT && type_b == DataType::BIT && res_dtype == DataType::INT32 &&
         res_mtype == Structure::DENSE && result_file.empty() && a.rows() == b.rows() && a.cols() == b.cols()) {
@@ -139,7 +140,8 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
         // A dense result is written completely by the kernel: no zeroing (F-096).
         std::optional<UninitializedStorage> u;
         if (res_mtype == Structure::DENSE && res_dtype != DataType::BIT && result_file.empty()) u.emplace();
-        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
+        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file,
+                                              MatrixOptions{res_shape.has_diagonal});
     }
 
     ComputeContext::instance().get_device()->add(a, b, *result);
@@ -157,7 +159,8 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
     DataType type_b = b.get_data_type();
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::Subtract, type_a, type_b).result_dtype;
-    Structure res_mtype = structure::resolve_result_structure(promotion::BinaryOp::Subtract, a, b, res_dtype);
+    const auto res_shape = structure::resolve_result_structure(promotion::BinaryOp::Subtract, a, b, res_dtype);
+    const Structure res_mtype = res_shape.structure;
     // Structure rule: bool - bool of one shape counts from the packed words.
     if (type_a == DataType::BIT && type_b == DataType::BIT && res_dtype == DataType::INT32 &&
         res_mtype == Structure::DENSE && result_file.empty() && a.rows() == b.rows() && a.cols() == b.cols()) {
@@ -169,7 +172,8 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
         // A dense result is written completely by the kernel: no zeroing (F-096).
         std::optional<UninitializedStorage> u;
         if (res_mtype == Structure::DENSE && res_dtype != DataType::BIT && result_file.empty()) u.emplace();
-        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
+        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file,
+                                              MatrixOptions{res_shape.has_diagonal});
     }
 
     ComputeContext::instance().get_device()->subtract(a, b, *result);
@@ -186,7 +190,8 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
     DataType type_b = b.get_data_type();
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, type_a, type_b).result_dtype;
-    Structure res_mtype = structure::resolve_result_structure(promotion::BinaryOp::ElementwiseMultiply, a, b, res_dtype);
+    const auto res_shape = structure::resolve_result_structure(promotion::BinaryOp::ElementwiseMultiply, a, b, res_dtype);
+    const Structure res_mtype = res_shape.structure;
     // Structure rule: bool * bool of one shape is a word-level AND.
     if (type_a == DataType::BIT && type_b == DataType::BIT && res_dtype == DataType::BIT &&
         res_mtype == Structure::DENSE && result_file.empty() && a.rows() == b.rows() && a.cols() == b.cols()) {
@@ -198,7 +203,8 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
         // A dense result is written completely by the kernel: no zeroing (F-096).
         std::optional<UninitializedStorage> u;
         if (res_mtype == Structure::DENSE && res_dtype != DataType::BIT && result_file.empty()) u.emplace();
-        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
+        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file,
+                                              MatrixOptions{res_shape.has_diagonal});
     }
 
     ComputeContext::instance().get_device()->elementwise_multiply(a, b, *result);

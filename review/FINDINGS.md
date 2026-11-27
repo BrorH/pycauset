@@ -1287,11 +1287,10 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Fix: a structure rule in `binary_op_impl` (`cpu.elementwise.packed`). When both operands and
   the result belong to the same plain structured class with the same packed size, it runs one
   flat loop over the packed storage. Measured at n = 1024: sym+sym 1.5× NumPy, diag+diag 21×.
-- **Open:** `tri ± tri` with a diagonal still builds a dense result. `resolve_result_structure`
-  returns a `Structure` alone, so the factory can only make a *strict* triangle; only
-  strict + strict keeps the class. Fix: carry `has_diagonal` in the resolved result shape
-  (resolver → `ObjectFactory::create_matrix`). Scheduled with Phase 4.3, after the split of
-  CpuSolver.cpp.
+- **Fixed (session 9):** `resolve_result_structure` returns `{structure, has_diagonal}` and
+  `ObjectFactory::create_matrix` takes `MatrixOptions`. Upper (+ - *) upper keeps the class
+  with the right diagonal; upper ± diagonal is upper with a diagonal (new rule). tri+tri at
+  n = 1024: 0.53 ms vs NumPy 0.83 ms (was 8.1 ms). Tests `test_F099_*`; class page table.
 - Also seen: `add` has a hand-written identity + identity branch for float64 and int32 only
   (a per-dtype copy, forbidden by the protocol §5); to go in the same cleanup.
 

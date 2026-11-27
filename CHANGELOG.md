@@ -9,6 +9,9 @@ milestone corresponds to **v0.6.1**.
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
 ### Changed
+- Element-wise `+ - *` of upper triangular matrices return a `TriangularMatrix` (with a
+  diagonal exactly when the result can be non-zero there), also with a diagonal or identity
+  operand; these were dense results before. Values and dtypes unchanged.
 - `matrix (+ - * /) vector` broadcasts the vector as a row, as NumPy does with a 1-D operand
   (it raised `TypeError`). `ndarray @ matrix` works (1-D left operand: a 1-D result).
 - Indexing: `m[...]`, Python lists (`m[[0, 2], :]`) and NumPy integer scalars index as in NumPy.

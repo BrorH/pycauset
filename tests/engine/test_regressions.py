@@ -520,3 +520,45 @@ def test_F103_python_integers_default_to_int32(make):
 def test_F103_typed_input_keeps_its_dtype():
     assert pc.vector(np.array([1, 2], dtype=np.int64)).dtype == "int64"
     assert pc.matrix(np.array([[1]], dtype=np.int8)).dtype == "int8"
+
+
+def _tri(n, dtype, diag, seed):
+    rng = np.random.default_rng(seed)
+    ref = np.triu(rng.integers(1, 5, (n, n)), 0 if diag else 1).astype(dtype)
+    m = pc.TriangularMatrix(n, dtype=dtype, has_diagonal=diag)
+    for i in range(n):
+        for j in range(i if diag else i + 1, n):
+            m[i, j] = ref[i, j].item()
+    return m, ref
+
+
+@pytest.mark.parametrize("dtype", ["float64", "float32", "int32", "int16"])
+@pytest.mark.parametrize("da,db,op,want_diag", [
+    (True, True, "+", True), (False, True, "+", True), (False, False, "+", False),
+    (True, True, "-", True), (True, True, "*", True), (False, True, "*", False),
+])
+def test_F099_triangular_results_keep_or_drop_the_diagonal(dtype, da, db, op, want_diag):
+    """tri (+ - *) tri is a TriangularMatrix; the diagonal is kept exactly when the result
+    can be non-zero there (it was a dense result whenever a diagonal was involved)."""
+    a, ra = _tri(6, dtype, da, 1)
+    b, rb = _tri(6, dtype, db, 2)
+    got = eval(f"a {op} b")
+    assert type(got).__name__ == "TriangularMatrix" and got.has_diagonal == want_diag
+    np.testing.assert_array_equal(to_np(got), eval(f"ra {op} rb"))
+
+
+def test_F099_upper_plus_diagonal_and_upper_times_dense():
+    a, ra = _tri(5, "float64", False, 3)
+    d = pc.diagonal(np.arange(1.0, 6.0))
+    s = a + d
+    assert type(s).__name__ == "TriangularMatrix" and s.has_diagonal
+    np.testing.assert_array_equal(to_np(s), ra + np.diag(np.arange(1.0, 6.0)))
+    full = np.arange(25.0).reshape(5, 5)
+    p = a * pc.matrix(full)
+    assert type(p).__name__ == "TriangularMatrix" and not p.has_diagonal  # strict * dense
+    np.testing.assert_array_equal(to_np(p), ra * full)
+    t, rt = _tri(5, "float64", True, 4)
+    q = t * pc.matrix(full)
+    assert q.has_diagonal
+    np.testing.assert_array_equal(to_np(q), rt * full)
+    np.testing.assert_array_equal(to_np(t + t.T), rt + rt.T)  # upper + lower: dense

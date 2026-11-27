@@ -20,23 +20,15 @@ namespace pycauset {
 // --- Matrix Creation ---
 
 std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
-    uint64_t n, 
-    DataType dtype, 
-    Structure mtype, 
-    const std::string& backing_file
-) {
-    return create_matrix(n, n, dtype, mtype, backing_file);
-}
-
-std::unique_ptr<MatrixBase> ObjectFactory::create_matrix(
     uint64_t rows,
     uint64_t cols,
     DataType dtype,
     Structure mtype,
-    const std::string& backing_file
+    const std::string& backing_file,
+    const MatrixOptions& opts
 ) {
     // Which (structure, dtype) pairs exist is decided by the catalogue (DTypeDispatch.hpp).
-    return make_matrix(mtype, dtype, rows, cols, backing_file);
+    return make_matrix(mtype, dtype, rows, cols, backing_file, opts);
 }
 
 // --- Vector Creation ---

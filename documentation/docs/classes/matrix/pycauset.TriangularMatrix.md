@@ -14,8 +14,8 @@ with [[docs/functions/pycauset.causal_matrix.md|pycauset.causal_matrix]].
 ## Parameters
 
 * **n** (*int*): dimension.
-* **dtype** (*str*): any dtype (`bool`, integers, floats, complex). Bit matrices are always
-  strictly upper triangular.
+* **dtype** (*str*): any dtype (`bool`, integers, floats, complex). A causal matrix is
+  strict (`has_diagonal=False`); bit triangles with a diagonal exist too.
 * **has_diagonal** (*bool*): also store the diagonal.
 
 ## Methods
@@ -24,6 +24,20 @@ Everything in [[docs/classes/matrix/pycauset.MatrixBase.md|MatrixBase]], plus:
 
 * **has_diagonal** (*bool*, read-only).
 * `TriangularMatrix.random(n, p=0.5, seed=None)`: random causal (`bool`) matrix.
+
+## Results of element-wise operations
+
+Element-wise `+ - *` keep the class when the result's zero pattern allows it (`/` gives a
+dense result: 0/0 is NaN):
+
+| Operands (`U` upper triangular, as stored) | Result |
+|---|---|
+| `U + U`, `U - U` | `TriangularMatrix`, with a diagonal if either operand has one |
+| `U ± DiagonalMatrix / IdentityMatrix` | `TriangularMatrix` with a diagonal |
+| `U * X` (`X` anything but a lower triangle) | `TriangularMatrix`, with a diagonal only if both can be non-zero there |
+| `U + U.T` (upper + lower) | dense (`SymmetricMatrix` when it is `A + A.T` of one matrix) |
+
+Values and dtypes are NumPy's; only the storage is smaller.
 
 ## Example
 
