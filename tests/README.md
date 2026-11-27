@@ -9,4 +9,3 @@ NumPy is the oracle: every test compares with what NumPy gives on the same data.
 | `atlas/` | every operation x dtype x structure x view x storage against NumPy (`pytest tests/atlas` is the CI gate); `report.py` and `timing.py` write `review/atlas/` |
 | `blockmatrix/` | the Python-level block matrices |
 | `*.cpp` | C++ unit tests (gtest; `-DBUILD_TESTS=ON`, then `ctest`) |
-| `BUG_LOG.md` | the older bug log (new bugs go to `review/FINDINGS.md`) |

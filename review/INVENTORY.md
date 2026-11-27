@@ -29,7 +29,7 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `tests/python/` | pytest suite, 130 files (incl. 2 non-tests) | 799 pass / 34 skip |
 | `tests/*.cpp` | gtest unit tests (9; 6 wired into CMake) | F-010 |
 | `tests/manual/`, `tests/stability/` | ad-hoc scripts, not run anywhere | delete or convert |
-| `tests/BUG_LOG.md` | historical bug log (6 entries, Aug 2026) | merge with FINDINGS |
+| ~~`tests/BUG_LOG.md`~~ | historical bug log (6 entries, Aug 2026, all fixed) | removed session 9 (git history); bugs go to FINDINGS |
 | `benchmarks/` | 11 benchmark scripts; `parity.py` is the CI one | consolidate |
 | `demos/` | 7 short conference demos + README | live, not run in CI |
 | `tools/` | audits (`audit_public_surface`, `check_native_exports`, `check_support_matrix`), PowerShell build/release/CUDA install, one-off diagnostics | mixed |

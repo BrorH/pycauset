@@ -64,8 +64,8 @@ session in `LOG.md`. Record every issue in `FINDINGS.md`.
 Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists, so
 "green" doesn't mean "correct". Refactoring without a better net is unsafe.
 
-- [ ] **1.1 Test harness:** single `tests/conftest.py`; remove the 15 `sys.path`
-      hacks; run against an editable install (`pip install -e . --no-build-isolation`);
+- [~] **1.1 Test harness:** single `tests/conftest.py`; remove the 15 `sys.path`
+      hacks (done: no sys.path edits left); run against an editable install (`pip install -e . --no-build-isolation`);
       stop copying `.so` files into `python/pycauset/` in CI (F-023).
 - [x] **1.2 C++ tests in CI:** all 9 gtests wired; `cpp-tests` job in `ci.yml` (session 2;
       first GitHub run still to be observed).
@@ -100,7 +100,7 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
 
 ## Phase 1b: Dead code, Tier A (cheap, early; shrinks context for everything after)
 - [x] Remove DEADCODE.md §4 Tier A items, batch 1 (session 1: 43 files, −832 lines)
-- [ ] Add Skylos and ruff-F to CI so new dead code is flagged on PRs
+- [~] Add Skylos and ruff-F to CI so new dead code is flagged on PRs (ruff-F done, session 9)
 
 ## Phase 2: Critical correctness fixes
 Each fix: regression test first (from Phase 1), then fix, then FINDINGS status.
