@@ -111,3 +111,12 @@ def test_R5_complex_conjugate_view_is_normalised():
     ra = rng.standard_normal((5, 5)) + 1j * rng.standard_normal((5, 5))
     m = pc.matrix(ra)
     np.testing.assert_allclose(to_np(m.conj() @ m.H), ra.conj() @ ra.conj().T)
+
+
+@pytest.mark.parametrize("shapes", [((3, 3), (4, 4)), ((2, 3), (2, 3)), ((5, 1), (2, 5))])
+def test_matmul_shape_mismatch_raises_value_error(shapes):
+    a, b = (pc.matrix(np.ones(s)) for s in shapes)
+    with pytest.raises(ValueError):
+        a @ b
+    with pytest.raises(ValueError):
+        np.ones(shapes[0]) @ np.ones(shapes[1])  # NumPy agrees

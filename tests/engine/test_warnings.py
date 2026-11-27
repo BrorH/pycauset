@@ -1,0 +1,88 @@
+"""PyCauset's warnings: what triggers each one, its category, and that it never changes a result.
+
+Policy (CLAUDE.md): guesses may warn, never decide. Each test also checks the value, so a
+warning path that altered the answer would fail here. Moved from the old suite
+(test_float_underpromotion_warning, test_integer_matmul_overflow[_risk_warning]).
+"""
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+import warnings
+
+import numpy as np
+import pytest
+
+import pycauset as pc
+
+
+def _caught(fn):
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        out = fn()
+    return out, w
+
+
+def _of(w, category, text):
+    return [x for x in w if issubclass(x.category, category) and text in str(x.message)]
+
+
+def test_float_underpromotion_warns_every_call_and_returns_float32():
+    a = pc.matrix(np.diag([1.0, 1.0]).astype(np.float32))
+    b = pc.matrix(np.diag([2.0, 3.0]))
+    (c1, c2), w = _caught(lambda: (a @ b, a @ b))
+    # Python's warnings filter owns deduplication: under "always" every call warns.
+    assert len(_of(w, pc.PyCausetDTypeWarning, "underpromotes to float32")) == 2
+    for c in (c1, c2):
+        assert c.dtype == "float32"  # F-034: within-float under-promotion
+        np.testing.assert_array_equal(np.asarray(c), np.diag([2.0, 3.0]).astype(np.float32))
+
+
+def test_bit_arithmetic_warns_int32():
+    a = pc.matrix(np.ones((2, 2), dtype=bool))
+    out, w = _caught(lambda: a + a)
+    assert _of(w, pc.PyCausetDTypeWarning, "bit operands promote to int32")
+    assert out.dtype == "int32"
+    np.testing.assert_array_equal(np.asarray(out), np.full((2, 2), 2))
+
+
+def test_integer_matmul_overflow_risk_is_advisory():
+    n, v = 256, 46340  # v * v < 2^31 - 1, but n * v * v does not fit: the estimate warns
+    x = np.zeros((n, n), dtype=np.int32)
+    x[0, 0] = v
+    a = pc.matrix(x)
+    c, w = _caught(lambda: a @ a)
+    hits = _of(w, pc.PyCausetOverflowRiskWarning, "may overflow the int32 output")
+    assert hits and "advisory estimate" in str(hits[0].message)
+    assert c[0, 0] == v * v  # the warning changed nothing
+
+
+def test_integer_matmul_overflow_raises():
+    x = np.zeros((2, 2), dtype=np.int32)
+    x[0, 0] = 2**31 - 1
+    y = np.zeros((2, 2), dtype=np.int32)
+    y[0, 0] = 2
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(OverflowError):
+            pc.matrix(x) @ pc.matrix(y)  # F-055
+
+
+def test_numpy_imported_first_warns_once_about_two_blas_pools():
+    code = "import numpy, warnings; warnings.simplefilter('always'); import pycauset"
+    env = {k: v for k, v in os.environ.items() if k != "OPENBLAS_THREAD_TIMEOUT"}
+    env["PYTHONPATH"] = os.path.dirname(os.path.dirname(os.path.abspath(pc.__file__)))
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=120)
+    assert r.returncode == 0, r.stderr
+    assert r.stderr.count("PyCausetPerformanceWarning") == 1
+
+
+@pytest.mark.parametrize("make", [
+    lambda: pc.causal_matrix(np.zeros((3, 3), dtype=bool)),
+    lambda: pc.TriangularMatrix(3, dtype="float64", has_diagonal=True),
+])
+def test_writing_outside_the_stored_triangle_raises(make):
+    m = make()
+    with pytest.raises(ValueError):
+        m[2, 0] = 1

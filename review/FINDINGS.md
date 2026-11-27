@@ -1341,3 +1341,11 @@ the entry (the history is useful). New findings go at the bottom with the next f
   float64/int32 copies that ignored conjugation); the private `_elementwise_*` bindings (a
   second entry point for `+ - * /`) are gone. Seen on the way: an integer scalar times an
   identity writes out a dense matrix instead of a scaled view (open, with the scalar-op rules).
+
+### F-102 matrix (+ - * /) PyCauset vector raises; NumPy broadcasts
+- **Status:** open (session 9, found while retiring old tests). `m + np.arange(n)` broadcasts
+  like NumPy (the 1-D array is imported as a 1 x n row), but `m + pc.vector(...)` raises
+  `TypeError`: the matrix binding has no overload for a VectorBase operand. NumPy treats a
+  1-D operand as a row and broadcasts it. Fix: the element-wise entry takes a vector as its
+  1 x n row matrix (`as_row_matrix`, the same bridge matmul uses), then the existing
+  broadcast rules apply.

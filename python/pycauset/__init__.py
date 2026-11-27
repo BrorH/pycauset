@@ -199,22 +199,11 @@ def _debug_resolve_promotion(
     return fn(op, a_dtype, b_dtype)
 
 
-def _debug_last_kernel_trace() -> str:
-    """Internal/test helper: last dispatched kernel tag (thread-local)."""
-    fn = getattr(_native, "_debug_last_kernel_trace", None)
-    if fn is None:
-        raise RuntimeError("Native helper _debug_last_kernel_trace is not available")
-    return str(fn())
+# Internal/test helpers: the last dispatched kernel tag (thread-local), and clearing it.
+_debug_last_kernel_trace = _native._debug_last_kernel_trace
+_debug_clear_kernel_trace = _native._debug_clear_kernel_trace
 
 
-def _debug_clear_kernel_trace() -> None:
-    """Internal/test helper: clear last dispatched kernel tag (thread-local)."""
-    fn = getattr(_native, "_debug_clear_kernel_trace", None)
-    if fn is None:
-        raise RuntimeError("Native helper _debug_clear_kernel_trace is not available")
-    fn()
-
-# Helper to safely get attributes
 def _safe_get(name):
     return _native_mod.safe_get(_native, name)
 
