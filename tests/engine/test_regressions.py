@@ -452,3 +452,38 @@ def test_F101_matrix_power_zero_keeps_dtype(dtype):
     got = pc.matrix_power(pc.matrix(x), 0)
     assert np.asarray(got).dtype == np.linalg.matrix_power(x, 0).dtype
     np.testing.assert_array_equal(np.asarray(got), np.eye(3))
+
+
+_ID_DTYPES = ["int8", "int16", "int32", "int64", "uint8", "uint32", "float16", "float32", "float64",
+              "complex64", "complex128"]
+
+
+@pytest.mark.parametrize("dtype", _ID_DTYPES)
+@pytest.mark.parametrize("op", ["+", "-", "*"])
+def test_F099_identity_pair_every_dtype(dtype, op):
+    """identity (+ - *) identity is a scaled identity for every dtype (it was float64 and int32
+    only; the others went element by element)."""
+    pc_dtype = {"complex64": "complex_float32", "complex128": "complex_float64"}.get(dtype, dtype)
+    eye = pc.IdentityMatrix(4, dtype=pc_dtype)
+    a, b = eye * 3, eye * 2
+    na, nb = np.eye(4, dtype=dtype) * np.array(3, dtype=dtype), np.eye(4, dtype=dtype) * np.array(2, dtype=dtype)
+    got = eval(f"a {op} b")
+    want = eval(f"na {op} nb")
+    assert type(got).__name__ == "IdentityMatrix"
+    np.testing.assert_array_equal(to_np(got), want)
+
+
+def test_F099_identity_pair_honours_conjugation():
+    eye = pc.IdentityMatrix(3, dtype="complex_float64")
+    a = (eye * (1 + 2j)).conj()
+    b = eye * (3 - 1j)
+    na, nb = np.conj(np.eye(3) * (1 + 2j)), np.eye(3) * (3 - 1j)
+    for op in ("+", "-", "*"):
+        np.testing.assert_array_equal(to_np(eval(f"a {op} b")), eval(f"na {op} nb"))
+
+
+def test_F099_identity_pair_integer_wraps_like_numpy():
+    eye = pc.IdentityMatrix(2, dtype="int8")
+    got = (eye * 100) + (eye * 100)
+    want = np.eye(2, dtype=np.int8) * np.int8(100) + np.eye(2, dtype=np.int8) * np.int8(100)
+    np.testing.assert_array_equal(to_np(got), want)

@@ -70,6 +70,33 @@ bool is_identity(const MatrixBase& m) {
 
 // --- Matrix Operations ---
 
+// Structure rule: identity (+ - *) identity of one dtype is a scaled identity, O(1), for every
+// dtype whose result dtype is the operands' (bool + bool counts in int32: the general path).
+// The factor is the combined value of the two views: conj?(s_a) op conj?(s_b).
+static std::unique_ptr<MatrixBase> identity_pair(const MatrixBase& a, const MatrixBase& b, promotion::BinaryOp op,
+                                          const char* name, const std::string& result_file) {
+    if (!is_identity(a) || !is_identity(b)) return nullptr;
+    if (a.rows() != b.rows() || a.cols() != b.cols()) {
+        throw std::invalid_argument(std::string(name) + ": identity operands must have identical shapes");
+    }
+    const DataType dt = a.get_data_type();
+    if (!result_file.empty() || b.get_data_type() != dt || a.is_subview() || b.is_subview()) return nullptr;
+    if (promotion::resolve(op, dt, dt).result_dtype != dt) return nullptr;
+    const auto value = [](const MatrixBase& m) {
+        return m.is_conjugated() ? std::conj(m.get_scalar()) : m.get_scalar();
+    };
+    std::complex<double> f;
+    switch (op) {
+        case promotion::BinaryOp::Add: f = value(a) + value(b); break;
+        case promotion::BinaryOp::Subtract: f = value(a) - value(b); break;
+        default: f = value(a) * value(b); break;
+    }
+    auto out = std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(a.clone().release()));
+    out->set_conjugated(false);
+    out->set_scalar(f);
+    return out;
+}
+
 // C + C^T / C - C^T for a causal (bit, strictly upper triangular) C: a closure view over C's
 // bits (LAZY.md L2b). sign_op = +1 for add, -1 for subtract.
 static std::unique_ptr<MatrixBase> try_bit_closure(const MatrixBase& a, const MatrixBase& b, int sign_op,
@@ -91,21 +118,7 @@ static std::unique_ptr<MatrixBase> try_bit_closure(const MatrixBase& a, const Ma
 }
 
 std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
-    if (is_identity(a) && is_identity(b)) {
-        if (a.rows() != b.rows() || a.cols() != b.cols()) {
-            throw std::invalid_argument("add: identity operands must have identical shapes");
-        }
-        if (a.get_data_type() == DataType::FLOAT64 && b.get_data_type() == DataType::FLOAT64) {
-            const auto& a_id = static_cast<const IdentityMatrix<double>&>(a);
-            const auto& b_id = static_cast<const IdentityMatrix<double>&>(b);
-            return a_id.add(b_id, result_file);
-        }
-        if (a.get_data_type() == DataType::INT32 && b.get_data_type() == DataType::INT32) {
-            const auto& a_id = static_cast<const IdentityMatrix<int32_t>&>(a);
-            const auto& b_id = static_cast<const IdentityMatrix<int32_t>&>(b);
-            return a_id.add(b_id, result_file);
-        }
-    }
+    if (auto r = identity_pair(a, b, promotion::BinaryOp::Add, "add", result_file)) return r;
 
     if (auto closure = try_bit_closure(a, b, +1, result_file)) return closure;
     const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "add");
@@ -135,21 +148,7 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
 }
 
 std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
-    if (is_identity(a) && is_identity(b)) {
-        if (a.rows() != b.rows() || a.cols() != b.cols()) {
-            throw std::invalid_argument("subtract: identity operands must have identical shapes");
-        }
-        if (a.get_data_type() == DataType::FLOAT64 && b.get_data_type() == DataType::FLOAT64) {
-            const auto& a_id = static_cast<const IdentityMatrix<double>&>(a);
-            const auto& b_id = static_cast<const IdentityMatrix<double>&>(b);
-            return a_id.subtract(b_id, result_file);
-        }
-        if (a.get_data_type() == DataType::INT32 && b.get_data_type() == DataType::INT32) {
-            const auto& a_id = static_cast<const IdentityMatrix<int32_t>&>(a);
-            const auto& b_id = static_cast<const IdentityMatrix<int32_t>&>(b);
-            return a_id.subtract(b_id, result_file);
-        }
-    }
+    if (auto r = identity_pair(a, b, promotion::BinaryOp::Subtract, "subtract", result_file)) return r;
 
     if (auto closure = try_bit_closure(a, b, -1, result_file)) return closure;
     const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "subtract");
@@ -179,21 +178,7 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
 }
 
 std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
-    if (is_identity(a) && is_identity(b)) {
-        if (a.rows() != b.rows() || a.cols() != b.cols()) {
-            throw std::invalid_argument("elementwise_multiply: identity operands must have identical shapes");
-        }
-        if (a.get_data_type() == DataType::FLOAT64 && b.get_data_type() == DataType::FLOAT64) {
-            const auto& a_id = static_cast<const IdentityMatrix<double>&>(a);
-            const auto& b_id = static_cast<const IdentityMatrix<double>&>(b);
-            return a_id.elementwise_multiply(b_id, result_file);
-        }
-        if (a.get_data_type() == DataType::INT32 && b.get_data_type() == DataType::INT32) {
-            const auto& a_id = static_cast<const IdentityMatrix<int32_t>&>(a);
-            const auto& b_id = static_cast<const IdentityMatrix<int32_t>&>(b);
-            return a_id.elementwise_multiply(b_id, result_file);
-        }
-    }
+    if (auto r = identity_pair(a, b, promotion::BinaryOp::ElementwiseMultiply, "elementwise_multiply", result_file)) return r;
 
     const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "elementwise_multiply");
 

@@ -21,7 +21,9 @@ against the current engine.
   `dlopen` `pycauset_cuda` and call `create_cuda_device`. Without the plugin this is a no-op.
 - `AutoSolver` GPU routing (`src/compute/AutoSolver.cpp`, `gpu_device_`): never taken without
   the plugin. Dead-code review (DEADCODE.md Tier B) decides whether these stay dormant or
-  move here too.
+  move here too. **Before the GPU path is re-enabled:** every AutoSolver method wraps the GPU
+  call in `try { gpu } catch { print; cpu }`, a silent fallback the Adding Operations protocol
+  forbids (review 4.8). Route by contract (dtype, structure, size) and let GPU errors surface.
 
 ## Bringing it back
 Re-add `bind_cuda_controls(m)` to `bind_core.cpp`, move `python/cuda.py` back to

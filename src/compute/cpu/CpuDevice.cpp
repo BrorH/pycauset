@@ -36,28 +36,22 @@ bool can_stream_elementwise(const MatrixBase& a, const MatrixBase& b, const Matr
     return same_dtype_plain(a, b, c) && (dt == DataType::FLOAT64 || dt == DataType::FLOAT32 ||
                                          dt == DataType::INT32 || dt == DataType::INT64);
 }
+// Does the call exceed the RAM budget? Operands and result at their element size (only
+// float32/float64/int32/int64 stream, so 4 or 8 bytes).
+bool out_of_core(const MatrixBase& a, const MatrixBase& b, const MatrixBase& c) {
+    const DataType dt = c.get_data_type();
+    const size_t elem = (dt == DataType::FLOAT32 || dt == DataType::INT32) ? 4 : 8;
+    const size_t required = (a.size() + b.size() + c.size()) * elem;
+    auto& governor = core::MemoryGovernor::instance();
+    return !governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required);
+}
 }  // namespace
 
 void CpuDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    auto& governor = core::MemoryGovernor::instance();
-    // Check if we should stream
-    
-    // Calculate required bytes (approx)
-    DataType dt = result.get_data_type();
-    size_t bytes_per_elem = 8; // Default double
-    if (dt == DataType::FLOAT32) bytes_per_elem = 4;
-    else if (dt == DataType::BIT) bytes_per_elem = 1; // Approx
-    
-    size_t required = (a.size() + b.size() + result.size()) * bytes_per_elem;
-    
-    if ((!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) &&
-        can_stream_matmul(a, b, result)) {
-        // Use Streaming Manager
+    if (can_stream_matmul(a, b, result) && out_of_core(a, b, result)) {
         CpuComputeWorker worker(solver_);
-        StreamingManager manager(worker);
-        manager.matmul(a, b, result);
+        StreamingManager(worker).matmul(a, b, result);
     } else {
-        // Direct Path
         solver_.matmul(a, b, result);
     }
 }
@@ -75,52 +69,36 @@ void CpuDevice::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
 }
 
 void CpuDevice::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    auto& governor = core::MemoryGovernor::instance();
-    size_t required = (a.size() + b.size() + result.size()) * 8; 
-    if ((!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) &&
-        can_stream_elementwise(a, b, result)) {
-         CpuComputeWorker worker(solver_);
-         StreamingManager manager(worker);
-         manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::ADD);
+    if (can_stream_elementwise(a, b, result) && out_of_core(a, b, result)) {
+        CpuComputeWorker worker(solver_);
+        StreamingManager(worker).elementwise(a, b, result, ComputeWorker::ElementwiseOp::ADD);
     } else {
         solver_.add(a, b, result);
     }
 }
 
 void CpuDevice::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    auto& governor = core::MemoryGovernor::instance();
-    size_t required = (a.size() + b.size() + result.size()) * 8;
-    if ((!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) &&
-        can_stream_elementwise(a, b, result)) {
-         CpuComputeWorker worker(solver_);
-         StreamingManager manager(worker);
-         manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::SUBTRACT);
+    if (can_stream_elementwise(a, b, result) && out_of_core(a, b, result)) {
+        CpuComputeWorker worker(solver_);
+        StreamingManager(worker).elementwise(a, b, result, ComputeWorker::ElementwiseOp::SUBTRACT);
     } else {
         solver_.subtract(a, b, result);
     }
 }
 
 void CpuDevice::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    auto& governor = core::MemoryGovernor::instance();
-    size_t required = (a.size() + b.size() + result.size()) * 8;
-    if ((!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) &&
-        can_stream_elementwise(a, b, result)) {
-         CpuComputeWorker worker(solver_);
-         StreamingManager manager(worker);
-         manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::MULTIPLY);
+    if (can_stream_elementwise(a, b, result) && out_of_core(a, b, result)) {
+        CpuComputeWorker worker(solver_);
+        StreamingManager(worker).elementwise(a, b, result, ComputeWorker::ElementwiseOp::MULTIPLY);
     } else {
         solver_.elementwise_multiply(a, b, result);
     }
 }
 
 void CpuDevice::elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    auto& governor = core::MemoryGovernor::instance();
-    size_t required = (a.size() + b.size() + result.size()) * 8;
-    if ((!governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required)) &&
-        can_stream_elementwise(a, b, result)) {
-         CpuComputeWorker worker(solver_);
-         StreamingManager manager(worker);
-         manager.elementwise(a, b, result, ComputeWorker::ElementwiseOp::DIVIDE);
+    if (can_stream_elementwise(a, b, result) && out_of_core(a, b, result)) {
+        CpuComputeWorker worker(solver_);
+        StreamingManager(worker).elementwise(a, b, result, ComputeWorker::ElementwiseOp::DIVIDE);
     } else {
         solver_.elementwise_divide(a, b, result);
     }

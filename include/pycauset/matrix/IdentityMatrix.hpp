@@ -108,31 +108,6 @@ public:
         }
     }
 
-    // Specialized operations returning IdentityMatrix
-    std::unique_ptr<IdentityMatrix<T>> add(const IdentityMatrix<T>& other, const std::string& result_file = "") const {
-        if (rows() != other.rows() || cols() != other.cols()) throw std::invalid_argument("Dimension mismatch");
-        auto result = std::make_unique<IdentityMatrix<T>>(base_rows(), base_cols(), result_file);
-        result->set_scalar(scalar_ + other.get_scalar());
-        result->set_transposed(is_transposed());
-        return result;
-    }
-
-    std::unique_ptr<IdentityMatrix<T>> subtract(const IdentityMatrix<T>& other, const std::string& result_file = "") const {
-        if (rows() != other.rows() || cols() != other.cols()) throw std::invalid_argument("Dimension mismatch");
-        auto result = std::make_unique<IdentityMatrix<T>>(base_rows(), base_cols(), result_file);
-        result->set_scalar(scalar_ - other.get_scalar());
-        result->set_transposed(is_transposed());
-        return result;
-    }
-
-    std::unique_ptr<IdentityMatrix<T>> elementwise_multiply(const IdentityMatrix<T>& other, const std::string& result_file = "") const {
-        if (rows() != other.rows() || cols() != other.cols()) throw std::invalid_argument("Dimension mismatch");
-        auto result = std::make_unique<IdentityMatrix<T>>(base_rows(), base_cols(), result_file);
-        result->set_scalar(scalar_ * other.get_scalar());
-        result->set_transposed(is_transposed());
-        return result;
-    }
-
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
         (void)result_file;
         return transposed_clone();

@@ -49,11 +49,8 @@ inline bool u64_to_py_ssize(uint64_t v, Py_ssize_t* out) {
 
 
 inline bool is_numpy_float16(const py::array& array) {
-    try {
-        return py::str(array.dtype()).cast<std::string>() == "float16";
-    } catch (...) {
-        return false;
-    }
+    const py::dtype dt = array.dtype();
+    return dt.kind() == 'f' && dt.itemsize() == 2;
 }
 
 // Exact integer dot product (DType System.md 5.1: reductions never wrap silently). Both

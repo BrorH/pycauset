@@ -60,11 +60,8 @@ struct DenseMatrix2DBufferState {
 };
 
 inline bool is_numpy_float16(const py::array& array) {
-    try {
-        return py::str(array.dtype()).cast<std::string>() == "float16";
-    } catch (...) {
-        return false;
-    }
+    const py::dtype dt = array.dtype();
+    return dt.kind() == 'f' && dt.itemsize() == 2;
 }
 
 inline void maybe_warn_integer_matmul_overflow_risk_preflight(const MatrixBase& a, const MatrixBase& b) {
@@ -1692,54 +1689,6 @@ void bind_matrix_classes(py::module_& m) {
             },
             py::is_operator());
 
-
-    // Internal eager elementwise helpers (used by BlockMatrix thunk evaluation).
-    m.def(
-        "_elementwise_add",
-        [](const MatrixBase& a, const MatrixBase& b) {
-            maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, a, b);
-            maybe_warn_bit_promotes_to_int32(
-                "add",
-                promotion::BinaryOp::Add,
-                a.get_data_type(),
-                b.get_data_type());
-            auto out = pycauset::add(a, b, "");
-            return std::shared_ptr<MatrixBase>(out.release());
-        },
-        py::arg("a"),
-        py::arg("b"));
-    m.def(
-        "_elementwise_subtract",
-        [](const MatrixBase& a, const MatrixBase& b) {
-            maybe_warn_float_underpromotion("subtract", promotion::BinaryOp::Subtract, a, b);
-            maybe_warn_bit_promotes_to_int32(
-                "subtract",
-                promotion::BinaryOp::Subtract,
-                a.get_data_type(),
-                b.get_data_type());
-            auto out = pycauset::subtract(a, b, "");
-            return std::shared_ptr<MatrixBase>(out.release());
-        },
-        py::arg("a"),
-        py::arg("b"));
-    m.def(
-        "_elementwise_multiply",
-        [](const MatrixBase& a, const MatrixBase& b) {
-            maybe_warn_float_underpromotion("elementwise_multiply", promotion::BinaryOp::ElementwiseMultiply, a, b);
-            auto out = pycauset::elementwise_multiply(a, b, "");
-            return std::shared_ptr<MatrixBase>(out.release());
-        },
-        py::arg("a"),
-        py::arg("b"));
-    m.def(
-        "_elementwise_divide",
-        [](const MatrixBase& a, const MatrixBase& b) {
-            maybe_warn_float_underpromotion("elementwise_divide", promotion::BinaryOp::Divide, a, b);
-            auto out = pycauset::elementwise_divide(a, b, "");
-            return std::shared_ptr<MatrixBase>(out.release());
-        },
-        py::arg("a"),
-        py::arg("b"));
 
     // Encourage NumPy to prefer MatrixBase reverse ops over coercion.
     py::object mb_cls = m.attr("MatrixBase");
