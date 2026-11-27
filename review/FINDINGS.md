@@ -1509,3 +1509,24 @@ the entry (the history is useful). New findings go at the bottom with the next f
   would have been file-backed: a 3 GB array on a 4 GB machine could not become a
   PyCauset matrix at all. The check is gone with `should_use_direct_path`, the duplicate of
   `can_fit_in_ram` it called.
+
+### F-115 Whole-matrix reads of structured and transposed operands went element by element
+- **Status:** fixed (session 9). Every kernel that needs a structured or transposed operand
+  as plain rows (to_dense for & | ^ ~ and the integer-result ops, the element-wise row loader
+  for / and mixed dtypes, sums, the typed row reader `read_rows`) read it through the class's
+  `get(i, j)`: a bounds check, the triangle or mirror branch and an offset lookup per
+  element, then the view rule. Structured & | ^ ~ / ran at 0.1-0.2x NumPy, sums at 0.1-0.5x.
+  Three things compounded it: (1) the per-element `get`; (2) a run-time operator switch in
+  every scalar-op loop except the dense fast path's; (3) row tiles too coarse for
+  ParallelFor's 32-item minimum, so the typed reader ran single-threaded for blocks of 256
+  rows. Also: transposed reads went down a column one row at a time (a 4 KB stride: every
+  store into one cache set).
+- Fix: `include/pycauset/math/RawRows.hpp`, one bulk reader of stored values per storage
+  layout (dense with windows and transposes, triangular, symmetric family, diagonal; columns
+  gathered 16 at a time). `ViewRead`, ScalarOps' write-out loop, the element-wise row loader
+  and `sum` read through it; the view rule is still `view_value` per element. ScalarOps'
+  loops share `apply_span` (operator fixed at compile time). The values are those of `get`,
+  so results do not change: full atlas 0 wrong of 88,361; test
+  `test_bulk_reader_windows_and_transposes_match_numpy`. Numbers: LOG, session 9.
+- Not covered: bit storage, complex_float16, identity, lazy closures and windows of
+  structured classes keep the per-element path (none has a bulk reader yet).
