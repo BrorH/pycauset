@@ -223,3 +223,9 @@ def test_matrix_rank_of_strict_triangle():
 def test_cond(p):
     a = np.array([[4.0, 1.0], [2.0, 3.0]])
     assert pc.cond(pc.matrix(a), p) == pytest.approx(np.linalg.cond(a, p), rel=1e-10)
+
+
+@pytest.mark.parametrize("fn", [pc.eig, pc.eigvals, pc.eigh, pc.eigvalsh])
+def test_eigen_of_non_square_raises(fn):
+    with pytest.raises(ValueError, match="square"):
+        fn(pc.matrix(np.ones((4, 3))))

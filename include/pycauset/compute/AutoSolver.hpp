@@ -44,7 +44,6 @@ public:
     // --- ComputeDevice Interface ---
 
     void matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
-    void inverse(const MatrixBase& in, MatrixBase& out) override;
     void cholesky(const MatrixBase& in, MatrixBase& out) override;
     void batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) override;
 
@@ -54,7 +53,6 @@ public:
     void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
-    void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) override;
 
     double dot(const VectorBase& a, const VectorBase& b) override;
     std::complex<double> dot_complex(const VectorBase& a, const VectorBase& b) override;
@@ -83,7 +81,6 @@ public:
 
     std::string name() const override;
     bool is_gpu() const override; // Returns true if GPU is *enabled* and *active*
-    int preferred_precision() const override;
 
     // Memory Management
     void* allocate_pinned(size_t size) override;

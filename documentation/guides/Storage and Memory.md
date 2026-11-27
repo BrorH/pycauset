@@ -137,14 +137,15 @@ PyCauset protects you from accidental full materialization when converting to Nu
 
 Takeaway: if something is spill-backed and large, you must opt-in to materialize; snapshots and in-RAM objects remain convertible without the opt-in.
 
-## Streaming manager: routing and observability
+## Out-of-core execution and IO traces
 
-PyCauset routes large or file-backed operations through a streaming manager so out-of-core work is predictable and observable.
+Operations whose operands and result do not fit the RAM budget run tile by tile through the
+engine's StreamingManager; others run directly on memory-mapped storage. The engine decides
+(see [[internals/Streaming Manager|Streaming Manager]]); there is no routing knob.
 
-- **Threshold-based routing:** set the IO streaming threshold via `pc.set_io_streaming_threshold(bytes_or_None)`. File-backed operands always stream; `allow_huge=True` on an op bypasses the threshold check.
-- **Per-op descriptors:** `matmul`, `invert`, `eigvalsh`, `eigh`, and `eigvals_arnoldi` publish access patterns and tiling/queue hints. Non-square eig/invert inputs are forced to the direct route via a guard.
-- **Plan + events:** the last plan is available through `pc.last_io_trace(...)` and includes `{route, reason, tile_shape, queue_depth, plan.access_pattern, events}`. Prefetch/discard events and `impl=...` markers show which path executed.
-- **Default behavior:** when thresholds are tiny, tiles shrink automatically and queue depth stays bounded. When thresholds are disabled (`None`), routes stay direct unless operands are file-backed.
+`pc.last_io_trace(op)` reports what a call read and how it ran: each operand's shape, dtype
+and storage (`"memory"`, `"file"`, `"temp"`), the kernels the engine ran, and `streamed`
+([[docs/functions/pycauset.last_io_trace|pycauset.last_io_trace]]).
 
 ## Snapshots vs working copies
 

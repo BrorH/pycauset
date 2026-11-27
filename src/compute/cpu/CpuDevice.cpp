@@ -62,10 +62,6 @@ void CpuDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     }
 }
 
-void CpuDevice::inverse(const MatrixBase& in, MatrixBase& out) {
-    solver_.inverse(in, out);
-}
-
 void CpuDevice::cholesky(const MatrixBase& in, MatrixBase& out) {
     solver_.cholesky(in, out);
 }
@@ -128,10 +124,6 @@ void CpuDevice::elementwise_divide(const MatrixBase& a, const MatrixBase& b, Mat
     } else {
         solver_.elementwise_divide(a, b, result);
     }
-}
-
-void CpuDevice::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {
-    solver_.multiply_scalar(a, scalar, result);
 }
 
 double CpuDevice::dot(const VectorBase& a, const VectorBase& b) {

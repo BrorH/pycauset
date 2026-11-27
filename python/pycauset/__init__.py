@@ -40,7 +40,6 @@ from ._internal import ops as _ops
 from ._internal import patching as _patching
 from ._internal import persistence as _persistence
 from ._internal import runtime as _runtime_mod
-from ._internal import streaming_manager as _streaming_manager
 from ._internal.dtypes import normalize_dtype as _normalize_dtype
 from ._internal.warnings import (
     PyCausetDTypeWarning as PyCausetDTypeWarning,
@@ -254,33 +253,7 @@ keep_temp_files: bool = False
 seed: int | None = None
 _EXPORT_MAX_BYTES: int | None = None
 _DEFAULT_MEMORY_THRESHOLD = getattr(_native, "get_memory_threshold", lambda: None)()
-_IO_OBS = _io_observability.IOObservability(memory_threshold_bytes=_DEFAULT_MEMORY_THRESHOLD)
-
-_STREAMING_MANAGER = _streaming_manager.StreamingManager(io_observer=_IO_OBS)
-for _desc in (
-    _streaming_manager.StreamingDescriptor(
-        op="matmul",
-        access_pattern="blocked_rowcol",
-        tile_budget_fn=_streaming_manager._matmul_tile_budget,
-        queue_depth_fn=_streaming_manager._matmul_queue_depth,
-        guard=_streaming_manager._matmul_guard,
-    ),
-    _streaming_manager.StreamingDescriptor(
-        op="invert",
-        access_pattern="invert_dense",
-        tile_budget_fn=_streaming_manager._square_tile_budget,
-        queue_depth_fn=_streaming_manager._unary_queue_depth,
-        guard=_streaming_manager._square_guard,
-    ),
-    _streaming_manager.StreamingDescriptor(
-        op="eigvals_arnoldi",
-        access_pattern="arnoldi_topk",
-        tile_budget_fn=_streaming_manager._square_tile_budget,
-        queue_depth_fn=_streaming_manager._unary_queue_depth,
-        guard=_streaming_manager._square_guard,
-    ),
-):
-    _STREAMING_MANAGER.register(_desc)
+_IO_OBS = _io_observability.IOObservability(_native)
 
 
 def _storage_root() -> Path:
@@ -353,18 +326,6 @@ def set_memory_threshold(limit: int | None) -> int | None:
     setter(int(target))
     _debug(f"set_memory_threshold -> {int(target)} bytes")
     return int(getter()) if getter is not None else int(target)
-
-
-def set_io_streaming_threshold(limit: int | None) -> int | None:
-    """Set the routing threshold for IO observability heuristics (bytes)."""
-
-    return _IO_OBS.set_memory_threshold(limit)
-
-
-def get_io_streaming_threshold() -> int | None:
-    """Return the current IO routing threshold (bytes)."""
-
-    return _IO_OBS.get_memory_threshold()
 
 
 def last_io_trace(op: str | None = None) -> dict[str, Any] | None:
@@ -1031,7 +992,6 @@ _OPS_DEPS = _ops.OpsDeps(
     mark_temporary_if_auto=_mark_temporary_if_auto,
     warnings_module=warnings,
     io_observer=_IO_OBS,
-    streaming_manager=_STREAMING_MANAGER,
 )
 
 def matmul(a: Any, b: Any) -> Any:
@@ -1555,8 +1515,6 @@ _extra_exports = [
     "set_backing_dir",
     "get_memory_threshold",
     "set_memory_threshold",
-    "get_io_streaming_threshold",
-    "set_io_streaming_threshold",
     "last_io_trace",
     "clear_io_traces",
     "keep_temp_files",

@@ -225,7 +225,6 @@ nav:
       - docs/functions/pycauset.plot_causal_matrix.md
       - docs/functions/pycauset.plot_embedding.md
       - docs/functions/pycauset.plot_hasse.md
-      - docs/functions/pycauset.set_io_streaming_threshold.md
     - Parameters:
       - docs/parameters/index.md
       - docs/parameters/pycauset.keep_temp_files.md

@@ -570,7 +570,7 @@ Status: - [x] (2026-08: the SRP handoff table is now accurate and honest, `add`/
 table had wrongly marked them "naive"), `matmul`/`batch_gemv` stream, and every remaining op is
 explicitly `blocked` with a stated reason (LAPACK factorizations/reductions materialize; tiled
 `inverse`/`qr`/`svd` is deferred). Pinned by `test_outofcore_elementwise.py`, which forces the
-streaming route via `set_io_streaming_threshold(64)` and checks add/subtract/multiply/divide
+streaming route via `set_io_streaming_threshold(64)` (removed in the 2026 review, F-100: it steered only the trace; tests force the engine with `_set_ram_safety_margin`) and checks add/subtract/multiply/divide
 against NumPy.)
 
 Goal: every op can run on memory-mapped `.pycauset` containers without materializing the full

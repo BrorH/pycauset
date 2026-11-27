@@ -305,13 +305,6 @@ bool AutoSolver::is_gpu() const {
     return is_gpu_active();
 }
 
-int AutoSolver::preferred_precision() const {
-    if (is_gpu_active()) {
-        return gpu_device_->preferred_precision();
-    }
-    return cpu_device_->preferred_precision();
-}
-
 bool AutoSolver::load_cached_profile(const HardwareProfile& device_profile) {
     const auto path = get_hardware_profile_path();
     if (path.empty()) return false;
@@ -459,41 +452,6 @@ void AutoSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
         }
     } else {
         cpu_device_->matmul(a, b, result);
-    }
-}
-
-void AutoSolver::inverse(const MatrixBase& in, MatrixBase& out) {
-    uint64_t n = in.rows();
-    double ops = (2.0 / 3.0) * static_cast<double>(n) * static_cast<double>(n) * static_cast<double>(n);
-
-    bool use_gpu = false;
-    if (is_gpu_active()) {
-        if (in.get_structure() == Structure::DENSE) {
-            DataType dt = in.get_data_type();
-            if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
-                if (backend_preference_ == BackendPreference::GPU) {
-                    use_gpu = true;
-                } else if (backend_preference_ == BackendPreference::CPU) {
-                    use_gpu = false;
-                } else {
-                    double elem_bytes = bytes_per_element(dt);
-                    double bytes = elem_bytes * (2.0 * static_cast<double>(n) * n);
-                    use_gpu = should_use_gpu(ops, bytes, dt);
-                }
-            }
-        }
-    }
-    
-    if (use_gpu) {
-        try {
-            gpu_device_->inverse(in, out);
-        } catch (const std::exception& e) {
-            std::cerr << "[PyCauset] GPU Error in inverse: " << e.what() << ". Falling back to CPU." << std::endl;
-            gpu_device_.reset();
-            cpu_device_->inverse(in, out);
-        }
-    } else {
-        cpu_device_->inverse(in, out);
     }
 }
 
@@ -680,46 +638,6 @@ void AutoSolver::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, 
 void AutoSolver::elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     // CUDA elementwise_divide is not implemented; keep this CPU-only.
     cpu_device_->elementwise_divide(a, b, result);
-}
-
-void AutoSolver::multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) {
-    uint64_t m = a.rows();
-    uint64_t n = a.cols();
-    double ops = static_cast<double>(m) * static_cast<double>(n);
-
-    bool use_gpu = false;
-    if (is_gpu_active()) {
-        bool type_ok = (a.get_structure() == Structure::DENSE) &&
-                       (result.get_structure() == Structure::DENSE);
-
-        DataType dt_a = a.get_data_type();
-        DataType dt_r = result.get_data_type();
-        bool dtype_ok = (dt_a == dt_r) && (dt_r == DataType::FLOAT64 || dt_r == DataType::FLOAT32);
-
-        if (type_ok && dtype_ok) {
-            if (backend_preference_ == BackendPreference::GPU) {
-                use_gpu = true;
-            } else if (backend_preference_ == BackendPreference::CPU) {
-                use_gpu = false;
-            } else {
-                double elem_bytes = bytes_per_element(dt_r);
-                double bytes = 2.0 * elem_bytes * static_cast<double>(m) * n;
-                use_gpu = should_use_gpu(ops, bytes, dt_r);
-            }
-        }
-    }
-
-    if (use_gpu) {
-        try {
-            gpu_device_->multiply_scalar(a, scalar, result);
-        } catch (const std::exception& e) {
-            std::cerr << "[PyCauset] GPU Error in multiply_scalar: " << e.what() << ". Falling back to CPU." << std::endl;
-            gpu_device_.reset();
-            cpu_device_->multiply_scalar(a, scalar, result);
-        }
-    } else {
-        cpu_device_->multiply_scalar(a, scalar, result);
-    }
 }
 
 double AutoSolver::dot(const VectorBase& a, const VectorBase& b) {

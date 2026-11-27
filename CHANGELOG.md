@@ -96,6 +96,11 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   the int32 accumulator notices are removed.
 
 ### Removed
+- `pc.set_io_streaming_threshold` / `pc.get_io_streaming_threshold`: they changed only what the
+  IO trace *said*; whether an operation runs out of core is the engine's decision (F-100).
+  `pc.last_io_trace()` now reports facts: operand shape/dtype/storage, the kernels the engine
+  ran, and `streamed`. The keys `route`, `reason`, `tile_shape`, `queue_depth`, `events` and
+  `storage` are gone with the Python planner that produced them.
 - `precision_mode`, the lazy expression engine (`LazyMatrix`), `pycauset.cuda` and the `[gpu]`
   extra (CUDA moved to `experimental/cuda`, on hold), the per-class buffer protocol.
 

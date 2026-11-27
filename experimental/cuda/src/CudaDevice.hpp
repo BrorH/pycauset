@@ -24,11 +24,8 @@ public:
 
     // Core Operations
     void matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
-    void inverse(const MatrixBase& in, MatrixBase& out) override;
     void cholesky(const MatrixBase& in, MatrixBase& out) override;
     
-    // Internal helper for in-core inversion (called by CudaSolver)
-    void inverse_incore(const MatrixBase& in, MatrixBase& out);
     void batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) override;
 
     // Matrix-Vector Operations
@@ -39,7 +36,6 @@ public:
     void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
-    void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) override;
 
     double dot(const VectorBase& a, const VectorBase& b) override;
     std::complex<double> dot_complex(const VectorBase& a, const VectorBase& b) override;
@@ -89,14 +85,6 @@ public:
     void check_cuda_error(cudaError_t result, const char* func) { check_cuda(result, func); }
     void check_cublas_error(cublasStatus_t result, const char* func) { check_cublas(result, func); }
     void check_cusolver_error(cusolverStatus_t result, const char* func) { check_cusolver(result, func); }
-
-    int preferred_precision() const override {
-        if (cc_major_ == 6 && cc_minor_ == 0) return 2; // P100
-        if (cc_major_ == 7 && cc_minor_ == 0) return 2; // V100
-        if (cc_major_ == 8 && cc_minor_ == 0) return 2; // A100
-        
-        return 1; // Float32
-    }
 
     // Hardware profiling
     bool fill_hardware_profile(HardwareProfile& profile, bool run_benchmarks) override;

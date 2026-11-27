@@ -1,140 +1,62 @@
 # Streaming Manager
 
-The streaming manager is the shared policy engine for out-of-core execution. It decides when to stream, how to tile, how deep to queue, and records what happened so tests and users can see the plan. Matmul, invert, eigvalsh, eigh, and eigvals_arnoldi register descriptors that plug in access patterns, guards, and resource budgets.
+The StreamingManager (`src/compute/StreamingManager.cpp`) runs an operation tile by tile when
+its operands and result do not fit in RAM. It is part of the engine; there is no Python
+routing layer (review F-100 removed one that guessed a route the engine never read).
 
-This document is for contributors who need to extend streaming behavior or debug routing decisions.
+This page is for contributors who extend out-of-core execution or debug it.
 
-## Algorithm Drivers (Host-Orchestrated)
+## When the engine streams
 
-For GPU acceleration, PyCauset uses **Algorithm Drivers**: host-side control loops that orchestrate the low-level streaming pipeline without embedding device-specific logic. Drivers are responsible for sequencing tiles, enforcing dependencies, and coordinating the CPU/GPU overlap. The device-specific worker (CUDA today, CPU later) only executes kernels on already-prepared tiles.
+`CpuDevice` (`src/compute/cpu/CpuDevice.cpp`) decides per call:
 
-### Why drivers exist
-- **Streaming-first**: Most target workloads do not fit in VRAM (or RAM), so drivers must stream by design.
-- **Plug-and-play**: Adding a new accelerated op should not require deep CUDA or AVX knowledge.
-- **CPU/GPU parity**: The same driver contract is used by both the CUDA worker and the R1_CPU worker pipeline.
+1. It estimates the bytes the call touches (operands + result).
+2. It asks the MemoryGovernor whether that fits the RAM budget (free RAM minus a safety
+   margin) and whether the direct path is preferred (`can_fit_in_ram`,
+   `should_use_direct_path`).
+3. If it does not fit **and** the operands qualify, it runs the StreamingManager; otherwise the
+   direct kernel, which still works on file-backed (memory-mapped) storage through paging.
 
-### Driver contract (summary)
-- **Inputs**: operand metadata, tile shapes, and a streaming plan (queue depth, access pattern).
-- **Outputs**: explicit success/failure + trace annotations (no silent fallbacks).
-- **Budget discipline**: pinned allocations require a ticket from `MemoryGovernor`.
-- **Observability**: emit deterministic trace tags for routing and pipeline stages.
+Operands qualify when all three matrices are plain dense views of one dtype: no
+transposition, window, scale factor or conjugation (the tiles are copied from raw row-major
+storage, F-040).
 
-### Where drivers live
-- C++ driver classes live alongside device workers (e.g., `src/accelerators/cuda/` or `src/compute/cpu/`), but remain device-agnostic where possible.
-- AutoSolver owns routing decisions and calls into the driver (via `ComputeWorker`) once the device is selected.
+| Operation | Streamed dtypes | Kernel label |
+|---|---|---|
+| `matmul` | float32, float64 | `streaming.matmul` |
+| `+ - *` and `/` of same-dtype operands | float32, float64, int32, int64 | `streaming.elementwise` |
 
-### Driver failure modes (expected)
-- **Unsupported dtype/structure**: driver must return a clear failure reason so AutoSolver can fall back.
-- **Budget denial**: if pinned memory cannot be acquired, drivers must degrade to pageable buffers or abort with a routed fallback.
-- **Non-streamable shapes**: guards must route to `direct` with a deterministic reason.
+Every other operation runs its direct kernel. LAPACK-based decompositions (`eigh`, `eig`,
+`svd`, `qr`, `cholesky`, `lu`, `solve`, `inv`, `det`) need the whole matrix and do not stream.
+`eigvals_arnoldi` reads the matrix only through matrix-vector products, so it works on
+file-backed matrices without materialising them.
 
-## What the manager owns
-- Routing: picks `route` (`streaming` or `direct`) and `reason`, combining IO observability thresholds with per-op guards.
-- Planning: fills plan fields (`tile_shape`, `queue_depth`, `plan.access_pattern`, `trace_tag`, `events`, `storage` summary).
-- Execution glue: best-effort prefetch/discard for streaming routes and `impl=...` annotations for the chosen implementation.
-- Registry: per-op `StreamingDescriptor` entries that provide access patterns and policy hooks.
+## Tiles
 
-## Lifecycle at a glance
-1. **plan(op, operands, allow_huge=False)**: snapshots operands, chooses route, runs the descriptor guard, and computes tiles/queue depth.
-2. **prefetch(plan, operands)**: only when `route == "streaming"`; defaults to calling accelerators on backing files.
-3. **compute**: the op executes (native, Python fallback, or BlockMatrix orchestration). The manager can annotate the implementation (`impl=...`).
-4. **discard(plan, operands, result)**: only when streaming; best-effort discard on backing ranges.
-5. **inspect**: `pc.last_io_trace(...)` returns the plan and event timeline for debugging and tests.
+`StreamingManager::calculate_block_size` sizes square tiles so that three of them (A, B and C)
+use at most 80% of the RAM the MemoryGovernor reports as available. A tile is at least
+4096 × 4096 elements (or the whole matrix, if smaller), rounded down to a multiple of 8.
 
-## Plan schema (recorded via IO observability)
-- `route` / `reason`: routing choice and justification.
-- `tile_shape`: `(rows, cols)` when streaming; `None` when direct. Tiles clamp to operand shapes.
-- `queue_depth`: bounded to `[1, 8]` when streaming; `0` when direct.
-- `plan.access_pattern`: descriptor-supplied tag (e.g., `blocked_rowcol`).
-- `trace_tag`: monotonic tag per op (`op:N`).
-- `events`: list of `{type, detail, reason?}`; includes plan/prefetch/discard/compute annotations.
-- `storage`: backing files, temporary flags, and storage roots gathered from operand snapshots.
+## Seeing what happened
 
-## Routing rules
-- **File-backed operands**: force `streaming` with reason `file-backed operand`.
-- **allow_huge=True**: force `direct` with reason `allow_huge bypassed threshold`.
-- **Threshold set**: any estimated operand bytes over threshold → `streaming` with `estimated bytes exceed threshold`.
-- **Threshold None**: `direct` with `no threshold configured` unless a guard overrides.
-- **Guards**: per-op hooks can override route/reason. Example: non-square invert/eig* → `direct` with `non_square`; matmul mismatched shapes → `direct` with `shape_mismatch`.
-
-## Descriptor catalog (current)
-| op | access_pattern | guard | tile budget | queue depth | notes |
-| --- | --- | --- | --- | --- | --- |
-| matmul | blocked_rowcol | shape mismatch → direct | budgeted square tiles clamped to shapes | 3 when streaming | Python tiling fallback annotates `impl=streaming_python` |
-| invert | invert_dense | non-square → direct | default square tile | 1 when streaming | Fallback annotates `impl=streaming_python` |
-| eigvalsh | symmetric_eigvals | non-square → direct | **N/A** (LAPACK full matrix) | **0** (no streaming) | LAPACK requires full contiguous matrix; always routes direct |
-| eigh | symmetric_eigh | non-square → direct | **N/A** (LAPACK full matrix) | **0** (no streaming) | LAPACK requires full contiguous matrix; always routes direct |
-| eig | general_eig | non-square → direct | **N/A** (LAPACK full matrix) | **0** (no streaming) | LAPACK `dgeev` requires full matrix; always routes direct |
-| eigvals | general_eigvals | non-square → direct | **N/A** (LAPACK full matrix) | **0** (no streaming) | LAPACK requires full matrix; always routes direct |
-| eigvals_arnoldi | arnoldi_topk | non-square → direct | **matrix-vector only** | **1 when streaming** | **Streaming supported** - only needs matvec products, A can be disk-backed |
-
-## Hooks and defaults
-- `tile_budget_fn(threshold_bytes, snapshots)`: derives tiles from the memory threshold and itemsize; matmul halves budget across A/B and clamps to shapes; square ops reuse the default derivation.
-- `queue_depth_fn(route, snapshots)`: returns depth before coercion; manager caps to `[1, 8]` and zeroes when direct.
-- `guard(operands, snapshots, allow_huge)`: may override route/reason early; does not materialize data, uses snapshots.
-- `prefetch` / `discard`: optional per-op hooks; defaults call accelerator prefetch/discard on backing files.
-- `annotate_impl(record, label)`: attaches `impl=label` and records a compute event.
-
-## Safety guarantees
-- No streaming queue depth above 8; non-streaming queues are 0.
-- Tile shapes always finite and clamped to operand extents; failures fall back to conservative defaults.
-- Guards run before tiling so invalid shapes revert to direct routes instead of crashing in streaming codepaths.
-- IO observability storage summaries remain intact for spill/backing-file diagnostics.
-
-## Eigen Operations: Streaming Support Matrix
-
-**LAPACK-based eigensolvers** (`eigh`, `eigvalsh`, `eig`, `eigvals`) do **not support streaming**:
-- **Reason**: LAPACK routines (`dsyev`, `dgeev`, etc.) require the full matrix in contiguous memory
-- **Routing**: Always `direct` path regardless of threshold
-- **Block matrices**: Not supported (LAPACK requires dense contiguous layout)
-- **Memory constraint**: Matrix must fit entirely in RAM
-- **Use case**: Small to medium matrices where full eigen decomposition is needed
-
-**Arnoldi iteration** (`eigvals_arnoldi`) **supports streaming**:
-- **Reason**: Only requires matrix-vector products (no full matrix access needed)
-- **Routing**: Can use `streaming` path for large matrices
-- **Out-of-core**: Matrix A can be disk-backed as long as matvec products are computable
-- **Memory constraint**: Only Krylov basis vectors need to fit in RAM
-    - Basis consists of m vectors (Krylov subspace dimension), each of length n (matrix dimension)
-    - Total memory: m×n elements, where m is typically 2k to 3k (k = number of eigenvalues desired)
-    - Example: For 10,000×10,000 matrix seeking top 10 eigenvalues, m≈30, memory≈30×10,000 = 300K elements ≈2.4MB
-- **Use case**: Large matrices where only top-k eigenvalues are needed
-- **Trade-off**: Iterative algorithm - slower convergence but enables out-of-core execution
-
-**Recommendation**: For large matrices (>1GB) where only a few eigenvalues are needed, use `eigvals_arnoldi` to enable streaming. For full eigendecomposition, ensure the matrix fits in RAM and use `eigh`/`eig`.
-
-## Debugging and tests
-- `pc.last_io_trace()` shows the latest plan; `pc.last_io_trace("matmul")` fetches by op.
-- Event timeline should contain `plan` plus `io` (prefetch/discard) and `compute` (impl) entries for streaming routes.
-- Threshold-driven scenarios: set `pc.set_io_streaming_threshold(bytes)` to force streaming in tests; set to `None` to validate the direct path.
-- File-backed fakes should force streaming regardless of threshold, exercising the guardrail for spill-backed inputs.
+- `pc.last_io_trace(op)` lists the kernels the engine ran for the last traced call and sets
+  `streamed` when one of them was a `streaming.*` kernel
+  ([[docs/functions/pycauset.last_io_trace|pycauset.last_io_trace]]).
+- `pc._native._debug_last_kernel_trace()` is the label of the last kernel that ran.
+- Tests force the streaming path with a huge RAM safety margin, so that nothing "fits":
+  `pc._native._set_ram_safety_margin(1 << 62)` (see `tests/engine/test_streaming.py`).
 
 ## Where this lives in code
 
-- Policy + routing: [python/pycauset/_internal/streaming_manager.py](https://github.com/BrorH/pycauset/blob/main/python/pycauset/_internal/streaming_manager.py)
-- IO trace helpers: [python/pycauset/_internal/io_observability.py](https://github.com/BrorH/pycauset/blob/main/python/pycauset/_internal/io_observability.py)
-- Streaming integrations in ops: [python/pycauset/_internal/ops.py](https://github.com/BrorH/pycauset/blob/main/python/pycauset/_internal/ops.py)
-- C++ Implementation (for native CPU backend):
-    - [include/pycauset/compute/StreamingManager.hpp](https://github.com/BrorH/pycauset/blob/main/include/pycauset/compute/StreamingManager.hpp)
-    - [src/compute/StreamingManager.cpp](https://github.com/BrorH/pycauset/blob/main/src/compute/StreamingManager.cpp)
-
-## Extending (safe checklist)
-
-1. Add a `StreamingDescriptor` with a conservative guard.
-2. Provide a tile budget function that clamps to operand shapes.
-3. Add a queue-depth function and keep it in `[1, 8]`.
-4. Ensure all annotations are deterministic (no timing-dependent fields).
-5. Add a routing test that asserts the `route` and `reason` fields.
-
-### Extension guidelines
-- Add a new op by registering a `StreamingDescriptor` in `pycauset.__init__` with an access pattern, guard, and budget/queue hooks.
-- Keep guards deterministic and non-materializing (only consult snapshots and metadata).
-- Prefer small, conservative tile/queue defaults; tighten once end-to-end tests validate throughput.
+- Decision: `src/compute/cpu/CpuDevice.cpp` (`can_stream_*`, the MemoryGovernor checks)
+- Tiling: `include/pycauset/compute/StreamingManager.hpp`, `src/compute/StreamingManager.cpp`
+- Tile kernels: `src/compute/cpu/CpuComputeWorker.cpp` (same contract as the dense kernels:
+  same dtype, plain dense)
+- Budget: `src/core/MemoryGovernor.cpp`
 
 ## See also
 
-- [[project/protocols/Adding Operations.md|Adding Operations protocol]]
+- [[project/protocols/Adding Operations.md|Adding Operations protocol]] (§7 Streaming)
 - [[internals/Compute Architecture.md|Compute Architecture]]
-- [[guides/Performance Guide.md|Performance Guide]]
-- [[docs/functions/pycauset.matmul.md|pycauset.matmul]]
+- [[guides/Storage and Memory|Storage and Memory]]
 - [[docs/functions/pycauset.set_memory_threshold.md|pycauset.set_memory_threshold]]

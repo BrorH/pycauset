@@ -1,168 +1,89 @@
-import os
-import tempfile
-import unittest
+"""IO traces report facts about a call: its operands and the kernels the engine ran (F-100).
 
-import pycauset
+The trace used to carry a Python guess (a "route", tile shape and queue depth planned from a
+threshold that the engine never read). Now `streamed` is true exactly when the engine's
+StreamingManager ran, which only the engine decides.
+"""
+from __future__ import annotations
 
+import numpy as np
+import pytest
 
-class TestIOObservability(unittest.TestCase):
-    def setUp(self):
-        self._orig_threshold = pycauset.get_io_streaming_threshold()
-        pycauset.set_io_streaming_threshold(16)
-        pycauset.clear_io_traces()
+import pycauset as pc
 
-    def tearDown(self):
-        pycauset.set_io_streaming_threshold(self._orig_threshold)
-        pycauset.clear_io_traces()
-
-    def _small_matrix(self):
-        return pycauset.matrix([[1.0, 2.0], [3.0, 4.0]])
-
-    def _file_backed_fake(self):
-        tmp = tempfile.NamedTemporaryFile(delete=False)
-        tmp.write(b"0123456789")
-        tmp.flush()
-        tmp.close()
-        self.addCleanup(lambda: os.path.exists(tmp.name) and os.remove(tmp.name))
-
-        class FakeMatrix:
-            def __init__(self, path):
-                self.shape = (2, 2)
-                self._path = path
-
-            def get_backing_file(self):
-                return self._path
-
-            def get(self, i, j):
-                return float(i + j + 1)
-
-        return FakeMatrix(tmp.name)
-
-    def test_matmul_records_streaming_trace(self):
-        a = self._small_matrix()
-        b = self._small_matrix()
-
-        _ = pycauset.matmul(a, b)
-
-        trace = pycauset.last_io_trace()
-        self.assertIsNotNone(trace)
-        self.assertEqual(trace.get("op"), "matmul")
-        self.assertEqual(trace.get("route"), "streaming")
-        self.assertIsNotNone(trace.get("tile_shape"))
-        self.assertGreaterEqual(trace.get("queue_depth", 0), 0)
-        self.assertTrue(any(op.get("estimated_bytes") for op in trace.get("operands", [])))
-        self.assertTrue(str(trace.get("trace_tag", "")).startswith("matmul"))
-
-    def test_eigvalsh_trace_is_accessible_per_op(self):
-        a = pycauset.matrix([[1.0, 0.0], [0.0, 2.0]])
-
-        _ = pycauset.eigvalsh(a)
-
-        latest = pycauset.last_io_trace()
-        eig_trace = pycauset.last_io_trace("eigvalsh")
-
-        self.assertIsNotNone(eig_trace)
-        self.assertEqual(eig_trace.get("op"), "eigvalsh")
-        self.assertEqual(latest.get("trace_tag"), eig_trace.get("trace_tag"))
-        self.assertIn("operands", eig_trace)
-        self.assertTrue(eig_trace.get("route") in ("streaming", "direct"))
-
-    def test_file_backed_operand_forces_streaming(self):
-        a = self._file_backed_fake()
-        b = self._file_backed_fake()
-
-        # The route is recorded before the operation; a fake object then has no engine
-        # matmul (the NumPy per-element path that multiplied it is gone, F-090).
-        with self.assertRaises(Exception):
-            pycauset.matmul(a, b)
-
-        trace = pycauset.last_io_trace()
-        self.assertIsNotNone(trace)
-        self.assertEqual(trace.get("route"), "streaming")
-        self.assertEqual(trace.get("reason"), "file-backed operand")
-        self.assertTrue(any(op.get("backing_file") for op in trace.get("operands", [])))
-
-    def test_threshold_none_prefers_direct_route(self):
-        pycauset.set_io_streaming_threshold(None)
-        pycauset.clear_io_traces()
-
-        _ = pycauset.matmul(self._small_matrix(), self._small_matrix())
-
-        trace = pycauset.last_io_trace()
-        self.assertIsNotNone(trace)
-        self.assertEqual(trace.get("route"), "direct")
-        self.assertEqual(trace.get("reason"), "no threshold configured")
-
-    def test_eigvals_arnoldi_traced_topk(self):
-        native = getattr(pycauset, "_native", None)
-        have_native = native is not None and callable(getattr(native, "eigvals_arnoldi", None))
-
-        pycauset.set_io_streaming_threshold(1)
-        pycauset.clear_io_traces()
-
-        a = pycauset.matrix([[5.0, 0.0], [0.0, 1.0]])
-        _ = pycauset.eigvals_arnoldi(a, 1, 4, 1e-6)
-
-        trace = pycauset.last_io_trace("eigvals_arnoldi")
-        self.assertIsNotNone(trace)
-        self.assertEqual(trace.get("op"), "eigvals_arnoldi")
-        self.assertTrue(trace.get("route") in ("streaming", "direct"))
-        # When native path exists, ensure we at least captured operands and a trace tag.
-        self.assertTrue(any(op.get("estimated_bytes") for op in trace.get("operands", [])))
-        self.assertTrue(str(trace.get("trace_tag", "")).startswith("eigvals_arnoldi"))
-
-    def test_large_native_matrix_forces_streaming_by_threshold(self):
-        # Create a modestly sized native matrix whose estimated bytes exceed a tiny threshold.
-        pycauset.set_io_streaming_threshold(64)  # bytes
-        pycauset.clear_io_traces()
-
-        m = pycauset.DenseMatrix(32, dtype="float64")  # 32x32 ~ 8 KB with float64
-        # Touch a single element to avoid unused warnings; rest can stay zero.
-        m.set(0, 0, 1.0)
-
-        _ = pycauset.matmul(m, m)
-
-        trace = pycauset.last_io_trace("matmul")
-        self.assertIsNotNone(trace)
-        self.assertEqual(trace.get("route"), "streaming")
-        self.assertEqual(trace.get("reason"), "estimated bytes exceed threshold")
-        self.assertTrue(any(op.get("estimated_bytes") for op in trace.get("operands", [])))
-        self.assertEqual(trace.get("impl"), "native")  # streaming routes run the engine (F-090)
-
-    def test_invert_forces_streaming_path(self):
-        pycauset.set_io_streaming_threshold(64)
-        pycauset.clear_io_traces()
-
-        m = pycauset.DenseMatrix(8, dtype="float64")
-        for i in range(8):
-            m.set(i, i, 2.0)
-
-        _ = pycauset.invert(m)
-
-        trace = pycauset.last_io_trace("invert")
-        self.assertIsNotNone(trace)
-        self.assertEqual(trace.get("route"), "streaming")
-        self.assertEqual(trace.get("impl"), "native")  # streaming routes run the engine (F-090)
-
-    def test_eigvals_arnoldi_forces_streaming_path(self):
-        pycauset.set_io_streaming_threshold(64)
-        pycauset.clear_io_traces()
-
-        m = pycauset.DenseMatrix(8, dtype="float64")
-        for i in range(8):
-            m.set(i, i, float(10 - i))
-
-        w = pycauset.eigvals_arnoldi(m, 2, 4, 1e-6)
-
-        trace = pycauset.last_io_trace("eigvals_arnoldi")
-        self.assertIsNotNone(trace)
-        self.assertEqual(trace.get("route"), "streaming")
-        # Native restarted Lanczos (F-030) runs on matvecs, so it handles the streaming
-        # route itself; the old pure-Python "streaming_python" implementation is gone.
-        got = sorted(float(x) for x in pycauset.to_numpy(w, allow_huge=True))
-        for g, want in zip(got, [9.0, 10.0]):
-            self.assertAlmostEqual(g, want, delta=1e-6 * want)
+native = pc._native
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.fixture(autouse=True)
+def _clean():
+    pc.clear_io_traces()
+    yield
+    pc.clear_io_traces()
+
+
+def test_trace_records_operands_and_kernels():
+    a = pc.matrix(np.arange(6.0).reshape(2, 3))
+    b = pc.matrix(np.ones((3, 4)))
+    pc.matmul(a, b)
+    trace = pc.last_io_trace()
+    assert trace["op"] == "matmul"
+    assert [o["shape"] for o in trace["operands"]] == [(2, 3), (3, 4)]
+    assert [o["dtype"] for o in trace["operands"]] == ["float64", "float64"]
+    assert [o["storage"] for o in trace["operands"]] == ["memory", "memory"]
+    assert trace["kernels"], "the engine logs at least one kernel for a matmul"
+    assert trace["streamed"] is False
+
+
+def test_trace_kernels_are_the_engines_log():
+    a = pc.matrix(np.eye(3) * 2.0)
+    native._debug_kernel_log_start()
+    pc.determinant(a)
+    outer = list(native._debug_kernel_log_stop())
+    # The trace's own log nests inside the outer one and leaves it intact (DebugTrace.cpp).
+    assert pc.last_io_trace("determinant")["kernels"] == outer
+
+
+def test_traces_are_kept_per_op():
+    a = pc.matrix(np.diag([1.0, 2.0]))
+    pc.eigvalsh(a)
+    pc.trace(a)
+    assert pc.last_io_trace()["op"] == "trace"
+    assert pc.last_io_trace("eigvalsh")["op"] == "eigvalsh"
+    assert pc.last_io_trace("matmul") is None
+
+
+def test_nested_traced_ops_record_only_the_outer_call():
+    a = pc.matrix(np.array([[4.0, 1.0], [2.0, 3.0]]))
+    pc.cond(a, 1)  # cond calls invert and norm, both traced on their own
+    assert pc.last_io_trace()["op"] == "cond"
+    assert pc.last_io_trace("invert") is None
+
+
+def test_streamed_is_what_the_engine_did():
+    x = pc.matrix(np.ones((64, 64)))
+    y = pc.matrix(np.ones((64, 64)))
+    pc.matmul(x, y)
+    assert pc.last_io_trace()["streamed"] is False
+    previous = native._get_ram_safety_margin()
+    native._set_ram_safety_margin(1 << 62)  # nothing "fits in RAM": the engine streams (F-026)
+    try:
+        pc.matmul(x, y)
+    finally:
+        native._set_ram_safety_margin(previous)
+    trace = pc.last_io_trace()
+    assert trace["streamed"] is True
+    assert "streaming.matmul" in trace["kernels"]
+
+
+def test_file_backed_operand_is_reported(tmp_path):
+    path = tmp_path / "m.pycauset"
+    pc.save(pc.matrix(np.eye(4)), str(path))
+    m = pc.load(str(path))
+    pc.trace(m)
+    (snap,) = pc.last_io_trace()["operands"]
+    assert snap["storage"] in ("file", "temp") and snap["backing_file"]
+
+
+def test_the_threshold_knob_that_controlled_nothing_is_gone():
+    assert not hasattr(pc, "set_io_streaming_threshold")
+    assert not hasattr(pc, "get_io_streaming_threshold")

@@ -10,17 +10,12 @@ class TempStorageLifecycleTests(unittest.TestCase):
         self._orig_keep = pycauset.keep_temp_files
         self._orig_root = pycauset._storage_root()
         self._orig_threshold = pycauset.get_memory_threshold()
-        self._orig_io_threshold = pycauset.get_io_streaming_threshold()
         pycauset.clear_io_traces()
 
     def tearDown(self) -> None:
         pycauset.keep_temp_files = self._orig_keep
         try:
             pycauset.set_memory_threshold(self._orig_threshold)
-        except Exception:
-            pass
-        try:
-            pycauset.set_io_streaming_threshold(self._orig_io_threshold)
         except Exception:
             pass
         try:
@@ -64,12 +59,11 @@ class TempStorageLifecycleTests(unittest.TestCase):
             self.assertTrue(second_path.exists())
             second_path.unlink(missing_ok=True)
 
-    def test_io_trace_reports_spill_and_events(self) -> None:
+    def test_io_trace_reports_spilled_operands(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             pycauset.set_backing_dir(tmp_path)
             pycauset.set_memory_threshold(1)
-            pycauset.set_io_streaming_threshold(16)
             pycauset.clear_io_traces()
 
             a = pycauset.TriangularMatrix(8, dtype="bool")
@@ -78,12 +72,11 @@ class TempStorageLifecycleTests(unittest.TestCase):
 
             trace = pycauset.last_io_trace("matmul")
             self.assertIsNotNone(trace)
-            storage = trace.get("storage", {})
-            self.assertTrue(storage.get("spilled"))
-            self.assertTrue(storage.get("temporary_files"))
-            events = trace.get("events", [])
-            self.assertTrue(any(evt.get("type") == "io" for evt in events))
-            self.assertTrue(any(evt.get("type") == "compute" for evt in events))
+            # Above the memory threshold the operands live in temporary files (F-100: the
+            # trace reports the operands' real storage).
+            self.assertEqual([o["storage"] for o in trace["operands"]], ["temp", "temp"])
+            self.assertTrue(all(o["backing_file"] for o in trace["operands"]))
+            self.assertTrue(trace["kernels"])
 
             for obj in (a, b, out):
                 try:

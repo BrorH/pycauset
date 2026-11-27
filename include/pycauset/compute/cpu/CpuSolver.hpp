@@ -25,7 +25,6 @@ public:
      */
     void gemm(const MatrixBase& a, const MatrixBase& b, MatrixBase& c, double alpha, double beta);
 
-    void inverse(const MatrixBase& in, MatrixBase& out);
     void cholesky(const MatrixBase& in, MatrixBase& out);
     void batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b);
 
@@ -35,7 +34,6 @@ public:
     void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
     void elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
     void elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
-    void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result);
 
     double dot(const VectorBase& a, const VectorBase& b);
     std::complex<double> dot_complex(const VectorBase& a, const VectorBase& b);

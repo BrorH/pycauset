@@ -68,8 +68,9 @@ pc.set_backing_dir("./storage")                # where file-backed matrices go
 pc.set_memory_threshold(256 * 1024**2)         # bytes; larger matrices use files
 ```
 
-Operations on file-backed matrices stream through RAM in tiles; the threshold for that is
-`pc.set_io_streaming_threshold(bytes)`.
+Operations that do not fit the RAM budget run tile by tile (the engine decides; see
+[[internals/Streaming Manager.md|Streaming Manager]]). `pc.last_io_trace(op)["streamed"]` says
+whether a call did.
 
 ## Things to avoid
 
@@ -82,6 +83,5 @@ Operations on file-backed matrices stream through RAM in tiles; the threshold fo
 
 - [[docs/functions/pycauset.set_backing_dir.md|pycauset.set_backing_dir]]
 - [[docs/functions/pycauset.set_memory_threshold.md|pycauset.set_memory_threshold]]
-- [[docs/functions/pycauset.set_io_streaming_threshold.md|pycauset.set_io_streaming_threshold]]
 - [[guides/Lazy Evaluation|Lazy Evaluation]]
 - [[internals/Streaming Manager.md|Streaming Manager]]

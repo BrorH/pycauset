@@ -10,9 +10,6 @@ class CudaSolver {
 public:
     CudaSolver(CudaDevice* device);
     
-    // Main entry point for inversion
-    void invert(const MatrixBase& in, MatrixBase& out);
-
     void add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
     void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
     void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result);

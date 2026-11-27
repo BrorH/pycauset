@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import functools
+
 import os
 from typing import Any
 
-from . import export_guard, io_observability
+from . import export_guard
 
 
 def _track_and_mark_temporary_if_native(obj: Any, *, deps: OpsDeps) -> None:
@@ -54,7 +56,6 @@ class OpsDeps:
         mark_temporary_if_auto: Any,
         warnings_module: Any,
         io_observer: Any | None,
-        streaming_manager: Any | None = None,
     ) -> None:
         self.native = native
         self.np_module = np_module
@@ -63,7 +64,6 @@ class OpsDeps:
         self.mark_temporary_if_auto = mark_temporary_if_auto
         self.warnings = warnings_module
         self.io_observer = io_observer
-        self.streaming_manager = streaming_manager
 
 
 def _safe_rows_cols(obj: Any) -> tuple[int, int] | None:
@@ -79,104 +79,23 @@ def _safe_rows_cols(obj: Any) -> tuple[int, int] | None:
     return None
 
 
-def _record_io_trace(op_name: str, operands: list[Any], *, deps: OpsDeps, allow_huge: bool = False, supports_streaming: bool = True) -> None:
-    manager = getattr(deps, "streaming_manager", None)
-    record = None
-    if manager is not None:
-        try:
-            record = manager.plan(op_name, operands, allow_huge=allow_huge)
-        except Exception:
-            record = None
-
-    if record is None:
-        observer = getattr(deps, "io_observer", None)
-        if observer is None:
-            return None
-        try:
-            record = observer.plan_and_record(op_name, operands, allow_huge=allow_huge)
-        except Exception:
-            return None
-
-    # Ops that cannot stream (e.g. LAPACK eigen/factorizations) are always "direct".
-    if not supports_streaming and isinstance(record, dict):
-        record["route"] = "direct"
-        record["reason"] = "op does not support streaming"
-    return record
+def _traced(op: str, n_operands: int = 1):
+    """Write an IO trace around the call (F-100): the first `n_operands` positional
+    arguments are the operands; the engine's kernel log says what ran."""
+    def wrap(fn):
+        @functools.wraps(fn)
+        def inner(*args: Any, deps: OpsDeps, **kwargs: Any) -> Any:
+            observer = deps.io_observer
+            if observer is None:
+                return fn(*args, deps=deps, **kwargs)
+            with observer.trace(op, list(args[:n_operands])):
+                return fn(*args, deps=deps, **kwargs)
+        return inner
+    return wrap
 
 
-def _prefetch_if_streaming(record: Any, operands: list[Any], *, deps: OpsDeps | None = None) -> None:
-    manager = getattr(deps, "streaming_manager", None) if deps is not None else None
-    if manager is not None:
-        try:
-            manager.prefetch(record, operands)
-            return
-        except Exception:
-            pass
-
-    try:
-        if record is None or record.get("route") != "streaming":
-            return
-    except Exception:
-        return
-
-    for obj in operands:
-        io_observability._try_io_prefetch(obj)
-    _append_event(record, event_type="io", detail="prefetch")
-
-
-def _discard_if_streaming(
-    record: Any, operands: list[Any], result: Any | None = None, *, deps: OpsDeps | None = None
-) -> None:
-    manager = getattr(deps, "streaming_manager", None) if deps is not None else None
-    if manager is not None:
-        try:
-            manager.discard(record, operands, result)
-            return
-        except Exception:
-            pass
-
-    try:
-        if record is None or record.get("route") != "streaming":
-            return
-    except Exception:
-        return
-    payloads = list(operands)
-    if result is not None:
-        payloads.append(result)
-    io_observability._discard_if_streaming(record, payloads)
-    _append_event(record, event_type="io", detail="discard")
-
-
-def _annotate_impl(record: Any, label: str, *, deps: OpsDeps | None = None) -> None:
-    manager = getattr(deps, "streaming_manager", None) if deps is not None else None
-    if manager is not None:
-        try:
-            manager.annotate_impl(record, label)
-            return
-        except Exception:
-            pass
-
-    try:
-        if isinstance(record, dict):
-            record["impl"] = label
-            _append_event(record, event_type="compute", detail=f"impl={label}")
-    except Exception:
-        return
-
-
-def _append_event(record: Any, *, event_type: str, detail: str) -> None:
-    try:
-        if not isinstance(record, dict):
-            return
-        events = record.setdefault("events", [])
-        events.append({"type": event_type, "detail": detail})
-    except Exception:
-        return
-
-
+@_traced("matmul", 2)
 def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    rec = _record_io_trace("matmul", [a, b], deps=deps)
-    _prefetch_if_streaming(rec, [a, b], deps=deps)
     # Phase F integration: BlockMatrix routing.
     # If either operand is a BlockMatrix, preserve 'once block, always block'
     # by returning a thunked BlockMatrix via block orchestration.
@@ -216,10 +135,8 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
             # were here (symmetric -> dense float64, triangular/diagonal -> float64) changed
             # result dtypes and duplicated engine paths (F-073).
             result = a @ b
-            _annotate_impl(rec, "native", deps=deps)
             deps.track_matrix(result)
             deps.mark_temporary_if_auto(result)
-            _discard_if_streaming(rec, [a, b], result, deps=deps)
             return result
 
     # Array-likes (NumPy arrays, nested lists): import, then the engine. No per-element or
@@ -257,53 +174,50 @@ def bitwise_not(matrix: Any, *, deps: OpsDeps) -> Any:
     return ~matrix
 
 
+@_traced("bitwise_and", 2)
 def bitwise_and(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """a & b with NumPy's dtype rules (bool & bool is bool; integers promote). Engine only."""
-    _record_io_trace("bitwise_and", [a, b], deps=deps)
     return a & b
 
 
+@_traced("bitwise_or", 2)
 def bitwise_or(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """a | b with NumPy's dtype rules. Engine only."""
-    _record_io_trace("bitwise_or", [a, b], deps=deps)
     return a | b
 
 
+@_traced("bitwise_xor", 2)
 def bitwise_xor(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """a ^ b with NumPy's dtype rules. Engine only."""
-    _record_io_trace("bitwise_xor", [a, b], deps=deps)
     return a ^ b
 
 
+@_traced("bitwise_nand", 2)
 def bitwise_nand(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Elementwise bitwise NAND (NOT AND)."""
-    _record_io_trace("bitwise_nand", [a, b], deps=deps)
     return bitwise_not(bitwise_and(a, b, deps=deps), deps=deps)
 
 
+@_traced("bitwise_nor", 2)
 def bitwise_nor(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Elementwise bitwise NOR (NOT OR)."""
-    _record_io_trace("bitwise_nor", [a, b], deps=deps)
     return bitwise_not(bitwise_or(a, b, deps=deps), deps=deps)
 
 
+@_traced("bitwise_xnor", 2)
 def bitwise_xnor(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Elementwise bitwise XNOR (NOT XOR)."""
-    _record_io_trace("bitwise_xnor", [a, b], deps=deps)
     return bitwise_not(bitwise_xor(a, b, deps=deps), deps=deps)
 
 
+@_traced("invert")
 def invert(matrix: Any, *, deps: OpsDeps) -> Any:
-    rec = _record_io_trace("invert", [matrix], deps=deps)
-    _prefetch_if_streaming(rec, [matrix], deps=deps)
     if not isinstance(matrix, deps.native.MatrixBase):
         raise TypeError("Object does not support matrix inversion.")
     # The engine inverts every dtype, structure and view (LinearAlgebra.cpp `inverse`); a
     # singular matrix raises. No NumPy fallback.
     result = matrix.invert()
-    _annotate_impl(rec, "native", deps=deps)
     _track_and_mark_temporary_if_native(result, deps=deps)
-    _discard_if_streaming(rec, [matrix], result, deps=deps)
     return result
 
 
@@ -325,10 +239,10 @@ def slogdet(a: Any, *, deps: OpsDeps) -> tuple[Any, float]:
     return a.slogdet()
 
 
+@_traced("cond")
 def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
     """Condition number, NumPy's definition (F-003): p None/2 is smax/smin, -2 is smin/smax
     (singular values from the engine's SVD); other p is ||A||_p * ||A^-1||_p. Singular: inf."""
-    _record_io_trace("cond", [a], deps=deps)
     a = _engine_matrix(a, deps=deps)
     if p is None or p == 2 or p == -2:
         smax = deps.native.matrix_norm(a, "2")
@@ -360,30 +274,31 @@ def _native_result(out: Any, *, deps: OpsDeps) -> Any:
 # compute/cpu/CpuLinalg.cpp) for every dtype, structure and view, in NumPy's LAPACK dtype;
 # no NumPy fallback (F-090). eigh/eigvalsh/cholesky read the lower triangle, as NumPy does.
 
+@_traced("eigh")
 def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     """Eigenvalues (real, ascending) and eigenvectors of a symmetric / Hermitian matrix."""
-    _record_io_trace("eigh", [a], deps=deps, supports_streaming=False)
     return _native_result(tuple(deps.native.eigh(_engine_matrix(a, deps=deps))), deps=deps)
 
 
+@_traced("eigvalsh")
 def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
     """Eigenvalues (real, ascending) of a symmetric / Hermitian matrix."""
-    _record_io_trace("eigvalsh", [a], deps=deps, supports_streaming=False)
     return _native_result(deps.native.eigvalsh(_engine_matrix(a, deps=deps)), deps=deps)
 
 
+@_traced("eig")
 def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     """Complex eigenvalues and right eigenvectors of a general square matrix."""
-    _record_io_trace("eig", [a], deps=deps, supports_streaming=False)
     return _native_result(tuple(deps.native.eig(_engine_matrix(a, deps=deps))), deps=deps)
 
 
+@_traced("eigvals")
 def eigvals(a: Any, *, deps: OpsDeps) -> Any:
     """Complex eigenvalues of a general square matrix."""
-    _record_io_trace("eigvals", [a], deps=deps, supports_streaming=False)
     return _native_result(deps.native.eigvals(_engine_matrix(a, deps=deps)), deps=deps)
 
 
+@_traced("eigvals_arnoldi")
 def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any:
     """Top-k eigenvalues by magnitude via restarted Lanczos/Arnoldi (native, Spectra).
 
@@ -392,12 +307,10 @@ def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any
     work without materializing. Raises RuntimeError if the iteration does not converge
     to `tol` (increase `m`). `m` is the Krylov subspace size (raised to at least 2k+1).
     """
-    rec = _record_io_trace("eigvals_arnoldi", [a], deps=deps)
     native_fn = getattr(deps.native, "eigvals_arnoldi", None)
     if native_fn is None:
         raise NotImplementedError("eigvals_arnoldi requires the native extension")
     out = native_fn(a, int(k), int(m), float(tol))
-    _discard_if_streaming(rec, [a], out, deps=deps)
     return out
 
 
@@ -453,22 +366,22 @@ def solve_triangular(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     return solve(a, b, deps=deps)
 
 
+@_traced("pinv")
 def pinv(a: Any, *, deps: OpsDeps) -> Any:
     """Moore-Penrose pseudoinverse, as NumPy's pinv: A = U S Vᴴ → A⁺ = V S⁺ Uᴴ, singular values
     at or below max(m, n) · eps · max(s) treated as zero (F-079, F-090)."""
-    _record_io_trace("pinv", [a], deps=deps)
     return _native_result(deps.native.pinv(_engine_matrix(a, deps=deps)), deps=deps)
 
 
+@_traced("trace")
 def trace(a: Any, *, deps: OpsDeps) -> Any:
     """Sum of the diagonal: exact int for integer matrices, float, or complex (F-059)."""
-    _record_io_trace("trace", [a], deps=deps)
     return _engine_matrix(a, deps=deps).trace()
 
 
+@_traced("determinant")
 def determinant(a: Any, *, deps: OpsDeps) -> Any:
     """Determinant of a square matrix: complex for complex matrices, else float (F-059)."""
-    _record_io_trace("determinant", [a], deps=deps)
     return _engine_matrix(a, deps=deps).determinant()
 
 
@@ -482,13 +395,13 @@ def _ord_name(ord: Any) -> str:
     raise ValueError(f"norm: invalid norm order {ord!r} for matrices")
 
 
+@_traced("norm")
 def norm(x: Any, ord: Any = None, *, deps: OpsDeps) -> float:
     """Matrix or vector norm with NumPy's orders, in the engine.
 
     Matrices: None/'fro', 'nuc', 1, -1, 2, -2, inf, -inf. Vectors: None (2-norm), any real p,
     inf, -inf, 0 (count of non-zeros).
     """
-    _record_io_trace("norm", [x], deps=deps)
     if isinstance(x, deps.native.VectorBase):
         return float(deps.native.norm(x) if ord is None else deps.native.vector_norm(x, float(ord)))
     x = _engine_matrix(x, deps=deps)
@@ -497,28 +410,28 @@ def norm(x: Any, ord: Any = None, *, deps: OpsDeps) -> float:
     return float(deps.native.matrix_norm(x, _ord_name(ord)))
 
 
+@_traced("svdvals")
 def svdvals(a: Any, *, deps: OpsDeps) -> Any:
     """Singular values of a matrix (the S vector of an SVD), descending; engine SVD (F-079)."""
-    _record_io_trace("svdvals", [a], deps=deps)
     _u, s, _vt = svd(a, full_matrices=False, deps=deps)
     return s
 
 
+@_traced("matrix_rank")
 def matrix_rank(a: Any, tol: Any = None, *, deps: OpsDeps) -> int:
     """Numerical rank: singular values above tol (NumPy's default tol when None), from the
     engine's SVD. The structural shortcuts that were here counted the non-zero diagonal of a
     triangular matrix (wrong: a strictly triangular matrix of ones has rank n - 1) and
     trusted user flags (F-090)."""
-    _record_io_trace("matrix_rank", [a], deps=deps)
     return int(deps.native.matrix_rank(_engine_matrix(a, deps=deps), -1.0 if tol is None else float(tol)))
 
 
+@_traced("matrix_power")
 def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
     """Integer power of a square matrix (A^n) via binary exponentiation.
 
     Structural shortcut: zero stays zero (n > 0).
     """
-    _record_io_trace("matrix_power", [a], deps=deps)
     shape = _safe_rows_cols(a)
     if shape is not None and shape[0] != shape[1]:
         raise ValueError("matrix_power requires a square matrix")
@@ -575,35 +488,35 @@ def _engine_vector(x: Any, *, deps: OpsDeps) -> Any:
     return pycauset.vector(deps.np_module.ravel(deps.np_module.asarray(x)))
 
 
+@_traced("outer", 2)
 def outer(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Outer product out[i, j] = a[i] * b[j], as NumPy's outer (any lengths, multiply dtype)."""
-    _record_io_trace("outer", [a, b], deps=deps)
     return _native_result(deps.native.outer(_engine_vector(a, deps=deps), _engine_vector(b, deps=deps)), deps=deps)
 
 
+@_traced("cross", 2)
 def cross(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Cross product of two 3-element vectors, as NumPy's cross (multiply dtype; bool raises)."""
-    _record_io_trace("cross", [a, b], deps=deps)
     return _native_result(deps.native.cross(_engine_vector(a, deps=deps), _engine_vector(b, deps=deps)), deps=deps)
 
 
+@_traced("vecdot", 2)
 def vecdot(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Conjugate dot product sum(conj(a) * b), as NumPy's vdot; for real input this is dot."""
-    _record_io_trace("vecdot", [a, b], deps=deps)
     return _engine_vector(a, deps=deps).conj().dot(_engine_vector(b, deps=deps))
 
 
+@_traced("cholesky")
 def cholesky(a: Any, *, deps: OpsDeps) -> Any:
     """Lower Cholesky factor L, A = L Lᴴ (reads the lower triangle, as NumPy). Not positive
     definite: ValueError (NumPy's LinAlgError is a ValueError)."""
-    _record_io_trace("cholesky", [a], deps=deps)
     return _native_result(deps.native.cholesky(_engine_matrix(a, deps=deps)), deps=deps)
 
 
+@_traced("qr")
 def qr(a: Any, mode: str = 'reduced', *, deps: OpsDeps) -> Any:
     """QR decomposition with NumPy's modes 'reduced' (Q m×k, R k×n), 'complete' (Q m×m, R m×n)
     and 'r' (R only). NumPy's 'raw' (LAPACK's Householder form) is not offered."""
-    _record_io_trace("qr", [a], deps=deps)
     if mode not in ("reduced", "complete", "r"):
         raise ValueError(f"qr: mode must be 'reduced', 'complete' or 'r' (got {mode!r})")
     q, r = deps.native.qr(_engine_matrix(a, deps=deps), mode == "complete")
@@ -612,10 +525,10 @@ def qr(a: Any, mode: str = 'reduced', *, deps: OpsDeps) -> Any:
     return _native_result((q, r), deps=deps)
 
 
+@_traced("svd")
 def svd(a: Any, full_matrices: bool = True, compute_uv: bool = True, *, deps: OpsDeps) -> Any:
     """SVD with NumPy's signature and shapes, computed by the engine (?gesdd) for every dtype,
     structure and view; no NumPy fallback (F-079)."""
-    _record_io_trace("svd", [a], deps=deps)
     if not isinstance(a, deps.native.MatrixBase):
         a = deps.Matrix(deps.np_module.asarray(a))
     u, s, vt = deps.native.svd(a, bool(full_matrices) and bool(compute_uv))
@@ -624,19 +537,19 @@ def svd(a: Any, full_matrices: bool = True, compute_uv: bool = True, *, deps: Op
     return (u, s, vt) if compute_uv else s
 
 
+@_traced("lu")
 def lu(a: Any, *, deps: OpsDeps) -> Any:
     """(P, L, U) with A = P L U, as SciPy's lu: P real (m×m), L unit lower (m×k), U (k×n)."""
-    _record_io_trace("lu", [a], deps=deps)
     return _native_result(tuple(deps.native.lu(_engine_matrix(a, deps=deps))), deps=deps)
 
 
+@_traced("solve", 2)
 def solve(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Solve AX = B (B a matrix or a vector) in the engine: any structure, view and dtype.
 
     The engine writes structured/viewed operands out and runs LAPACK ?gesv (F-068). There is
     no NumPy fallback: an engine error is the answer.
     """
-    _record_io_trace("solve", [a, b], deps=deps)
     native = (deps.native.MatrixBase, deps.native.VectorBase)
     a = a if isinstance(a, native) else _as_pycauset_array(deps.np_module.asarray(a), deps=deps)
     b = b if isinstance(b, native) else _as_pycauset_array(deps.np_module.asarray(b), deps=deps)

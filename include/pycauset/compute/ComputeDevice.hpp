@@ -27,9 +27,6 @@ public:
     // Core Operations
     virtual void matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
     
-    // Inversion
-    virtual void inverse(const MatrixBase& in, MatrixBase& out) = 0;
-
 
     // Batch Matrix-Vector Multiplication (A * X -> Y)
     // A is N x N
@@ -45,7 +42,6 @@ public:
     virtual void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
     virtual void elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
     virtual void elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;
-    virtual void multiply_scalar(const MatrixBase& a, double scalar, MatrixBase& result) = 0;
 
     // Vector Operations
     virtual double dot(const VectorBase& a, const VectorBase& b) = 0;
@@ -123,9 +119,6 @@ public:
     virtual std::string name() const = 0;
     virtual bool is_gpu() const = 0;
     
-    // 0 = Unknown, 1 = Float32, 2 = Float64
-    virtual int preferred_precision() const { return 1; } // Default to Float32
-
     // Hardware profiling (GPU implementations may populate this)
     virtual bool fill_hardware_profile(HardwareProfile& profile, bool run_benchmarks) { return false; }
 
