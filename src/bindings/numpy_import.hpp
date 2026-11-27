@@ -8,6 +8,8 @@
 #include "pycauset/core/DTypeDispatch.hpp"
 #include "pycauset/core/Float16.hpp"
 #include "pycauset/core/PromotionResolver.hpp"
+#include "pycauset/core/MemoryGovernor.hpp"
+#include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/matrix/ComplexFloat16Matrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
