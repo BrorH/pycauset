@@ -193,8 +193,10 @@ applies metadata (scalar, transpose). `mapper_->get_data()` is the raw pointer.
 
 ## Type system and dispatch
 
-PyCauset does not silently widen your types ("anti-promotion"): float32 in, float32
-out. It only promotes when you mix types (float32 with float64 -> float64).
+PyCauset does not silently widen your types: float32 in, float32 out. Mixing float32 with
+float64 in arithmetic gives float32 too ("underpromotion", with a `PyCausetDTypeWarning`;
+NumPy gives float64); linear algebra follows NumPy's LAPACK dtypes. The rules:
+[[internals/DType System]].
 
 Dispatch is templated, not virtual-per-element. At the operation level the code
 picks the instantiation for the operand dtype. See [[internals/DType System]].

@@ -41,6 +41,17 @@ def _catalog():
     sym = np.array([[1.0, 2, 3], [2, 5, 6], [3, 6, 9]])
     items["symmetric"] = lambda: pc.symmetric(sym)
     items["antisymmetric"] = lambda: pc.antisymmetric(sym - sym.T)
+    items["symmetric*-2 (scalar view)"] = lambda: pc.symmetric(sym) * -2
+    items["antisymmetric.T"] = lambda: pc.antisymmetric(sym - sym.T).T
+    herm = sym + 1j * np.array([[0, 1, -2], [-1, 0, 3], [2, -3, 0]])
+    items["hermitian"] = lambda: pc.hermitian(herm)
+    items["hermitian.conj()"] = lambda: pc.hermitian(herm).conj()
+    items["complex128.conj()"] = lambda: pc.matrix(_dense("complex128") * (1 + 2j)).conj()
+    items["complex128.H"] = lambda: pc.matrix(_dense("complex128") * (1 - 1j)).conj().T
+    # Windows (slices) of dense storage, plain and transposed.
+    items["dense-int16[1:4, 1:5]"] = lambda: pc.matrix(_dense("int16"))[1:4, 1:5]
+    items["dense-float64.T[1:5, 0:2]"] = lambda: pc.matrix(_dense("float64")).T[1:5, 0:2]
+    items["dense-float32[0:3, 2:5].T"] = lambda: pc.matrix(_dense("float32"))[0:3, 2:5].T
     return items
 
 

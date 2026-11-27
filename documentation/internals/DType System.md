@@ -70,6 +70,11 @@ When PyCauset underpromotes, it means:
 
 There is no silent widening of intermediates “for accuracy” in the default path.
 
+Linear algebra is the exception: `solve`, `inv`, `det`, `lstsq`, `svd` and the other LAPACK
+operations compute in NumPy's LAPACK dtype (`lapack_dtype` in `math/LinearAlgebra.cpp`):
+integers and bit in float64, float16 / float32 in float32, a float32 with a float64 operand in
+float64 (`solve(float32, float64)` is float64, as in NumPy).
+
 ## 3.1) Underpromotion within integers
 
 PyCauset applies the same ethos to integer widths as to floats: if an operation can be executed and stored in a smaller integer width, PyCauset will not silently widen “for safety”.

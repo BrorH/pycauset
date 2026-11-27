@@ -82,7 +82,8 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
       into a parametrized pytest grid (dtype × op × structure × storage
       {RAM, disk}), asserting values **and** dtypes against NumPy. Initially
       `xfail(strict=True)` for known-open findings, so fixes flip them green.
-- [ ] **1.6 View-metadata invariants test:** for every matrix class, element access ==
+- [x] **1.6 View-metadata invariants test** (`tests/engine/test_invariants.py`; session 9 added
+      windows, conj / H views, Hermitian, scaled and transposed antisymmetric): for every matrix class, element access ==
       NumPy export == `sum` == matmul-with-identity, after each of {scale,
       transpose, conj, slice} (catches the F-001 class of bugs).
 - [ ] **1.7 Doc-snippet test in CI** (`review/probes/run_doc_snippets.py` → `tests/docs/`),
