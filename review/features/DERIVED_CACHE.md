@@ -4,6 +4,12 @@
 > awesome if it was just stored alongside it ... BUT the second an object is changed ... it
 > must be discarded. Should survive through lazy scalings though."
 
+**Status (session 9):** D.1, D.2 (scalars, eigvals / eigvalsh), D.3 built
+(`include/pycauset/math/DerivedCache.hpp`; tests `tests/engine/test_derived_cache.py`).
+Deviation from the design below, deliberately: entries are keyed on the exact view instead of
+derived through the view rules, so a hit is bit-identical to recomputation. D.4 (matrix-valued
+results) and D.5 (closures as expression nodes) are open.
+
 Replaces the removed Python cache (F-081: invalidated on `.set()` only, so `M[0,0] = 100`
 left `sum` and `det` stale; propagated values through `+` without computing them). The
 rule in CLAUDE.md becomes: no result caching outside this mechanism.
