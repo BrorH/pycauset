@@ -649,3 +649,9 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   `causal_matrix` (coerce_general_matrix, coerce_sequence_rows) became `np.asarray` into the
   NumPy path; `ops._as_pycauset_vector` (no callers) removed. Newly tested: pc.matmul with
   array-like operands, causal_matrix from lists / matrices.
+- Silent-exception sweep (Python, second pass, 4.8): import guards around our own modules
+  (BlockMatrix, SubmatrixView, ThunkBlock, NumPy in persistence; 6 sites) turned any import
+  error into "feature absent" with `X is not None` checks downstream; they are plain imports
+  now. Saving a BlockMatrix no longer drops a child's integrity pin (payload_uuid) when
+  reading the just-written child fails: that raises. Kept: the Windows DLL search probes in
+  `_internal/native.py` (best-effort path discovery; to narrow after the Windows run).

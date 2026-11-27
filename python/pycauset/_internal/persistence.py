@@ -386,14 +386,10 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
     # Internal BlockMatrix persistence (Phase E).
     # This is not part of the public API surface; it exists to support the
     # block-matrix roadmap without introducing a new file format.
-    try:
-        from .blockmatrix import BlockMatrix  # local import to avoid cycles
-        from .thunks import ThunkBlock
-    except Exception:  # pragma: no cover
-        BlockMatrix = None  # type: ignore[assignment]
-        ThunkBlock = None  # type: ignore[assignment]
+    from .blockmatrix import BlockMatrix  # local import to avoid cycles
+    from .thunks import ThunkBlock
 
-    if BlockMatrix is not None and isinstance(obj, BlockMatrix):
+    if isinstance(obj, BlockMatrix):
         _save_blockmatrix(obj, path, deps=deps, BlockMatrix=BlockMatrix, ThunkBlock=ThunkBlock)
         return
 
@@ -570,10 +566,7 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
     matrix_type = metadata.get("matrix_type")
 
     if matrix_type == "BLOCK":
-        try:
-            from .blockmatrix import BlockMatrix
-        except Exception as e:  # pragma: no cover
-            raise ImportError("BlockMatrix support is unavailable") from e
+        from .blockmatrix import BlockMatrix
         return _load_blockmatrix(path, metadata, deps=deps, BlockMatrix=BlockMatrix)
 
     if "rows" not in metadata or "cols" not in metadata:
@@ -644,10 +637,7 @@ def _save_blockmatrix(
     BlockMatrix: Any,
     ThunkBlock: Any,
 ) -> None:
-    try:
-        from .submatrix_view import SubmatrixView
-    except Exception:  # pragma: no cover
-        SubmatrixView = None  # type: ignore[assignment]
+    from .submatrix_view import SubmatrixView
 
 
     def _numpy_dtype_hint_for(obj: Any) -> Any | None:
@@ -659,10 +649,7 @@ def _save_blockmatrix(
     def _materialize_view_block(view_obj: Any) -> Any:
         # Materialize to a small numpy array (block-local) and convert to a native matrix.
         asarray = deps.native.asarray
-        try:
-            import numpy as np  # type: ignore
-        except Exception as e:
-            raise TypeError("cannot save SubmatrixView blocks (NumPy unavailable)") from e
+        import numpy as np
 
         src = getattr(view_obj, "source", None)
         dtype_hint = _numpy_dtype_hint_for(src) if src is not None else None
@@ -739,13 +726,13 @@ def _save_blockmatrix(
             blk = obj.get_block(r, c)
 
             # Evaluate thunks blockwise on save.
-            if ThunkBlock is not None and isinstance(blk, ThunkBlock):
+            if isinstance(blk, ThunkBlock):
                 blk = blk.materialize()
 
 
             # Persisting a view requires writing stable storage. In Phase E we
             # materialize the view block-locally (no global densification).
-            if SubmatrixView is not None and isinstance(blk, SubmatrixView):
+            if isinstance(blk, SubmatrixView):
                 blk = _materialize_view_block(blk)
 
             child_name = f"block_r{r}_c{c}.pycauset"
@@ -757,7 +744,7 @@ def _save_blockmatrix(
             # Save recursively.
             # NOTE: BlockMatrix persistence is multi-file (sidecar directory), so using a
             # temp filename + rename would strand the sidecar directory under the temp name.
-            if BlockMatrix is not None and isinstance(blk, BlockMatrix):
+            if isinstance(blk, BlockMatrix):
                 save(blk, staged_child_path, deps=deps)
             else:
                 # Best-effort atomic replace for single-file children.
@@ -770,15 +757,14 @@ def _save_blockmatrix(
                 save(blk, tmp_child_path, deps=deps)
                 os.replace(str(tmp_child_path), str(staged_child_path))
 
-            # Pin child payload UUID for snapshot/integrity validation on load.
-            try:
-                child_meta, _ = _read_new_container_metadata_and_offset(staged_child_path)
-                child_uuid = child_meta.get("payload_uuid")
-                if isinstance(child_uuid, str) and child_uuid:
-                    row_entries.append({"path": child_name, "payload_uuid": child_uuid})
-                else:
-                    row_entries.append({"path": child_name})
-            except Exception:
+            # Pin child payload UUID for snapshot/integrity validation on load. The child
+            # was just written by `save`: failing to read it back is an error, not a reason to
+            # store the block without its integrity pin.
+            child_meta, _ = _read_new_container_metadata_and_offset(staged_child_path)
+            child_uuid = child_meta.get("payload_uuid")
+            if isinstance(child_uuid, str) and child_uuid:
+                row_entries.append({"path": child_name, "payload_uuid": child_uuid})
+            else:
                 row_entries.append({"path": child_name})
         children.append(row_entries)
 

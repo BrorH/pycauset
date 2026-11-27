@@ -696,30 +696,25 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
 
     # Internal BlockMatrix support (Phase F integration): if the input is already
     # an internal block/view/thunk matrix, treat it as a matrix.
-    try:
-        from ._internal.blockmatrix import BlockMatrix  # type: ignore
-        from ._internal.submatrix_view import SubmatrixView  # type: ignore
-        from ._internal.thunks import ThunkBlock  # type: ignore
-    except Exception:  # pragma: no cover
-        BlockMatrix = None  # type: ignore[assignment]
-        SubmatrixView = None  # type: ignore[assignment]
-        ThunkBlock = None  # type: ignore[assignment]
+    from ._internal.blockmatrix import BlockMatrix
+    from ._internal.submatrix_view import SubmatrixView
+    from ._internal.thunks import ThunkBlock
 
-    if BlockMatrix is not None and isinstance(source, BlockMatrix):
+    if isinstance(source, BlockMatrix):
         if dtype is not None or kwargs:
             raise TypeError(
                 "matrix(...) does not accept dtype/kwargs when source is already a matrix. "
                 "Pass data instead."
             )
         return source
-    if SubmatrixView is not None and isinstance(source, SubmatrixView):
+    if isinstance(source, SubmatrixView):
         if dtype is not None or kwargs:
             raise TypeError(
                 "matrix(...) does not accept dtype/kwargs when source is already a matrix. "
                 "Pass data instead."
             )
         return source
-    if ThunkBlock is not None and isinstance(source, ThunkBlock):
+    if isinstance(source, ThunkBlock):
         if dtype is not None or kwargs:
             raise TypeError(
                 "matrix(...) does not accept dtype/kwargs when source is already a matrix. "
@@ -763,11 +758,11 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
             def _is_matrix_obj(x: Any) -> bool:
                 if native_matrix_base is not None and isinstance(x, native_matrix_base):
                     return True
-                if BlockMatrix is not None and isinstance(x, BlockMatrix):
+                if isinstance(x, BlockMatrix):
                     return True
-                if SubmatrixView is not None and isinstance(x, SubmatrixView):
+                if isinstance(x, SubmatrixView):
                     return True
-                if ThunkBlock is not None and isinstance(x, ThunkBlock):
+                if isinstance(x, ThunkBlock):
                     return True
                 return False
 

@@ -60,13 +60,9 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     # Phase F integration: BlockMatrix routing.
     # If either operand is a BlockMatrix, preserve 'once block, always block'
     # by returning a thunked BlockMatrix via block orchestration.
-    try:
-        from .blockmatrix import BlockMatrix, block_matmul
-    except Exception:  # pragma: no cover
-        BlockMatrix = None  # type: ignore[assignment]
-        block_matmul = None  # type: ignore[assignment]
+    from .blockmatrix import BlockMatrix, block_matmul
 
-    if BlockMatrix is not None and (isinstance(a, BlockMatrix) or isinstance(b, BlockMatrix)):
+    if isinstance(a, BlockMatrix) or isinstance(b, BlockMatrix):
         if not isinstance(a, BlockMatrix):
             a = BlockMatrix([[a]])
         if not isinstance(b, BlockMatrix):
