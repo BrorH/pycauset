@@ -34,16 +34,20 @@ Convert between PyCauset snapshots and NumPy container formats.
 ## Examples
 
 ```python
+import numpy as np
 import pycauset as pc
 
+pc.save(pc.matrix([[1.0, 2.0], [3.0, 4.0]]), "A.pycauset")
 # Snapshot (.pycauset) -> NumPy .npy -> snapshot
 pc.convert_file("A.pycauset", "A.npy")
 pc.convert_file("A.npy", "A_roundtrip.pycauset")
 
 # Extract from an npz archive into a snapshot
+np.savez("bundle.npz", vector0=np.arange(4.0))
 pc.convert_file("bundle.npz", "vec.pycauset", npz_key="vector0")
 
 # Export to npz with explicit dtype and large-export opt-in
+pc.save(pc.zeros((4, 4)), "big.pycauset")
 pc.convert_file("big.pycauset", "big.npz", allow_huge=True, dtype="float32", npz_key="arr")
 ```
 

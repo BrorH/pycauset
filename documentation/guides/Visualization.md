@@ -38,8 +38,8 @@ subsampling uses a fixed internal seed too, so plotting the same causal set alwa
 shows the same subset.
 
 ```python
-c = pc.causet(n=100_000, seed=12345)
-c.plot_embedding().show()   # same subset every time
+c = pc.causet(n=5_000, seed=12345)
+c.plot_hasse().show()   # 500 of the 5,000 elements, the same 500 every time
 ```
 
 ## Large sets
@@ -56,9 +56,9 @@ number of points it draws. Above the cap it draws a seeded random subset and emi
 | `plot_causal_matrix` | 2,000 |
 
 ```python
-c.plot_embedding()               # warns + subsets above 50,000
-c.plot_embedding(force=True)     # render every point
-c.plot_embedding(max_points=10_000)   # a smaller subset
+c.plot_hasse()                   # warns + subsets above 500
+c.plot_hasse(max_points=200)     # a smaller subset
+c.plot_embedding(force=True)     # every point (here under the cap anyway)
 ```
 
 ## Customizing the plot

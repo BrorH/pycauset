@@ -1,37 +1,21 @@
 # pycauset.I
 
 ```python
-class pycauset.I(x)
-class pycauset.I(n: int)
-class pycauset.I(rows: int, cols: int)
+pycauset.I(n)
+pycauset.I(rows, cols)
 ```
 
-Alias for [[pycauset.IdentityMatrix]].
-
-`pycauset.I(x)` accepts the same input forms as [[docs/functions/pycauset.identity.md|pycauset.identity]]:
-
-- `N` (int) -> $N \times N$
-- `[rows, cols]` -> `rows × cols`
-- matrix -> `(x.rows(), x.cols())`
-- vector -> $N \times N$ where $N = x.size()$
+The [[docs/classes/matrix/pycauset.IdentityMatrix.md|IdentityMatrix]] class under a short
+name: `I(n)` is the n x n identity, `I(rows, cols)` has ones on the diagonal up to
+`min(rows, cols)`. Nothing is stored. For an identity shaped like a matrix or vector, use
+[[docs/functions/pycauset.identity.md|pycauset.identity]].
 
 ## Usage
 
 ```python
-import pycauset
+import pycauset as pc
 
-# Create a 1000x1000 identity matrix
-identity = pycauset.I(1000)
-
-# Create a rectangular identity-like matrix (ones on the diagonal up to min(rows, cols))
-rect_id = pycauset.I(3, 5)
-
-# Also supported:
-rect_id2 = pycauset.I([3, 5])
-
-A = pycauset.DenseMatrix(2, 4, dtype="float64")
-IA = pycauset.I(A)          # 2x4
-
-v = pycauset.DenseVector(7, dtype="int32")
-Iv = pycauset.I(v)          # 7x7
+eye = pc.I(1000)          # 1000 x 1000, no storage
+rect = pc.I(3, 5)         # ones at (0, 0), (1, 1), (2, 2)
+like = pc.identity(pc.zeros((2, 4)))   # 2 x 4, from a matrix's shape
 ```

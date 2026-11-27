@@ -8,8 +8,7 @@ Convert a NumPy array into a native PyCauset matrix or vector.
 
 This is the low-level NumPy-to-PyCauset conversion entry point. It maps the input
 array's shape and dtype to the matching native class, so the result participates in
-the full PyCauset storage model (memory-mapped backing files, bit-packed booleans,
-caching, etc.).
+the full PyCauset storage model (memory-mapped backing files, bit-packed booleans).
 
 For most workflows, prefer the data constructors [[docs/functions/pycauset.matrix.md|pycauset.matrix]] and
 [[docs/functions/pycauset.vector.md|pycauset.vector]], which accept both NumPy arrays and nested
@@ -52,12 +51,12 @@ import pycauset as pc
 
 arr = np.arange(6).reshape(2, 3)   # int64 2D
 M = pc.asarray(arr)
-assert type(M).__name__ == "DenseMatrix (int64)"
+assert type(M).__name__ == "DenseMatrix" and M.dtype == "int64"
 assert M.shape == (2, 3)
 
 b = np.full((2, 2), True, dtype=bool)   # a 2x2 boolean array
 B = pc.asarray(b)                       # bit-packed boolean matrix
-assert type(B).__name__ == "DenseMatrix (bool)"
+assert type(B).__name__ == "DenseMatrix" and B.dtype == "bool"
 ```
 
 ## See also

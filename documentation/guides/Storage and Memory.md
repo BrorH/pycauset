@@ -220,6 +220,7 @@ PyCauset ships one canonical snapshot format and a minimal NumPy bridge for pipe
 Example (convert snapshot → npy → snapshot without materializing into Python first):
 
 ```python
+pc.save(pc.zeros((3, 3)), "A.pycauset")
 pc.convert_file("A.pycauset", "A.npy")
 pc.convert_file("A.npy", "A_roundtrip.pycauset")
 ```

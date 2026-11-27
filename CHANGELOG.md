@@ -9,6 +9,8 @@ milestone corresponds to **v0.6.1**.
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
 ### Changed
+- Indexing follows NumPy's shapes: `M[0, :]`, `M[:, 0]` and paired index arrays
+  (`M[[0, 1], [2, 1]]`) return 1-D vectors (were 1 x n / n x 1 matrices).
 - Requires Python 3.10+ and NumPy 2 (the code already needed 3.10; NumPy 2's promotion rules
   are the oracle every test checks against). Was declared as 3.8+ and NumPy 1.20+.
 - Internal native helpers are no longer public names (`pc.sprinkle`, `pc.make_coordinates`,

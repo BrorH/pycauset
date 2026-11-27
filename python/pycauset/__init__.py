@@ -1370,7 +1370,7 @@ def diagonal(data: Any) -> Any:
 
 
 # Alias for IdentityMatrix
-I = getattr(_native, "IdentityMatrix", None)  # noqa: E741 (public identity alias, NumPy convention)
+I = _native.IdentityMatrix  # noqa: E741 (public identity alias, NumPy convention)
 
 # NumPy-compatible aliases: np.linalg.det -> det, np.linalg.matrix_rank -> rank shorthand.
 det = determinant

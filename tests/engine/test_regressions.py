@@ -580,3 +580,17 @@ def test_F099_upper_plus_diagonal_and_upper_times_dense():
     assert q.has_diagonal
     np.testing.assert_array_equal(to_np(q), rt * full)
     np.testing.assert_array_equal(to_np(t + t.T), rt + rt.T)  # upper + lower: dense
+
+
+@pytest.mark.parametrize("dtype", ["float64", "int32", "bool", "complex_float64"])
+def test_F112_integer_index_drops_the_axis_as_in_numpy(dtype):
+    """`M[0, :]`, `M[:, 0]`, mixed integer / array and paired index arrays are 1-D in NumPy;
+    PyCauset returned 1 x n / n x 1 matrices."""
+    a = (np.arange(12).reshape(3, 4) % 3).astype({"complex_float64": "complex128"}.get(dtype, dtype))
+    m = pc.matrix(a)
+    keys = [(0, slice(None)), (slice(None), 2), (-1, slice(None, None, -2)), (np.array([0, 2]), 1),
+            (1, np.array([3, 0])), (np.array([0, 1, 2]), np.array([3, 2, 1])), (slice(0, 1), slice(None))]
+    for key in keys:
+        got = m[key]
+        assert got.shape == a[key].shape, key
+        np.testing.assert_array_equal(np.asarray(got), a[key])

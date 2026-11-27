@@ -611,6 +611,15 @@ inline py::object dense_getitem(const DenseMatrix<T>& mat, const py::object& key
         return py::cast(mat.get(parsed.rows.index, parsed.cols.index));
     }
     auto sliced = slice_dense_matrix(mat, parsed.rows, parsed.cols);
+    // NumPy drops an integer-indexed axis (M[0, :] and M[:, 0] are 1-D), and paired index
+    // arrays pick elements (M[[0, 1], [2, 1]] is 1-D): the result is a vector (F-112).
+    const bool along_cols = parsed.rows.is_scalar || (parsed.rows.is_array && parsed.cols.is_array);
+    if (along_cols || parsed.cols.is_scalar) {
+        const uint64_t n = along_cols ? sliced->cols() : sliced->rows();
+        auto v = std::make_shared<DenseVector<T>>(n);
+        for (uint64_t k = 0; k < n; ++k) v->set(k, along_cols ? sliced->get(0, k) : sliced->get(k, 0));
+        return py::cast(v);
+    }
     return py::cast(sliced);
 }
 

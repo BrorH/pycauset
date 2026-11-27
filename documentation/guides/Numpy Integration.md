@@ -123,10 +123,12 @@ Example:
 
 ```python
 # Snapshot -> npy -> snapshot round-trip
+pc.save(pc.matrix(np.eye(3)), "A.pycauset")
 pc.convert_file("A.pycauset", "A.npy")
 pc.convert_file("A.npy", "A_roundtrip.pycauset")
 
 # Pick a specific array inside an npz
+np.savez("bundle.npz", vector0=np.arange(4.0))
 pc.convert_file("bundle.npz", "vec.pycauset", npz_key="vector0")
 ```
 

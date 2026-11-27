@@ -352,7 +352,8 @@ are engine-owned metadata on the storage).
   dev/ (all pages; four historical ones deleted), BENCHMARKS.md, the Visualization guide.
   Every public name now needs a doc page (test). Next: documentation/project (Philosophy,
   Contributing, protocols, Public API Contract) and the R2 plans under project/plans.
-- [ ] 5.1 Fix every broken snippet (F-008); the snippet test is green. Includes removing GPU
+- [x] 5.1 Fix every broken snippet (F-008); the snippet test is green (every page with code,
+      81 pages, session 9). Includes removing GPU
       prose from guides/internals (pages moved in 4.0; prose left for this pass)
 - [ ] 5.2 API reference generated from docstrings, one page per public function/class
       (NumPy-style); no pages for missing symbols. **Style rules:** lead with what it
@@ -360,7 +361,8 @@ are engine-owned metadata on the storage).
       runnable example; NumPy differences called out explicitly. No marketing words,
       no restating the name as a sentence, no "powerful/seamless/robust", no padding
       sections. Every example is executed in CI.
-- [ ] 5.3 Delete historical plans/archive; one ROADMAP; merge dev/ + internals/
+- [~] 5.3 Delete historical plans/archive (done); one ROADMAP (needs the maintainer); merge
+      dev/ + internals/
 - [~] 5.4 README and BENCHMARKS claims re-measured (BENCHMARKS done on Linux, F-108; the
       maintainer's Windows numbers next) ("≥0.90× NumPy", "bigger than RAM")
 - [ ] 5.5 ARCHITECTURE.md moves into `documentation/internals/` as the canonical map

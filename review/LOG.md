@@ -515,3 +515,13 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   (the Functions list is generated from the files; a Developers section holds dev/ and
   project/). docs.yml installs requirements-docs.txt. Remaining build warnings are
   roamlinks reading `[[1, 2], [3, 4]]` in code blocks as links (rendering is correct).
+- PLAN 5.1 done: `test_doc_snippets.py` now runs every page with Python code (README, all
+  guides, all API pages: 81 pages; blocks from the first `import` on, earlier ones are
+  signatures). Running them all found: F-111 (docs said slices write through; views are
+  copy-on-write: docs fixed, maintainer question), F-112 (integer / paired-array indices
+  kept two axes: fixed), `pc.I` documented with `identity`'s input forms (it is the
+  IdentityMatrix class), asarray's class names, `pc.np` in the Matrix Guide, examples using
+  files they never created, an inverse of a 2 x 3 matrix, CausalSet method signatures
+  tagged as runnable code. The Visualization guide sprinkled 100,000 points (90 s); now
+  5,000. Pages run with lazy results on (the default) under PYCAUSET_LAZY=0 too.
+- Gates: 4,191 + 4,133 (lazy off) passed, atlas CI 42, docs build clean.

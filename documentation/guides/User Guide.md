@@ -74,7 +74,9 @@ W = A[0:1, :]            # a window
 At @ A                   # kernels read the views directly
 ```
 
-Writing into a view folds the view into storage first, so the write means what it says.
+Views are values: writing into a view (or into its source) first gives the written object its
+own copy, so the write never shows through to the other. NumPy views write through; this
+is a deliberate difference (it is what keeps loaded files and lazy results unchanged).
 
 ## Linear algebra
 

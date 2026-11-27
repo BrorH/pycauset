@@ -1445,3 +1445,23 @@ the entry (the history is useful). New findings go at the bottom with the next f
   `_`-prefixed, `pc.seed` is gone, `pc.materialize` and `pc.debug_mode` got pages, and
   `test_every_public_name_has_a_doc_page` keeps it so (it replaces
   `tools/audit_public_surface.py`).
+
+### F-111 Docs said slices write through to their source; views are copy-on-write
+- **Status:** docs fixed (session 9); **maintainer question** below. The Matrix Guide said
+  "`M[:, 1:]` returns a view; mutations reflect in the source" with an example asserting it;
+  in fact every view (window, `.T`, `.conj()`, scaled) shares storage only until the first
+  write, then the written object copies (`ensure_unique`). `sub[0,0] = 20` leaves `M`
+  unchanged, and `M[0,1] = 77` leaves an existing `sub` unchanged. NumPy writes through for
+  basic slices and `.T`. Found by running every API page and guide's code (Phase 5.1).
+- The copy-on-write rule is what keeps loaded snapshot files (F-093) and lazy results
+  correct, and it is consistent across view kinds, so the docs now state it as a deliberate
+  difference (Matrix Guide, User Guide).
+- **Question:** keep value semantics (today), or make windows and `.T` write through as in
+  NumPy (a write into a view of a snapshot or lazy result would then have to raise)?
+
+### F-112 Integer and paired-array indices kept two axes (NumPy gives 1-D)
+- **Status:** fixed (session 9). `M[0, :]` was a 1 x n matrix and `M[:, 0]` n x 1, also with an
+  index array on the other axis; `M[[0, 1], [2, 1]]` (paired arrays) was 1 x 2. NumPy drops an
+  integer-indexed axis and returns picked elements as 1-D. Dense `__getitem__` now returns a
+  `DenseVector` in those cases (every dtype). Found running the Matrix Guide (its comment
+  documented the 1 x 2 shape). `test_F112_*`.

@@ -1,6 +1,6 @@
 # pycauset.CausalSet
 
-```python
+```py
 class CausalSet(n=None, density=None, spacetime=None, seed=None, matrix=None, validate=True)
 ```
 
@@ -19,7 +19,7 @@ The `CausalSet` class represents a causal set, a discrete partial order. It is t
 
 ### causal_matrix / C
 
-```python
+```py
 @property
 def causal_matrix(self) -> TriangularMatrix (bool)
 ```
@@ -28,7 +28,7 @@ The causal matrix (`C[i, j] == 1` iff `i ≺ j`). `C` is an alias.
 
 ### n / N
 
-```python
+```py
 @property
 def n(self) -> int
 ```
@@ -37,7 +37,7 @@ The number of elements.
 
 ### density / rho
 
-```python
+```py
 @property
 def density(self) -> float
 ```
@@ -46,7 +46,7 @@ The sprinkling density, `n / volume`.
 
 ### spacetime
 
-```python
+```py
 @property
 def spacetime(self) -> MinkowskiDiamond
 ```
@@ -57,7 +57,7 @@ The spacetime used for sprinkling.
 
 ### validate
 
-```python
+```py
 def validate(self) -> None
 ```
 
@@ -65,7 +65,7 @@ Validates that the order is a strict partial order (reflexive-free, antisymmetri
 
 ### coordinates
 
-```python
+```py
 def coordinates(self, indices=None, force=False) -> np.ndarray
 ```
 
@@ -73,7 +73,7 @@ Returns the spacetime coordinates of the elements, `(n, d)`, regenerated from `(
 
 ### links
 
-```python
+```py
 def links(self) -> np.ndarray
 ```
 
@@ -81,7 +81,7 @@ The link (Hasse) matrix, the transitive reduction `L = C & ~(C@C)`.
 
 ### past / future
 
-```python
+```py
 def past(self, x) -> np.ndarray
 def future(self, x) -> np.ndarray
 ```
@@ -90,7 +90,7 @@ Indices `i` with `i ≺ x` (`past`) or `x ≺ i` (`future`).
 
 ### interval
 
-```python
+```py
 def interval(self, x, y) -> np.ndarray
 ```
 
@@ -98,7 +98,7 @@ The Alexandrov interval `I(x, y) = future(x) ∩ past(y)`.
 
 ### is_chain / is_antichain
 
-```python
+```py
 def is_chain(self, elements) -> bool
 def is_antichain(self, elements) -> bool
 ```
@@ -107,7 +107,7 @@ Whether the given elements are pairwise comparable / pairwise incomparable.
 
 ### longest_chain
 
-```python
+```py
 def longest_chain(self) -> np.ndarray
 ```
 
@@ -115,7 +115,7 @@ A longest causal chain (indices); its length is the poset's height.
 
 ### layers
 
-```python
+```py
 def layers(self) -> list[np.ndarray]
 ```
 
@@ -123,7 +123,7 @@ Ranked layering: `layers[k]` holds the elements whose longest past-chain has len
 
 ### relation_fraction
 
-```python
+```py
 def relation_fraction(self) -> float
 ```
 
@@ -131,7 +131,7 @@ The fraction of element pairs that are causally related (`R / C(n, 2)`).
 
 ### myrheim_meyer_dimension
 
-```python
+```py
 def myrheim_meyer_dimension(self) -> float
 ```
 
@@ -139,7 +139,7 @@ The Myrheim–Meyer dimension estimate, inverting the relation fraction `f(d) = 
 
 ### save / load
 
-```python
+```py
 def save(self, path) -> None
 @staticmethod
 def load(path) -> CausalSet

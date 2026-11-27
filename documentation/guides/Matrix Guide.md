@@ -147,16 +147,21 @@ M64 = pc.empty((5000, 5000), dtype="float64")
 
 PyCauset implements NumPy-like 2D indexing for dense matrices. Block matrices support element access and block-aware slicing via tiled `SubmatrixView` (no densify); structured/triangular matrices still reject slicing.
 
-### Basic indexing → views (shared storage)
+### Basic indexing → views (shared until written)
 
 * Supported: integers (negative wrap), `:`, `slice` with step (±), `...`.
-* Returns a view when both row/col steps are `1`; mutations reflect in the source.
+* With both steps `1` the result is a view: it reads `M`'s storage, no copy.
+* **Views are values (a difference from NumPy).** Writing into a view, or into `M` while a
+  view of it exists, first gives the written object its own copy (copy-on-write): the write
+  never shows through to the other. NumPy's basic slices and `.T` write through. The same
+  rule protects loaded snapshot files and lazy results.
 
 ```python
 M = pc.matrix([ [1, 2, 3], [4, 5, 6] ], dtype="float64")
-sub = M[:, 1:]          # view, shares backing
-sub[0, 0] = 20
-assert M[0, 1] == 20
+sub = M[:, 1:]          # a view: no copy
+assert sub[0, 0] == 2
+sub[0, 0] = 20          # sub gets its own storage
+assert M[0, 1] == 2 and sub[0, 0] == 20
 ```
 
 ### Advanced indexing → copies
@@ -165,9 +170,10 @@ assert M[0, 1] == 20
 * Any use of arrays (alone or mixed with basic) returns a copy with NumPy shape rules; two array axes must have equal length or length-1.
 
 ```python
-rows = pc.np.array([0, 1], dtype=int)
-cols = pc.np.array([2, 1], dtype=int)
-picked = M[rows, cols]   # copy; shape (1, 2) after broadcast
+rows = np.array([0, 1], dtype=int)
+cols = np.array([2, 1], dtype=int)
+picked = M[rows, cols]   # elements (0, 2) and (1, 1): a 1-D vector, as in NumPy
+row = M[0, :]            # 1-D (an integer index drops its axis)
 ```
 
 ### Assignment with broadcasting
@@ -177,10 +183,10 @@ picked = M[rows, cols]   # copy; shape (1, 2) after broadcast
 * Casting RHS arrays triggers `PyCausetDTypeWarning`; narrowing or float→int casts also trigger `PyCausetOverflowRiskWarning`.
 
 ```python
-rhs = pc.np.arange(6).reshape(2, 3)
+rhs = np.arange(6).reshape(2, 3)
 M[:2, :3] = rhs          # broadcasts OK
 
-M[:, :2] = pc.np.array([1.5, 2.5], dtype=pc.np.float32)  # warns: cast float32 → float64
+M[:, :2] = np.array([1.5, 2.5], dtype=np.float32)  # warns: cast float32 → float64
 ```
 
 ### Unsupported (current build)
@@ -246,11 +252,11 @@ PyCauset includes a suite of linear algebra tools.
 
 ## Inversion
 
-Matrix inversion is supported for selected floating-point dense matrices and requires a square matrix (`rows == cols`).
+`pc.invert` works for every dtype, structure and view (integers invert to float64, as in NumPy); the matrix must be square.
 
 ```python
 # Compute inverse
-Inv = M.inverse()
+Inv = pc.invert(pc.matrix([[4.0, 7.0], [2.0, 6.0]]))
 ```
 
 
