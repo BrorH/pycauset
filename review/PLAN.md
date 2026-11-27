@@ -379,7 +379,12 @@ are engine-owned metadata on the storage).
 - [x] 6.0a LAPACK without row-major LAPACKE transposes (F-108; done: see BENCHMARKS.md): solve / invert / det / eigh at
       0.5-0.7x NumPy, the column-major call on the same buffer is 2x faster than NumPy
 - [x] 6.0b `lstsq` through `?gelsd` (NumPy's routine) instead of `pinv(a) @ b` (0.65x)
-- [ ] 6.1 Elementwise/vector parity (F-012): profile the wrapper stack vs the kernels
+- [~] 6.1 Elementwise/vector parity (F-012): profile the wrapper stack vs the kernels.
+      Session 9: char-type aliasing (ParallelForRange), packed structured kernels (F-099),
+      bulk stored-value reads (F-115), compile-time operator loops, structured matvec over
+      packed storage, chunked sums, unit-vector dot, gemv forwarding. Left: per-call
+      overhead (~2 us of Python layers per op), complex32 and bool structured operands,
+      symmetric matvec (0.3x: needs a blocked symv-style kernel), page-faulting fresh results.
 - [ ] 6.2 Thread-pool consolidation (F-014)
 - [x] 6.3 Out-of-core paths for eigh/svd/rank (F-011) or document them as in-RAM only
       (documented, session 9)
