@@ -9,7 +9,7 @@ import re
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-CHECKED = ["README.md", "documentation/guides/Quickstart.md"]
+CHECKED = ["README.md", "documentation/guides/Quickstart.md", "documentation/guides/Examples.md"]
 
 
 @pytest.mark.parametrize("page", CHECKED)

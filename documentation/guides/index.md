@@ -6,34 +6,18 @@ bottom the first time, then come back to whatever section you need.
 ```mermaid
 flowchart LR
     A[Install] --> B[Quickstart]
-    B --> C[Causal set]
-    C --> D[Spacetime]
-    C --> E[Field]
-    E --> F[Propagators]
-    C --> G[Plot]
-    C --> H[Save / load]
+    B --> C[Matrices and vectors]
+    C --> D[Linear algebra]
+    C --> E[Storage and files]
+    D --> F[Performance]
 ```
 
 ## Start here
 
 - **[[guides/Installation|Installation]]** — pip or from source.
-- **[[guides/Quickstart|Quickstart]]** — five minutes to a causet, a field, and a plot.
-- **[[guides/User Guide|User Guide]]** — the guided tour: how the pieces fit, with a running example.
-
-## Learn the concepts
-
-Each of these introduces one idea and shows it working.
-
-- **[[guides/Causal Sets|Causal Sets]]** — sprinkle points and read the order.
-- **[[guides/Analyzing a Causal Set|Analyzing a Causal Set]]** — links, chains, dimension estimates, entropy.
-- **[[guides/Spacetime|Spacetime]]** — the built-in regions, and how to define your own.
-- **[[guides/Field Theory|Field Theory]]** — scalar fields, propagators, and the Sorkin-Johnston vacuum.
-- **[[guides/Visualization|Visualization]]** — embedding, Hasse, and causal-matrix plots.
-
-## Walk through examples
-
-- **[[guides/Tutorials|Tutorials]]** — end-to-end walkthroughs: dimension estimates, propagators, synthetic orders, and more.
-- **[[guides/Examples|Examples]]** — short, copy-paste recipes across the whole surface.
+- **[[guides/Quickstart|Quickstart]]** — ten minutes to linear algebra on a causal matrix.
+- **[[guides/User Guide|User Guide]]** — the guided tour of the engine.
+- **[[guides/Examples|Examples]]** — short, copy-paste recipes.
 
 ## Data in and out
 
@@ -43,19 +27,21 @@ Each of these introduces one idea and shows it working.
 
 ## The matrix engine
 
-The physics sits on top of a matrix/vector engine you can also use directly.
-
 - **[[guides/Matrix Guide|Matrix Guide]]** — matrix types, dtypes, and operations.
 - **[[guides/Vector Guide|Vector Guide]]** — vectors and vector arithmetic.
 - **[[guides/Linear Algebra Operations|Linear Algebra Operations]]** — matmul, solves, factorizations, spectral/SVD.
 - **[[guides/NxM Support|NxM Support]]** — what is and isn't rectangular yet.
+
+## Views and laziness
+
+- **[[guides/Lazy Evaluation|Lazy Evaluation]]** — which results are views, and when they materialize.
 
 ## Scale and tuning
 
 For large runs and when you need to control the machine.
 
 - **[[guides/Performance Guide|Performance Guide]]** — what is accelerated, and how to keep it that way.
-- **[[guides/Advanced Usage|Advanced Usage]]** — memory, threads, storage location, device routing.
+- **[[guides/Advanced Usage|Advanced Usage]]** — memory, threads, storage location, IO traces.
 
 ---
 

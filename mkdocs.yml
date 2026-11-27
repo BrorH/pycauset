@@ -98,7 +98,6 @@ nav:
       - User Guide: guides/User Guide.md
     - Concepts:
     - Walkthroughs:
-      - Tutorials: guides/Tutorials.md
       - Examples: guides/Examples.md
     - Data in and out:
       - Saving and Loading Data: guides/Saving and Loading Data.md

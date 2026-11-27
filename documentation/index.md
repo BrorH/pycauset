@@ -14,7 +14,7 @@ title: PyCauset
 
 <h1 class="visually-hidden">PyCauset</h1>
 
-**A high-performance Python library for numerical Causal Set Theory**
+**NumPy for causal sets: a matrix engine for numerical causal set theory**
 
 [Get started](guides/index/){ .md-button .md-button--primary }
 [API reference](docs/index/){ .md-button }
@@ -23,15 +23,16 @@ title: PyCauset
 
 ## Welcome to PyCauset
 
-PyCauset is a numerical tool for causal set theory. Causal sets are computationally
-demanding: a set of size $N$ has an $O(N^2)$ causal matrix, and
-[NumPy](https://numpy.org/) or [SciPy](https://scipy.org/) are not built for very
-large $N$.
+Causal set theory runs on large matrices: a causal set of $N$ elements has an
+$N \times N$ causal matrix, and its physics is linear algebra on it (powers, closures,
+propagators, spectra). PyCauset is that linear algebra with [NumPy](https://numpy.org/)'s
+interface and results, built for these matrices: causal matrices stored one bit per element,
+classes that know their structure (triangular, symmetric, diagonal, ...), and storage that
+moves to disk when RAM runs out. Small matrices behave like NumPy arrays; large ones are
+limited by disk and time. See the [philosophy](project/Philosophy/) page.
 
-PyCauset handles that by spilling large matrices to disk automatically, so your
-matrix size is limited only by disk and time. Small matrices behave like NumPy
-arrays. See the [philosophy](project/Philosophy/) page.
-
+The physics layer (spacetimes, sprinkling, fields, plots) is parked while R1 completes the
+engine.
 
 ## Documentation
 
@@ -44,10 +45,9 @@ arrays. See the [philosophy](project/Philosophy/) page.
     Practical tutorials and conceptual explanations.
 
     - [[guides/Installation|Installation]]
+    - [[guides/Quickstart|Quickstart]]
     - [[guides/User Guide|User Guide]]
-    - [[guides/Causal Sets|Causal Sets]]
-    - [[guides/Field Theory|Field Theory]]
-    - [[guides/Visualization|Visualization]]
+    - [[guides/Linear Algebra Operations|Linear Algebra]]
     - [[guides/Performance Guide|Performance]]
     - [[guides/Storage and Memory|Storage]]
 
@@ -57,8 +57,8 @@ arrays. See the [philosophy](project/Philosophy/) page.
 
     Detailed documentation of classes and functions.
 
-    - [[docs/classes/index|Classes]]: `CausalSet`, `Matrix`, `Vector`, `Spacetime`
-    - [[docs/functions/index|Functions]]: `matmul`, `inverse`, and more
+    - [[docs/classes/index|Classes]]: matrix and vector classes by structure
+    - [[docs/functions/index|Functions]]: `matmul`, `solve`, `eigh`, and more
 
 -   :material-brain: **Internals**
 
