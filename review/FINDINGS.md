@@ -1484,6 +1484,13 @@ the entry (the history is useful). New findings go at the bottom with the next f
   difference (Matrix Guide, User Guide).
 - **Question:** keep value semantics (today), or make windows and `.T` write through as in
   NumPy (a write into a view of a snapshot or lazy result would then have to raise)?
+- **Decided (maintainer delegated, session 9): keep value semantics.** Making and reading a
+  view costs the same either way (O(1), shared storage). The two differ only when you write
+  into a view: copy-on-write copies once, write-through does not. In return, value semantics
+  is what makes the cheap lazy forms safe (scale and transpose as metadata, `C + C.T`
+  closures, loaded snapshots, the planned derived-value cache): with write-through, any of
+  them could change under a reader. Writing into part of a matrix stays in place through the
+  source: `M[a:b, c:d] = X`.
 
 ### F-112 Integer and paired-array indices kept two axes (NumPy gives 1-D)
 - **Status:** fixed (session 9). `M[0, :]` was a 1 x n matrix and `M[:, 0]` n x 1, also with an
