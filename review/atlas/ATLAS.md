@@ -67,7 +67,7 @@ Views not offered (structure/dtype/view): antisymmetric/complex_float16/rect_T, 
 
 ## Cells with no kernel trace
 
-Kernels that set no `debug_trace` name (the path is then inferred from the counters alone): add_scalar ×1312, radd_scalar ×1312, rsub_scalar ×1312, mul_scalar_float ×1312, div_scalar ×1312, rdiv_scalar ×1312, mul_scalar_complex ×1312, sum ×1312, export ×1279, neg ×1263, save_load ×1222, trace ×1042, getitem ×1042, det ×455, slogdet ×455, inv ×207, matmul ×116, mul ×104, matvec ×104, vecmat ×104, matrix_power ×104, add ×99, sub ×99, dot ×32.
+Kernels that set no `debug_trace` name (the path is then inferred from the counters alone): add_scalar ×1312, radd_scalar ×1312, rsub_scalar ×1312, mul_scalar_float ×1312, div_scalar ×1312, rdiv_scalar ×1312, mul_scalar_complex ×1312, sum ×1312, export ×1279, neg ×1263, save_load ×1222, getitem ×1042, trace ×1042, det ×455, slogdet ×455, inv ×207, matmul ×116, mul ×104, matvec ×104, vecmat ×104, matrix_power ×104, add ×99, sub ×99, dot ×32.
 
 ## add (elementwise)
 

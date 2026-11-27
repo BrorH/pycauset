@@ -634,3 +634,9 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   float64 1M: 6.8 ms -> 0.16 ms (NumPy 0.05-0.35 ms by run), float32 faster than NumPy.
   Integer unit vectors with integer vectors return an exact Python int like every other
   integer dot (they returned a float).
+- sum: integer and float32/float64 sums run in parallel chunks over the flat storage (full
+  dense matrices and vectors) or bulk-read row tiles (triangular, symmetric family, transposed
+  and windowed dense); small integer types accumulate in int64 per chunk (exact), 64-bit ones
+  in 128 bits; floats with four accumulators. Chunks combine in order (deterministic). 1M
+  elements: int32 vector 2.3 ms -> 0.12 ms, dense float64 0.69 -> 0.15 ms, symmetric int32
+  0.81 -> 0.38 ms (NumPy ~0.29 ms). Full atlas: 0 wrong.

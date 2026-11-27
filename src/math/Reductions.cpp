@@ -1,6 +1,9 @@
 #include "pycauset/math/Reductions.hpp"
 
 #include <algorithm>
+#include <atomic>
+#include <memory>
+#include <optional>
 #include <bit>
 #include <stdexcept>
 #include <type_traits>
@@ -10,6 +13,7 @@
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/math/VectorOps.hpp"
+#include "pycauset/math/RawRows.hpp"
 #include "pycauset/math/ViewRead.hpp"
 #include "pycauset/matrix/BitClosureMatrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
@@ -75,6 +79,80 @@ __int128 count_ones(const DenseMatrix<bool>& m) {
         }
         return cnt;
     }, __int128(0));
+}
+
+// Sum of len stored integers, each scaled by k with NumPy's wrap. Small types with k == 1
+// accumulate in int64 (|x| < 2^32 and len < 2^31: exact; it vectorizes), others in 128 bits.
+template <typename T>
+__int128 chunk_sum_int(const T* __restrict p, uint64_t len, int64_t k) {
+    if (k == 1 && sizeof(T) <= 4 && len < (uint64_t{1} << 31)) {
+        int64_t a0 = 0, a1 = 0;
+        uint64_t i = 0;
+        for (; i + 2 <= len; i += 2) { a0 += static_cast<int64_t>(p[i]); a1 += static_cast<int64_t>(p[i + 1]); }
+        if (i < len) a0 += static_cast<int64_t>(p[i]);
+        return static_cast<__int128>(a0) + a1;
+    }
+    __int128 acc = 0;
+    for (uint64_t i = 0; i < len; ++i) acc += k == 1 ? static_cast<__int128>(p[i]) : scalar::wrap_scale<T>(p[i], k);
+    return acc;  // len < 2^40 values below 2^64: no overflow
+}
+
+// Sum of len stored floats in double, four accumulators (one would serialise on the add).
+template <typename T>
+double chunk_sum_real(const T* __restrict p, uint64_t len) {
+    double a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+    uint64_t i = 0;
+    for (; i + 4 <= len; i += 4) {
+        a0 += static_cast<double>(p[i]); a1 += static_cast<double>(p[i + 1]);
+        a2 += static_cast<double>(p[i + 2]); a3 += static_cast<double>(p[i + 3]);
+    }
+    for (; i < len; ++i) a0 += static_cast<double>(p[i]);
+    return (a0 + a1) + (a2 + a3);
+}
+
+// Sum over every logical element of a dense / triangular / symmetric-family matrix of its
+// stored values (view factor not applied): flat over the storage of a full dense matrix
+// (element order is irrelevant to a sum: transposes too), else a tile of rows at a time through
+// the bulk reader (math/RawRows.hpp). Chunk results combine in chunk order (deterministic).
+// nullopt when the class has no bulk reader.
+template <typename Acc, typename T, typename M, typename Chunk, typename Combine>
+std::optional<Acc> bulk_sum(const M& typed, const MatrixBase& m, Chunk chunk, Combine combine) {
+    if constexpr (!has_raw_rows_v<T, M>) {
+        return std::nullopt;
+    } else {
+        const Structure st = m.get_structure();
+        if (st == Structure::DIAGONAL || st == Structure::IDENTITY) return std::nullopt;
+        const uint64_t rows = m.rows(), cols = m.cols();
+        std::vector<Acc> part;
+        if constexpr (std::is_same_v<M, DenseMatrix<T>>) {
+            if (!m.is_subview() && rows * cols == m.base_rows() * m.base_cols()) {
+                const T* p = typed.data();
+                const uint64_t total = rows * cols;
+                constexpr uint64_t B = uint64_t{1} << 14;
+                part.assign((total + B - 1) / B, Acc{});
+                ParallelFor(0, part.size(), [&](size_t c) {
+                    const uint64_t b = c * B;
+                    part[c] = chunk(p + b, std::min(total, b + B) - b);
+                });
+                Acc acc{};
+                for (const Acc& x : part) acc = combine(acc, x);
+                return acc;
+            }
+        }
+        const uint64_t tile = std::clamp<uint64_t>(rows / 32, 1, 32);
+        part.assign((rows + tile - 1) / tile, Acc{});
+        std::atomic<bool> ok{true};
+        ParallelFor(0, part.size(), [&](size_t t) {
+            const uint64_t r0 = t * tile, r1 = std::min(rows, r0 + tile);
+            std::unique_ptr<T[]> raw(new T[(r1 - r0) * cols]);
+            if (!raw_rows<T>(typed, r0, r1, raw.get())) { ok = false; return; }
+            part[t] = chunk(raw.get(), (r1 - r0) * cols);
+        });
+        if (!ok) return std::nullopt;
+        Acc acc{};
+        for (const Acc& x : part) acc = combine(acc, x);
+        return acc;
+    }
 }
 
 // int32 value k*x with NumPy's wrap (the closure's logical dtype).
@@ -194,6 +272,13 @@ ReductionValue sum(const MatrixBase& m) {
             if constexpr (!std::is_integral_v<T>) {
                 throw std::logic_error("sum: integer path on a non-integer matrix");
             } else {
+                if constexpr (!std::is_same_v<T, bool>) {
+                    using M = std::decay_t<decltype(typed)>;
+                    if (auto r = bulk_sum<__int128, T, M>(
+                            typed, m, [k](const T* p, uint64_t len) { return chunk_sum_int<T>(p, len, k); },
+                            [](__int128 a, __int128 b) { return checked_add(a, b); }))
+                        return *r;
+                }
                 return sum_rows<__int128>(m.rows(), [&](uint64_t i) -> __int128 {
                     __int128 acc = 0;
                     for_row(m, i, [&](uint64_t j) {
@@ -217,6 +302,10 @@ ReductionValue sum(const MatrixBase& m) {
             if constexpr (!std::is_floating_point_v<T>) {
                 throw std::logic_error("sum: float path on a non-float matrix");
             } else {
+                if (auto r = bulk_sum<double, T, M>(
+                        typed, m, [](const T* p, uint64_t len) { return chunk_sum_real<T>(p, len); },
+                        [](double a, double b) { return a + b; }))
+                    return k * *r;
                 const uint64_t cols = m.cols();
                 const bool contiguous = std::is_same_v<M, DenseMatrix<T>> && !m.is_transposed() &&
                                         !m.is_subview() && cols == m.base_cols();
