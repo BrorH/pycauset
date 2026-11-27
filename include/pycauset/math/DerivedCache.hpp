@@ -18,6 +18,7 @@
 #include <typeinfo>
 
 #include "pycauset/matrix/MatrixBase.hpp"
+#include "pycauset/vector/VectorBase.hpp"
 
 namespace pycauset {
 
@@ -57,6 +58,24 @@ V cached(const MatrixBase& m, const char* quantity, const std::string& params, F
     mapper->cache_put(key, version, std::any(value));
     derived_cache::stores().fetch_add(1, std::memory_order_relaxed);
     return value;
+}
+
+// Vector-valued results (eigenvalues): the cache holds one copy-on-write clone of the result
+// and every call returns a new clone of it (O(1): the clones share the storage, and a write to
+// one copies it first, so the cached vector never changes).
+template <typename F>
+std::unique_ptr<VectorBase> cached_vector(const MatrixBase& m, const char* quantity, F&& compute) {
+    auto clone_of = [](const VectorBase& v) {
+        return std::unique_ptr<VectorBase>(static_cast<VectorBase*>(v.clone().release()));
+    };
+    std::shared_ptr<const VectorBase> held;
+    std::unique_ptr<VectorBase> fresh;
+    held = cached<std::shared_ptr<const VectorBase>>(m, quantity, "", [&] {
+        fresh = compute();
+        return std::shared_ptr<const VectorBase>(clone_of(*fresh));
+    });
+    if (fresh) return fresh;  // computed now: the caller gets the original
+    return clone_of(*held);
 }
 
 }  // namespace pycauset

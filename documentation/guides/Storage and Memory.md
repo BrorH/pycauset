@@ -164,8 +164,8 @@ Why this exists: it protects expensive “baseline” snapshots from accidental 
 
 ## Computed values are remembered until the matrix changes
 
-`pc.determinant`, `pc.slogdet`, `pc.trace`, `pc.sum`, `pc.norm` (matrix norms) and
-`pc.matrix_rank` keep their result with the matrix's storage. Asking again for the same
+`pc.determinant`, `pc.slogdet`, `pc.trace`, `pc.sum`, `pc.norm` (matrix norms),
+`pc.matrix_rank`, `pc.eigvals` and `pc.eigvalsh` keep their result with the matrix's storage. Asking again for the same
 matrix (and the same view of it: `A`, `A.T` and `2 * A` are separate entries) returns the
 stored value at once. Any write to the matrix (`A[i, j] = x`, a slice assignment, `fill`,
 `set_identity`) discards every stored value before the data changes, so an answer is always

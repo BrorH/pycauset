@@ -1175,13 +1175,17 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const Ma
     return std::make_pair(std::move(w), std::move(v));
 }
 
-std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string&) {
+static std::unique_ptr<VectorBase> eigvals_compute(const MatrixBase& in) {
     require_square(in, "eigvals");
     DataType dt;
     auto h = lapack_input(in, dt);
     auto w = ObjectFactory::create_vector(in.rows(), complex_dtype(dt), Structure::VECTOR, "");
     ComputeContext::instance().get_device()->eigvals(h ? *h : in, *w);
     return w;
+}
+
+std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string&) {
+    return cached_vector(in, "eigvals", [&] { return eigvals_compute(in); });
 }
 
 std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in, const std::string&) {
@@ -1195,13 +1199,17 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const M
     return std::make_pair(std::move(w), std::move(v));
 }
 
-std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string&) {
+static std::unique_ptr<VectorBase> eigvalsh_compute(const MatrixBase& in) {
     require_square(in, "eigvalsh");
     DataType dt;
     auto h = lapack_input(in, dt);
     auto w = ObjectFactory::create_vector(in.rows(), real_dtype(dt), Structure::VECTOR, "");
     ComputeContext::instance().get_device()->eigvalsh(h ? *h : in, *w, 'L');
     return w;
+}
+
+std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string&) {
+    return cached_vector(in, "eigvalsh", [&] { return eigvalsh_compute(in); });
 }
 
 // Moore-Penrose pseudoinverse, NumPy's pinv: A = U S V^H, A+ = V S+ U^H, singular values at or

@@ -122,3 +122,22 @@ def test_off_switch():
         assert _hits() == before
     finally:
         native._set_derived_cache(True)
+
+
+def test_eigenvalue_vectors_are_cached_and_returned_as_independent_copies(m):
+    mat, a = m
+    s = mat + mat.T
+    sa = a + a.T
+    w1 = pc.eigvalsh(s)
+    before = _hits()
+    w2 = pc.eigvalsh(s)
+    assert _hits() == before + 1
+    np.testing.assert_allclose(np.asarray(w2), np.linalg.eigvalsh(sa))
+    w2[0] = 12345.0  # a write to one returned vector must not reach the cache or the others
+    np.testing.assert_allclose(np.asarray(pc.eigvalsh(s)), np.linalg.eigvalsh(sa))
+    np.testing.assert_allclose(np.asarray(w1), np.linalg.eigvalsh(sa))
+    pc.eigvals(mat)
+    np.testing.assert_allclose(np.sort_complex(np.asarray(pc.eigvals(mat))), np.sort_complex(np.linalg.eigvals(a)))
+    mat[0, 0] = -3.0
+    a2 = a.copy(); a2[0, 0] = -3.0
+    np.testing.assert_allclose(np.sort_complex(np.asarray(pc.eigvals(mat))), np.sort_complex(np.linalg.eigvals(a2)))

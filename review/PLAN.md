@@ -364,7 +364,8 @@ are engine-owned metadata on the storage).
 - [~] D.2 Cache map + view rules for scalar and vector quantities. Session 9: the map on the
       storage and `cached()` (math/DerivedCache.hpp) for det, slogdet, trace, sum, matrix
       norms, rank. Keyed on the exact view instead of the spec's view rules (bit-identical to
-      recomputation; the rules round differently). Vector quantities (eigvals, svdvals) open.
+      recomputation; the rules round differently). eigvals / eigvalsh too (a copy-on-write clone
+      per call); svdvals open.
 - [ ] D.3 Persistence with invalidate-before-mutate on memory-mapped files
 - [ ] D.4 Matrix-valued results (inverse, eigenvectors, factors) as container sections
 - [ ] D.5 Closures and expression nodes (with phase L)

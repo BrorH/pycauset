@@ -128,8 +128,8 @@ All metadata is a typed top-level map. The important namespaces:
 
 ### Derived values
 
-Scalar results of whole-matrix computations (determinant, slogdet, trace, sum, the matrix
-norms, rank) are kept on the storage (`MemoryMapper`, shared by every view of the payload) and
+Results of whole-matrix computations (determinant, slogdet, trace, sum, the matrix norms,
+rank, eigenvalues) are kept on the storage (`MemoryMapper`, shared by every view of the payload) and
 returned on the next call: `include/pycauset/math/DerivedCache.hpp`. The storage carries a
 version that `PersistentObject::ensure_unique` bumps before any write (it is the write gate of
 copy-on-write), which drops every entry. Entries are keyed on the exact view (class, structure,
