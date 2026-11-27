@@ -1,16 +1,18 @@
 # pycauset.causal_matrix
 
 ```python
-pycauset.causal_matrix(n, populate=True, **kwargs)
+pycauset.causal_matrix(source, populate=True, **kwargs)
 ```
 
 Factory function for creating a [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`) suitable for representing a causal relation.
 
 ## Parameters
 
-*   **n** (*int*): The dimension of the causal set (`n×n`).
-*   **populate** (*bool*): If `True` (default), fills with random bits (`p=0.5`). If `False`, returns an all-zeros matrix.
-*   **kwargs**: Passed through to the backend constructor.
+*   **source** (*int* or 2-D data): a size `n` (an n x n matrix), or data (NumPy array or nested
+    lists) whose strict upper triangle becomes the relation.
+*   **populate** (*bool*): with a size: `True` (default) fills each relation with probability 0.5,
+    `False` leaves it empty. Ignored for data.
+*   **kwargs**: with a size, passed to `TriangularMatrix.random` / the constructor (e.g. `seed`).
 
 ## Returns
 

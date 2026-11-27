@@ -1,78 +1,36 @@
-# Matrix Inversion (Linear Algebra)
-
-PyCauset provides an interface for computing the mathematical inverse ($A^{-1}$) of a matrix.
-
-**Implementation note (current reality):** the public `invert` entrypoint is correctness-first and may fall back to a NumPy CPU implementation (`numpy.linalg.inv`) if a native inversion path is unavailable or fails.
-
-## Usage
-
-You can use the `.invert()` method on a matrix object or the [[pycauset.invert]] function.
+# pycauset.invert
 
 ```python
-import pycauset as pc
-
-# Create a matrix (must be invertible)
-# Note: TriangularMatrix (bool) and DenseMatrix (int32) are strictly upper triangular
-# and therefore singular (determinant is 0). They cannot be inverted.
-
-try:
-    m = pc.TriangularMatrix(5, dtype="bool")
-    inv = m.invert()
-    # OR
-    inv = pc.invert(m)
-except RuntimeError as e:
-    print(f"Inversion failed: {e}")
+pycauset.invert(a)
 ```
 
-## Singularity of Triangular Matrices
+The inverse of a square matrix, as NumPy's `linalg.inv`. Also `a.invert()`.
 
-The triangular matrix types in PyCauset ([[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `bool`), [[docs/classes/matrix/pycauset.TriangularMatrix.md|pycauset.TriangularMatrix]] (dtype `float64`)) are **strictly upper triangular**. 
+Every dtype, structure and view works. The algorithm is NumPy's: LU with partial pivoting
+(LAPACK `?gesv` on `A X = I`) in the operand's precision; integer and bool matrices invert
+to float64, float32 stays float32. Structure is used where it is exact: the inverse of an
+upper triangular matrix is a `TriangularMatrix`, of a diagonal matrix a `DiagonalMatrix`
+(element-wise), of an identity `1/scale`; a scaled view inverts with the reciprocal scale.
 
-A strictly upper triangular matrix has zeros on the main diagonal. The determinant of a triangular matrix is the product of its diagonal entries. Therefore, the determinant of any strictly upper triangular matrix is 0, making it **singular** (non-invertible).
+## Raises
 
-Attempting to invert these matrices will raise a `RuntimeError`.
+*   **ValueError**: the matrix is not square.
+*   **RuntimeError**: the matrix is singular (a zero pivot), including every strictly
+    upper triangular matrix such as a causal matrix.
 
-## Dense Matrix Inversion
-
-The [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `float64`) class supports general matrix inversion.
-
-### Algorithm
-
-LAPACK LU factorization and inversion (`getrf` + `getri`, multithreaded through OpenBLAS),
-the same routines NumPy uses.
-
-**Note**: [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `int32`) and [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `bool`) are also dense, but direct inversion is not supported to avoid ambiguity (integer inversion usually results in floats). To invert them, convert them to [[docs/classes/matrix/pycauset.DenseMatrix.md|pycauset.DenseMatrix]] (dtype `float64`) first.
+## Example
 
 ```python
+import numpy as np
 import pycauset as pc
 
-# Create a dense DenseMatrix (float64)
-# [ [4, 7],
-#   [2, 6] ]
-m = pc.DenseMatrix(2, dtype="float64")
-m[0, 0] = 4.0
-m[0, 1] = 7.0
-m[1, 0] = 2.0
-m[1, 1] = 6.0
-
-# Compute Inverse
-# [ [ 0.6, -0.7],
-#   [-0.2,  0.4] ]
-inv = m.invert()
-
-print(inv[0, 0]) # 0.6
+A = pc.matrix([[4.0, 7.0], [2.0, 6.0]])
+np.testing.assert_allclose(np.asarray(pc.invert(A)), [[0.6, -0.7], [-0.2, 0.4]])
+assert pc.invert(pc.matrix([[4, 7], [2, 6]])).dtype == "float64"
+assert type(pc.invert(pc.diagonal([2.0, 4.0]))).__name__ == "DiagonalMatrix"
 ```
 
-### Implementation Details
+## See also
 
-*   **Algorithm**: Gaussian elimination with partial pivoting.
-*   **Parallelism**: The row operations are parallelized using OpenMP for performance on large matrices.
-*   **Storage**: The operation may create temporary backing files (for example `.tmp`) for intermediates and/or the result. These session files are normally cleaned up on interpreter exit (unless `pycauset.keep_temp_files = True`). Use `save()` to persist a portable `.pycauset` snapshot.
-*   **Scalars**: If the input matrix has a scalar factor $S$, the resulting inverse will have a scalar factor $1/S$.
-
-### Errors
-
-A `RuntimeError` will be raised if:
-*   The matrix is singular (determinant is 0).
-*   The matrix is nearly singular (pivot element is close to zero, within a tolerance of 1e-12).
-
+*   [[docs/functions/pycauset.solve.md|pycauset.solve]]
+*   [[docs/functions/pycauset.pinv.md|pycauset.pinv]]

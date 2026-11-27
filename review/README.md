@@ -7,7 +7,7 @@ work cold**. Read this file first, then the ones it points to.
 ## Read in this order
 0. **`documentation/project/protocols/Adding Operations.md`** and **`Adding Types.md`**: the
    procedures the review established (Phase N). Every change to an operation or type follows them.
-1. **[ARCHITECTURE.md](ARCHITECTURE.md)**: map of every moving part and how a call
+1. **`documentation/internals/Architecture.md`**: map of every moving part and how a call
    flows through the stack. Read it before touching code.
 2. **[PLAN.md](PLAN.md)**: the phased plan (0–6), what's done, what's next, the
    per-file review checklist.
@@ -24,7 +24,7 @@ work cold**. Read this file first, then the ones it points to.
 ```
 review/
   README.md         this file
-  ARCHITECTURE.md   the map (keep it true!)
+  ARCHITECTURE.md   pointer: the map is documentation/internals/Architecture.md
   PLAN.md           phases & checklists
   FINDINGS.md       issue log, F-001...
   RESTRUCTURE.md    cleanup proposal + decisions
@@ -44,7 +44,7 @@ review/
 1. **Log every session** in LOG.md: what you did, what you found, what's half-done.
 2. **Every issue gets an F-id** in FINDINGS.md before or alongside its fix. Fix
    commits mention the id (`fix(F-001): ...`). Never reuse ids.
-3. **Keep ARCHITECTURE.md true.** If your change moves, adds, deletes or rewires a
+3. **Keep `documentation/internals/Architecture.md` true.** If your change moves, adds, deletes or rewires a
    component, update the map in the same commit. Undocumented code is lost code.
 4. **Pre-alpha policy:** no backwards-compat shims. Removing something means
    removing its code, tests, docs and plan references entirely. Git is the archive.
@@ -84,5 +84,5 @@ Features accepted: lazy evaluation (features/LAZY.md, Phase L), value bounds
 (features/VALUE_BOUNDS.md, Phase F1), atlas (features/ATLAS.md, Phase C).
 
 ## When the overhaul is finished
-ARCHITECTURE.md moves into `documentation/internals/`, FINDINGS.md becomes the
+(ARCHITECTURE.md has moved into `documentation/internals/`.) FINDINGS.md becomes the
 project bug log, and this directory is deleted.

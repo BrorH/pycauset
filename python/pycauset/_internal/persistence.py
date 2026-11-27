@@ -658,9 +658,7 @@ def _save_blockmatrix(
 
     def _materialize_view_block(view_obj: Any) -> Any:
         # Materialize to a small numpy array (block-local) and convert to a native matrix.
-        asarray = getattr(deps.native, "asarray", None)
-        if asarray is None:
-            raise TypeError("cannot save SubmatrixView blocks (native.asarray unavailable)")
+        asarray = deps.native.asarray
         try:
             import numpy as np  # type: ignore
         except Exception as e:

@@ -1,7 +1,7 @@
 # pycauset.set_memory_threshold
 
 ```python
-pycauset.set_memory_threshold(bytes: int)
+pycauset.set_memory_threshold(limit)
 ```
 
 Sets the size threshold (in bytes) below which objects are stored in RAM instead of on disk.
@@ -12,7 +12,11 @@ The default threshold is 1 GB.
 
 ## Parameters
 
-*   **bytes** (*int*): The threshold in bytes.
+*   **limit** (*int* or *None*): The threshold in bytes; `None` restores the default.
+
+## Returns
+
+*   **int**: the threshold now in effect.
 
 ## Example
 

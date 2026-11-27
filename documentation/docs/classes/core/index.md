@@ -12,7 +12,7 @@ Streaming access hints:
 - [[docs/classes/core/pycauset.AccessPattern.md|pycauset.AccessPattern]]
 - [[docs/classes/core/pycauset.MemoryHint.md|pycauset.MemoryHint]]
 
-For persistence, snapshots, and caches, see:
+For persistence and snapshots, see:
 
 - [[guides/Storage and Memory.md|Storage and Memory]]
 

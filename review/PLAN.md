@@ -365,7 +365,8 @@ are engine-owned metadata on the storage).
       dev/ + internals/
 - [~] 5.4 README and BENCHMARKS claims re-measured (BENCHMARKS done on Linux, F-108; the
       maintainer's Windows numbers next) ("≥0.90× NumPy", "bigger than RAM")
-- [ ] 5.5 ARCHITECTURE.md moves into `documentation/internals/` as the canonical map
+- [x] 5.5 ARCHITECTURE.md moves into `documentation/internals/` as the canonical map (rewritten
+      to the code, session 9)
 
 ## Phase 6: Performance (only after correctness)
 - [ ] 6.0 One OpenBLAS per process: link against NumPy's bundled scipy-openblas (or share its

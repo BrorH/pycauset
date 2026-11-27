@@ -6,7 +6,8 @@ every dtype, behind a NumPy-like Python API. NumPy is the oracle for values and 
 backend. Pre-alpha: no backwards compatibility; removed things are removed with their docs.
 
 ## Read before changing code
-- `review/README.md`: the ongoing review (plan, findings, log, architecture map).
+- `documentation/internals/Architecture.md`: the architecture map (keep it true).
+- `review/README.md`: the ongoing review (plan, findings, log).
 - `documentation/project/protocols/Adding Operations.md`: **the procedure for adding or
   changing an operation** (entry function + structure rules + normaliser + kernels with
   contracts; atlas and timing gates). Follow it.

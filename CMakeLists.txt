@@ -89,7 +89,7 @@ endif()
 # We MUST use FindPython which is the modern module (not FindPythonLibs).
 # We only need the Development.Module component for extension modules, 
 # preventing GHA from failing when static libs (Development.Embed) are missing.
-find_package(Python 3.8 COMPONENTS Interpreter Development.Module REQUIRED)
+find_package(Python 3.10 COMPONENTS Interpreter Development.Module REQUIRED)
 
 # 2. Pybind11 (Required)
 # If built via pip/scikit-build-core, pybind11 is provided.

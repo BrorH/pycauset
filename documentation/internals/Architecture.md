@@ -1,0 +1,103 @@
+# Architecture
+
+The map of the moving parts: what each owns and how a call travels from Python to the
+bytes and back. Whoever changes a subsystem's responsibilities or wiring updates this page
+in the same commit. Deeper pages: [[internals/Compute Architecture|Compute Architecture]],
+[[internals/Memory and Data|Memory and Data]], [[internals/Streaming Manager|Streaming Manager]],
+[[internals/DType System|DType System]]; the file map is [[dev/Codebase Structure|Codebase Structure]].
+
+## The stack
+
+```
+ user code     pc.matrix(...), A @ B, pc.solve(A, b), pc.causet(n=...), pc.save(...)
+ ──────────────────────────────────────────────────────────────────────────────────
+ Python        __init__.py (public names) -> _internal/ (glue, persistence, block
+               matrices); causet.py, spacetime.py, synthetic.py, vis.py on top
+ ──────────────────────────────────────────────────────────────────────────────────
+ bindings      src/bindings.cpp + src/bindings/*.cpp  ->  pycauset._pycauset
+ ──────────────────────────────────────────────────────────────────────────────────
+ C++ engine    structure classes        include/pycauset/{matrix,vector}
+ (libpycauset  operation entries        src/math (structure rules, normaliser)
+  _core)       dispatch and kernels     src/compute: ComputeContext -> CpuDevice -> CpuSolver
+               out-of-core              StreamingManager + CpuComputeWorker
+               storage                  PersistentObject, MemoryMapper, MemoryGovernor
+               causal sets              src/causet: sprinkler, Minkowski diamond
+ ──────────────────────────────────────────────────────────────────────────────────
+ libraries     OpenBLAS + LAPACKE, OpenMP, Eigen 3.4 (header-only), Spectra 1.0.1
+               (restarted Krylov eigensolvers), pybind11
+```
+
+## Object model
+
+Every matrix and vector is a `PersistentObject`: it owns its bytes through a shared
+`MemoryMapper` (RAM or a memory-mapped file) and carries **view metadata**: a complex
+scale, transposition, conjugation and, for windows, row / column offsets into a larger
+storage. Transposing, conjugating, scaling and slicing change only metadata (O(1)).
+
+The class is the structure: `DenseMatrix`, `TriangularMatrix` (strictly upper or with a
+diagonal; bit-packed for `bool`: the causal matrix), `SymmetricMatrix`,
+`AntiSymmetricMatrix`, `HermitianMatrix`, `SkewHermitianMatrix` (packed upper triangle),
+`DiagonalMatrix`, `IdentityMatrix` (no storage), `DenseVector`, `UnitVector`. One Python
+class per structure, each for all 16 dtypes (`DataType` and `Structure` in
+`core/Types.hpp`). There is no flag or assertion store: what an operation may exploit is
+what the class guarantees.
+
+**Views are values.** Storage is shared copy-on-write: the first write to an object whose
+storage another object (or a loaded snapshot file) shares gives the writer its own copy
+(`ensure_unique`). A write never shows through to another object, unlike NumPy's views.
+
+**One definition of view semantics:** `include/pycauset/math/ViewValue.hpp` (how scale,
+transposition and conjugation combine with a stored element). Every reader uses it;
+`ViewRead` reads whole blocks of a view into a typed buffer.
+
+## Evaluation: eager results, lazy where it pays
+
+Results are computed when the operation runs, except where a lazy form is smaller and
+never wrong: `C + C.T` and `C - C.T` of a causal matrix are a `BitClosureMatrix` reading
+`C`'s bits (int32 logical dtype, symmetric / antisymmetric structure); matrix-vector
+products and eigensolvers use the bits directly, anything else writes the result out first.
+`PYCAUSET_LAZY=0` turns this off (the suites run both ways). Design:
+`review/features/LAZY.md`.
+
+## An operation, end to end: `A @ B`
+
+1. **Binding** (`bind_matrix.cpp`): one matmul helper for every spelling (`A @ B`,
+   `pc.matmul`, NumPy operands, vectors); NumPy arrays are imported first
+   (`numpy_import.hpp`).
+2. **Entry function** (`src/math`): resolves the result dtype (`PromotionResolver`) and
+   structure (`StructureResolver`), normalises the operands (views read in place), and
+   allocates the result through `ObjectFactory` (RAM or file by the memory threshold).
+3. **Device:** `ComputeContext` -> `AutoSolver` -> `CpuDevice`, which runs the kernel
+   directly or tiles it through the `StreamingManager` when the operands do not fit in RAM.
+4. **Kernel** (`src/compute/cpu`): BLAS for float / complex, exact integer paths, popcount
+   for bits, structure-specific loops; it records its tag in the kernel log
+   (`DebugTrace`), which `pc.last_io_trace` and the atlas read.
+5. **Result:** the Python object of its structure class.
+
+The procedure for adding or changing an operation is
+[[project/protocols/Adding Operations|Adding Operations]].
+
+## Storage
+
+Objects up to the memory threshold (default 1 GiB) live in RAM, larger ones in temporary
+files in the backing directory; under RAM pressure the `MemoryGovernor` spills the least
+recently used RAM objects to files. `pc.save` writes a single-file `.pycauset` container
+(header slots, payload, typed metadata: [[dev/PyCauset Container Format|Container Format]]);
+`pc.load` memory-maps the payload copy-on-write, so the file is never modified.
+
+## Python layer
+
+`__init__.py` defines every public name (thin: argument checks, then the engine) and
+patches Python conveniences onto the native classes (`_internal/patching.py`, `repr`,
+factories). `_internal/ops.py` holds the linear-algebra glue, `persistence.py` the
+container, `blockmatrix.py` / `thunks.py` the Python-level block matrices
+([[internals/Block Matrices|Block Matrices]]). The causal-set layer (`CausalSet`, the
+Minkowski diamond, synthetic orders, plots) is built on the engine: a `CausalSet` is a bit
+`TriangularMatrix` plus its spacetime and seed.
+
+## Verification
+
+NumPy is the oracle, never a backend. `tests/atlas` enumerates every operation x dtype x
+structure x view x storage against NumPy (`review/atlas/ATLAS.md`); `tests/engine` holds
+the subject suites and one regression test per fixed bug; the code on every documentation
+page runs (`test_doc_snippets.py`).

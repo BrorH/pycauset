@@ -234,7 +234,7 @@ _runtime = _runtime_mod.Runtime(
 
 keep_temp_files: bool = False
 _EXPORT_MAX_BYTES: int | None = None
-_DEFAULT_MEMORY_THRESHOLD = getattr(_native, "get_memory_threshold", lambda: None)()
+_DEFAULT_MEMORY_THRESHOLD = _native.get_memory_threshold()
 _IO_OBS = _io_observability.IOObservability(_native)
 
 
@@ -265,9 +265,7 @@ def set_backing_dir(path: str | Path) -> Path:
         old_root = None
 
     # Native code allocates backing files; configure it directly.
-    set_native_root = getattr(_native, "set_storage_root", None)
-    if callable(set_native_root):
-        set_native_root(str(new_root))
+    _native.set_storage_root(str(new_root))
 
     if old_root is not None and new_root != old_root and _runtime.has_live_matrices():
         warnings.warn(
@@ -282,29 +280,18 @@ def set_backing_dir(path: str | Path) -> Path:
     return _runtime.set_storage_root(new_root)
 
 
-def get_memory_threshold() -> int | None:
-    getter = getattr(_native, "get_memory_threshold", None)
-    if getter is None:
-        return None
-    return int(getter())
+def get_memory_threshold() -> int:
+    """Objects up to this many bytes live in RAM; larger ones are file-backed."""
+    return int(_native.get_memory_threshold())
 
 
-def set_memory_threshold(limit: int | None) -> int | None:
-    setter = getattr(_native, "set_memory_threshold", None)
-    getter = getattr(_native, "get_memory_threshold", None)
-    if setter is None:
-        raise RuntimeError("Native memory threshold control is unavailable")
-
-    target = limit
-    if target is None:
-        target = _DEFAULT_MEMORY_THRESHOLD
-
-    if target is None:
-        raise RuntimeError("Native memory threshold default is unavailable")
-
-    setter(int(target))
-    _debug(f"set_memory_threshold -> {int(target)} bytes")
-    return int(getter()) if getter is not None else int(target)
+def set_memory_threshold(limit: int | None) -> int:
+    """Objects up to `limit` bytes live in RAM, larger ones are file-backed; `None` restores
+    the default (1 GiB). Returns the threshold now in effect."""
+    target = _DEFAULT_MEMORY_THRESHOLD if limit is None else int(limit)
+    _native.set_memory_threshold(target)
+    _debug(f"set_memory_threshold -> {target} bytes")
+    return int(_native.get_memory_threshold())
 
 
 def last_io_trace(op: str | None = None) -> dict[str, Any] | None:
@@ -336,8 +323,8 @@ def _register_cleanup() -> None:
 _register_cleanup()
 
 # NumPy export safety hooks for native matrices/vectors
-_MatrixBaseType = getattr(_native, "MatrixBase", None)
-_VectorBaseType = getattr(_native, "VectorBase", None)
+_MatrixBaseType = _native.MatrixBase
+_VectorBaseType = _native.VectorBase
 
 
 def _guarded_array_export(self: Any, dtype: Any = None, copy: Any = None) -> Any:
@@ -667,7 +654,7 @@ def vector(
             "Scalars/0D are not supported."
         )
 
-    _VectorBase = getattr(_native, "VectorBase", None)
+    _VectorBase = _native.VectorBase
     if _VectorBase is not None and isinstance(source, _VectorBase):
         if dtype is not None or kwargs:
             raise TypeError(
@@ -676,7 +663,7 @@ def vector(
             )
         return source
 
-    _MatrixBase = getattr(_native, "MatrixBase", None)
+    _MatrixBase = _native.MatrixBase
     if _MatrixBase is not None and isinstance(source, _MatrixBase):
         raise TypeError("vector(...) expects 1D input; use matrix(...) for 2D")
 
@@ -718,7 +705,7 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
             "Scalars/0D are not supported."
         )
 
-    _MatrixBase = getattr(_native, "MatrixBase", None)
+    _MatrixBase = _native.MatrixBase
     if _MatrixBase is not None and isinstance(source, _MatrixBase):
         if dtype is not None or kwargs:
             raise TypeError(
@@ -760,7 +747,7 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
             )
         return source
 
-    _VectorBase = getattr(_native, "VectorBase", None)
+    _VectorBase = _native.VectorBase
     if _VectorBase is not None and isinstance(source, _VectorBase):
         if dtype is not None or kwargs:
             raise TypeError(
@@ -791,7 +778,7 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
             # - All elements are matrices -> BlockMatrix
             # - No elements are matrices -> dense data constructor
             # - Mixed matrices and scalars -> error
-            native_matrix_base = getattr(_native, "MatrixBase", None)
+            native_matrix_base = _native.MatrixBase
 
             def _is_matrix_obj(x: Any) -> bool:
                 if native_matrix_base is not None and isinstance(x, native_matrix_base):
@@ -970,7 +957,7 @@ def dot(a: Any, b: Any) -> Any:
 
     Matrix cases route through `matmul`.
     """
-    native_vector_base = getattr(_native, "VectorBase", None)
+    native_vector_base = _native.VectorBase
     a_is_vector = native_vector_base is not None and isinstance(a, native_vector_base)
     b_is_vector = native_vector_base is not None and isinstance(b, native_vector_base)
 
@@ -999,8 +986,8 @@ def divide(a: Any, b: Any) -> Any:
     for temporary-file lifecycle management.
     """
     result = a / b
-    native_matrix_base = getattr(_native, "MatrixBase", None)
-    native_vector_base = getattr(_native, "VectorBase", None)
+    native_matrix_base = _native.MatrixBase
+    native_vector_base = _native.VectorBase
     if native_matrix_base is not None and isinstance(result, native_matrix_base):
         _track_matrix(result)
         _mark_temporary_if_auto(result)
@@ -1020,14 +1007,8 @@ def norm(x: Any, ord: Any = None) -> float:
     """
 
     if ord is not None:
-        # Explicit ord value: use ops.norm, which is correct for the spectral
-        # (2) norm and routes 1/inf/nuc through NumPy.
         return _ops.norm(x, ord=ord, deps=_OPS_DEPS)
-
-    fn = getattr(_native, "norm", None)
-    if fn is None:
-        raise RuntimeError("Native function norm is not available")
-    return float(fn(x))
+    return float(_native.norm(x))
 
 
 def sum(x: Any) -> int | float | complex:
@@ -1053,17 +1034,9 @@ def compute_k(matrix: Any, a: float):
     return _ops.compute_k(matrix, a, deps=_OPS_DEPS)
 
 
-def bitwise_not(matrix: Any) -> Any:
-    """
-    Compute the bitwise inversion (NOT) of a matrix.
-    
-    Args:
-        matrix: The matrix to invert. Must have an integer or bit dtype.
-        
-    Returns:
-        A new matrix with inverted bits.
-    """
-    return _ops.bitwise_not(matrix, deps=_OPS_DEPS)
+def bitwise_not(a: Any) -> Any:
+    """Element-wise NOT (`~a`) of a bool or integer matrix or vector, as NumPy's `invert`."""
+    return _ops.bitwise_not(a, deps=_OPS_DEPS)
 
 
 def bitwise_and(a: Any, b: Any) -> Any:
@@ -1096,23 +1069,14 @@ def bitwise_xnor(a: Any, b: Any) -> Any:
     return _ops.bitwise_xnor(a, b, deps=_OPS_DEPS)
 
 
-def invert(matrix: Any) -> Any:
-    """
-    Compute the linear algebra inverse of a matrix.
-    
-    Args:
-        matrix: The matrix to invert.
-        
-    Returns:
-        The inverse matrix.
-        
-    Raises:
-        RuntimeError: If the matrix is singular (e.g. strictly upper triangular).
-    """
+def invert(a: Any) -> Any:
+    """The inverse of a square matrix, as NumPy's `linalg.inv` (integers give float64).
+
+    Raises RuntimeError if the matrix is singular."""
     if debug_mode:
-        _debug(f"invert {_matrix_desc(matrix)}")
+        _debug(f"invert {_matrix_desc(a)}")
     with _debug_time("invert"):
-        return _ops.invert(matrix, deps=_OPS_DEPS)
+        return _ops.invert(a, deps=_OPS_DEPS)
 
 
 def lstsq(a: Any, b: Any) -> Any:

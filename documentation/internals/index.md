@@ -4,6 +4,7 @@ This section documents the internal architecture and design decisions of PyCause
 
 ## Architecture
 
+*   **[[internals/Architecture|Architecture]]**: the map of the moving parts and how a call travels through them. Start here.
 *   **[[internals/Compute Architecture|Compute Architecture]]**: How an operation reaches a CPU kernel: `ComputeContext`, `CpuDevice`, the kernel files, LAPACK, parallelism.
 *   **[[internals/Memory and Data|Memory & Data]]**: Tiered storage, the Memory Governor, the IO Accelerator, the `.pycauset` format, and the object hierarchy.
 *   **[[internals/Streaming Manager|Streaming Manager]]**: Shared policy for streaming/direct routing, tiling, queue depths, and IO observability.

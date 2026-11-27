@@ -10,9 +10,9 @@ Compute a sign/log-determinant pair.
 
 A tuple `(sign, logabsdet)` where:
 
-- `sign` is `-1.0`, `0.0`, or `1.0`
-- `logabsdet` is `log(abs(det(a)))` (or `-inf` if `det(a) == 0`)
+- `sign` is `-1.0`, `0.0` or `1.0` for real matrices, a complex number of modulus 1 for
+  complex ones
+- `logabsdet` is `log(abs(det(a)))` (`-inf` when the matrix is singular)
 
-## Notes
-
-This currently uses the matrix method `a.determinant()`.
+As NumPy's `linalg.slogdet`: computed from the LU pivots, so it does not overflow where
+`det` would. Also `a.slogdet()`.

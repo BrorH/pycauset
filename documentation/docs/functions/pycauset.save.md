@@ -35,7 +35,7 @@ pc.save(BM, "bm.pycauset")  # writes bm.pycauset and bm.pycauset.blocks/
 ## See Also
 
 
-*   [[guides/Storage and Memory]]: Persistence overview, including cache persistence.
+*   [[guides/Storage and Memory]]: Persistence overview.
 
 ## Block matrices (sidecar layout)
 

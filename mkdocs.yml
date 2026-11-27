@@ -235,6 +235,7 @@ nav:
       - docs/parameters/pycauset.debug_mode.md
   - Internals:
     - internals/index.md
+    - Architecture: internals/Architecture.md
     - DType System: internals/DType System.md
     - Compute Architecture: internals/Compute Architecture.md
     - Block Matrices: internals/Block Matrices.md

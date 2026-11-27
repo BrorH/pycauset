@@ -525,3 +525,14 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   tagged as runnable code. The Visualization guide sprinkled 100,000 points (90 s); now
   5,000. Pages run with lazy results on (the default) under PYCAUSET_LAZY=0 too.
 - Gates: 4,191 + 4,133 (lazy off) passed, atlas CI 42, docs build clean.
+- PLAN 5.2 (API pages against the code): a signature checker over every function page
+  found the svd page saying "not available" (it is), the invert page describing a NumPy
+  fallback, Gaussian elimination, no integer support and a 1e-12 tolerance (all false:
+  `?gesv`, every dtype, structure kept), slogdet "uses determinant()", causal_matrix /
+  set_memory_threshold parameter names. Rewritten. `bitwise_not` / `invert` take `a` (as
+  documented and in NumPy). Every `getattr(_native, name, None)` guard in the Python layer
+  (a fallback for a symbol the build always provides) replaced by the direct reference;
+  set_memory_threshold / get_memory_threshold / norm simplified. CMake asks for Python 3.10.
+- PLAN 5.5: `documentation/internals/Architecture.md` is the map (rewritten to the code);
+  review/ARCHITECTURE.md is a pointer. CLAUDE.md and review/README point to it.
+- Gates: 4,192 + 4,134 passed; docs build clean.

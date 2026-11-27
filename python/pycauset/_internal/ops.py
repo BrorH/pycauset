@@ -10,21 +10,13 @@ from .coercion import safe_rows_cols as _safe_rows_cols
 
 
 def _track_and_mark_temporary_if_native(obj: Any, *, deps: OpsDeps) -> None:
-    native_matrix_base = getattr(deps.native, "MatrixBase", None)
-    native_vector_base = getattr(deps.native, "VectorBase", None)
-    if native_matrix_base is not None and isinstance(obj, native_matrix_base):
-        deps.track_matrix(obj)
-        deps.mark_temporary_if_auto(obj)
-    elif native_vector_base is not None and isinstance(obj, native_vector_base):
+    if isinstance(obj, (deps.native.MatrixBase, deps.native.VectorBase)):
         deps.track_matrix(obj)
         deps.mark_temporary_if_auto(obj)
 
 
 def _as_pycauset_array(obj: Any, *, deps: OpsDeps) -> Any:
-    asarray = getattr(deps.native, "asarray", None)
-    if asarray is None:
-        raise RuntimeError("native.asarray is not available")
-    out = asarray(obj)
+    out = deps.native.asarray(obj)
     _track_and_mark_temporary_if_native(out, deps=deps)
     return out
 
@@ -100,8 +92,8 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
             b = BlockMatrix([[b]])
         return block_matmul(a, b)
 
-    native_matrix_base = getattr(deps.native, "MatrixBase", None)
-    native_vector_base = getattr(deps.native, "VectorBase", None)
+    native_matrix_base = deps.native.MatrixBase
+    native_vector_base = deps.native.VectorBase
 
     # NumPy-like behavior: allow vectors in matmul by deferring to the native
     # operator implementation (which encodes the 1D rules).
@@ -147,11 +139,7 @@ def _import_operand(x: Any, *, deps: OpsDeps) -> Any:
 
 
 def compute_k(matrix: Any, a: float, *, deps: OpsDeps) -> Any:
-    func = getattr(deps.native, "compute_k_matrix", None)
-    if func is None:
-        raise NotImplementedError("compute_k_matrix is not available in this build.")
-
-    result = func(matrix, a, 0)
+    result = deps.native.compute_k_matrix(matrix, a, 0)
     deps.track_matrix(result)
     deps.mark_temporary_if_auto(result)
     return result
@@ -295,11 +283,7 @@ def eigvals_arnoldi(a: Any, k: int, m: int, tol: float, *, deps: OpsDeps) -> Any
     work without materializing. Raises RuntimeError if the iteration does not converge
     to `tol` (increase `m`). `m` is the Krylov subspace size (raised to at least 2k+1).
     """
-    native_fn = getattr(deps.native, "eigvals_arnoldi", None)
-    if native_fn is None:
-        raise NotImplementedError("eigvals_arnoldi requires the native extension")
-    out = native_fn(a, int(k), int(m), float(tol))
-    return out
+    return deps.native.eigvals_arnoldi(a, int(k), int(m), float(tol))
 
 
 def eigvals_skew(a: Any, k: int, *, deps: OpsDeps) -> Any:
