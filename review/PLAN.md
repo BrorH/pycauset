@@ -283,6 +283,17 @@ shares the `ViewSpec`), before Phase 6.
 - [ ] F1.5 Soundness invariant in the conformance grid; memory benchmark on causal `C @ C`
 - [ ] F1.6 Docs page + NumPy-divergence note
 
+## Phase D: Feature: Derived-value cache (maintainer request, session 8; spec in `features/DERIVED_CACHE.md`)
+Computed results (det, trace, eigenvalues, norms, rank, ...) are kept with the matrix and saved
+with it; any change to the storage discards them first; scaled / conjugated / transposed views
+derive their answer from the cached one (det(4A) = 4^n det(A)). After N.7 and with F1 (both
+are engine-owned metadata on the storage).
+- [ ] D.1 Storage version counter; every mutable path invalidates (test walks every writer)
+- [ ] D.2 Cache map + view rules for scalar and vector quantities
+- [ ] D.3 Persistence with invalidate-before-mutate on memory-mapped files
+- [ ] D.4 Matrix-valued results (inverse, eigenvectors, factors) as container sections
+- [ ] D.5 Closures and expression nodes (with phase L)
+
 ## Phase 5: Documentation truth pass
 - [ ] 5.1 Fix every broken snippet (F-008); the snippet test is green. Includes removing GPU
       prose from guides/internals (pages moved in 4.0; prose left for this pass)
