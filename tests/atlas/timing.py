@@ -70,16 +70,28 @@ _OPERANDS: "collections.OrderedDict" = collections.OrderedDict()
 _OPERANDS_MAX = 6
 
 
-def _operand(structure, dtype, view, seed, n, linalg):
+def _sparse_int_values(dtype, shape, seed):
+    """Integer linear-algebra operands at timing size: 0/1 with about one 1 per row. Values
+    1-4 plus n on the diagonal do not fit int8 / uint8 at n = 384, and A^3 of them overflows
+    every integer type below 32 bits (C.3b)."""
+    rng = np.random.default_rng(seed)
+    n = shape[-1]
+    return (rng.random(shape) < 1.0 / n).astype(A.np_dtype(dtype))
+
+
+def _operand(structure, dtype, view, seed, n, linalg, outer=False):
     A.N = n
     A.W = n - 2
-    if structure in ("vector", "unit_vector") and not linalg:
+    if structure in ("vector", "unit_vector") and not linalg and not outer:
         A.N = n * n  # vectors: throughput at n^2 elements, not per-call overhead
     key = (structure, dtype, seed, A.N, linalg)
     if key not in _OPERANDS:
-        dominant = A._dominant
+        dominant, values = A._dominant, A._values
         if not linalg:  # diagonal dominance (+n) is for linear algebra; it overflows int8 at n = 1024
             A._dominant = lambda a, dtype: a
+        elif A.is_int(dtype):  # sparse 0/1 plus 3 I: nonsingular in practice, small powers
+            A._values = _sparse_int_values
+            A._dominant = lambda a, dtype: (a + 3 * np.eye(a.shape[0], dtype=a.dtype)).astype(a.dtype)
         try:
             if structure == "vector":  # reference() draws N x N first: draw the vector directly
                 a = A._values(dtype, (A.N,), seed)
@@ -89,7 +101,7 @@ def _operand(structure, dtype, view, seed, n, linalg):
             else:
                 a = A.reference(structure, dtype, seed)
         finally:
-            A._dominant = dominant
+            A._dominant, A._values = dominant, values
         _OPERANDS[key] = (_build_fast(structure, dtype, a, seed), a)
         while len(_OPERANDS) > _OPERANDS_MAX:
             _OPERANDS.popitem(last=False)
@@ -157,8 +169,9 @@ def main(argv=None) -> None:
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                x, a, xdt = _operand(c.structure, c.dtype, c.view, seed, n, op.linalg)
-                y, b, _ = (_operand(c.structure, c.dtype, c.view, seed + 1, n, op.linalg)
+                outer = c.op == "outer"  # an n^2-element vector pair is an n^4 result
+                x, a, xdt = _operand(c.structure, c.dtype, c.view, seed, n, op.linalg, outer)
+                y, b, _ = (_operand(c.structure, c.dtype, c.view, seed + 1, n, op.linalg, outer)
                            if op.arity == 2 else (None, None, ""))
                 vref = A._values(xdt if xdt in A.DTYPES else "float64", (a.shape[-1],), seed + 7)
                 A.DT[0] = xdt
