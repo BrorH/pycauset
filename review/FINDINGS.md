@@ -1349,3 +1349,13 @@ the entry (the history is useful). New findings go at the bottom with the next f
   1-D operand as a row and broadcasts it. Fix: the element-wise entry takes a vector as its
   1 x n row matrix (`as_row_matrix`, the same bridge matmul uses), then the existing
   broadcast rules apply.
+
+### F-103 Python integers default to int32; NumPy (and PyCauset's own NumPy import) use int64
+- **Status:** open, maintainer decision (session 9). `pc.vector([1, 2])`, `pc.matrix([[1, 2]])`,
+  `dtype=int` and `dtype="int"` give int32; `np.array([1, 2])` is int64, and so is
+  `pc.matrix(np.array([[1, 2]]))`: the same data gives two dtypes depending on whether it went
+  through NumPy first. The rule is not documented (DType System, matrix/vector pages).
+- Options: (a) int64, as NumPy (one rule, NumPy is the oracle); (b) keep int32 as a deliberate
+  under-promotion default, document it, and apply it to NumPy int64 input too (no: that
+  silently narrows user data); (c) keep int32 for Python literals only and document the split.
+  Tech-lead recommendation: (a).

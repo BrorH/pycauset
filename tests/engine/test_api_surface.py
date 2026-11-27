@@ -80,3 +80,52 @@ def test_setitem_accepts_numpy_scalars_and_slices():
 def test_pc_bool_is_a_dtype_token():
     assert pc.bool == "bool"
     assert pc.matrix(np.zeros((2, 2)), dtype=pc.bool).dtype == "bool"
+
+
+@pytest.mark.parametrize("data", [[1.5, 2.0], [1 + 2j, 3], [True, False], [1, 2, 3]])
+def test_vector_from_python_list(data):
+    v = pc.vector(data)
+    np.testing.assert_array_equal(to_np(v), np.array(data))
+    if not all(type(x) is int for x in data):  # integer default dtype: F-103 (open)
+        assert np.asarray(v).dtype == np.array(data).dtype
+
+
+@pytest.mark.parametrize("data", [[[1.0, 2], [3, 4]], [[1j, 0], [0, 1]], [[True, False], [False, True]]])
+def test_matrix_from_nested_list(data):
+    m = pc.matrix(data)
+    np.testing.assert_array_equal(to_np(m), np.array(data))
+    assert np.asarray(m).dtype == np.array(data).dtype
+
+
+@pytest.mark.parametrize("fn,np_fn", [(pc.zeros, np.zeros), (pc.ones, np.ones)])
+@pytest.mark.parametrize("dtype", ["float64", "int16", "complex_float32"])
+def test_filled_vector_constructors(fn, np_fn, dtype):
+    np_dtype = {"complex_float32": "complex64"}.get(dtype, dtype)
+    v = fn(4, dtype=dtype)
+    assert isinstance(v, pc.VectorBase) and v.dtype == dtype
+    np.testing.assert_array_equal(to_np(v), np_fn(4, dtype=np_dtype))
+
+
+def test_dot_vector_matrix_and_matrix_vector():
+    v, m = np.array([1.0, 2.0]), np.array([[1.0, 2.0], [3.0, 4.0]])
+    np.testing.assert_array_equal(to_np(pc.dot(pc.vector(v), pc.matrix(m))), np.dot(v, m))
+    np.testing.assert_array_equal(to_np(pc.dot(pc.matrix(m), pc.vector(v))), np.dot(m, v))
+
+
+@pytest.mark.parametrize("fn,arg,match", [
+    (pc.symmetric, np.ones((2, 3)), "square"),
+    (pc.symmetric, np.array([[1.0, 2.0], [3.0, 4.0]]), "not symmetric"),
+    (pc.antisymmetric, np.array([[1.0, 2.0], [-2.0, 0.0]]), "antisymmetric"),
+    (pc.hermitian, np.array([[1, 2j], [2j, 1]]), "not Hermitian"),
+    (pc.diagonal, np.ones((2, 3)), "1D vector or a 2D square"),
+])
+def test_structured_constructors_reject_wrong_input(fn, arg, match):
+    with pytest.raises(ValueError, match=match):
+        fn(arg)
+
+
+def test_hermitian_of_real_input_is_complex():
+    """Documented on the hermitian page: a real packed type is pycauset.symmetric."""
+    h = pc.hermitian(np.eye(2))
+    assert h.dtype == "complex_float64"
+    np.testing.assert_array_equal(to_np(h), np.eye(2))
