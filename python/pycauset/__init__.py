@@ -1391,7 +1391,6 @@ __all__ = [
     name for name in dir(_native)
     if not name.startswith("_")
     and name not in _INTERNAL_NATIVE_EXPORTS
-    and name not in _HIDDEN_NATIVE_NAMES
 ]
 
 # Add pure-Python facade symbols (and any optional native symbols) to __all__.
