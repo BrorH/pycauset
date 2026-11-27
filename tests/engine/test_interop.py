@@ -3,11 +3,15 @@ test_interop.py). Moved from the old suite while retiring it, by C++ coverage: e
 here ran code that only an old test file reached."""
 from __future__ import annotations
 
+import operator
+
 import numpy as np
 import pytest
 
 import pycauset as pc
 from tests.conftest import to_np
+
+_BIN = {"+": operator.add, "-": operator.sub, "*": operator.mul, "/": operator.truediv, "@": operator.matmul}
 
 A = np.arange(9.0).reshape(3, 3)
 
@@ -15,7 +19,7 @@ A = np.arange(9.0).reshape(3, 3)
 @pytest.mark.parametrize("op", ["+", "-", "*", "/"])
 def test_matrix_op_numpy_2d(op):
     m, b = pc.matrix(A), A + 1.0
-    np.testing.assert_allclose(to_np(eval(f"m {op} b")), eval(f"A {op} b"))
+    np.testing.assert_allclose(to_np(_BIN[op](m, b)), _BIN[op](A, b))
 
 
 @pytest.mark.parametrize("rhs", [A + 1.0, np.arange(3.0)])
@@ -157,7 +161,7 @@ def test_matrix_op_pycauset_vector_broadcasts(op, reflected):
     m, v = pc.matrix(A + 1.0), pc.vector(np.arange(1.0, 4.0))
     x, y = (v, m) if reflected else (m, v)
     nx, ny = (np.arange(1.0, 4.0), A + 1.0) if reflected else (A + 1.0, np.arange(1.0, 4.0))
-    np.testing.assert_allclose(to_np(eval(f"x {op} y")), eval(f"nx {op} ny"))
+    np.testing.assert_allclose(to_np(_BIN[op](x, y)), _BIN[op](nx, ny))
 
 
 def test_assignment_into_structured_matrices_by_slice():

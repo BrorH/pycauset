@@ -8,7 +8,7 @@ import sys
 from unittest.mock import MagicMock
 
 try:
-    import plotly
+    import plotly  # noqa: F401  (availability check)
 except ImportError:
     # Mock plotly for testing in CI/environments without it
     sys.modules["plotly"] = MagicMock()

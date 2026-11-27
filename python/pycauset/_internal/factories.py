@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Any, Callable
+from typing import Any
 
 from . import export_guard as _export_guard
 from .dtypes import normalize_dtype as _normalize_dtype

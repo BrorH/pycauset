@@ -6,6 +6,8 @@ finding's status.
 """
 from __future__ import annotations
 
+import operator
+
 import warnings
 
 import numpy as np
@@ -13,6 +15,8 @@ import pytest
 
 import pycauset as pc
 from tests.conftest import to_np
+
+_BIN = {"+": operator.add, "-": operator.sub, "*": operator.mul, "/": operator.truediv, "@": operator.matmul}
 
 native = pc._native
 
@@ -488,8 +492,8 @@ def test_F099_identity_pair_every_dtype(dtype, op):
     if dtype.startswith(("float", "complex")):  # integer scaling writes out a dense matrix
         a, b = eye * 3, eye * 2
         na, nb = na * 3, nb * 2
-    got = eval(f"a {op} b")
-    want = eval(f"na {op} nb")
+    got = _BIN[op](a, b)
+    want = _BIN[op](na, nb)
     assert type(got).__name__ == "IdentityMatrix"
     np.testing.assert_array_equal(to_np(got), want)
 
@@ -500,7 +504,7 @@ def test_F099_identity_pair_honours_conjugation():
     b = eye * (3 - 1j)
     na, nb = np.conj(np.eye(3) * (1 + 2j)), np.eye(3) * (3 - 1j)
     for op in ("+", "-", "*"):
-        np.testing.assert_array_equal(to_np(eval(f"a {op} b")), eval(f"na {op} nb"))
+        np.testing.assert_array_equal(to_np(_BIN[op](a, b)), _BIN[op](na, nb))
 
 
 def test_F099_identity_pair_integer_wraps_like_numpy():
@@ -560,9 +564,9 @@ def test_F099_triangular_results_keep_or_drop_the_diagonal(dtype, da, db, op, wa
     can be non-zero there (it was a dense result whenever a diagonal was involved)."""
     a, ra = _tri(6, dtype, da, 1)
     b, rb = _tri(6, dtype, db, 2)
-    got = eval(f"a {op} b")
+    got = _BIN[op](a, b)
     assert type(got).__name__ == "TriangularMatrix" and got.has_diagonal == want_diag
-    np.testing.assert_array_equal(to_np(got), eval(f"ra {op} rb"))
+    np.testing.assert_array_equal(to_np(got), _BIN[op](ra, rb))
 
 
 def test_F099_upper_plus_diagonal_and_upper_times_dense():

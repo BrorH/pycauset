@@ -6,6 +6,19 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    # pyflakes only (unused names, undefined names): the codebase is clean for it; the other
+    # rule groups in pyproject have a backlog (line length, import order) and are not gated.
+    name: ruff (pyflakes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ruff
+      - run: ruff check --select F python tests benchmarks
+
   test:
     name: ${{ matrix.os }} · py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
