@@ -101,7 +101,7 @@ no result caching.
 | Correctness | `pytest tests/atlas` | 0 ✗ cells, no regression against `review/atlas/atlas.json.gz` |
 | Paths | `python -m tests.atlas.report` | ○ generic only where a finding explains it |
 | Speed | `python -m tests.atlas.timing <op>` | ≥ 0.9× NumPy per fast cell, or a finding |
-| Suites | `pytest tests/engine tests/python` and `PYCAUSET_LAZY=0 pytest tests/engine` | pass |
+| Suites | `pytest` (testpaths: engine, physics, blockmatrix) and `PYCAUSET_LAZY=0 pytest tests/engine` | pass |
 | Regressions | `tests/engine/test_regressions.py` | one `test_F<id>_...` per bug fixed |
 
 Commit the regenerated `review/atlas/ATLAS.md`, `atlas.json.gz` and `TIMING.md` with the op.

@@ -4,27 +4,20 @@ This page documents how to validate correctness and performance.
 
 ## Test layers
 
-### 1) Python tests (primary user-surface validation)
+Run everything with `PYTHONPATH=python python -m pytest -q -p no:cacheprovider` (the
+`testpaths` in `pyproject.toml`), plus `PYCAUSET_LAZY=0 ... tests/engine` (lazy results off).
+The strategy is `review/TESTS.md`.
 
-Location:
-- `tests/python/`
+| Directory | What | Style |
+|---|---|---|
+| `tests/atlas/` | every op x dtype x structure x view x storage against NumPy; `pytest tests/atlas` is the CI gate, `python -m tests.atlas.report` writes `review/atlas/ATLAS.md` | generated |
+| `tests/engine/` | the engine suite, by subject: `test_conformance` (grid), `test_invariants`, `test_regressions` (one `test_F<id>` per fixed bug), linear algebra, matmul rules, views, scalar ops, bitwise, `test_interop` (NumPy in and out, indexing), `test_storage`, `test_persistence` (container robustness), `test_io_trace`, `test_streaming` (forced out-of-core), `test_warnings`, `test_api_surface`, `test_stress` (fuzzing, threads, leaks) | NumPy oracle |
+| `tests/physics/` | causal sets, spacetimes, fields, plots (smoke tier for R1) | examples |
+| `tests/blockmatrix/` | the BlockMatrix feature (construction, views, refinement, lazy thunks, persistence) | examples |
+| `tests/*.cpp` | gtest: MemoryGovernor, IO accelerator, CoW, ParallelUtils, symmetric storage, CPU worker contract | unit |
 
-These tests validate:
-- top-level `pycauset.*` API behavior,
-- interoperability (NumPy integration),
-- storage/persistence behavior,
-- GPU feature gating,
-- out-of-core behaviors.
-
-### 2) C++ unit tests (engine invariants)
-
-Location:
-- `tests/*.cpp`
-
-These tests validate:
-- memory governor behavior,
-- I/O accelerator behavior,
-- core matrix invariants.
+Coverage-based retirement of the old `tests/python/` suite (TESTS.md §4) is complete; the
+tools are `review/scripts/retire_analysis.py` and `cpp_retire_analysis.py`.
 
 ## Benchmarks
 
@@ -61,15 +54,9 @@ When a checklist item changes status:
 - ensure a corresponding test exists (or is added),
 - ensure a benchmark script exists (or is updated).
 
-### 3) Safety Tests (R1_SAFETY)
+### Stress and safety (`tests/engine/test_stress.py`)
 
-Location:
-- `tests/python/test_safety.py` (Basic smoke tests)
-- `tests/python/test_r1_safety_comprehensive.py` (Extensive stress/fuzzing suite)
-
-These tests validate:
-- **Corrupt Load**: Ensuring `pc.load()` rejects files with invalid headers or magic bytes (Fuzzing 50+ iterations).
-- **Spill Integrity**: Verifying that internal `.tmp` files (with Simple Headers) are read correctly.
-- **Leak Detection**: Verifying that large alloc/free cycles do not cause OOM (validating `OfferVirtualMemory` logic).
-- **Concurrency**: Threaded I/O stress testing to ensure thread-safety of file operations.
-- **Persistence**: Verifying physical disk writes via explicit flush checks.
+Behaviour coverage cannot see: header fuzzing (random bytes never load), the payload on disk
+after `save` (read back with plain file I/O), concurrent create / save / load / delete from
+8 threads (verified on Linux; the old suite ran it on Windows only), and repeated 200 MB
+allocations that must not accumulate RSS.

@@ -290,7 +290,7 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
       `mark_temporary_if_auto` and the `__init__` float->int argument coercion (NumPy raises
       for float sizes). Needs a Windows run before merging (exit-time cleanup).
 - [ ] 4.4 Python `_internal/` subpackages; `.pyi` generation (F-007)
-- [~] 4.5 Retire the old test suite per TESTS.md §4 migration rules (session 9: 57 of 100 files retired, 19 moved to tests/physics, 27 left)
+- [x] 4.5 Retire the old test suite per TESTS.md §4 migration rules (session 9: 72 files retired by coverage, 4 removed with OpRegistry, 19 moved to tests/physics, 9 to tests/blockmatrix; stress substance restored in test_stress.py)
 - [x] 4.6a **Structure classes** (§3.1 item 4, revised): `MatrixType`→`Structure` enum; one
       Python class per structure with `.dtype` (F-032 fixed by construction); persistence keyed
       by (structure, dtype); old per-dtype names removed from code, tests and docs

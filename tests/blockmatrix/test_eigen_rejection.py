@@ -3,7 +3,6 @@ Test Phase 6: Block-Matrix Support for Eigen Operations
 
 Verifies that eigen operations properly handle block matrices:
 - Reject block matrices with clear error messages (not supported)
-- Verify OpContract declarations match actual behavior
 """
 
 import unittest

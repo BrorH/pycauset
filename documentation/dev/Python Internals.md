@@ -47,7 +47,7 @@ If you’re unsure where a new helper belongs, prefer `_internal/` first.
 
 1. Implement the logic in an `_internal/` module.
 2. Add a thin wrapper/re-export at `pycauset.<name>` in `python/pycauset/__init__.py`.
-3. Add or update a Python test under `tests/python/` that imports the symbol from `pycauset.*`.
+3. Add or update a test under `tests/engine/` (usually `test_api_surface.py`) that uses the symbol through `pycauset.*`.
 4. If the feature relies on native bindings, update [[dev/Bindings & Dispatch]] and run the drift check (`python tools/check_native_exports.py`).
 
 ## Status note

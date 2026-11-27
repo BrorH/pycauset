@@ -85,3 +85,59 @@ def test_load_rejects_a_truncated_header(tmp_path):
     path.write_bytes(path.read_bytes()[:12])  # magic, then less than the 16-byte preamble
     with pytest.raises(ValueError, match="truncated header|unsupported file format"):
         pc.load(str(path))
+
+
+class _Closable:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+def test_runtime_cleanup_closes_tracked_objects_and_sweeps_tmp_files(tmp_path):
+    """A private Runtime (the global one would close every live matrix of the test run)."""
+    from pycauset import _storage
+    from pycauset._internal.runtime import Runtime
+
+    rt = Runtime(cleanup_storage=_storage.cleanup_storage, set_temporary_file=_storage.set_temporary_file)
+    rt.set_storage_root(tmp_path)
+    (tmp_path / "keep.pycauset").write_bytes(b"x")
+    tmp = tmp_path / "spill_1.tmp"
+    tmp.write_bytes(b"x")
+    _storage.record_temporary_file(tmp)
+    obj = _Closable()
+    rt.track_matrix(obj)
+    assert rt.has_live_matrices()
+
+    rt.cleanup_all_roots(keep_temp_files=True)  # closes, keeps files
+    assert obj.closed and tmp.exists()
+    rt.cleanup_all_roots(keep_temp_files=False)  # sweeps *.tmp only
+    assert not tmp.exists() and (tmp_path / "keep.pycauset").exists()
+
+
+def test_export_size_estimate_for_objects_without_a_native_exporter():
+    from pycauset._internal import export_guard
+
+    class Fake:
+        def __init__(self, shape, dtype):
+            self.shape, self.dtype = shape, dtype
+
+    assert export_guard.estimate_materialized_bytes(Fake((3, 4), "float64")) == 96
+    assert export_guard.estimate_materialized_bytes(Fake((5,), "int16")) == 10  # 1-D: n x 1
+    assert export_guard.estimate_materialized_bytes(Fake((2, 2), "complex_float16")) == 32  # exported as complex64
+    assert export_guard.estimate_materialized_bytes(Fake((2, 2), "BoolMatrix")) == 4  # class-style tokens
+    assert export_guard.estimate_materialized_bytes(Fake((2, 2), "unknown")) is None
+
+
+def test_storage_sweep_helpers(tmp_path):
+    from pycauset import _storage
+
+    _storage.cleanup_storage(tmp_path / "missing")  # a missing root is a no-op
+    inside = tmp_path / "a.tmp"
+    inside.write_bytes(b"x")
+    _storage.record_temporary_file(inside)
+    _storage.clear_tracked_temp_files(tmp_path)
+    assert inside.exists()  # clearing the tracker never deletes
+    _storage.cleanup_storage(tmp_path)
+    assert not inside.exists()

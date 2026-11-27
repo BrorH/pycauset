@@ -35,7 +35,7 @@ When adding a new matrix type, dtype, or operation:
 1. **C++ engine:** implement or route the capability.
 2. **Bindings:** expose the capability to Python.
 3. **Python surface:** ensure it is reachable via a top-level API (`pycauset.*`).
-4. **Tests:** add/extend tests under `tests/python/`.
+4. **Tests:** add/extend tests under `tests/engine/` and an atlas entry (Adding Operations protocol).
 5. **Docs:** update `documentation/docs/`, `documentation/guides/`, and (if architectural) `documentation/internals/`.
 
 ## Bindings layout (modular translation units)

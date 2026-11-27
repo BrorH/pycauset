@@ -61,7 +61,7 @@ local_scheme = "no-local-version"
 # site-packages. The compiled extension must sit next to the sources (CI copies it;
 # locally: build, then copy _pycauset*.so / libpycauset_core.so into python/pycauset/).
 pythonpath = ["python"]
-testpaths = ["tests/engine", "tests/physics", "tests/python"]
+testpaths = ["tests/engine", "tests/physics", "tests/blockmatrix"]
 norecursedirs = [
   "build",
   "build_*",

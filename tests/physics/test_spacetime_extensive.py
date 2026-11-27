@@ -5,14 +5,6 @@ import sys
 import numpy as np
 from pathlib import Path
 
-# Add python directory to path
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_PYTHON_DIR = _REPO_ROOT / "python"
-for _path in (_REPO_ROOT, _PYTHON_DIR):
-    path_str = str(_path)
-    if path_str not in sys.path:
-        sys.path.insert(0, path_str)
-
 import pycauset
 from pycauset import CausalSet
 from pycauset import spacetime

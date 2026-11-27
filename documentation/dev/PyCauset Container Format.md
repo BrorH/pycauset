@@ -72,7 +72,7 @@ Slot validity (v1):
 
 Active slot selection:
 
-- Choose the valid slot with the highest `generation`.
+- Choose the valid slot with the highest `generation` (equal generations, which a correct writer never produces: slot B). One reader implements this (`persistence._read_active_slot_and_typed_metadata`).
 - If neither slot is valid, loading fails.
 
 ## Payload region
@@ -137,6 +137,7 @@ This guarantees deterministic $O(1)$ load and never moves the payload region.
 	- which slot is active?
 3) Validate the metadata block framing and CRC.
 
-Developer tooling:
+`load` checks all of this in one reader (`persistence._read_active_slot_and_typed_metadata`)
+and raises `ValueError` naming the first check that failed (`invalid file: ...`,
+`unsupported format version: ...`); the message is the diagnosis.
 
-- `python/pycauset/_internal/storage_debug.py` exposes `summarize_container(path)`.

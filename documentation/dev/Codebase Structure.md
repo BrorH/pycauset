@@ -38,7 +38,7 @@ This page explains **where things live** in the repository and **how the pieces 
 
 ### Tests & benchmarks
 
-- `tests/python/`, Python interface + integration tests
+- `tests/engine/`, engine suite (NumPy oracle); `tests/atlas/`, op x dtype x structure x view grid; `tests/physics/`, `tests/blockmatrix/`
 - `tests/*.cpp`, C++ unit tests (engine-level)
 - `benchmarks/`, performance scripts and comparison suites
 

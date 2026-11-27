@@ -34,7 +34,6 @@ Load is $O(1)$: pick the highest-generation valid slot, validate pointers/CRCs, 
 - Validate header slots: CRC, pointer ranges, alignment (payload 4096-aligned, metadata 16-aligned), choose highest valid generation.
 - Validate metadata framing: `PCMB`, versions supported, payload length within file, CRC32 matches.
 - Validate payload pointer: `payload_offset + payload_length` within file; payload is mmap-friendly at that offset.
-- Developer helper: `python/pycauset/_internal/storage_debug.py::summarize_container(path)` (used by `tests/python/test_storage_debug_tool.py`).
 
 ## See also
 - [[guides/Storage and Memory]]

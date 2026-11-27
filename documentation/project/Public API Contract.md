@@ -132,7 +132,7 @@ Checklist:
 
 1. Update the API reference page(s) under `documentation/docs/`.
 2. Update any affected guides under `documentation/guides/`.
-3. Update tests under `tests/python/`.
+3. Update tests under `tests/engine/`.
 4. If native exports are involved, run the drift check:
    - `python tools/check_native_exports.py`
 

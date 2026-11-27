@@ -208,3 +208,31 @@ def test_causal_matrix_of_a_size_without_population():
 
 def test_causal_set_n_property():
     assert pc.CausalSet(n=7, seed=3).n == 7
+
+
+def test_str_shows_class_shape_and_elides_large_matrices():
+    s = str(pc.matrix(np.arange(400).reshape(20, 20)))
+    lines = s.splitlines()
+    assert lines[0] == "DenseMatrix(shape=(20, 20))"
+    rows = [ln for ln in lines if ln.startswith(" [")]
+    assert len(rows) == 8 and " ..." in s  # 4 edge rows each side, 4 edge items per row
+    assert rows[0] == " [0 1 2 3 ... 16 17 18 19]" and rows[-1].endswith("396 397 398 399]")
+    small = str(pc.causal_matrix(np.triu(np.ones((3, 3), dtype=bool), 1))).splitlines()
+    assert small == ["TriangularMatrix(shape=(3, 3))", "[", " [0 1 1]", " [0 0 1]", " [0 0 0]", "]"]
+    assert repr(pc.matrix(np.eye(2))) == "<DenseMatrix shape=(2, 2) dtype=float64>"
+
+
+@pytest.mark.parametrize("p", [0.5, 0.3])
+def test_random_causal_triangle(p):
+    """p = 0.5 fills whole words of random bits; other p draws each bit (Bernoulli)."""
+    a = pc.TriangularMatrix.random(200, p=p, seed=5)
+    x = np.asarray(a).astype(bool)
+    assert np.array_equal(x, np.asarray(pc.TriangularMatrix.random(200, p=p, seed=5)))  # seeded
+    assert not np.tril(x).any()  # strictly upper
+    assert abs(x[np.triu_indices(200, 1)].mean() - p) < 0.02
+
+
+def test_transpose_method_equals_T():
+    a = np.arange(6.0).reshape(2, 3)
+    np.testing.assert_array_equal(to_np(pc.matrix(a).transpose()), a.T)
+    np.testing.assert_array_equal(to_np(pc.matrix(a).T), a.T)

@@ -444,3 +444,9 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Maintainer decisions: F-103, Python integers stay int32 (documented rule; no value-based
   narrowing in constructors); order stays cleanup -> tests -> docs -> speed -> features, F1
   (value bounds) included, which later makes minimal-dtype storage safe.
+- 4.5 done: `tests/python/` retired (72 files deleted after coverage checks, ~8,100 lines; 19
+  physics files -> tests/physics, 9 block-matrix files -> tests/blockmatrix). New engine
+  files: test_storage, test_persistence (one container header reader now, the duplicate
+  removed; tie-break documented), test_stress (fuzz, threads, leaks: coverage can't see
+  them; threaded I/O verified on Linux, 20/20). F-106: OpRegistry removed. storage_debug.py
+  (unused) removed.

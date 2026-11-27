@@ -366,87 +366,10 @@ def _read_active_slot_and_typed_metadata(path: Path) -> tuple[dict[str, int], st
 
 
 def _read_new_container_metadata_and_offset(path: Path) -> tuple[dict[str, Any], int]:
-    file_size = path.stat().st_size
-    with path.open("rb") as f:
-        preamble = f.read(16)
-        if len(preamble) != 16:
-            raise ValueError("invalid file: truncated header")
-
-        magic, version, endian, header_bytes, reserved = struct.unpack("<8sIBHB", preamble)
-        if magic != _MAGIC:
-            raise ValueError("invalid file: magic mismatch")
-        if version != _FORMAT_VERSION:
-            raise ValueError(f"unsupported format version: {version}")
-        if endian != _ENDIAN_LITTLE:
-            raise ValueError("unsupported endian marker")
-        if header_bytes != _HEADER_BYTES:
-            raise ValueError(f"unsupported header size: {header_bytes}")
-        if reserved != 0:
-            raise ValueError("invalid file: reserved header byte is non-zero")
-
-        f.seek(_SLOT_A_OFFSET)
-        slot_a = _unpack_slot(f.read(_SLOT_SIZE))
-        f.seek(_SLOT_B_OFFSET)
-        slot_b = _unpack_slot(f.read(_SLOT_SIZE))
-
-        def _slot_valid(s: dict[str, int]) -> bool:
-            if not s.get("crc_ok"):
-                return False
-            if s["payload_offset"] % 4096 != 0:
-                return False
-            if s["metadata_offset"] % 16 != 0:
-                return False
-            if s["payload_offset"] + s["payload_length"] > file_size:
-                return False
-            if s["metadata_offset"] + s["metadata_length"] > file_size:
-                return False
-            return True
-
-        candidates = [s for s in (slot_a, slot_b) if _slot_valid(s)]
-        if not candidates:
-            raise ValueError("invalid file: no valid header slot")
-
-        active = max(candidates, key=lambda s: s["generation"])
-
-        f.seek(active["metadata_offset"])
-        block = f.read(active["metadata_length"])
-        if len(block) != active["metadata_length"]:
-            raise ValueError("invalid file: truncated metadata block")
-
-    if len(block) < 32:
-        raise ValueError("invalid file: metadata block too small")
-
-    block_magic = block[:4]
-    if block_magic != _METADATA_BLOCK_MAGIC:
-        raise ValueError("invalid file: metadata block magic mismatch")
-
-    block_version, encoding_version, reserved0 = struct.unpack("<III", block[4:16])
-    if reserved0 != 0:
-        raise ValueError("invalid file: metadata reserved field non-zero")
-    if block_version != _METADATA_BLOCK_VERSION:
-        raise ValueError(f"unsupported metadata block version: {block_version}")
-    if encoding_version != _METADATA_ENCODING_VERSION:
-        raise ValueError(f"unsupported metadata encoding version: {encoding_version}")
-
-    payload_length = struct.unpack("<Q", block[16:24])[0]
-    payload_crc32 = struct.unpack("<I", block[24:28])[0]
-    reserved1 = struct.unpack("<I", block[28:32])[0]
-    if reserved1 != 0:
-        raise ValueError("invalid file: metadata reserved2 field non-zero")
-
-    expected_total = 32 + payload_length
-    if expected_total != len(block):
-        raise ValueError("invalid file: metadata block length mismatch")
-
-    payload = block[32:]
-    if _crc32(payload) != payload_crc32:
-        raise ValueError("invalid file: metadata payload checksum failed")
-
-    typed_meta = _decode_metadata_top_map(payload)
+    """The active slot's metadata and payload offset (one header reader, used by load)."""
+    active, _, typed_meta = _read_active_slot_and_typed_metadata(path)
     if not isinstance(typed_meta, dict):
         raise ValueError("invalid file: metadata top-level is not a map")
-
-    # payload begins at payload_offset
     return typed_meta, int(active["payload_offset"])
 
 
