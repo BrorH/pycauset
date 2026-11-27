@@ -42,7 +42,7 @@ judgment calls. No off-the-shelf "LLM dead-code product" beats that loop.
 # Python, static
 skylos python/pycauset --json > skylos.json
 # Python, runtime (also gives test redundancy)
-python -m pytest tests/python --cov=python/pycauset --cov-context=test --cov-report=
+python -m pytest tests --ignore=tests/atlas --cov=python/pycauset --cov-context=test --cov-report=
 python review/scripts/coverage_analysis.py .coverage functions   # never-executed functions
 python review/scripts/coverage_analysis.py .coverage tests       # unique lines per test file
 # C++, static
@@ -112,6 +112,18 @@ C++ (cppcheck ∩ coverage, 24): `WorkloadPartitioner.{hpp,cpp}`, `src/main.cpp`
 **Not yet done:** `MemoryGovernor`'s pinning API is GPU infrastructure; it moves with
 CUDA to `experimental/` rather than being deleted. `set_temporary_file` (never executed,
 but wired into Runtime) is Tier B.
+
+### Python runtime pass, session 9 (whole suite, coverage.py)
+84% line coverage (76% at the start of the review); 27 functions never execute (87 before).
+Removed: the NumPy-optional branches (NumPy is a dependency), causal_matrix's nested-list
+coercion (now `np.asarray`), `ops._as_pycauset_vector`. Left, with a reason:
+- `_internal/submatrix_view.py` + `_internal/dense_python.py`: BlockMatrix's sub-block views
+  are a Python per-element matrix ("correctness-first, intentionally not optimized"). Native
+  matrices have windows now (`m[r0:r1, c0:c1]` shares storage), so SubmatrixView over a
+  native source could be a native window and `DensePythonMatrix` would go. Candidate for the
+  BlockMatrix cleanup (a Python backend behind PyCauset calls, against the R1 rule).
+- Dunder methods (`__repr__`, `__len__`, BlockMatrix `__add__`...) and `runtime._finalize`
+  (atexit) are API or shutdown paths, not dead: test gaps.
 
 ### Tier B: referenced but never executed (decide: test it or delete it)
 - `matrix_api.Matrix` pure-Python matrix implementation (~60 lines, reached from

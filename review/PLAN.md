@@ -92,8 +92,9 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
 - [ ] **1.8 Warnings as errors** for our own code (`-Wall -Wextra -Werror` on
       `src/`, not `_deps`), after fixing F-020. Ruff in CI with the current baseline
       frozen (no new findings).
-- [ ] **1.9 Coverage measurement:** Python (`pytest-cov`) and C++ (`gcovr`) once,
-      to find untested files and functions → record in INVENTORY.md.
+- [x] **1.9 Coverage measurement:** Python (`pytest-cov`) and C++ (`gcovr`) once,
+      to find untested files and functions (session 9: both runs, results and triage in
+      DEADCODE.md; Python 84% lines).
 
 ## Phase 1b: Dead code, Tier A (cheap, early; shrinks context for everything after)
 - [x] Remove DEADCODE.md §4 Tier A items, batch 1 (session 1: 43 files, −832 lines)
