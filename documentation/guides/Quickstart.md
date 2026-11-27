@@ -1,7 +1,8 @@
 # Quickstart
 
-Ten minutes from `pip install` to a field on a causal set. If you already know
-causal set theory, this is the whole library in one page.
+PyCauset is NumPy for causal sets: matrices and vectors with NumPy's values and dtypes, plus
+storage that knows its structure (bit-packed causal matrices, triangular, symmetric, diagonal)
+and can live on disk. Ten minutes from `pip install` to linear algebra on a causal matrix.
 
 ## Install
 
@@ -9,86 +10,80 @@ causal set theory, this is the whole library in one page.
 pip install pycauset
 ```
 
-Plotting needs `plotly`, which comes with the install.
+Import PyCauset before NumPy: the two use separate BLAS thread pools, and importing NumPy
+first slows PyCauset's BLAS/LAPACK calls (PyCauset warns when it happens).
 
-## 1. Sprinkle a causal set
-
-A causal set is a finite set of points with a causal (partial) order between them.
-You make one by "sprinkling" points into a region of spacetime and reading off the
-order from the geometry.
+## 1. Matrices and vectors
 
 ```python
 import pycauset as pc
+import numpy as np
 
-c = pc.CausalSet(n=3000, seed=42)
+A = pc.matrix(np.array([[4.0, 1.0], [2.0, 3.0]]))
+v = pc.vector([1.0, 2.0])
+
+A @ v              # matrix-vector product (a vector)
+A.T @ A            # transposition is a view: nothing is copied
+2 * A + 1          # element-wise, NumPy's broadcasting and dtypes
+np.asarray(A)      # back to NumPy (one copy)
 ```
 
-That gives you 3000 points in a 2D Minkowski diamond (the default geometry).
+Results follow NumPy: `pc.matrix(np.ones((2, 2), np.float32)) + 1` is float32. The documented
+differences (Python integers default to int32; mixed float precisions under-promote) are in
+[[internals/DType System|DType System]].
+
+## 2. A causal matrix
+
+A causal matrix `C` has `C[i, j] = True` when element `i` precedes `j`. It is strictly upper
+triangular and stored one bit per element.
 
 ```python
-c.n          # 3000
-c.coordinates()   # (n, 2) array of points
-c.C           # the causal matrix: C[i, j] is True when i < j
+C = pc.causal_matrix(np.triu(np.ones((5, 5), dtype=bool), 1))  # a 5-element chain
+type(C).__name__, C.dtype      # ('TriangularMatrix', 'bool')
+
+paths = C @ C                  # number of 2-step paths between each pair (int32)
+R = C + C.T                    # the comparability matrix: a lazy view over C's bits
 ```
 
-The causal matrix is a bit-packed `TriangularMatrix` (dtype `bool`). You can get it as a NumPy
-array with `np.asarray(c.C)`.
+`C @ C` counts on the packed bits; `C + C.T` costs no memory until it is read.
 
-## 2. Plot it
+## 3. Structured matrices
 
 ```python
-pc.plot_embedding(c).show()
+S = pc.symmetric(np.array([[2.0, 1.0], [1.0, 2.0]]))   # stores one triangle
+w, V = pc.eigh(S)                                     # LAPACK, like np.linalg.eigh
+D = pc.diagonal([1.0, 2.0, 3.0])                      # stores n values
+pc.determinant(D)                                     # O(n) for a diagonal
 ```
 
-![3000 points in a 2D Minkowski diamond](../docs/assets/gallery/diamond_embedding.png)
+Every operation keeps the structure when the result has it (diagonal @ diagonal is diagonal;
+triangular + triangular is triangular) and returns NumPy's values.
 
-This opens an interactive Plotly figure. Large causets are subsampled for the plot
-(and it tells you when it does); pass `force=True` to plot every point. `c.plot_embedding()`
-and `pc.show(c)` are the same thing.
-
-## 3. Pick a spacetime
-
-The default is a 2D diamond, but you can choose the region you sprinkle into:
+## 4. Linear algebra
 
 ```python
-spacetime = pc.spacetime.MinkowskiDiamond(dimension=4)
-c4 = pc.CausalSet(n=5000, spacetime=spacetime, seed=1)
+pc.solve(A, v)          # like np.linalg.solve
+pc.inverse(A)           # alias: A.inverse()
+pc.svd(A)               # U, S, Vt with NumPy's shapes
+pc.norm(A, "fro"), pc.cond(A), pc.matrix_rank(A)
 ```
 
-There is a whole family: `MinkowskiBox`, `MinkowskiCylinder`, `DeSitter`,
-`AntiDeSitter`, `FLRW`, `Schwarzschild`. See the [[Spacetime]] guide.
+The full list is [[Linear Algebra Operations]].
 
-## 4. Put a field on it
+## 5. Big matrices and saving
 
 ```python
-phi = pc.field("scalar", mass=1.5)   # a scalar field (set-independent)
-cf = phi.on(c)                        # a correlated field on this causet
-
-K = cf.retarded()       # the retarded propagator K_R
-Delta = cf.pauli_jordan()   # iΔ = K_R − K_A
-W = cf.wightman()       # the Sorkin–Johnston two-point function
+pc.set_memory_threshold(256 * 1024**2)   # matrices above 256 MB are backed by files
+pc.save(A, "a.pycauset")
+B = pc.load("a.pycauset")                # memory-mapped: O(1) to open
 ```
 
-`cf` exposes the propagators you would expect: `retarded`, `advanced`,
-`pauli_jordan`, `wightman`, `correlator`, plus `entanglement_entropy` and `state`.
-
-See the [[Field Theory]] guide for what these mean and how they are built.
-
-## 5. Save it
-
-```python
-c.save("my_universe.pycauset")
-c2 = pc.load("my_universe.pycauset")
-```
-
-Everything goes into one file: the causal matrix, the coordinates, the metadata.
+Operations that do not fit in RAM run tile by tile; see [[Storage and Memory]].
 
 ## Where next
 
-- [[Causal Sets]] — the object model and the order methods (`links`, `past`,
-  `future`, intervals, layers).
-- [[Field Theory]] — fields, propagators, and the Sorkin–Johnston vacuum.
-- [[Spacetime]] — the spacetime library and how to define your own.
-- [[Visualization]] — embedding, Hasse, and causal-matrix plots.
-- [[Linear Algebra Operations]] — the underlying matrix engine, if you want to
-  skip the physics and do plain linear algebra.
+- [[Matrix Guide]] and [[Vector Guide]]: construction, indexing, views, structures.
+- [[Linear Algebra Operations]]: every operation, with NumPy's semantics.
+- [[Numpy Integration]]: converting, mixing, and what never goes through NumPy.
+- [[Storage and Memory]] and [[Saving and Loading Data]]: disk-backed matrices and files.
+- [[Lazy Evaluation]]: which results are views and when they materialize.

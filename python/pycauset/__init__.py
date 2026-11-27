@@ -179,12 +179,9 @@ from ._internal.native_setup import configure_openblas_threads
 
 configure_openblas_threads()
 
-# Import modules that depend on the native extension after it is loaded.
-from . import field as field
-from . import spacetime as spacetime
-from . import synthetic as synthetic
 from ._storage import cleanup_storage, set_temporary_file
-from .causet import CausalSet
+
+# Physics (causal sets, spacetimes, fields, plots) is parked in experimental/physics for R1.
 
 
 def _debug_resolve_promotion(
@@ -447,7 +444,7 @@ def to_numpy(obj: Any, *, allow_huge: bool = False, dtype: Any = None, copy: boo
 
     return _export_guard.export_to_numpy(obj, allow_huge=allow_huge, dtype=dtype, copy=copy)
 
-_PERSISTENCE_DEPS = _SimpleNamespace(CausalSet=CausalSet, native=_native)
+_PERSISTENCE_DEPS = _SimpleNamespace(native=_native)
 
 
 def save(obj: Any, path: str | Path) -> None:
@@ -932,23 +929,6 @@ def causal_matrix(source: Any, populate: bool = True, **kwargs: Any) -> Any:
 causal_matrix.random = TriangularMatrix.random
 
 
-def causet(
-    *,
-    n: int = None,
-    density: float = None,
-    spacetime=None,
-    seed: int | str | None = None,
-    matrix=None,
-) -> CausalSet:
-    """Lower-case convenience factory that returns a CausalSet."""
-    st_name = type(spacetime).__name__ if spacetime is not None else "default"
-    if matrix is not None:
-        _debug(f"causet from matrix (n={n})")
-    else:
-        _debug(f"sprinkle n={n} density={density} spacetime={st_name} seed={seed}")
-    with _debug_time("causet"):
-        return CausalSet(n=n, density=density, spacetime=spacetime, seed=seed, matrix=matrix)
-
 _OPS_DEPS = _ops.OpsDeps(
     native=_native,
     np_module=_np,
@@ -1388,55 +1368,9 @@ I = getattr(_native, "IdentityMatrix", None)  # noqa: E741 (public identity alia
 det = determinant
 rank = matrix_rank
 
-# Lazy top-level visualization verbs (R2_VIZ): these exist for non-causet objects
-# and as zero-import sugar; the primary citizens are the CausalSet.plot_* methods.
-def plot_embedding(causet, **kwargs):
-    from .vis import plot_embedding as _f
-    return _f(causet, **kwargs)
-
-
-def plot_hasse(causet, **kwargs):
-    from .vis import plot_hasse as _f
-    return _f(causet, **kwargs)
-
-
-def plot_causal_matrix(causet, **kwargs):
-    from .vis import plot_causal_matrix as _f
-    return _f(causet, **kwargs)
-
-
-def show(causet):
-    """One-verb sugar: plot a causal set's embedding and open it in the browser."""
-    return causet.plot_embedding().show()
-
-
-# Python-level field API
-from .field import ContinuumCorrelatedField as ContinuumCorrelatedField
-from .field import CorrelatedField as CorrelatedField
-from .field import Field as Field
-from .field import State as State
-
-
-_HIDDEN_NATIVE_NAMES = frozenset(
-    {
-        # Spacetimes live under pycauset.spacetime (public API), never at the
-        # top level. The native C++ classes stay reachable as pycauset._native.*.
-        "MinkowskiDiamond",
-        "MinkowskiCylinder",
-        "MinkowskiBox",
-        "CausalSpacetime",
-    }
-)
-
-
 def __getattr__(name):
     if name == "bool":
         return "bool"
-    if name in _HIDDEN_NATIVE_NAMES:
-        raise AttributeError(
-            f"module 'pycauset' has no attribute {name!r}; "
-            f"spacetimes live in pycauset.spacetime"
-        )
     return getattr(_native, name)
 
 
@@ -1450,9 +1384,6 @@ _INTERNAL_NATIVE_EXPORTS = frozenset(
         "IOAccelerator",
         # Native storage plumbing (public API is set_backing_dir / save / load).
         "set_storage_root",
-        # Causet-generation internals (public API is pc.causet).
-        "make_coordinates",
-        "sprinkle",
     }
 )
 
@@ -1545,21 +1476,8 @@ _extra_exports = [
     "antisymmetric",
     "hermitian",
     "I",
-    "causet",
-    "CausalSet",
-    "spacetime",
-    "synthetic",
-    "field",
     "MemoryHint",
     "AccessPattern",
-    "Field",
-    "CorrelatedField",
-    "ContinuumCorrelatedField",
-    "State",
-    "plot_embedding",
-    "plot_hasse",
-    "plot_causal_matrix",
-    "show",
     "debug_mode",
 ]
 

@@ -179,11 +179,6 @@ def test_matrix_from_ndarray_with_dtype():
     np.testing.assert_array_equal(to_np(m), np.arange(4.0).reshape(2, 2))
 
 
-def test_causal_set_with_an_explicit_spacetime():
-    st = pc.spacetime.MinkowskiDiamond(2)
-    c = pc.CausalSet(n=20, spacetime=st, seed=1)
-    assert c.N == 20 and c.spacetime is st
-
 
 def test_matrix_from_nested_list_with_dtype_and_bit_alias():
     assert pc.matrix([[1, 0], [0, 1]], dtype="float32").dtype == "float32"
@@ -205,9 +200,6 @@ def test_causal_matrix_of_a_size_without_population():
     assert c.shape == (5, 5) and c.dtype == "bool"
     np.testing.assert_array_equal(to_np(c), np.zeros((5, 5), dtype=bool))
 
-
-def test_causal_set_n_property():
-    assert pc.CausalSet(n=7, seed=3).n == 7
 
 
 def test_str_shows_class_shape_and_elides_large_matrices():

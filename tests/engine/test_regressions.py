@@ -256,19 +256,37 @@ def test_pauli_jordan_like_spectrum_from_packed_result():
     np.testing.assert_allclose(np.sort(w), np.sort(ref), rtol=1e-8)
 
 
-# F-053: links() used a NumPy uint8 product; path counts of 256 wrapped to 0 -> false links.
+# F-053: links used a NumPy uint8 product; path counts of 256 wrapped to 0 -> false links.
+# The link matrix is now an engine bit kernel (math/CausalMatrix.cpp).
+def _closure(c: np.ndarray) -> np.ndarray:
+    """Transitive closure of a strictly upper boolean matrix (NumPy reference)."""
+    r = c.copy()
+    while True:
+        nxt = r | ((r.astype(np.int64) @ r.astype(np.int64)) > 0)
+        if np.array_equal(nxt, r):
+            return r
+        r = nxt
+
+
 def test_F053_links_of_a_long_chain():
-    c = pc.synthetic.chain(300)
-    links = c.links()
+    chain = np.triu(np.ones((300, 300), dtype=bool), 1)
+    links = np.asarray(native._transitive_reduction(pc.causal_matrix(chain))).astype(bool)
     assert int(links.sum()) == 299 and not links[0, 257]
 
 
 @pytest.mark.parametrize("n,seed", [(150, 1), (400, 7)])
 def test_links_match_the_definition(n, seed):
-    cs = pc.causet(n=n, seed=seed)
-    c = np.asarray(cs.C, dtype=bool)
+    rng = np.random.default_rng(seed)
+    c = _closure(np.triu(rng.random((n, n)) < 3.0 / n, 1))
     ci = c.astype(np.int64)
-    np.testing.assert_array_equal(cs.links(), c & ~((ci @ ci) > 0))
+    got = np.asarray(native._transitive_reduction(pc.causal_matrix(c))).astype(bool)
+    np.testing.assert_array_equal(got, c & ~((ci @ ci) > 0))
+
+
+def test_transitive_reduction_rejects_views():
+    c = pc.causal_matrix(np.triu(np.ones((4, 4), dtype=bool), 1))
+    with pytest.raises(TypeError):
+        native._transitive_reduction(c.T)
 
 
 # F-055: integer matmul runs exactly through float64 BLAS when the measured bound

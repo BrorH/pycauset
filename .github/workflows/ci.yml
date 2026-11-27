@@ -48,8 +48,8 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 10
-        # testpaths in pyproject: the engine suite (tests/engine), physics smoke tests
-        # (tests/physics) and the block-matrix feature (tests/blockmatrix)
+        # testpaths in pyproject: the engine suite (tests/engine) and the block-matrix feature
+        # (tests/blockmatrix). Physics is parked in experimental/physics for R1.
         run: python -m pytest -q --tb=short -rfEs
 
       - name: Engine suite with lazy results disabled (lazy == eager oracle, LAZY.md section 10)

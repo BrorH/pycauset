@@ -2,7 +2,7 @@
 
 Round trips of every structure x dtype x view are the atlas's `save_load` op; this file pins
 what the atlas can't express: crash consistency of the A/B header slots (Container Format
-doc), causal sets, and the .npy / .npz / convert_file helpers. Moved from the old suite.
+doc) and the .npy / .npz / convert_file helpers. Moved from the old suite.
 """
 from __future__ import annotations
 
@@ -83,14 +83,6 @@ def test_newer_slot_over_a_corrupt_metadata_block_fails_loudly(saved):
         pc.load(str(path))
 
 
-def test_causal_set_round_trip(tmp_path):
-    c = pc.CausalSet(30, spacetime=pc.spacetime.MinkowskiDiamond(2), seed=4)
-    path = tmp_path / "c.pycauset"
-    c.save(str(path))
-    back = pc.CausalSet.load(str(path))
-    assert back.n == 30
-    np.testing.assert_array_equal(np.asarray(back.C), np.asarray(c.C))
-
 
 @pytest.mark.parametrize("dtype", ["float64", "int16", "bool", "complex128"])
 def test_npy_and_npz_round_trip(tmp_path, dtype):
@@ -125,15 +117,6 @@ def test_corrupt_metadata_magic_fails(saved):
     with pytest.raises(ValueError, match="metadata block magic mismatch|no valid header slot"):
         pc.load(str(path))
 
-
-def test_causal_set_on_a_cylinder_round_trip(tmp_path):
-    st = pc.spacetime.MinkowskiCylinder(2, height=2.0, circumference=3.0)
-    c = pc.CausalSet(25, spacetime=st, seed=2)
-    path = tmp_path / "cyl.pycauset"
-    c.save(str(path))
-    back = pc.CausalSet.load(str(path))
-    assert type(back.spacetime).__name__ == "MinkowskiCylinder"
-    np.testing.assert_array_equal(np.asarray(back.C), np.asarray(c.C))
 
 
 def test_convert_npz_to_npy_and_one_dimensional_data(tmp_path):

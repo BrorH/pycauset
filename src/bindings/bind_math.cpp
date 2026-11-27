@@ -1,5 +1,6 @@
 #include "pycauset/math/VectorOps.hpp"
 #include "bindings_common.hpp"
+#include "pycauset/math/CausalMatrix.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/vector/VectorBase.hpp"
@@ -7,6 +8,16 @@
 namespace py = pybind11;
 
 void bind_math_ops(py::module_& m) {
+    // Link matrix of a transitively closed causal matrix (bit kernel, math/CausalMatrix.cpp).
+    m.def("_transitive_reduction", [](const std::shared_ptr<pycauset::MatrixBase>& c) {
+        const auto* tri = dynamic_cast<const pycauset::TriangularMatrix<bool>*>(c.get());
+        if (tri == nullptr || tri->has_diagonal() || c->is_transposed() || c->is_subview() ||
+            c->get_scalar() != std::complex<double>(1.0, 0.0)) {
+            throw py::type_error("_transitive_reduction expects a plain causal matrix (TriangularMatrix of dtype 'bool')");
+        }
+        return std::shared_ptr<pycauset::MatrixBase>(pycauset::transitive_reduction(*tri).release());
+    }, py::arg("C"), "Internal: link matrix of a transitively closed causal matrix (bit kernel).");
+
     // Bind generic math functions exposed as module-level functions
     // (e.g. _native.norm(x))
 

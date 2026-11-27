@@ -374,11 +374,7 @@ def _read_new_container_metadata_and_offset(path: Path) -> tuple[dict[str, Any],
 
 
 class PersistenceDeps(Protocol):
-    # Types
-    CausalSet: type
-
-    # Native module
-    native: Any
+    native: Any  # the native module
 
 
 def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
@@ -402,13 +398,7 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
 
     temp_raw = path.with_suffix(".raw_tmp")
 
-    causet_obj: Any | None = None
     payload_obj = obj
-
-    # copy_storage now writes raw data to the file
-    if isinstance(obj, deps.CausalSet):
-        causet_obj = obj
-        payload_obj = obj.causal_matrix
 
     # Closure views (LAZY.md L2b) read another object's storage; save their packed result.
     if isinstance(payload_obj, deps.native.MatrixBase):
@@ -455,24 +445,6 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             "view": view,
             "payload_layout": {"kind": "raw_native", "params": {}},
         }
-
-        if causet_obj is not None:
-            st = getattr(causet_obj, "spacetime", None)
-            st_type = getattr(st, "__class__", type("_", (), {})).__name__ if st is not None else None
-            st_args: dict[str, Any] = {}
-            dim = getattr(st, "dimension", None)
-            if callable(dim):
-                st_args["dimension"] = int(dim())
-
-            for k in ("height", "circumference", "time_extent", "space_extent"):
-                v = getattr(st, k, None)
-                if v is not None:
-                    st_args[k] = float(v)
-
-            meta["object_type"] = "CausalSet"
-            meta["n"] = int(getattr(causet_obj, "n", rows))
-            meta["spacetime"] = {"type": st_type, "args": st_args}
-            meta["seed"] = int(getattr(causet_obj, "_seed", meta["seed"]))
 
         # Structure and dtype come straight from the object (one class per structure).
         structure = deps.native._structure_of(payload_obj)
@@ -641,33 +613,8 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         obj.set_conjugated(True)
 
 
-    if metadata.get("object_type") == "CausalSet":
-        st_meta = metadata.get("spacetime", {})
-        st_type = st_meta.get("type")
-        st_args = st_meta.get("args", {})
-
-        st = None
-        if st_type == "MinkowskiDiamond":
-            st = deps.native.MinkowskiDiamond(st_args.get("dimension", 2))
-        elif st_type == "MinkowskiCylinder":
-            st = deps.native.MinkowskiCylinder(
-                st_args.get("dimension", 2),
-                st_args.get("height", 1.0),
-                st_args.get("circumference", 1.0),
-            )
-        elif st_type == "MinkowskiBox":
-            st = deps.native.MinkowskiBox(
-                st_args.get("dimension", 2),
-                st_args.get("time_extent", 1.0),
-                st_args.get("space_extent", 1.0),
-            )
-
-        n = int(metadata.get("n", rows))
-        # The loaded matrix is file-backed (mmap'd); eager in-memory validation
-        # cannot materialize it. It was written by a trusted path, so load-time
-        # partial-order validation is deferred (see R2_VALIDATE).
-        return deps.CausalSet(n=n, spacetime=st, seed=seed, matrix=obj, validate=False)
-
+    # Files saved as a CausalSet (physics, parked in experimental/physics for R1) hold a causal
+    # matrix payload: it loads as that matrix; the spacetime metadata is not read.
     return obj
 
 

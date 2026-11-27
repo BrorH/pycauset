@@ -27,7 +27,7 @@ cmake --build build/cpp --target _pycauset -j1        # -j2 runs out of memory
 # Do not edit sources while a build runs: a compile that started before the edit finishes
 # after it, its object is newer than the source, and make keeps the stale object.
 cp build/cpp/_pycauset*.so build/cpp/libpycauset_core.so python/pycauset/
-PYTHONPATH=python python -m pytest tests/engine tests/physics tests/blockmatrix -q -p no:cacheprovider
+PYTHONPATH=python python -m pytest tests/engine tests/blockmatrix -q -p no:cacheprovider
 PYCAUSET_LAZY=0 PYTHONPATH=python python -m pytest tests/engine -q -p no:cacheprovider
 PYTHONPATH=python python -m pytest tests/atlas -q        # every op x dtype x structure x view
 PYTHONPATH=python python -m tests.atlas.report [op ...]  # regenerate review/atlas/ATLAS.md
