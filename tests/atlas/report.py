@@ -24,6 +24,8 @@ def main(argv=None) -> None:
         if i % 500 == 0:
             print(f"{i}/{len(cells)} {time.time() - t0:.0f}s", file=sys.stderr, flush=True)
     os.makedirs(OUT, exist_ok=True)
+    if only:  # a subset run updates its ops' cells in the full report instead of replacing it
+        cells = _merge(cells, only)
     # Committed snapshot: cell key -> "outcome path" (gzip, ~1 MB); the CI regression check
     # reads it. The full per-cell record (kernels, errors, timings) goes to the scratch JSON.
     snapshot = json.dumps({c.key(): f"{c.outcome} {c.path}".strip() for c in cells}, separators=(",", ":"))
@@ -35,6 +37,16 @@ def main(argv=None) -> None:
     with open(os.path.join(OUT, "ATLAS.md"), "w") as f:
         f.write(render(cells))
     print(summary_line(cells))
+
+
+def _merge(cells, only):
+    path = os.path.join(OUT, "atlas_full.json")
+    if not os.path.exists(path):
+        raise SystemExit("a subset run needs a full run first (atlas_full.json missing)")
+    from tests.atlas.atlas import Cell
+    with open(path) as f:
+        old = [Cell(**d) for d in json.load(f) if d["op"] not in only]
+    return old + cells
 
 
 def summary_line(cells) -> str:

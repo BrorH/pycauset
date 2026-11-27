@@ -610,3 +610,12 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   per-element path, 0.03x); other dense dtypes one contiguous pass; complex through BLAS ?dotc
   (2x NumPy). Full atlas timing after this round: 6,057 of 11,295 cells below 0.9x (8,445 at
   the session start).
+- Structured matvec / vecmat (float64 / complex128 results) run over the packed storage: one
+  pass over the stored rows gathers row . x (BLAS dot) and scatters the mirrored half into a
+  per-chunk buffer (symmetric, antisymmetric, Hermitian, skew-Hermitian, triangular, with
+  every view). Diagonal: 9 us (5-13x NumPy). Symmetric 1024: per-element path -> ~190 us, still
+  0.3x NumPy's dense gemv (which reads twice the bytes but runs a tuned kernel); a hand-fused
+  gather+scatter loop measured slower (390 us), so the BLAS gather stays. Remaining gap is
+  logged in BENCHMARKS (open: a blocked symv-style kernel). Atlas report: a subset run
+  (`python -m tests.atlas.report matvec`) now merges into the full report instead of
+  replacing it, like the timing harness. Full atlas: 0 wrong of 88,361.

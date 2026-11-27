@@ -31,7 +31,6 @@ Symbols: ✓ ok, fast kernel · ◐ ok, input written out first (O(n²) op) · �
 * **invert** ×6 — cpu.bitwise.not_int: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **norm** ×6 — cpu.norm.closure: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **matmul** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
-* **matvec** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **vecmat** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **inv** ×6 — cpu.solve.getrf_trsm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **solve** ×6 — cpu.solve.getrf_trsm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
@@ -45,6 +44,7 @@ Symbols: ✓ ok, fast kernel · ◐ ok, input written out first (O(n²) op) · �
 * **pinv** ×6 — cpu.svd.gesdd,cpu.pinv.svd,cpu.matmul.f64: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **matrix_power** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **lstsq** ×6 — cpu.lstsq.gelsd: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
+* **matvec** ×6 — cpu.matmul.int_via_dgemm: bool/c_plus_ct/H, bool/c_plus_ct/T, bool/c_plus_ct/conj, bool/c_plus_ct/plain, bool/c_plus_ct/scaled_int
 * **neg** ×2 — no error: bool/c_plus_ct/H, bool/c_plus_ct/conj
 * **trace** ×2 — no error: bool/c_plus_ct/H, bool/c_plus_ct/conj
 
@@ -67,7 +67,7 @@ Views not offered (structure/dtype/view): antisymmetric/complex_float16/rect_T, 
 
 ## Cells with no kernel trace
 
-Kernels that set no `debug_trace` name (the path is then inferred from the counters alone): add_scalar ×1312, radd_scalar ×1312, rsub_scalar ×1312, mul_scalar_float ×1312, div_scalar ×1312, rdiv_scalar ×1312, mul_scalar_complex ×1312, sum ×1312, export ×1279, neg ×1263, save_load ×1222, trace ×1042, getitem ×1042, det ×455, slogdet ×455, inv ×207, matmul ×116, mul ×104, matvec ×104, vecmat ×104, matrix_power ×104, add ×99, sub ×99, dot ×32.
+Kernels that set no `debug_trace` name (the path is then inferred from the counters alone): add_scalar ×1312, radd_scalar ×1312, rsub_scalar ×1312, mul_scalar_float ×1312, div_scalar ×1312, rdiv_scalar ×1312, mul_scalar_complex ×1312, sum ×1312, export ×1279, neg ×1263, save_load ×1222, trace ×1042, getitem ×1042, det ×455, slogdet ×455, inv ×207, matmul ×116, mul ×104, vecmat ×104, matrix_power ×104, matvec ×104, add ×99, sub ×99, dot ×32.
 
 ## add (elementwise)
 

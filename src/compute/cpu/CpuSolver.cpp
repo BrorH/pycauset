@@ -294,7 +294,156 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             return;
         }
     }
-    throw std::invalid_argument("CpuSolver::matrix_vector_multiply: kernel contract is a bit closure operand");
+    // A structured (non-dense) matrix with a float64 / complex128 result: a block of rows at a
+    // time through the typed row reader (every view rule), each block times x with BLAS gemv.
+    // The general path wrote the whole n x n matrix out first (2-4 ms at n = 1024).
+    auto blocked = [&](auto zero) -> bool {
+        using W = decltype(zero);
+        auto* out = dynamic_cast<DenseVector<W>*>(&result);
+        if (!out) return false;
+        const uint64_t cols = m.cols();
+        std::vector<W> x(cols);
+        if (!read_rows(*as_row_matrix(v), 0, 1, x.data())) return false;
+        constexpr uint64_t kRows = 64;
+        std::vector<W> probe(std::min<uint64_t>(rows, 1) * cols);
+        if (rows > 0 && !read_rows(m, 0, 1, probe.data())) return false;  // readable at all?
+        W* y = out->data();
+        const uint64_t blocks = (rows + kRows - 1) / kRows;
+        std::atomic<bool> ok{true};
+        ParallelFor(0, blocks, [&](size_t blk) {
+            const uint64_t i0 = blk * kRows, i1 = std::min(rows, i0 + kRows);
+            std::vector<W> buf((i1 - i0) * cols);
+            if (!read_rows(m, i0, i1, buf.data())) { ok = false; return; }
+            const int r = static_cast<int>(i1 - i0), c = static_cast<int>(cols);
+            if constexpr (std::is_same_v<W, double>) {
+                cblas_dgemv(CblasRowMajor, CblasNoTrans, r, c, 1.0, buf.data(), c, x.data(), 1, 0.0, y + i0, 1);
+            } else {
+                const W one(1.0), zero_c(0.0);
+                cblas_zgemv(CblasRowMajor, CblasNoTrans, r, c, &one, buf.data(), c, x.data(), 1, &zero_c, y + i0, 1);
+            }
+        });
+        if (!ok) throw std::logic_error("matrix_vector_multiply: typed rows readable for the probe, not a block");
+        out->set_scalar(1.0);
+        debug_trace::set_last(std::is_same_v<W, double> ? "cpu.matvec.rows_f64" : "cpu.matvec.rows_c128");
+        return true;
+    };
+    // Packed storage directly (float64 / complex128 elements, no scale, no conjugation, not a
+    // window): a gather over each stored row (the upper triangle) and, for the mirrored
+    // classes, a scatter of the same rows (the lower one, A_ji = mirror(A_ij)). Reads the n^2/2
+    // stored elements once each; a transposed triangle is the scatter alone.
+    auto packed = [&](auto zero) -> bool {
+        using W = decltype(zero);
+        auto* out = dynamic_cast<DenseVector<W>*>(&result);
+        // The view: element = conj(raw * s) when conjugated, else raw * s (ViewValue.hpp), so
+        // y = s * (A_raw x), or conj(s) * conj(A_raw conj(x)). Transposed mirrored classes are
+        // often such views (A^T = -A, A^H = A), so they take this path too.
+        const std::complex<double> sv = m.get_scalar();
+        const bool cj = m.is_conjugated() && is_std_complex_v<W>;
+        if (!out || m.is_subview() || (!is_std_complex_v<W> && sv.imag() != 0.0)) return false;
+        const Structure st = m.get_structure();
+        const uint64_t n = rows;
+        std::vector<W> x(n);
+        if (!read_rows(*as_row_matrix(v), 0, 1, x.data())) return false;
+        if constexpr (is_std_complex_v<W>) if (cj) for (auto& e : x) e = std::conj(e);
+        W* y = out->data();
+        auto finish = [&](W raw) -> W {  // the view applied to (A_raw x)_i
+            if constexpr (is_std_complex_v<W>) return cj ? std::conj(sv) * std::conj(raw) : W(sv) * raw;
+            else return sv.real() * raw;
+        };
+        if (st == Structure::DIAGONAL) {
+            auto* d = dynamic_cast<const DiagonalMatrix<W>*>(&m);
+            if (!d) return false;
+            for (uint64_t i = 0; i < n; ++i) y[i] = finish(d->get(i, i) * x[i]);
+            out->set_scalar(1.0);
+            debug_trace::set_last("cpu.matvec.diagonal");
+            return true;
+        }
+        const TriangularMatrixBase* tri = nullptr;
+        bool diag = true;
+        if (auto* t = dynamic_cast<const TriangularMatrix<W>*>(&m)) { tri = t; diag = t->has_diagonal(); }
+        else if (auto* sm = dynamic_cast<const SymmetricMatrix<W>*>(&m)) tri = sm;
+        if (!tri) return false;
+        const bool transposed = m.is_transposed();
+        // Which parts: gather (A's upper rows times x), scatter (rows scattered into y), and the
+        // mirror applied to the scattered values.
+        bool gather = true, scatter = false, scatter_diag = false;
+        int sign = 1;
+        bool conj_scatter = false;
+        if (st == Structure::TRIANGULAR) {
+            if (transposed) { gather = false; scatter = true; scatter_diag = true; }
+        } else if (st == Structure::SYMMETRIC) {
+            scatter = true;
+        } else if (st == Structure::ANTISYMMETRIC) {
+            scatter = true; sign = -1;
+        } else if constexpr (is_std_complex_v<W>) {
+            if (transposed) return false;  // A^T is conj(A): the typed path
+            if (st == Structure::HERMITIAN) { scatter = true; conj_scatter = true; }
+            else if (st == Structure::SKEW_HERMITIAN) { scatter = true; conj_scatter = true; sign = -1; }
+            else return false;
+        } else {
+            return false;
+        }
+        const char* base = static_cast<const char*>(m.shared_mapper()->get_data());
+        auto row = [&](uint64_t i) { return reinterpret_cast<const W*>(base + tri->get_row_offset(i)); };
+        auto first = [&](uint64_t i) { return diag ? i : i + 1; };  // first stored column of row i
+        // One pass over the stored rows: each chunk takes rows c, c + chunks, ... (rows shrink
+        // with i, so interleaving balances the work), gathers row . x into acc[i] and scatters
+        // the row into its own buffer; the buffers are summed at the end (no shared writes).
+        std::vector<W> acc(n, W(0));
+        const uint64_t chunks = std::min<uint64_t>(n, 64);
+        std::vector<std::vector<W>> part(scatter ? chunks : 0);
+        ParallelFor(0, chunks, [&](size_t c) {
+            std::vector<W>* d = scatter ? &part[c] : nullptr;
+            if (d) d->assign(n, W(0));
+            for (uint64_t i = c; i < n; i += chunks) {
+                const uint64_t c0 = first(i);
+                if (c0 >= n) continue;
+                const W* r = row(i);
+                if (gather) {
+                    const int len = static_cast<int>(n - c0);
+                    if constexpr (is_std_complex_v<W>) {
+                        W dd;
+                        cblas_zdotu_sub(len, r, 1, x.data() + c0, 1, &dd);
+                        acc[i] = dd;
+                    } else {
+                        acc[i] = cblas_ddot(len, r, 1, x.data() + c0, 1);
+                    }
+                }
+                if (d) {
+                    const uint64_t lo = scatter_diag ? c0 : std::max<uint64_t>(c0, i + 1);
+                    if (lo >= n) continue;
+                    const W* __restrict rr = r + (lo - c0);
+                    W* __restrict dq = d->data() + lo;
+                    const W xi = x[i];
+                    const uint64_t len = n - lo;
+                    if constexpr (is_std_complex_v<W>) {
+                        const double xr = xi.real(), xm = xi.imag();
+                        const double cs = conj_scatter ? -1.0 : 1.0;  // conj(a) flips a's imaginary part
+                        for (uint64_t q = 0; q < len; ++q) {  // written out: std::complex's * is slow
+                            const double ar = rr[q].real(), ai = cs * rr[q].imag();
+                            dq[q] = W(dq[q].real() + ar * xr - ai * xm, dq[q].imag() + ar * xm + ai * xr);
+                        }
+                    } else {
+                        for (uint64_t q = 0; q < len; ++q) dq[q] += rr[q] * xi;
+                    }
+                }
+            }
+        });
+        if (scatter) {
+            for (const auto& d : part)
+                for (uint64_t j = 0; j < n; ++j) acc[j] += static_cast<double>(sign) * d[j];
+        }
+        const double t_sign = (st == Structure::ANTISYMMETRIC && transposed) ? -1.0 : 1.0;  // A^T = -A
+        for (uint64_t i = 0; i < n; ++i) y[i] = finish(t_sign * acc[i]);
+        out->set_scalar(1.0);
+        debug_trace::set_last(is_std_complex_v<W> ? "cpu.matvec.packed_c128" : "cpu.matvec.packed_f64");
+        return true;
+    };
+    if (m.get_structure() != Structure::DENSE) {
+        if (packed(0.0) || packed(std::complex<double>(0.0, 0.0))) return;
+        if (blocked(0.0) || blocked(std::complex<double>(0.0, 0.0))) return;
+    }
+    throw std::invalid_argument("CpuSolver::matrix_vector_multiply: kernel contract is a bit closure or a structured matrix");
 }
 
 std::unique_ptr<TriangularMatrix<double>> CpuSolver::compute_k_matrix(

@@ -433,6 +433,23 @@ std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const Ve
             return out;
         }
     }
+    // Structure rule: a structured matrix (not dense, not identity: that is a scaling) with a
+    // float64 / complex128 result is read a block of rows at a time and multiplied by the
+    // vector there (CpuSolver), without writing the n x n matrix out.
+    {
+        const Structure st = m.get_structure();
+        const DataType rd = promotion::resolve(promotion::BinaryOp::MatrixVectorMultiply, m.get_data_type(),
+                                               v.get_data_type()).result_dtype;
+        if (st != Structure::DENSE && st != Structure::IDENTITY && m.rows() > 0 &&
+            (rd == DataType::FLOAT64 || rd == DataType::COMPLEX_FLOAT64) &&
+            dynamic_cast<const BitClosureMatrix*>(&m) == nullptr) {
+            std::unique_ptr<VectorBase> out;
+            if (rd == DataType::FLOAT64) out = std::make_unique<DenseVector<double>>(m.rows(), std::string());
+            else out = std::make_unique<DenseVector<std::complex<double>>>(m.rows(), std::string());
+            ComputeContext::instance().get_device()->matrix_vector_multiply(m, v, *out);
+            return out;
+        }
+    }
     auto col = as_row_matrix(v);
     col->set_transposed(true);  // n x 1
     return as_vector(dispatch_matmul(m, *col), /*transposed=*/false);
@@ -440,6 +457,19 @@ std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const Ve
 
 std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, const std::string&) {
     if (v.size() != m.rows()) throw std::invalid_argument("Vector size must match matrix rows");
+    // v @ M = (M^T v)^T: the structured matrix-vector rule above on the transposed view.
+    {
+        const Structure st = m.get_structure();
+        const DataType rd = promotion::resolve(promotion::BinaryOp::MatrixVectorMultiply, m.get_data_type(),
+                                               v.get_data_type()).result_dtype;
+        if (st != Structure::DENSE && st != Structure::IDENTITY && m.rows() > 0 &&
+            (rd == DataType::FLOAT64 || rd == DataType::COMPLEX_FLOAT64) &&
+            dynamic_cast<const BitClosureMatrix*>(&m) == nullptr) {
+            auto out = matrix_vector_multiply(*m.transpose(), v, "");
+            out->set_transposed(true);
+            return out;
+        }
+    }
     auto row = as_row_matrix(v);  // 1 x n
     return as_vector(dispatch_matmul(*row, m), /*transposed=*/true);
 }
