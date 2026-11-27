@@ -38,16 +38,28 @@ SKIP_GROUPS = {"io"}  # export / getitem / save_load: no NumPy operation to comp
 SKIP_OPS = {"qr", "lu"}  # no NumPy value reference in the atlas
 
 
-def _best(fn, budget=1.0):
-    best = float("inf")
-    for _ in range(3):
+def _best(fn, budget=1.0, min_total=0.2, max_reps=200):
+    """Best of repeated runs: at least 3, then until `min_total` seconds or `max_reps` runs
+    (sub-millisecond operations need many samples on a shared machine: a best-of-3 swung by
+    100x between passes). One run longer than `budget` ends the sampling."""
+    best, total, reps = float("inf"), 0.0, 0
+    while reps < 3 or (total < min_total and reps < max_reps):
         t = time.perf_counter()
         fn()
         dt = time.perf_counter() - t
-        best = min(best, dt)
+        best, total, reps = min(best, dt), total + dt, reps + 1
         if dt > budget:
             break
     return best
+
+
+def _paired(f_np, f_pc, rounds=3):
+    """Alternate NumPy and PyCauset rounds so drift (frequency, neighbours) hits both alike."""
+    t_np = t_pc = float("inf")
+    for _ in range(rounds):
+        t_np = min(t_np, _best(f_np))
+        t_pc = min(t_pc, _best(f_pc))
+    return t_np, t_pc
 
 
 # Built operands, reused across the views of one cell (the innermost loop). A small LRU: an
@@ -155,12 +167,17 @@ def main(argv=None) -> None:
                 pc._native._set_lazy(False)  # time the work, not a deferred result
                 try:
                     with np.errstate(all="ignore"):
-                        t_np = _best(lambda: op.ref(a, b))
+                        op.ref(a, b)
                 except TypeError:  # NumPy has no such operation (bool - bool): nothing to compare
                     rows.append(dict(key=c.key(), op=c.op, dtype=c.dtype, structure=c.structure,
                                      view=c.view, n=n, no_numpy=True))
                     continue
-                t_pc = _best(lambda: op.run(x, y))
+
+                def run_np():
+                    with np.errstate(all="ignore"):
+                        op.ref(a, b)
+
+                t_np, t_pc = _paired(run_np, lambda: op.run(x, y))
         except Exception as e:  # noqa: BLE001 - reported, never silent
             rows.append(dict(key=c.key(), op=c.op, dtype=c.dtype, structure=c.structure, view=c.view,
                              n=n, error=f"{type(e).__name__}: {str(e)[:120]}"))
