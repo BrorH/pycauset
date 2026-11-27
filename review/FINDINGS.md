@@ -1539,3 +1539,17 @@ the entry (the history is useful). New findings go at the bottom with the next f
   too, and the Frobenius norm reads through the bulk tiles (`cpu.norm.bulk`).
 - Not covered: complex_float16, identity, lazy closures and windows of structured classes
   keep the per-element path (none has a bulk reader yet).
+
+### F-116 GPU routing prints and falls back silently (dormant until CUDA returns)
+- **Status:** open, dormant. `AutoSolver` wraps each GPU call in
+  `try { gpu } catch { std::cerr << "GPU Error ... Falling back to CPU"; gpu_device_.reset(); cpu }`
+  (11 sites), and `ComputeContext` prints when it loads the CUDA plugin. Both break the rules
+  the CPU engine follows (no output from the engine, F-109; no silent fallbacks). Nothing
+  runs today: CUDA lives in `experimental/` and is not built, so `gpu_device_` is null.
+- When the accelerator comes back: a GPU failure raises (or warns through the binding
+  warning path, `PyCausetWarning`), it does not print, and disabling the GPU is the caller's
+  decision. Also, `AutoSolver` duplicates every device entry point only to route; with one
+  device it is a pass-through.
+- Removed meanwhile (session 9): `batch_gemv` from the device interface, AutoSolver,
+  CpuDevice and CpuSolver (a per-element loop no core code called; the experimental
+  ArnoldiDriver calls `CudaDevice::batch_gemv` directly, which stays).
