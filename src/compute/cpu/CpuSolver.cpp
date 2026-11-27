@@ -4,6 +4,7 @@
 #include <Spectra/GenEigsSolver.h>
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
+#include "pycauset/math/RawRows.hpp"
 #include "pycauset/math/ViewRead.hpp"
 #include "pycauset/compute/cpu/CpuSolver.hpp"
 #include <complex>
@@ -641,6 +642,39 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
                     }
                     part[blk] = acc;
                 });
+                double sum = 0.0;
+                for (double q : part) sum += q;
+                return af * std::sqrt(sum);
+            }
+        }
+        // Structured, transposed-window and bit storage: stored values in bulk, a tile of rows
+        // at a time (math/RawRows.hpp). Squares do not see the mirror's sign or conjugation.
+        if constexpr (has_raw_rows_v<T, M> && !std::is_same_v<T, pycauset::float16_t> &&
+                      !std::is_same_v<T, pycauset::complex_half>) {
+            const uint64_t tile = std::clamp<uint64_t>(rows / 32, 1, 32);
+            std::vector<double> part((rows + tile - 1) / tile, 0.0);
+            std::atomic<bool> ok{true};
+            ParallelFor(0, part.size(), [&](size_t t) {
+                const uint64_t r0 = t * tile, r1 = std::min(rows, r0 + tile);
+                std::unique_ptr<T[]> raw(new T[(r1 - r0) * cols]);
+                if (!raw_rows<T>(typed, r0, r1, raw.get())) { ok = false; return; }
+                const T* __restrict q = raw.get();
+                const uint64_t len = (r1 - r0) * cols;
+                double a0 = 0, a1 = 0;
+                for (uint64_t k = 0; k < len; ++k) {
+                    if constexpr (is_std_complex_v<T>) {
+                        const double re = static_cast<double>(q[k].real()), im = static_cast<double>(q[k].imag());
+                        a0 += re * re;
+                        a1 += im * im;
+                    } else {
+                        const double x = static_cast<double>(q[k]);
+                        a0 += x * x;
+                    }
+                }
+                part[t] = a0 + a1;
+            });
+            if (ok) {
+                debug_trace::set_last("cpu.norm.bulk");
                 double sum = 0.0;
                 for (double q : part) sum += q;
                 return af * std::sqrt(sum);

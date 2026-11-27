@@ -645,3 +645,18 @@ def test_unit_vector_dot_is_exact_and_keeps_numpy_nan_rules():
             want = np.dot(np.asarray(pc.UnitVector(n, 5)), yf)
         got = pc.UnitVector(n, 5).dot(pc.vector(yf))
         assert (np.isnan(got) and np.isnan(want)) or got == want, (i, v, got, want)
+
+
+def test_bit_bulk_reader_matches_numpy():
+    """Bit matrices (dense, causal, their transposes) are unpacked in bulk for whole-matrix
+    kernels (math/RawRows.hpp): scalar ops, mixed-type element-wise ops and the norm read
+    the same bits as the per-element accessor did."""
+    rng = np.random.default_rng(3)
+    ref = rng.random((37, 37)) < 0.4
+    dense, causal = pc.matrix(ref), pc.causal_matrix(np.triu(ref, 1))
+    for m in (dense, dense.T, causal, causal.T):
+        a = np.asarray(m)
+        np.testing.assert_array_equal(np.asarray(m + 3), a + 3)
+        np.testing.assert_array_equal(np.asarray(m * 2.5), a * 2.5)
+        np.testing.assert_allclose(np.asarray(m / (m + 1)), a / (a + 1.0))
+        assert pc.norm(m) == pytest.approx(np.linalg.norm(a))

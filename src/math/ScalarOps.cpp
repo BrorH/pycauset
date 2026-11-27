@@ -349,8 +349,8 @@ struct TypedReader {
 template <typename R, typename In>
 void apply_span(ScalarOpKind op, const In* __restrict src, R* __restrict out, uint64_t len, R sv, int64_t k,
                 double f) {
-    bool scaled = false;
-    if constexpr (std::is_integral_v<In>) scaled = k != 1;
+    bool scaled = false;  // bit sources are only read with factor 1 (run_for_result's `plain`)
+    if constexpr (std::is_integral_v<In> && !std::is_same_v<In, bool>) scaled = k != 1;
     else if constexpr (std::is_floating_point_v<In>) scaled = f != 1.0;
     auto loop = [&](auto op_c, auto scaled_c) {
         constexpr ScalarOpKind O = decltype(op_c)::value;
@@ -362,7 +362,8 @@ void apply_span(ScalarOpKind op, const In* __restrict src, R* __restrict out, ui
         for (uint64_t q = 0; q < len; ++q) {
             In v = x[q];
             if constexpr (decltype(scaled_c)::value) {
-                if constexpr (std::is_integral_v<In>) v = scalar::wrap_scale(v, k_local);
+                if constexpr (std::is_same_v<In, bool>) {
+                } else if constexpr (std::is_integral_v<In>) v = scalar::wrap_scale(v, k_local);
                 else if constexpr (std::is_floating_point_v<In>) v = static_cast<In>(static_cast<double>(v) * f_local);
             }
             z[q] = apply<R>(O, convert_in<R>(v), s_local);
@@ -471,7 +472,9 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
     // (math/RawRows.hpp), then the same per-element arithmetic as TypedReader. Writing a
     // structured operand out through get() per element made structured & | ^ ~ and / 5-10x
     // slower than NumPy.
-    if constexpr (has_raw_rows_v<In, Src> && fast_pair) {
+    // (Bit sources for every result type: unpacking is the whole cost, and bit arithmetic
+    // counts in int32, so R is never bool's own type.)
+    if constexpr (has_raw_rows_v<In, Src> && (fast_pair || std::is_same_v<In, bool>)) {
         // At least 32 tiles when there are rows for it: ParallelFor runs fewer items inline.
         const uint64_t TILE = std::clamp<uint64_t>(rows / 32, 1, 32);
         const uint64_t tiles = (rows + TILE - 1) / TILE;

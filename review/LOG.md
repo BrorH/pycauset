@@ -655,3 +655,10 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   now. Saving a BlockMatrix no longer drops a child's integrity pin (payload_uuid) when
   reading the just-written child fails: that raises. Kept: the Windows DLL search probes in
   `_internal/native.py` (best-effort path discovery; to narrow after the Windows run).
+- Bit storage in the bulk reader: dense and triangular bit matrices (and transposes) unpack
+  64 bits per word into byte rows; their `get` is an out-of-line call per element. Scalar ops
+  on bit sources take the tile path for every result type (bit arithmetic counts in int32).
+  The Frobenius norm reads structured, windowed and bit storage through bulk tiles too
+  (`cpu.norm.bulk`). 1024 x 1024 bool: M + 3 1.1-1.5 ms -> 0.24-0.40 ms (NumPy 0.6), M / (M + 1)
+  9-11 ms -> 2.2-3.2 ms (NumPy 1.9-3.4), norm 1.5 ms -> 0.32-0.48 ms (NumPy 0.64). Full atlas
+  0 wrong.

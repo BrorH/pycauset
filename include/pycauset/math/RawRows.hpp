@@ -17,18 +17,35 @@
 #include <type_traits>
 
 #include "pycauset/core/Float16.hpp"
+#include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/DiagonalMatrix.hpp"
 #include "pycauset/matrix/SymmetricMatrix.hpp"
+#include "pycauset/matrix/TriangularBitMatrix.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
 
 namespace pycauset {
 
 template <typename T, typename Src>
 inline constexpr bool has_raw_rows_v =
-    !std::is_same_v<T, bool> &&
-    (std::is_same_v<Src, DenseMatrix<T>> || std::is_same_v<Src, TriangularMatrix<T>> ||
-     std::is_same_v<Src, SymmetricMatrix<T>> || std::is_same_v<Src, DiagonalMatrix<T>>);
+    std::is_same_v<T, bool>
+        ? (std::is_same_v<Src, DenseMatrix<bool>> || std::is_same_v<Src, TriangularMatrix<bool>>)
+        : (std::is_same_v<Src, DenseMatrix<T>> || std::is_same_v<Src, TriangularMatrix<T>> ||
+           std::is_same_v<Src, SymmetricMatrix<T>> || std::is_same_v<Src, DiagonalMatrix<T>>);
+
+// Bit storage: bits [b0, b0 + len) of a packed row (64 per word, bit k of word w is element
+// 64 w + k) into bytes.
+inline void unpack_bits(const uint64_t* __restrict words, uint64_t b0, uint64_t len, bool* __restrict out) {
+    uint64_t k = 0;
+    while (k < len) {
+        const uint64_t b = b0 + k;
+        uint64_t w = words[b / 64] >> (b % 64);
+        const uint64_t take = std::min<uint64_t>(64 - b % 64, len - k);
+        for (uint64_t q = 0; q < take; ++q, w >>= 1) out[k + q] = (w & 1u) != 0;
+        k += take;
+    }
+}
+inline bool bit_at(const uint64_t* words, uint64_t b) { return ((words[b / 64] >> (b % 64)) & 1u) != 0; }
 
 // dst[(i - i0) * cols + j] = f(col(j)[i - first(j)]) for j in [0, jn) and i in
 // [max(i0, start(j)), i1), start(j) >= first(j): a
@@ -65,7 +82,37 @@ bool raw_rows(const Src& m, uint64_t i0, uint64_t i1, T* __restrict dst) {
     } else {
         const uint64_t cols = m.cols();
         const uint64_t nr = i1 - i0;
-        if constexpr (std::is_same_v<Src, DenseMatrix<T>>) {
+        if constexpr (std::is_same_v<T, bool>) {
+            // Bit storage (no windows: get() of the bit classes does not apply them).
+            if (m.is_subview()) return false;
+            const auto* bytes = static_cast<const uint8_t*>(m.shared_mapper()->get_data());
+            if constexpr (std::is_same_v<Src, DenseMatrix<bool>>) {
+                auto srow = [&](uint64_t r) { return reinterpret_cast<const uint64_t*>(bytes + r * m.stride_bytes()); };
+                if (!m.is_transposed()) {
+                    for (uint64_t i = i0; i < i1; ++i) unpack_bits(srow(i), 0, cols, dst + (i - i0) * cols);
+                } else {  // (i, j) is bit i of storage row j
+                    for (uint64_t j = 0; j < cols; ++j) {
+                        const uint64_t* w = srow(j);
+                        for (uint64_t i = i0; i < i1; ++i) dst[(i - i0) * cols + j] = bit_at(w, i);
+                    }
+                }
+            } else {
+                auto srow = [&](uint64_t r) { return reinterpret_cast<const uint64_t*>(bytes + m.get_row_offset(r)); };
+                std::fill(dst, dst + nr * cols, false);
+                if (!m.is_transposed()) {  // row i stores columns [first_col(i), n)
+                    for (uint64_t i = i0; i < i1; ++i)
+                        if (const uint64_t len = m.row_bits(i))
+                            unpack_bits(srow(i), 0, len, dst + (i - i0) * cols + m.first_col(i));
+                } else {  // (i, j) is stored(j, i) for i >= first_col(j)
+                    for (uint64_t j = 0; j < std::min(i1, cols); ++j) {
+                        const uint64_t f = m.first_col(j);
+                        const uint64_t* w = srow(j);
+                        for (uint64_t i = std::max(i0, f); i < i1; ++i) dst[(i - i0) * cols + j] = bit_at(w, i - f);
+                    }
+                }
+            }
+            return true;
+        } else if constexpr (std::is_same_v<Src, DenseMatrix<T>>) {
             // Windows too: get() reads storage (row_offset + i, col_offset + j), swapped when
             // transposed.
             const uint64_t bc = m.base_cols();
