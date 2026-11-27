@@ -492,3 +492,18 @@ def test_F099_identity_pair_integer_wraps_like_numpy():
     for _ in range(9):  # 2^9 = 512 wraps to 0 in uint8
         x, nx = x + x, nx + nx
     np.testing.assert_array_equal(to_np(x), nx)
+
+
+@pytest.mark.parametrize("dtype", ["float16", "float32", "float64", "int16", "int64", "complex64"])
+@pytest.mark.parametrize("step", [1, -1, 2, -2])
+def test_vector_arith_with_numpy_operand(dtype, step):
+    """`v + array` imports the array through the one shared importer (numpy_import.hpp,
+    review 4.2: bind_vector had a diverging copy with an unsigned stride and a float32 ->
+    float64 branch)."""
+    base = np.arange(8).astype(dtype)
+    x = base[::step]
+    v = pc.vector(np.ones(len(x), dtype=dtype))
+    got = v + x
+    want = np.ones(len(x), dtype=dtype) + x
+    assert np.asarray(got).dtype == want.dtype
+    np.testing.assert_array_equal(np.asarray(got), want)

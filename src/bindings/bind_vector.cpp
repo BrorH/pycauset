@@ -30,7 +30,10 @@
 #include <string>
 #include <limits>
 
+#include "numpy_import.hpp"
+
 using namespace pycauset;
+using namespace pycauset_bindings::numpy_import;
 
 namespace {
 
@@ -47,11 +50,6 @@ inline bool u64_to_py_ssize(uint64_t v, Py_ssize_t* out) {
     return true;
 }
 
-
-inline bool is_numpy_float16(const py::array& array) {
-    const py::dtype dt = array.dtype();
-    return dt.kind() == 'f' && dt.itemsize() == 2;
-}
 
 // Exact integer dot product (DType System.md 5.1: reductions never wrap silently). Both
 // operands integer or bit, dense: logical elements (integer view factor applied with NumPy's
@@ -106,142 +104,6 @@ inline py::object vector_dot(const VectorBase& a, const VectorBase& b) {
         return py::cast(pycauset::dot_product_complex(a, b));
     }
     return py::float_(pycauset::dot_product(a, b));
-}
-
-inline void require_1d(const py::buffer_info& buf) {
-    if (buf.ndim != 1) {
-        throw py::value_error("Expected a 1D NumPy array for vector conversion");
-    }
-}
-
-inline void maybe_warn_bit_promotes_to_int32(const char* op_name, promotion::BinaryOp op, DataType da, DataType db) {
-    if (!(da == DataType::BIT && db == DataType::BIT)) {
-        return;
-    }
-
-    const auto decision = promotion::resolve(op, da, db);
-    if (decision.result_dtype != DataType::INT32) {
-        return;
-    }
-
-    std::string message;
-    message.reserve(256);
-    message += "pycauset ";
-    message += op_name;
-    message += ": bit operands promote to int32 because the result can exceed {0,1} (mathematically unavoidable). ";
-    message += "Even though int16 exists, bit-bit reductions commonly exceed int16; result is int32.";
-
-    bindings_warn::warn_with_category(message, "PyCausetDTypeWarning", /*stacklevel=*/3);
-}
-
-template <typename T>
-std::shared_ptr<DenseVector<T>> dense_vector_from_numpy_1d(const py::array_t<T>& array) {
-    auto buf = array.request();
-    require_1d(buf);
-
-    uint64_t n = static_cast<uint64_t>(buf.shape[0]);
-    auto result = std::make_shared<DenseVector<T>>(n);
-
-    const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(T)));
-    const T* src_ptr = static_cast<const T*>(buf.ptr);
-    T* dst_ptr = result->data();
-
-    if (stride0 == 1) {
-        std::memcpy(dst_ptr, src_ptr, n * sizeof(T));
-    } else {
-        for (uint64_t i = 0; i < n; ++i) {
-            dst_ptr[i] = src_ptr[i * stride0];
-        }
-    }
-    return result;
-}
-
-std::shared_ptr<VectorBase> vector_from_numpy(const py::array& array) {
-    if (is_numpy_float16(array)) {
-        auto buf = array.request();
-        require_1d(buf);
-        uint64_t n = static_cast<uint64_t>(buf.shape[0]);
-        auto result = std::make_shared<DenseVector<pycauset::float16_t>>(n);
-        const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
-        const uint16_t* src_ptr = static_cast<const uint16_t*>(buf.ptr);
-        pycauset::float16_t* dst_ptr = result->data();
-        for (uint64_t i = 0; i < n; ++i) {
-            dst_ptr[i] = pycauset::float16_t(static_cast<uint16_t>(src_ptr[i * stride0]));
-        }
-        return result;
-    }
-    if (py::isinstance<py::array_t<double>>(array)) {
-        return dense_vector_from_numpy_1d<double>(array.cast<py::array_t<double>>());
-    }
-    if (py::isinstance<py::array_t<float>>(array)) {
-        // Promote float32 numpy vectors to float64 vectors for now.
-        // This keeps the public API stable and avoids needing a Float32Vector class.
-        auto tmp = array.cast<py::array_t<float>>();
-        auto buf = tmp.request();
-        require_1d(buf);
-        uint64_t n = static_cast<uint64_t>(buf.shape[0]);
-        auto result = std::make_shared<DenseVector<double>>(n);
-        const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(float)));
-        const float* src_ptr = static_cast<const float*>(buf.ptr);
-        double* dst_ptr = result->data();
-        for (uint64_t i = 0; i < n; ++i) {
-            dst_ptr[i] = static_cast<double>(src_ptr[i * stride0]);
-        }
-        return result;
-    }
-    if (py::isinstance<py::array_t<std::complex<float>>>(array)) {
-        return dense_vector_from_numpy_1d<std::complex<float>>(array.cast<py::array_t<std::complex<float>>>());
-    }
-    if (py::isinstance<py::array_t<std::complex<double>>>(array)) {
-        return dense_vector_from_numpy_1d<std::complex<double>>(array.cast<py::array_t<std::complex<double>>>());
-    }
-    if (py::isinstance<py::array_t<int32_t>>(array)) {
-        return dense_vector_from_numpy_1d<int32_t>(array.cast<py::array_t<int32_t>>());
-    }
-    if (py::isinstance<py::array_t<int64_t>>(array)) {
-        return dense_vector_from_numpy_1d<int64_t>(array.cast<py::array_t<int64_t>>());
-    }
-    if (py::isinstance<py::array_t<int8_t>>(array)) {
-        return dense_vector_from_numpy_1d<int8_t>(array.cast<py::array_t<int8_t>>());
-    }
-    if (py::isinstance<py::array_t<int16_t>>(array)) {
-        return dense_vector_from_numpy_1d<int16_t>(array.cast<py::array_t<int16_t>>());
-    }
-    if (py::isinstance<py::array_t<uint8_t>>(array)) {
-        return dense_vector_from_numpy_1d<uint8_t>(array.cast<py::array_t<uint8_t>>());
-    }
-    if (py::isinstance<py::array_t<uint16_t>>(array)) {
-        return dense_vector_from_numpy_1d<uint16_t>(array.cast<py::array_t<uint16_t>>());
-    }
-    if (py::isinstance<py::array_t<uint32_t>>(array)) {
-        return dense_vector_from_numpy_1d<uint32_t>(array.cast<py::array_t<uint32_t>>());
-    }
-    if (py::isinstance<py::array_t<uint64_t>>(array)) {
-        return dense_vector_from_numpy_1d<uint64_t>(array.cast<py::array_t<uint64_t>>());
-    }
-    if (py::isinstance<py::array_t<bool>>(array)) {
-        auto tmp = array.cast<py::array_t<bool>>();
-        auto buf = tmp.request();
-        require_1d(buf);
-        uint64_t n = static_cast<uint64_t>(buf.shape[0]);
-        auto result = std::make_shared<DenseVector<bool>>(n);
-        const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(bool)));
-        const bool* src_ptr = static_cast<const bool*>(buf.ptr);
-        for (uint64_t i = 0; i < n; ++i) {
-            result->set(i, src_ptr[i * stride0]);
-        }
-        return result;
-    }
-    throw py::type_error("Unsupported NumPy dtype for vector conversion");
-}
-
-template <typename Fn>
-inline auto translate_invalid_argument(Fn&& fn) {
-    try {
-        return fn();
-    } catch (const std::invalid_argument& e) {
-        throw py::value_error(e.what());
-    }
 }
 
 // ---------------------------------------------------------------------------------------
