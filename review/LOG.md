@@ -399,3 +399,11 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   checked against NumPy in single precision with single-precision tolerances (the tolerance
   came from det's float64 result dtype). Atlas: 0 ✗, generic 10,152 -> 3,730, fast 31,379 ->
   37,599. N.6 first cut: debug strings were built on every allocation (~28 µs per op).
+- F-095: matvec/vecmat are matmul with the vector as a column/row (~1,160 lines of kernels
+  and device interface deleted; the bit-closure kernel kept as a structure rule). Moving them
+  surfaced F-097: hand-built view copies (multiply_scalar / transpose per class) passed the
+  transposed shape as the storage shape and swapped window offsets; the square-only atlas
+  never saw it. Now two shared O(1) views (scaled_clone, transposed_clone) and atlas views
+  rect_T / rect_T_scaled. F-096: per-call overhead first pass (debug strings, trace
+  deep-copy, pool wake-ups for tiny loops): pc.sum 51 -> 0.7 µs, pc.matmul 136 -> 54 µs.
+  Atlas 88,361 cells, 0 ✗, fast 40,212, generic 1,556 (from 10,152 this morning).

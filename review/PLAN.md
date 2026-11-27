@@ -188,7 +188,11 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
       sum 145, add/rsub scalar 129 each. Rewrite `protocols/Adding Operations.md` around it.
 - [ ] N.6 Per-call overhead (F-083 a): 30-50 µs per `+` / `@` vs NumPy's 0.3-0.7 µs; profile
       the Python wrapper stack (monkeypatches, property patches, io traces) and cut it.
-- [ ] N.7 Row readers for every class (the speed half of N.2): extend `StridedReader`
+- [~] N.7 Row readers for every class (the speed half of N.2). Done (F-094, F-095): typed
+      `read_rows`/`read_diagonal` for every class; det/sum/trace/export/element-wise/bool
+      write-out on them; matvec/vecmat through matmul. Remaining generic (1,556 cells):
+      lstsq, inv rules, closures and structured windows (virtual by design), dot.
+      Original item:: extend `StridedReader`
       (row-at-a-time, typed, `view_value`) from dense storage to every class through
       `visit_matrix` (packed triangular/symmetric rows are contiguous). Element-wise ops
       (dense and structured results) read rows only; delete `exact_int_reader` and the

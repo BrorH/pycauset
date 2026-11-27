@@ -42,6 +42,11 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   `DiagonalMatrix` or `IdentityMatrix`.
 - Writing to a loaded matrix no longer changes the saved file (copy-on-write mapping, as the
   container contract states); `pc.save` replaces files atomically.
+- `M @ v` / `v @ M` are matmul with a 1-D operand: integer results that overflow their dtype
+  raise `OverflowError`, as integer matmul does (they used to wrap).
+- Fixed: scaled views of transposed non-square matrices (`B.T * 2`) and transposed windows
+  (`A[1:4, 2:6].T`) returned wrong values; `I @ v` for a float identity returned the first
+  element only.
 - `np.asarray(M)` exports every class in its own dtype (structured classes used to export as
   float64).
 - File-backed operands (or ones above the IO streaming threshold) no longer make `matmul`
