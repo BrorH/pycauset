@@ -145,7 +145,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Found by UBSan (`build/asan`, see BASELINE.md).
 
 ### F-007 `.pyi` stub is badly stale (type checkers and IDEs see a broken API)
-- **Status:** open
+- **Status:** fixed (session 9): the 42 missing public names are declared (generated from the signatures), `MatrixMixin` removed; `test_stub_declares_every_public_name` keeps it complete.
 - `python/pycauset/__init__.pyi` declares 86 names. **71 public names in `__all__` are
   missing**, including `CausalSet`, `field`, `spacetime`, `matrix_rank`, `qr`, `trace`,
   `plot_embedding` and `precision_mode`. It also declares a `MatrixMixin` that does not
@@ -155,7 +155,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   or delete it until it can be maintained.
 
 ### F-008 About 20 documentation examples are broken
-- **Status:** open
+- **Status:** fixed (session 9): every documentation page's code runs in `test_doc_snippets.py`.
 - Evidence: `review/probes/run_doc_snippets.py` (107 pages OK, 69 fail; about 50 of
   the failures are signature-only blocks that should be fenced as text, not python).
   Real breakage:
@@ -180,7 +180,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
     `pycauset.CausalSpacetime`, `pycauset.pinning_budget`.
 
 ### F-009 Stale test skips hide passing coverage
-- **Status:** open
+- **Status:** closed (session 9): the old suite and its skips are retired (TESTS.md section 4); the only skips left are 12 deliberate ones in test_int_scale_views (unsigned negation, covered elsewhere).
 - `test_factorizations.py::test_solve` ("Crashing"),
   `test_lazy_evaluation.py::test_aliasing_safety` ("Segfault investigation") and
   `test_r1_safety_comprehensive.py::test_threaded_io_stress` (Windows-only) all
@@ -196,7 +196,10 @@ the entry (the history is useful). New findings go at the bottom with the next f
 ## S3 — minor
 
 ### F-011 Several "native" linalg ops always route through `numpy.linalg`
-- **Status:** open
+- **Status:** fixed (N.3: every factorization and eigen problem is native LAPACK). The
+  out-of-core half: they copy the matrix into a LAPACK buffer and need it in RAM; documented
+  as a size limit (Linear Algebra Operations guide, session 9); eigvals_arnoldi is the
+  out-of-core eigen tool. Out-of-core factorizations are not planned for R1.
 - `eigh`, `eigvalsh`, `svdvals` and `matrix_rank` call `numpy.linalg` (full in-RAM
   copy) even though `CpuSolver` implements `eigh`/`eigvalsh`/`svd`. They cannot run
   out-of-core. See `review/probes/numpy_fallback_probe.py`.
@@ -235,7 +238,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   non-BLAS path. Profile before changing anything.
 
 ### F-013 bool dtype semantics diverge from NumPy without documentation
-- **Status:** open. **Decision (maintainer, 2026-11-24, reconfirmed): counting semantics, documented.** bool/bit
+- **Status:** decided and documented (DType System section 6: bit is special). bool `A + B` and `A @ B` count (int32); bool `A * 3` is now an int32 multiply ([3, 0]), no longer wrong.
   `A + B` adds into integers; matmul counts paths. Document it as a deliberate NumPy
   divergence. With value bounds (features/VALUE_BOUNDS.md) the result is the smallest
   int that fits (bit + bit → int8).
@@ -250,12 +253,15 @@ the entry (the history is useful). New findings go at the bottom with the next f
   is itself a process-global race if two Python threads matmul concurrently.
 
 ### F-015 Float-scalar ops return `LazyMatrix`; integer ops return concrete matrices
-- **Status:** open
+- **Status:** fixed (earlier sessions): `A * 2.0` is a scaled `DenseMatrix` view, assignable; `LazyMatrix` no longer exists.
 - `A * 2.0` gives `LazyMatrix`, which doesn't support item assignment. Type and
   behaviour depend on whether the scalar is a Python float or int.
 
 ### F-016 The export guard blocks even tiny disk-backed matrices
-- **Status:** open. **Decided: guard by size only** (RESTRUCTURE §3.1 item 7).
+- **Status:** fixed (session 9), as decided: **guard by size only** (RESTRUCTURE §3.1 item 7).
+  Without a ceiling an export raises only if it would not fit in free RAM; with
+  `set_export_max_bytes` above the ceiling; RAM and file backing alike, in the engine guard
+  and the Python one. `test_F016_export_guard_is_by_size_only`.
 - `np.asarray(M)` raises for any file-backed object, regardless of size. A 300×300
   matrix spilled by the governor can't be printed or converted without
   `pc.to_numpy(M, allow_huge=True)`. The spill decision is automatic, so the user
@@ -413,7 +419,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   spectra.
 
 ### F-031 `tests/test_symmetric_matrix.cpp` asserts nothing in release builds
-- **Status:** open (S3)
+- **Status:** closed (session 9): the file did not compile any more and was deleted; its one uncovered check is `test_antisymmetric_storage_writes`.
 - It uses plain `assert()` (no gtest macros). CMake builds the tests as RelWithDebInfo,
   which defines NDEBUG, so every check is compiled out and the test always "passes".
   Convert it to gtest `EXPECT_*` (or fold it into the new suite).
@@ -942,7 +948,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   change trace/det/sum).
 
 ### F-082 `pc.symmetric` / `pc.antisymmetric` / `pc.diagonal` predate the structure classes
-- **Status:** open. They return a dense matrix with a property flag for integer input (not a
+- **Status:** fixed (session 8, F-092/pack_as): `pc.symmetric` / `antisymmetric` / `diagonal` return the structure class in the input's dtype.
   `SymmetricMatrix`), fill floats with per-element Python loops, and their docstrings
   describe the pre-F-032 classes ("SymmetricMatrix is float64"). To be rebuilt on the
   structure classes with a native fill, or removed (the classes' constructors cover them).
@@ -1489,3 +1495,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
   where NumPy gives inf + nan j. Found when the new transposed-pair rule (below, LOG) routed
   `A.T / B.T` through an export of a transposed result and the atlas reported WRONG cells.
   `x * 1` now returns x in the scalar kernel. `test_F113_*`.
+
+### F-114 Importing a large NumPy array was refused although it would be file-backed
+- **Status:** fixed (session 9). `numpy_import` raised "Import rejected by MemoryGovernor:
+  Matrix too large for available RAM" when the array's bytes did not fit in free RAM (minus
+  the safety margin). Storage allocation already puts anything above the memory threshold,
+  or anything that does not fit in RAM, into a file, so the check only refused arrays that
+  would have been file-backed: a 3 GB array on a 4 GB machine could not become a
+  PyCauset matrix at all. The check is gone with `should_use_direct_path`, the duplicate of
+  `can_fit_in_ram` it called.

@@ -121,9 +121,17 @@ Dense matrices support NumPy-style indexing: basic slices are views; advanced (i
 
 ## Persistence
 
-- Matrices may spill to disk automatically; views share backing when using basic slices.
-- Save/load with [[docs/functions/pycauset.save.md|pycauset.save]] and [[docs/functions/pycauset.load.md|pycauset.load]].
-- Large-slice persistence policy for in-RAM sources is pending; current builds may error on unsupported cases.
+- Matrices may spill to disk automatically; views share storage until written (copy-on-write).
+- Save/load with [[docs/functions/pycauset.save.md|pycauset.save]] and [[docs/functions/pycauset.load.md|pycauset.load]]; saving a window stores just the window.
+
+## Size limits
+
+Factorizations and eigen problems (`solve`, `invert`, `det`, `cholesky`, `qr`, `lu`, `svd`,
+`eigh`, `eig`, `lstsq`, `pinv`, `matrix_rank`, `cond`) copy the matrix into a LAPACK work
+buffer, so they need it to fit in RAM, also when it is file-backed. Matrix products and
+element-wise operations stream through larger-than-RAM matrices, and
+[[docs/functions/pycauset.eigvals_arnoldi.md|eigvals_arnoldi]] finds the largest eigenvalues
+of a file-backed matrix through matrix-vector products only.
 
 ## Troubleshooting & warnings
 

@@ -10,8 +10,9 @@ This controls when `np.asarray(obj)`, `np.array(obj)`, and [[docs/functions/pyca
 
 Notes:
 
-- Passing `None` disables the size ceiling.
-- Even with `None`, spill/file-backed objects may still require explicit opt-in via `allow_huge=True`.
+- The guard is by size only: RAM-backed and file-backed objects are treated alike.
+- With `None` (the default) an export raises only when the new array would not fit in free RAM.
+- `pycauset.to_numpy(obj, allow_huge=True)` skips the check.
 
 ## Parameters
 
@@ -25,7 +26,7 @@ import pycauset as pc
 # Allow up to 512MB NumPy exports
 pc.set_export_max_bytes(512 * 1024 * 1024)
 
-# Disable the ceiling (file-backed safety rules still apply)
+# Back to the default: only exports that would not fit in free RAM raise
 pc.set_export_max_bytes(None)
 ```
 

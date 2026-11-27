@@ -7,7 +7,7 @@
 #include <cstdlib>
 
 /**
- * @brief Contract Test for R1_CPU Phase 1
+ * @brief Contract test for the CPU compute worker
  * 
  * Verifies that the CpuComputeWorker correctly delegates to CpuSolver
  * and adheres to the ComputeWorker interface for standard calling conventions.

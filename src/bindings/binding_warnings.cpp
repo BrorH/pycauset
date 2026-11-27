@@ -5,25 +5,11 @@ namespace pycauset::bindings_warn {
 
 namespace {
 
+// The category class from pycauset._internal.warnings. A wrong name is an error, not a silent
+// UserWarning (F-101 / PLAN 4.8): the module ships with the package.
 py::object resolve_warning_category(const char* category_name) {
-    try {
-        auto mod = py::module_::import("pycauset._internal.warnings");
-        if (category_name && category_name[0] != '\0') {
-            return mod.attr(category_name);
-        }
-        return mod.attr("PyCausetWarning");
-    } catch (...) {
-        // ignore and fall through
-    }
-
-    try {
-        auto mod = py::module_::import("pycauset._internal.warnings");
-        return mod.attr("PyCausetWarning");
-    } catch (...) {
-        // ignore and fall through
-    }
-
-    return py::module_::import("builtins").attr("UserWarning");
+    auto mod = py::module_::import("pycauset._internal.warnings");
+    return mod.attr(category_name && category_name[0] != '\0' ? category_name : "PyCausetWarning");
 }
 
 void warn_impl(const char* message, const char* category_name, int stacklevel) {

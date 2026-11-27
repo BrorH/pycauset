@@ -21,10 +21,10 @@ $$
 
 ## Notes
 
-Property-aware shortcuts (R1_PROPERTIES):
-- If `is_diagonal` / `is_upper_triangular` / `is_lower_triangular` is asserted, the solver routes to `solve_triangular`.
-
-Otherwise, the endpoint-first baseline uses `invert(a) @ b` when no dedicated solver is available.
+NumPy's algorithm, `np.linalg.solve`: LU with partial pivoting (LAPACK `?getrf` and triangular
+solves) in the operands' common LAPACK dtype (integers in float64). Any structure, view and
+dtype; structured operands are written out first. `b` may be a matrix or a vector (the
+result has `b`'s kind). A singular `a` raises `RuntimeError`.
 
 ## Examples
 

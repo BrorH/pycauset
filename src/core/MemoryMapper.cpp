@@ -135,7 +135,7 @@ void MemoryMapper::open_file(bool create_new) {
             throw std::runtime_error("Failed to open file: " + filename_);
         }
 
-        // R1_SAFETY: File Header Logic
+        // File Header Logic
         FileHeader header;
         DWORD bytesProcessed = 0;
         
@@ -382,7 +382,7 @@ void MemoryMapper::open_file(bool create_new) {
             }
             offset_ += sizeof(FileHeader);
             
-            // R1_SAFETY: On Linux, we must extend the file to the full size before mmap.
+            // On Linux, we must extend the file to the full size before mmap.
             // Unlike Windows CreateFileMapping which extends automatically.
             if (ftruncate(fd_, offset_ + data_size_) == -1) {
                 close(fd_);
@@ -484,7 +484,7 @@ void MemoryMapper::open_file(bool create_new) {
     const bool anonymous = (filename_ == ":memory:");
     int map_flags = anonymous ? (MAP_PRIVATE | MAP_ANONYMOUS) : (private_ ? MAP_PRIVATE : MAP_SHARED);
 
-    // R1_SAFETY: mmap with length 0 is invalid (EINVAL).
+    // mmap with length 0 is invalid (EINVAL).
     if (map_size == 0) {
         return;
     }
@@ -573,7 +573,7 @@ void MemoryMapper::flush(void* ptr, size_t size) {
         if (hMapping_ != NULL) {
             FlushViewOfFile(ptr, size);
         }
-        // R1_SAFETY: Ensure metadata/file size changes are also committed
+        // Ensure metadata/file size changes are also committed
         if (hFile_ != INVALID_HANDLE_VALUE) {
             FlushFileBuffers(hFile_);
         }
@@ -639,7 +639,7 @@ void MemoryMapper::map_all() {
     int map_flags = MAP_SHARED;
     if (fd_ == -1) map_flags |= MAP_ANONYMOUS;
 
-    // R1_SAFETY: mmap offset must be page-aligned
+    // mmap offset must be page-aligned
     size_t granularity = get_granularity();
     size_t aligned_offset = (offset_ / granularity) * granularity;
     size_t adjustment = offset_ - aligned_offset;
@@ -677,7 +677,7 @@ void* MemoryMapper::map_region(size_t offset, size_t size) {
     if (filename_ == ":memory:") return static_cast<char*>(base_ptr_) + offset;  // interior pointer
     if (fd_ == -1) throw std::runtime_error("File descriptor invalid");
 
-    // R1_SAFETY: mmap offset must be page-aligned
+    // mmap offset must be page-aligned
     size_t granularity = get_granularity();
     size_t aligned_offset = (offset / granularity) * granularity;
     size_t adjustment = offset - aligned_offset;

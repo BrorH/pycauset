@@ -151,7 +151,7 @@ void IOAccelerator::prefetch_ranges_impl(const std::vector<std::pair<void*, size
 }
 
 void IOAccelerator::discard_impl(void* addr, size_t len) {
-    // R1_SAFETY: Windows Discard Implementation
+    // Windows Discard Implementation
     // 1. Flush changes to disk so we don't lose data
     FlushViewOfFile(addr, len);
 

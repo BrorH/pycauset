@@ -12,19 +12,10 @@
 
 namespace {
 
+// NumPy is a dependency: its import failing is an error, not "not a NumPy scalar".
 inline bool is_numpy_scalar(const py::handle& obj) {
-    try {
-        static py::object np_generic;
-        static bool initialized = false;
-        if (!initialized) {
-            auto np = py::module_::import("numpy");
-            np_generic = np.attr("generic");
-            initialized = true;
-        }
-        return py::isinstance(obj, np_generic);
-    } catch (...) {
-        return false;
-    }
+    static py::object np_generic = py::module_::import("numpy").attr("generic");
+    return py::isinstance(obj, np_generic);
 }
 
 // --- Scalar arguments (F-001/F-002) -------------------------------------------------

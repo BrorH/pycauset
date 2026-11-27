@@ -23,14 +23,13 @@ from __future__ import annotations
 
 import contextlib
 import itertools
-import math
 import os
 import tempfile
 import time
 import warnings
 import zlib
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Callable
 
 
 import pycauset as pc  # before NumPy: one quiet BLAS thread policy (F-096)
@@ -224,7 +223,6 @@ def view_reference(view: str, a: np.ndarray, pc_dtype: str) -> np.ndarray:
     """NumPy values of the view; scaled/lazy views take the dtype PyCauset gives them."""
     if VIEWS[view][1] is not None:
         return VIEWS[view][1](a)
-    target = np_dtype(pc_dtype)
     wide = np.complex128 if kind(pc_dtype) == "c" else (np.float64 if kind(pc_dtype) == "f" else object)
     x = a.astype(wide) if wide is not object else a.astype(np.int64).astype(object)
     out = {"scaled_int": lambda: x * 2, "scaled_float": lambda: x * 2.5, "lazy_sum": lambda: x + x,
@@ -614,7 +612,6 @@ def _materialize(r, op: Op):
 
 
 def _check(op: Op, cell: Cell, got, a, b, arith: str, xdt: str, ydt: str) -> bool:
-    linalg = op.linalg or kind(arith) in "fc" and op.group == "linalg"
     if op.compare == "qr":
         q, r_ = got
         return _close(q @ r_, a.astype(np.complex128), arith, True)

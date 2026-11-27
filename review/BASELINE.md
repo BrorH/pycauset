@@ -28,7 +28,7 @@ date) whenever a phase lands, and keep the old row so the trend is visible.
 | Broad `except` in package / silent `pass` | 257 / 126 |
 | Doc pages with python blocks: run clean / fail | 107 / 69 (≈20 real, rest signature blocks) |
 | `.pyi` names missing vs `__all__` | 71 of 137 |
-| Parity vs NumPy (`benchmarks/r2_parity.py`, N=1024), **quiet machine**, pip Release build | matmul **0.32×**, solve 1.00×, invert 0.72×, det 0.60×, eigh 0.95×, **dot 0.01×**, add 0.24×, multiply 0.32× (2/8 at parity) |
+| Parity vs NumPy (`benchmarks/parity.py`, N=1024), **quiet machine**, pip Release build | matmul **0.32×**, solve 1.00×, invert 0.72×, det 0.60×, eigh 0.95×, **dot 0.01×**, add 0.24×, multiply 0.32× (2/8 at parity) |
 | ~~Parity, first measurement~~ | INVALID: taken while builds were running; load slowed NumPy far more than pycauset (NumPy solve 0.70 s vs 0.016 s quiet) |
 
 ## How to reproduce
@@ -126,7 +126,7 @@ pip install vulture && vulture python/pycauset --min-confidence 60   # dead-code
 
 ### Performance
 ```bash
-PYTHONPATH=python python benchmarks/r2_parity.py
+PYTHONPATH=python python benchmarks/parity.py
 ```
 **Only benchmark on a quiet machine.** The first session-1 measurement ran alongside
 builds and was wildly wrong (NumPy `solve(1024)` took 0.70 s instead of 0.016 s). Check

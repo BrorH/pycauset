@@ -60,9 +60,8 @@ if (MemoryGovernor::instance().request_ram(size_bytes)) {
 ### Direct path (the "anti-nanny" rule)
 
 For operations that fit in RAM, streaming them through the tiled/out-of-core path
-is slower than just letting the OS page them. `should_use_direct_path(bytes)` is true
-when the operation's operands and result fit in available RAM (with the safety margin);
-then the kernels run directly on the storage (BLAS on the mapped pages, the OS pager does
+is slower than just letting the OS page them. When the operation's operands and result fit
+in available RAM (`MemoryGovernor::can_fit_in_ram`, with the safety margin), the kernels run directly on the storage (BLAS on the mapped pages, the OS pager does
 the I/O). Otherwise matmul and element-wise operations stream tile by tile
 ([[internals/Streaming Manager|Streaming Manager]]).
 
@@ -86,9 +85,12 @@ turns that into the right prefetch/discard syscalls.
 
 ## Export guard
 
-A disk-backed object converted naively to a NumPy array would blow up RAM. The
-export guard stops that: file-backed objects are blocked from `np.array()` /
-`to_numpy()` unless you pass `allow_huge=True`. See [[pycauset.to_numpy]].
+A large object converted naively to a NumPy array would blow up RAM. The export guard
+(`src/bindings/numpy_export_guard.hpp`, and `_internal/export_guard.py` for the Python-level
+block matrices) is by size only: an export that would not fit in free RAM, or that exceeds
+the `set_export_max_bytes` ceiling, raises unless `allow_huge=True`. Whether the object is
+in RAM or in a file does not matter: spilling is automatic, so it is no reason to refuse
+(F-016). See [[docs/functions/pycauset.to_numpy.md|pycauset.to_numpy]].
 
 ## File formats
 

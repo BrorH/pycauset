@@ -58,11 +58,11 @@ jobs:
         run: python -m pytest -q --tb=short -rfEs tests/engine
 
       - name: Benchmark (parity vs NumPy, report-only)
-        # R2_PERF/R2_QA visibility: this reports the numpy_time/pycauset_time
+        # Visibility: this reports the numpy_time/pycauset_time
         # ratio per op (>= 0.90x = "at parity"). It is intentionally report-only,
         # not a hard gate: shared CI runners are noisy and timing thresholds are
         # enforced locally/on a dedicated machine, not on the 3-OS CI matrix.
-        run: python benchmarks/r2_parity.py
+        run: python benchmarks/parity.py
 
   cpp-tests:
     # C++ unit tests (gtest): ParallelUtils, MemoryGovernor, IOAccelerator, CoW,

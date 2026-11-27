@@ -39,7 +39,7 @@ MemoryGovernor::MemoryGovernor() {
     uint64_t two_gb = 2ULL * 1024 * 1024 * 1024;
     safety_margin_ = std::min(ten_percent, two_gb);
 
-    // Default pinned memory limit (R1_GPU):
+    // Default pinned memory limit:
     // min(SystemRAM * 0.5, FreeRAM * 0.8, 8GB)
     max_pinned_memory_ = compute_dynamic_pinning_budget();
 }
@@ -171,18 +171,6 @@ bool MemoryGovernor::can_fit_in_ram(size_t size_bytes) const {
     
     // Check if we have enough space including the safety margin
     return available > (size_bytes + margin);
-}
-
-bool MemoryGovernor::should_use_direct_path(size_t total_operation_bytes) const {
-    // 1. If it fits in RAM (with safety margin), use Direct Path.
-    // This is the "Anti-Nanny" rule: Don't force streaming just because we can't pin.
-    // OS paging is efficient enough for RAM-resident workloads.
-    if (can_fit_in_ram(total_operation_bytes)) {
-        return true;
-    }
-
-    // 2. If it doesn't fit in RAM, we MUST use Streaming Path.
-    return false;
 }
 
 bool MemoryGovernor::try_pin_memory(size_t size_bytes) {

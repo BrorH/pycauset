@@ -18,6 +18,5 @@ PYBIND11_MODULE(_pycauset, m) {
         .def("get_available_system_ram", &pycauset::core::MemoryGovernor::get_available_system_ram)
         .def("get_safety_margin", &pycauset::core::MemoryGovernor::get_safety_margin)
         .def("set_safety_margin", &pycauset::core::MemoryGovernor::set_safety_margin)
-        .def("can_fit_in_ram", &pycauset::core::MemoryGovernor::can_fit_in_ram)
-        .def("should_use_direct_path", &pycauset::core::MemoryGovernor::should_use_direct_path);
+        .def("can_fit_in_ram", &pycauset::core::MemoryGovernor::can_fit_in_ram);
 }

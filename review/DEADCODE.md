@@ -178,5 +178,8 @@ Other rarely used features: tech lead proposes per feature in Phase 3.
 - [x] vis `to_embedding` hook (no R1 spacetime defines it)
 - [x] C++: every stdout / stderr print outside the parked CUDA hooks, the
       `PYCAUSET_DEBUG_PERSISTENT_CLOSE` switch, commented-out debug blocks (F-109)
-- [ ] `MemoryGovernor::should_use_direct_path` is `can_fit_in_ram` under another name;
-      `CpuDevice::out_of_core` tests both. Fold into one (Phase 6, with the memory work).
+- [x] `DenseMatrix` member functions `submatrix`, `qr`, `lu`, `eigh`, `eigvalsh`, `eig`, `eigvals`
+      (float64-only predecessors of the engine operations; no caller left), ~180 lines
+- [x] `MemoryGovernor::should_use_direct_path` (was `can_fit_in_ram` under another name);
+      its third caller, a RAM check on NumPy import, refused arrays that would have been
+      file-backed anyway (F-114).

@@ -12,8 +12,7 @@ This page is for contributors who extend out-of-core execution or debug it.
 
 1. It estimates the bytes the call touches (operands + result).
 2. It asks the MemoryGovernor whether that fits the RAM budget (free RAM minus a safety
-   margin) and whether the direct path is preferred (`can_fit_in_ram`,
-   `should_use_direct_path`).
+   margin: `can_fit_in_ram`).
 3. If it does not fit **and** the operands qualify, it runs the StreamingManager; otherwise the
    direct kernel, which still works on file-backed (memory-mapped) storage through paging.
 

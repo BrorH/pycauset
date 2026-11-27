@@ -829,6 +829,22 @@ inline py::object matrixbase_getitem_dispatch(const MatrixBase& mat, const py::o
         if constexpr (requires { dense_getitem(typed, key); }) {
             return dense_getitem(typed, key);
         } else {
+            // A row or column (an integer index on one axis, a slice on the other) of any
+            // structure: a vector of those elements, as NumPy gives (e.g. the past of an
+            // element is a column of the causal matrix: O(n), not an O(n^2) export). Read
+            // with the element accessor, so every view rule applies.
+            const SliceInfo& r = parsed.rows;
+            const SliceInfo& c = parsed.cols;
+            if ((r.is_scalar != c.is_scalar) && !r.is_array && !c.is_array) {
+                const SliceInfo& s = r.is_scalar ? c : r;
+                py::list items;
+                for (uint64_t k = 0; k < s.length; ++k) {
+                    const uint64_t t = static_cast<uint64_t>(s.start + static_cast<py::ssize_t>(k) * s.step);
+                    items.append(r.is_scalar ? element_get(mat, r.index, t) : element_get(mat, t, c.index));
+                }
+                return py::module_::import("pycauset").attr("vector")(
+                    items, py::arg("dtype") = pycauset::dtype_name(mat.get_data_type()));
+            }
             PyErr_SetString(PyExc_NotImplementedError, ("slicing is not supported for " + describe(mat)).c_str());
             throw py::error_already_set();
         }

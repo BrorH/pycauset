@@ -1,6 +1,5 @@
 import unittest
 import numpy as np
-import pycauset
 from pycauset import CausalSet
 from pycauset import spacetime
 

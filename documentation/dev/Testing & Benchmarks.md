@@ -21,7 +21,7 @@ tools are `review/scripts/retire_analysis.py` and `cpp_retire_analysis.py`.
 ## Benchmarks
 
 `BENCHMARKS.md` (repository root) lists the scripts and the current numbers. The two that
-matter most: `python benchmarks/r2_parity.py` (headline ops; CI runs it, report-only) and
+matter most: `python benchmarks/parity.py` (headline ops; CI runs it, report-only) and
 `python -m tests.atlas.timing [op ...]` (every atlas cell against NumPy, written to
 `review/atlas/TIMING.md`).
 

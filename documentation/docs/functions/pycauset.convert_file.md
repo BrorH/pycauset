@@ -9,21 +9,21 @@ Convert between PyCauset snapshots and NumPy container formats.
 - Supported formats: `.pycauset` (canonical snapshot), `.npy`, `.npz`.
 - `dst_format` defaults from `dst_path` when omitted; must be one of the supported suffixes.
 - `.npz` imports default to the first key; set `npz_key` to choose a specific array name.
-- Exports honor the NumPy materialization guard: pass `allow_huge=True` only when you intentionally want to load spill/file-backed operands into RAM.
+- Exports honor the NumPy size guard (see [[docs/functions/pycauset.to_numpy.md|to_numpy]]); `allow_huge=True` skips it.
 - Optional `dtype` casts on export (to NumPy formats) before writing.
 
 ## Exceptions / warnings
 
 - `ValueError` if source or destination format is not one of `.pycauset`, `.npy`, `.npz` (or cannot be inferred from the suffix).
 - `RuntimeError` if NumPy is unavailable when exporting to `.npy`/`.npz`.
-- Materialization guard: exporting spill/file-backed objects to NumPy formats raises unless `allow_huge=True`.
+- Size guard: an export to a NumPy format that would not fit in free RAM (or exceeds the `set_export_max_bytes` ceiling) raises unless `allow_huge=True`.
 
 ## Parameters
 
 - **src_path** (str | Path): Source file path; suffix must be `.pycauset`, `.npy`, or `.npz`.
 - **dst_path** (str | Path): Destination file path; suffix or `dst_format` selects the output format.
 - **dst_format** (str, optional): Override destination format (`"pycauset"`, `"npy"`, or `"npz"`). If omitted, inferred from `dst_path`.
-- **allow_huge** (bool, default `False`): Forwarded to NumPy export helpers; required when exporting spill/file-backed objects to avoid surprise materialization.
+- **allow_huge** (bool, default `False`): Skips the size guard.
 - **dtype** (optional): Override dtype on export to NumPy formats.
 - **npz_key** (str, optional): Key to read from/write to when the source or destination is `.npz`. Defaults to the first key on import and to `"array"` on export.
 

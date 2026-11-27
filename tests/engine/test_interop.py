@@ -69,16 +69,24 @@ def test_integer_scaled_view_reads_wrapped_value():
     assert float(m[1, 1]) == 9.0
 
 
-def test_file_backed_export_needs_allow_huge(tmp_path):
+def test_F016_export_guard_is_by_size_only(tmp_path):
+    """A small file-backed matrix converts like any other (spilling is automatic, so the user
+    cannot predict it); a size ceiling, when set, applies to RAM and file storage alike."""
     previous, old_dir = pc.get_memory_threshold(), pc._storage_root()
     pc.set_backing_dir(tmp_path)
     pc.set_memory_threshold(1)  # every new matrix is file-backed (a .tmp file)
     try:
         m = pc.matrix(np.ones((8, 8)))
-        with pytest.raises(RuntimeError, match="file-backed"):
+        assert m.get_backing_file().endswith(".tmp")
+        np.testing.assert_array_equal(np.asarray(m), np.ones((8, 8)))
+        pc.set_export_max_bytes(100)  # 8 x 8 float64 = 512 bytes
+        with pytest.raises(RuntimeError, match="ceiling"):
             np.asarray(m)
+        with pytest.raises(RuntimeError, match="ceiling"):
+            np.asarray(pc.matrix(np.ones((8, 8))))
         np.testing.assert_array_equal(pc.to_numpy(m, allow_huge=True), np.ones((8, 8)))
     finally:
+        pc.set_export_max_bytes(None)
         pc.set_memory_threshold(previous)
         pc.set_backing_dir(old_dir)
 
@@ -284,3 +292,21 @@ def test_eigvals_arnoldi_small_matrix_uses_a_dense_solver(sym, n, k):
     ref = np.linalg.eigvalsh(a) if sym else np.linalg.eigvals(a)
     top = ref[np.argsort(-np.abs(ref))][:k]
     np.testing.assert_allclose(np.sort_complex(got.astype(complex)), np.sort_complex(top.astype(complex)), atol=1e-8)
+
+
+@pytest.mark.parametrize("make", [
+    lambda: pc.symmetric(np.arange(16.0).reshape(4, 4) + np.arange(16.0).reshape(4, 4).T),
+    lambda: pc.causal_matrix(np.triu(np.ones((4, 4), dtype=bool), 1)),
+    lambda: pc.diagonal(np.arange(1, 5, dtype=np.int16)),
+    lambda: pc.antisymmetric(np.triu(np.arange(16.0).reshape(4, 4), 1) - np.triu(np.arange(16.0).reshape(4, 4), 1).T),
+])
+def test_structured_rows_and_columns_are_vectors(make):
+    """M[i, :] and M[:, j] of any structure are 1-D, as in NumPy (they raised for every
+    structured class; CausalSet.past / future exported the whole matrix instead)."""
+    m = make()
+    a = to_np(m)
+    for key in [(1, slice(None)), (slice(None), 2), (-1, slice(None, None, -1)), (0, slice(1, 3))]:
+        got = m[key]
+        assert got.shape == a[key].shape and got.dtype == m.dtype
+        np.testing.assert_array_equal(np.asarray(got), a[key])
+    np.testing.assert_array_equal(np.asarray(m.T[1, :]), a.T[1, :])

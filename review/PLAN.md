@@ -301,10 +301,14 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
       Python class per structure with `.dtype` (F-032 fixed by construction); persistence keyed
       by (structure, dtype); old per-dtype names removed from code, tests and docs
       (migration script: `review/scripts/migrate_class_names.py`).
-- [ ] 4.6b Naming sweep: milestone names out of code and docs.
+- [x] 4.6b Naming sweep: milestone names out of code and docs (session 9; the plan files
+      under documentation/*/plans keep theirs, they are the milestones).
 - [x] 4.7 One StreamingManager (F-100: the Python planner is gone); one Minkowski implementation (native; F-105)
-- [~] 4.8 Silent-exception sweep (126 sites). Python first pass done (F-101); C++ catch(...) sites open.
-- [ ] 4.9 Per-directory README.md files (what lives here, what doesn't)
+- [x] 4.8 Silent-exception sweep (126 sites). Python first pass done (F-101); C++ sites done
+      (session 9: the warning-category and NumPy-scalar fallbacks removed; the remaining
+      catch sites rethrow; the parked CUDA hooks in AutoSolver are listed in experimental/cuda).
+- [x] 4.9 Per-directory README.md files (what lives here, what doesn't): src/, tests/,
+      benchmarks/, tools/ (demos/, experimental/*, review/ had one)
 
 ## Phase L: Feature: Lazy evaluation (maintainer request; spec in `features/LAZY.md`)
 Views and deferred expressions for every dtype, structure and vector. Rule: laziness is
@@ -377,7 +381,8 @@ are engine-owned metadata on the storage).
 - [x] 6.0b `lstsq` through `?gelsd` (NumPy's routine) instead of `pinv(a) @ b` (0.65x)
 - [ ] 6.1 Elementwise/vector parity (F-012): profile the wrapper stack vs the kernels
 - [ ] 6.2 Thread-pool consolidation (F-014)
-- [ ] 6.3 Out-of-core paths for eigh/svd/rank (F-011) or document them as in-RAM only
+- [x] 6.3 Out-of-core paths for eigh/svd/rank (F-011) or document them as in-RAM only
+      (documented, session 9)
 - [ ] 6.4 Large-N out-of-core benchmark on a real disk (README's headline claim)
 
 ---

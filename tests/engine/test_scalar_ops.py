@@ -7,7 +7,6 @@ NumPy scalars. Documented divergence: bit/bool arithmetic counts into int32
 """
 from __future__ import annotations
 
-import operator
 
 import numpy as np
 import pytest

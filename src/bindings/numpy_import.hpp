@@ -97,14 +97,9 @@ std::shared_ptr<DenseMatrix<T>> dense_matrix_from_numpy_2d(const py::array_t<T>&
     uint64_t rows = static_cast<uint64_t>(buf.shape[0]);
     uint64_t cols = static_cast<uint64_t>(buf.shape[1]);
 
-    // R1_NUMPY: Check MemoryGovernor before allocating.
-    // If the matrix is too large for RAM, we should fail fast rather than OOM/Swap-death.
-    // Note: The input is already in RAM (NumPy), so we are effectively doubling memory usage here.
-    size_t required_bytes = rows * cols * sizeof(T);
-    if (!pycauset::core::MemoryGovernor::instance().should_use_direct_path(required_bytes)) {
-        throw std::runtime_error("Import rejected by MemoryGovernor: Matrix too large for available RAM.");
-    }
-
+    // No RAM check here: storage allocation already puts an object above the memory threshold
+    // (or one that does not fit in RAM) in a file. A RAM check refused large arrays that would
+    // have been file-backed anyway.
     auto result = std::make_shared<DenseMatrix<T>>(rows, cols);
 
     const T* src_ptr = static_cast<const T*>(buf.ptr);

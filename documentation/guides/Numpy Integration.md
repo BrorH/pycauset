@@ -104,8 +104,7 @@ storage or a pending scale. `pc.to_numpy(M, dtype=...)` converts the copy.
 Converting a massive out-of-core matrix to NumPy is dangerous-it forces the entire dataset into RAM, which can crash your process. PyCauset guards against this.
 
 - **Snapshot-backed** (`.pycauset`) and **RAM-backed** (`:memory:`) objects: `np.array(obj)` is allowed and returns a copy.
-- **Spill/file-backed** objects (e.g., `.tmp`): `np.array(obj)` **raises** by default to prevent surprise full materialization. Opt in explicitly via `pc.to_numpy(obj, allow_huge=True)` if you truly want to load it into RAM.
-- **Ceiling control**: [[docs/functions/pycauset.set_export_max_bytes.md|pc.set_export_max_bytes(bytes_or_None)]] sets a materialization limit. `None` disables the size ceiling; file-backed objects still require `allow_huge=True`.
+- **Size guard**: `np.array(obj)` raises when the array would not fit in free RAM, or exceeds the ceiling set with [[docs/functions/pycauset.set_export_max_bytes.md|pc.set_export_max_bytes(bytes)]]. RAM- and file-backed objects are treated alike (spilling to a file is automatic, so it is no reason to refuse). Opt out with `pc.to_numpy(obj, allow_huge=True)`.
 
 If you see an export error, either downsize, keep the data in PyCauset ops, or opt in with `allow_huge=True` intentionally.
 
@@ -117,7 +116,7 @@ Important note: exporting from `.pycauset` to `.npy`/`.npz` still produces a den
 
 - Supported formats: `.pycauset`, `.npy`, `.npz` (import/export in any direction).
 - `npz_key` selects a named array inside an archive; defaults to the first key.
-- Exports honor the same materialization guard: spill/file-backed sources require `allow_huge=True`.
+- Exports honor the same size guard (`allow_huge=True` to opt out).
 
 Example:
 

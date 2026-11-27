@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import functools
 
-import os
 from typing import Any
 
-from . import export_guard
 from .coercion import safe_rows_cols as _safe_rows_cols
 
 

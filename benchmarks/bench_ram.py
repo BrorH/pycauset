@@ -11,7 +11,6 @@ Usage: python benchmarks/bench_ram.py
 """
 from __future__ import annotations
 
-import numpy as np
 
 import pycauset as pc
 

@@ -1,11 +1,11 @@
-"""R2_PERF, canonical compute-parity benchmark (PyCauset vs NumPy, dense float64).
+"""Canonical compute-parity benchmark (PyCauset vs NumPy, dense float64).
 
 Reproduces with::
 
-    python benchmarks/r2_parity.py
+    python benchmarks/parity.py
 
 For each op, reports the ratio ``numpy_time / pycauset_time``. A ratio >= 1.0
-means PyCauset is faster; >= 0.90 means "at parity" (the R2_PERF bar). Sizes are
+means PyCauset is faster; >= 0.90 means "at parity". Sizes are
 chosen large enough that Python-dispatch overhead is amortized. This is the single
 canonical gate, it supersedes the older ad-hoc benchmark scripts.
 """

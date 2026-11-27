@@ -43,7 +43,7 @@ bool out_of_core(const MatrixBase& a, const MatrixBase& b, const MatrixBase& c) 
     const size_t elem = (dt == DataType::FLOAT32 || dt == DataType::INT32) ? 4 : 8;
     const size_t required = (a.size() + b.size() + c.size()) * elem;
     auto& governor = core::MemoryGovernor::instance();
-    return !governor.can_fit_in_ram(required) || !governor.should_use_direct_path(required);
+    return !governor.can_fit_in_ram(required);
 }
 }  // namespace
 

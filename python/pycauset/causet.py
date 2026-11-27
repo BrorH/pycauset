@@ -196,7 +196,7 @@ class CausalSet:
         """
         validate_causal_matrix(self._matrix, context="CausalSet")
 
-    # --- causal structure (R2_STRUCT: "a causet is just a poset") ---
+    # --- causal structure ---
 
     def links(self):
         """Transitive reduction (Hasse / link matrix): ``L = C & ~(C@C)``."""
@@ -206,14 +206,12 @@ class CausalSet:
         return _np.asarray(L, dtype=bool)
 
     def past(self, x):
-        """Indices ``i`` with ``i \u227a x``."""
-        C = _np.asarray(self._matrix, dtype=bool)
-        return _np.flatnonzero(C[:, int(x)])
+        """Indices ``i`` with ``i \u227a x`` (column x of the causal matrix, O(n))."""
+        return _np.flatnonzero(_np.asarray(self._matrix[:, int(x)]))
 
     def future(self, x):
-        """Indices ``j`` with ``x \u227a j``."""
-        C = _np.asarray(self._matrix, dtype=bool)
-        return _np.flatnonzero(C[int(x), :])
+        """Indices ``j`` with ``x \u227a j`` (row x of the causal matrix, O(n))."""
+        return _np.flatnonzero(_np.asarray(self._matrix[int(x), :]))
 
     def interval(self, x, y):
         """Alexandrov interval ``I(x, y) = future(x) \u2229 past(y)``."""
@@ -221,23 +219,23 @@ class CausalSet:
 
     def is_chain(self, elements) -> bool:
         """True if every pair in `elements` is comparable."""
-        elements = list(elements)
-        C = _np.asarray(self._matrix, dtype=bool)
+        elements = sorted(int(e) for e in elements)
+        C = self._matrix  # time-labelled: i < j for every relation, so C[i, j] decides
         for a in range(len(elements)):
             for b in range(a + 1, len(elements)):
-                i, j = int(elements[a]), int(elements[b])
-                if not (C[i, j] or C[j, i]):
+                i, j = elements[a], elements[b]
+                if not C[i, j]:
                     return False
         return True
 
     def is_antichain(self, elements) -> bool:
         """True if no pair in `elements` is comparable."""
-        elements = list(elements)
-        C = _np.asarray(self._matrix, dtype=bool)
+        elements = sorted(int(e) for e in elements)
+        C = self._matrix  # time-labelled: i < j for every relation, so C[i, j] decides
         for a in range(len(elements)):
             for b in range(a + 1, len(elements)):
-                i, j = int(elements[a]), int(elements[b])
-                if C[i, j] or C[j, i]:
+                i, j = elements[a], elements[b]
+                if C[i, j]:
                     return False
         return True
 
@@ -275,7 +273,7 @@ class CausalSet:
                 rank[i] = 1 + int(rank[preds].max())
         return [_np.flatnonzero(rank == k + 1) for k in range(int(rank.max()))]
 
-    # --- dimension estimators (R2_DIM) ---
+    # --- dimension estimators ---
 
     def relation_fraction(self) -> float:
         """Fraction of element pairs that are causally related: ``R / C(n, 2)``.
@@ -286,8 +284,7 @@ class CausalSet:
         """
         if self._n < 2:
             return 0.0
-        C = _np.asarray(self._matrix, dtype=bool)
-        R = int(C.sum())
+        R = int(_native.sum(self._matrix))  # popcount over the packed bits
         return R / (self._n * (self._n - 1) / 2)
 
     def myrheim_meyer_dimension(self, dmin: float = 1.0, dmax: float = 8.0) -> float:

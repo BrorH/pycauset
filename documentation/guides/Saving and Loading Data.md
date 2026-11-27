@@ -62,19 +62,17 @@ Two kinds of files live there:
 
 ## The materialization guard
 
-Turning a large disk-backed object into a dense NumPy array forces it into RAM, which
-can crash a process. PyCauset guards against this:
-
-- Snapshot-backed (`.pycauset`) and RAM-backed objects convert freely with
-  `np.asarray(obj)`.
-- Spill/file-backed (`.tmp`) objects raise unless you opt in explicitly:
+Turning a large matrix into a dense NumPy array forces all of it into RAM, which can crash
+a process. PyCauset guards against this by size: `np.asarray(obj)` raises when the array would
+not fit in free RAM, whether the matrix lives in RAM or in a file. Opt out explicitly:
 
 ```python
 arr = pc.to_numpy(A2, allow_huge=True)    # "yes, I want it in RAM"
 ```
 
-`pc.set_export_max_bytes(n)` sets a ceiling on materialization; `None` removes the
-limit (file-backed objects still need `allow_huge=True`).
+Exports are guarded by size only: one that would not fit in free RAM raises, as does one above
+the ceiling set with `pc.set_export_max_bytes(n)` (`None`: back to the free-RAM rule).
+`allow_huge=True` skips the check.
 
 See [[docs/functions/pycauset.convert_file.md|pycauset.convert_file]] and
 [[guides/Storage and Memory|Storage and Memory]] for the details.

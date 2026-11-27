@@ -30,7 +30,7 @@ after NumPy without the variable set.
 
 ## How fast, compared with NumPy
 
-Measured on a 4-vCPU Linux machine (`benchmarks/r2_parity.py`, float64, N = 1024; ratios
+Measured on a 4-vCPU Linux machine (`benchmarks/parity.py`, float64, N = 1024; ratios
 vary by about ±10% between runs):
 
 | operation | PyCauset vs NumPy |

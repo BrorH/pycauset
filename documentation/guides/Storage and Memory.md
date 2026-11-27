@@ -132,8 +132,7 @@ PyCauset protects you from accidental full materialization when converting to Nu
 
 - **Snapshot-backed objects** (`.pycauset`): `np.asarray(obj)` is allowed and returns a copy.
 - **RAM-backed objects** (`:memory:`): `np.asarray(obj)` is allowed and stays in-memory.
-- **Spill/file-backed objects** (e.g., `.tmp`): `np.asarray(obj)` **raises** by default to avoid surprise RAM blow-ups. Opt in explicitly via `pc.to_numpy(obj, allow_huge=True)`.
-- **Ceiling control**: `pc.set_export_max_bytes(bytes_or_None)` sets a materialization limit for NumPy exports; `None` disables the size ceiling (file-backed safety still applies unless you pass `allow_huge=True`).
+- **Size guard**: `np.asarray(obj)` raises when the array would not fit in free RAM, or exceeds the ceiling set with `pc.set_export_max_bytes(bytes)`; RAM- and file-backed objects are treated alike. `pc.to_numpy(obj, allow_huge=True)` opts out.
 
 Takeaway: if something is spill-backed and large, you must opt-in to materialize; snapshots and in-RAM objects remain convertible without the opt-in.
 
@@ -142,6 +141,8 @@ Takeaway: if something is spill-backed and large, you must opt-in to materialize
 Operations whose operands and result do not fit the RAM budget run tile by tile through the
 engine's StreamingManager; others run directly on memory-mapped storage. The engine decides
 (see [[internals/Streaming Manager|Streaming Manager]]); there is no routing knob.
+Factorizations and eigen problems are the exception: they need the matrix in RAM
+([[guides/Linear Algebra Operations|Linear Algebra Operations]], "Size limits").
 
 `pc.last_io_trace(op)` reports what a call read and how it ran: each operand's shape, dtype
 and storage (`"memory"`, `"file"`, `"temp"`), the kernels the engine ran, and `streamed`
@@ -227,7 +228,7 @@ pc.convert_file("A.npy", "A_roundtrip.pycauset")
 
 Routing rules and guardrails:
 
-- `.npy`/`.npz` exports honor the same materialization safety as `np.asarray`: file-backed objects require `allow_huge=True` to load into RAM; otherwise export raises.
+- `.npy`/`.npz` exports honor the same size guard as `np.asarray` (`allow_huge=True` to opt out` to load into RAM; otherwise export raises.
 - `.npz` imports default to the first key; set `npz_key` to pick a named entry.
 - `pc.convert_file(src, dst, ...)` infers formats from suffixes and converts between `.pycauset` and `.npy`/`.npz` without you having to write load/save boilerplate.
 
@@ -270,10 +271,10 @@ While PyCauset matrices can be terabytes in size, standard NumPy arrays must fit
 
 **Interaction Warning:** passing a huge file-backed matrix to `np.array(M)` or `pycauset.to_numpy(M)` attempts to load the **entire payload** into system RAM.
 
-To prevent accidental crashes:
-1.  PyCauset blocks this by default for disk-backed objects.
-2.  You must explicitly opt-in with `pycauset.to_numpy(M, allow_huge=True)`.
-3.  Prefer processing data within PyCauset where possible, as it manages tiling and paging automatically.
+To prevent accidental crashes, an export that would not fit in free RAM raises (or one above
+the ceiling you set with `pycauset.set_export_max_bytes`); whether the matrix is in RAM or in
+a file does not matter. `pycauset.to_numpy(M, allow_huge=True)` skips the check. Prefer
+processing data within PyCauset where possible: it manages tiling and paging automatically.
 
 See [[guides/Numpy Integration.md|Numpy Integration]] for details.
 
@@ -287,7 +288,7 @@ See [[guides/Numpy Integration.md|Numpy Integration]] for details.
 - [[dev/PyCauset Container Format|PyCauset Container Format]]
 - [[project/protocols/Documentation Protocol.md|Documentation Protocol]]
 
-## Crash Consistency (R1_SAFETY)
+## Crash consistency
 
 PyCauset employs several mechanisms to minimize data loss in the event of a power failure or crash:
 

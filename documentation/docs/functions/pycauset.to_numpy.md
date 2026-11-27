@@ -12,7 +12,8 @@ This is the **explicit** NumPy export entrypoint. It exists because converting o
 
 - **obj**: A PyCauset matrix/vector (and selected internal matrix-like objects).
 - **allow_huge** (bool, default `False`):
-  - When `False`, exporting spill/file-backed objects hard-errors to prevent surprise full materialization.
+  - When `False`, the size guard applies: an export that would not fit in free RAM, or exceeds the
+    `set_export_max_bytes` ceiling, raises. RAM- and file-backed objects are treated alike.
   - Set to `True` only when you intentionally want to materialize into RAM.
 - **dtype** (optional): Override NumPy dtype on export.
 - **copy** (bool, default `True`):
@@ -26,7 +27,7 @@ This is the **explicit** NumPy export entrypoint. It exists because converting o
 ## Exceptions
 
 - `RuntimeError` if NumPy is unavailable.
-- `RuntimeError` if export is blocked by the materialization guard (file-backed / too-large without opt-in).
+- `RuntimeError` if the size guard blocks the export (too large, without `allow_huge=True`).
 
 ## Examples
 

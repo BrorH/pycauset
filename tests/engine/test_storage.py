@@ -54,7 +54,7 @@ def test_new_disk_allocations_follow_the_backing_dir(backing_dir, tmp_path_facto
 def test_export_ceiling():
     pc.set_export_max_bytes(16)
     try:
-        with pytest.raises(RuntimeError, match="materialization limit"):
+        with pytest.raises(RuntimeError, match="ceiling"):
             np.asarray(pc.matrix(np.eye(4)))
         np.testing.assert_array_equal(pc.to_numpy(pc.matrix(np.eye(4)), allow_huge=True), np.eye(4))
     finally:

@@ -112,42 +112,24 @@ def estimate_materialized_bytes(obj: Any) -> int | None:
     return int(math.ceil(total_bytes))
 
 
-def backing_kind(obj: Any) -> tuple[str | None, str | None]:
-    for attr in ("get_backing_file", "backing_file"):
-        val = getattr(obj, attr, None)
-        path = val() if callable(val) else val
-        if not path:
-            continue
-        path_str = str(path)
-        if path_str == ":memory:":  # explicit in-memory sentinel used by native matrices
-            return path_str, None
-        if path_str.endswith(".pycauset"):
-            return path_str, "snapshot"
-        if path_str.endswith(".tmp") or path_str.endswith(".raw_tmp"):
-            return path_str, "temp"
-        return path_str, "unknown"
-    return None, None
-
-
 def ensure_export_allowed(obj: Any, *, allow_huge: bool, ceiling_bytes: int | None) -> None:
     if allow_huge:
         return
 
-    _, kind = backing_kind(obj)
+    # By size only (F-016), as the engine's guard (numpy_export_guard.hpp): RAM or file backing
+    # does not matter. With a ceiling, above it raises; without one, not fitting in free RAM.
     est = estimate_materialized_bytes(obj)
-
-    if kind and kind != "snapshot":
-        raise RuntimeError(
-            "Export to NumPy is blocked for file-backed/out-of-core objects; pass allow_huge=True via pycauset.to_numpy(...) to override."
-        )
-
-    if ceiling_bytes is None:
+    if est is None:
         return
+    hint = "; pass allow_huge=True via pycauset.to_numpy(...) to override."
+    if ceiling_bytes is not None:
+        if est > ceiling_bytes:
+            raise RuntimeError(f"Export to NumPy ({est} bytes) exceeds the set_export_max_bytes ceiling{hint}")
+        return
+    from .. import _pycauset  # loaded with the package
 
-    if est is not None and est > ceiling_bytes:
-        raise RuntimeError(
-            "Export to NumPy exceeds configured materialization limit; pass allow_huge=True via pycauset.to_numpy(...) to override."
-        )
+    if not _pycauset.MemoryGovernor.instance().can_fit_in_ram(est):
+        raise RuntimeError(f"Export to NumPy ({est} bytes) would not fit in free RAM{hint}")
 
 
 # Number of exports since import. The operation atlas (tests/atlas) reads it around an

@@ -78,19 +78,6 @@ public:
      */
     bool can_fit_in_ram(size_t size_bytes) const;
 
-    /**
-     * @brief Determines if an operation should use the "Direct Path" (RAM-resident)
-     * or the "Streaming Path" (Out-of-Core).
-     * 
-     * This encapsulates the "Anti-Nanny" logic:
-     * 1. If data fits in RAM, prefer Direct Path (even if pinning fails).
-     * 2. If data is huge, force Streaming Path.
-     * 
-     * @param total_operation_bytes Total memory footprint of the operation (Inputs + Output).
-     * @return true if the operation should be performed in-memory (Direct Path).
-     */
-    bool should_use_direct_path(size_t total_operation_bytes) const;
-
     // --- Pinned Memory Management (Phase 4) ---
 
     /**
@@ -138,7 +125,7 @@ public:
     bool has_pinning_budget_override() const;
 
     /**
-     * @brief Computes the dynamic pinning budget using the R1_GPU heuristic.
+     * @brief Computes the dynamic pinning budget (the GPU pinning heuristic).
      */
     uint64_t compute_dynamic_pinning_budget() const;
 

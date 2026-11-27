@@ -1,4 +1,4 @@
-# macOS wheel portability (R2_HARDEN, remaining)
+# macOS wheel portability
 
 ## Current state
 

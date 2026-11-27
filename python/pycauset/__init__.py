@@ -27,7 +27,7 @@ os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 # inside one LAPACK factorization (at 2^4, qr / eigh / svd ran 2x slower: F-108), far shorter
 # than the default 2^28 (~0.1 s) whose spinning starved the other pool (8 ms -> 28 ms).
 os.environ.setdefault("OPENBLAS_THREAD_TIMEOUT", "18")
-from contextlib import contextmanager
+
 from pathlib import Path
 from types import SimpleNamespace as _SimpleNamespace
 from typing import Any
@@ -1490,6 +1490,4 @@ for _name in _extra_exports:
     if _name in globals() or _name == "bool" or getattr(_native, _name, None) is not None:
         __all__.append(_name)
 
-# Lazy ufunc patching is intentionally disabled: the C++ operator overloads handle
-# NumPy interoperability directly (see R1_NUMPY_PLAN.md).
 

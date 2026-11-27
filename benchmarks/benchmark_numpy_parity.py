@@ -70,43 +70,6 @@ def run_benchmark(dtype, rows, cols, label):
     
     return results
 
-def benchmark_non_contiguous(rows, cols):
-    label = "Float64 Non-Contiguous (Sliced)"
-    dtype = np.float64
-    # Create larger array and slice it to be non-contiguous
-    # We want a slice that is not C-contiguous but is 2D.
-    # e.g. every other column
-    expanded_cols = cols * 2
-    data_big = np.zeros((rows, expanded_cols), dtype=dtype)
-    data = data_big[:, ::2] # Sliced view, non-contiguous
-    
-    element_size = np.dtype(dtype).itemsize
-    total_bytes = rows * cols * element_size
-    size_mb = total_bytes / (1024 * 1024)
-
-    print(f"\n--- Benchmarking {label} ({rows}x{cols}, {size_mb:.1f} MB) ---")
-    print(f"Input flags: C_CONTIGUOUS={data.flags['C_CONTIGUOUS']}")
-
-    # 1. NumPy Copy Baseline
-    # We benchmark how fast NumPy can copy this non-contiguous view to a contiguous array
-    start = time.time()
-    _ = np.ascontiguousarray(data)
-    np_copy_time = time.time() - start
-    np_copy_bw = size_mb / np_copy_time
-
-    # 2. PyCauset Import
-    # This should trigger the non-contiguous path in bind_matrix.cpp
-    start = time.time()
-    _ = pycauset.matrix(data) # In-memory import
-    pc_import_time = time.time() - start
-    pc_import_bw = size_mb / pc_import_time
-
-    results = []
-    # We compare against NumPy's own internal copy speed
-    # Target is >0.90x of numpy's optimized copy
-    results.append(BenchmarkResult(f"{label} Import", size_mb, pc_import_bw, pc_import_bw / np_copy_bw))
-    return results
-
 def benchmark_bit_matrix(rows, cols):
     # Special case for BitMatrix because NumPy uses 1 byte per bool, PyCauset uses 1 bit.
     # We compare logical throughput (elements/sec) or raw bandwidth?

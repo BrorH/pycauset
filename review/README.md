@@ -68,10 +68,19 @@ review/
    its never-executed list.
 
 ## Current status (update this line every session)
+**Session 9 (2026-11-27):** cleanup finished except 4.3/4.4 (patch stack, `__init__` split:
+after the maintainer's Windows run); tests retired by coverage (4.5); causal sets, the
+d-dimensional Minkowski diamond and lightweight plots are R1 (fields and other spacetimes
+parked in experimental/physics); docs truth pass done (every page's code runs, every public
+name has a page and a stub entry, the site builds); Phase 6 started: LAPACK column-major
+(F-108; solve / inv / det 1.6-1.8x NumPy, cholesky 2.4x), lstsq through gelsd, OpenBLAS
+timeout 18, element-wise normaliser rules; bugs F-105..F-114 (F-111 views are values: a
+maintainer question). Next: Phase 6 from the full atlas timing.
+
 **After session 3 (2026-11-24):** fixed F-001…F-006, F-024, F-025, F-028…F-030, F-033,
 F-034, F-035a, F-036…F-040, F-041a; precision_mode removed; lazy expression engine removed
 (eager operators, one structure resolver); Arnoldi on Spectra; streaming engine tested.
-Session 7: performance (thread-pool defaults, export, BLAS dot: r2_parity mostly at
+Session 7: performance (thread-pool defaults, export, BLAS dot: benchmarks/parity.py mostly at
 parity), vectors = 1 x n matrices (F-058), exact integer dot/sum/trace (F-051), linear algebra
 on views and complex inputs (F-059..F-063: 5 silent wrong-result classes), user docs GPU-free.
 3,860 + 287 tests. Session 6: bit-plane investigation (features/BIT_PLANES.md), exact int

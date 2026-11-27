@@ -230,10 +230,10 @@ namespace {
 
             // Check: does the operation fit in RAM? (Anti-Nanny Logic). When it
             // does, call BLAS directly. We intentionally do NOT pin the operands
-            // (VirtualLock): pinning is a GPU-DMA optimization (R1_GPU) and is pure
+            // (VirtualLock): pinning is a GPU-DMA optimization and is pure
             // overhead for CPU dgemm, it added ~1-2ms per call at n=1024 and was
             // the dominant residual in the matmul parity gap.
-            if (governor.should_use_direct_path(total_bytes)) {
+            if (governor.can_fit_in_ram(total_bytes)) {
                 const T* a_data = a_dense->data() + (a_dense->row_offset() * a_dense->base_cols() + a_dense->col_offset());
                 const T* b_data = b_dense->data() + (b_dense->row_offset() * b_dense->base_cols() + b_dense->col_offset());
                 T* c_data = c_dense->data() + (c_dense->row_offset() * c_dense->base_cols() + c_dense->col_offset());

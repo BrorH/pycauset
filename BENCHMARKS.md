@@ -7,7 +7,7 @@ numbers are the honest state, not a goal.
 
 | Command | What it measures |
 |---|---|
-| `python benchmarks/r2_parity.py` | headline dense float64 ops at N = 1024 (CI runs it, report-only) |
+| `python benchmarks/parity.py` | headline dense float64 ops at N = 1024 (CI runs it, report-only) |
 | `python -m tests.atlas.timing [op ...]` | every op x dtype x structure x view against NumPy; writes `review/atlas/TIMING.md` |
 | `python benchmarks/bench.py [--large]` + `python benchmarks/plot.py` | time against size, with graphs |
 | `python benchmarks/benchmark_numpy_parity.py` | NumPy import / export throughput |
@@ -22,7 +22,7 @@ the same machine only; BLAS timings differ a lot between machines and OpenBLAS b
 
 4-vCPU Linux container, system OpenBLAS 0.3.26 (NumPy 2.x with its bundled OpenBLAS
 0.3.34), float64, N = 1024 (n = 512 for `eig`), best of 4, 2026-11-27, PyCauset imported
-first. `benchmarks/r2_parity.py`: 9/9 operations at or above 0.90x.
+first. `benchmarks/parity.py`: 9/9 operations at or above 0.90x.
 
 | op | NumPy | PyCauset | ratio |
 |---|---|---|---|

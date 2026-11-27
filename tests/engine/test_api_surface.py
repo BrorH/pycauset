@@ -279,3 +279,24 @@ def test_antisymmetric_storage_writes(dtype):
     s = pc.SymmetricMatrix(4, dtype=dtype)
     s[3, 0] = 5
     assert s[0, 3] == 5
+
+
+def test_stub_declares_every_public_name():
+    """`__init__.pyi` overrides the module for type checkers: a public name it lacks is an
+    error in IDEs on correct code (F-007)."""
+    import ast
+    from pathlib import Path
+
+    tree = ast.parse((Path(pc.__file__).parent / "__init__.pyi").read_text())
+    declared = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+            declared.add(node.name)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            declared.add(node.target.id)
+        elif isinstance(node, ast.Assign):
+            declared.update(t.id for t in node.targets if isinstance(t, ast.Name))
+        elif isinstance(node, ast.ImportFrom):
+            declared.update(a.asname or a.name for a in node.names)
+    missing = sorted(set(pc.__all__) - declared)
+    assert not missing, f"public names missing from __init__.pyi: {missing}"

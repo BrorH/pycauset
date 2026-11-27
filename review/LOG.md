@@ -562,3 +562,23 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
     timing.json instead of overwriting the report with one operation.
   Still open: bool structured operands (bit storage into int32 results, ~11 ms), small
   per-call overhead, complex32 vectors.
+- Findings sweep (status of every "open" finding checked against the code): F-007 (stub
+  missing 42 public names + a nonexistent MatrixMixin: generated, test keeps it complete),
+  F-016 (export guard by size only, as decided: implemented in the engine and Python
+  guards, docs in eight places), F-008 / F-009 / F-015 / F-031 / F-082 closed (fixed
+  earlier or by this session's work), F-013 documented, F-011 documented as an in-RAM
+  limit (PLAN 6.3), F-114 new (NumPy import refused arrays that would be file-backed).
+- Dead code: DenseMatrix's float64-only `submatrix` / `qr` / `lu` / `eigh` / `eigvalsh` /
+  `eig` / `eigvals` members (~180 lines, no caller), `MemoryGovernor::should_use_direct_path`,
+  export_guard's `backing_kind`, a duplicated benchmark function, unused imports / locals
+  (ruff F401 / F841 / F811 clean for python/, tests/, benchmarks/). Built after the timing
+  run (building during it would skew the numbers).
+- Structured rows / columns: `M[i, :]` and `M[:, j]` of every structure return a vector (they
+  raised NotImplementedError for all structured classes); `CausalSet.past` / `future` use
+  them (O(n) instead of exporting the n x n matrix), `relation_fraction` counts with the
+  engine's popcount `sum`, `is_chain` / `is_antichain` read single elements.
+- 4.8 (C++ silent fallbacks: warning category, NumPy-scalar check), 4.9 (directory READMEs),
+  4.6b (milestone names out of code and docs; benchmarks/r2_parity.py -> parity.py) done.
+- Full atlas timing (11,295 cells): 6,306 below 0.9x (8,445 before this session's work);
+  slowest: dot 0.05, bitwise 0.1, matvec / vecmat 0.13, trace 0.29, scalar add / sub and
+  div ~0.3. Gates: 4,199 + 4,141 passed, atlas CI 42, ctest 5/5, docs build clean.
