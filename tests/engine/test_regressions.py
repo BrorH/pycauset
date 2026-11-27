@@ -622,3 +622,22 @@ def test_bulk_reader_windows_and_transposes_match_numpy():
         np.testing.assert_array_equal(np.asarray(got * 3), want * 3)
         np.testing.assert_allclose(np.asarray(got / (got + 100)), want / (want + 100))
         np.testing.assert_allclose(np.asarray(got + 0.5), want + 0.5)
+
+
+def test_unit_vector_dot_is_exact_and_keeps_numpy_nan_rules():
+    """dot with a unit vector reads u_k y_k plus the 0 * y_i terms only for inf / NaN (it read
+    every element of both through the virtual accessor, 0.05x NumPy). Integer dtypes give an
+    exact int, as every other integer dot (they returned a float)."""
+    n = 1000
+    y = np.arange(n, dtype=np.int64) * 3 - 7
+    u = pc.UnitVector(n, 5, dtype="int64")
+    got = u.dot(pc.vector(y))
+    assert type(got) is int and got == int(y[5])
+    assert (u * 3).dot(pc.vector(y)) == 3 * int(y[5])
+    for i, v in [(5, np.inf), (7, np.inf), (7, np.nan), (5, -np.inf)]:
+        yf = np.ones(n)
+        yf[i] = v
+        with np.errstate(all="ignore"):
+            want = np.dot(np.asarray(pc.UnitVector(n, 5)), yf)
+        got = pc.UnitVector(n, 5).dot(pc.vector(yf))
+        assert (np.isnan(got) and np.isnan(want)) or got == want, (i, v, got, want)

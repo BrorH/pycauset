@@ -629,3 +629,8 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   gets >= 32 items (8 tiles ran inline), and scratch buffers / wide copies are not zeroed.
   int32 1024: tri & tri 2.6 -> 0.64 ms, ~tri 1.9 -> 0.34 ms, ~(D.T) 3.5 -> 0.67 ms,
   diag / diag 6.1 -> 1.9 ms, tri / tri 6.2 -> 2.0 ms (NumPy 0.3 / 0.9 ms). Full atlas: 0 wrong.
+- dot with a unit vector: u_k y_k, plus the 0 * y_i terms only where they matter (an inf /
+  NaN y_i makes NumPy's sum NaN; checked with one vectorized pass over y's exponent bits).
+  float64 1M: 6.8 ms -> 0.16 ms (NumPy 0.05-0.35 ms by run), float32 faster than NumPy.
+  Integer unit vectors with integer vectors return an exact Python int like every other
+  integer dot (they returned a float).

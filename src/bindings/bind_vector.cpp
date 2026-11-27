@@ -63,6 +63,47 @@ inline py::object exact_int_dot(const VectorBase& a, const VectorBase& b) {
                dt != DataType::COMPLEX_FLOAT32 && dt != DataType::COMPLEX_FLOAT64 &&
                scalar::is_exact_int_factor(v.get_scalar());
     };
+    // An integer unit vector with a dense integer vector: u_k y_k exactly (no other term is
+    // nonzero; integers have no inf / NaN). It went through the float path and returned a float.
+    const auto* ua = dynamic_cast<const UnitVector*>(&a);
+    const auto* ub = dynamic_cast<const UnitVector*>(&b);
+    if ((ua != nullptr) != (ub != nullptr)) {
+        const UnitVector& u = ua ? *ua : *ub;
+        const VectorBase& o = ua ? b : a;
+        const DataType du = u.get_data_type(), dv = o.get_data_type();
+        const auto int_dtype = [](DataType dt) {
+            return dt == DataType::INT8 || dt == DataType::INT16 || dt == DataType::INT32 || dt == DataType::INT64 ||
+                   dt == DataType::UINT8 || dt == DataType::UINT16 || dt == DataType::UINT32 || dt == DataType::UINT64;
+        };
+        if (int_dtype(du) && int_dtype(dv) && scalar::is_exact_int_factor(u.get_scalar()) &&
+            scalar::is_exact_int_factor(o.get_scalar())) {
+            if (a.size() != b.size()) throw py::value_error("dot: vector sizes differ");
+            const int64_t ku = static_cast<int64_t>(u.get_scalar().real());
+            const int64_t ko = static_cast<int64_t>(o.get_scalar().real());
+            const uint64_t k = u.get_active_index();
+            __int128 x = 0, y = 0;
+            bool dense = false;
+            visit_dtype(du, [&](auto tu) {
+                using A = typename decltype(tu)::type;
+                if constexpr (std::is_integral_v<A> && !std::is_same_v<A, bool>) x = scalar::wrap_scale<A>(A{1}, ku);
+            });
+            visit_dtype(dv, [&](auto tv) {
+                using B = typename decltype(tv)::type;
+                if constexpr (std::is_integral_v<B> && !std::is_same_v<B, bool>) {
+                    if (const auto* v = dynamic_cast<const typename DenseVectorOf<B>::type*>(&o)) {
+                        y = scalar::wrap_scale<B>(v->get(k), ko);
+                        dense = true;
+                    }
+                }
+            });
+            if (dense) {
+                __int128 r;
+                if (__builtin_mul_overflow(x, y, &r))
+                    throw std::overflow_error("dot: integer result does not fit the 128-bit accumulator");
+                return pycauset_bindings::int128_to_py(r);
+            }
+        }
+    }
     if (!is_int(a) || !is_int(b)) return py::object();
     if (a.get_data_type() == DataType::BIT && b.get_data_type() == DataType::BIT) {
         // Word-level popcount kernel; a count < 2^53 is exact in double.

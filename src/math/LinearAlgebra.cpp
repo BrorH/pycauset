@@ -34,6 +34,8 @@
 #include <iostream>
 #include <complex>
 #include <limits>
+#include <cstring>
+#include <atomic>
 #include <optional>
 #include <cmath>
 #include <algorithm>
@@ -278,7 +280,81 @@ double dot_product(const VectorBase& a, const VectorBase& b) {
         (dt_a == DataType::FLOAT64 || dt_a == DataType::FLOAT32 || dt_a == DataType::BIT)) {
         return ComputeContext::instance().get_device()->dot(a, b);
     }
-    // Every other dtype, view and UnitVector: the typed row reader over the 1 x n bridge.
+    // A unit vector (finite factor): sum_i u_i y_i is u_k y_k plus terms 0 * y_i, which are 0
+    // unless y_i is inf or NaN (then NaN, as NumPy computes them). Same value as the full loop
+    // below (it accumulates from +0.0, so a -0.0 product gives +0.0 there too); O(n) reads of y
+    // instead of per-element virtual reads of both (dot with a unit vector was 0.05x NumPy).
+    const auto* ua = dynamic_cast<const UnitVector*>(&a);
+    const auto* ub = dynamic_cast<const UnitVector*>(&b);
+    if (const UnitVector* u = ua ? ua : ub) {
+        const VectorBase& o = ua ? b : a;
+        const std::complex<double> uk = u->active_value();
+        const std::complex<double> so = o.get_scalar();
+        auto in_place = [&](auto tag) -> std::optional<double> {
+            using T = typename decltype(tag)::type;
+            const auto* v = dynamic_cast<const DenseVector<T>*>(&o);
+            if (!v || so.imag() != 0.0 || o.is_conjugated()) return std::nullopt;
+            const T* __restrict p = v->data();
+            const double f = so.real();
+            const uint64_t k = u->get_active_index(), n = o.size();
+            const double yk = static_cast<double>(p[k]) * f;
+            // Are all y_i, i != k, finite? One vectorizable pass; a second only when some value
+            // is not finite and it may be y_k itself.
+            // y * 0 is 0 for finite y and NaN otherwise: a sum of those is NaN iff some y is not
+            // finite, and the sum vectorizes (an isfinite test per element did not).
+            std::atomic<bool> all{true};
+            ParallelForRange(0, n, [&](size_t i0, size_t i1) {
+                const T* __restrict q = p;
+                if (f == 1.0) {
+                    // Unscaled: y is not finite iff its exponent bits are all set (integer
+                    // compares vectorize; the floating-point sum below does not).
+                    // The exponent is in the high 32-bit word (little-endian); 32-bit compares
+                    // vectorize on every x86-64, 64-bit ones need SSE4.1.
+                    static_assert(std::endian::native == std::endian::little);
+                    constexpr uint32_t E = sizeof(T) == 8 ? 0x7ff00000u : 0x7f800000u;
+                    constexpr size_t W = sizeof(T) / 4, HI = W - 1;
+                    const uint32_t* __restrict w = reinterpret_cast<const uint32_t*>(q);
+                    uint32_t hit = 0;
+                    for (size_t i = i0; i < i1; ++i) hit |= static_cast<uint32_t>((w[i * W + HI] & E) == E);
+                    if (hit) all = false;
+                    return;
+                }
+                double z0 = 0, z1 = 0, z2 = 0, z3 = 0;
+                size_t i = i0;
+                for (; i + 4 <= i1; i += 4) {
+                    z0 += static_cast<double>(q[i]) * f * 0.0; z1 += static_cast<double>(q[i + 1]) * f * 0.0;
+                    z2 += static_cast<double>(q[i + 2]) * f * 0.0; z3 += static_cast<double>(q[i + 3]) * f * 0.0;
+                }
+                for (; i < i1; ++i) z0 += static_cast<double>(q[i]) * f * 0.0;
+                if (std::isnan((z0 + z1) + (z2 + z3))) all = false;
+            });
+            bool finite = all;
+            if (!all && !std::isfinite(yk)) {
+                finite = true;
+                for (uint64_t i = 0; i < n; ++i)
+                    if (i != k && !std::isfinite(static_cast<double>(p[i]) * f)) { finite = false; break; }
+            }
+            debug_trace::set_last("cpu.dot.unit");
+            return finite ? 0.0 + uk.real() * yk : std::numeric_limits<double>::quiet_NaN();
+        };
+        if (std::isfinite(uk.real())) {
+            if (o.get_data_type() == DataType::FLOAT64)
+                if (auto r = in_place(type_tag<double>{})) return *r;
+            if (o.get_data_type() == DataType::FLOAT32)
+                if (auto r = in_place(type_tag<float>{})) return *r;
+        }
+        if (std::isfinite(uk.real()) && dynamic_cast<const UnitVector*>(&o) == nullptr) {
+            std::vector<double> y(o.size());
+            if (read_rows(*as_row_matrix(o), 0, 1, y.data())) {
+                const uint64_t k = u->get_active_index();
+                bool finite = true;
+                for (uint64_t i = 0; i < y.size(); ++i) finite &= i == k || std::isfinite(y[i]);
+                debug_trace::set_last("cpu.dot.unit");
+                return finite ? 0.0 + uk.real() * y[k] : std::numeric_limits<double>::quiet_NaN();
+            }
+        }
+    }
+    // Every other dtype and view: the typed row reader over the 1 x n bridge.
     std::vector<double> x(a.size()), y(b.size());
     if (read_rows(*as_row_matrix(a), 0, 1, x.data()) && read_rows(*as_row_matrix(b), 0, 1, y.data())) {
         debug_trace::set_last("cpu.dot.typed");
