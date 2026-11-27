@@ -13,7 +13,8 @@ kernel) is [[internals/Compute Architecture]].
 | File | Binds |
 |---|---|
 | `bind_core.cpp` | threads, memory threshold, `sum`, the lazy switch, kernel / IO / access traces |
-| `bind_matrix.cpp` | the matrix classes, operators, indexing, NumPy export |
+| `bind_matrix.cpp` | the matrix classes, operators, NumPy export |
+| `matrix_indexing.hpp` | matrix indexing: subscript parsing, slicing, element get / set through views, `__getitem__` / `__setitem__` |
 | `bind_vector.cpp` | the vector classes |
 | `bind_math.cpp` | linear algebra and reductions |
 | `bind_causet.cpp` | the Minkowski diamond and the sprinkler |

@@ -277,7 +277,10 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
       complex structured storage.
 - [ ] 4.1e Fold `ComplexFloat16Matrix/Vector` into the generic templates if feasible
 - [ ] 4.1c bit/bool arithmetic = integer counting everywhere (RESTRUCTURE §3.2 B, F-013)
-- [ ] 4.2 Split CpuSolver.cpp, bind_matrix.cpp and `__init__.py` (pure moves)
+- [~] 4.2 Split CpuSolver.cpp, bind_matrix.cpp and `__init__.py` (pure moves). Session 9:
+      bind_matrix.cpp 1769 -> 1043 lines (indexing into `src/bindings/matrix_indexing.hpp`);
+      CpuSolver.cpp is 864 lines after the earlier kernel-file splits; `__init__.py` waits for
+      4.4 (its wrappers need `_OPS_DEPS`, a module split there is a circular import).
   - session 9: CpuSolver.cpp (2,574 lines) -> CpuMatmul.cpp, CpuElementwise.cpp,
     CpuIterative.cpp, CpuSolver.cpp (vector ops, norms, svd, solve) + internal
     CpuKernelsCommon.hpp. bind_matrix.cpp 2,268 -> 1,784 lines: the NumPy importer shared
