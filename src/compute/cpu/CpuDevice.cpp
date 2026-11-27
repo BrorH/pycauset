@@ -60,10 +60,6 @@ void CpuDevice::cholesky(const MatrixBase& in, MatrixBase& out) {
     solver_.cholesky(in, out);
 }
 
-void CpuDevice::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {
-    solver_.batch_gemv(A, x_data, y_data, b);
-}
-
 void CpuDevice::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) {
     solver_.matrix_vector_multiply(m, v, result);
 }

@@ -32,7 +32,6 @@ public:
     // A is N x N
     // X is N x b (Row Major)
     // Y is N x b (Row Major)
-    virtual void batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) = 0;
 
     // Matrix-Vector Operations
     virtual void matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) = 0;

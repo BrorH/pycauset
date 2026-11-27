@@ -357,40 +357,4 @@ void CpuSolver::eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBas
     }
 }
 
-void CpuSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {
-    uint64_t n = A.rows();
-    if (A.cols() != n) {
-        throw std::invalid_argument("batch_gemv requires square matrix");
-    }
-    
-    // Check for optimized types
-    auto* f32 = dynamic_cast<const DenseMatrix<float>*>(&A);
-    auto* f64 = dynamic_cast<const DenseMatrix<double>*>(&A);
-
-    ParallelFor(0, n, [&](size_t i) {
-        // Accumulator for row i of Y (size b)
-        std::vector<double> acc(b, 0.0);
-        
-        // Scan row i of A
-        for (size_t j = 0; j < n; ++j) {
-            double a_val;
-            if (f32) a_val = (double)f32->get(i, j);
-            else if (f64) a_val = f64->get(i, j);
-            else a_val = A.get_element_as_double(i, j);
-
-            // SAXPY: acc += a_val * X[j, :]
-            size_t x_row_offset = j * b;
-            for (size_t k = 0; k < b; ++k) {
-                acc[k] += a_val * x_data[x_row_offset + k];
-            }
-        }
-
-        // Store result
-        size_t y_row_offset = i * b;
-        for (size_t k = 0; k < b; ++k) {
-            y_data[y_row_offset + k] = acc[k];
-        }
-    });
-}
-
 } // namespace pycauset

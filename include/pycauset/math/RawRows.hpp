@@ -6,7 +6,8 @@
 // triangle / mirror branches and an offset lookup per element; writing structured operands
 // out through it made every structured element-wise op 5-10x slower than NumPy.
 //
-// The values are exactly those of m.get(i, j): callers apply the view rule
+// The values are those of m.get(i, j), except that the antisymmetric diagonal reads +0 (the
+// logical value, F-078; get() returns what is stored): callers apply the view rule
 // (math/ViewValue.hpp) to them as before. Returns false for classes without a bulk reader
 // (bit storage, complex_float16, identity, closures, windows of structured classes): callers
 // then read element by element.
@@ -52,6 +53,30 @@ inline bool bit_at(const uint64_t* words, uint64_t b) { return ((words[b / 64] >
 // column gather done 16 columns at a time, so each destination row is written in contiguous
 // runs. Writing one column at a time down the rows (stride = a row, 4 KB for 1024 int32)
 // mapped every store to the same cache set and ran at memory latency.
+// Dense case (every column starts at row 0, no mirror): a branch-free blocked transpose.
+// Blocks of 8 columns x the tile's rows; the per-element start test of gather_columns below
+// halved its speed.
+template <typename T>
+void gather_dense_columns(T* __restrict dst, uint64_t cols, uint64_t i0, uint64_t i1, const T* base, uint64_t bc) {
+    constexpr uint64_t B = 8;  // 8 source rows a row apart: within L1 associativity (16 thrashed)
+    for (uint64_t jb = 0; jb < cols; jb += B) {
+        const uint64_t w = std::min(B, cols - jb);
+        if (w == B) {
+            const T* p[B];
+            for (uint64_t q = 0; q < B; ++q) p[q] = base + (jb + q) * bc;
+            for (uint64_t i = i0; i < i1; ++i) {
+                T* __restrict out = dst + (i - i0) * cols + jb;
+                for (uint64_t q = 0; q < B; ++q) out[q] = p[q][i];
+            }
+        } else {
+            for (uint64_t q = 0; q < w; ++q) {
+                const T* __restrict p = base + (jb + q) * bc;
+                for (uint64_t i = i0; i < i1; ++i) dst[(i - i0) * cols + jb + q] = p[i];
+            }
+        }
+    }
+}
+
 template <typename T, typename Col, typename First, typename Start, typename F>
 void gather_columns(T* __restrict dst, uint64_t cols, uint64_t i0, uint64_t i1, uint64_t jn, Col col, First first,
                     Start start, F f) {
@@ -121,9 +146,7 @@ bool raw_rows(const Src& m, uint64_t i0, uint64_t i1, T* __restrict dst) {
                 for (uint64_t i = i0; i < i1; ++i) std::memcpy(dst + (i - i0) * cols, base + i * bc, cols * sizeof(T));
             } else {
                 // Element (i, j) is base[j * bc + i]: storage row j read contiguously over i.
-                auto zero = [](uint64_t) { return uint64_t{0}; };
-                gather_columns(dst, cols, i0, i1, cols, [&](uint64_t j) { return base + j * bc; }, zero, zero,
-                               [](T v) { return v; });
+                gather_dense_columns(dst, cols, i0, i1, base, bc);
             }
             return true;
         } else if constexpr (std::is_same_v<Src, DiagonalMatrix<T>>) {
@@ -159,6 +182,10 @@ bool raw_rows(const Src& m, uint64_t i0, uint64_t i1, T* __restrict dst) {
                 // below (transposition is not applied by get() here either).
                 for (uint64_t i = i0; i < i1; ++i)
                     std::memcpy(dst + (i - i0) * cols + i, stored_row(i), (cols - i) * sizeof(T));
+                // The antisymmetric diagonal is +0 whatever is stored (a packed scalar op can
+                // store 0 * -1 = -0.0; F-078): the one place this differs from get().
+                if (m.kind() == Structure::ANTISYMMETRIC)
+                    for (uint64_t i = i0; i < i1; ++i) dst[(i - i0) * cols + i] = T(0);
                 gather_columns(dst, cols, i0, i1, std::min(i1, cols), stored_row, [](uint64_t j) { return j; },
                                [](uint64_t j) { return j + 1; }, [&](T v) { return m.mirror(v); });
                 return true;

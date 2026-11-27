@@ -3,7 +3,9 @@
 #include <Spectra/GenEigsSolver.h>
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
+#include "pycauset/math/RawRows.hpp"
 #include "pycauset/math/ViewRead.hpp"
+#include "pycauset/core/DTypeDispatch.hpp"
 #include "pycauset/compute/cpu/CpuSolver.hpp"
 #include <complex>
 #define lapack_complex_float std::complex<float>
@@ -289,6 +291,26 @@ namespace {
         using W = wide_of_t<T>;
         const uint64_t mr = m.rows(), mc = m.cols();
         const uint64_t r0 = mr == 1 ? 0 : i0, r1 = mr == 1 ? 1 : i1;
+        // Stored in T already, no view: the bulk reader straight into dst (no wide copy and no
+        // per-element view rule). Tiles of rows in parallel; ParallelFor wants >= 32 items.
+        if (mr != 1 && mc == cols && m.get_scalar() == std::complex<double>(1.0, 0.0) && !m.is_conjugated()) {
+            bool done = false;
+            visit_matrix(m, [&](const auto& typed) {
+                using M = std::decay_t<decltype(typed)>;
+                using In = std::decay_t<decltype(typed.get(0, 0))>;
+                if constexpr (std::is_same_v<In, T> && has_raw_rows_v<T, M>) {
+                    dst.resize((i1 - i0) * cols);
+                    const uint64_t n = r1 - r0, tile = std::clamp<uint64_t>(n / 32, 1, 32);
+                    std::atomic<bool> ok{true};
+                    ParallelFor(0, (n + tile - 1) / tile, [&](size_t t) {
+                        const uint64_t a = r0 + t * tile, b = std::min(r1, a + tile);
+                        if (!raw_rows<T>(typed, a, b, dst.data() + (a - r0) * cols)) ok = false;
+                    });
+                    done = ok;
+                }
+            });
+            if (done) return true;
+        }
         if constexpr (std::is_same_v<T, W>) {
             if (mr != 1 && mc == cols) {  // no broadcast: straight into dst, no copy pass
                 dst.resize((i1 - i0) * cols);
@@ -375,22 +397,45 @@ namespace {
 }  // namespace
 
 namespace {
+    // The storage of a plain, full, unbroadcast DenseMatrix<T> (its rows are the logical rows),
+    // else nullptr.
+    template <typename T>
+    const T* in_place_rows(const MatrixBase& m, uint64_t rows, uint64_t cols) {
+        if constexpr (std::is_same_v<T, bool>) {
+            return nullptr;  // bit storage
+        } else {
+            const auto* d = dynamic_cast<const DenseMatrix<T>*>(&m);
+            if (!d || d->rows() != rows || d->cols() != cols || d->base_cols() != cols || d->is_transposed() ||
+                d->is_subview() || d->is_conjugated() || d->get_scalar() != std::complex<double>(1.0, 0.0))
+                return nullptr;
+            return d->data();
+        }
+    }
+
     // a op b over result rows in blocks: operands through load_rows, then write(i, j, value)
-    // for the stored positions stored(i, j) of the result. False if an operand is unreadable.
-    template <typename T, typename Op, typename Stored, typename Write>
-    bool rows_binary(const MatrixBase& a, const MatrixBase& b, uint64_t rows, uint64_t cols, Op op, Stored stored,
+    // for the stored columns [range(i).first, range(i).second) of each result row (only those
+    // are computed: a symmetric or triangular result computes half). False if an operand is
+    // unreadable.
+    template <typename T, typename Op, typename Range, typename Write>
+    bool rows_binary(const MatrixBase& a, const MatrixBase& b, uint64_t rows, uint64_t cols, Op op, Range range,
                      Write write) {
         const uint64_t block = std::max<uint64_t>(1, (uint64_t{1} << 18) / std::max<uint64_t>(cols, 1));
         std::vector<T> ba, bb;
         for (uint64_t i0 = 0; i0 < rows; i0 += block) {
             const uint64_t i1 = std::min(rows, i0 + block);
-            if (!load_rows<T>(a, i0, i1, cols, ba) || !load_rows<T>(b, i0, i1, cols, bb)) return false;
+            // A plain full dense operand of type T is read in place (copying it into the
+            // row buffer was a pass over memory for nothing).
+            const T* pa = in_place_rows<T>(a, rows, cols);
+            const T* pb = in_place_rows<T>(b, rows, cols);
+            if ((!pa && !load_rows<T>(a, i0, i1, cols, ba)) || (!pb && !load_rows<T>(b, i0, i1, cols, bb))) return false;
+            const T* xa = pa ? pa + i0 * cols : ba.data();
+            const T* xb = pb ? pb + i0 * cols : bb.data();
             ParallelFor(i0, i1, [&](size_t ii) {
                 const uint64_t i = static_cast<uint64_t>(ii);
-                const T* x = ba.data() + (i - i0) * cols;
-                const T* y = bb.data() + (i - i0) * cols;
-                for (uint64_t j = 0; j < cols; ++j)
-                    if (stored(i, j)) write(i, j, static_cast<T>(op(x[j], y[j])));
+                const T* x = xa + (i - i0) * cols;
+                const T* y = xb + (i - i0) * cols;
+                const auto [lo, hi] = range(i);
+                for (uint64_t j = lo; j < hi; ++j) write(i, j, static_cast<T>(op(x[j], y[j])));
             });
         }
         return true;
@@ -531,11 +576,11 @@ namespace {
             // writing straight into a plain result (set() checks and dispatches per element).
             if (res_plain) {
                 T* res_data = res_dense->data();
-                if (rows_binary<T>(a, b, rows, cols, op, [](uint64_t, uint64_t) { return true; },
+                if (rows_binary<T>(a, b, rows, cols, op, [cols](uint64_t) { return std::pair<uint64_t, uint64_t>(0, cols); },
                                    [res_data, cols](uint64_t i, uint64_t j, T v) { res_data[i * cols + j] = v; })) {
                     return;
                 }
-            } else if (rows_binary<T>(a, b, rows, cols, op, [](uint64_t, uint64_t) { return true; },
+            } else if (rows_binary<T>(a, b, rows, cols, op, [cols](uint64_t) { return std::pair<uint64_t, uint64_t>(0, cols); },
                                       [&](uint64_t i, uint64_t j, T v) { res_dense->set(i, j, v); })) {
                 return;
             }
@@ -565,18 +610,43 @@ namespace {
             // Structured results: the typed row reader over the stored positions; the virtual
             // accessor only for operands the reader cannot read.
             if (rows == cols) {
+                // A fresh result (no view): written straight into its packed rows, one pointer per
+                // row; set() per element paid ensure_unique and the triangle checks every time.
+                const bool fresh = !std::is_same_v<T, bool> &&  // bit storage is packed words
+                                   result.get_scalar() == std::complex<double>(1.0, 0.0) && !result.is_transposed() &&
+                                   !result.is_subview() && !result.is_conjugated();
                 if (auto* res_tri = dynamic_cast<TriangularMatrix<T>*>(&result)) {
                     const bool diag = res_tri->has_diagonal();
-                    if (rows_binary<T>(a, b, rows, cols, op, [diag](uint64_t i, uint64_t j) { return diag ? j >= i : j > i; },
-                                       [&](uint64_t i, uint64_t j, T v) { if (v != static_cast<T>(0)) res_tri->set(i, j, v); }))
+                    auto range = [diag, cols](uint64_t i) { return std::pair<uint64_t, uint64_t>(diag ? i : i + 1, cols); };
+                    if (fresh) {
+                        res_tri->ensure_unique();  // first: it may move the storage
+                        auto* bytes = static_cast<uint8_t*>(res_tri->shared_mapper()->get_data());
+                        if (rows_binary<T>(a, b, rows, cols, op, range, [&, bytes, diag](uint64_t i, uint64_t j, T v) {
+                                reinterpret_cast<T*>(bytes + res_tri->get_row_offset(i))[j - (diag ? i : i + 1)] = v;
+                            }))
+                            return;
+                    } else if (rows_binary<T>(a, b, rows, cols, op, range,
+                                              [&](uint64_t i, uint64_t j, T v) { if (v != static_cast<T>(0)) res_tri->set(i, j, v); }))
                         return;
                 } else if (auto* res_sym = dynamic_cast<SymmetricMatrix<T>*>(&result)) {
-                    if (rows_binary<T>(a, b, rows, cols, op, [](uint64_t i, uint64_t j) { return j >= i; },
-                                       [&](uint64_t i, uint64_t j, T v) { res_sym->set(i, j, v); }))
+                    auto range = [cols](uint64_t i) { return std::pair<uint64_t, uint64_t>(i, cols); };
+                    if (fresh) {
+                        res_sym->ensure_unique();  // first: it may move the storage
+                        auto* bytes = static_cast<uint8_t*>(res_sym->shared_mapper()->get_data());
+                        // The diagonal through set(): it checks what the class requires there
+                        // (0 for antisymmetric, real for Hermitian).
+                        if (rows_binary<T>(a, b, rows, cols, op, range, [&, bytes](uint64_t i, uint64_t j, T v) {
+                                if (j == i) res_sym->set(i, i, v);
+                                else reinterpret_cast<T*>(bytes + res_sym->get_row_offset(i))[j - i] = v;
+                            }))
+                            return;
+                    } else if (rows_binary<T>(a, b, rows, cols, op, range,
+                                              [&](uint64_t i, uint64_t j, T v) { res_sym->set(i, j, v); }))
                         return;
                 } else if (result.get_structure() == Structure::DIAGONAL) {
                     auto* res_diag = dynamic_cast<DiagonalMatrix<T>*>(&result);
-                    if (res_diag && rows_binary<T>(a, b, rows, cols, op, [](uint64_t i, uint64_t j) { return i == j; },
+                    if (res_diag && rows_binary<T>(a, b, rows, cols, op,
+                                                   [](uint64_t i) { return std::pair<uint64_t, uint64_t>(i, i + 1); },
                                                    [&](uint64_t i, uint64_t, T v) { res_diag->set(i, i, v); }))
                         return;
                 }

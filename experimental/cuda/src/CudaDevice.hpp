@@ -26,7 +26,7 @@ public:
     void matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void cholesky(const MatrixBase& in, MatrixBase& out) override;
     
-    void batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) override;
+    void batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b);  // ArnoldiDriver
 
     // Matrix-Vector Operations
     void matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) override;

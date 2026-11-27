@@ -490,37 +490,6 @@ void AutoSolver::cholesky(const MatrixBase& in, MatrixBase& out) {
     }
 }
 
-void AutoSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) {
-    uint64_t n = A.rows();
-    DataType dt = A.get_data_type();
-    double ops = 2.0 * static_cast<double>(n) * static_cast<double>(n) * static_cast<double>(b);
-    double elem_bytes = bytes_per_element(dt);
-    double bytes = elem_bytes * (static_cast<double>(n) * n + 2.0 * static_cast<double>(n) * b);
-
-    bool use_gpu = false;
-    if (is_gpu_active() && (dt == DataType::FLOAT64 || dt == DataType::FLOAT32)) {
-        if (backend_preference_ == BackendPreference::GPU) {
-            use_gpu = true;
-        } else if (backend_preference_ == BackendPreference::CPU) {
-            use_gpu = false;
-        } else {
-            use_gpu = should_use_gpu(ops, bytes, dt);
-        }
-    }
-
-    if (use_gpu) {
-        try {
-            gpu_device_->batch_gemv(A, x_data, y_data, b);
-        } catch (const std::exception& e) {
-            std::cerr << "[PyCauset] GPU Error in batch_gemv: " << e.what() << ". Falling back to CPU." << std::endl;
-            gpu_device_.reset();
-            cpu_device_->batch_gemv(A, x_data, y_data, b);
-        }
-    } else {
-        cpu_device_->batch_gemv(A, x_data, y_data, b);
-    }
-}
-
 void AutoSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) {
     // CUDA matrix_vector_multiply is not implemented; keep this CPU-only.
     cpu_device_->matrix_vector_multiply(m, v, result);

@@ -662,3 +662,13 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   (`cpu.norm.bulk`). 1024 x 1024 bool: M + 3 1.1-1.5 ms -> 0.24-0.40 ms (NumPy 0.6), M / (M + 1)
   9-11 ms -> 2.2-3.2 ms (NumPy 1.9-3.4), norm 1.5 ms -> 0.32-0.48 ms (NumPy 0.64). Full atlas
   0 wrong.
+- Element-wise row loop (`rows_binary`): an operand stored in the result type with no view is
+  read in bulk straight into the row buffer, and a plain dense one in place (no copy); a
+  structured result computes only its stored columns (half, for symmetric / triangular) and is
+  written straight into its packed rows (`set()` per element paid ensure_unique and the
+  triangle checks). The bulk reader's dense transpose is a branch-free blocked gather, and it
+  reads the antisymmetric diagonal as +0 (F-078; a materialized `anti * -1.0` stores -0.0).
+  1024 float64: `D.T + D` (a SymmetricMatrix result) 3.2 -> 1.9 ms (NumPy on the same
+  transposed view 7-10 ms), tri * dense 1.55 -> 1.27 ms (NumPy 1.26), sym + dense 1.9 -> 1.6.
+- Dead code: `batch_gemv` (device interface, AutoSolver, CpuDevice, CpuSolver; F-116). Full atlas
+  0 wrong.

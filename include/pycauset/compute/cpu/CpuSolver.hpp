@@ -26,7 +26,6 @@ public:
     void gemm(const MatrixBase& a, const MatrixBase& b, MatrixBase& c, double alpha, double beta);
 
     void cholesky(const MatrixBase& in, MatrixBase& out);
-    void batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b);
 
     void matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result);
 
