@@ -40,7 +40,6 @@ class TestSymmetricFactory(unittest.TestCase):
         m = pc.symmetric(A)
         self.assertIsInstance(m, pc.SymmetricMatrix)
         self.assertEqual(m.shape, (3, 3))
-        self.assertTrue(m.properties["is_symmetric"])
 
     def test_symmetric_roundtrip_export(self):
         A = _sym()
@@ -53,8 +52,6 @@ class TestSymmetricFactory(unittest.TestCase):
         m = pc.antisymmetric(B)
         self.assertIsInstance(m, pc.AntiSymmetricMatrix)
         self.assertEqual(m.shape, (3, 3))
-        self.assertTrue(m.properties["is_anti_symmetric"])
-        self.assertTrue(m.properties["has_zero_diagonal"])
 
     def test_antisymmetric_roundtrip_export(self):
         B = _anti()
@@ -77,35 +74,49 @@ class TestSymmetricFactory(unittest.TestCase):
         with self.assertRaises(ValueError):
             pc.symmetric(np.array([[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]]))
 
-    def test_symmetric_rejects_complex(self):
-        with self.assertRaises(TypeError):
-            pc.symmetric(np.array([[1 + 0j, 0j], [0j, 1 + 0j]]))
-
-    def test_symmetric_float32_promotes_to_float64(self):
-        A32 = _sym().astype(np.float32)
-        m = pc.symmetric(A32)
-        self.assertIsInstance(m, pc.SymmetricMatrix)
-        self.assertTrue(np.allclose(pc.to_numpy(m), A32.astype(np.float64)))
-
-    def test_symmetric_integer_dense_with_property(self):
-        A = np.array([[1, 2], [2, 3]], dtype=np.int32)
+    def test_symmetric_complex_is_complex_symmetric(self):
+        A = np.array([[1 + 2j, 3j], [3j, 1 + 0j]])  # A == A.T, not Hermitian
         m = pc.symmetric(A)
-        self.assertTrue(isinstance(m, pc.DenseMatrix) and m.dtype == "int32")
-        self.assertTrue(m.properties["is_symmetric"])
+        self.assertIsInstance(m, pc.SymmetricMatrix)
+        self.assertEqual(m.dtype, "complex_float64")
         self.assertTrue(np.array_equal(pc.to_numpy(m), A))
 
-    def test_antisymmetric_integer_dense_with_property(self):
+    def test_hermitian(self):
+        A = np.array([[2 + 0j, 1 - 1j], [1 + 1j, 3 + 0j]])
+        m = pc.hermitian(A)
+        self.assertIsInstance(m, pc.HermitianMatrix)
+        self.assertTrue(np.array_equal(pc.to_numpy(m), A))
+        with self.assertRaises(ValueError):
+            pc.hermitian(np.array([[1 + 2j, 3j], [3j, 1 + 0j]]))
+
+    def test_exact_dtype_kept(self):
+        for dt in (np.float32, np.float16, np.int32, np.int64, np.uint8, np.bool_):
+            A = np.array([[1, 0], [0, 1]], dtype=dt)
+            m = pc.symmetric(A)
+            self.assertIsInstance(m, pc.SymmetricMatrix)
+            self.assertEqual(np.dtype(dt).name if dt is not np.bool_ else "bool", m.dtype)
+            self.assertTrue(np.array_equal(pc.to_numpy(m), A))
+
+    def test_int64_exact(self):
+        big = 2**62 + 1
+        A = np.array([[big, 3], [3, -big]], dtype=np.int64)
+        self.assertTrue(np.array_equal(pc.to_numpy(pc.symmetric(A)), A))
+
+    def test_antisymmetric_integer(self):
         B = np.array([[0, 2], [-2, 0]], dtype=np.int32)
         m = pc.antisymmetric(B)
-        self.assertTrue(m.properties["is_anti_symmetric"])
-        self.assertTrue(m.properties["has_zero_diagonal"])
+        self.assertIsInstance(m, pc.AntiSymmetricMatrix)
         self.assertTrue(np.array_equal(pc.to_numpy(m), B))
 
-    def test_symmetric_bool_dense(self):
-        A = np.array([[True, False], [False, True]], dtype=np.bool_)
-        m = pc.symmetric(A)
-        self.assertTrue(m.properties["is_symmetric"])
-        self.assertTrue(np.array_equal(pc.to_numpy(m), A))
+    def test_antisymmetric_unsigned_raises(self):
+        with self.assertRaises(ValueError):
+            pc.antisymmetric(np.array([[0, 0], [0, 0]], dtype=np.uint8))
+
+    def test_diagonal_every_dtype(self):
+        for entries in (np.array([1, 2, 3], dtype=np.int16), np.array([1.5, 2.0]), np.array([1j, 2])):
+            d = pc.diagonal(entries)
+            self.assertIsInstance(d, pc.DiagonalMatrix)
+            self.assertTrue(np.array_equal(pc.to_numpy(d), np.diag(entries)))
 
     def test_symmetric_and_antisymmetric_in_all(self):
         self.assertIn("symmetric", pc.__all__)

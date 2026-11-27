@@ -78,4 +78,8 @@ std::unique_ptr<MatrixBase> write_out(const MatrixBase& a);
 // kernels that need one storage layout and dtype (solve's LAPACK path).
 std::unique_ptr<MatrixBase> to_dense(const MatrixBase& a, DataType dt);
 
+// a's stored region (view applied) as a new matrix of structure s in a's dtype; entries
+// outside the region are not read. Exact for every dtype. Raises for pairs not offered.
+std::unique_ptr<MatrixBase> pack_as(const MatrixBase& a, Structure s, bool has_diagonal = false);
+
 }  // namespace pycauset

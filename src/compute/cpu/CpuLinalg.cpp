@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "pycauset/compute/ComputeDevice.hpp"
 #include "pycauset/compute/cpu/CpuSolver.hpp"
 #include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/math/ScalarOps.hpp"
@@ -240,6 +241,31 @@ bool lu_t(const MatrixBase& in, MatrixBase& pm, MatrixBase& lm, MatrixBase& um) 
     return true;
 }
 
+// --- LU pivots for det / slogdet (?getrf): the diagonal of U and the permutation's parity.
+template <typename T>
+bool pivots_t(const MatrixBase& in, LuPivots& out) {
+    std::vector<T> a;
+    if (!copy_input<T>(in, a)) return false;
+    const lapack_int n = static_cast<lapack_int>(in.rows());
+    std::vector<lapack_int> ipiv(std::max<lapack_int>(n, 1));
+    lapack_int info = 0;
+    debug_trace::set_last("cpu.det.getrf");
+    if (n > 0) {
+        if constexpr (std::is_same_v<T, float>) info = LAPACKE_sgetrf(LAPACK_ROW_MAJOR, n, n, a.data(), n, ipiv.data());
+        else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, n, n, a.data(), n, ipiv.data());
+        else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cgetrf(LAPACK_ROW_MAJOR, n, n, a.data(), n, ipiv.data());
+        else info = LAPACKE_zgetrf(LAPACK_ROW_MAJOR, n, n, a.data(), n, ipiv.data());
+    }
+    if (info < 0) throw std::runtime_error("det: illegal argument to ?getrf");  // info > 0: an exact zero pivot
+    out.pivots.resize(n);
+    out.odd_permutation = false;
+    for (lapack_int i = 0; i < n; ++i) {
+        out.pivots[i] = std::complex<double>(a[static_cast<size_t>(i) * n + i]);
+        if (ipiv[i] != i + 1) out.odd_permutation = !out.odd_permutation;
+    }
+    return true;
+}
+
 }  // namespace
 
 void CpuSolver::eigh(const MatrixBase& in, VectorBase& w, MatrixBase& v, char) {
@@ -275,6 +301,14 @@ void CpuSolver::cholesky(const MatrixBase& in, MatrixBase& out) {
     if (cholesky_t<float>(in, out) || cholesky_t<double>(in, out) || cholesky_t<std::complex<float>>(in, out) ||
         cholesky_t<std::complex<double>>(in, out)) return;
     contract("cholesky");
+}
+
+LuPivots CpuSolver::lu_pivots(const MatrixBase& in) {
+    if (in.rows() != in.cols()) throw std::invalid_argument("det: matrix must be square");
+    LuPivots out;
+    if (pivots_t<float>(in, out) || pivots_t<double>(in, out) || pivots_t<std::complex<float>>(in, out) ||
+        pivots_t<std::complex<double>>(in, out)) return out;
+    contract("lu_pivots");
 }
 
 void CpuSolver::lu(const MatrixBase& in, MatrixBase& p, MatrixBase& l, MatrixBase& u) {

@@ -52,9 +52,7 @@ def _extract_properties_for_persistence(obj: Any) -> dict[str, Any]:
             continue
         if v is None:
             continue
-        # Keep only values we can safely encode deterministically.
-        # Note: some cached-derived values may be complex; they are serialized in
-        # a stable representation under `cached.*` by the save routine.
+        # User notes: keep the values the metadata encoder handles.
         if isinstance(v, (bool, int, float, complex, str, bytes, bytearray, list, tuple, dict)):
             out[k] = v
     return out
@@ -611,7 +609,11 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
         if payload_length < 0:
             raise ValueError("invalid raw payload size")
 
-        with path.open("wb") as out_f:
+        # Write a sibling file, then rename it over `path` (atomic): an object loaded from
+        # `path` keeps reading its (copy-on-write) mapping of the old file, and a crash never
+        # leaves a half-written container (F-093).
+        part = path.with_name(path.name + ".part")
+        with part.open("wb") as out_f:
             out_f.write(b"\x00" * _HEADER_BYTES)
             with temp_raw.open("rb") as in_f:
                 if raw_header:
@@ -674,8 +676,12 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             out_f.write(slot_a)
             out_f.seek(_SLOT_B_OFFSET)
             out_f.write(slot_b)
+        os.replace(part, path)
 
     finally:
+        part = path.with_name(path.name + ".part")
+        if part.exists():
+            part.unlink()
         if temp_raw.exists():
             try:
                 temp_raw.unlink()
@@ -756,13 +762,10 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         except Exception:
             pass
 
-    # Restore gospel properties.
+    # Restore the user notes.
     persisted_props = metadata.get("properties")
     if isinstance(persisted_props, dict):
-        try:
-            obj.properties = persisted_props
-        except Exception:
-            pass
+        obj.properties = persisted_props
 
     if metadata.get("object_type") == "CausalSet":
         st_meta = metadata.get("spacetime", {})

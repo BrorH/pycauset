@@ -112,8 +112,17 @@ void PersistentObject::close() {
     }
 }
 
+void PersistentObject::ensure_own_mapping() {
+    if (mapper_ && mapper_->is_private()) copy_storage_now();
+    ensure_unique();
+}
+
 void PersistentObject::ensure_unique() {
-    if (mapper_ && mapper_.use_count() > 1) {
+    if (mapper_ && mapper_.use_count() > 1) copy_storage_now();
+}
+
+void PersistentObject::copy_storage_now() {
+    {
         size_t size = mapper_->get_data_size();
         std::string new_path;
         bool use_ram = (storage_state_ == pycauset::core::StorageState::RAM_ONLY);
@@ -236,7 +245,8 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     }
     
     // Create new file, no header space needed
-    mapper_ = std::make_unique<MemoryMapper>(path, final_size, offset, create_new);
+    // An existing file is a saved snapshot: map it copy-on-write, so writes never reach it (F-093).
+    mapper_ = std::make_unique<MemoryMapper>(path, final_size, offset, create_new, /*private_writes=*/!create_new);
     accelerator_.reset();
 
 #ifdef _WIN32

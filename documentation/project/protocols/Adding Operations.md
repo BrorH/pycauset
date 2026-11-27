@@ -78,6 +78,11 @@ The entry function does not read properties, does not cache, does not call NumPy
   writes. Anything else is a contract violation: throw, never guess.
 - Kernels read storage through typed pointers or the shared readers (§4), never through
   `get_element_as_double/complex` in a loop (the atlas counts those calls as ○ generic).
+- Linear algebra (factorisations, eigen problems, det): the entry normalises with
+  `to_dense(a, lapack_dtype(...))`; the kernel is one LAPACK template over float, double,
+  complex<float>, complex<double> whose contract is "plain dense in the LAPACK dtype"
+  (`compute/cpu/CpuLinalg.cpp` is the pattern: `?syevd`/`?heevd`, `?geev`, `?potrf`,
+  `?geqrf`, `?getrf`). Single precision stays single precision, as in NumPy.
 - Integer arithmetic: element-wise wraps like NumPy; reductions that change magnitude (matmul)
   raise `OverflowError` on overflow of the result dtype (DType System).
 - Determinism: parallel reductions sum fixed blocks in a fixed order (see `block_sum` in
@@ -132,6 +137,9 @@ never from a property: properties are user metadata and never change a result (F
 | The value of an element through its view | `view_value(raw, factor, conj)` | `include/pycauset/math/ViewValue.hpp` |
 | An operand as plain dense of dtype T (every class, every view, typed) | `to_dense(a, dtype)` | `math/ScalarOps.hpp` (uses `read_wide`, `math/ViewRead.hpp`) |
 | Same dtype, view folded into storage | `write_out(a)` | `math/ScalarOps.hpp` |
+| Logical rows / the diagonal, typed, O(rows) memory (reductions, element-wise, streaming) | `read_rows(a, i0, i1, out)` / `read_diagonal(a, out)` (int64, double or complex128 buffers) | `math/ViewRead.hpp` |
+| A structured matrix from another matrix's stored region (same dtype, exact) | `pack_as(a, structure)` | `math/ScalarOps.hpp` |
+| NumPy's LAPACK dtype (linalg entries) | `lapack_dtype(a, b)` | `math/LinearAlgebra.hpp` |
 | Dtype conversion keeping structure | `cast_to(a, dtype)` | `math/ScalarOps.hpp` |
 | Does the operand carry any view? | `is_plain(a)` | `math/ScalarOps.hpp` |
 | Typed traversal of any class (one dispatch, then typed `get`) | `visit_matrix(m, f)` / `visit_vector` | `core/DTypeDispatch.hpp` |
@@ -147,7 +155,8 @@ write a fifth.
 
 - NumPy as a backend (`np.linalg.*` behind a PyCauset call). NumPy is the oracle.
 - Silent fallbacks: `try { fast } catch { slow / NumPy }`. Errors surface.
-- Reading properties to choose a path or produce a result; caching results (F-081).
+- Reading properties to choose a path or produce a result (they are user notes, F-092);
+  caching results outside the planned derived-value cache (F-081, `review/features/DERIVED_CACHE.md`).
 - Per-dtype or per-class copy-paste branches where a template over the element type works.
 - A private copy of the view rule.
 - Guesses deciding results: sampling or heuristics may only produce warnings.

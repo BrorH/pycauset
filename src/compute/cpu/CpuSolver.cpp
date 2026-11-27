@@ -1,6 +1,7 @@
 #include <Spectra/SymEigsSolver.h>
 #include <Spectra/GenEigsSolver.h>
 #include "pycauset/core/ScalarUtils.hpp"
+#include "pycauset/math/ViewRead.hpp"
 #include "pycauset/compute/cpu/CpuSolver.hpp"
 #include <complex>
 #define lapack_complex_float std::complex<float>
@@ -329,6 +330,8 @@ std::vector<double> to_memory_flat_real_square(const MatrixBase& m) {
 
     const uint64_t n = rows;
     std::vector<double> mat(n * n);
+    // The typed row reader (no per-element virtual call); the accessor only where it can't read.
+    if (pycauset::read_rows(m, 0, n, mat.data())) return mat;
     ParallelFor(0, n, [&](size_t i) {
         for (size_t j = 0; j < n; ++j) {
             mat[i * n + j] = m.get_element_as_double(static_cast<uint64_t>(i), static_cast<uint64_t>(j));
@@ -337,22 +340,6 @@ std::vector<double> to_memory_flat_real_square(const MatrixBase& m) {
     return mat;
 }
 
-std::vector<std::complex<double>> to_memory_flat_complex_square(const MatrixBase& m) {
-    const uint64_t rows = m.rows();
-    const uint64_t cols = m.cols();
-    if (rows != cols) {
-        throw std::runtime_error("Operation requires square matrix");
-    }
-
-    const uint64_t n = rows;
-    std::vector<std::complex<double>> mat(n * n);
-    ParallelFor(0, n, [&](size_t i) {
-        for (size_t j = 0; j < n; ++j) {
-            mat[i * n + j] = m.get_element_as_complex(static_cast<uint64_t>(i), static_cast<uint64_t>(j));
-        }
-    });
-    return mat;
-}
 } // namespace
 
 namespace {
@@ -1781,32 +1768,55 @@ void CpuSolver::batch_gemv(const MatrixBase& A, const double* x_data, double* y_
 }
 
 namespace {
-    // Exact element reader for integer results over any structure (resolved once per operand):
-    // reads in the operand's own type and applies an integer view factor with wrapping.
-    // Returns an empty function when the operand isn't integer/bit-typed.
+    // Logical rows of an operand, as T, through the typed row reader (ViewRead.hpp): int64 for
+    // integer results (lossless for every integer type, wrapping views exact), double for real,
+    // complex128 for complex results. Rows [i0, i1) of the RESULT, broadcast from the operand
+    // (one row or one column). Returns false when the reader cannot read the operand (lazy
+    // closures, windows of structured classes).
     template <typename T>
-    std::function<T(uint64_t, uint64_t)> exact_int_reader(const MatrixBase& m) {
-        const bool scaled = m.get_scalar() != std::complex<double>(1.0, 0.0);
-        if (scaled && !pycauset::scalar::is_exact_int_factor(m.get_scalar())) return {};
-        const int64_t k = static_cast<int64_t>(m.get_scalar().real());
-        try {
-            return pycauset::visit_matrix(m, [&](const auto& typed) -> std::function<T(uint64_t, uint64_t)> {
-                using M = std::decay_t<decltype(typed)>;
-                using E = std::decay_t<decltype(typed.get(uint64_t{0}, uint64_t{0}))>;
-                if constexpr (std::is_integral_v<E>) {
-                    const M* p = &typed;
-                    return [p, k, scaled](uint64_t i, uint64_t j) {
-                        E v = p->get(i, j);
-                        if (scaled) v = pycauset::scalar::wrap_scale(v, k);
-                        return static_cast<T>(v);
-                    };
-                } else {
-                    return {};
-                }
-            });
-        } catch (const std::exception&) {
-            return {};
+    using wide_of_t = std::conditional_t<is_std_complex_v<T>, std::complex<double>,
+                                         std::conditional_t<std::is_integral_v<T>, int64_t, double>>;
+
+    template <typename T>
+    bool load_rows(const MatrixBase& m, uint64_t i0, uint64_t i1, uint64_t cols, std::vector<T>& dst) {
+        using W = wide_of_t<T>;
+        const uint64_t mr = m.rows(), mc = m.cols();
+        const uint64_t r0 = mr == 1 ? 0 : i0, r1 = mr == 1 ? 1 : i1;
+        std::vector<W> w((r1 - r0) * mc);
+        if (!pycauset::read_rows(m, r0, r1, w.data())) return false;
+        dst.resize((i1 - i0) * cols);
+        for (uint64_t i = i0; i < i1; ++i) {
+            const W* src = w.data() + (mr == 1 ? 0 : i - i0) * mc;
+            T* out = dst.data() + (i - i0) * cols;
+            for (uint64_t j = 0; j < cols; ++j) {
+                const W v = src[mc == 1 ? 0 : j];
+                if constexpr (std::is_same_v<T, bool>) out[j] = v != W(0);
+                else if constexpr (std::is_same_v<T, pycauset::float16_t>) out[j] = pycauset::float16_t(v);
+                else out[j] = static_cast<T>(v);
+            }
         }
+        return true;
+    }
+
+    // a op b over result rows in blocks: operands through load_rows, then write(i, j, value)
+    // for the stored positions stored(i, j) of the result. False if an operand is unreadable.
+    template <typename T, typename Op, typename Stored, typename Write>
+    bool rows_binary(const MatrixBase& a, const MatrixBase& b, uint64_t rows, uint64_t cols, Op op, Stored stored,
+                     Write write) {
+        const uint64_t block = std::max<uint64_t>(1, (uint64_t{1} << 15) / std::max<uint64_t>(cols, 1));
+        std::vector<T> ba, bb;
+        for (uint64_t i0 = 0; i0 < rows; i0 += block) {
+            const uint64_t i1 = std::min(rows, i0 + block);
+            if (!load_rows<T>(a, i0, i1, cols, ba) || !load_rows<T>(b, i0, i1, cols, bb)) return false;
+            ParallelFor(i0, i1, [&](size_t ii) {
+                const uint64_t i = static_cast<uint64_t>(ii);
+                const T* x = ba.data() + (i - i0) * cols;
+                const T* y = bb.data() + (i - i0) * cols;
+                for (uint64_t j = 0; j < cols; ++j)
+                    if (stored(i, j)) write(i, j, static_cast<T>(op(x[j], y[j])));
+            });
+        }
+        return true;
     }
 
     template <typename T, typename Op>
@@ -1883,22 +1893,12 @@ namespace {
                 return;
             }
 
-            // Per-element fallback (bit / float16 / complex16 / structured operands). Integer
-            // results read integer operands exactly (int64 beyond 2^53, wrapping views).
-            if constexpr (std::is_integral_v<T>) {
-                auto ea = exact_int_reader<T>(a);
-                auto eb = exact_int_reader<T>(b);
-                if (ea && eb) {
-                    ParallelFor(0, rows, [&](size_t i) {
-                        for (size_t j = 0; j < cols; ++j) {
-                            const T va = ea(broadcast_index(i, a.rows()), broadcast_index(j, a.cols()));
-                            const T vb = eb(broadcast_index(i, b.rows()), broadcast_index(j, b.cols()));
-                            res_dense->set(i, j, op(va, vb));
-                        }
-                    });
-                    return;
-                }
+            // Any other operand (bit, float16, structured, mixed dtypes): the typed row reader.
+            if (rows_binary<T>(a, b, rows, cols, op, [](uint64_t, uint64_t) { return true; },
+                               [&](uint64_t i, uint64_t j, T v) { res_dense->set(i, j, v); })) {
+                return;
             }
+            // Per-element fallback: lazy closures and windows of structured classes.
             ParallelFor(0, rows, [&](size_t i) {
                 for (size_t j = 0; j < cols; ++j) {
                     T val_a;
@@ -1921,18 +1921,27 @@ namespace {
         }
 
         if constexpr (!is_std_complex_v<T>) {
-            // Structured results: integer element types read exactly (see exact_int_reader).
-            std::function<T(uint64_t, uint64_t)> ea, eb;
-            if constexpr (std::is_integral_v<T>) {
-                ea = exact_int_reader<T>(a);
-                eb = exact_int_reader<T>(b);
+            // Structured results: the typed row reader over the stored positions; the virtual
+            // accessor only for operands the reader cannot read.
+            if (rows == cols) {
+                if (auto* res_tri = dynamic_cast<TriangularMatrix<T>*>(&result)) {
+                    const bool diag = res_tri->has_diagonal();
+                    if (rows_binary<T>(a, b, rows, cols, op, [diag](uint64_t i, uint64_t j) { return diag ? j >= i : j > i; },
+                                       [&](uint64_t i, uint64_t j, T v) { if (v != static_cast<T>(0)) res_tri->set(i, j, v); }))
+                        return;
+                } else if (auto* res_sym = dynamic_cast<SymmetricMatrix<T>*>(&result)) {
+                    if (rows_binary<T>(a, b, rows, cols, op, [](uint64_t i, uint64_t j) { return j >= i; },
+                                       [&](uint64_t i, uint64_t j, T v) { res_sym->set(i, j, v); }))
+                        return;
+                } else if (result.get_structure() == Structure::DIAGONAL) {
+                    auto* res_diag = dynamic_cast<DiagonalMatrix<T>*>(&result);
+                    if (res_diag && rows_binary<T>(a, b, rows, cols, op, [](uint64_t i, uint64_t j) { return i == j; },
+                                                   [&](uint64_t i, uint64_t, T v) { res_diag->set(i, i, v); }))
+                        return;
+                }
             }
-            auto read_a = [&](uint64_t i, uint64_t j) -> T {
-                return ea ? ea(i, j) : static_cast<T>(a.get_element_as_double(i, j));
-            };
-            auto read_b = [&](uint64_t i, uint64_t j) -> T {
-                return eb ? eb(i, j) : static_cast<T>(b.get_element_as_double(i, j));
-            };
+            auto read_a = [&](uint64_t i, uint64_t j) -> T { return static_cast<T>(a.get_element_as_double(i, j)); };
+            auto read_b = [&](uint64_t i, uint64_t j) -> T { return static_cast<T>(b.get_element_as_double(i, j)); };
             // 2. TriangularMatrix Result
             if (auto* res_tri = dynamic_cast<TriangularMatrix<T>*>(&result)) {
                 if (rows != cols) {
@@ -3539,59 +3548,6 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
 
 
 
-LuPivots CpuSolver::lu_pivots(const MatrixBase& matrix) {
-    // The entry points (math/Eigen.cpp) pass plain storage; the structured shortcuts read
-    // through the accessors, which apply any view anyway. Complex inputs keep their imaginary
-    // parts (F-059).
-    const uint64_t n = matrix.rows();
-    if (n != matrix.cols()) {
-        throw std::runtime_error("Determinant requires square matrix");
-    }
-    const auto type = matrix.get_structure();
-    const auto dt = matrix.get_data_type();
-    const bool use_complex = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 ||
-                             dt == DataType::COMPLEX_FLOAT64 || matrix.get_scalar().imag() != 0.0;
-    LuPivots out;
-    out.pivots.resize(n);
-
-    if (type == Structure::IDENTITY) {
-        std::fill(out.pivots.begin(), out.pivots.end(), view_value(1.0, matrix.get_scalar(), matrix.is_conjugated()));
-        return out;
-    }
-    const bool strict_triangular =
-        type == Structure::TRIANGULAR && !static_cast<const TriangularMatrixBase&>(matrix).has_diagonal();
-    if (type == Structure::DIAGONAL || type == Structure::TRIANGULAR) {
-        // Every element type (F-059); a strict triangle has a zero diagonal.
-        for (uint64_t i = 0; i < n; ++i) {
-            out.pivots[i] = strict_triangular ? std::complex<double>(0.0) : matrix.get_element_as_complex(i, i);
-        }
-        return out;
-    }
-
-    // General case: LU (getrf). The row-major buffer is passed as column-major, i.e. A^T is
-    // factorized: det(A^T) = det(A), and LAPACKE does not need its transposed copy.
-    const auto ni = static_cast<lapack_int>(n);
-    std::vector<lapack_int> ipiv(n);
-    auto record = [&](auto&& diag_at) {
-        for (uint64_t i = 0; i < n; ++i) {
-            out.pivots[i] = diag_at(i);
-            if (ipiv[i] != static_cast<lapack_int>(i + 1)) out.odd_permutation = !out.odd_permutation;
-        }
-    };
-    if (use_complex) {
-        auto data = to_memory_flat_complex_square(matrix);  // folds factor and conjugation
-        const lapack_int info = LAPACKE_zgetrf(LAPACK_COL_MAJOR, ni, ni,
-            reinterpret_cast<lapack_complex_double*>(data.data()), ni, ipiv.data());
-        if (info < 0) throw std::runtime_error("LAPACK zgetrf: illegal argument");
-        record([&](uint64_t i) { return data[i * n + i]; });  // info > 0: an exact zero pivot
-        return out;
-    }
-    auto data = to_memory_flat_real_square(matrix);  // folds the factor
-    const lapack_int info = LAPACKE_dgetrf(LAPACK_COL_MAJOR, ni, ni, data.data(), ni, ipiv.data());
-    if (info < 0) throw std::runtime_error("LAPACK dgetrf: illegal argument");
-    record([&](uint64_t i) { return std::complex<double>(data[i * n + i], 0.0); });
-    return out;
-}
 
 
 

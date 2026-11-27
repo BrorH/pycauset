@@ -1,6 +1,7 @@
 #pragma once
 
 #include <complex>
+#include <cstdint>
 #include <memory>
 
 #include "pycauset/matrix/MatrixBase.hpp"
@@ -26,5 +27,16 @@ enum class WideKind { Int64, Float64, Complex128 };
 // class has no typed reader for this operand (windows of structured classes, lazy/closure
 // classes); callers then read through the virtual accessor.
 std::unique_ptr<MatrixBase> read_wide(const MatrixBase& a, WideKind kind);
+
+// Row reader (review N.7): logical rows [i0, i1) of a into out (row-major, a.cols() wide),
+// typed and view-applied, O(rows x cols) memory instead of the whole matrix. The diagonal
+// reader fills min(rows, cols) entries. Same element rules and the same `false` cases as
+// read_wide (windows of structured classes, lazy closures): callers then read virtually.
+bool read_rows(const MatrixBase& a, uint64_t i0, uint64_t i1, int64_t* out);
+bool read_rows(const MatrixBase& a, uint64_t i0, uint64_t i1, double* out);
+bool read_rows(const MatrixBase& a, uint64_t i0, uint64_t i1, std::complex<double>* out);
+bool read_diagonal(const MatrixBase& a, int64_t* out);
+bool read_diagonal(const MatrixBase& a, double* out);
+bool read_diagonal(const MatrixBase& a, std::complex<double>* out);
 
 }  // namespace pycauset

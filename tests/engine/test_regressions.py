@@ -379,10 +379,56 @@ def test_F081_results_follow_mutation(op, write):
 def test_F081_properties_never_change_results(flags):
     a = np.array([[2.0, 0.0], [0.0, 3.0]])
     m = pc.matrix(a)
-    try:
-        m.properties.update(flags)
-    except ValueError:
-        pytest.skip("flags rejected as incompatible with the values")
+    m.properties.update(flags)  # notes only (F-092)
     assert m.trace() == pytest.approx(5.0)
     assert pc.determinant(m) == pytest.approx(6.0)
     assert pc.sum(m) == pytest.approx(5.0)
+
+
+def test_F093_loaded_file_is_a_snapshot(tmp_path):
+    """Writing to a loaded matrix must not change the saved file (copy-on-write mapping)."""
+    import subprocess
+    import sys
+
+    p = tmp_path / "snap.pycauset"
+    pc.save(pc.matrix(np.arange(9.0).reshape(3, 3)), p)
+    w = pc.load(p)
+    w[0, 0] = 99.0
+    assert w[0, 0] == 99.0  # the object sees its write
+    assert pc.to_numpy(pc.load(p), allow_huge=True)[0, 0] == 0.0  # the file does not
+    code = f"import pycauset as pc; print(pc.to_numpy(pc.load({str(p)!r}), allow_huge=True)[0, 0])"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip().splitlines()[-1] == "0.0"  # nor from another process
+    pc.save(w, p)  # saving over the file it was loaded from (atomic replace)
+    assert pc.to_numpy(pc.load(p), allow_huge=True)[0, 0] == 99.0
+    assert w[1, 1] == 4.0  # the live object still reads its mapping
+
+
+@pytest.mark.parametrize("structure", ["dense", "triangular", "symmetric", "diagonal", "identity"])
+def test_det_structure_rules_match_numpy(structure):
+    rng = np.random.default_rng(3)
+    a = rng.standard_normal((5, 5)) + 3 * np.eye(5)
+    if structure == "triangular":
+        a, m = np.triu(a), None
+        m = pc.TriangularMatrix(5, dtype="float64", has_diagonal=True)
+        pc._native._debug_fill(m, a)
+    elif structure == "symmetric":
+        a = a + a.T
+        m = pc.symmetric(a)
+    elif structure == "diagonal":
+        a = np.diag(np.diag(a))
+        m = pc.diagonal(np.diag(a))
+    elif structure == "identity":
+        a, m = np.eye(5), pc.IdentityMatrix(5)
+    else:
+        m = pc.matrix(a)
+    for view, ref in ((m, a), (m.T * 2.5, a.T * 2.5)):
+        assert pc.determinant(view) == pytest.approx(np.linalg.det(ref), rel=1e-10)
+        s, ld = pc.slogdet(view)
+        rs, rld = np.linalg.slogdet(ref)
+        assert s == pytest.approx(rs) and ld == pytest.approx(rld, rel=1e-12)
+
+
+def test_det_single_precision_like_numpy():
+    a = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+    assert pc.determinant(pc.matrix(a)) == pytest.approx(float(np.linalg.det(a)), rel=1e-6)

@@ -2,12 +2,15 @@
 #include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/math/ScalarOps.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <vector>
 
+#include "pycauset/core/DTypeDispatch.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
@@ -125,27 +128,6 @@ bool int_fits(const ScalarArg& s, DataType d) {
     }
     if (s.negative) return false;
     return bits == 64 || s.u <= ((uint64_t(1) << bits) - 1);
-}
-
-std::string dtype_name(DataType d) {
-    switch (d) {
-        case DataType::BIT: return "bit";
-        case DataType::INT8: return "int8";
-        case DataType::INT16: return "int16";
-        case DataType::INT32: return "int32";
-        case DataType::INT64: return "int64";
-        case DataType::UINT8: return "uint8";
-        case DataType::UINT16: return "uint16";
-        case DataType::UINT32: return "uint32";
-        case DataType::UINT64: return "uint64";
-        case DataType::FLOAT16: return "float16";
-        case DataType::FLOAT32: return "float32";
-        case DataType::FLOAT64: return "float64";
-        case DataType::COMPLEX_FLOAT16: return "complex_float16";
-        case DataType::COMPLEX_FLOAT32: return "complex64";
-        case DataType::COMPLEX_FLOAT64: return "complex128";
-        default: return "unknown";
-    }
 }
 
 }  // namespace
@@ -532,7 +514,7 @@ std::unique_ptr<MatrixBase> run_exact(const MatrixBase& a, DataType out, ScalarO
         case DataType::COMPLEX_FLOAT32: return run_for_result<std::complex<float>>(a, op, s, keep_structure);
         case DataType::COMPLEX_FLOAT64: return run_for_result<std::complex<double>>(a, op, s, keep_structure);
         default:
-            throw std::invalid_argument("scalar operation: unsupported result dtype " + dtype_name(out));
+            throw std::invalid_argument("scalar operation: unsupported result dtype " + std::string(dtype_name(out)));
     }
 }
 
@@ -558,7 +540,7 @@ std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, cons
     const DataType out = scalar_result_dtype(in, op, s);
 
     if (is_integer_or_bit(in) && s.kind == ScalarArg::Kind::Int && is_int(out) && !int_fits(s, out)) {
-        throw std::overflow_error("Python integer out of bounds for " + dtype_name(out) +
+        throw std::overflow_error("Python integer out of bounds for " + std::string(dtype_name(out)) +
                                   " (scalar does not fit the matrix dtype)");
     }
 
@@ -623,7 +605,25 @@ std::unique_ptr<MatrixBase> write_out(const MatrixBase& a) {
     const DataType dt = a.get_data_type();
     const uint64_t rows = a.rows(), cols = a.cols();
     if (dt == DataType::BIT) {
+        // Packed bits from the typed row reader (a block of rows at a time); the virtual
+        // accessor only where the reader cannot read (structured windows, closures).
         auto out = std::make_unique<DenseMatrix<bool>>(rows, cols, std::string());
+        uint64_t* words = out->data();
+        const uint64_t stride = out->stride_bytes() / 8;
+        const uint64_t block = std::max<uint64_t>(1, (uint64_t{1} << 16) / std::max<uint64_t>(cols, 1));
+        std::vector<int64_t> buf(std::min(block, rows) * cols);
+        bool typed = true;
+        for (uint64_t i0 = 0; i0 < rows && typed; i0 += block) {
+            const uint64_t i1 = std::min(rows, i0 + block);
+            if (!(typed = read_rows(a, i0, i1, buf.data()))) break;
+            ParallelFor(i0, i1, [&](size_t i) {
+                const int64_t* v = buf.data() + (i - i0) * cols;
+                uint64_t* w = words + i * stride;
+                for (uint64_t j = 0; j < cols; ++j)
+                    if (v[j] != 0) w[j / 64] |= uint64_t{1} << (j % 64);
+            });
+        }
+        if (typed) return out;
         for (uint64_t i = 0; i < rows; ++i) {
             for (uint64_t j = 0; j < cols; ++j) out->set(i, j, a.get_element_as_double(i, j) != 0.0);
         }
@@ -663,6 +663,50 @@ std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt) {
     }
     // Multiplying by one in the target type is an exact conversion (ints, floats, complex).
     return run_exact(a, dt, ScalarOpKind::Mul, ScalarArg::from_int64(1));
+}
+
+// The stored region of a (view applied) copied into a new matrix of structure s in a's dtype.
+// Exact for every dtype: one typed read of a plain dense copy, one typed write per stored
+// entry. Entries outside the stored region are not read (the caller vouches for them, e.g.
+// pc.symmetric validates its input first).
+std::unique_ptr<MatrixBase> pack_as(const MatrixBase& a, Structure s, bool has_diagonal) {
+    MatrixOptions opts;
+    opts.has_diagonal = has_diagonal;
+    const DataType dt = a.get_data_type();
+    const uint64_t n = a.rows();
+    if (s != Structure::DENSE) detail::require_square(s, a.rows(), a.cols());
+    auto out = make_matrix(s, dt, a.rows(), a.cols(), "", opts);
+    if (s == Structure::IDENTITY) return out;
+    auto d = write_out(a);
+    const bool diag = s == Structure::TRIANGULAR && opts.has_diagonal;
+    auto stored = [&](uint64_t i, uint64_t j) {
+        switch (s) {
+            case Structure::TRIANGULAR: return diag ? j >= i : j > i;
+            case Structure::DIAGONAL: return i == j;
+            case Structure::ANTISYMMETRIC: return j > i;
+            case Structure::SYMMETRIC: case Structure::HERMITIAN: case Structure::SKEW_HERMITIAN: return j >= i;
+            default: return true;
+        }
+    };
+    debug_trace::set_last("pack_as");
+    visit_dtype(dt, [&](auto tag) {
+        using T = typename decltype(tag)::type;
+        const auto& src = static_cast<const typename DenseMatrixOf<T>::type&>(*d);
+        visit_structure(s, [&](auto st) {
+            constexpr Structure S = decltype(st)::value;
+            if constexpr (offered<S, T>()) {
+                auto& dst = static_cast<typename ClassOf<S, T>::type&>(*out);
+                using E = structured_element_t<T>;
+                for (uint64_t i = 0; i < n; ++i)
+                    for (uint64_t j = 0; j < a.cols(); ++j)
+                        if (stored(i, j)) {
+                            if constexpr (S == Structure::DIAGONAL) dst.set_diagonal(i, E(src.get(i, j)));
+                            else dst.set(i, j, E(src.get(i, j)));
+                        }
+            }
+        });
+    });
+    return out;
 }
 
 std::unique_ptr<MatrixBase> to_dense(const MatrixBase& a, DataType dt) {

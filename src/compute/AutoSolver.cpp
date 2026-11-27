@@ -1,6 +1,5 @@
 #include "pycauset/compute/AutoSolver.hpp"
 #include "pycauset/compute/cpu/CpuDevice.hpp"
-#include "pycauset/compute/MatrixPropertyTraits.hpp"
 #include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/SystemUtils.hpp"
@@ -156,11 +155,6 @@ double bytes_per_element(pycauset::DataType dtype) {
         case pycauset::DataType::BIT: return 0.125;
         default: return 0.0;
     }
-}
-
-bool prefers_cpu_for_properties(const pycauset::MatrixBase& m) {
-    const auto traits = pycauset::traits_for(m);
-    return traits.is_identity || traits.is_diagonal || traits.is_upper_triangular || traits.is_lower_triangular;
 }
 
 } // namespace
@@ -428,9 +422,6 @@ void AutoSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
 
     bool use_gpu = false;
     if (is_gpu_active()) {
-        if (prefers_cpu_for_properties(a) || prefers_cpu_for_properties(b)) {
-            use_gpu = false;
-        }
         bool a_ok = (a.get_structure() == Structure::DENSE);
         bool b_ok = (b.get_structure() == Structure::DENSE);
 
@@ -441,7 +432,7 @@ void AutoSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
         bool float_ok = (dt_a == dt_b) && (dt_b == dt_r) && (dt_r == DataType::FLOAT64 || dt_r == DataType::FLOAT32);
         bool bit_ok = (dt_a == DataType::BIT) && (dt_b == DataType::BIT) && (dt_r == DataType::INT32);
 
-        if (a_ok && b_ok && (float_ok || bit_ok) && !prefers_cpu_for_properties(a) && !prefers_cpu_for_properties(b)) {
+        if (a_ok && b_ok && (float_ok || bit_ok)) {
             if (backend_preference_ == BackendPreference::GPU) {
                 use_gpu = true;
             } else if (backend_preference_ == BackendPreference::CPU) {
@@ -480,9 +471,6 @@ void AutoSolver::inverse(const MatrixBase& in, MatrixBase& out) {
         if (in.get_structure() == Structure::DENSE) {
             DataType dt = in.get_data_type();
             if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
-                if (prefers_cpu_for_properties(in)) {
-                    use_gpu = false;
-                } else
                 if (backend_preference_ == BackendPreference::GPU) {
                     use_gpu = true;
                 } else if (backend_preference_ == BackendPreference::CPU) {
@@ -518,9 +506,6 @@ void AutoSolver::cholesky(const MatrixBase& in, MatrixBase& out) {
         if (in.get_structure() == Structure::DENSE) {
             DataType dt = in.get_data_type();
             if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
-                if (prefers_cpu_for_properties(in)) {
-                    use_gpu = false;
-                } else
                 if (backend_preference_ == BackendPreference::GPU) {
                     use_gpu = true;
                 } else if (backend_preference_ == BackendPreference::CPU) {
@@ -795,9 +780,7 @@ void AutoSolver::qr(const MatrixBase& in, MatrixBase& Q, MatrixBase& R) {
     if (is_gpu_active() && in.get_structure() == Structure::DENSE && in.rows() == in.cols()) {
         DataType dt = in.get_data_type();
         if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
-            if (prefers_cpu_for_properties(in)) {
-                use_gpu = false;
-            } else if (backend_preference_ == BackendPreference::GPU) {
+            if (backend_preference_ == BackendPreference::GPU) {
                 use_gpu = true;
             } else if (backend_preference_ == BackendPreference::CPU) {
                 use_gpu = false;
@@ -833,9 +816,7 @@ void AutoSolver::lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBa
     if (is_gpu_active() && in.get_structure() == Structure::DENSE && in.rows() == in.cols()) {
         DataType dt = in.get_data_type();
         if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
-            if (prefers_cpu_for_properties(in)) {
-                use_gpu = false;
-            } else if (backend_preference_ == BackendPreference::GPU) {
+            if (backend_preference_ == BackendPreference::GPU) {
                 use_gpu = true;
             } else if (backend_preference_ == BackendPreference::CPU) {
                 use_gpu = false;
@@ -871,9 +852,7 @@ void AutoSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixB
     if (is_gpu_active() && in.get_structure() == Structure::DENSE && in.rows() == in.cols()) {
         DataType dt = in.get_data_type();
         if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
-            if (prefers_cpu_for_properties(in)) {
-                use_gpu = false;
-            } else if (backend_preference_ == BackendPreference::GPU) {
+            if (backend_preference_ == BackendPreference::GPU) {
                 use_gpu = true;
             } else if (backend_preference_ == BackendPreference::CPU) {
                 use_gpu = false;
@@ -964,9 +943,7 @@ void AutoSolver::eig(const MatrixBase& in, VectorBase& eigenvalues, MatrixBase& 
     if (is_gpu_active() && in.get_structure() == Structure::DENSE) {
         DataType dt = in.get_data_type();
         if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
-            if (prefers_cpu_for_properties(in)) {
-                use_gpu = false;
-            } else if (backend_preference_ == BackendPreference::GPU) {
+            if (backend_preference_ == BackendPreference::GPU) {
                 use_gpu = true;
             } else if (backend_preference_ == BackendPreference::CPU) {
                 use_gpu = false;
@@ -999,9 +976,7 @@ void AutoSolver::eigvals(const MatrixBase& in, VectorBase& eigenvalues) {
     if (is_gpu_active() && in.get_structure() == Structure::DENSE) {
         DataType dt = in.get_data_type();
         if (dt == DataType::FLOAT64 || dt == DataType::FLOAT32) {
-            if (prefers_cpu_for_properties(in)) {
-                use_gpu = false;
-            } else if (backend_preference_ == BackendPreference::GPU) {
+            if (backend_preference_ == BackendPreference::GPU) {
                 use_gpu = true;
             } else if (backend_preference_ == BackendPreference::CPU) {
                 use_gpu = false;

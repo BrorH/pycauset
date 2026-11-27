@@ -4,7 +4,6 @@ import os
 from typing import Any
 
 from . import export_guard, io_observability
-from . import properties as _props
 
 
 def _track_and_mark_temporary_if_native(obj: Any, *, deps: OpsDeps) -> None:
@@ -90,30 +89,6 @@ def _safe_rows_cols(obj: Any) -> tuple[int, int] | None:
         except Exception:
             pass
     return None
-
-
-def _effective_structure_for(obj: Any) -> str:
-    # Native structural types report their structure by type, even when the
-    # properties mapping is not populated. (Triangular types are intentionally not
-    # mapped here: the matmul triangular fast path converts to float64, which is
-    # wrong for bit/integer triangular matrices.)
-    name = type(obj).__name__
-    if name == "IdentityMatrix":
-        return "identity"
-    if name == "DiagonalMatrix":
-        return "diagonal"
-    # SymmetricMatrix / AntiSymmetricMatrix are native float64 structural types;
-    # their packed upper-triangle storage enforces the structure by construction,
-    # so the type name is authoritative here.
-    if name == "SymmetricMatrix":
-        return "symmetric"
-    if name == "AntiSymmetricMatrix":
-        return "antisymmetric"
-    try:
-        props = _props.get_properties(obj)
-        return _props.effective_structure_from_properties(props)
-    except Exception:
-        return "general"
 
 
 def _record_io_trace(op_name: str, operands: list[Any], *, deps: OpsDeps, allow_huge: bool = False, supports_streaming: bool = True) -> None:
@@ -211,46 +186,6 @@ def _append_event(record: Any, *, event_type: str, detail: str) -> None:
         return
 
 
-def _set_result_structure_properties(result: Any, *, structure: str) -> None:
-    try:
-        mapping: dict[str, Any] = {}
-        if structure == "zero":
-            mapping["is_zero"] = True
-        elif structure == "identity":
-            mapping["is_identity"] = True
-        elif structure == "diagonal":
-            mapping["is_diagonal"] = True
-        elif structure == "upper_triangular":
-            mapping["is_upper_triangular"] = True
-        elif structure == "lower_triangular":
-            mapping["is_lower_triangular"] = True
-        _props.set_properties(result, mapping)
-    except Exception:
-        pass
-
-
-def _matmul_result_structure(a_struct: str, b_struct: str) -> str:
-    if a_struct == "zero" or b_struct == "zero":
-        return "zero"
-    if a_struct == "identity":
-        return b_struct
-    if b_struct == "identity":
-        return a_struct
-
-    if a_struct == "diagonal" and b_struct == "diagonal":
-        return "diagonal"
-
-    if a_struct == "diagonal" and b_struct in ("upper_triangular", "lower_triangular"):
-        return b_struct
-    if b_struct == "diagonal" and a_struct in ("upper_triangular", "lower_triangular"):
-        return a_struct
-
-    if a_struct == b_struct and a_struct in ("upper_triangular", "lower_triangular"):
-        return a_struct
-
-    return "general"
-
-
 def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     rec = _record_io_trace("matmul", [a, b], deps=deps)
     _prefetch_if_streaming(rec, [a, b], deps=deps)
@@ -291,9 +226,6 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 
     if native_matrix_base is not None:
         if isinstance(a, native_matrix_base) and isinstance(b, native_matrix_base):
-            a_struct = _effective_structure_for(a)
-            b_struct = _effective_structure_for(b)
-
             # The engine dispatches every structure and dtype itself. The conversions that
             # were here (symmetric -> dense float64, triangular/diagonal -> float64) changed
             # result dtypes and duplicated engine paths (F-073).
@@ -301,10 +233,6 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
             _annotate_impl(rec, "native", deps=deps)
             deps.track_matrix(result)
             deps.mark_temporary_if_auto(result)
-
-            _set_result_structure_properties(
-                result, structure=_matmul_result_structure(a_struct, b_struct)
-            )
             _discard_if_streaming(rec, [a, b], result, deps=deps)
             return result
 
@@ -526,14 +454,16 @@ def eig_skew(a: Any, k: int, *, deps: OpsDeps) -> tuple[Any, Any]:
 
 
 def solve_triangular(a: Any, b: Any, *, deps: OpsDeps) -> Any:
-    """Solve A X = B for a triangular (or diagonal) A; raises if A is not marked triangular.
+    """Solve A X = B for a triangular, diagonal or identity A (by class: TriangularMatrix and
+    its transpose, DiagonalMatrix, IdentityMatrix); anything else raises ValueError.
 
-    The engine's solve handles every structure, view and dtype (F-068); the diagonal path
-    this used to have dropped imaginary parts and broadcast a vector right-hand side into an
-    n x n matrix (F-068).
+    The engine's solve handles every structure, view and dtype (F-068). It used to accept
+    any matrix whose `is_*_triangular` property was set, and not a TriangularMatrix (F-092).
     """
-    if _effective_structure_for(a) not in ("upper_triangular", "lower_triangular", "diagonal", "identity"):
-        raise ValueError("solve_triangular: a is not marked triangular")
+    if not isinstance(a, deps.native.MatrixBase) or deps.native._structure_of(a) not in (
+        "triangular", "diagonal", "identity"
+    ):
+        raise ValueError("solve_triangular: a must be a TriangularMatrix, DiagonalMatrix or IdentityMatrix")
     return solve(a, b, deps=deps)
 
 

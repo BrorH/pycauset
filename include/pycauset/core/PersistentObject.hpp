@@ -6,7 +6,6 @@
 #include <complex>
 
 #include "pycauset/core/Types.hpp"
-#include "pycauset/core/PropertyFlags.hpp"
 #include "pycauset/core/MemoryHints.hpp"
 #include "pycauset/core/IOAccelerator.hpp"
 
@@ -55,6 +54,10 @@ public:
      */
     void ensure_unique();
 
+    // Ensures the storage is a mapping of its own that can be remapped (a copy when shared or
+    // when it is a copy-on-write snapshot mapping). For code that unmaps and remaps regions.
+    void ensure_own_mapping();
+
     /**
      * @brief Notifies the MemoryGovernor that this object is being accessed.
      * Should be called by Solvers before heavy operations.
@@ -96,17 +99,6 @@ public:
     pycauset::DataType get_data_type() const { return data_type_; }
     pycauset::Structure get_structure() const { return structure_; }
 
-    // --- Property flags (fast C++ mirror of Python properties) ---
-    uint64_t get_properties_flags() const { return properties_flags_; }
-    void set_properties_flags(uint64_t flags) { properties_flags_ = flags; }
-    void set_property_flag(uint64_t flag, bool value) {
-        if (value) {
-            properties_flags_ |= flag;
-        } else {
-            properties_flags_ &= ~flag;
-        }
-    }
-    void clear_properties_flags() { properties_flags_ = 0; }
     
     uint64_t get_rows() const { return rows_; }
     uint64_t get_cols() const { return cols_; }
@@ -138,6 +130,8 @@ protected:
                            size_t offset = 0,
                            bool create_new = true);
 
+    void copy_storage_now();  // replace the storage by a private copy (RAM or a temp file)
+
     MemoryMapper* require_mapper();
     const MemoryMapper* require_mapper() const;
     
@@ -158,7 +152,6 @@ protected:
     bool is_temporary_ = false;
 
     // Property flags mirror (Phase 3: fast traits)
-    uint64_t properties_flags_ = 0;
 
     // Tiered Storage State
     pycauset::core::StorageState storage_state_ = pycauset::core::StorageState::DISK_BACKED; // Default for legacy compatibility

@@ -16,13 +16,7 @@ A scalar: the determinant.
 
 ## Notes
 
-Structural shortcuts apply when the matrix carries a `properties` assertion:
-
-*   `is_zero` returns `0`.
-*   `is_identity` returns `1`.
-*   `is_diagonal` with a known `diagonal_value` returns `diagonal_value ** n`.
-
-Otherwise the native `determinant()` method is used, falling back to NumPy (`numpy.linalg.det`).
+Computed by the engine for every dtype, structure and view: complex for complex matrices, float otherwise (F-059). LU in the LAPACK dtype; structured classes use their structure (a triangular matrix multiplies its diagonal).
 
 ## Examples
 

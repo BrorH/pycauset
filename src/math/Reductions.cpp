@@ -10,6 +10,7 @@
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/math/VectorOps.hpp"
+#include "pycauset/math/ViewRead.hpp"
 #include "pycauset/matrix/BitClosureMatrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
@@ -90,23 +91,56 @@ void for_row(const MatrixBase& m, uint64_t i, F&& f) {
     for (uint64_t j = 0; j < m.cols(); ++j) f(j);
 }
 
+// Real or complex sum through the typed row reader (ViewRead.hpp), a block of rows at a time;
+// rows summed in order, row sums added in row order (deterministic). Diagonal and identity
+// read their diagonal only. The virtual accessor is left for what the reader cannot read
+// (windows of structured classes, lazy closures).
+template <typename W>
+W sum_values(const MatrixBase& m) {
+    const uint64_t rows = m.rows(), cols = m.cols();
+    const Structure s = m.get_structure();
+    if (s == Structure::DIAGONAL || s == Structure::IDENTITY) {
+        std::vector<W> d(std::min(rows, cols));
+        if (read_diagonal(m, d.data())) {
+            W acc{};
+            for (const W& x : d) acc += x;
+            return acc;
+        }
+    } else {
+        const uint64_t block = std::max<uint64_t>(1, (uint64_t{1} << 16) / std::max<uint64_t>(cols, 1));
+        std::vector<W> buf(std::min(block, rows) * cols);
+        W total{};
+        bool ok = true;
+        for (uint64_t i0 = 0; i0 < rows && ok; i0 += block) {
+            const uint64_t i1 = std::min(rows, i0 + block);
+            if (!(ok = read_rows(m, i0, i1, buf.data()))) break;
+            for (uint64_t i = i0; i < i1; ++i) {
+                W acc{};
+                const W* row = buf.data() + (i - i0) * cols;
+                for (uint64_t j = 0; j < cols; ++j) acc += row[j];
+                total += acc;
+            }
+        }
+        if (ok) return total;
+    }
+    return sum_rows<W>(rows, [&](uint64_t i) {
+        W acc{};
+        for_row(m, i, [&](uint64_t j) {
+            if constexpr (std::is_same_v<W, double>) acc += m.get_element_as_double(i, j);
+            else acc += m.get_element_as_complex(i, j);
+        });
+        return acc;
+    }, W{});
+}
+
 ReductionValue sum_generic(const MatrixBase& m) {
     ReductionValue out;
-    const uint64_t rows = m.rows();
-    if (is_complex_dtype(m.get_data_type())) {
+    if (is_complex_dtype(m.get_data_type()) || m.get_scalar().imag() != 0.0) {
         out.kind = ReductionValue::Kind::Complex;
-        out.c = sum_rows<std::complex<double>>(rows, [&](uint64_t i) {
-            std::complex<double> acc{0.0, 0.0};
-            for_row(m, i, [&](uint64_t j) { acc += m.get_element_as_complex(i, j); });
-            return acc;
-        }, std::complex<double>(0.0, 0.0));
+        out.c = sum_values<std::complex<double>>(m);
     } else {
         out.kind = ReductionValue::Kind::Real;
-        out.r = sum_rows<double>(rows, [&](uint64_t i) {
-            double acc = 0.0;
-            for_row(m, i, [&](uint64_t j) { acc += m.get_element_as_double(i, j); });
-            return acc;
-        }, 0.0);
+        out.r = sum_values<double>(m);
     }
     return out;
 }
@@ -233,13 +267,25 @@ ReductionValue trace(const MatrixBase& m) {
         });
         return out;
     }
+    // Real or complex: the typed diagonal reader (the virtual accessor only where it cannot read).
+    auto diag_sum = [&](auto zero, auto virt) {
+        using W = decltype(zero);
+        std::vector<W> d(n);
+        W acc = zero;
+        if (read_diagonal(m, d.data())) {
+            for (const W& x : d) acc += x;
+        } else {
+            for (uint64_t i = 0; i < n; ++i) acc += virt(i);
+        }
+        return acc;
+    };
     if (is_complex_dtype(dt) || f.imag() != 0.0) {
         out.kind = ReductionValue::Kind::Complex;
-        for (uint64_t i = 0; i < n; ++i) out.c += m.get_element_as_complex(i, i);
+        out.c = diag_sum(std::complex<double>(0.0, 0.0), [&](uint64_t i) { return m.get_element_as_complex(i, i); });
         return out;
     }
     out.kind = ReductionValue::Kind::Real;
-    for (uint64_t i = 0; i < n; ++i) out.r += m.get_element_as_double(i, i);
+    out.r = diag_sum(0.0, [&](uint64_t i) { return m.get_element_as_double(i, i); });
     return out;
 }
 

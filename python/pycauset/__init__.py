@@ -684,28 +684,7 @@ for _mcls in (
 ):
     _wrap_matmul_for_debug(_mcls)
 
-_properties.apply_properties_patches(
-    classes=[
-        *_MATRIX_CLASSES,
-        *_VECTOR_CLASSES,
-    ]
-)
-
-_properties.apply_properties_mutation_patches(
-    classes=[
-        *_MATRIX_CLASSES,
-        *_VECTOR_CLASSES,
-    ]
-)
-
-_properties.apply_properties_view_patches(
-    classes=[
-        *_MATRIX_CLASSES,
-        *_VECTOR_CLASSES,
-    ],
-    track_matrix=_track_matrix,
-    mark_temporary_if_auto=_mark_temporary_if_auto,
-)
+_properties.install([*_MATRIX_CLASSES, *_VECTOR_CLASSES])
 
 
 
@@ -1386,144 +1365,72 @@ def _is_inexact_dtype(arr: Any) -> bool:
     return bool(_np is not None and _np.issubdtype(arr.dtype, _np.inexact))
 
 
+def _packed(arr: Any, structure: str) -> Any:
+    """`arr` (validated by the caller) as a native `structure` matrix of its exact dtype."""
+    out = _native._pack_as(matrix(arr), structure)
+    _track_matrix(out)
+    return out
+
+
+def _check_close(ok_exact: bool, ok_close: Any, arr: Any, what: str) -> None:
+    if not (ok_close() if _is_inexact_dtype(arr) else ok_exact):
+        raise ValueError(f"{what} ({'within tolerance' if _is_inexact_dtype(arr) else 'exactly'})")
+
+
 def symmetric(data: Any, *, rtol: float | None = None, atol: float | None = None) -> Any:
-    """Create a symmetric matrix (A == A.T) with validation.
+    """A `SymmetricMatrix` (A == A.T, packed upper triangle) of the input's dtype.
 
-    Storage depends on the input dtype:
-
-    - float32/float16/float64 -> native `SymmetricMatrix` (float64), which stores
-      only the upper triangle including the diagonal, roughly halving memory.
-    - integer/bool -> the corresponding dense matrix with `is_symmetric=True`
-      asserted (exact integer storage, no packing in R1).
-
-    Validation always runs: exact `array_equal` for integer/bool input and
-    tolerance-based `allclose` (rtol/atol) for floating input. Complex input is
-    rejected: the native SymmetricMatrix is real-valued.
+    The input is validated: exactly for integer/bool, with `allclose(rtol, atol)` for float and
+    complex input (only the upper triangle is stored). A complex symmetric matrix is not
+    Hermitian; use `hermitian` for A == A.conj().T.
     """
     arr = _as_square_array(data, name="symmetric")
-    if _np.iscomplexobj(arr):
-        raise TypeError("symmetric() operates on real matrices; the native SymmetricMatrix is float64")
-
-    if _is_inexact_dtype(arr):
-        if not _np.allclose(
-            arr, arr.T, rtol=(1e-5 if rtol is None else rtol), atol=(1e-8 if atol is None else atol)
-        ):
-            raise ValueError("symmetric() input is not symmetric (A != A.T within tolerance)")
-    else:
-        if not _np.array_equal(arr, arr.T):
-            raise ValueError("symmetric() input is not symmetric (A != A.T exactly)")
-
-    if _is_inexact_dtype(arr):
-        cls = getattr(_native, "SymmetricMatrix", None)
-        if cls is None:
-            raise ImportError("SymmetricMatrix is not available in the native extension")
-        n = arr.shape[0]
-        out = cls(n)
-        for i in range(n):
-            for j in range(i, n):
-                out.set(i, j, float(arr[i, j]))
-        out.properties["is_symmetric"] = True
-        _track_matrix(out)
-        return out
-
-    # Integer/bool: preserve the exact dtype as a dense matrix and assert structure.
-    out = matrix(arr)
-    out.properties["is_symmetric"] = True
-    return out
+    r, a = (1e-5 if rtol is None else rtol), (1e-8 if atol is None else atol)
+    _check_close(_np.array_equal(arr, arr.T), lambda: _np.allclose(arr, arr.T, rtol=r, atol=a), arr,
+                 "symmetric() input is not symmetric: A != A.T")
+    return _packed(arr, "symmetric")
 
 
 def antisymmetric(data: Any, *, rtol: float | None = None, atol: float | None = None) -> Any:
-    """Create an anti-symmetric (skew-symmetric) matrix (A == -A.T) with validation.
+    """An `AntiSymmetricMatrix` (A == -A.T, strict upper triangle stored) of the input's dtype.
 
-    Storage depends on the input dtype:
-
-    - float32/float16/float64 -> native `AntiSymmetricMatrix` (float64), which
-      stores only the strict upper triangle (the diagonal is structurally zero).
-    - integer/bool -> the corresponding dense matrix with `is_anti_symmetric=True`
-      asserted (exact integer storage, no packing in R1).
-
-    Validation always runs and also requires a zero diagonal. Complex input is
-    rejected: the native AntiSymmetricMatrix is real-valued.
+    Signed integer, float and complex dtypes (unsigned and bool cannot negate: ValueError).
+    Validated like `symmetric`; the diagonal must be zero.
     """
     arr = _as_square_array(data, name="antisymmetric")
-    if _np.iscomplexobj(arr):
-        raise TypeError("antisymmetric() operates on real matrices; the native AntiSymmetricMatrix is float64")
+    r, a = (1e-5 if rtol is None else rtol), (1e-8 if atol is None else atol)
+    _check_close(_np.array_equal(arr, -arr.T) and not _np.any(_np.diag(arr)),
+                 lambda: _np.allclose(arr, -arr.T, rtol=r, atol=a) and _np.allclose(_np.diag(arr), 0, rtol=r, atol=a),
+                 arr, "antisymmetric() input is not anti-symmetric: A != -A.T or a non-zero diagonal")
+    return _packed(arr, "antisymmetric")
 
-    if _is_inexact_dtype(arr):
-        tol_rtol = 1e-5 if rtol is None else rtol
-        tol_atol = 1e-8 if atol is None else atol
-        if not _np.allclose(arr, -arr.T, rtol=tol_rtol, atol=tol_atol):
-            raise ValueError("antisymmetric() input is not anti-symmetric (A != -A.T within tolerance)")
-        if not _np.allclose(_np.diag(arr), 0.0, rtol=tol_rtol, atol=tol_atol):
-            raise ValueError("antisymmetric() input has a non-zero diagonal")
-    else:
-        if not _np.array_equal(arr, -arr.T):
-            raise ValueError("antisymmetric() input is not anti-symmetric (A != -A.T exactly)")
-        if not bool(_np.all(_np.diag(arr) == 0)):
-            raise ValueError("antisymmetric() input has a non-zero diagonal")
 
-    if _is_inexact_dtype(arr):
-        cls = getattr(_native, "AntiSymmetricMatrix", None)
-        if cls is None:
-            raise ImportError("AntiSymmetricMatrix is not available in the native extension")
-        n = arr.shape[0]
-        out = cls(n)
-        for i in range(n):
-            for j in range(i + 1, n):
-                out.set(i, j, float(arr[i, j]))
-        out.properties["is_anti_symmetric"] = True
-        out.properties["has_zero_diagonal"] = True
-        _track_matrix(out)
-        return out
+def hermitian(data: Any, *, rtol: float | None = None, atol: float | None = None) -> Any:
+    """A `HermitianMatrix` (A == A.conj().T, packed upper triangle) of the input's complex dtype.
 
-    # Integer/bool: preserve the exact dtype as a dense matrix and assert structure.
-    out = matrix(arr)
-    out.properties["is_anti_symmetric"] = True
-    out.properties["has_zero_diagonal"] = True
-    return out
+    Real input is promoted to complex_float64 (a real symmetric matrix is Hermitian; for a
+    real packed type use `symmetric`). Validated like `symmetric`; the diagonal must be real.
+    """
+    arr = _as_square_array(data, name="hermitian")
+    if not _np.iscomplexobj(arr):
+        arr = arr.astype(_np.complex128)
+    r, a = (1e-5 if rtol is None else rtol), (1e-8 if atol is None else atol)
+    if not _np.allclose(arr, arr.conj().T, rtol=r, atol=a):
+        raise ValueError("hermitian() input is not Hermitian: A != A.conj().T (within tolerance)")
+    return _packed(arr, "hermitian")
 
 
 def diagonal(data: Any) -> Any:
-    """Create a diagonal matrix from a 1D vector of entries or a 2D matrix.
-
-    - A 1D vector supplies the diagonal entries.
-    - A 2D square matrix uses its diagonal entries (off-diagonal values are ignored).
-
-    Float input produces a native `DiagonalMatrix` (float64). Integer/bool input
-    produces a dense matrix with `is_diagonal=True` asserted (exact storage).
-    """
-    if _np is None:
-        raise RuntimeError("NumPy is required for diagonal construction")
+    """A `DiagonalMatrix` of the input's dtype from a 1-D vector of entries or the diagonal of
+    a square 2-D matrix (off-diagonal values are ignored)."""
     arr = _np.asarray(data)
     if arr.ndim == 1:
-        entries = arr
-        n = int(arr.shape[0])
-    elif arr.ndim == 2:
-        if arr.shape[0] != arr.shape[1]:
-            raise ValueError("diagonal() requires a square 2D matrix or a 1D vector")
-        entries = _np.diag(arr)
-        n = int(arr.shape[0])
-    else:
+        if arr.size == 0:
+            raise ValueError("diagonal() does not support empty input")
+        arr = _np.diag(arr)
+    elif arr.ndim != 2 or arr.shape[0] != arr.shape[1]:
         raise ValueError("diagonal() expects a 1D vector or a 2D square matrix")
-
-    if _is_inexact_dtype(entries) and not _np.iscomplexobj(entries):
-        cls = getattr(_native, "DiagonalMatrix", None)
-        if cls is None:
-            raise ImportError("DiagonalMatrix is not available in the native extension")
-        out = cls(n)
-        for i in range(n):
-            out.set_diagonal(i, float(entries[i]))
-        out.properties["is_diagonal"] = True
-        _track_matrix(out)
-        return out
-
-    # Integer/bool (or complex): dense matrix with the diagonal structure asserted.
-    if arr.ndim == 2:
-        out = matrix(arr)
-    else:
-        out = matrix(_np.diag(entries))
-    out.properties["is_diagonal"] = True
-    return out
+    return _packed(arr, "diagonal")
 
 
 # Alias for IdentityMatrix
@@ -1693,6 +1600,7 @@ _extra_exports = [
     "diagonal",
     "symmetric",
     "antisymmetric",
+    "hermitian",
     "I",
     "causet",
     "CausalSet",

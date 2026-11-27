@@ -32,6 +32,17 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   a strictly triangular matrix of ones now has rank n - 1, not 0.
 - Properties no longer change results anywhere: `eigvalsh` ignores `is_hermitian`, `solve`
   and `matrix_power` ignore `is_zero`, `norm` ignores `is_zero` / identity.
+- `obj.properties` is a dict of user notes (saved with the object, never read by PyCauset);
+  the boolean structure flags (`is_symmetric`, `is_upper_triangular`, `is_zero`, ...) and
+  their validation/propagation are removed. Structure is the class.
+- `pc.symmetric`, `pc.antisymmetric`, `pc.diagonal` return `SymmetricMatrix`,
+  `AntiSymmetricMatrix`, `DiagonalMatrix` in the input's exact dtype (complex too); new
+  `pc.hermitian`. `solve_triangular` takes a `TriangularMatrix` (or its transpose),
+  `DiagonalMatrix` or `IdentityMatrix`.
+- Writing to a loaded matrix no longer changes the saved file (copy-on-write mapping, as the
+  container contract states); `pc.save` replaces files atomically.
+- `np.asarray(M)` exports every class in its own dtype (structured classes used to export as
+  float64).
 - File-backed operands (or ones above the IO streaming threshold) no longer make `matmul`
   and `invert` run element by element in Python through NumPy (matmul returned float for
   every dtype on that path).

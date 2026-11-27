@@ -649,7 +649,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
 
 // Result dtype of solve/svd (LAPACK dtypes), NumPy's rule: integers and bit solve in float64, float16/float32 in
 // float32, complex stays complex (complex64 only when nothing needs double precision).
-static DataType solve_dtype(DataType a, DataType b) {
+DataType lapack_dtype(DataType a, DataType b) {
     auto cplx = [](DataType d) {
         return d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 || d == DataType::COMPLEX_FLOAT64;
     };
@@ -665,7 +665,7 @@ static DataType solve_dtype(DataType a, DataType b) {
 // The LAPACK kernels (compute/cpu/CpuLinalg.cpp) read a plain dense matrix in a LAPACK dtype;
 // every other dtype, structure and view is written out with the shared typed reader first.
 static std::unique_ptr<MatrixBase> lapack_input(const MatrixBase& a, DataType& dt) {
-    dt = solve_dtype(a.get_data_type(), a.get_data_type());
+    dt = lapack_dtype(a.get_data_type(), a.get_data_type());
     if (a.get_structure() == Structure::DENSE && a.get_data_type() == dt && is_plain(a)) return nullptr;
     return to_dense(a, dt);
 }
@@ -727,7 +727,7 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique
     // written out first (F-062, F-079: complex SVD used to fall back to NumPy).
     {
         const DataType in = a.get_data_type();
-        const DataType want = solve_dtype(in, in);
+        const DataType want = lapack_dtype(in, in);
         if (a.get_structure() != Structure::DENSE || in != want || !is_plain(a)) {
             return svd(*to_dense(a, want), full_matrices);
         }
@@ -755,7 +755,7 @@ std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, cons
     // The LAPACK kernel reads dense storage of one dtype: any structure, view or other dtype
     // is written out first (O(n^2) in front of O(n^3); every input used to fall back to NumPy
     // or read packed storage as dense, F-068).
-    const DataType dt = solve_dtype(a.get_data_type(), b.get_data_type());
+    const DataType dt = lapack_dtype(a.get_data_type(), b.get_data_type());
     auto ready = [dt](const MatrixBase& m) {
         return m.get_structure() == Structure::DENSE && m.get_data_type() == dt && is_plain(m);
     };
@@ -783,7 +783,7 @@ std::unique_ptr<MatrixBase> inverse(const MatrixBase& a) {
     if (a.rows() != a.cols()) throw std::invalid_argument("inverse: matrix must be square");
     const uint64_t n = a.rows();
     const DataType in = a.get_data_type();
-    const DataType dt = solve_dtype(in, in);
+    const DataType dt = lapack_dtype(in, in);
     const Structure st = a.get_structure();
     auto singular = []() -> std::unique_ptr<MatrixBase> { throw std::runtime_error("inverse: matrix is singular"); };
     auto set_complex = [](MatrixBase& m, uint64_t i, uint64_t j, std::complex<double> z) {
@@ -984,8 +984,8 @@ int64_t matrix_rank(const MatrixBase& a, double tol) {
     if (a.rows() == 0 || a.cols() == 0) return 0;
     const auto s = singular_values(a);
     if (tol < 0) {
-        const bool single = solve_dtype(a.get_data_type(), a.get_data_type()) == DataType::FLOAT32 ||
-                            solve_dtype(a.get_data_type(), a.get_data_type()) == DataType::COMPLEX_FLOAT32;
+        const bool single = lapack_dtype(a.get_data_type(), a.get_data_type()) == DataType::FLOAT32 ||
+                            lapack_dtype(a.get_data_type(), a.get_data_type()) == DataType::COMPLEX_FLOAT32;
         const double eps = single ? std::numeric_limits<float>::epsilon() : std::numeric_limits<double>::epsilon();
         tol = *std::max_element(s.begin(), s.end()) * static_cast<double>(std::max(a.rows(), a.cols())) * eps;
     }

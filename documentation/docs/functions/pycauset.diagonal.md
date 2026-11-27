@@ -4,27 +4,18 @@
 pycauset.diagonal(data)
 ```
 
-Creates a diagonal matrix from a 1D vector of diagonal entries or a 2D square matrix.
-
-## Parameters
-
-*   **data** (array-like): A 1D vector of diagonal entries, or a 2D square matrix (whose diagonal entries are used).
-
-## Returns
-
-*   Float input: a [[docs/classes/matrix/pycauset.DiagonalMatrix.md|pycauset.DiagonalMatrix]].
-*   Integer/bool input: the corresponding dense matrix with `is_diagonal=True` asserted.
+Creates a [[docs/classes/matrix/pycauset.DiagonalMatrix.md|pycauset.DiagonalMatrix]] in the
+input's dtype (every dtype) from a 1D vector of diagonal entries or the diagonal of a 2D square
+matrix (off-diagonal values are ignored).
 
 ## Examples
 
 ```python
 import pycauset as pc
 
-D = pc.diagonal([1.0, 2.0, 3.0])
-D.properties["is_diagonal"]   # True
+D = pc.diagonal([1, 2, 3])   # DiagonalMatrix, int64
 ```
 
 ## See also
 
 * [[docs/functions/pycauset.identity.md|pycauset.identity]]
-* [[docs/classes/matrix/pycauset.DiagonalMatrix.md|pycauset.DiagonalMatrix]]

@@ -61,31 +61,23 @@ This specific format enables two user-facing behaviors:
 1) **Gigantic matrices actually work:** the payload lives on disk and is paged in as needed.
 2) **Some operations are instant:** things like transpose or scaling can be represented by changing metadata (no rewrite of the large payload).
 
-## Properties (user metadata)
+## Properties (user notes)
 
-In addition to physical metadata (shape/dtype), you can attach **properties**: labels and
-assertions you want to keep with the object (for example `is_symmetric=True` or a `label`).
+In addition to the physical metadata (shape, dtype, structure, view state), `obj.properties` is
+a dict of notes you want to keep with the object, such as `{"source": "sprinkling", "seed": 4}`:
 
-### What `properties` is
-
-- `obj.properties` is a mapping (`str` keys → typed values) exposed on every matrix/vector.
-- It is saved and loaded with the object.
-- Properties **never change results**: every operation computes from the stored values and the
-  view-state (transpose, conjugation, scalar). Setting `is_zero=True` does not make the
-  determinant 0, and nothing is answered from a stored value.
-- PyCauset does not cache computed results (`sum`, `trace`, `determinant`, `norm`, inverses,
-  eigenvalues): a result always reflects the current values, also after `M[i, j] = v`.
-
-### Common keys
-
-Conventional keys (stored as given, not validated against the values):
-- **Structure:** `is_symmetric`, `is_hermitian`, `is_upper_triangular`, `is_lower_triangular`, `is_diagonal`
-- **Identity:** `is_identity`
-- **Vector hints:** `is_sorted`, `is_unit_norm`
+- string keys, values the metadata encoder handles (numbers, strings, lists, dicts);
+- saved and loaded with the object; not carried to views or results (`A.T` is another object);
+- never read by PyCauset: every operation computes from the stored values, the structure
+  (the class) and the view state.
 
 For structure that operations should exploit, use a structured class (`TriangularMatrix`,
-`SymmetricMatrix`, `DiagonalMatrix`, ...): the structure is then part of the storage, so it
-cannot disagree with the values.
+`SymmetricMatrix`, `HermitianMatrix`, `DiagonalMatrix`, ...; or `pc.symmetric(...)`,
+`pc.hermitian(...)`, `pc.diagonal(...)`): the structure is then part of the storage and cannot
+disagree with the values.
+
+Computed results are not cached yet; a result always reflects the current values, also after
+`M[i, j] = v`. A cache that is discarded on every change is planned (review phase D).
 
 ## Where backing files go (temporary storage)
 

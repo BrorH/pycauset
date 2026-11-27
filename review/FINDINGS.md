@@ -1138,3 +1138,55 @@ the entry (the history is useful). New findings go at the bottom with the next f
   result for every dtype, so a saved int matrix squared came back float; invert:
   `np.linalg.inv`). Both paths are deleted; the route is still recorded and the trace says
   `impl = native`.
+
+### F-092 Property flags duplicated the structured classes; F-082 helpers fixed
+- **Status:** fixed (session 8; maintainer decision: "the old and outdated categories can
+  go"). `obj.properties` held 17 unchecked boolean claims (`is_upper_triangular`,
+  `is_hermitian`, `is_zero`, ...) with consistency rules, propagation through `.T`/`.conj()`/
+  `.H` and invalidation on `set`/`fill` (Python wrappers installed on every class at import:
+  `.T` cost ~10 µs, `set` ~2.8 µs, every wrapper swallowed its own errors), a C++ bitmask copy
+  on every object read only by the dormant GPU dispatcher, matmul tagging of results, and a
+  `solve_triangular` that accepted any matrix flagged triangular but not a TriangularMatrix.
+  Since N.5 every structure is a class that enforces it, so the flags could only disagree
+  with it.
+- Fix: `properties.py` 938 → 45 lines: `obj.properties` is a dict of user notes, saved and
+  loaded, never read by PyCauset, not carried to views. Deleted: flag rules, the three wrapper
+  installers, `PropertyFlags.hpp`, `MatrixPropertyTraits.hpp`, the PersistentObject bitmask and
+  its bindings, `prefers_cpu_for_properties` (10 call sites), matmul result tagging,
+  `_effective_structure_for`. `solve_triangular` takes the class (TriangularMatrix and its
+  views, DiagonalMatrix, IdentityMatrix).
+- F-082 (`pc.symmetric` / `pc.antisymmetric` / `pc.diagonal` returned a dense matrix plus a
+  flag for integer input, rejected complex input, and filled float64 classes element by
+  element from Python): they return the structured class in the input's exact dtype through a
+  new engine helper `pack_as(a, structure)` (the stored region copied with typed reads and
+  writes). New `pc.hermitian`. Unsigned/bool antisymmetric raises (no negation).
+
+### F-093 Writing to a loaded matrix overwrote the saved file
+- **Status:** fixed (session 8). The container contract (R1_STORAGE_PLAN, Storage Semantics):
+  "`.pycauset` files are immutable snapshots ... mutations use copy-on-write working copies".
+  Views already are copy-on-write (every typed `set`/`fill` calls `ensure_unique()`, which
+  copies storage shared with another object), but a loaded object is the only owner of its
+  mapping, so the copy never happened: `w = pc.load(p); w[0, 0] = 99` changed `p` on disk
+  (checked from a second process).
+- Fix: storage opened from an existing file is marked a snapshot; `ensure_unique()` copies a
+  snapshot on the first write (to RAM or a temp file, as for shared storage). Reads stay
+  memory-mapped (zero copy). `pc.save(w, p)` writes the changes.
+
+### F-094 Typed readers for every class (N.7, part 1): det, sum, trace, bit write-out, export, element-wise
+- **Status:** fixed (session 8). The atlas's 10,152 generic cells came from per-element
+  virtual reads (`get_element_as_double/complex` in a loop) in: det/slogdet (every input
+  copied into a float64/complex128 buffer that way, so float32 was also computed in double),
+  `write_out` of bool matrices (every bool op that needs packed bits), sum/trace for float16,
+  complex and complex-factor views, NumPy export of every non-dense class (three exporters:
+  a dense-only typed one, a per-element generic one, and `__array__`, which exported any
+  class it did not list as float64), and element-wise ops with structured or mixed operands.
+- Fix: one typed row reader, `read_rows(a, i0, i1, out)` / `read_diagonal(a, out)`
+  (ViewRead.hpp; int64 / double / complex128 buffers, O(rows) memory; `read_wide` is now the
+  full-range case). det/slogdet: structure rules (identity s^n, diagonal/triangular from the
+  typed diagonal) then one `?getrf` template in the LAPACK dtype (CpuLinalg.cpp); the old
+  `lu_pivots` and its virtual buffer readers deleted. sum/trace: the readers. `write_out`
+  (bool): packed bits from the reader. Export: one `export_numpy` (to_dense / write_out, then
+  one copy) for `_to_numpy_fast` and `__array__`. Element-wise: `rows_binary` reads operands a
+  block of rows at a time in the result type (int64 is lossless for every integer type) for
+  dense and structured results; `exact_int_reader` deleted. The virtual accessor remains
+  only for what the reader cannot read (lazy closures, windows of structured classes).

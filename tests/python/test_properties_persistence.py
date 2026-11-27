@@ -1,110 +1,30 @@
-import unittest
-import shutil
-from pathlib import Path
-import uuid
-import struct
+"""obj.properties: user notes, saved and loaded (F-092)."""
+import numpy as np
 
-import pycauset
+import pycauset as pc
 
 
-class TestPropertiesPersistence(unittest.TestCase):
-    def setUp(self):
-        self.test_dir = Path("test_properties_persistence_output")
-        self.test_dir.mkdir(exist_ok=True)
+def test_notes_roundtrip(tmp_path):
+    m = pc.matrix(np.eye(2))
+    m.properties["source"] = "sprinkling"
+    m.properties["seed"] = 4
+    m.properties["params"] = {"d": 2, "rho": 1.5}
+    pc.save(m, tmp_path / "m.pycauset")
+    w = pc.load(tmp_path / "m.pycauset")
+    assert w.properties == {"source": "sprinkling", "seed": 4, "params": {"d": 2, "rho": 1.5}}
 
-    def tearDown(self):
-        import gc
 
-        gc.collect()
+def test_notes_are_not_structure_and_not_carried_to_views():
+    m = pc.matrix(np.array([[1.0, 2.0], [3.0, 4.0]]))
+    m.properties["is_symmetric"] = True  # just a note: nothing reads it
+    assert pc.determinant(m) == -2.0
+    assert m.T.properties == {}
 
-        if self.test_dir.exists():
-            try:
-                shutil.rmtree(self.test_dir)
-            except PermissionError:
-                print(f"WARNING: Could not clean up {self.test_dir} due to file locking.")
 
-    def test_gospel_properties_tristate_roundtrip(self):
-        m = None
-        m2 = None
-        try:
-            m = pycauset.DenseMatrix(2, dtype="float64")
-
-            # Explicit False must persist as False (distinct from missing/unset).
-            m.properties = {
-                "is_identity": False,
-                # None means "unset"; setter drops it and it should not round-trip.
-                "is_zero": None,
-            }
-
-            path = self.test_dir / "gospel_props.pycauset"
-            pycauset.save(m, path)
-
-            m2 = pycauset.load(path)
-            self.assertIn("is_identity", m2.properties)
-            self.assertIs(m2.properties.get("is_identity"), False)
-            self.assertNotIn("is_zero", m2.properties)
-
-            # Unset means missing.
-            m.properties = {}
-            path2 = self.test_dir / "gospel_props_unset.pycauset"
-            pycauset.save(m, path2)
-            m2.close()
-            m2 = pycauset.load(path2)
-            self.assertNotIn("is_identity", m2.properties)
-        finally:
-            if m2 is not None:
-                m2.close()
-            if m is not None:
-                m.close()
-
-    def _tamper_payload_uuid_only(self, path: Path) -> None:
-        # Internal helper for signature-mismatch tests: change top-level payload_uuid
-        # without updating cached.* signatures, keeping metadata block length stable.
-        import pycauset._internal.persistence as persistence
-
-        active, _, _ = persistence._read_active_slot_and_typed_metadata(path)  # type: ignore[attr-defined]
-        meta_off = int(active["metadata_offset"])
-        meta_len = int(active["metadata_length"])
-
-        with path.open("r+b") as f:
-            f.seek(meta_off)
-            block = f.read(meta_len)
-            if len(block) != meta_len:
-                raise AssertionError("failed to read metadata block")
-
-            if block[:4] != persistence._METADATA_BLOCK_MAGIC:  # type: ignore[attr-defined]
-                raise AssertionError("metadata block magic mismatch")
-
-            payload_len = struct.unpack("<Q", block[16:24])[0]
-            old_payload = block[32:]
-            if len(old_payload) != payload_len:
-                raise AssertionError("metadata payload length mismatch")
-
-            typed = persistence._decode_metadata_top_map(old_payload)  # type: ignore[attr-defined]
-            old_uuid = typed.get("payload_uuid")
-            if not isinstance(old_uuid, str):
-                raise AssertionError("missing payload_uuid")
-
-            # Preserve the on-disk UUID string format to keep payload size stable.
-            # (Some builds use UUID hex without dashes.)
-            if len(old_uuid) == 32:
-                new_uuid = uuid.uuid4().hex
-            else:
-                new_uuid = str(uuid.uuid4())
-            if len(new_uuid) != len(old_uuid):
-                raise AssertionError("expected stable uuid string length")
-
-            typed["payload_uuid"] = new_uuid
-            new_payload = persistence._encode_metadata_top_map(typed)  # type: ignore[attr-defined]
-            if len(new_payload) != len(old_payload):
-                raise AssertionError("expected metadata payload size to remain stable")
-
-            new_crc = persistence._crc32(new_payload)  # type: ignore[attr-defined]
-            new_header = block[:24] + struct.pack("<I", new_crc) + block[28:32]
-
-            f.seek(meta_off)
-            f.write(new_header)
-            f.write(new_payload)
-
-if __name__ == "__main__":
-    unittest.main()
+def test_keys_must_be_strings():
+    m = pc.matrix(np.eye(2))
+    try:
+        m.properties = {1: "x"}
+    except TypeError:
+        return
+    raise AssertionError("expected TypeError")

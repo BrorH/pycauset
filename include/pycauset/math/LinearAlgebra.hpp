@@ -4,11 +4,17 @@
 #include <memory>
 #include <string>
 
+#include "pycauset/core/Types.hpp"
+
 namespace pycauset {
 
 class MatrixBase;
 class VectorBase;
 template <typename T> class TriangularMatrix;
+
+// NumPy's LAPACK dtype for operands of dtypes a and b: integers and bit in float64, float16 /
+// float32 in float32, complex stays complex (complex64 when nothing needs double precision).
+DataType lapack_dtype(DataType a, DataType b);
 
 // --- Matrix Operations ---
 

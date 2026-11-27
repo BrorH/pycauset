@@ -229,7 +229,7 @@ std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(cons
 }
 
 void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t> seed) {
-    ensure_unique();
+    ensure_own_mapping();  // remaps regions below
 
     std::mt19937_64 gen;
     if (seed.has_value()) {

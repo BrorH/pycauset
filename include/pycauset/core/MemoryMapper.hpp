@@ -7,7 +7,11 @@
 class MemoryMapper {
 public:
     // size is the size of the DATA section.
-    MemoryMapper(const std::string& filename, size_t data_size, size_t offset = 0, bool create_new = false);
+    // private_writes: map an existing file copy-on-write (MAP_PRIVATE / FILE_MAP_COPY). Reads
+    // come from the file; a written page becomes private memory; the file never changes. Used
+    // for saved snapshots (pc.load, F-093). A private mapping cannot be remapped.
+    MemoryMapper(const std::string& filename, size_t data_size, size_t offset = 0, bool create_new = false,
+                 bool private_writes = false);
     ~MemoryMapper();
 
     void* get_data();
@@ -16,6 +20,7 @@ public:
     size_t get_data_size() const;
     size_t get_offset() const { return offset_; }
     const std::string& get_filename() const { return filename_; }
+    bool is_private() const { return private_; }
 
     void flush();
     void flush(void* ptr, size_t size);
@@ -52,6 +57,7 @@ private:
     int fd_;
 #endif
     bool is_pinned_ = false;
+    bool private_ = false;
 
     void open_file(bool create_new);
     void close_file();

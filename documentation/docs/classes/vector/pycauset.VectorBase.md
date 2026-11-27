@@ -14,10 +14,8 @@ Vectors are persistent objects (RAM-backed for small sizes; disk-backed for larg
 
 ### `properties`
 
-Vectors expose `v.properties`, a typed mapping used for:
-
-- user metadata and assertions (e.g. `is_sorted`), saved with the vector. They are not
-  checked against the values and never change results; contradictory assertions raise.
+`v.properties` is a dict of user notes (string keys), saved with the vector. PyCauset never
+reads it and it never changes a result.
 
 See [[guides/Storage and Memory.md|Storage and Memory]].
 

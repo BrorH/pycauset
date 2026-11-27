@@ -52,14 +52,15 @@ static bool EnablePrivilege(LPCTSTR lpszPrivilege) {
 #endif
 #endif
 
-MemoryMapper::MemoryMapper(const std::string& filename, size_t data_size, size_t offset, bool create_new) 
+MemoryMapper::MemoryMapper(const std::string& filename, size_t data_size, size_t offset, bool create_new,
+                           bool private_writes)
     : filename_(filename), data_size_(data_size), offset_(offset), mapped_ptr_(nullptr), base_ptr_(nullptr),
 #ifdef _WIN32
       hFile_(INVALID_HANDLE_VALUE), hMapping_(nullptr),
 #else
       fd_(-1),
 #endif
-      is_pinned_(false) {
+      is_pinned_(false), private_(private_writes && !create_new && filename != ":memory:") {
     open_file(create_new);
 }
 
@@ -114,7 +115,7 @@ void MemoryMapper::open_file(bool create_new) {
 
         hFile_ = CreateFileW(
             path.c_str(),
-            GENERIC_READ | GENERIC_WRITE,
+            private_ ? GENERIC_READ : (GENERIC_READ | GENERIC_WRITE),
             FILE_SHARE_READ | FILE_SHARE_WRITE, 
             NULL,
             creationDisposition,
@@ -259,7 +260,7 @@ void MemoryMapper::open_file(bool create_new) {
     hMapping_ = CreateFileMappingA(
         hFile_,
         NULL,
-        PAGE_READWRITE,
+        private_ ? PAGE_WRITECOPY : PAGE_READWRITE,
         liSize.HighPart,
         liSize.LowPart,
         NULL
@@ -275,7 +276,7 @@ void MemoryMapper::open_file(bool create_new) {
 
     base_ptr_ = MapViewOfFile(
         hMapping_,
-        FILE_MAP_ALL_ACCESS,
+        private_ ? FILE_MAP_COPY : FILE_MAP_ALL_ACCESS,
         liOffset.HighPart,
         liOffset.LowPart,
         map_size
@@ -342,7 +343,7 @@ void MemoryMapper::open_file(bool create_new) {
             std::filesystem::create_directories(path.parent_path());
         }
 
-        int flags = O_RDWR;
+        int flags = private_ ? O_RDONLY : O_RDWR;
         if (create_new) flags |= O_CREAT | O_TRUNC;
         
         fd_ = open(filename_.c_str(), flags, 0644);
@@ -468,7 +469,7 @@ void MemoryMapper::open_file(bool create_new) {
     }
 
     const bool anonymous = (filename_ == ":memory:");
-    int map_flags = anonymous ? (MAP_PRIVATE | MAP_ANONYMOUS) : MAP_SHARED;
+    int map_flags = anonymous ? (MAP_PRIVATE | MAP_ANONYMOUS) : (private_ ? MAP_PRIVATE : MAP_SHARED);
 
     // R1_SAFETY: mmap with length 0 is invalid (EINVAL).
     if (map_size == 0) {
@@ -550,6 +551,7 @@ void MemoryMapper::flush(void* ptr, size_t size) {
 }
 
 void MemoryMapper::unmap() {
+    if (private_) throw std::logic_error("MemoryMapper: a copy-on-write (snapshot) mapping cannot be remapped");
 #ifdef _WIN32
     if (filename_ == ":memory:") {
         // VirtualAlloc memory is a single committed region, not a mapped file
@@ -581,6 +583,7 @@ void MemoryMapper::unmap() {
 
 
 void MemoryMapper::map_all() {
+    if (private_) throw std::logic_error("MemoryMapper: a copy-on-write (snapshot) mapping cannot be remapped");
     if (mapped_ptr_) return; // Already mapped
 #ifdef _WIN32
     if (filename_ == ":memory:") {
@@ -620,6 +623,7 @@ void MemoryMapper::map_all() {
 }
 
 void* MemoryMapper::map_region(size_t offset, size_t size) {
+    if (private_) throw std::logic_error("MemoryMapper: a copy-on-write (snapshot) mapping cannot be remapped");
 #ifdef _WIN32
     if (filename_ == ":memory:") {
         // The whole VirtualAlloc region is already committed and addressable;

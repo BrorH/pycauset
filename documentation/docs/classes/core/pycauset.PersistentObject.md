@@ -21,9 +21,9 @@ The canonical Release 1 persistence semantics and container format are documente
 
 ## Semantic properties
 
-Matrices and vectors expose `obj.properties`, a typed mapping used for:
-
-- user metadata and assertions (e.g. `is_upper_triangular=True`), saved with the object; they never change results.
+`obj.properties` is a dict of user notes (string keys: a label, a source, a seed), saved with
+the object and restored on load. PyCauset never reads it; structure is the class
+(`TriangularMatrix`, `SymmetricMatrix`, ...).
 
 ## See also
 

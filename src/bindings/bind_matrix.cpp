@@ -44,6 +44,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -229,80 +230,6 @@ inline void require_1d(const py::buffer_info& buf) {
     if (buf.ndim != 1) {
         throw py::value_error("Expected a 1D array");
     }
-}
-
-// Helper for Parallel Export
-template <typename T>
-py::array_t<T> parallel_export_to_numpy(const DenseMatrix<T>& mat) {
-    // 1. Check Safety (Guard)
-    pycauset::bindings::ensure_numpy_export_allowed(static_cast<const MatrixBase&>(mat));
-
-    uint64_t rows = mat.rows();
-    uint64_t cols = mat.cols();
-    const bool needs_slow_path = mat.is_transposed() || mat.is_subview() ||
-        mat.is_conjugated() || mat.get_scalar() != std::complex<double>(1.0, 0.0);
-    if (needs_slow_path) {
-        py::array_t<T> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-        auto r = out.template mutable_unchecked<2>();
-        for (uint64_t i = 0; i < rows; ++i) {
-            for (uint64_t j = 0; j < cols; ++j) {
-                if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
-                    const std::complex<double> v = mat.get_element_as_complex(i, j);
-                    r(i, j) = static_cast<T>(v);
-                } else {
-                    const double v = mat.get_element_as_double(i, j);
-                    r(i, j) = static_cast<T>(v);
-                }
-            }
-        }
-        return out;
-    }
-    size_t total_bytes = rows * cols * sizeof(T);
-
-    // 2. Allocate uninitialized NumPy array
-    // We use C-contiguous order by default for new arrays.
-    // Use numpy.empty explicitly to avoid any risk of zero-initialization overhead
-    auto np = py::module::import("numpy");
-    py::object result_obj = np.attr("empty")(py::make_tuple(rows, cols), py::dtype::of<T>());
-    py::array_t<T> result = result_obj.cast<py::array_t<T>>();
-
-    // 3. Parallel Copy
-    // If small, use single threaded to avoid overhead.
-    // If huge, use ParallelFor with GIL release.
-    constexpr size_t PARALLEL_THRESHOLD_BYTES = 1024 * 1024; // 1MB
-
-    py::buffer_info buf = result.request();
-    T* dst_ptr = static_cast<T*>(buf.ptr);
-    const T* src_ptr = mat.data();
-
-    // Check strict C-contiguous for safety (newly allocated numpy array usually is)
-    // bool is_c_contiguous = (buf.strides[1] == sizeof(T) && buf.strides[0] == static_cast<py::ssize_t>(cols * sizeof(T)));
-    
-    if (total_bytes >= PARALLEL_THRESHOLD_BYTES) {
-        // Release GIL for parallel copy
-        {
-            py::gil_scoped_release release;
-            // Use strides from buffer info to be safe, though we expect C-contiguous.
-            const py::ssize_t stride0 = buf.strides[0];
-            char* dst_base = static_cast<char*>(buf.ptr);
-
-            // DEBUG PRINT
-            // printf("Parallel Export: rows=%llu, cols=%llu, stride0=%lld, threads=%zu\n",
-            //        (unsigned long long)rows, (unsigned long long)cols, (long long)stride0, pycauset::ThreadPool::get_num_threads());
-            
-            pycauset::ParallelFor(0, rows, [&](size_t i) {
-                const T* src_row = src_ptr + i * cols;
-                // Calculate destination row using stride
-                T* dst_row = reinterpret_cast<T*>(dst_base + i * stride0);
-                std::memcpy(dst_row, src_row, cols * sizeof(T));
-            });
-        }
-    } else {
-        // Fallback: Safe single-threaded consistency
-        std::memcpy(dst_ptr, src_ptr, total_bytes);
-    }
-
-    return result;
 }
 
 template <typename T>
@@ -1497,146 +1424,61 @@ inline bool is_float_dtype(const DataType dt) {
 
 
 // ---------------------------------------------------------------------------
-// Native NumPy export for dense matrices of any dtype (used by _to_numpy_fast).
-// Contiguous, unscaled, non-transposed storage is memcpy'd; otherwise elements are
-// read exactly through the typed accessor (float/complex apply the lazy scalar and
-// conjugation through the virtual accessors). Returns None if `mat` isn't dense.
+// NumPy export (to_numpy, np.asarray, __array__), one path for every class, dtype and view:
+// the logical values as plain dense storage of the matrix's dtype (the shared typed reader:
+// to_dense / write_out; no copy for plain dense storage), then one copy into the array.
+// bool: packed bits unpacked to bytes; float16: the uint16 bits viewed as float16;
+// complex_float16: complex64 (NumPy has no complex32). Replaces three exporters (dense-only
+// typed, generic per-element, and __array__ with a float64 default for unknown classes).
 // ---------------------------------------------------------------------------
-template <typename T, typename NpT = T>
-py::object export_dense_typed(const MatrixBase& mat) {
-    auto* m = dynamic_cast<const DenseMatrix<T>*>(&mat);
-    if (!m) return py::none();
-    const uint64_t rows = mat.rows(), cols = mat.cols();
-    py::array_t<NpT> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-    const bool unit_view = mat.get_scalar() == std::complex<double>(1.0, 0.0) && !mat.is_conjugated();
-    if (unit_view && !mat.is_transposed() && !mat.is_subview() && mat.shared_mapper()) {
-        if (const void* src = mat.shared_mapper()->get_data()) {
-            std::memcpy(static_cast<void*>(out.request().ptr), src, rows * cols * sizeof(T));
-            return out;
-        }
-    }
-    auto r = out.template mutable_unchecked<2>();
-    for (uint64_t i = 0; i < rows; ++i) {
-        for (uint64_t j = 0; j < cols; ++j) {
-            if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-                // Integer views (F-042): factor applied with NumPy's wrapping.
-                r(i, j) = unit_view ? m->get(i, j)
-                                    : pycauset::scalar::wrap_scale(m->get(i, j), static_cast<int64_t>(mat.get_scalar().real()));
-            } else if constexpr (std::is_integral_v<T>) {
-                r(i, j) = m->get(i, j);
-            } else if constexpr (std::is_same_v<T, pycauset::float16_t>) {
-                const double v = m->get_element_as_double(i, j);
-                r(i, j) = pycauset::float16_t(v).bits;
-            } else if constexpr (std::is_floating_point_v<T>) {
-                r(i, j) = static_cast<T>(m->get_element_as_double(i, j));
-            } else {
-                const std::complex<double> v = m->get_element_as_complex(i, j);
-                r(i, j) = T(static_cast<typename T::value_type>(v.real()), static_cast<typename T::value_type>(v.imag()));
-            }
-        }
-    }
-    return out;
-}
-
-inline py::object export_dense_any(const MatrixBase& mat) {
-    switch (mat.get_data_type()) {
-        case DataType::INT8: return export_dense_typed<int8_t>(mat);
-        case DataType::INT16: return export_dense_typed<int16_t>(mat);
-        case DataType::INT32: return export_dense_typed<int32_t>(mat);
-        case DataType::INT64: return export_dense_typed<int64_t>(mat);
-        case DataType::UINT8: return export_dense_typed<uint8_t>(mat);
-        case DataType::UINT16: return export_dense_typed<uint16_t>(mat);
-        case DataType::UINT32: return export_dense_typed<uint32_t>(mat);
-        case DataType::UINT64: return export_dense_typed<uint64_t>(mat);
-        case DataType::FLOAT32: return export_dense_typed<float>(mat);
-        case DataType::FLOAT64: return export_dense_typed<double>(mat);
-        case DataType::FLOAT16: {
-            py::object raw = export_dense_typed<pycauset::float16_t, uint16_t>(mat);
-            return raw.is_none() ? raw : raw.attr("view")(py::module_::import("numpy").attr("float16"));
-        }
-        case DataType::COMPLEX_FLOAT32: return export_dense_typed<std::complex<float>>(mat);
-        case DataType::COMPLEX_FLOAT64: return export_dense_typed<std::complex<double>>(mat);
-        default: return py::none();
-    }
-}
-
-// Any structure / dtype (triangular, symmetric, diagonal, identity, closures, bits,
-// complex16): read every logical element in C++ (exact for integers, view-aware) into a new
-// NumPy array. Replaces a Python per-element loop (~100x slower).
-inline py::object export_generic(const MatrixBase& mat) {
+inline py::object export_numpy(const MatrixBase& mat) {
     const uint64_t rows = mat.rows(), cols = mat.cols();
     const DataType dt = mat.get_data_type();
-    const char* np_name = nullptr;
-    switch (dt) {
-        case DataType::BIT: np_name = "bool"; break;
-        case DataType::INT8: np_name = "int8"; break;
-        case DataType::INT16: np_name = "int16"; break;
-        case DataType::INT32: np_name = "int32"; break;
-        case DataType::INT64: np_name = "int64"; break;
-        case DataType::UINT8: np_name = "uint8"; break;
-        case DataType::UINT16: np_name = "uint16"; break;
-        case DataType::UINT32: np_name = "uint32"; break;
-        case DataType::UINT64: np_name = "uint64"; break;
-        case DataType::FLOAT16: np_name = "float16"; break;
-        case DataType::FLOAT32: np_name = "float32"; break;
-        case DataType::FLOAT64: np_name = "float64"; break;
-        case DataType::COMPLEX_FLOAT16:
-        case DataType::COMPLEX_FLOAT32: np_name = "complex64"; break;
-        case DataType::COMPLEX_FLOAT64: np_name = "complex128"; break;
-        default: return py::none();
-    }
-    py::array out(py::dtype(np_name), std::vector<py::ssize_t>{static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-    void* dst = out.mutable_data();
-    if (pycauset::is_integer_or_bit(dt)) {
-        const bool scaled = mat.get_scalar() != std::complex<double>(1.0, 0.0);
-        if (scaled && !pycauset::scalar::is_exact_int_factor(mat.get_scalar())) return py::none();
-        const int64_t k = static_cast<int64_t>(mat.get_scalar().real());
+    const bool plain = mat.get_structure() == pycauset::Structure::DENSE && pycauset::is_plain(mat) &&
+                       rows == mat.base_rows() && cols == mat.base_cols() &&
+                       dynamic_cast<const pycauset::BitClosureMatrix*>(&mat) == nullptr;
+    std::unique_ptr<MatrixBase> h;
+    if (!plain) {
         py::gil_scoped_release release;
-        pycauset::visit_matrix(mat, [&](const auto& typed) {
-            using E = element_of_t<std::decay_t<decltype(typed)>>;
-            if constexpr (std::is_integral_v<E>) {
-                auto* p = static_cast<E*>(dst);
-                pycauset::ParallelFor(0, rows, [&](size_t i) {
-                    for (uint64_t j = 0; j < cols; ++j) {
-                        const E v = typed.get(i, j);
-                        p[i * cols + j] = scaled ? pycauset::scalar::wrap_scale(v, k) : v;
-                    }
-                });
-            }
+        h = dt == DataType::BIT ? pycauset::write_out(mat) : pycauset::to_dense(mat, dt);
+    }
+    const MatrixBase& src = h ? *h : mat;
+    const std::vector<py::ssize_t> shape{static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)};
+    if (dt == DataType::BIT) {
+        py::array_t<bool> out(shape);
+        bool* dst = out.mutable_data();
+        const auto& b = static_cast<const DenseMatrix<bool>&>(src);
+        const uint64_t* words = b.data();
+        const uint64_t stride = b.stride_bytes() / 8;
+        py::gil_scoped_release release;
+        pycauset::ParallelFor(0, rows, [&](size_t i) {
+            const uint64_t* w = words + i * stride;
+            for (uint64_t j = 0; j < cols; ++j) dst[i * cols + j] = (w[j / 64] >> (j % 64)) & 1u;
         });
         return out;
     }
-    py::gil_scoped_release release;
-    if (dt == DataType::FLOAT16) {
-        auto* p = static_cast<uint16_t*>(dst);
-        pycauset::ParallelFor(0, rows, [&](size_t i) {
-            for (uint64_t j = 0; j < cols; ++j) p[i * cols + j] = pycauset::float16_t(mat.get_element_as_double(i, j)).bits;
-        });
-    } else if (dt == DataType::FLOAT32) {
-        auto* p = static_cast<float*>(dst);
-        pycauset::ParallelFor(0, rows, [&](size_t i) {
-            for (uint64_t j = 0; j < cols; ++j) p[i * cols + j] = static_cast<float>(mat.get_element_as_double(i, j));
-        });
-    } else if (dt == DataType::FLOAT64) {
-        auto* p = static_cast<double*>(dst);
-        pycauset::ParallelFor(0, rows, [&](size_t i) {
-            for (uint64_t j = 0; j < cols; ++j) p[i * cols + j] = mat.get_element_as_double(i, j);
-        });
-    } else if (dt == DataType::COMPLEX_FLOAT64) {
-        auto* p = static_cast<std::complex<double>*>(dst);
-        pycauset::ParallelFor(0, rows, [&](size_t i) {
-            for (uint64_t j = 0; j < cols; ++j) p[i * cols + j] = mat.get_element_as_complex(i, j);
-        });
-    } else {
-        auto* p = static_cast<std::complex<float>*>(dst);
-        pycauset::ParallelFor(0, rows, [&](size_t i) {
-            for (uint64_t j = 0; j < cols; ++j) p[i * cols + j] = static_cast<std::complex<float>>(mat.get_element_as_complex(i, j));
-        });
+    if (dt == DataType::COMPLEX_FLOAT16) {
+        py::array_t<std::complex<float>> out(shape);
+        std::complex<float>* dst = out.mutable_data();
+        const auto& c = static_cast<const pycauset::ComplexFloat16Matrix&>(src);
+        const pycauset::float16_t* re = c.real_data();
+        const pycauset::float16_t* im = c.imag_data();
+        for (uint64_t k = 0; k < rows * cols; ++k) dst[k] = {static_cast<float>(re[k]), static_cast<float>(im[k])};
+        return out;
     }
+    static const std::map<DataType, const char*> names = {
+        {DataType::INT8, "int8"}, {DataType::INT16, "int16"}, {DataType::INT32, "int32"}, {DataType::INT64, "int64"},
+        {DataType::UINT8, "uint8"}, {DataType::UINT16, "uint16"}, {DataType::UINT32, "uint32"},
+        {DataType::UINT64, "uint64"}, {DataType::FLOAT16, "float16"}, {DataType::FLOAT32, "float32"},
+        {DataType::FLOAT64, "float64"}, {DataType::COMPLEX_FLOAT32, "complex64"},
+        {DataType::COMPLEX_FLOAT64, "complex128"}};
+    const auto it = names.find(dt);
+    if (it == names.end()) throw py::type_error(std::string("no NumPy dtype for ") + pycauset::dtype_name(dt));
+    py::array out(py::dtype(it->second), shape);
+    const void* data = src.shared_mapper()->get_data();
+    std::memcpy(out.mutable_data(), data, static_cast<size_t>(rows * cols) * static_cast<size_t>(out.itemsize()));
     return out;
 }
-
-
 
 // Matrix arithmetic, the single operator path (PLAN 4.3): `a op other` (`other op a` when
 // reflected) for another matrix, any Python/NumPy scalar, or a NumPy array. Scalars go to
@@ -1706,9 +1548,6 @@ void bind_matrix_classes(py::module_& m) {
         .def("set_transposed", &MatrixBase::set_transposed)
         .def("is_conjugated", &MatrixBase::is_conjugated)
         .def("set_conjugated", &MatrixBase::set_conjugated)
-        .def("_get_properties_flags", &MatrixBase::get_properties_flags)
-        .def("_set_properties_flags", &MatrixBase::set_properties_flags)
-        .def("_set_property_flag", &MatrixBase::set_property_flag, py::arg("flag"), py::arg("value"))
         .def_property_readonly(
             "T",
             [](const MatrixBase& mat) {
@@ -1769,191 +1608,14 @@ void bind_matrix_classes(py::module_& m) {
             if (!allow_huge) {
                 pycauset::bindings::ensure_numpy_export_allowed(mat);
             }
-            // One generic exporter for every dense dtype (previously only float64,
-            // int32 and complex128 had a native path; the rest fell into a slow Python
-            // loop that read 64-bit integers through double and lost precision).
-            py::object out = export_dense_any(mat);
-            if (!out.is_none()) return out;
-            return export_generic(mat);
+            return export_numpy(mat);
         }, py::arg("allow_huge") = false)
         .def(
             "__array__",
-            [](const MatrixBase& mat, py::object /*dtype*/, py::object /*copy*/) -> py::array {
+            [](const MatrixBase& mat, py::object dtype, py::object /*copy*/) -> py::object {
                 pycauset::bindings::ensure_numpy_export_allowed(mat);
-                uint64_t rows = mat.rows();
-                uint64_t cols = mat.cols();
-
-                const DataType dt = mat.get_data_type();
-                if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
-                    if (dt == DataType::COMPLEX_FLOAT64) {
-                        py::array out(
-                            py::dtype("complex128"),
-                            py::array::ShapeContainer{static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                        auto buf = out.request();
-                        auto* dst_ptr = static_cast<std::complex<double>*>(buf.ptr);
-                        const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(std::complex<double>)));
-                        const auto stride1 = static_cast<uint64_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(std::complex<double>)));
-                        for (uint64_t i = 0; i < rows; ++i) {
-                            for (uint64_t j = 0; j < cols; ++j) {
-                                dst_ptr[i * stride0 + j * stride1] = mat.get_element_as_complex(i, j);
-                            }
-                        }
-                        return out;
-                    }
-
-                    // complex64 for both complex_float16 and complex_float32.
-                    py::array out(
-                        py::dtype("complex64"),
-                        py::array::ShapeContainer{static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto buf = out.request();
-                    auto* dst_ptr = static_cast<std::complex<float>*>(buf.ptr);
-                    const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(std::complex<float>)));
-                    const auto stride1 = static_cast<uint64_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(std::complex<float>)));
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            const std::complex<double> v = mat.get_element_as_complex(i, j);
-                            dst_ptr[i * stride0 + j * stride1] = std::complex<float>(static_cast<float>(v.real()), static_cast<float>(v.imag()));
-                        }
-                    }
-                    return out;
-                }
-
-                if (auto* mf16 = dynamic_cast<const DenseMatrix<pycauset::float16_t>*>(&mat)) {
-                    py::array out(
-                        py::dtype("float16"),
-                        py::array::ShapeContainer{static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto buf = out.request();
-                    auto* dst_ptr = static_cast<uint16_t*>(buf.ptr);
-                    const auto stride0 = static_cast<uint64_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
-                    const auto stride1 = static_cast<uint64_t>(buf.strides[1] / static_cast<py::ssize_t>(sizeof(uint16_t)));
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            dst_ptr[i * stride0 + j * stride1] = mf16->get(i, j).bits;
-                        }
-                    }
-                    return out;
-                }
-                if (auto* mf32 = dynamic_cast<const DenseMatrix<float>*>(&mat)) {
-                    py::array_t<float> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.template mutable_unchecked<2>();
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            (void)mf32;
-                            r(i, j) = static_cast<float>(mat.get_element_as_double(i, j));
-                        }
-                    }
-                    return out;
-                }
-                if (auto* mi32 = dynamic_cast<const DenseMatrix<int32_t>*>(&mat)) {
-                    py::array_t<int32_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.template mutable_unchecked<2>();
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            r(i, j) = mi32->get(i, j);
-                        }
-                    }
-                    return out;
-                }
-                if (auto* mi64 = dynamic_cast<const DenseMatrix<int64_t>*>(&mat)) {
-                    py::array_t<int64_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.template mutable_unchecked<2>();
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            r(i, j) = mi64->get(i, j);
-                        }
-                    }
-                    return out;
-                }
-                if (auto* mi8 = dynamic_cast<const DenseMatrix<int8_t>*>(&mat)) {
-                    py::array_t<int8_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.template mutable_unchecked<2>();
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            r(i, j) = mi8->get(i, j);
-                        }
-                    }
-                    return out;
-                }
-                if (auto* mi16 = dynamic_cast<const DenseMatrix<int16_t>*>(&mat)) {
-                    py::array_t<int16_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.template mutable_unchecked<2>();
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            r(i, j) = mi16->get(i, j);
-                        }
-                    }
-                    return out;
-                }
-                if (auto* mu8 = dynamic_cast<const DenseMatrix<uint8_t>*>(&mat)) {
-                    py::array_t<uint8_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.template mutable_unchecked<2>();
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            r(i, j) = mu8->get(i, j);
-                        }
-                    }
-                    return out;
-                }
-                if (auto* mu16 = dynamic_cast<const DenseMatrix<uint16_t>*>(&mat)) {
-                    py::array_t<uint16_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.template mutable_unchecked<2>();
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            r(i, j) = mu16->get(i, j);
-                        }
-                    }
-                    return out;
-                }
-                if (auto* mu32 = dynamic_cast<const DenseMatrix<uint32_t>*>(&mat)) {
-                    py::array_t<uint32_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.template mutable_unchecked<2>();
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            r(i, j) = mu32->get(i, j);
-                        }
-                    }
-                    return out;
-                }
-                if (auto* mu64 = dynamic_cast<const DenseMatrix<uint64_t>*>(&mat)) {
-                    py::array_t<uint64_t> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.template mutable_unchecked<2>();
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            r(i, j) = mu64->get(i, j);
-                        }
-                    }
-                    return out;
-                }
-                if (auto* mb = dynamic_cast<const DenseBitMatrix*>(&mat)) {
-                    py::array_t<bool> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.template mutable_unchecked<2>();
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            r(i, j) = mb->get(i, j);
-                        }
-                    }
-                    return out;
-                }
-                if (auto* mtb = dynamic_cast<const TriangularBitMatrix*>(&mat)) {
-                    py::array_t<bool> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                    auto r = out.template mutable_unchecked<2>();
-                    for (uint64_t i = 0; i < rows; ++i) {
-                        for (uint64_t j = 0; j < cols; ++j) {
-                            r(i, j) = mtb->get(i, j);
-                        }
-                    }
-                    return out;
-                }
-
-                // Default: float64
-                py::array_t<double> out({static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)});
-                auto r = out.template mutable_unchecked<2>();
-                for (uint64_t i = 0; i < rows; ++i) {
-                    for (uint64_t j = 0; j < cols; ++j) {
-                        r(i, j) = mat.get_element_as_double(i, j);
-                    }
-                }
-                return out;
+                py::object out = export_numpy(mat);
+                return dtype.is_none() ? out : out.attr("astype")(dtype);
             },
             py::arg("dtype") = py::none(),
             py::arg("copy") = py::none())
@@ -2363,6 +2025,11 @@ void bind_matrix_classes(py::module_& m) {
     m.def("_debug_is_closure", [](const MatrixBase& mat) {
         return dynamic_cast<const pycauset::BitClosureMatrix*>(&mat) != nullptr;
     }, py::arg("matrix"), "True for a lazy closure result (its work happens when it is evaluated).");
+    m.def("_pack_as", [](const MatrixBase& mat, const std::string& structure, bool has_diagonal) {
+        return std::shared_ptr<MatrixBase>(
+            pycauset::pack_as(mat, pycauset::parse_structure(structure), has_diagonal).release());
+    }, py::arg("matrix"), py::arg("structure"), py::arg("has_diagonal") = false,
+       "Internal: the stored region of `matrix` as a new matrix of `structure` (same dtype).");
     m.def("_structure_of", [](const py::object& obj) -> std::string {
         if (py::isinstance<MatrixBase>(obj)) return pycauset::structure_name(obj.cast<const MatrixBase&>().get_structure());
         if (py::isinstance<VectorBase>(obj)) return pycauset::structure_name(obj.cast<const VectorBase&>().get_structure());

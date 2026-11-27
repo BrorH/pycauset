@@ -16,13 +16,7 @@ A scalar: the trace (sum of `a[i, i]`).
 
 ## Notes
 
-Structural shortcuts apply when the matrix carries a `properties` assertion:
-
-*   `is_zero` returns `0`.
-*   `is_identity` returns `n`.
-*   `is_diagonal` with a known `diagonal_value` returns `diagonal_value * n`.
-
-Otherwise the native `trace()` method is used, falling back to NumPy.
+Computed by the engine for every dtype, structure and view: an exact integer for integer matrices, float or complex otherwise (F-059).
 
 ## Examples
 

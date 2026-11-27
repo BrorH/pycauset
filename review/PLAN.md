@@ -315,6 +315,10 @@ are engine-owned metadata on the storage).
 
 ---
 
+## Potential future features (not scheduled; maintainer decides when)
+- Per-block payload checksum in the container (detects modification of a saved file by
+  another program; lets the derived-value cache survive that case). DERIVED_CACHE.md, limits.
+
 ## Area-notes template (`review/areas/<area>.md`)
 ```
 # Area: <name>

@@ -1,30 +1,23 @@
 # pycauset.solve_triangular
 
-Solve a linear system $A x = b$ when $A$ is claimed to be diagonal or triangular via A.properties.
-
-## Signature
-
 ```python
-pycauset.solve_triangular(A, b)
+pycauset.solve_triangular(a, b)
 ```
 
-## Behavior (R1_PROPERTIES)
+Solves $A X = B$ for a triangular, diagonal or identity $A$: a
+[[docs/classes/matrix/pycauset.TriangularMatrix.md|TriangularMatrix]] (or a view of one, such
+as its transpose), a `DiagonalMatrix` or an `IdentityMatrix`. Any other matrix raises
+`ValueError`; use [[docs/functions/pycauset.solve.md|pycauset.solve]] for general systems.
 
-- Uses gospel properties, not truth validation. If A.properties["is_diagonal"] or is_upper_triangular / is_lower_triangular is set, the solver treats off-triangle entries as zero.
-- Diagonal path: elementwise divide.
-- Triangular path: converts to the native TriangularMatrix (float64) and solves via the native inverse then matmul.
-- Shape must be square; raises ValueError otherwise.
-- If no triangular/diagonal claim is present, falls back to pycauset.solve or raises.
+The answer is the same as `pycauset.solve(a, b)` (LU in NumPy's LAPACK dtype; a singular
+matrix, e.g. a strictly triangular one, raises).
 
 ## Examples
 
 ```python
-A = pycauset.identity(3)
-A.properties["is_upper_triangular"] = True  # gospel assertion
-b = pycauset.vector([1, 2, 3])
-x = pycauset.solve_triangular(A, b)
+import pycauset as pc
+
+A = pc.TriangularMatrix(3, dtype="float64", has_diagonal=True)
+A[0, 0], A[1, 1], A[2, 2], A[0, 2] = 1.0, 2.0, 4.0, 1.0
+x = pc.solve_triangular(A, pc.vector([1.0, 2.0, 3.0]))
 ```
-
-## Notes
-
-- Properties are authoritative; the solver does not scan payloads to verify structure.

@@ -4,33 +4,31 @@
 pycauset.symmetric(data, *, rtol=None, atol=None)
 ```
 
-Creates a symmetric matrix ($A = A^T$) from a 2D array or nested sequence, with validation.
+Creates a [[docs/classes/matrix/pycauset.SymmetricMatrix.md|pycauset.SymmetricMatrix]]
+($A = A^T$, packed upper triangle, about half the memory of dense) from a 2D array, in the
+input's dtype (every dtype, including complex: a complex symmetric matrix is not Hermitian,
+see [[docs/functions/pycauset.hermitian.md|pycauset.hermitian]]).
 
 ## Parameters
 
-*   **data** (array-like): A 2D square array (or nested sequence).
-*   **rtol** (float, optional): Relative tolerance for the floating-point symmetry check. Defaults to `1e-5`.
-*   **atol** (float, optional): Absolute tolerance for the floating-point symmetry check. Defaults to `1e-8`.
-
-## Returns
-
-*   Float input (`float32`/`float16`/`float64`): a [[docs/classes/matrix/pycauset.SymmetricMatrix.md|pycauset.SymmetricMatrix]] with packed upper-triangle storage (about 2x smaller than dense).
-*   Integer/bool input: the corresponding dense matrix with `is_symmetric=True` asserted (exact storage, no packing in R1).
+*   **data** (array-like): a 2D square array.
+*   **rtol**, **atol** (float, optional): tolerances of the float/complex check (defaults `1e-5`, `1e-8`).
 
 ## Validation
 
-The structure is always validated. Integer/bool input uses exact `A == A.T`; floating input uses `numpy.allclose(A, A.T, rtol=..., atol=...)`. Complex input is rejected (`TypeError`), and non-square or non-symmetric input raises `ValueError`.
+Always: integer/bool input exactly, float and complex input with `numpy.allclose(..., rtol, atol)`
+(the input is an array-like; only the stored triangle is kept). Non-square, empty or
+non-conforming input raises `ValueError`.
 
 ## Examples
 
 ```python
 import pycauset as pc
 
-S = pc.symmetric([ [2.0, 1.0], [1.0, 5.0] ])
-S.properties["is_symmetric"]   # True
+S = pc.symmetric([[2, 1], [1, 5]])   # SymmetricMatrix, int64
 ```
 
 ## See also
 
 * [[docs/functions/pycauset.antisymmetric.md|pycauset.antisymmetric]]
-* [[docs/classes/matrix/pycauset.SymmetricMatrix.md|pycauset.SymmetricMatrix]]
+* [[docs/functions/pycauset.hermitian.md|pycauset.hermitian]]

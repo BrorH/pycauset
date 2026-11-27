@@ -263,6 +263,10 @@ class Op:
     compare: str = "values"  # values | sorted | invariant
     ints_ok: bool = True
     bool_ok: bool = True
+    # Element access by definition (x[i, j] in a loop): one accessor call per requested element
+    # is the operation itself, O(1) each, not a generic path. Up to `per_element` accesses per
+    # row of the operand classify as fast.
+    per_element: int = 0
 
 
 def _svals(x):
@@ -316,7 +320,7 @@ OPS: list[Op] = [
     # construction, conversion, indexing, persistence
     Op("export", "io", lambda x, y: x, lambda a, b: a, vector=True),
     Op("getitem", "io", lambda x, y: [x[i, (i * 5) % x.shape[1]] for i in range(x.shape[0])],
-       lambda a, b: [a[i, (i * 5) % a.shape[1]] for i in range(a.shape[0])]),
+       lambda a, b: [a[i, (i * 5) % a.shape[1]] for i in range(a.shape[0])], per_element=1),
     Op("save_load", "io", lambda x, y: _save_load(x), lambda a, b: a, vector=True),
 ]
 OP_BY_NAME = {o.name: o for o in OPS}
@@ -645,7 +649,7 @@ def classify(cell: Cell, op: Op) -> str:
     # (measured by the timing pass, tests/atlas/timing.py). The threshold is one call per
     # element of a row (N), not a fixed count: a 16-element vector op makes 32 calls, which a
     # fixed threshold of 64 classified as fast.
-    if cell.accesses >= N:
+    if cell.accesses >= N and not (op.per_element and cell.accesses <= op.per_element * N):
         return "generic"
     if "write_out" in cell.kernels:
         return "written-out" if op.o_n2 else "fast"
