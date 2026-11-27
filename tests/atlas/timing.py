@@ -50,7 +50,10 @@ def _best(fn, budget=1.0):
     return best
 
 
-_OPERANDS: dict = {}
+# Built operands, reused across the views of one cell (the innermost loop). A small LRU: an
+# unbounded cache held every 1024 x 1024 operand of the pass (14 GB, OOM-killed).
+_OPERANDS: "collections.OrderedDict" = collections.OrderedDict()
+_OPERANDS_MAX = 6
 
 
 def _operand(structure, dtype, view, seed, n, linalg):
@@ -74,6 +77,9 @@ def _operand(structure, dtype, view, seed, n, linalg):
         finally:
             A._dominant = dominant
         _OPERANDS[key] = (_build_fast(structure, dtype, a, seed), a)
+        while len(_OPERANDS) > _OPERANDS_MAX:
+            _OPERANDS.popitem(last=False)
+    _OPERANDS.move_to_end(key)
     m, a = _OPERANDS[key]
     pc._native._set_lazy(True)  # views are built as views
     v = A.VIEWS[view][0](m)
@@ -98,6 +104,18 @@ def _build_fast(structure, dtype, a, seed):
         raise A.Unavailable(str(e)) from None
     pc._native._debug_fill(m, np.asarray(a, dtype=np.complex128))
     return m
+
+
+def _rss_mb() -> int:
+    """Current resident memory (MB): the progress line shows leaks before the OOM killer does."""
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) // 1024
+    except OSError:
+        pass
+    return -1
 
 
 def _previously_fast() -> set[str]:
@@ -152,7 +170,7 @@ def main(argv=None) -> None:
         rows.append(dict(key=c.key(), op=c.op, dtype=c.dtype, structure=c.structure, view=c.view, n=n,
                          t_pc=t_pc, t_np=t_np, speed=t_np / t_pc if t_pc > 0 else float("inf")))
         if i % 100 == 0:
-            print(f"{i}/{len(cells)} {time.time() - t0:.0f}s", file=sys.stderr, flush=True)
+            print(f"{i}/{len(cells)} {time.time() - t0:.0f}s rss {_rss_mb()} MB {c.key()}", file=sys.stderr, flush=True)
     A.N = 16
     A.W = 14
     overhead = _call_overhead()
