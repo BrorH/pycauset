@@ -186,7 +186,8 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
       private element readers (atlas generic after N.2): norm 674 (done, F-085: 11 left), div 564, vecmat 511,
       det/slogdet 457 each, matvec 446, mul/sub/add ~250 each, export 187, save_load 172,
       sum 145, add/rsub scalar 129 each. Rewrite `protocols/Adding Operations.md` around it.
-- [ ] N.6 Per-call overhead (F-083 a): 30-50 µs per `+` / `@` vs NumPy's 0.3-0.7 µs; profile
+- [~] N.6 Per-call overhead (F-083 a; F-096: `a + b` 29 -> 1.9 µs, `a @ b` 49 -> 2.8 µs;
+      remaining in `pc.matmul`'s Python layer and the operator wrappers). Original item:: 30-50 µs per `+` / `@` vs NumPy's 0.3-0.7 µs; profile
       the Python wrapper stack (monkeypatches, property patches, io traces) and cut it.
 - [~] N.7 Row readers for every class (the speed half of N.2). Done (F-094, F-095): typed
       `read_rows`/`read_diagonal` for every class; det/sum/trace/export/element-wise/bool

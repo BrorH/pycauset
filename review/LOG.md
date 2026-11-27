@@ -407,3 +407,8 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   rect_T / rect_T_scaled. F-096: per-call overhead first pass (debug strings, trace
   deep-copy, pool wake-ups for tiny loops): pc.sum 51 -> 0.7 µs, pc.matmul 136 -> 54 µs.
   Atlas 88,361 cells, 0 ✗, fast 40,212, generic 1,556 (from 10,152 this morning).
+- N.6: stack sampling (gdb) found the MemoryGovernor re-reading /proc/meminfo on every
+  allocation; with that, heap storage for small objects and the earlier cuts, `a + b` on
+  4 x 4 went 29 -> 1.9 µs. F-098: export's silent Python fallback removed; dot, diagonal
+  matmul, inverse rules and complex32 element-wise typed. Atlas: 88,361 cells, 0 ✗, fast
+  41,529, generic 239 (10,152 at the start of the night).

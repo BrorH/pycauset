@@ -1221,9 +1221,14 @@ the entry (the history is useful). New findings go at the bottom with the next f
     mutex per worker, ~10-20 µs): a 4-row matrix ran its 4 rows on 4 threads. Now loops below
     32 items run inline; the typed readers block rows coarser (2^18 elements per block) so
     large matrices still run in parallel.
-- Remaining: the native call itself for tiny operands (result allocation through the
-  MemoryGovernor and an anonymous mapping), the Python operator wrappers (`patching.py`,
-  `__init__` tracking of every result in a WeakSet) and the IO trace itself (PLAN 4.7).
+  - the MemoryGovernor re-read `/proc/meminfo` (an ifstream parse) on every allocation and
+    every kernel's direct-path check, several times per operation (found by sampling stacks
+    with gdb): now at most every 20 ms.
+  - every RAM object was an anonymous mmap; objects up to 256 KiB now come from the heap.
+- Result (4 x 4 operands): `a + b` 29 -> 1.9 µs, `a @ b` 49 -> 2.8 µs, `pc.matmul` 136 ->
+  18.6 µs, `pc.sum` 51 -> 0.7 µs, `a @ v` 5.1 µs.
+- Remaining: `pc.matmul`'s Python layer (BlockMatrix import, IO trace: PLAN 4.7), the
+  operator wrappers in `patching.py` and the WeakSet tracking of every result.
 
 ### F-097 Views of non-square or windowed matrices: wrong values (atlas blind spot)
 - **Status:** fixed (session 8; found while moving matvec onto matmul, `I @ v` gave
@@ -1242,3 +1247,14 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Why the atlas missed it: every operand was square and no view combined a window with a
   transposition. New atlas views `rect_T` (a rectangular window, transposed) and
   `rect_T_scaled` (then scaled); regression `test_F097_*`.
+
+### F-098 Export fell back silently to a Python per-element loop; last generic paths typed
+- **Status:** fixed (session 8). `export_to_numpy` wrapped the native exporter in
+  `try/except: pass`, then read element by element in Python (every vector took this path:
+  vectors had no native exporter call). Now one native call for matrices and vectors
+  (`_to_numpy_fast`), no fallback; `dtype` converts afterwards.
+- Typed as well: `dot` (BLAS / popcount for plain operands, the row reader otherwise), the
+  matmul diagonal rule (now every dtype, complex included; integer products exact and range
+  checked), the inverse's diagonal and triangular rules (`read_diagonal`, `pack_as`), complex32
+  element-wise ops. Atlas: generic 1,556 -> 239 (the remainder: lazy closures and windows of
+  structured classes, read virtually by design, and integer matmul_power rules).
