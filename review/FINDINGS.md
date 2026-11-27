@@ -1225,6 +1225,15 @@ the entry (the history is useful). New findings go at the bottom with the next f
     every kernel's direct-path check, several times per operation (found by sampling stacks
     with gdb): now at most every 20 ms.
   - every RAM object was an anonymous mmap; objects up to 256 KiB now come from the heap.
+  - anonymous storage of 2 MB and more was marked `MADV_HUGEPAGE`; with the common kernel
+    setting `defrag = madvise` that means synchronous compaction on fault and khugepaged
+    collapsing the region later: a freshly imported 1024 x 1024 float64 matrix read 50x
+    slower for its first several calls (norm 32 ms, then 3 ms, then 0.6 ms), which is what
+    the timing pass measured for most O(n^2) cells. The hint is gone.
+  - the timing harness took the best of 3 runs; on a shared machine sub-millisecond
+    operations swung by 100x between passes. It now samples each side until 0.05 s and
+    alternates NumPy and PyCauset rounds. Its operand cache was unbounded (14 GB, OOM-killed
+    the pass) and is now a 6-entry LRU.
 - Result (4 x 4 operands): `a + b` 29 -> 1.9 µs, `a @ b` 49 -> 2.8 µs, `pc.matmul` 136 ->
   18.6 µs, `pc.sum` 51 -> 0.7 µs, `a @ v` 5.1 µs.
 - Remaining: `pc.matmul`'s Python layer (BlockMatrix import, IO trace: PLAN 4.7), the
