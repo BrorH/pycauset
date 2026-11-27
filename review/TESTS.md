@@ -106,7 +106,9 @@ few hundred lines.
   (4,185 lines) deleted after their unique Python and C++ lines were covered by new tests
   (`test_warnings.py`, `test_api_surface.py`, `test_interop.py`). Writing those tests found
   F-102, F-103, F-104. Physics tests moved to `tests/physics/` (kept; smoke tier for R1).
-  `tests/python` has 44 files left.
+  Batch 2: 17 more (2,270 lines), new `tests/engine/test_storage.py`, physics
+  `test_minkowski_paths_agree.py` (found F-105). `tests/python` has 27 files left (storage /
+  snapshot / persistence and the eight block-matrix files).
 
 ## 5. Running tests cheaply (for agents)
 - Default: `pytest -q -p no:warnings --tb=short` → one line on success.

@@ -1375,3 +1375,15 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - `m[[0, 2], :]` (a Python list as an index) raises; `m[np.array([0, 2]), cols]` works.
   - `ndarray @ m` raises TypeError: `__array_ufunc__ = None` makes NumPy defer, but there is
     no `__rmatmul__`.
+
+### F-105 MinkowskiDiamond(d > 2) is not Minkowski space, silently
+- **Status:** open, maintainer decision (session 9). For d > 2 both implementations (Python
+  `spacetime.MinkowskiDiamond` and native `causet/Spacetime.hpp`) sample the cube [0,1]^d
+  and order points coordinate-wise (a random d-dimensional order), documented in the
+  docstring as a placeholder ("tracked under R2_MINK"). Causality in (d-1)+1 Minkowski space
+  is not coordinate-wise for d > 2, so anything computed on such a sprinkling (Myrheim-Meyer
+  dimension, interval abundances, fields) describes a different causal set, with no warning.
+  The two implementations agree (`tests/physics/test_minkowski_paths_agree.py`).
+- Options: raise NotImplementedError for d > 2 until the true sampler exists; or warn on
+  construction; or implement the sampler (uniform in the interval I+(p) ∩ I-(q): rejection
+  sampling from the bounding box, causality by the Minkowski interval).

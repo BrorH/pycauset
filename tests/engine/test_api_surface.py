@@ -129,3 +129,82 @@ def test_hermitian_of_real_input_is_complex():
     h = pc.hermitian(np.eye(2))
     assert h.dtype == "complex_float64"
     np.testing.assert_array_equal(to_np(h), np.eye(2))
+
+
+@pytest.mark.parametrize("fn", [pc.matrix, pc.vector])
+@pytest.mark.parametrize("bad", [5, 2.0])
+def test_constructors_take_data_not_sizes(fn, bad):
+    with pytest.raises(TypeError, match="constructs from data"):
+        fn(bad)
+
+
+def test_vector_of_a_vector_is_itself():
+    v = pc.vector([1.0, 2.0])
+    assert pc.vector(v) is v
+    with pytest.raises(TypeError):
+        pc.vector(v, dtype="int32")
+
+
+@pytest.mark.parametrize("fn,np_fn", [(pc.bitwise_and, np.bitwise_and), (pc.bitwise_or, np.bitwise_or),
+                                      (pc.bitwise_xor, np.bitwise_xor)])
+def test_bitwise_functions(fn, np_fn):
+    x = np.array([[True, False], [True, True]])
+    y = np.array([[True, True], [False, True]])
+    np.testing.assert_array_equal(to_np(fn(pc.matrix(x), pc.matrix(y))), np_fn(x, y))
+
+
+def test_matrix_power_negative():
+    a = np.array([[2.0, 1.0], [0.0, 3.0]])
+    np.testing.assert_allclose(to_np(pc.matrix_power(pc.matrix(a), -2)), np.linalg.matrix_power(a, -2))
+
+
+def test_compute_k_is_c_times_inverse_of_a_i_plus_c():
+    c = np.triu(np.ones((4, 4)), 1)
+    k = pc.compute_k(pc.causal_matrix(c.astype(bool)), 2.0)
+    np.testing.assert_allclose(to_np(k), c @ np.linalg.inv(2.0 * np.eye(4) + c), atol=1e-12)
+
+
+def test_solve_triangular_requires_a_triangular_class():
+    with pytest.raises(ValueError, match="TriangularMatrix"):
+        pc.solve_triangular(pc.matrix(np.ones((2, 2))), pc.matrix(np.ones((2, 1))))
+    t = pc.TriangularMatrix(2, dtype="float64", has_diagonal=True)
+    t[0, 0], t[0, 1], t[1, 1] = 2.0, 1.0, 4.0
+    np.testing.assert_allclose(to_np(pc.solve_triangular(t, pc.matrix(np.ones((2, 1))))),
+                               np.linalg.solve([[2.0, 1.0], [0.0, 4.0]], np.ones((2, 1))))
+
+
+def test_matrix_from_ndarray_with_dtype():
+    m = pc.matrix(np.arange(4.0).reshape(2, 2), dtype="float32")
+    assert m.dtype == "float32"
+    np.testing.assert_array_equal(to_np(m), np.arange(4.0).reshape(2, 2))
+
+
+def test_causal_set_with_an_explicit_spacetime():
+    st = pc.spacetime.MinkowskiDiamond(2)
+    c = pc.CausalSet(n=20, spacetime=st, seed=1)
+    assert c.N == 20 and c.spacetime is st
+
+
+def test_matrix_from_nested_list_with_dtype_and_bit_alias():
+    assert pc.matrix([[1, 0], [0, 1]], dtype="float32").dtype == "float32"
+    assert pc.matrix([[1, 0], [0, 1]], dtype="bit").dtype == "bool"
+
+
+def test_matrix_of_existing_objects():
+    m = pc.matrix(np.eye(2))
+    assert pc.matrix(m) is m
+    with pytest.raises(TypeError, match="already a matrix"):
+        pc.matrix(m, dtype="int32")
+    with pytest.raises(TypeError, match="1D or 2D"):
+        pc.matrix(np.zeros((2, 2, 2)).tolist())
+    assert isinstance(pc.matrix([1.0, 2.0]), pc.VectorBase)  # 1-D data: a vector, as np.array
+
+
+def test_causal_matrix_of_a_size_without_population():
+    c = pc.causal_matrix(5, populate=False)
+    assert c.shape == (5, 5) and c.dtype == "bool"
+    np.testing.assert_array_equal(to_np(c), np.zeros((5, 5), dtype=bool))
+
+
+def test_causal_set_n_property():
+    assert pc.CausalSet(n=7, seed=3).n == 7

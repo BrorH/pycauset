@@ -260,3 +260,27 @@ def test_complex_matvec_matches_numpy():
     m = (np.arange(9).reshape(3, 3) + 1j).astype(np.complex64)
     v = np.arange(3, dtype=np.int32)
     np.testing.assert_allclose(to_np(pc.matrix(m) @ pc.vector(v)), m @ v, rtol=1e-6)
+
+
+def test_unit_vector_accessors():
+    u = pc.UnitVector(4, 2, dtype="float64")
+    assert [u.get_element_as_double(i) for i in range(4)] == [0.0, 0.0, 1.0, 0.0]
+    assert u.get_element_as_complex(2) == 1.0
+    c = pc.UnitVector(3, 0, dtype="complex_float64")
+    with pytest.raises(RuntimeError, match="get_element_as_complex"):
+        c.get_element_as_double(0)
+    with pytest.raises((IndexError, RuntimeError, ValueError)):
+        u.get_element_as_complex(9)
+
+
+@pytest.mark.parametrize("sym", [True, False])
+@pytest.mark.parametrize("n,k", [(4, 2), (2, 1), (3, 2)])
+def test_eigvals_arnoldi_small_matrix_uses_a_dense_solver(sym, n, k):
+    """Too small for Lanczos (k < ncv <= n) or Arnoldi (k + 2 <= ncv): a dense solver."""
+    rng = np.random.default_rng(2)
+    x = rng.standard_normal((n, n))
+    a = x + x.T if sym else x
+    got = to_np(pc.eigvals_arnoldi(pc.matrix(a), k, n))
+    ref = np.linalg.eigvalsh(a) if sym else np.linalg.eigvals(a)
+    top = ref[np.argsort(-np.abs(ref))][:k]
+    np.testing.assert_allclose(np.sort_complex(got.astype(complex)), np.sort_complex(top.astype(complex)), atol=1e-8)

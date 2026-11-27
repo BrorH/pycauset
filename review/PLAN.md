@@ -277,7 +277,8 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
       `make_unique_storage_file`) temporary itself (`PersistentObject` ctor). The Python rule
       ("under the storage root -> temporary") would also delete a user's own non-.tmp file
       saved there.
-    * Tracking feeds two things: the `set_backing_dir` "live matrices" warning and closing
+    * Tracking feeds two things: the `set_backing_dir` "live matrices" warning (which fires for
+      `pc.TriangularMatrix(...)` but not for `pc.matrix(...)` results) and closing
       live matrices before the exit-time `.tmp` sweep (needed on Windows, where a mapped file
       can't be deleted).
     * Plan: a native live-object count (a member counter in PersistentObject: ctor/copy++,
@@ -286,7 +287,7 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
       `mark_temporary_if_auto` and the `__init__` float->int argument coercion (NumPy raises
       for float sizes). Needs a Windows run before merging (exit-time cleanup).
 - [ ] 4.4 Python `_internal/` subpackages; `.pyi` generation (F-007)
-- [~] 4.5 Retire the old test suite per TESTS.md §4 migration rules (session 9: 40 of 100 files retired, 19 moved to tests/physics, 44 left)
+- [~] 4.5 Retire the old test suite per TESTS.md §4 migration rules (session 9: 57 of 100 files retired, 19 moved to tests/physics, 27 left)
 - [x] 4.6a **Structure classes** (§3.1 item 4, revised): `MatrixType`→`Structure` enum; one
       Python class per structure with `.dtype` (F-032 fixed by construction); persistence keyed
       by (structure, dtype); old per-dtype names removed from code, tests and docs
