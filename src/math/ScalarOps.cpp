@@ -269,6 +269,8 @@ R convert_in(In v) {
         return static_cast<R>(v ? 1 : 0);
     } else if constexpr (std::is_integral_v<R> || std::is_floating_point_v<R>) {
         return static_cast<R>(v);
+    } else if constexpr (std::is_same_v<In, std::complex<float>> || std::is_same_v<In, std::complex<double>>) {
+        return static_cast<R>(v);  // complex to complex
     } else {
         using V = typename R::value_type;
         return R(static_cast<V>(v), V(0));
@@ -376,8 +378,11 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
 
     // Contiguous source, same result dtype (the common case: v + 1, 3 * v, -v): raw pointer,
     // op fixed at compile time. Same arithmetic as the general loop below. Limited to R == In
-    // to keep the instantiation count (and compile memory) small.
-    if constexpr (std::is_same_v<Src, DenseMatrix<In>> && std::is_same_v<R, In> && !std::is_same_v<In, bool>) {
+    // (plus the two common promotions) to keep the instantiation count (and compile memory) small.
+    // Also for the two common promotions (to float64 and to complex128: int -> float, real ->
+    // complex), which used the per-element general loop (3x NumPy's time for v * 2j).
+    constexpr bool fast_pair = std::is_same_v<R, In> || std::is_same_v<R, double> || std::is_same_v<R, std::complex<double>>;
+    if constexpr (std::is_same_v<Src, DenseMatrix<In>> && fast_pair && !std::is_same_v<In, bool>) {
         if (!a.is_transposed() && !a.is_subview() && cols == a.base_cols()) {
             const In* p = src.data();
             auto loop = [&](auto op_c) {
@@ -503,6 +508,11 @@ std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op,
     PYCAUSET_TRY_DENSE(int8_t) PYCAUSET_TRY_DENSE(int16_t) PYCAUSET_TRY_DENSE(int32_t) PYCAUSET_TRY_DENSE(int64_t)
     PYCAUSET_TRY_DENSE(uint8_t) PYCAUSET_TRY_DENSE(uint16_t) PYCAUSET_TRY_DENSE(uint32_t) PYCAUSET_TRY_DENSE(uint64_t)
     PYCAUSET_TRY_DENSE(float) PYCAUSET_TRY_DENSE(double)
+    if constexpr (std::is_same_v<R, std::complex<float>> || std::is_same_v<R, std::complex<double>>) {
+        // Complex inputs (complex results only): typed and contiguous instead of a full copy
+        // through the wide reader (c + 1j was 5 ms for 1024 x 1024).
+        PYCAUSET_TRY_DENSE(std::complex<float>) PYCAUSET_TRY_DENSE(std::complex<double>)
+    }
     PYCAUSET_TRY_TRI(bool)
     PYCAUSET_TRY_TRI(int8_t) PYCAUSET_TRY_TRI(int16_t) PYCAUSET_TRY_TRI(int32_t) PYCAUSET_TRY_TRI(int64_t)
     PYCAUSET_TRY_TRI(uint8_t) PYCAUSET_TRY_TRI(uint16_t) PYCAUSET_TRY_TRI(uint32_t) PYCAUSET_TRY_TRI(uint64_t)
