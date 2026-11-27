@@ -412,3 +412,12 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   4 x 4 went 29 -> 1.9 µs. F-098: export's silent Python fallback removed; dot, diagonal
   matmul, inverse rules and complex32 element-wise typed. Atlas: 88,361 cells, 0 ✗, fast
   41,529, generic 239 (10,152 at the start of the night).
+- Timing pass with pycauset imported first and paired sampling (11,292 cells, n = 1024 for
+  O(n^2), 384 for O(n^3)): linear algebra is near NumPy (dense float64: det 0.97x, slogdet
+  0.97x, solve 1.7x, svdvals 1.4x, eig 0.75x, eigvals 0.74x, inv 0.82x; medians over every
+  structure: eigh 0.81, cholesky 0.75); element-wise O(n^2) is the gap (dense float64 add
+  0.81x, add_scalar 0.33x, complex-factor scaling 0.21x; structured element-wise ~0.1x;
+  per-call-bound ops such as trace and dot at 0.05-0.2x). The 0.9x target is met for 2,847
+  of 11,292 cells. Found on the way: two OpenBLAS pools (NumPy's and ours) spin against
+  each other when NumPy is imported first (warning + import order; one-pool build = PLAN 6.0);
+  fresh 8 MB results page-fault on every write (calloc storage, in build).

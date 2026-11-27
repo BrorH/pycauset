@@ -249,12 +249,10 @@ void MemoryMapper::open_file(bool create_new) {
     // write, which costs several ms for an 8MB result and dominates small
     // elementwise ops (add/multiply). VirtualAlloc gives fast anonymous commit
     // (the same class as malloc), closing most of the gap vs NumPy.
-    if (hFile_ == INVALID_HANDLE_VALUE && map_size <= kHeapLimit) {
-        // Small RAM objects from the heap (see the POSIX branch).
-        const size_t bytes = (map_size + 63) / 64 * 64;
-        base_ptr_ = _aligned_malloc(bytes, 64);
+    if (hFile_ == INVALID_HANDLE_VALUE) {
+        // RAM objects from the C heap (see the POSIX branch).
+        base_ptr_ = std::calloc(1, map_size);
         if (base_ptr_ == nullptr) throw std::bad_alloc();
-        std::memset(base_ptr_, 0, bytes);
         heap_ = true;
         hMapping_ = NULL;
         mapped_ptr_ = base_ptr_;
@@ -315,7 +313,7 @@ void MemoryMapper::open_file(bool create_new) {
 
 void MemoryMapper::close_file() {
     if (heap_) {
-        _aligned_free(base_ptr_);
+        std::free(base_ptr_);
         base_ptr_ = nullptr;
         mapped_ptr_ = nullptr;
         heap_ = false;
@@ -496,13 +494,14 @@ void MemoryMapper::open_file(bool create_new) {
         return;
     }
 
-    // Small RAM objects come from the heap: an anonymous mmap + munmap per 4 x 4 result cost
-    // ~20 us, 100x the arithmetic (review N.6, F-096). Zeroed, 64-byte aligned (bit rows).
-    if (anonymous && map_size <= kHeapLimit) {
-        const size_t bytes = (map_size + 63) / 64 * 64;
-        base_ptr_ = std::aligned_alloc(64, bytes);
+    // RAM objects come from the C heap (calloc: zeroed, 16-byte aligned). Small ones avoid an
+    // mmap + munmap per result (~20 us for a 4 x 4, F-096); large ones are reused by the
+    // allocator after a free instead of page-faulting a fresh mapping on every result (an
+    // 8 MB element-wise result spent ~0.8 ms in page faults, more than the arithmetic). calloc
+    // skips the memset for memory it gets fresh from the kernel.
+    if (anonymous) {
+        base_ptr_ = std::calloc(1, map_size);
         if (base_ptr_ == nullptr) throw std::bad_alloc();
-        std::memset(base_ptr_, 0, bytes);
         heap_ = true;
         mapped_ptr_ = base_ptr_;
         return;
