@@ -6,6 +6,7 @@ from typing import Any, Iterable
 
 from .submatrix_view import SubmatrixView
 from .thunks import ThunkBlock
+from .coercion import safe_rows_cols as _safe_rows_cols
 
 _PYCAUSET_MODULE: Any | None = None
 
@@ -20,180 +21,61 @@ def _get_pycauset() -> Any:
 
 
 def _leaf_matmul(a: Any, b: Any) -> Any:
-    """Matmul between leaf blocks via the public dispatch boundary.
-
-    This ensures property-aware matmul conversions (e.g. diagonal/triangular)
-    still apply when BlockMatrix decomposes a global op into leaf ops.
-    """
-
-    try:
-        pycauset = _get_pycauset()
-        if isinstance(a, BlockMatrix) or isinstance(b, BlockMatrix):
-            return a @ b
-        if isinstance(a, SubmatrixView) or isinstance(b, SubmatrixView):
-            return pycauset.matmul(a, b)
-        native_matrix_base = getattr(pycauset, "MatrixBase", None)
-        native_vector_base = getattr(pycauset, "VectorBase", None)
-        if native_matrix_base is not None and isinstance(a, native_matrix_base) and isinstance(
-            b, native_matrix_base
-        ):
-            return pycauset.matmul(a, b)
-        if native_vector_base is not None and (
-            isinstance(a, native_vector_base) or isinstance(b, native_vector_base)
-        ):
-            return pycauset.matmul(a, b)
-    except Exception:
-        pass
-    try:
-        return a @ b
-    except Exception:
-        try:
-            pycauset = _get_pycauset()
-            return pycauset.matmul(a, b)
-        except Exception:
-            raise
+    """Matmul of two leaf blocks: engine operands through the public entry
+    (`pycauset.matmul`), so the engine's structure rules apply to each leaf product. Chosen by
+    type, not by trying one path and swallowing its error."""
+    pc = _get_pycauset()
+    engine = (pc.MatrixBase, pc.VectorBase, SubmatrixView)
+    if isinstance(a, engine) and isinstance(b, engine):
+        return pc.matmul(a, b)
+    return a @ b  # block operands recurse; other matrix-likes use their own operator
 
 
 def _leaf_elementwise(a: Any, b: Any, op: str) -> Any:
-    """Elementwise op between leaf blocks, preferring eager native kernels."""
-
-    try:
-        pycauset = _get_pycauset()
-        native_matrix_base = getattr(pycauset, "MatrixBase", None)
-        if native_matrix_base is not None and isinstance(a, native_matrix_base) and isinstance(
-            b, native_matrix_base
-        ):
-            fn = None
-            if op == "add":
-                fn = getattr(pycauset, "_elementwise_add", None)
-            elif op == "sub":
-                fn = getattr(pycauset, "_elementwise_subtract", None)
-            elif op == "mul":
-                fn = getattr(pycauset, "_elementwise_multiply", None)
-            elif op == "div":
-                fn = getattr(pycauset, "_elementwise_divide", None)
-            if callable(fn):
-                return fn(a, b)
-    except Exception:
-        pass
-
+    """Element-wise op of two leaf blocks: the operators (one engine path, F-086)."""
     if op == "add":
-        out = a + b
-    elif op == "sub":
-        out = a - b
-    elif op == "mul":
-        out = a * b
-    elif op == "div":
-        out = a / b
-    else:
-        raise ValueError(f"unknown elementwise op: {op}")
+        return a + b
+    if op == "sub":
+        return a - b
+    if op == "mul":
+        return a * b
+    if op == "div":
+        return a / b
+    raise ValueError(f"unknown elementwise op: {op}")
 
-    eval_fn = getattr(out, "eval", None)
-    if callable(eval_fn):
-        try:
-            return eval_fn()
-        except Exception:
-            pass
-    return out
+
+def _io_hint(obj: Any, action: str) -> None:
+    """Prefetch / discard hint for a leaf's backing storage (MemoryHints via its accelerator)."""
+    get_acc = getattr(obj, "get_accelerator", None)
+    if not callable(get_acc):
+        return
+    acc = get_acc()
+    if acc is None:
+        return
+    get_bf = getattr(obj, "get_backing_file", None)
+    path = get_bf() if callable(get_bf) else getattr(obj, "backing_file", None)
+    size = 0
+    if path and path != ":memory:" and os.path.exists(path):
+        size = int(os.path.getsize(path))
+    if size <= 0:
+        from . import export_guard
+
+        size = export_guard.estimate_materialized_bytes(obj) or 1
+    getattr(acc, action)(0, int(size))
 
 
 def _try_io_prefetch(obj: Any) -> None:
-    """Best-effort IO accelerator prefetch for a matrix-like object."""
-
-    try:
-        get_acc = getattr(obj, "get_accelerator", None)
-        if not callable(get_acc):
-            return
-        acc = get_acc()
-        if acc is None:
-            return
-
-        get_bf = getattr(obj, "get_backing_file", None)
-        if callable(get_bf):
-            path = get_bf()
-        else:
-            path = getattr(obj, "backing_file", None)
-        size = 0
-        if path and path != ":memory:":
-            try:
-                size = int(os.path.getsize(path))
-            except OSError:
-                size = 0
-        if size <= 0:
-            try:
-                from . import export_guard
-
-                est = export_guard.estimate_materialized_bytes(obj)
-                if est is not None:
-                    size = int(est)
-            except Exception:
-                size = 0
-        if size <= 0:
-            size = 1
-        acc.prefetch(0, size)
-    except Exception:
-        return
+    _io_hint(obj, "prefetch")
 
 
 def _try_io_discard(obj: Any) -> None:
-    """Best-effort IO accelerator discard for a matrix-like object."""
-
-    try:
-        get_acc = getattr(obj, "get_accelerator", None)
-        if not callable(get_acc):
-            return
-        acc = get_acc()
-        if acc is None:
-            return
-
-        get_bf = getattr(obj, "get_backing_file", None)
-        if callable(get_bf):
-            path = get_bf()
-        else:
-            path = getattr(obj, "backing_file", None)
-        size = 0
-        if path and path != ":memory:":
-            try:
-                size = int(os.path.getsize(path))
-            except OSError:
-                size = 0
-        if size <= 0:
-            try:
-                from . import export_guard
-
-                est = export_guard.estimate_materialized_bytes(obj)
-                if est is not None:
-                    size = int(est)
-            except Exception:
-                size = 0
-        if size <= 0:
-            size = 1
-        acc.discard(0, size)
-    except Exception:
-        return
-
-
-def _safe_rows_cols(obj: Any) -> tuple[int, int] | None:
-    try:
-        return int(obj.rows()), int(obj.cols())
-    except Exception:
-        try:
-            shape = getattr(obj, "shape", None)
-            if isinstance(shape, tuple) and len(shape) == 2:
-                return int(shape[0]), int(shape[1])
-        except Exception:
-            pass
-    return None
+    _io_hint(obj, "discard")
 
 
 def _infer_dtype_label(obj: Any) -> str:
     dtype_attr = getattr(obj, "dtype", None)
-    try:
-        if dtype_attr is not None and not callable(dtype_attr):
-            return str(dtype_attr)
-    except Exception:
-        pass
-
+    if dtype_attr is not None and not callable(dtype_attr):
+        return str(dtype_attr)
     return type(obj).__name__
 
 

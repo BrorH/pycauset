@@ -19,23 +19,9 @@ def temporary_native_memory_threshold(native: Any, limit_bytes: int | None) -> I
         yield
         return
 
-    setter = getattr(native, "set_memory_threshold", None)
-    getter = getattr(native, "get_memory_threshold", None)
-    if not callable(setter) or not callable(getter):
-        yield
-        return
-
+    prev = native.get_memory_threshold()
+    native.set_memory_threshold(int(limit_bytes))
     try:
-        prev = getter()
-    except Exception:
-        prev = None
-
-    try:
-        setter(int(limit_bytes))
         yield
     finally:
-        try:
-            if prev is not None:
-                setter(int(prev))
-        except Exception:
-            pass
+        native.set_memory_threshold(int(prev))

@@ -3,6 +3,14 @@ from __future__ import annotations
 from typing import Any
 
 
+_NUMPY_NAMES = {
+    "int8": "int8", "int16": "int16", "int32": "int32", "int64": "int64",
+    "uint8": "uint8", "uint16": "uint16", "uint32": "uint32", "uint64": "uint64",
+    "float16": "float16", "float32": "float32", "float64": "float64",
+    "complex64": "complex_float32", "complex128": "complex_float64", "bool": "bool",
+}
+
+
 def normalize_dtype(dtype: Any, *, np_module: Any | None) -> str | None:
     """Normalize user-provided dtype tokens into internal strings.
 
@@ -65,103 +73,22 @@ def normalize_dtype(dtype: Any, *, np_module: Any | None) -> str | None:
     if np_module is None:
         return None
 
-    # NumPy dtype/scalar types
+    # Abstract NumPy scalar types have no dtype of their own: np.dtype() rejects them.
+    abstract = {
+        np_module.integer: "int32",
+        np_module.signedinteger: "int32",
+        np_module.floating: "float64",
+        np_module.complexfloating: "complex_float64",
+    }
+    if isinstance(dtype, type) and dtype in abstract:
+        return abstract[dtype]
     try:
         np_dtype = np_module.dtype(dtype)
-    except Exception:
-        np_dtype = None
+    except TypeError:
+        return None  # not a dtype token
+    name = _NUMPY_NAMES.get(np_dtype.name)
+    if name is not None:
+        return name
+    # Wider kinds than PyCauset stores (longdouble, clongdouble): the widest float / complex.
+    return {"f": "float64", "c": "complex_float64"}.get(np_dtype.kind)
 
-    if np_dtype is not None:
-        try:
-            if np_dtype == np_module.dtype("int8"):
-                return "int8"
-            if np_dtype == np_module.dtype("int16"):
-                return "int16"
-            if np_dtype == np_module.dtype("int32"):
-                return "int32"
-            if np_dtype == np_module.dtype("int64"):
-                return "int64"
-            if np_dtype == np_module.dtype("uint8"):
-                return "uint8"
-            if np_dtype == np_module.dtype("uint16"):
-                return "uint16"
-            if np_dtype == np_module.dtype("uint32"):
-                return "uint32"
-            if np_dtype == np_module.dtype("uint64"):
-                return "uint64"
-        except Exception:
-            pass
-
-        # Any other integer kind: default to int32 unless explicitly sized.
-        if getattr(np_dtype, "kind", None) in ("i", "u"):
-            return "int32"
-
-        # Exact float32
-        try:
-            if np_dtype == np_module.dtype("float32"):
-                return "float32"
-        except Exception:
-            pass
-
-        # Exact float16
-        try:
-            if np_dtype == np_module.dtype("float16"):
-                return "float16"
-        except Exception:
-            pass
-
-        # Any other float kind -> float64
-        if getattr(np_dtype, "kind", None) == "f":
-            return "float64"
-
-        if getattr(np_dtype, "kind", None) == "c":
-            # complex64/complex128
-            try:
-                if np_dtype == np_module.dtype("complex64"):
-                    return "complex_float32"
-            except Exception:
-                pass
-            return "complex_float64"
-
-        if getattr(np_dtype, "kind", None) == "b":
-            return "bool"
-
-    # Handle scalar type objects like np.integer/np.floating
-    try:
-        if dtype is getattr(np_module, "int8", object()):
-            return "int8"
-        if dtype is np_module.int16:
-            return "int16"
-        if dtype is np_module.int32:
-            return "int32"
-        if dtype is np_module.int64:
-            return "int64"
-        if dtype is getattr(np_module, "uint8", object()):
-            return "uint8"
-        if dtype is getattr(np_module, "uint16", object()):
-            return "uint16"
-        if dtype is getattr(np_module, "uint32", object()):
-            return "uint32"
-        if dtype is getattr(np_module, "uint64", object()):
-            return "uint64"
-        if dtype is np_module.integer:
-            return "int32"
-        if dtype is getattr(np_module, "float16", None):
-            return "float16"
-        if dtype is np_module.float32:
-            return "float32"
-        if dtype in (np_module.float64, np_module.floating):
-            return "float64"
-        if dtype in (getattr(np_module, "complex64", object()),):
-            return "complex_float32"
-        if dtype in (
-            getattr(np_module, "complex128", object()),
-            getattr(np_module, "complexfloating", object()),
-        ):
-            return "complex_float64"
-        if dtype in (np_module.bool_, getattr(np_module, "bool", np_module.bool_)):
-            return "bool"
-    except Exception:
-        pass
-
-    return None

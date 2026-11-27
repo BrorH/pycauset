@@ -55,3 +55,13 @@ def coerce_general_matrix(candidate: Any, *, np_module: Any | None) -> tuple[int
             return int(array.shape[0]), array.tolist()
 
     return coerce_sequence_rows(candidate)
+
+
+def safe_rows_cols(obj: Any) -> tuple[int, int] | None:
+    """(rows, cols) of a matrix-like (`rows()`/`cols()` or a 2-tuple `shape`), else None."""
+    if callable(getattr(obj, "rows", None)) and callable(getattr(obj, "cols", None)):
+        return int(obj.rows()), int(obj.cols())
+    shape = getattr(obj, "shape", None)
+    if isinstance(shape, tuple) and len(shape) == 2:
+        return int(shape[0]), int(shape[1])
+    return None

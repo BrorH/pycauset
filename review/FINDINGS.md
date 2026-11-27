@@ -1318,3 +1318,22 @@ the entry (the history is useful). New findings go at the bottom with the next f
   `debug_trace`; tiled or not, tile size) and the Python trace reports that plus factual operand
   snapshots (shape, dtype, storage). Delete the Python planner, its descriptors, and
   `set/get_io_streaming_threshold` (it controls nothing), with their docs and tests.
+
+### F-101 Silent-exception sweep (Python, first pass): one wrong dtype, two fallback ladders
+- **Status:** fixed (session 9, PLAN 4.8). Broad silent handlers in the package: ~70 -> ~20
+  (the rest are exit-time cleanup and DLL discovery, best-effort by design).
+- Found by removing them:
+  - `matrix_power(a, 0)` returned a float64 identity for every dtype (the dtype-aware
+    constructor's error was swallowed, then a NumPy `eye` built it). Now `a`'s dtype, as NumPy;
+    `test_F101_*`.
+  - Block-matrix leaves: matmul tried the engine, then `a @ b` on any error, then the engine
+    again; element-wise ops tried private `_elementwise_*` bindings (a second entry point for
+    `+ - * /`, against F-086) and swallowed failures. Now chosen by operand type.
+  - `__setitem__` tried the element setter and retried the native `__setitem__` on any error
+    (hid real errors, double work). Now chosen by key: non-negative integers -> setter.
+  - Loading a saved transposed / conjugated matrix ignored a failing `set_transposed` /
+    `set_conjugated` (a wrong view, silently). Now raises.
+  - The Python export guard repeated the native guard for native objects (plus dead code after
+    a raise); it now runs only for objects without a native exporter.
+  - `normalize_dtype`: 9 `try/except: pass` around `np.dtype` comparisons -> one name table.
+- Shared `_safe_rows_cols` (copied in four modules) -> `coercion.safe_rows_cols`.

@@ -6,6 +6,7 @@ import os
 from typing import Any
 
 from . import export_guard
+from .coercion import safe_rows_cols as _safe_rows_cols
 
 
 def _track_and_mark_temporary_if_native(obj: Any, *, deps: OpsDeps) -> None:
@@ -64,19 +65,6 @@ class OpsDeps:
         self.mark_temporary_if_auto = mark_temporary_if_auto
         self.warnings = warnings_module
         self.io_observer = io_observer
-
-
-def _safe_rows_cols(obj: Any) -> tuple[int, int] | None:
-    try:
-        return int(obj.rows()), int(obj.cols())
-    except Exception:
-        try:
-            shape = getattr(obj, "shape", None)
-            if isinstance(shape, tuple) and len(shape) == 2:
-                return int(shape[0]), int(shape[1])
-        except Exception:
-            pass
-    return None
 
 
 def _traced(op: str, n_operands: int = 1):
@@ -463,17 +451,9 @@ def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
 
 
 def _identity_like(a: Any, shape: Any, deps: OpsDeps) -> Any:
-    """Return an identity matrix matching a's shape and dtype (best effort)."""
-    I_cls = getattr(deps.native, "IdentityMatrix", None)
-    if I_cls is not None and shape is not None:
-        try:
-            return I_cls(shape[0])
-        except Exception:
-            pass
-    np_module = deps.np_module
-    if np_module is not None and shape is not None:
-        return _as_pycauset_array(np_module.eye(shape[0], shape[1]), deps=deps)
-    raise RuntimeError("matrix_power: cannot build identity matrix")
+    """a^0: the identity in a's dtype, as NumPy's matrix_power (an int16 matrix gives an int16
+    identity; it gave float64 before)."""
+    return deps.native.IdentityMatrix(shape[0], dtype=str(a.dtype))
 
 
 def _engine_vector(x: Any, *, deps: OpsDeps) -> Any:

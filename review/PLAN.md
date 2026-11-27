@@ -260,6 +260,9 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.1e Fold `ComplexFloat16Matrix/Vector` into the generic templates if feasible
 - [ ] 4.1c bit/bool arithmetic = integer counting everywhere (RESTRUCTURE §3.2 B, F-013)
 - [ ] 4.2 Split CpuSolver.cpp, bind_matrix.cpp and `__init__.py` (pure moves)
+  - session 9: CpuSolver.cpp (2,574 lines) -> CpuMatmul.cpp, CpuElementwise.cpp,
+    CpuIterative.cpp, CpuSolver.cpp (vector ops, norms, svd, solve) + internal
+    CpuKernelsCommon.hpp. Open: bind_matrix.cpp, `__init__.py`.
 - [ ] 4.3 Single source of truth for operators and properties (RESTRUCTURE §3.1 items 1–2); delete the monkeypatch stack
   - session 7: matrix `+ - * /` (and reflected) are one binding path (`matrix_arith`); vectors
     reuse the matrix machinery (F-058). Open: properties, `__iadd__`, the Python patch stack.
@@ -271,7 +274,7 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
       (migration script: `review/scripts/migrate_class_names.py`).
 - [ ] 4.6b Naming sweep: milestone names out of code and docs.
 - [~] 4.7 One StreamingManager (done, F-100: the Python planner is gone); one Minkowski implementation path (open)
-- [ ] 4.8 Silent-exception sweep (126 sites)
+- [~] 4.8 Silent-exception sweep (126 sites). Python first pass done (F-101); C++ catch(...) sites open.
 - [ ] 4.9 Per-directory README.md files (what lives here, what doesn't)
 
 ## Phase L: Feature: Lazy evaluation (maintainer request; spec in `features/LAZY.md`)

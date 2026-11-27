@@ -3,8 +3,9 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from .coercion import safe_rows_cols
+
 _EXPORT_MAX_BYTES: int | None = None
-_DEFAULT_FILEBACKED_LIMIT_BYTES = 128 * 1024 * 1024
 
 
 def set_max_bytes(limit: int | None) -> None:
@@ -18,23 +19,12 @@ def get_max_bytes() -> int | None:
 
 
 def _safe_shape(obj: Any) -> tuple[int, int] | None:
-    try:
-        return int(obj.rows()), int(obj.cols())
-    except Exception:
-        pass
-    try:
-        shape = getattr(obj, "shape", None)
-        if isinstance(shape, tuple) and len(shape) == 2:
-            return int(shape[0]), int(shape[1])
-        if isinstance(shape, tuple) and len(shape) == 1:
-            return int(shape[0]), 1
-    except Exception:
-        pass
-    try:
-        n = len(obj)
-        return int(n), 1
-    except Exception:
-        pass
+    shape = safe_rows_cols(obj)
+    if shape is not None:
+        return shape
+    shape = getattr(obj, "shape", None)
+    if isinstance(shape, tuple) and len(shape) == 1:
+        return int(shape[0]), 1
     return None
 
 
@@ -63,11 +53,7 @@ _DTYPE_SIZE_BYTES = {
 def _normalize_dtype_token(token: Any) -> str | None:
     if token is None:
         return None
-    try:
-        s = str(token)
-    except Exception:
-        return None
-    s = s.lower()
+    s = str(token).lower()
     for suffix in ("matrix", "vector"):
         if s.endswith(suffix):
             s = s[: -len(suffix)]
@@ -106,14 +92,7 @@ def _resolve_numpy_dtype(token: Any, np_module: Any) -> Any:
         "complexfloat64": "complex128",
     }
 
-    target = mapping.get(token, token)
-    try:
-        return np_module.dtype(target)
-    except Exception:
-        try:
-            return np_module.dtype(str(target))
-        except Exception:
-            return target
+    return np_module.dtype(mapping.get(token, token))
 
 
 def estimate_materialized_bytes(obj: Any) -> int | None:
@@ -135,21 +114,18 @@ def estimate_materialized_bytes(obj: Any) -> int | None:
 
 def backing_kind(obj: Any) -> tuple[str | None, str | None]:
     for attr in ("get_backing_file", "backing_file"):
-        try:
-            val = getattr(obj, attr)
-            path = val() if callable(val) else val
-            if path:
-                path_str = str(path)
-                # Explicit in-memory sentinel used by native matrices.
-                if path_str == ":memory:":
-                    return path_str, None
-                if path_str.endswith(".pycauset"):
-                    return path_str, "snapshot"
-                if path_str.endswith(".tmp") or path_str.endswith(".raw_tmp"):
-                    return path_str, "temp"
-                return path_str, "unknown"
-        except Exception:
+        val = getattr(obj, attr, None)
+        path = val() if callable(val) else val
+        if not path:
             continue
+        path_str = str(path)
+        if path_str == ":memory:":  # explicit in-memory sentinel used by native matrices
+            return path_str, None
+        if path_str.endswith(".pycauset"):
+            return path_str, "snapshot"
+        if path_str.endswith(".tmp") or path_str.endswith(".raw_tmp"):
+            return path_str, "temp"
+        return path_str, "unknown"
     return None, None
 
 
@@ -161,15 +137,9 @@ def ensure_export_allowed(obj: Any, *, allow_huge: bool, ceiling_bytes: int | No
     est = estimate_materialized_bytes(obj)
 
     if kind and kind != "snapshot":
-        if not allow_huge:
-            raise RuntimeError(
-                "Export to NumPy is blocked for file-backed/out-of-core objects; pass allow_huge=True via pycauset.to_numpy(...) to override."
-            )
-        limit = ceiling_bytes if ceiling_bytes is not None else _DEFAULT_FILEBACKED_LIMIT_BYTES
-        if limit is not None and est is not None and est > limit:
-            raise RuntimeError(
-                "Export to NumPy exceeds configured materialization limit; lower the size or raise the ceiling."
-            )
+        raise RuntimeError(
+            "Export to NumPy is blocked for file-backed/out-of-core objects; pass allow_huge=True via pycauset.to_numpy(...) to override."
+        )
 
     if ceiling_bytes is None:
         return
@@ -192,11 +162,14 @@ def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool
     submatrix views) export through their own __array__."""
     global export_count
     export_count += 1
-    ensure_export_allowed(obj, allow_huge=allow_huge, ceiling_bytes=_EXPORT_MAX_BYTES)
     import numpy as np  # type: ignore
 
     fast_export = getattr(obj, "_to_numpy_fast", None)
-    arr = fast_export(allow_huge=allow_huge) if callable(fast_export) else np.asarray(obj)
+    if callable(fast_export):
+        arr = fast_export(allow_huge=allow_huge)  # the engine applies the guard (numpy_export_guard.hpp)
+    else:
+        ensure_export_allowed(obj, allow_huge=allow_huge, ceiling_bytes=_EXPORT_MAX_BYTES)
+        arr = np.asarray(obj)
     if dtype is not None:
         return np.array(arr, dtype=_resolve_numpy_dtype(dtype, np), copy=copy)
     return arr

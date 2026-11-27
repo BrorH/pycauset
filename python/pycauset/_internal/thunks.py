@@ -11,14 +11,9 @@ class StaleThunkError(RuntimeError):
 
 def _get_version(obj: Any) -> int | None:
     v = getattr(obj, "version", None)
-    try:
-        if v is None:
-            return None
-        if callable(v):
-            return int(v())
-        return int(v)
-    except Exception:
+    if v is None:
         return None
+    return int(v() if callable(v) else v)
 
 
 @dataclass(frozen=True)

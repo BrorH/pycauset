@@ -443,3 +443,12 @@ def test_F097_views_of_non_square_and_windowed_matrices(dtype):
         np.testing.assert_array_equal(to_np(m[1:4, 2:6].T * 3), a[1:4, 2:6].T * 3)
     v = pc.vector(np.array([1.0, 2.0, 3.0]))
     np.testing.assert_array_equal(to_np(pc.IdentityMatrix(3) @ v), [1.0, 2.0, 3.0])
+
+
+@pytest.mark.parametrize("dtype", ["int16", "float32", "complex128", "bool", "uint8"])
+def test_F101_matrix_power_zero_keeps_dtype(dtype):
+    """a ** 0 is the identity in a's dtype, as NumPy's matrix_power (it was float64)."""
+    x = np.eye(3, dtype=dtype)
+    got = pc.matrix_power(pc.matrix(x), 0)
+    assert np.asarray(got).dtype == np.linalg.matrix_power(x, 0).dtype
+    np.testing.assert_array_equal(np.asarray(got), np.eye(3))

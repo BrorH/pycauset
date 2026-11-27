@@ -58,10 +58,7 @@ def patch_matrix_class(
     def _maybe_register_result(result: Any) -> None:
         if result is None:
             return
-        try:
-            if not hasattr(result, "get_backing_file"):
-                return
-        except Exception:
+        if not hasattr(result, "get_backing_file"):
             return
         track_matrix(result)
         mark_temporary_if_auto(result)

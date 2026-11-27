@@ -15,36 +15,26 @@ def _is_temporary_name(name: str) -> bool:
 
 def is_temporary_file(path: Path) -> bool:
     """Check if a file is temporary based on extension."""
-    try:
-        return _is_temporary_name(path.name)
-    except Exception:
-        return False
+    return _is_temporary_name(path.name)
 
 
 def _prune_tracker() -> None:
     for entry in list(_TEMP_TRACKER):
         try:
-            if not entry.exists():
-                _TEMP_TRACKER.discard(entry)
-        except Exception:
+            exists = entry.exists()
+        except OSError:  # unreadable parent: treat as gone
+            exists = False
+        if not exists:
             _TEMP_TRACKER.discard(entry)
 
 
 def _is_under_root(path: Path, root: Path) -> bool:
-    try:
-        path.relative_to(root)
-        return True
-    except Exception:
-        return False
+    return path.is_relative_to(root)
 
 
 def record_temporary_file(path: Path) -> None:
     """Track a temporary file path for later cleanup/diagnostics."""
-    try:
-        normalized = _normalize(path)
-    except Exception:
-        return
-    _TEMP_TRACKER.add(normalized)
+    _TEMP_TRACKER.add(_normalize(path))
 
 
 def clear_tracked_temp_files(root: Path | None = None) -> None:
@@ -91,9 +81,6 @@ def set_temporary_file(path: Path, is_temp: bool) -> None:
     """
     if not is_temp:
         return
-    try:
-        record_temporary_file(path)
-    except Exception:
-        return
+    record_temporary_file(path)
 
 

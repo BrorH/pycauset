@@ -539,18 +539,12 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             st_args: dict[str, Any] = {}
             dim = getattr(st, "dimension", None)
             if callable(dim):
-                try:
-                    st_args["dimension"] = int(dim())
-                except Exception:
-                    pass
+                st_args["dimension"] = int(dim())
 
             for k in ("height", "circumference", "time_extent", "space_extent"):
                 v = getattr(st, k, None)
                 if v is not None:
-                    try:
-                        st_args[k] = float(v)
-                    except Exception:
-                        pass
+                    st_args[k] = float(v)
 
             meta["object_type"] = "CausalSet"
             meta["n"] = int(getattr(causet_obj, "n", rows))
@@ -718,16 +712,10 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
     )
 
     if is_transposed and hasattr(obj, "set_transposed"):
-        try:
-            obj.set_transposed(True)
-        except Exception:
-            pass
+        obj.set_transposed(True)
 
     if is_conjugated and hasattr(obj, "set_conjugated"):
-        try:
-            obj.set_conjugated(True)
-        except Exception:
-            pass
+        obj.set_conjugated(True)
 
 
     if metadata.get("object_type") == "CausalSet":

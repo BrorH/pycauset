@@ -304,10 +304,7 @@ def get_memory_threshold() -> int | None:
     getter = getattr(_native, "get_memory_threshold", None)
     if getter is None:
         return None
-    try:
-        return int(getter())
-    except Exception:
-        return None
+    return int(getter())
 
 
 def set_memory_threshold(limit: int | None) -> int | None:
@@ -374,29 +371,24 @@ def _install_array_export_hook(native_type: Any) -> None:
         return
     if getattr(native_type, "__pycauset_array_wrapped__", False):
         return
-    try:
-        native_type.__array__ = _guarded_array_export
-        # Disallow ufuncs so standard ops take precedence (forcing __radd__ over NumPy's buffer path)
-        native_type.__array_ufunc__ = None
-        native_type.__array_priority__ = 1e6
-        setattr(native_type, "__pycauset_array_wrapped__", True)
-    except Exception:
-        return
+    native_type.__array__ = _guarded_array_export
+    # Disallow ufuncs so standard ops take precedence (forcing __radd__ over NumPy's buffer path)
+    native_type.__array_ufunc__ = None
+    native_type.__array_priority__ = 1e6
+    setattr(native_type, "__pycauset_array_wrapped__", True)
 
 
 def _coerce_scalar_for_native(value: Any) -> Any:
     """Downcast NumPy scalar types to plain Python scalars for pybind setters."""
-    try:
-        import numpy as _np_local  # type: ignore
-    except Exception:
-        _np_local = None
-
-    if _np_local is not None and isinstance(value, _np_local.generic):
-        try:
-            return value.item()
-        except Exception:
-            pass
+    if _np is not None and isinstance(value, _np.generic):
+        return value.item()
     return value
+
+
+def _is_int_key(k: Any) -> bool:
+    """A non-negative integer index (negative indices go through the native __setitem__)."""
+    is_int = isinstance(k, int) or (_np is not None and isinstance(k, _np.integer))
+    return is_int and not isinstance(k, bool) and k >= 0
 
 
 def _wrap_setitem_for_scalars(base_type: Any) -> None:
@@ -411,15 +403,13 @@ def _wrap_setitem_for_scalars(base_type: Any) -> None:
 
     def _wrapped(self: Any, key: Any, value: Any, _orig=original) -> Any:
         coerced = _coerce_scalar_for_native(value)
+        # Integer keys: the element setter. Anything else (slices, arrays): the native
+        # __setitem__. Chosen by the key, not by trying one and swallowing its error.
         if callable(set_method):
-            try:
-                # Matrices use (i, j); vectors use i.
-                if isinstance(key, tuple) and len(key) == 2:
-                    return set_method(self, int(key[0]), int(key[1]), coerced)
+            if isinstance(key, tuple) and len(key) == 2 and all(_is_int_key(k) for k in key):
+                return set_method(self, int(key[0]), int(key[1]), coerced)
+            if _is_int_key(key) and _VectorBaseType is not None and isinstance(self, _VectorBaseType):
                 return set_method(self, int(key), coerced)
-            except Exception:
-                # Fall back to the original setter on any failure (e.g., slicing).
-                pass
         try:
             return _orig(self, key, coerced)
         except RuntimeError as exc:
@@ -432,15 +422,9 @@ def _wrap_setitem_for_scalars(base_type: Any) -> None:
     setattr(base_type, "__pycauset_setitem_wrapped__", True)
 
 
-try:
-    if _MatrixBaseType is not None:
-        _install_array_export_hook(_MatrixBaseType)
-        _wrap_setitem_for_scalars(_MatrixBaseType)
-    if _VectorBaseType is not None:
-        _install_array_export_hook(_VectorBaseType)
-        _wrap_setitem_for_scalars(_VectorBaseType)
-except Exception:
-    pass
+for _base in (_MatrixBaseType, _VectorBaseType):
+    _install_array_export_hook(_base)
+    _wrap_setitem_for_scalars(_base)
 
 # Ensure NumPy scalar coercion also applies to concrete native classes that
 # may override __setitem__.
@@ -461,12 +445,7 @@ def set_export_max_bytes(limit: int | None) -> None:
     global _EXPORT_MAX_BYTES
     _EXPORT_MAX_BYTES = limit
     _export_guard.set_max_bytes(limit)
-    try:
-        setter = getattr(_native, "_set_numpy_export_max_bytes", None)
-        if callable(setter):
-            setter(limit)
-    except Exception:
-        pass
+    _native._set_numpy_export_max_bytes(limit)
 
 
 def to_numpy(obj: Any, *, allow_huge: bool = False, dtype: Any = None, copy: bool = True) -> Any:
@@ -658,10 +637,7 @@ def _wrap_matmul_for_debug(cls: Any) -> None:
         with _debug_time("matmul @"):
             return original(self, other)
 
-    try:
-        cls.__matmul__ = _timed
-    except Exception:
-        pass
+    cls.__matmul__ = _timed
 
 
 for _mcls in (
@@ -1034,10 +1010,7 @@ def dot(a: Any, b: Any) -> Any:
     if a_is_vector and not b_is_vector:
         transpose = getattr(result, "transpose", None)
         if callable(transpose):
-            try:
-                result = transpose()
-            except Exception:
-                pass
+            result = transpose()
     return result
 
 

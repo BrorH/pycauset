@@ -1,19 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
-
-
-def _safe_rows_cols(obj: Any) -> tuple[int, int] | None:
-    try:
-        return int(obj.rows()), int(obj.cols())
-    except Exception:
-        try:
-            shape = getattr(obj, "shape", None)
-            if isinstance(shape, tuple) and len(shape) == 2:
-                return int(shape[0]), int(shape[1])
-        except Exception:
-            pass
-    return None
+from .coercion import safe_rows_cols as _safe_rows_cols
 
 
 def _safe_get(obj: Any, i: int, j: int) -> Any:
