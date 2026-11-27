@@ -1296,7 +1296,15 @@ the entry (the history is useful). New findings go at the bottom with the next f
   (a per-dtype copy, forbidden by the protocol §5); to go in the same cleanup.
 
 ### F-100 The IO trace reports a Python guess, not what the engine did
-- **Status:** open (session 9); fix = PLAN 4.7.
+- **Status:** fixed (session 9, PLAN 4.7). The trace now holds operand facts and the engine's
+  kernel log (`streamed` = a `streaming.*` kernel ran); kernel logs nest. Deleted:
+  `streaming_manager.py`, the planner in `io_observability.py`, `set/get_io_streaming_threshold`
+  and four tests that pinned the guess. One of them,
+  `test_outofcore_elementwise.py`, claimed to "force the tiled route" with the threshold and
+  never streamed at all; `tests/engine/test_streaming.py` tests the real path.
+- Follow-ups: `CpuDevice` repeats one streaming check five times and estimates every dtype
+  at 8 bytes per element (with `CpuDevice` cleanup, 4.2); block matrices keep their own
+  prefetch/discard copies (block-matrix review).
 - `pc.last_io_trace()` comes from `_internal/streaming_manager.py` + `io_observability.py`
   (~620 lines). They plan a "route" (direct / streaming), tile shape and queue depth in Python
   from operand sizes and `set_io_streaming_threshold`. The engine never reads that plan:

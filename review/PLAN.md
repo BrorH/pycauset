@@ -246,6 +246,10 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
 - [x] 4.0 CUDA moved to `experimental/cuda` (code, bindings, `pycauset.cuda`, GPU tests, docs,
       `[gpu]` extra). Dormant core hooks listed in `experimental/cuda/README.md`.
 - [ ] 4.1 Dead code Tiers B–D (DEADCODE.md) and debug leftovers (F-019)
+  - session 9: tool re-run (vulture, cppcheck). Removed 4 Python + 20 C++ dead helpers and the
+    uncalled device methods inverse / multiply_scalar / preferred_precision with their
+    CPU, AutoSolver and CUDA implementations (~900 lines). Still open: the C++ coverage run
+    (runtime never-executed list), `_safe_rows_cols` copied in four Python files.
 - [x] 4.1b Remove `precision_mode` / `set_precision_mode` / `get_precision_mode` end to end
       (code, C++ mode, docs, tests); update the under-promotion warning text
 - [ ] 4.1d (now tracked by the atlas, Phase C) Dtype matrix completeness: every one of the 16 dtypes works with every other
@@ -266,7 +270,7 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
       by (structure, dtype); old per-dtype names removed from code, tests and docs
       (migration script: `review/scripts/migrate_class_names.py`).
 - [ ] 4.6b Naming sweep: milestone names out of code and docs.
-- [ ] 4.7 One StreamingManager; one Minkowski implementation path
+- [~] 4.7 One StreamingManager (done, F-100: the Python planner is gone); one Minkowski implementation path (open)
 - [ ] 4.8 Silent-exception sweep (126 sites)
 - [ ] 4.9 Per-directory README.md files (what lives here, what doesn't)
 

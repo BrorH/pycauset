@@ -421,3 +421,16 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   of 11,292 cells. Found on the way: two OpenBLAS pools (NumPy's and ours) spin against
   each other when NumPy is imported first (warning + import order; one-pool build = PLAN 6.0);
   fresh 8 MB results page-fault on every write (calloc storage, in build).
+
+## Session 9 (2026-11-27): order changed to cleanup first
+- Maintainer asked whether cleanup should precede features. Agreed: the safety net (atlas,
+  suites) exists now, and speed/features built on code about to be split or deleted would be
+  done twice. PLAN order: Phase 4 cleanup -> test health -> docs truth -> speed and features.
+- F-099: packed-storage element-wise rule (sym+sym 1.5x NumPy, diag+diag 21x); tri+tri needs
+  `has_diagonal` in the resolved result shape (open, with 4.3).
+- 4.1: dead-code tools re-run; ~900 lines of dead C++/Python removed (helpers, uncalled
+  device methods and their CPU/AutoSolver/CUDA implementations).
+- 4.7 / F-100: the IO trace reported a Python routing guess that the engine never read;
+  `set_io_streaming_threshold` controlled nothing (a test that "forced streaming" with it never
+  streamed). Planner deleted; traces now carry operand facts and the engine's kernel log.
+  Gates: 4,448 + 3,735 passed, atlas 88,361 cells 0 wrong, CI gate 42 passed.
