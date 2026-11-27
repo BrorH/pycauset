@@ -43,18 +43,6 @@ def _as_pycauset_vector(obj: Any, *, deps: OpsDeps) -> Any:
     return _as_pycauset_array(obj, deps=deps)
 
 
-def _to_numpy_matrix(obj: Any, *, deps: OpsDeps, allow_huge: bool = False) -> Any:
-    np_module = deps.np_module
-    if np_module is None:
-        raise RuntimeError("NumPy is required for this operation")
-    export_guard.ensure_export_allowed(
-        obj,
-        allow_huge=allow_huge,
-        ceiling_bytes=export_guard.get_max_bytes(),
-    )
-    return np_module.asarray(obj)
-
-
 class OpsDeps:
     def __init__(
         self,
@@ -204,8 +192,6 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
         if not isinstance(b, BlockMatrix):
             b = BlockMatrix([[b]])
         return block_matmul(a, b)
-
-    native_matmul = getattr(deps.native, "matmul", None)
 
     native_matrix_base = getattr(deps.native, "MatrixBase", None)
     native_vector_base = getattr(deps.native, "VectorBase", None)

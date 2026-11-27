@@ -9,10 +9,6 @@ from pathlib import Path
 from typing import Any, Protocol
 
 
-class _HasCopyStorage(Protocol):
-    def copy_storage(self, path: str) -> None: ...
-
-
 _MAGIC = b"PYCAUSET"  # 8 bytes
 _FORMAT_VERSION = 1
 _ENDIAN_LITTLE = 1
@@ -367,15 +363,6 @@ def _read_active_slot_and_typed_metadata(path: Path) -> tuple[dict[str, int], st
 
     typed_meta = _decode_metadata_top_map(payload)
     return active, active_name, typed_meta
-
-
-def read_typed_metadata(path: str | Path) -> dict[str, Any]:
-    """Read and return the top-level typed metadata map from a `.pycauset` container."""
-    path = Path(path)
-    if not _is_new_container(path):
-        raise ValueError("unsupported file format (expected new .pycauset container)")
-    _, _, typed_meta = _read_active_slot_and_typed_metadata(path)
-    return typed_meta
 
 
 def _read_new_container_metadata_and_offset(path: Path) -> tuple[dict[str, Any], int]:
