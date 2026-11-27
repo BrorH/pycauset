@@ -329,7 +329,7 @@ bare-minimum Minkowski MVP).
 
 The optimization work deferred out of R1 is **part of R2**, not a separate post-R2 effort
 (decision #17). It is tracked as the **R2E** phase in [`R2_ROADMAP.md`](R2_ROADMAP.md), with
-per-op status in `documentation/internals/plans/OPTIMIZATION_STATUS.md`:
+per-op status in `documentation/internals/plans/archive/OPTIMIZATION_STATUS.md`:
 
 - **R2_PERF**, ≥ 0.90× NumPy throughput for every op, CI-enforced.
 - **R2_CPU**, modern tiled CPU engine (absorbs `archive/R1_CPU_PLAN.md`).

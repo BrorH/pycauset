@@ -45,19 +45,13 @@ See also: [[dev/Python Internals|Python Internals]] and [[dev/Bindings & Dispatc
 - Concrete matrix/vector classes follow `…Matrix` / `…Vector` naming.
   - Examples: `DenseMatrix` (dtype `float64`), `TriangularMatrix` (dtype `float64`), `DenseVector` (dtype `int32`).
 
-### Matrix/vector semantic properties (`obj.properties`)
+### Matrix/vector metadata
 
-All public matrix/vector objects expose a `properties` mapping.
-
-Contract:
-
-- `obj.properties` is the single user-facing metadata container.
-- Properties are user metadata: not validated against the values, and never used to compute
-  a result (no operation answers from, or is steered by, a property).
-- Boolean-like properties use tri-state semantics via key presence:
-  - unset means the key is absent,
-  - explicit `False` is preserved.
-- Computed results are never cached: every call computes from the current values.
+A matrix or vector carries its shape, dtype, structure (its class: `TriangularMatrix`,
+`SymmetricMatrix`, `HermitianMatrix`, `DiagonalMatrix`, ...) and view state (scale factor,
+transposition, conjugation), all saved with it. There is no user-assertion or notes store:
+structure that operations exploit is the class, which guarantees it. Computed results are not
+cached yet; a cache discarded on every change is planned (review phase D).
 
 ### Functions
 

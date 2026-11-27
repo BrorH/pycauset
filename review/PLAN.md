@@ -222,9 +222,8 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
       NumPy computation (it imports array-likes only). Pattern: one engine entry that
       normalises to dense in the LAPACK dtype (`to_dense` + `solve_dtype`) and one templated
       LAPACK kernel for float32/float64/complex64/complex128 (`compute/cpu/CpuLinalg.cpp`).
-  - [ ] N.3b Remove the "properties" dispatch layer (`_effective_structure_for`: still
-        consulted by matmul result tagging and solve_triangular). Needs the maintainer's
-        call on what properties are for once they never change results.
+  - [x] N.3b The "properties" layer removed entirely (maintainer decision, session 8: no
+        flags, no user notes; F-092). Structure is the class; computed metadata is phase D.
 - [ ] N.4 The atlas CI gate proves it: the ✗ count must reach 0 and stay there.
 
 ## Phase 4: Structural cleanup (after the RESTRUCTURE decisions)

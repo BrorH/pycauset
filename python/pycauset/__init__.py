@@ -32,7 +32,6 @@ from ._internal import native as _native_mod
 from ._internal import ops as _ops
 from ._internal import patching as _patching
 from ._internal import persistence as _persistence
-from ._internal import properties as _properties
 from ._internal import runtime as _runtime_mod
 from ._internal import streaming_manager as _streaming_manager
 from ._internal.dtypes import normalize_dtype as _normalize_dtype
@@ -684,7 +683,6 @@ for _mcls in (
 ):
     _wrap_matmul_for_debug(_mcls)
 
-_properties.install([*_MATRIX_CLASSES, *_VECTOR_CLASSES])
 
 
 

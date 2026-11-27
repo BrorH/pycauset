@@ -106,7 +106,7 @@ def test_metadata_only_update_does_not_rewrite_payload(tmp_path: Path) -> None:
             f.seek(int(active_before["payload_offset"]))
             payload_before = f.read(int(active_before["payload_length"]))
 
-        m.properties["tag"] = "roundtrip"
+        m.set_scalar(2.0)  # a metadata-only change (view state)
         pycauset.save(m, path)
 
         active_after, _, meta_after = _persistence._read_active_slot_and_typed_metadata(path)
@@ -115,7 +115,7 @@ def test_metadata_only_update_does_not_rewrite_payload(tmp_path: Path) -> None:
             payload_after = f.read(int(active_after["payload_length"]))
 
         assert payload_before == payload_after
-        assert meta_after.get("properties", {}).get("tag") == "roundtrip"
+        assert meta_after["view"]["scalar"] == 2.0
     finally:
         m.close()
         if path.exists():

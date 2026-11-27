@@ -1,3 +1,8 @@
+> **Superseded (2026-11, review session 8).** Operation coverage, paths and speed are now
+> measured by the operation atlas (`review/atlas/ATLAS.md`, `tests/atlas/`) and the procedures
+> in `documentation/project/protocols/Adding Operations.md` and `Adding Types.md`. Statements
+> below about NumPy fallbacks, property shortcuts and per-dtype kernels are historical.
+
 # Support Readiness Framework (DTypes × Ops × Devices)
 
 **Status**: Active (replaces OPTIMIZATION_CHECKLIST.md)

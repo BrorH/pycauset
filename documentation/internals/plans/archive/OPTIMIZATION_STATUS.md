@@ -1,3 +1,8 @@
+> **Superseded (2026-11, review session 8).** Operation coverage, paths and speed are now
+> measured by the operation atlas (`review/atlas/ATLAS.md`, `tests/atlas/`) and the procedures
+> in `documentation/project/protocols/Adding Operations.md` and `Adding Types.md`. Statements
+> below about NumPy fallbacks, property shortcuts and per-dtype kernels are historical.
+
 # PyCauset CPU/GPU Optimization Status
 
 **Last verified:** against `src/compute/cpu/CpuSolver.cpp`, `src/accelerators/cuda/CudaDevice.cu`, and `src/accelerators/cuda/CudaSolver.cu` (current HEAD).

@@ -13,17 +13,11 @@ Instead, these behaviors surface through:
 
 - **Backed by disk or RAM:** the API is the same either way.
 - **Snapshots are immutable by default:** `load()` does not implicitly overwrite the file you loaded.
-- **Metadata-first:** shape, dtype, view-state and properties are stored without scanning the payload.
+- **Metadata-first:** shape, dtype, structure and view-state are stored without scanning the payload.
 
 The canonical Release 1 persistence semantics and container format are documented in:
 
 - [[guides/Storage and Memory.md|Storage and Memory]]
-
-## Semantic properties
-
-`obj.properties` is a dict of user notes (string keys: a label, a source, a seed), saved with
-the object and restored on load. PyCauset never reads it; structure is the class
-(`TriangularMatrix`, `SymmetricMatrix`, ...).
 
 ## See also
 

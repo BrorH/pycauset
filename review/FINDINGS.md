@@ -1149,8 +1149,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
   `solve_triangular` that accepted any matrix flagged triangular but not a TriangularMatrix.
   Since N.5 every structure is a class that enforces it, so the flags could only disagree
   with it.
-- Fix: `properties.py` 938 → 45 lines: `obj.properties` is a dict of user notes, saved and
-  loaded, never read by PyCauset, not carried to views. Deleted: flag rules, the three wrapper
+- Fix (maintainer: "obj.properties can go ... plug out the old system completely"):
+  `obj.properties` and `_internal/properties.py` (938 lines) deleted, with the `properties`
+  metadata namespace in saved files (not written, not read). Deleted with it: flag rules, the three wrapper
   installers, `PropertyFlags.hpp`, `MatrixPropertyTraits.hpp`, the PersistentObject bitmask and
   its bindings, `prefers_cpu_for_properties` (10 call sites), matmul result tagging,
   `_effective_structure_for`. `solve_triangular` takes the class (TriangularMatrix and its

@@ -12,6 +12,7 @@
 * **[[docs/functions/pycauset.diagonal.md|pycauset.diagonal]]**
 * **[[docs/functions/pycauset.symmetric.md|pycauset.symmetric]]**
 * **[[docs/functions/pycauset.antisymmetric.md|pycauset.antisymmetric]]**
+* **[[docs/functions/pycauset.hermitian.md|pycauset.hermitian]]**
 * **[[docs/functions/pycauset.matrix.md|pycauset.matrix]]**
 * **[[docs/functions/pycauset.vector.md|pycauset.vector]]**
 * **[[docs/functions/pycauset.zeros.md|pycauset.zeros]]**

@@ -1,4 +1,4 @@
-﻿# Compute System Architecture
+# Compute System Architecture
 
 This document details the computational backend of PyCauset, including the CPU/GPU abstraction layer, parallelization strategies, and hardware-specific optimizations.
 
@@ -62,8 +62,6 @@ The `ComputeWorker` interface is the heart of the R1 architecture. It exposes ti
 4. If streaming is required, the Streaming Manager provides a plan and IO trace annotations.
 5. Device-specific workers execute kernels; errors trigger deterministic fallback.
 
-#### Property-aware routing
-AutoSolver can use property flags (mirrored from Python) to bias routing when structural shortcuts exist. This avoids scanning payloads and keeps routing $O(1)$.
 
 ### 1.3 IO Acceleration Integration
 To minimize page faults during computation, the compute backend integrates with the **IO Accelerator** (see [[internals/Memory and Data|Memory & Data]]).

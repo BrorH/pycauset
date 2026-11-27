@@ -57,14 +57,13 @@ Matrix multiplication uses a dynamic dispatch system:
         *   **GPU**: Uses a custom "Transpose-then-Popcount" kernel that packs 32x32 bit tiles into registers, achieving massive throughput for path counting and transitive closure.
     *   **Triangular Matrices:** Optimized block-based algorithms for inversion and multiplication.
 
-### Property-aware shortcuts (R1_PROPERTIES)
+### Structure-aware shortcuts
 
-PyCauset treats certain properties as **gospel**. When set, they enable lower-complexity kernels without scanning payloads. A C++ property-flag mirror makes these decisions fast and deterministic.
-
-Examples:
-* **Diagonal / identity**: multiplication and inversion can reduce to $O(N)$ or $O(N^2)$.
-* **Triangular**: solve/inversion can use triangular kernels with $O(N^2)$ updates.
-* **Symmetric / Hermitian**: eigen and factorization routines can use specialized solvers that halve FLOPs.
+Structure comes from the class (DTypeDispatch.hpp catalogue), so a shortcut can never
+disagree with the values: identity and diagonal matmul/inverse/det are O(N) or O(1), a
+triangular det is the product of its diagonal and its inverse stays triangular, Hermitian and
+symmetric eigen problems use ?heevd/?syevd. Each operation's entry function lists its structure
+rules (`documentation/project/protocols/Adding Operations.md` §3).
 
 ## 2. Stateless Sprinkling (Spacetime Generation)
 

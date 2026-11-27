@@ -2,7 +2,7 @@
 
 **Status:** Active: single source of truth for Release-1 (backend) progress.
 **Last verified:** 2026-08-28
-**Roadmap graph:** `TODO.md` · **SRP gates:** `SUPPORT_READINESS_FRAMEWORK.md`
+**Roadmap graph:** `TODO.md` · **Coverage gates:** the operation atlas (`review/atlas/ATLAS.md`)
 
 > Updated ONLY when something is verified by running code. Never claims "done"
 > unless tests pass. Where this file conflicts with a per-node status marker in

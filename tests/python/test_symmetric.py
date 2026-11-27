@@ -263,7 +263,6 @@ class TestDiagonalFactory(unittest.TestCase):
     def test_diagonal_from_vector_float(self):
         d = pc.diagonal([1.0, 2.0, 3.0])
         self.assertIsInstance(d, pc.DiagonalMatrix)
-        self.assertTrue(d.properties["is_diagonal"])
         self.assertTrue(np.array_equal(pc.to_numpy(d), np.diag([1.0, 2.0, 3.0])))
 
     def test_diagonal_from_matrix_float(self):
@@ -273,7 +272,6 @@ class TestDiagonalFactory(unittest.TestCase):
 
     def test_diagonal_from_vector_int_dense(self):
         d = pc.diagonal(np.array([1, 2, 3], dtype=np.int32))
-        self.assertTrue(d.properties["is_diagonal"])
         self.assertTrue(np.array_equal(pc.to_numpy(d), np.diag([1, 2, 3])))
 
     def test_diagonal_rejects_non_square(self):

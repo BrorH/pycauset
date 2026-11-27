@@ -110,7 +110,6 @@ Reserved namespaces:
 
 - identity/header keys: `rows`, `cols`, `matrix_type`, `data_type`, `payload_layout`, `payload_uuid`, ...
 - `view`: system-managed view-state
-- `properties`: user metadata (never used to compute results)
 - `provenance`: optional non-semantic provenance
 
 Readers ignore unknown keys.

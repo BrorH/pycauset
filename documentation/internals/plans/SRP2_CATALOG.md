@@ -38,10 +38,11 @@ general O(n³) path when structure makes it O(n²) or better.
   matmul, then a bitwise `& ~`. (The engine's `DenseBitMatrix × TriangularBitMatrix`
   popcount kernel already targets this.)
 
-## 5. Structural / property shortcuts (already gospel)
+## 5. Structural shortcuts (by class)
 
-- `matrix_rank`, `det`, `trace`, `norm`, `invert` on `Identity`/`Diagonal`/`Triangular`/
-  `Zero` matrices use closed forms (properties-as-gospel), skipping SVD/LU.
+- `det`, `slogdet` and `invert` on `IdentityMatrix` / `DiagonalMatrix` / `TriangularMatrix`
+  use closed forms (product of the diagonal; reciprocal diagonal; triangular inverse) without a
+  general LU. The structure is the class, never an asserted flag (F-092).
 
 ## Routing status
 

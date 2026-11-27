@@ -28,7 +28,7 @@ In this milestone, it is acceptable to land some operations as **endpoints first
 - Roadmap node: `documentation/internals/plans/TODO.md` → **R1_LINALG**
 - Compute model: `documentation/internals/Compute Architecture.md`
 - Shape/naming alignment: `documentation/project/protocols/NumPy Alignment Protocol.md`
-- Op × dtype × device status: `documentation/internals/plans/SUPPORT_READINESS_FRAMEWORK.md`
+- Op × dtype × device status: `documentation/internals/plans/archive/SUPPORT_READINESS_FRAMEWORK.md`
 - BLAS/LAPACK notes: `documentation/internals/plans/archive/BLAS_INTEGRATION_PLAN.md`
 
 ## Relationship to R1_PROPERTIES (semantic properties)

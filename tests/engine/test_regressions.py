@@ -375,16 +375,6 @@ def test_F081_results_follow_mutation(op, write):
     np.testing.assert_allclose(f(m), ref, rtol=1e-12)
 
 
-@pytest.mark.parametrize("flags", [{"is_zero": True}, {"is_identity": True}, {"diagonal_value": 7.0, "is_diagonal": True}])
-def test_F081_properties_never_change_results(flags):
-    a = np.array([[2.0, 0.0], [0.0, 3.0]])
-    m = pc.matrix(a)
-    m.properties.update(flags)  # notes only (F-092)
-    assert m.trace() == pytest.approx(5.0)
-    assert pc.determinant(m) == pytest.approx(6.0)
-    assert pc.sum(m) == pytest.approx(5.0)
-
-
 def test_F093_loaded_file_is_a_snapshot(tmp_path):
     """Writing to a loaded matrix must not change the saved file (copy-on-write mapping)."""
     import subprocess

@@ -32,9 +32,10 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   a strictly triangular matrix of ones now has rank n - 1, not 0.
 - Properties no longer change results anywhere: `eigvalsh` ignores `is_hermitian`, `solve`
   and `matrix_power` ignore `is_zero`, `norm` ignores `is_zero` / identity.
-- `obj.properties` is a dict of user notes (saved with the object, never read by PyCauset);
-  the boolean structure flags (`is_symmetric`, `is_upper_triangular`, `is_zero`, ...) and
-  their validation/propagation are removed. Structure is the class.
+- `obj.properties` is removed (the boolean structure flags `is_symmetric`,
+  `is_upper_triangular`, `is_zero`, ..., their validation and propagation, and the
+  `properties` entry of saved files). Structure is the class (`TriangularMatrix`,
+  `SymmetricMatrix`, `HermitianMatrix`, `DiagonalMatrix`, ...).
 - `pc.symmetric`, `pc.antisymmetric`, `pc.diagonal` return `SymmetricMatrix`,
   `AntiSymmetricMatrix`, `DiagonalMatrix` in the input's exact dtype (complex too); new
   `pc.hermitian`. `solve_triangular` takes a `TriangularMatrix` (or its transpose),

@@ -29,7 +29,7 @@ assert N[0, 0] == 42
 Most PyCauset objects have the same basic structure on disk, and the stored file can be broken into two sections:
 
 - **Payload (data bytes):** the matrix/vector entries themselves.
-- **Metadata (info bytes):** small structured information that explains what the payload means (shape, dtype, layout) and how to interpret it (transpose, scalar, conjugation), plus optional user properties.
+- **Metadata (info bytes):** small structured information that explains what the payload means (shape, dtype, layout) and how to interpret it (transpose, scalar, conjugation).
 
 The important consequence is that PyCauset can scale because it does *not* require the payload to be in RAM all at once. The operating system will automatically keep recently-used parts in memory.
 
@@ -50,7 +50,6 @@ Conceptually, the saved file contains:
    - shape: 2 rows, 3 cols
    - dtype: float32
    - view-state: “not transposed”, “scalar = 1.0”, etc.
-   - optional: user properties
 
 You can think of metadata like the “label on the box” and payload like “what’s inside the box”.
 
@@ -61,20 +60,13 @@ This specific format enables two user-facing behaviors:
 1) **Gigantic matrices actually work:** the payload lives on disk and is paged in as needed.
 2) **Some operations are instant:** things like transpose or scaling can be represented by changing metadata (no rewrite of the large payload).
 
-## Properties (user notes)
+## Structure and metadata
 
-In addition to the physical metadata (shape, dtype, structure, view state), `obj.properties` is
-a dict of notes you want to keep with the object, such as `{"source": "sprinkling", "seed": 4}`:
-
-- string keys, values the metadata encoder handles (numbers, strings, lists, dicts);
-- saved and loaded with the object; not carried to views or results (`A.T` is another object);
-- never read by PyCauset: every operation computes from the stored values, the structure
-  (the class) and the view state.
-
-For structure that operations should exploit, use a structured class (`TriangularMatrix`,
-`SymmetricMatrix`, `HermitianMatrix`, `DiagonalMatrix`, ...; or `pc.symmetric(...)`,
-`pc.hermitian(...)`, `pc.diagonal(...)`): the structure is then part of the storage and cannot
-disagree with the values.
+What a saved object carries: shape, dtype, its structure (the class: `TriangularMatrix`,
+`SymmetricMatrix`, `HermitianMatrix`, `DiagonalMatrix`, ...; or build one with
+`pc.symmetric(...)`, `pc.hermitian(...)`, `pc.diagonal(...)`), the view state, and for causal
+sets the spacetime and seed. Structure is part of the storage, so it cannot disagree with the
+values.
 
 Computed results are not cached yet; a result always reflects the current values, also after
 `M[i, j] = v`. A cache that is discarded on every change is planned (review phase D).
@@ -123,7 +115,7 @@ In concrete terms, **spill** means that the live object switches from a *RAM-onl
 Important details:
 
 - Spilling writes the **payload bytes only** to a temporary `.tmp` backing file under the current backing dir.
-- The live Python object keeps its **metadata and properties** in memory.
+- The live Python object keeps its **metadata** in memory.
 - Spilling does **not** create a `.pycauset` snapshot container. If you want the object to remain on your disk, you must explicitly call `save()`.
 
 ## `.tmp` vs `.raw_tmp` vs `.pycauset`
@@ -291,7 +283,6 @@ See [[guides/Numpy Integration.md|Numpy Integration]] for details.
 - [[dev/Storage Semantics.md|Storage Semantics]]
 - [[internals/Memory and Data.md|Memory and Data]]
 - [[internals/plans/archive/R1_STORAGE_PLAN.md|R1_STORAGE_PLAN]]
-- [[internals/plans/archive/R1_PROPERTIES_PLAN.md|R1_PROPERTIES_PLAN]]
 - [[project/protocols/Documentation Protocol.md|Documentation Protocol]]
 
 ## Crash Consistency (R1_SAFETY)

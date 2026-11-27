@@ -516,7 +516,7 @@ Status: - [x] (`benchmarks/r2_parity.py` gate landed; **8/8 ops at parity** (n=1
 
 Goal: every op is at least 0.90× NumPy throughput in the regimes PyCauset claims, or is an
 explicitly-documented out-of-scope case / performance bug. Per-op status lives in
-`documentation/internals/plans/OPTIMIZATION_STATUS.md`.
+`documentation/internals/plans/archive/OPTIMIZATION_STATUS.md`.
 
 Deliverables: a benchmark matrix covering the canonical op × dtype inventory; CI-enforced
 thresholds; the remaining per-op gaps in `OPTIMIZATION_STATUS.md` §2 closed (notably f64 elementwise

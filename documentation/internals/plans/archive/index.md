@@ -9,7 +9,8 @@ For **what's happening now**, see:
 - Forward roadmap: [`../TODO.md`](../TODO.md) ("Roadmap" in the docs nav)
 - R1 release record: [`../R1_EXECUTION.md`](../R1_EXECUTION.md)
 - Deferred optimization map (now the R2 engine track): [`../OPTIMIZATION_STATUS.md`](../OPTIMIZATION_STATUS.md)
-- Support-readiness framework (active): [`../SUPPORT_READINESS_FRAMEWORK.md`](../SUPPORT_READINESS_FRAMEWORK.md)
+- Support-readiness framework (superseded by the atlas): [`SUPPORT_READINESS_FRAMEWORK.md`](SUPPORT_READINESS_FRAMEWORK.md)
+- Optimization status (superseded by the atlas timing pass): [`OPTIMIZATION_STATUS.md`](OPTIMIZATION_STATUS.md)
 - R2 plans (active): [`../../../project/plans/`](../../../project/plans/)
 
 > **Consolidation note (R2 start):** the `plans/completed/` directory and several stray `R1_*`

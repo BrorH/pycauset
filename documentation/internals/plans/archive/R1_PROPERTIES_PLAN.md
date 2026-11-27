@@ -64,7 +64,7 @@ Open gaps relative to the plan:
 - Compute model: `documentation/internals/Compute Architecture.md`
 - Storage semantics + format (canonical docs): `documentation/guides/Storage and Memory.md`
 - Current persistence implementation: `python/pycauset/_internal/persistence.py`
-- Support readiness tracking: `documentation/internals/plans/SUPPORT_READINESS_FRAMEWORK.md`
+- Support readiness tracking: `documentation/internals/plans/archive/SUPPORT_READINESS_FRAMEWORK.md`
 
 ## Constraints (non-negotiable)
 

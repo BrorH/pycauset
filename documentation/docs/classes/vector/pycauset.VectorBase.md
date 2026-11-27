@@ -10,15 +10,6 @@ Vectors are persistent objects (RAM-backed for small sizes; disk-backed for larg
 - `v.T` returns a transposed view (row-vector semantics).
 - For complex vector types, `v.H` returns the conjugate-transpose view.
 
-## Properties
-
-### `properties`
-
-`v.properties` is a dict of user notes (string keys), saved with the vector. PyCauset never
-reads it and it never changes a result.
-
-See [[guides/Storage and Memory.md|Storage and Memory]].
-
 ## Fill
 
 ### `fill(value)`

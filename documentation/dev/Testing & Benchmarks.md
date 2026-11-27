@@ -55,7 +55,7 @@ Recommended baseline:
 
 The authoritative checklist for dtype/op coverage and readiness gates is:
 
-- `documentation/internals/plans/SUPPORT_READINESS_FRAMEWORK.md`
+- `review/atlas/ATLAS.md` (operation x dtype x structure x view coverage; `tests/atlas/`)
 
 When a checklist item changes status:
 - ensure a corresponding test exists (or is added),

@@ -522,7 +522,7 @@ def matrix_rank(a: Any, tol: Any = None, *, deps: OpsDeps) -> int:
     """Numerical rank: singular values above tol (NumPy's default tol when None), from the
     engine's SVD. The structural shortcuts that were here counted the non-zero diagonal of a
     triangular matrix (wrong: a strictly triangular matrix of ones has rank n - 1) and
-    trusted properties (F-090)."""
+    trusted user flags (F-090)."""
     _record_io_trace("matrix_rank", [a], deps=deps)
     return int(deps.native.matrix_rank(_engine_matrix(a, deps=deps), -1.0 if tol is None else float(tol)))
 
@@ -544,7 +544,7 @@ def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
 
     # No identity shortcut: a scaled identity (2*I)^n is 2^n*I, and identity x identity is
     # already O(1) in the engine (F-067).
-    # No is_zero shortcut either: properties never change results (F-090).
+    # No is_zero shortcut: results come from the values (F-090).
     if n < 0:
         inv = invert(a, deps=deps)
         return matrix_power(inv, -n, deps=deps)

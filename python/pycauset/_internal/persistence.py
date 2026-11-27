@@ -5,7 +5,6 @@ import shutil
 import struct
 import uuid
 import zlib
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -40,22 +39,6 @@ _PAYLOAD_LAYOUT = {
     "diagonal": "raw_diagonal",
 }
 
-
-
-def _extract_properties_for_persistence(obj: Any) -> dict[str, Any]:
-    props = getattr(obj, "properties", None)
-    if not isinstance(props, Mapping):
-        return {}
-    out: dict[str, Any] = {}
-    for k, v in props.items():
-        if not isinstance(k, str):
-            continue
-        if v is None:
-            continue
-        # User notes: keep the values the metadata encoder handles.
-        if isinstance(v, (bool, int, float, complex, str, bytes, bytearray, list, tuple, dict)):
-            out[k] = v
-    return out
 
 
 def _crc32(data: bytes) -> int:
@@ -597,9 +580,6 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             # read shifted values (F-076).
             meta["has_diagonal"] = bool(payload_obj.has_diagonal)
 
-        props = _extract_properties_for_persistence(payload_obj)
-        if props:
-            meta["properties"] = props
 
         # Write file: header placeholder, then payload, then metadata block, then header slots.
         payload_offset = _HEADER_BYTES
@@ -762,10 +742,6 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         except Exception:
             pass
 
-    # Restore the user notes.
-    persisted_props = metadata.get("properties")
-    if isinstance(persisted_props, dict):
-        obj.properties = persisted_props
 
     if metadata.get("object_type") == "CausalSet":
         st_meta = metadata.get("spacetime", {})

@@ -106,7 +106,7 @@ Portable, persistent storage for matrices and causal sets. Managed by
 
 - A fixed header (magic `PYCAUSET`, version, and A/B slot pointers).
 - Double-buffered slots for crash-consistent metadata updates.
-- A typed, sparse metadata block (shape, dtype, properties, cached values).
+- A typed, sparse metadata block (shape, dtype, structure, view state).
 - A raw payload region at a stable, aligned offset so it can be mmap'd.
 
 The payload is laid out exactly as it would be in memory (row-major dense, packed
@@ -128,10 +128,11 @@ the other way around).
 All metadata is a typed top-level map. The important namespaces:
 
 - `view` — view state (scalar, transpose, conjugation).
-- `properties` — user metadata (not validated, never used to compute results).
 
-No computed results are cached or persisted (removed in the 2026 review, F-081: caches went
-stale on mutation and answered from user assertions).
+No computed results are cached or persisted yet (the old cache went stale on mutation and
+answered from user assertions, F-081); a cache discarded on every change is planned (review
+phase D, `review/features/DERIVED_CACHE.md`). The user-assertion `properties` store is removed
+(F-092): structure is the class.
 
 ## Matrix & vector hierarchy
 

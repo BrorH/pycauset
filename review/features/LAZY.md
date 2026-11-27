@@ -216,17 +216,19 @@ or constant (bandwidth factor).
   when `a*(A+B)` is consumed by a matvec, eigensolver, trace or sum: then `A+B` is never
   formed at all.
 
-### L4 Property algebra (answers without touching data)
-- **What:** results that follow from cached properties of the operands through views and
+### L4 Derived-value algebra (answers without touching data)
+- **What:** results that follow from cached derived values (det, trace, eigenvalues, ...;
+  the derived-value cache, `DERIVED_CACHE.md`, phase D) of the operands through views and
   nodes: `sum(kA) = k·sum(A)`, `trace(Aᵀ) = trace(A)`, `trace(A+B) = trace A + trace B`,
   `norm_F(kA) = |k|·norm_F(A)`, `det(kA) = kⁿ·det(A)`, `eigvals(kA) = k·eigvals(A)`,
   `eigvals(Aᵀ) = eigvals(A)`, `eigvals(A + cI) = eigvals(A) + c`, value bounds of `kA`
   (Phase F1, same mechanism).
-- **Ties to:** the decision that properties are owned by C++ (RESTRUCTURE §3.1 item 2):
-  one property cache, invalidated on write, propagated through views.
-- **Win:** O(n²)–O(n³) → O(1) when a property is already known. Eigenvalue reuse alone can
+- **Ties to:** the derived-value cache (C++-owned, on the storage, discarded on every write;
+  phase D does the view rules, L4 extends them to expression nodes). The old user-asserted
+  `properties` store is removed (F-092): nothing here is asserted, only computed.
+- **Win:** O(n²)–O(n³) → O(1) when a value is already known. Eigenvalue reuse alone can
   save hours on large Pauli–Jordan studies (scaling conventions differ between papers).
-- **Exactness:** E for exact properties of ints, bits and index maps; A for float rescaling
+- **Exactness:** E for exact values of ints, bits and index maps; A for float rescaling
   (`k·λ` vs eigvals of the scaled matrix).
 
 ### L5 Element-wise fusion (`A + B + C`, `a*A + b*B − C`): constant factor, mostly for disk
@@ -347,7 +349,7 @@ Each was checked on a real causal matrix (n = 600, `review/LOG.md` session 5).
   cheap. Implement after L1 so both share the ViewSpec.
 - **Out-of-core (StreamingManager):** the tiler reads through `ViewSpec::apply`, which
   removes the F-040 "never stream views" restriction; sum nodes stream as fused tiles (L5).
-- **Properties cache:** L4 is the cache's propagation rule set.
+- **Derived-value cache (phase D):** L4 is its propagation rule set for nodes.
 - **Promotion and structure resolvers:** unchanged; called eagerly at node creation.
 - **GPU:** on hold; ViewSpec would map onto the CUDA kernels the same way.
 
@@ -377,7 +379,7 @@ Each was checked on a real causal matrix (n = 600, `review/LOG.md` session 5).
 | L2 | closures `A ± Aᵀ` over triangular storage; diagonal shift; solvers consume them | L1 | Pauli–Jordan eigensolve at n where dense doesn't fit |
 | F1 | value bounds (shares ViewSpec) | L1 | per VALUE_BOUNDS.md |
 | L3 | ExprNode: sums, products (chain ordering), powers, inverse-as-solve; matvec/trace/sum/diag consumers | L2 | asymptotic tests green |
-| L4 | property propagation through views and nodes | L3, C++ properties (4.3) | — |
+| L4 | derived-value propagation through nodes | L3, phase D | — |
 | L5 | element-wise fusion via sum nodes | L3, F-012 | benchmark ≥ 1.3× or disk saving shown |
 | L6 | constants, slices | L1 | — |
 | L7 | causal-set operators: real Pauli–Jordan / SJ (7.1–7.2), matrix-free K (7.3), fused interval statistics (7.4); 7.5 after measurement | L2, L3 | SJ memory 4× lower; top-k PJ at n where K doesn't fit |

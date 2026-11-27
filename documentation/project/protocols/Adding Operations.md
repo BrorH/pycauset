@@ -16,7 +16,7 @@ below makes new combinations correct by construction, and the atlas proves it.
 ## 1. The shape of every operation
 
 ```
-Python operator / pycauset.f()        thin binding: no logic, no NumPy, no properties
+Python operator / pycauset.f()        thin binding: no logic, no NumPy
         │
 entry function (one per operation)    src/math/*.cpp   e.g. dispatch_matmul
    1. validate shapes
@@ -66,7 +66,7 @@ One function per operation (`src/math/`). In order:
 3. Structure rules (§3), each a few lines.
 4. The normaliser (§4): convert each operand once to what the kernel accepts, then call it.
 
-The entry function does not read properties, does not cache, does not call NumPy, and has no
+The entry function does not cache, does not call NumPy, and has no
 `try { fast } catch { fallback }`.
 
 ### Step 4: the kernels and their contracts
@@ -92,7 +92,7 @@ The entry function does not read properties, does not cache, does not call NumPy
 
 `src/bindings/bind_*.cpp`: convert arguments, call the entry function, return. No second
 entry point for the same operation (one path for `+` and `+=`, F-086); no NumPy; no
-property reads; no result caching.
+no result caching.
 
 ### Step 6: the gates (all must pass before merging)
 
@@ -128,7 +128,7 @@ a bit matrix stays packed). Each rule:
   a skipped `0 * inf` would be `nan`; say so.
 
 The structure comes from the operand's **class** (`TriangularMatrix`, `DiagonalMatrix`, …),
-never from a property: properties are user metadata and never change a result (F-081).
+never from a flag or assertion (the old `properties` store is removed, F-092).
 
 ## 4. Shared tools: use these, never re-derive them
 
@@ -155,7 +155,7 @@ write a fifth.
 
 - NumPy as a backend (`np.linalg.*` behind a PyCauset call). NumPy is the oracle.
 - Silent fallbacks: `try { fast } catch { slow / NumPy }`. Errors surface.
-- Reading properties to choose a path or produce a result (they are user notes, F-092);
+- Choosing a path or a result from anything but the class, the dtype, the view and the values;
   caching results outside the planned derived-value cache (F-081, `review/features/DERIVED_CACHE.md`).
 - Per-dtype or per-class copy-paste branches where a template over the element type works.
 - A private copy of the view rule.

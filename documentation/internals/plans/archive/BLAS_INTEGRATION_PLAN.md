@@ -88,7 +88,7 @@
 *Objective: Finalize the transition.*
 
 13. **Update Documentation**
-    *   **Action:** Update `documentation/internals/plans/SUPPORT_READINESS_FRAMEWORK.md` with BLAS-backed status and thresholds.
+    *   **Action:** Update `documentation/internals/plans/archive/SUPPORT_READINESS_FRAMEWORK.md` with BLAS-backed status and thresholds.
     *   **Action:** Update `internals` docs to explain the BLAS dependency.
     *   **Action:** Remove old "Micro-Kernel" implementation plans.
 
