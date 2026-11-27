@@ -643,3 +643,9 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - IO trace (F-100) keeps raw operand facts (shape, dtype, backing file) and the kernel list
   per call and formats the record when `last_io_trace()` reads it: pc.trace on a 64 x 64
   3.4 -> 2.5 us (the engine call is 0.6 us; the rest is the Python wrapper layers).
+- Python dead code (coverage run of the whole suite: 84% lines, 27 never-executed functions,
+  from 76% / 87 at the session start): NumPy is a dependency, so every `_np is None` /
+  `np_module is None` branch is gone; the pure-Python nested-list coercion of
+  `causal_matrix` (coerce_general_matrix, coerce_sequence_rows) became `np.asarray` into the
+  NumPy path; `ops._as_pycauset_vector` (no callers) removed. Newly tested: pc.matmul with
+  array-like operands, causal_matrix from lists / matrices.

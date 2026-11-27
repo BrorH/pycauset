@@ -31,7 +31,7 @@ def vector_factory(
     data: Any = size_or_data
 
     # 2) NumPy: real dtypes go through the native bulk import; complex is copied element-wise
-    if np_module is not None and isinstance(data, np_module.ndarray):
+    if isinstance(data, np_module.ndarray):
         if dtype_norm is None and data.dtype.kind != "c":
             if limit is not None:
                 est = _export_guard.estimate_materialized_bytes(data)
@@ -65,7 +65,6 @@ def causal_matrix_factory(
     populate: bool,
     np_module: Any | None,
     TriangularMatrix: Any,
-    coerce_general_matrix: Callable[[Any], tuple[int, list[list[Any]]]],
     kwargs: dict[str, Any],
 ) -> Any:
     source_obj: Any = source
@@ -79,64 +78,19 @@ def causal_matrix_factory(
             return TriangularMatrix.random(n, p=0.5, **kwargs)
         return TriangularMatrix(n, dtype="bool", **kwargs)
 
-    # Case 2: numpy fast-path
-    if np_module is not None and isinstance(source_obj, np_module.ndarray):
-        if source_obj.dtype != bool:  # type: ignore[attr-defined]
-            if not np_module.all(np_module.isin(source_obj, [0, 1])):
-                warnings.warn(
-                    "Input data contains non-binary values. They will be converted to boolean (True/False).",
-                    UserWarning,
-                    stacklevel=2,
-                )
-
-        if np_module.any(np_module.tril(source_obj) != 0):
+    # 2-D data (NumPy arrays, nested lists, PyCauset matrices): its strict upper triangle.
+    source_obj = np_module.asarray(source_obj)
+    if source_obj.ndim != 2 or source_obj.shape[0] != source_obj.shape[1]:
+        raise ValueError("causal_matrix: data must be a square 2-D array")
+    if source_obj.dtype != bool:  # type: ignore[attr-defined]
+        if not np_module.all(np_module.isin(source_obj, [0, 1])):
             warnings.warn(
-                "Input data contains non-zero values in the lower triangle or diagonal. "
-                "A causal matrix is strictly upper triangular; these values will be ignored.",
+                "Input data contains non-binary values. They will be converted to boolean (True/False).",
                 UserWarning,
                 stacklevel=2,
             )
 
-        if source_obj.dtype != bool:  # type: ignore[attr-defined]
-            source_obj = source_obj.astype(bool)  # type: ignore[attr-defined]
-        size = int(source_obj.shape[0])
-        matrix = TriangularMatrix(size, dtype="bool", **kwargs)
-        rows_idx, cols_idx = np_module.nonzero(np_module.triu(source_obj, 1))
-        for i, j in zip(rows_idx.tolist(), cols_idx.tolist()):
-            matrix.set(i, j, True)
-        return matrix
-
-    # Case 3: generic coercion
-    size, rows = coerce_general_matrix(source_obj)
-    matrix = TriangularMatrix(size, dtype="bool", **kwargs)
-
-    has_non_binary = False
-    has_lower_triangular = False
-
-    for i in range(size):
-        for j in range(size):
-            val = rows[i][j]
-
-            if not has_non_binary:
-                if val not in (0, 1, False, True, 0.0, 1.0):
-                    has_non_binary = True
-
-            if j <= i:
-                if val:
-                    has_lower_triangular = True
-                continue
-
-            if val:
-                matrix.set(i, j, True)
-
-    if has_non_binary:
-        warnings.warn(
-            "Input data contains non-binary values. They will be converted to boolean (True/False).",
-            UserWarning,
-            stacklevel=2,
-        )
-
-    if has_lower_triangular:
+    if np_module.any(np_module.tril(source_obj) != 0):
         warnings.warn(
             "Input data contains non-zero values in the lower triangle or diagonal. "
             "A causal matrix is strictly upper triangular; these values will be ignored.",
@@ -144,4 +98,12 @@ def causal_matrix_factory(
             stacklevel=2,
         )
 
+    if source_obj.dtype != bool:  # type: ignore[attr-defined]
+        source_obj = source_obj.astype(bool)  # type: ignore[attr-defined]
+    size = int(source_obj.shape[0])
+    matrix = TriangularMatrix(size, dtype="bool", **kwargs)
+    rows_idx, cols_idx = np_module.nonzero(np_module.triu(source_obj, 1))
+    for i, j in zip(rows_idx.tolist(), cols_idx.tolist()):
+        matrix.set(i, j, True)
     return matrix
+

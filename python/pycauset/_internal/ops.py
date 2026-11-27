@@ -19,23 +19,6 @@ def _as_pycauset_array(obj: Any, *, deps: OpsDeps) -> Any:
     return out
 
 
-def _as_pycauset_vector(obj: Any, *, deps: OpsDeps) -> Any:
-    """Convert a 1-D NumPy array to a native vector, handling complex dtypes.
-
-    native.asarray only supports real dtypes for 1-D arrays; complex 1-D
-    (e.g. general eigenvalues) is copied into a complex_float64 DenseVector.
-    """
-    np_module = deps.np_module
-    if np_module is not None and np_module.iscomplexobj(obj):
-        flat = np_module.asarray(obj, dtype=np_module.complex128).reshape(-1)
-        out = deps.native.DenseVector(int(flat.shape[0]), dtype="complex_float64")
-        for i, z in enumerate(flat.tolist()):
-            out[i] = z
-        _track_and_mark_temporary_if_native(out, deps=deps)
-        return out
-    return _as_pycauset_array(obj, deps=deps)
-
-
 class OpsDeps:
     def __init__(
         self,

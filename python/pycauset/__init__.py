@@ -70,10 +70,7 @@ if _NUMPY_FIRST:
         stacklevel=2,
     )
 
-try:  # NumPy is optional at runtime
-    import numpy as _np
-except ImportError:  # pragma: no cover - exercised when numpy is absent
-    _np = None
+import numpy as _np  # a dependency (pyproject); the native module needs it too
 
 # Public dtype tokens (NumPy-like). These are simple sentinels accepted by
 # Matrix/Vector factories and native interop.
@@ -352,14 +349,14 @@ def _install_array_export_hook(native_type: Any) -> None:
 
 def _coerce_scalar_for_native(value: Any) -> Any:
     """Downcast NumPy scalar types to plain Python scalars for pybind setters."""
-    if _np is not None and isinstance(value, _np.generic):
+    if isinstance(value, _np.generic):
         return value.item()
     return value
 
 
 def _is_int_key(k: Any) -> bool:
     """A non-negative integer index (negative indices go through the native __setitem__)."""
-    is_int = isinstance(k, int) or (_np is not None and isinstance(k, _np.integer))
+    is_int = isinstance(k, int) or isinstance(k, _np.integer)
     return is_int and not isinstance(k, bool) and k >= 0
 
 
@@ -447,9 +444,6 @@ def load(path: str | Path) -> Any:
 
 
 def _array_to_pycauset(arr: Any) -> Any:
-    if _np is None:
-        raise RuntimeError("NumPy is required for NumPy-based imports")
-
     if not isinstance(arr, _np.ndarray):
         arr = _np.array(arr)
 
@@ -461,16 +455,11 @@ def _array_to_pycauset(arr: Any) -> Any:
 
 
 def load_npy(path: str | Path) -> Any:
-    if _np is None:
-        raise RuntimeError("NumPy is required for .npy import")
     arr = _np.load(path)
     return _array_to_pycauset(arr)
 
 
 def load_npz(path: str | Path, *, key: str | None = None) -> Any:
-    if _np is None:
-        raise RuntimeError("NumPy is required for .npz import")
-
     data = _np.load(path)
     keys = list(data.keys())
     if not keys:
@@ -484,8 +473,6 @@ def load_npz(path: str | Path, *, key: str | None = None) -> Any:
 
 
 def save_npy(obj: Any, path: str | Path, *, allow_huge: bool = False, dtype: Any = None) -> Path:
-    if _np is None:
-        raise RuntimeError("NumPy is required for .npy export")
     arr = to_numpy(obj, allow_huge=allow_huge, dtype=dtype)
     _np.save(path, arr)
     return Path(path)
@@ -499,8 +486,6 @@ def save_npz(
     dtype: Any = None,
     key: str = "array",
 ) -> Path:
-    if _np is None:
-        raise RuntimeError("NumPy is required for .npz export")
     arr = to_numpy(obj, allow_huge=allow_huge, dtype=dtype)
     _np.savez(path, **{key: arr})
     return Path(path)
@@ -577,9 +562,6 @@ def _mark_temporary_if_auto(matrix: Any) -> None:
     _runtime.mark_temporary_if_auto(matrix)
 
 
-def _coerce_general_matrix(candidate: Any) -> tuple[int, list[list[Any]]]:
-    return _coercion.coerce_general_matrix(candidate, np_module=_np)
-
 _matrix_api.configure(np_module=_np, native=_native, track_matrix=_track_matrix)
 _matrix_api.register_native_matrices(*_MATRIX_CLASSES)
 
@@ -626,12 +608,7 @@ def _is_scalar_0d(value: Any) -> bool:
     # (Use zeros/ones/empty for allocation.)
     if isinstance(value, (bool, int, float, complex)):
         return True
-    if _np is not None:
-        if isinstance(value, _np.generic):
-            return True
-        if isinstance(value, _np.ndarray) and value.ndim == 0:
-            return True
-    return False
+    return isinstance(value, _np.generic) or (isinstance(value, _np.ndarray) and value.ndim == 0)
 
 
 def _is_sequence_like(value: Any) -> bool:
@@ -670,7 +647,7 @@ def vector(
     if _MatrixBase is not None and isinstance(source, _MatrixBase):
         raise TypeError("vector(...) expects 1D input; use matrix(...) for 2D")
 
-    if _np is not None and isinstance(source, _np.ndarray) and source.ndim != 1:
+    if isinstance(source, _np.ndarray) and source.ndim != 1:
         raise TypeError("vector(...) expects 1D input; use matrix(...) for 2D")
 
     if _is_sequence_like(source) and len(source) > 0 and _is_sequence_like(source[0]):
@@ -759,7 +736,7 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
             )
         return source
 
-    if _np is not None and isinstance(source, _np.ndarray):
+    if isinstance(source, _np.ndarray):
         if source.ndim == 2:
             if dtype is None:
                 return _matrix_api.Matrix(source, **kwargs)
@@ -907,7 +884,6 @@ def causal_matrix(source: Any, populate: bool = True, **kwargs: Any) -> Any:
         populate=populate,
         np_module=_np,
         TriangularMatrix=TriangularMatrix,
-        coerce_general_matrix=_coerce_general_matrix,
         kwargs=kwargs,
     )
 
@@ -1250,8 +1226,6 @@ def identity(x: Any) -> Any:
 
 
 def _as_square_array(data: Any, *, name: str) -> Any:
-    if _np is None:
-        raise RuntimeError("NumPy is required for symmetric/antisymmetric construction")
     arr = _np.asarray(data)
     if arr.ndim != 2:
         raise ValueError(f"{name}() expects a 2D array, got {arr.ndim}D")
@@ -1263,7 +1237,7 @@ def _as_square_array(data: Any, *, name: str) -> Any:
 
 
 def _is_inexact_dtype(arr: Any) -> bool:
-    return bool(_np is not None and _np.issubdtype(arr.dtype, _np.inexact))
+    return bool(_np.issubdtype(arr.dtype, _np.inexact))
 
 
 def _packed(arr: Any, structure: str) -> Any:

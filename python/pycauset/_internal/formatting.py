@@ -21,7 +21,7 @@ def _edge_indices(length: int) -> tuple[list[int], list[int], bool]:
 
 
 def _format_value(value: Any) -> str:
-    if _np is not None and isinstance(value, _np.generic):
+    if isinstance(value, _np.generic):
         value = value.item()
     if isinstance(value, bool):
         return "1" if value else "0"

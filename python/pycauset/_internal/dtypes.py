@@ -70,9 +70,6 @@ def normalize_dtype(dtype: Any, *, np_module: Any | None) -> str | None:
             return "complex_float64"
         return None
 
-    if np_module is None:
-        return None
-
     # Abstract NumPy scalar types have no dtype of their own: np.dtype() rejects them.
     abstract = {
         np_module.integer: "int32",

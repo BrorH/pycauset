@@ -310,3 +310,21 @@ def test_structured_rows_and_columns_are_vectors(make):
         assert got.shape == a[key].shape and got.dtype == m.dtype
         np.testing.assert_array_equal(np.asarray(got), a[key])
     np.testing.assert_array_equal(np.asarray(m.T[1, :]), a.T[1, :])
+
+
+def test_matmul_imports_array_like_operands():
+    """pc.matmul accepts NumPy arrays and nested lists on either side (imported, then the
+    engine; no NumPy fallback)."""
+    a = np.array([[1.0, 2.0], [3.0, 4.0]])
+    got = pc.matmul(a, pc.matrix(np.eye(2)))
+    np.testing.assert_array_equal(np.asarray(got), a)
+    got = pc.matmul(pc.matrix(a), [[1.0, 0.0], [0.0, 2.0]])
+    np.testing.assert_array_equal(np.asarray(got), a @ np.diag([1.0, 2.0]))
+
+
+def test_causal_matrix_from_nested_lists_and_matrices():
+    c = pc.causal_matrix([[0, 1, 1], [0, 0, 1], [0, 0, 0]])
+    np.testing.assert_array_equal(np.asarray(c), np.triu(np.ones((3, 3), dtype=bool), 1))
+    np.testing.assert_array_equal(np.asarray(pc.causal_matrix(c)), np.asarray(c))
+    with pytest.raises(ValueError, match="square"):
+        pc.causal_matrix([[0, 1], [0, 0], [1, 1]])
