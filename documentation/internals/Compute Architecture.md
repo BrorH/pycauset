@@ -155,16 +155,10 @@ The CPU backend covers eigensolvers through LAPACK, with special handling per ma
     *   **Requirements**: Square matrix (can be disk-backed)
     *   **Block-matrix**: Not currently supported (but underlying A can be out-of-core dense)
 
-#### Op Contract Declarations
-All eigen operations declare their capabilities in `OpRegistry`:
-*   **Block-matrix support**: `false` for all (LAPACK requires contiguous dense)
-*   **Streaming support**: `false` except `eigvals_arnoldi` (`true` - uses matrix-vector products)
-*   **Square requirement**: `true` for all eigen operations
-
 #### Routing and Deterministic Rejection
 *   **Non-square matrices**: Rejected with clear error message mentioning "square matrix required"
 *   **Block matrices**: Rejected with error indicating LAPACK requires dense contiguous layout
-*   **IO Trace**: All eigen operations record routing decisions (`direct` for LAPACK ops, `streaming` potential for Arnoldi)
+*   **IO trace**: `pycauset.last_io_trace(op)` lists the kernels that ran (see [[internals/Streaming Manager|Streaming Manager]])
 
 ### 2.6 Additional Linear Algebra Operations (Phase 7: R1_CPU)
 

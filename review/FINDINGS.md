@@ -1387,3 +1387,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Options: raise NotImplementedError for d > 2 until the true sampler exists; or warn on
   construction; or implement the sampler (uniform in the interval I+(p) ∩ I-(q): rejection
   sampling from the bounding box, causality by the Minkowski interval).
+
+### F-106 OpRegistry: a capability table nothing read, with false entries
+- **Status:** fixed (session 9, by removal). `OpRegistry` / `OpContract` registered flags per
+  op (`supports_streaming`, `supports_block_matrix`, `requires_square`) at static init. No
+  engine code read them (only their own tests and one doc section), and several were false:
+  "inverse: block-recursive, streams" (that path was dead and is deleted), "cholesky: tiled".
+  A declarative store beside the code drifts from it (the same failure as the old property
+  flags, F-092). Removed with its binding, gtest, three Python test files and the doc section;
+  also the never-collected script `tests/python/phase3_4_verification.py`.

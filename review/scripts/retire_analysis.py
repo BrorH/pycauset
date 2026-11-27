@@ -17,7 +17,7 @@ import sys
 
 import coverage
 
-NEW = ("tests/engine/", "tests/atlas/")
+NEW = ("tests/engine/", "tests/atlas/", "tests/physics/")
 OLD = "tests/python/"
 
 

@@ -1445,11 +1445,9 @@ def __getattr__(name):
 # `from pycauset import *` does not surface implementation details.
 _INTERNAL_NATIVE_EXPORTS = frozenset(
     {
-        # Memory / I/O / op-registry machinery.
+        # Memory / I/O machinery.
         "MemoryGovernor",
         "IOAccelerator",
-        "OpContract",
-        "OpRegistry",
         # Native storage plumbing (public API is set_backing_dir / save / load).
         "get_storage_root",
         "set_storage_root",

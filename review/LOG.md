@@ -441,3 +441,6 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   a null `py::slice()`, list / NumPy-integer indices, `ndarray @ matrix`); the five matmul
   bindings are one helper and `.multiply` is gone. F-103 (Python int -> int32 vs NumPy int64)
   is open for the maintainer. Gates: 4,443 + 3,923 passed, atlas 0 wrong, CI gate 42.
+- Maintainer decisions: F-103, Python integers stay int32 (documented rule; no value-based
+  narrowing in constructors); order stays cleanup -> tests -> docs -> speed -> features, F1
+  (value bounds) included, which later makes minimal-dtype storage safe.

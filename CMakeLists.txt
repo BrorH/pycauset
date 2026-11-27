@@ -411,7 +411,6 @@ set(PYCAUSET_SOURCES
     src/core/ParallelUtils.cpp
     src/core/PromotionResolver.cpp
     src/core/StructureResolver.cpp
-    src/core/OpRegistration.cpp
     src/matrix/MatrixBase.cpp
     src/matrix/DenseBitMatrix.cpp
     src/matrix/TriangularMatrix.cpp
@@ -487,7 +486,6 @@ endif()
 python_add_library(_pycauset MODULE
     src/bindings.cpp
     src/bindings/bind_core.cpp
-    src/bindings/bind_op_registry.cpp
     src/bindings/binding_warnings.cpp
     src/bindings/bind_matrix.cpp
     src/bindings/bind_vector.cpp
@@ -571,12 +569,6 @@ if(BUILD_TESTS)
     add_test(NAME SymmetricMatrixTests COMMAND test_symmetric_matrix)
 
 
-
-    # Op registry contract
-    add_executable(test_op_registry tests/test_op_registry.cpp)
-    target_include_directories(test_op_registry PRIVATE include)
-    target_link_libraries(test_op_registry PRIVATE GTest::gtest_main pycauset_core)
-    add_test(NAME OpRegistryTests COMMAND test_op_registry)
 
     # CPU compute-worker contract
     add_executable(test_cpu_worker_contract tests/test_cpu_worker_contract.cpp)

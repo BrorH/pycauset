@@ -6,7 +6,6 @@ PYBIND11_MODULE(_pycauset, m) {
     m.doc() = "PyCauset: High-performance Causal Set Theory library";
 
     bind_core_classes(m);
-    bind_op_registry(m);
     bind_matrix_classes(m);
     bind_vector_classes(m);
     bind_causet_classes(m);

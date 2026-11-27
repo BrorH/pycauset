@@ -26,6 +26,9 @@ work and before any feature:
 3. Phase 5 documentation truth pass.
 4. Then Phase 6 speed (open gaps in FINDINGS F-096/F-099) and the features D, L, F1.
 Speed and features built on code that is about to be split or deleted get done twice.
+Maintainer confirmed this order (2026-11-27), including F1 (value bounds) after speed work:
+F1 is also the long-term answer to F-103 (storage at the minimal dtype becomes safe once
+each op predicts its result range).
 
 **How to use this file:** phases run roughly in order, but within a phase the work
 items are independent and can be claimed by different agents. Claim an item by
