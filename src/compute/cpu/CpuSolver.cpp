@@ -971,21 +971,6 @@ namespace {
         throw std::runtime_error("CpuSolver::inverse not implemented for this dtype (only f32/f64)");
     }
 
-    inline void blas_gemm(CBLAS_LAYOUT layout, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB,
-                          const int M, const int N, const int K,
-                          const double alpha, const double *A, const int lda,
-                          const double *B, const int ldb, const double beta,
-                          double *C, const int ldc) {
-        cblas_dgemm(layout, TransA, TransB, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    }
-
-    inline void blas_gemm(CBLAS_LAYOUT layout, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB,
-                          const int M, const int N, const int K,
-                          const float alpha, const float *A, const int lda,
-                          const float *B, const int ldb, const float beta,
-                          float *C, const int ldc) {
-        cblas_sgemm(layout, TransA, TransB, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    }
 } // namespace
 
 namespace {

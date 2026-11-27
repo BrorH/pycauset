@@ -44,15 +44,6 @@ namespace pycauset {
 // --- Helpers ---
 
 namespace {
-    inline uint64_t broadcast_dim(uint64_t a, uint64_t b, const char* opname, uint64_t a_other, uint64_t b_other, bool rows) {
-        if (a == b) return a;
-        if (a == 1) return b;
-        if (b == 1) return a;
-        std::string msg = std::string(opname) + ": operands could not be broadcast together with shapes (" +
-                          std::to_string(a_other) + "," + std::to_string(rows ? a : a_other) + ") and (" +
-                          std::to_string(b_other) + "," + std::to_string(rows ? b : b_other) + ")";
-        throw std::invalid_argument(msg);
-    }
 
     inline std::pair<uint64_t, uint64_t> broadcast_shape_2d(const MatrixBase& a, const MatrixBase& b, const char* opname) {
         const uint64_t ar = a.rows();
@@ -492,11 +483,6 @@ std::pair<double, double> mm_int_range(DataType r) {
         default: throw std::logic_error("mm_int_range: not an integer dtype");
     }
 }
-
-// Real dtypes (every diagonal class exists, N.5): the product of two float32 or float16 values
-// is exact in double, so one rounding matches NumPy. Complex: dense rule (the writer below is
-// real-valued).
-bool mm_has_diagonal_class(DataType r) { return r != DataType::BIT && !mm_complex(r) && r != DataType::UNKNOWN; }
 
 template <typename T>
 std::unique_ptr<MatrixBase> mm_make_triangular_t(uint64_t n, const std::string& saveas, bool diag) {

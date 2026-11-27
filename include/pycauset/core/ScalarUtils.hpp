@@ -39,19 +39,6 @@ inline T from_double(double v) {
     }
 }
 
-template <typename T>
-inline T from_complex_double(const std::complex<double>& z) {
-    if constexpr (std::is_same_v<T, pycauset::float16_t>) {
-        return pycauset::float16_t(z.real());
-    } else if constexpr (std::is_same_v<T, std::complex<float>>) {
-        return std::complex<float>(static_cast<float>(z.real()), static_cast<float>(z.imag()));
-    } else if constexpr (std::is_same_v<T, std::complex<double>>) {
-        return z;
-    } else {
-        return static_cast<T>(z.real());
-    }
-}
-
 
 // ---------------------------------------------------------------------------
 // Wrapping arithmetic (F-006). Integer + - * use two's-complement wraparound,

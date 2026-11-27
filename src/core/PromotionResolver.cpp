@@ -15,10 +15,6 @@ inline bool is_complex_float(DataType dt) {
     return dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64;
 }
 
-inline bool is_float_like(DataType dt) {
-    return is_real_float(dt) || is_complex_float(dt);
-}
-
 inline bool is_signed_int(DataType dt) {
     return dt == DataType::INT8 || dt == DataType::INT16 || dt == DataType::INT32 || dt == DataType::INT64;
 }

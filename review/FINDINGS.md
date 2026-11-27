@@ -1294,3 +1294,19 @@ the entry (the history is useful). New findings go at the bottom with the next f
   CpuSolver.cpp.
 - Also seen: `add` has a hand-written identity + identity branch for float64 and int32 only
   (a per-dtype copy, forbidden by the protocol §5); to go in the same cleanup.
+
+### F-100 The IO trace reports a Python guess, not what the engine did
+- **Status:** open (session 9); fix = PLAN 4.7.
+- `pc.last_io_trace()` comes from `_internal/streaming_manager.py` + `io_observability.py`
+  (~620 lines). They plan a "route" (direct / streaming), tile shape and queue depth in Python
+  from operand sizes and `set_io_streaming_threshold`. The engine never reads that plan:
+  whether an op runs out of core is decided in C++ (`CpuDevice` → `StreamingManager.cpp`, from
+  the MemoryGovernor). `set_io_streaming_threshold` therefore changes only what the trace
+  *says*. A trace that reads `route=streaming` for an op that ran in RAM (or the reverse) is a
+  wrong answer about the program itself.
+- The two layers are also where most silent `except Exception: pass` sites in `ops.py` live
+  (10 of them guard trace bookkeeping).
+- Fix: one StreamingManager (C++). The engine records what it did (kernel label, already in
+  `debug_trace`; tiled or not, tile size) and the Python trace reports that plus factual operand
+  snapshots (shape, dtype, storage). Delete the Python planner, its descriptors, and
+  `set/get_io_streaming_threshold` (it controls nothing), with their docs and tests.

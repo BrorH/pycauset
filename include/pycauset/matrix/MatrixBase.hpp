@@ -68,9 +68,6 @@ public:
     uint64_t row_offset() const { return row_offset_; }
     uint64_t col_offset() const { return col_offset_; }
 
-    uint64_t logical_rows() const { return logical_rows_; }
-    uint64_t logical_cols() const { return logical_cols_; }
-
     std::shared_ptr<MemoryMapper> shared_mapper() const { return mapper_; }
 
     // A window into larger storage: offset, or fewer rows/cols than the storage. Kernels that
@@ -104,19 +101,6 @@ protected:
     virtual void set_element_double(uint64_t i, uint64_t j, double value) = 0;
 
 public:
-
-    // Phase 2.5: Batch Write
-    // Allows writing a block of data at once, enabling vectorization in derived classes.
-    virtual void write_block(uint64_t start_row, uint64_t start_col, 
-                             uint64_t num_rows, uint64_t num_cols, 
-                             const double* buffer, uint64_t stride) {
-        // Default implementation: loop and set
-        for (uint64_t i = 0; i < num_rows; ++i) {
-            for (uint64_t j = 0; j < num_cols; ++j) {
-                set_element_as_double(start_row + i, start_col + j, buffer[i * stride + j]);
-            }
-        }
-    }
 
     // Phase 4.3: Spill Mechanism
     // Moves data from RAM (Anonymous) to a file-backed mapping.

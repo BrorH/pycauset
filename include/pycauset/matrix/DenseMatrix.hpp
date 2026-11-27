@@ -181,18 +181,6 @@ public:
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }
     const T* data() const { return static_cast<const T*>(require_mapper()->get_data()); }
 
-    bool pin_range(size_t start_idx, size_t count) const {
-        T* ptr = const_cast<T*>(data()) + start_idx;
-        size_t bytes = count * sizeof(T);
-        return require_mapper()->pin_region(ptr, bytes);
-    }
-
-    void unpin_range(size_t start_idx, size_t count) const {
-        T* ptr = const_cast<T*>(data()) + start_idx;
-        size_t bytes = count * sizeof(T);
-        require_mapper()->unpin_region(ptr, bytes);
-    }
-
     std::unique_ptr<DenseMatrix<T>> submatrix(uint64_t r, uint64_t c, uint64_t h, uint64_t w) const {
         if (r + h > rows() || c + w > cols()) {
             throw std::out_of_range("Submatrix out of bounds");

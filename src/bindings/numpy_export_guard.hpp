@@ -118,24 +118,6 @@ inline void ensure_numpy_export_allowed_impl(const std::string& backing_file, ui
 inline void ensure_numpy_export_allowed(const MatrixBase& mat);
 inline void ensure_numpy_export_allowed(const VectorBase& v);
 
-inline void ensure_numpy_export_allowed_for_buffer(const MatrixBase& mat) {
-    try {
-        ensure_numpy_export_allowed(mat);
-    } catch (const std::exception& e) {
-        PyErr_SetString(PyExc_RuntimeError, e.what());
-        throw py::error_already_set();
-    }
-}
-
-inline void ensure_numpy_export_allowed_for_buffer(const VectorBase& v) {
-    try {
-        ensure_numpy_export_allowed(v);
-    } catch (const std::exception& e) {
-        PyErr_SetString(PyExc_RuntimeError, e.what());
-        throw py::error_already_set();
-    }
-}
-
 inline void ensure_numpy_export_allowed(const MatrixBase& mat) {
     const std::string backing = mat.get_backing_file();
     const uint64_t rows = mat.rows();

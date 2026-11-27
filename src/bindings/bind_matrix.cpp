@@ -59,32 +59,12 @@ struct DenseMatrix2DBufferState {
     Py_ssize_t strides[2];
 };
 
-inline bool u64_to_py_ssize(uint64_t v, Py_ssize_t* out) {
-    if (v > static_cast<uint64_t>(PY_SSIZE_T_MAX)) {
-        return false;
-    }
-    *out = static_cast<Py_ssize_t>(v);
-    return true;
-}
-
-inline bool add_overflow_u64(uint64_t a, uint64_t b, uint64_t* out) {
-    if (a > (std::numeric_limits<uint64_t>::max)() - b) {
-        return true;
-    }
-    *out = a + b;
-    return false;
-}
-
 inline bool is_numpy_float16(const py::array& array) {
     try {
         return py::str(array.dtype()).cast<std::string>() == "float16";
     } catch (...) {
         return false;
     }
-}
-
-inline bool is_dense_int32_matrix(const MatrixBase& m) {
-    return dynamic_cast<const DenseMatrix<int32_t>*>(&m) != nullptr;
 }
 
 inline void maybe_warn_integer_matmul_overflow_risk_preflight(const MatrixBase& a, const MatrixBase& b) {
@@ -209,15 +189,6 @@ inline void maybe_warn_bit_promotes_to_int32(const char* op_name, promotion::Bin
     message += "Even though int16 exists, bit-bit reductions commonly exceed int16; result is int32.";
 
     bindings_warn::warn_with_category(message, "PyCausetDTypeWarning", /*stacklevel=*/3);
-}
-
-inline void require_square_2d(const py::buffer_info& buf) {
-    if (buf.ndim != 2) {
-        throw py::value_error("Number of dimensions must be 2");
-    }
-    if (buf.shape[0] != buf.shape[1]) {
-        throw py::value_error("Matrix must be square");
-    }
 }
 
 inline void require_2d(const py::buffer_info& buf) {
@@ -786,14 +757,6 @@ inline ParsedIndex parse_matrix_subscript(const py::handle& key, uint64_t rows, 
     SliceInfo r = slice_from_object(first, rows);
     SliceInfo c = slice_from_object(second, cols);
     return ParsedIndex{r, c};
-}
-
-inline std::pair<uint64_t, uint64_t> parse_matrix_index(const py::handle& key, uint64_t rows, uint64_t cols) {
-    auto parsed = parse_matrix_subscript(key, rows, cols);
-    if (!parsed.rows.is_scalar || !parsed.cols.is_scalar) {
-        throw py::type_error("Matrix indices must be integers (no slices) for this operation");
-    }
-    return {parsed.rows.index, parsed.cols.index};
 }
 
 inline uint64_t slice_length(const SliceInfo& s) {

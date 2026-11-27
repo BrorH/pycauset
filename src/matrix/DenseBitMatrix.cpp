@@ -13,11 +13,6 @@
 
 namespace pycauset {
 
-// Helper for popcount
-static inline int popcount64(uint64_t x) {
-    return std::popcount(x);
-}
-
 void DenseMatrix<bool>::calculate_stride() {
     // Align rows to 512-bit (64-byte) boundaries for AVX-512 optimization.
     // Even if AVX-512 is not used, cache line alignment (64 bytes) is beneficial.
