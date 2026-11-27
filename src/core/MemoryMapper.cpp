@@ -516,9 +516,9 @@ void MemoryMapper::open_file(bool create_new) {
 
     base_ptr_ = mmap(NULL, map_size, PROT_READ | PROT_WRITE, map_flags, anonymous ? -1 : fd_, aligned_offset);
 #ifdef __linux__
-    if (anonymous && base_ptr_ != MAP_FAILED && map_size >= (size_t{2} << 20)) {
-        madvise(base_ptr_, map_size, MADV_HUGEPAGE);
-    }
+    // No MADV_HUGEPAGE: with the common `defrag = madvise` kernel setting it makes page faults
+    // compact memory synchronously and khugepaged collapse the region later; a freshly imported
+    // 8 MB matrix then read 50x slower for its first calls (norm 32 ms vs 0.6 ms, F-096).
 #endif
     
     if (base_ptr_ == MAP_FAILED) {
