@@ -33,6 +33,10 @@ from typing import Callable
 
 
 import pycauset as pc  # before NumPy: one quiet BLAS thread policy (F-096)
+
+# The atlas checks how each operation computes (values and kernel paths), so the derived-value
+# cache is off here; tests/engine/test_derived_cache.py covers the cache.
+pc._native._set_derived_cache(False)
 import numpy as np
 from pycauset._internal import export_guard
 

@@ -18,7 +18,7 @@ backend. Pre-alpha: no backwards compatibility; removed things are removed with 
 ## Rules that are easy to break
 - One definition of view semantics: `include/pycauset/math/ViewValue.hpp`. Never re-derive it.
 - No silent fallbacks, no NumPy behind a PyCauset call, no result caching outside the
-  derived-value cache (`review/features/DERIVED_CACHE.md`; not built yet). Structure is the
+  derived-value cache (`include/pycauset/math/DerivedCache.hpp`; spec `review/features/DERIVED_CACHE.md`). Structure is the
   class (there is no assertion/flag store). Guesses (sampling, heuristics) may warn, never decide.
 - One code path per operation; one templated kernel per family, not per dtype.
 

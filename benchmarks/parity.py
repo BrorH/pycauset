@@ -19,6 +19,10 @@ import time
 # pycauset call timed next 3x (FINDINGS F-012; docs "Performance and threads").
 import pycauset as pc  # noqa: I001
 
+# Time the computation, not the derived-value cache (a repeated det / sum / norm of the same
+# object is served from it).
+pc._native._set_derived_cache(False)
+
 import numpy as np
 
 N = 1024  # matrix ops

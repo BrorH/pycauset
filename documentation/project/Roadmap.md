@@ -27,7 +27,8 @@ Still to do before the release (review PLAN):
 - Speed: at least 0.9x NumPy in memory across the atlas (`review/atlas/TIMING.md`). Today
   most dense operations are there; small-call overhead and some structured and complex32
   cases are not.
-- Features: a derived-value cache that is discarded on every change (`review/features/DERIVED_CACHE.md`),
+- Features: the derived-value cache (scalar results done; vector results and persistence next,
+  `review/features/DERIVED_CACHE.md`),
   lazy expressions (`LAZY.md`), value bounds for exact integer result dtypes.
 - Release mechanics: tag a version, publish wheels for Linux, macOS and Windows, check
   `pip install pycauset` in a fresh environment.

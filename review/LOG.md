@@ -672,3 +672,14 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   transposed view 7-10 ms), tri * dense 1.55 -> 1.27 ms (NumPy 1.26), sym + dense 1.9 -> 1.6.
 - Dead code: `batch_gemv` (device interface, AutoSolver, CpuDevice, CpuSolver; F-116). Full atlas
   0 wrong.
+- Derived-value cache, D.1 + D.2 (scalar results). `MemoryMapper` (the storage every view of a
+  payload shares) carries a version and a cache map; `PersistentObject::ensure_unique`, the
+  copy-on-write gate every writer passes before changing bytes, bumps the version and drops the
+  map. `cached()` (`include/pycauset/math/DerivedCache.hpp`) wraps det, slogdet, trace, sum,
+  the matrix norms and rank; entries are keyed on the exact view (class, structure, factor,
+  conjugation, transposition) plus parameters, so a hit is bit-for-bit the recomputed value
+  (the spec's view rules would round differently: not used). Windows and storage-less classes
+  are not cached; an entry is stored only if the version did not move during the computation.
+  The atlas, the timing harness and the benchmarks switch it off (they measure computation).
+  Tests: `tests/engine/test_derived_cache.py` (every writer invalidates, views, copy-on-write,
+  closures, vectors, integer results, parameters, the switch).

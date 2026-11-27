@@ -1,3 +1,4 @@
+#include "pycauset/math/DerivedCache.hpp"
 #include "pycauset/math/Reductions.hpp"
 
 #include <algorithm>
@@ -225,7 +226,7 @@ ReductionValue sum_generic(const MatrixBase& m) {
 
 }  // namespace
 
-ReductionValue sum(const MatrixBase& m) {
+static ReductionValue sum_compute(const MatrixBase& m) {
     const DataType dt = m.get_data_type();
     const std::complex<double> f = m.get_scalar();
     const bool int_like = dt != DataType::BIT && !is_float_dtype(dt) && !is_complex_dtype(dt);
@@ -331,7 +332,11 @@ ReductionValue sum(const MatrixBase& m) {
     return sum_generic(m);
 }
 
-ReductionValue trace(const MatrixBase& m) {
+ReductionValue sum(const MatrixBase& m) {
+    return cached<ReductionValue>(m, "sum", "", [&] { return sum_compute(m); });
+}
+
+static ReductionValue trace_compute(const MatrixBase& m) {
     const uint64_t n = std::min(m.rows(), m.cols());
     const DataType dt = m.get_data_type();
     const std::complex<double> f = m.get_scalar();
@@ -376,6 +381,10 @@ ReductionValue trace(const MatrixBase& m) {
     out.kind = ReductionValue::Kind::Real;
     out.r = diag_sum(0.0, [&](uint64_t i) { return m.get_element_as_double(i, i); });
     return out;
+}
+
+ReductionValue trace(const MatrixBase& m) {
+    return cached<ReductionValue>(m, "trace", "", [&] { return trace_compute(m); });
 }
 
 ReductionValue sum(const VectorBase& v) {

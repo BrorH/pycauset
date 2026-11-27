@@ -29,6 +29,10 @@ import zlib
 
 
 import pycauset as pc  # before NumPy: one quiet BLAS thread policy (F-096)
+
+# Time the computation, not the derived-value cache (a repeated det / sum / norm of the same
+# object is served from it).
+pc._native._set_derived_cache(False)
 import numpy as np
 from tests.atlas import atlas as A
 

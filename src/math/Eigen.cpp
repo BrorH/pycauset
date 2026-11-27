@@ -1,3 +1,4 @@
+#include "pycauset/math/DerivedCache.hpp"
 #include "pycauset/math/Eigen.hpp"
 
 #include <cmath>
@@ -44,14 +45,18 @@ static LuPivots pivots_of(const MatrixBase& a) {
     return ComputeContext::instance().get_device()->lu_pivots(h ? *h : a);
 }
 
-std::complex<double> determinant(const MatrixBase& matrix) {
+static std::complex<double> determinant_compute(const MatrixBase& matrix) {
     const LuPivots lu = pivots_of(matrix);
     std::complex<double> det = lu.odd_permutation ? -1.0 : 1.0;
     for (const auto& p : lu.pivots) det *= p;
     return det;
 }
 
-std::pair<std::complex<double>, double> slogdet(const MatrixBase& matrix) {
+std::complex<double> determinant(const MatrixBase& matrix) {
+    return cached<std::complex<double>>(matrix, "det", "", [&] { return determinant_compute(matrix); });
+}
+
+static std::pair<std::complex<double>, double> slogdet_compute(const MatrixBase& matrix) {
     // Sum of logs: no overflow where the determinant itself is beyond double range (F-070).
     const LuPivots lu = pivots_of(matrix);
     std::complex<double> sign = lu.odd_permutation ? -1.0 : 1.0;
@@ -63,6 +68,10 @@ std::pair<std::complex<double>, double> slogdet(const MatrixBase& matrix) {
         logabs += std::log(a);
     }
     return {sign, logabs};
+}
+
+std::pair<std::complex<double>, double> slogdet(const MatrixBase& matrix) {
+    return cached<std::pair<std::complex<double>, double>>(matrix, "slogdet", "", [&] { return slogdet_compute(matrix); });
 }
 
 } // namespace pycauset

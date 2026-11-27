@@ -22,6 +22,10 @@ import numpy as np
 
 import pycauset as pc
 
+# Time the computation, not the derived-value cache (a repeated det / sum / norm of the same
+# object is served from it).
+pc._native._set_derived_cache(False)
+
 
 def _timeit(fn: Callable[[], object], repeats: int) -> float:
     best = float("inf")

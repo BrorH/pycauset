@@ -358,8 +358,13 @@ Computed results (det, trace, eigenvalues, norms, rank, ...) are kept with the m
 with it; any change to the storage discards them first; scaled / conjugated / transposed views
 derive their answer from the cached one (det(4A) = 4^n det(A)). After N.7 and with F1 (both
 are engine-owned metadata on the storage).
-- [ ] D.1 Storage version counter; every mutable path invalidates (test walks every writer)
-- [ ] D.2 Cache map + view rules for scalar and vector quantities
+- [x] D.1 Storage version counter; every mutable path invalidates (test walks every writer).
+      Session 9: `MemoryMapper::version`, bumped by `PersistentObject::ensure_unique` (the
+      copy-on-write gate every writer passes); `tests/engine/test_derived_cache.py`.
+- [~] D.2 Cache map + view rules for scalar and vector quantities. Session 9: the map on the
+      storage and `cached()` (math/DerivedCache.hpp) for det, slogdet, trace, sum, matrix
+      norms, rank. Keyed on the exact view instead of the spec's view rules (bit-identical to
+      recomputation; the rules round differently). Vector quantities (eigvals, svdvals) open.
 - [ ] D.3 Persistence with invalidate-before-mutate on memory-mapped files
 - [ ] D.4 Matrix-valued results (inverse, eigenvectors, factors) as container sections
 - [ ] D.5 Closures and expression nodes (with phase L)

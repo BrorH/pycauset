@@ -97,7 +97,12 @@ void PersistentObject::ensure_own_mapping() {
 }
 
 void PersistentObject::ensure_unique() {
-    if (mapper_ && mapper_.use_count() > 1) copy_storage_now();
+    if (!mapper_) return;
+    if (mapper_.use_count() > 1) copy_storage_now();
+    // The write gate: every writer calls this before changing bytes, so the derived values
+    // of this storage are dropped here (DERIVED_CACHE.md invariant 2). After a copy the new
+    // storage has none; the old one keeps its own (its bytes do not change).
+    mapper_->bump_version();
 }
 
 void PersistentObject::copy_storage_now() {

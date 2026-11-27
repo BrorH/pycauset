@@ -1,6 +1,7 @@
 #include "bindings_common.hpp"
 #include "element_conversion.hpp"
 #include "pycauset/math/Reductions.hpp"
+#include "pycauset/math/DerivedCache.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
 
 #include "pycauset/core/ParallelUtils.hpp"
@@ -135,6 +136,15 @@ void bind_core_classes(py::module_& m) {
     // Lazy results on/off (LAZY.md section 10: the lazy == eager test oracle).
     m.def("_set_lazy", [](bool on) { pycauset::lazy_enabled().store(on); }, py::arg("on"));
     m.def("_get_lazy", []() { return pycauset::lazy_enabled().load(); });
+    // Derived-value cache (math/DerivedCache.hpp): counters and an off switch for tests and
+    // for timing cold computations; the storage version of an object (moves on every write).
+    m.def("_derived_cache_stats", []() {
+        return py::make_tuple(pycauset::derived_cache::hits().load(), pycauset::derived_cache::stores().load());
+    });
+    m.def("_set_derived_cache", [](bool on) { pycauset::derived_cache::enabled().store(on); }, py::arg("on"));
+    m.def("_storage_version", [](const pycauset::MatrixBase& mat) -> uint64_t {
+        return mat.shared_mapper() ? mat.shared_mapper()->version() : 0;
+    });
 
     m.def(
         "_set_ram_safety_margin",

@@ -157,7 +157,7 @@ write a fifth.
 - NumPy as a backend (`np.linalg.*` behind a PyCauset call). NumPy is the oracle.
 - Silent fallbacks: `try { fast } catch { slow / NumPy }`. Errors surface.
 - Choosing a path or a result from anything but the class, the dtype, the view and the values;
-  caching results outside the planned derived-value cache (F-081, `review/features/DERIVED_CACHE.md`).
+  caching results outside the derived-value cache (`math/DerivedCache.hpp`) (F-081, `review/features/DERIVED_CACHE.md`).
 - Per-dtype or per-class copy-paste branches where a template over the element type works.
 - A private copy of the view rule.
 - Guesses deciding results: sampling or heuristics may only produce warnings.

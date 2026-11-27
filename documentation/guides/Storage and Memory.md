@@ -162,6 +162,27 @@ This is intentionally NumPy-like: `np.load(...)` gives you an array in memory; m
 
 Why this exists: it protects expensive “baseline” snapshots from accidental overwrite during exploratory work.
 
+## Computed values are remembered until the matrix changes
+
+`pc.determinant`, `pc.slogdet`, `pc.trace`, `pc.sum`, `pc.norm` (matrix norms) and
+`pc.matrix_rank` keep their result with the matrix's storage. Asking again for the same
+matrix (and the same view of it: `A`, `A.T` and `2 * A` are separate entries) returns the
+stored value at once. Any write to the matrix (`A[i, j] = x`, a slice assignment, `fill`,
+`set_identity`) discards every stored value before the data changes, so an answer is always
+the one a fresh computation would give. Slices (`A[1:4, 2:6]`) are not cached. The values
+are not saved with `pc.save` yet.
+
+```python
+import numpy as np
+import pycauset as pc
+
+A = pc.matrix(np.random.default_rng(0).standard_normal((300, 300)))
+d1 = pc.determinant(A)   # computed
+d2 = pc.determinant(A)   # stored value
+A[0, 0] = 1.0            # discards it
+d3 = pc.determinant(A)   # computed again, for the new data
+```
+
 ## Metadata-driven “views” (fast operations without rewriting payload)
 
 A **view** is a matrix/vector object that **shares the same payload bytes** as another object, but carries different *metadata* that changes how those bytes are interpreted.

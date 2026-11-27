@@ -1,3 +1,5 @@
+#include "pycauset/math/DerivedCache.hpp"
+#include <cstdio>
 #include "pycauset/math/ScalarOps.hpp"
 #include "pycauset/math/Bitwise.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
@@ -1099,7 +1101,7 @@ static std::vector<double> singular_values(const MatrixBase& a) {
 
 // NumPy's matrix norms: 'fro', 'nuc', 2 / -2 (largest / smallest singular value), 1 / -1
 // (max / min column sum of |a|), inf / -inf (max / min row sum). Computed in double precision.
-double matrix_norm(const MatrixBase& a, const std::string& ord) {
+static double matrix_norm_compute(const MatrixBase& a, const std::string& ord) {
     if (ord == "fro") return norm(a);
     if (ord == "nuc" || ord == "2" || ord == "-2") {
         const auto s = singular_values(a);
@@ -1119,6 +1121,10 @@ double matrix_norm(const MatrixBase& a, const std::string& ord) {
     return largest ? *std::max_element(sums.begin(), sums.end()) : *std::min_element(sums.begin(), sums.end());
 }
 
+double matrix_norm(const MatrixBase& a, const std::string& ord) {
+    return cached<double>(a, "norm", ord, [&] { return matrix_norm_compute(a, ord); });
+}
+
 // NumPy's vector norms: p = inf (max |x|), -inf (min |x|), 0 (count of non-zeros), otherwise
 // (sum |x|^p)^(1/p). Computed in double precision.
 double vector_norm(const VectorBase& v, double p) {
@@ -1136,7 +1142,7 @@ double vector_norm(const VectorBase& v, double p) {
 
 // NumPy's matrix_rank: singular values above tol; tol < 0 means NumPy's default
 // max(s) * max(m, n) * eps (eps of the SVD's precision).
-int64_t matrix_rank(const MatrixBase& a, double tol) {
+static int64_t matrix_rank_compute(const MatrixBase& a, double tol) {
     if (a.rows() == 0 || a.cols() == 0) return 0;
     const auto s = singular_values(a);
     if (tol < 0) {
@@ -1146,6 +1152,12 @@ int64_t matrix_rank(const MatrixBase& a, double tol) {
         tol = *std::max_element(s.begin(), s.end()) * static_cast<double>(std::max(a.rows(), a.cols())) * eps;
     }
     return std::count_if(s.begin(), s.end(), [tol](double t) { return t > tol; });
+}
+
+int64_t matrix_rank(const MatrixBase& a, double tol) {
+    char p[32];
+    std::snprintf(p, sizeof p, "%a", tol);
+    return cached<int64_t>(a, "rank", p, [&] { return matrix_rank_compute(a, tol); });
 }
 
 // Eigen decompositions, NumPy's eig / eigvals / eigh / eigvalsh: any dtype, structure and view
