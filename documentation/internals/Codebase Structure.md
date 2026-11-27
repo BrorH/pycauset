@@ -17,10 +17,10 @@ Where things live and how a call flows through them.
 | Path | Contents |
 |---|---|
 | `python/pycauset/__init__.py` | the public facade: every `pc.*` name |
-| `python/pycauset/_internal/` | implementation modules behind the facade ([[dev/Python Internals]]) |
+| `python/pycauset/_internal/` | implementation modules behind the facade ([[internals/Python Internals]]) |
 | `python/pycauset/causet.py`, `spacetime.py`, `synthetic.py`, `vis.py` | causal sets, the Minkowski diamond, synthetic orders, lightweight plots |
 | `include/pycauset/`, `src/` | the C++ engine, one folder per subsystem (below) |
-| `src/bindings.cpp`, `src/bindings/` | the pybind11 module `pycauset._pycauset`, one file per subsystem ([[dev/Bindings & Dispatch]]) |
+| `src/bindings.cpp`, `src/bindings/` | the pybind11 module `pycauset._pycauset`, one file per subsystem ([[internals/Bindings & Dispatch]]) |
 | `tests/engine/` | the engine suite (NumPy oracle) |
 | `tests/atlas/` | every op x dtype x structure x view against NumPy; timing harness |
 | `tests/blockmatrix/` | block matrices |

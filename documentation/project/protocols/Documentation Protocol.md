@@ -89,7 +89,7 @@ Minimum expectation for internals:
 - How to extend it safely
 - Common failure modes and debugging tips
 
-### D) Dev handbook (`documentation/dev/`), mandatory for process / contributor UX
+### D) Dev handbook (`documentation/internals/`), mandatory for process / contributor UX
 
 Use dev handbook pages when:
 

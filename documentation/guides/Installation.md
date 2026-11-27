@@ -42,4 +42,4 @@ PYTHONPATH=python python -m pytest
 ```
 
 On Windows, `./tools/build.ps1` wraps the pip build (`-Action editable|install|wheel`,
-`-PythonVersion 3.12`). Details: [[dev/Build System|Build System]].
+`-PythonVersion 3.12`). Details: [[internals/Build System|Build System]].

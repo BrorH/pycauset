@@ -52,7 +52,7 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `documentation/docs/` | API reference: 96 function pages, class pages, parameters, assets | 3 pages for non-existent symbols; many signature blocks fenced as python |
 | `documentation/internals/` | design docs (algorithms, compute, dtype, memory, streaming, lazy) | verify against ARCHITECTURE.md |
 | `documentation/internals/plans/` (+ `archive/`, 18 files) | R1-era plans, TODO, optimization status | history; proposed for deletion |
-| `documentation/dev/` | 16 developer notes (build, bindings, container format, QA audits, perf findings) | overlaps internals |
+| `documentation/internals/` | 16 developer notes (build, bindings, container format, QA audits, perf findings) | overlaps internals |
 | `documentation/project/` | philosophy, public API contract, protocols (8), R2 plans (7) | protocols worth keeping |
 
 ## Source files

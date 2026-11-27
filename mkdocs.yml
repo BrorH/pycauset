@@ -233,31 +233,28 @@ nav:
       - docs/parameters/index.md
       - docs/parameters/pycauset.keep_temp_files.md
       - docs/parameters/pycauset.debug_mode.md
-  - Internals:
+  - Developers:
     - internals/index.md
     - Architecture: internals/Architecture.md
+    - Codebase Structure: internals/Codebase Structure.md
     - DType System: internals/DType System.md
     - Compute Architecture: internals/Compute Architecture.md
-    - Block Matrices: internals/Block Matrices.md
     - Memory and Data: internals/Memory and Data.md
+    - Storage Semantics: internals/Storage Semantics.md
+    - Container Format: internals/PyCauset Container Format.md
     - Streaming Manager: internals/Streaming Manager.md
     - Algorithms: internals/Algorithms.md
+    - Block Matrices: internals/Block Matrices.md
+    - Python Internals: internals/Python Internals.md
+    - Bindings & Dispatch: internals/Bindings & Dispatch.md
+    - Square-only Assumptions: internals/Square-only Assumptions.md
+    - Build System: internals/Build System.md
+    - Testing & Benchmarks: internals/Testing & Benchmarks.md
+    - Warnings & Exceptions: internals/Warnings & Exceptions.md
+    - Repository Hygiene: internals/Repository Hygiene.md
+    - macOS Wheels: internals/MACOS_WHEEL_PORTABILITY.md
     - Philosophy: project/Philosophy.md
     - Roadmap: project/Roadmap.md
-  - Developers:
-    - dev/index.md
-    - Handbook:
-      - dev/Bindings & Dispatch.md
-      - dev/Build System.md
-      - dev/Codebase Structure.md
-      - dev/MACOS_WHEEL_PORTABILITY.md
-      - dev/PyCauset Container Format.md
-      - dev/Python Internals.md
-      - dev/Repository Hygiene.md
-      - dev/Square-only Assumptions.md
-      - dev/Storage Semantics.md
-      - dev/Testing & Benchmarks.md
-      - dev/Warnings & Exceptions.md
     - Project:
       - project/index.md
       - project/Contributing.md
@@ -271,4 +268,3 @@ nav:
       - project/protocols/Pre-alpha Policy.md
       - project/protocols/Release Process.md
       - project/protocols/Testing and Bug Tracking.md
-    - project/Roadmap.md

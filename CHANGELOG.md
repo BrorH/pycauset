@@ -182,7 +182,7 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   (`is_constant` + `constant_value`); `ones` without a dtype carries it.
 - Everyday-use scenario tests (`tests/python/test_everyday_scenarios.py`), each
   exercised in at least two ways and cross-checked against NumPy, plus a findings
-  note (`documentation/dev/FINDINGS_EVERYDAY_SCENARIOS.md`) and a scenario
+  note (`documentation/internals/FINDINGS_EVERYDAY_SCENARIOS.md`) and a scenario
   benchmark script (`benchmarks/scenario_benchmarks.py`).
 
 ### Fixed

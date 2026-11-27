@@ -512,7 +512,7 @@ DoD: zero undocumented public API; zero untested public behavior; every node's i
 
 ### R2_PERF, NumPy Parity (≥ 0.90×)
 
-Status: - [x] (`benchmarks/r2_parity.py` gate landed; **8/8 ops at parity** (n=1024), `matmul` ~0.94×, `add` ~1.1×, `multiply` ~1.1×, `solve` ~0.98×, `invert` ~1.1×, `dot` ~2×, `determinant` ~1.2×, `eigh` ~0.99×, stable across repeated runs. Landed in R2.2: LAPACK determinant, fair invert/determinant cache-clearing, add-flakiness root-cause (stale-binary namespace merge), AVX2 f64 sub/mul/div + full-span hardening, OpenBLAS 0.3.28 rebuilt DYNAMIC_ARCH+threaded, `:memory:` backing switched to `VirtualAlloc`, CPU dgemm no longer pins operands, GEMM bumps to 20 threads, and `mark_temporary_if_auto` skips `Path.resolve()` for `:memory:` (the final matmul residual). See `documentation/dev/R2_PERF_FINDINGS.md`)
+Status: - [x] (`benchmarks/r2_parity.py` gate landed; **8/8 ops at parity** (n=1024), `matmul` ~0.94×, `add` ~1.1×, `multiply` ~1.1×, `solve` ~0.98×, `invert` ~1.1×, `dot` ~2×, `determinant` ~1.2×, `eigh` ~0.99×, stable across repeated runs. Landed in R2.2: LAPACK determinant, fair invert/determinant cache-clearing, add-flakiness root-cause (stale-binary namespace merge), AVX2 f64 sub/mul/div + full-span hardening, OpenBLAS 0.3.28 rebuilt DYNAMIC_ARCH+threaded, `:memory:` backing switched to `VirtualAlloc`, CPU dgemm no longer pins operands, GEMM bumps to 20 threads, and `mark_temporary_if_auto` skips `Path.resolve()` for `:memory:` (the final matmul residual). See `documentation/internals/R2_PERF_FINDINGS.md`)
 
 Goal: every op is at least 0.90× NumPy throughput in the regimes PyCauset claims, or is an
 explicitly-documented out-of-scope case / performance bug. Per-op status lives in
@@ -612,7 +612,7 @@ and never uses Boost. Kept `CMP0135` (timestamps) and `CMP0169` (`FetchContent_P
 still used). `__init__.py` slimming started (2026-08): the import-time OpenBLAS thread
 setup and GPU install hint were extracted to `_internal/native_setup.py`. Remaining:
 macOS wheel portability (OpenBLAS/libomp from source against a fixed deployment target;
-see `documentation/dev/MACOS_WHEEL_PORTABILITY.md` for the plan and why it is deferred),
+see `documentation/internals/MACOS_WHEEL_PORTABILITY.md` for the plan and why it is deferred),
 full facade extraction, and the mechanical ruff `E501`/`UP006`/`UP045` pass (the `UP`
 fixes are held back because `requires-python = ">=3.8"` does not allow PEP 604 `X | None`
 syntax without `from __future__ import annotations` everywhere))

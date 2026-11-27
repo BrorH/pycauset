@@ -247,8 +247,8 @@ These are roadmap candidates; support will be added only when implemented and do
 
 If you’re writing tooling, debugging a corrupted file, or just curious about the exact on-disk layout, see:
 
-- [[dev/PyCauset Container Format.md|PyCauset Container Format]] (canonical `.pycauset` format spec)
-- [[dev/Storage Semantics.md|Storage Semantics]] (developer-facing semantics and runbooks)
+- [[internals/PyCauset Container Format.md|PyCauset Container Format]] (canonical `.pycauset` format spec)
+- [[internals/Storage Semantics.md|Storage Semantics]] (developer-facing semantics and runbooks)
 
 ### Copying snapshots correctly
 
@@ -283,9 +283,9 @@ See [[guides/Numpy Integration.md|Numpy Integration]] for details.
 - [[docs/functions/pycauset.save.md|pycauset.save]]
 - [[docs/functions/pycauset.load.md|pycauset.load]]
 - [[docs/functions/pycauset.convert_file.md|pycauset.convert_file]]
-- [[dev/Storage Semantics.md|Storage Semantics]]
+- [[internals/Storage Semantics.md|Storage Semantics]]
 - [[internals/Memory and Data.md|Memory and Data]]
-- [[dev/PyCauset Container Format|PyCauset Container Format]]
+- [[internals/PyCauset Container Format|PyCauset Container Format]]
 - [[project/protocols/Documentation Protocol.md|Documentation Protocol]]
 
 ## Crash consistency

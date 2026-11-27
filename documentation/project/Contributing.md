@@ -47,7 +47,7 @@ To build PyCauset from source, you will need:
 
 `pip install -e .` is the build on every platform. On Windows, `./tools/build.ps1` wraps
 it (choose the Python with `-PythonVersion`). For quick rebuilds of the extension alone,
-see [[dev/Build System|Build System]].
+see [[internals/Build System|Build System]].
 
 ## Running Tests
 
@@ -63,7 +63,7 @@ pytest tests/atlas              # every op x dtype x structure x view against Nu
 ### C++ Unit Tests
 Configure with `-DBUILD_TESTS=ON`, then `ctest --test-dir <build dir>`.
 
-See [[dev/Testing & Benchmarks|Testing & Benchmarks]].
+See [[internals/Testing & Benchmarks|Testing & Benchmarks]].
 
 ## Coding Standards
 

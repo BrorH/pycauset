@@ -4,7 +4,7 @@ The map of the moving parts: what each owns and how a call travels from Python t
 bytes and back. Whoever changes a subsystem's responsibilities or wiring updates this page
 in the same commit. Deeper pages: [[internals/Compute Architecture|Compute Architecture]],
 [[internals/Memory and Data|Memory and Data]], [[internals/Streaming Manager|Streaming Manager]],
-[[internals/DType System|DType System]]; the file map is [[dev/Codebase Structure|Codebase Structure]].
+[[internals/DType System|DType System]]; the file map is [[internals/Codebase Structure|Codebase Structure]].
 
 ## The stack
 
@@ -86,7 +86,7 @@ The procedure for adding or changing an operation is
 Objects up to the memory threshold (default 1 GiB) live in RAM, larger ones in temporary
 files in the backing directory; under RAM pressure the `MemoryGovernor` spills the least
 recently used RAM objects to files. `pc.save` writes a single-file `.pycauset` container
-(header slots, payload, typed metadata: [[dev/PyCauset Container Format|Container Format]]);
+(header slots, payload, typed metadata: [[internals/PyCauset Container Format|Container Format]]);
 `pc.load` memory-maps the payload copy-on-write, so the file is never modified.
 
 ## Python layer

@@ -28,5 +28,5 @@ You *can* call this multiple times, but switching the backing directory mid-sess
 ## See also
 
 - [[guides/Storage and Memory.md|Storage and Memory]]
-- [[dev/Storage Semantics.md|Storage Semantics]]
+- [[internals/Storage Semantics.md|Storage Semantics]]
 ````

@@ -320,7 +320,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - `TODO.md` says the ThreadPool singleton is leaked; it isn't.
 - Code, tests and docs carry milestone names (`R1_*`, `R2_*`, `phase3_4`,
   `phase_b..h`, "Phase 3" comments) instead of describing *what* they are.
-- `documentation/dev/Restructure Plan.md` and
+- `documentation/internals/Restructure Plan.md` and
   `documentation/internals/plans/archive/Restructure Plan.md` both exist.
 - Version: `CMakeLists.txt` has `project(pycauset VERSION 0.1.0)` while the
   CHANGELOG is at 0.6.1.

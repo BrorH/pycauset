@@ -38,7 +38,7 @@ If you’re unsure where a new helper belongs, prefer `_internal/` first.
 2. Add a thin wrapper/re-export at `pycauset.<name>` in `python/pycauset/__init__.py`.
 3. Add or update a test under `tests/engine/` (usually `test_api_surface.py`) that uses the symbol through `pycauset.*`.
 4. Add its doc page under `documentation/docs/` (`test_api_surface.py` fails for a public name without one).
-5. If the feature needs a new native binding, follow [[dev/Bindings & Dispatch]].
+5. If the feature needs a new native binding, follow [[internals/Bindings & Dispatch]].
 
 ## Status
 

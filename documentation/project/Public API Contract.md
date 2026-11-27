@@ -26,7 +26,7 @@ Rule of thumb:
 - Native binding details under `pycauset._pycauset`.
 - Any symbol whose name starts with `_` (even if it is importable).
 
-See also: [[dev/Python Internals|Python Internals]] and [[dev/Bindings & Dispatch|Bindings & Dispatch]].
+See also: [[internals/Python Internals|Python Internals]] and [[internals/Bindings & Dispatch|Bindings & Dispatch]].
 
 ---
 
@@ -87,7 +87,7 @@ Rule:
 - Warnings derive from `PyCausetWarning` (examples: `PyCausetPerformanceWarning`, `PyCausetStorageWarning`).
 - Exceptions should be specific and predictable; prefer raising built-in exceptions (`ValueError`, `TypeError`) unless a dedicated PyCauset exception is warranted.
 
-See also: [[dev/Warnings & Exceptions|Warnings & Exceptions]].
+See also: [[internals/Warnings & Exceptions|Warnings & Exceptions]].
 
 ### Global knobs / parameters
 

@@ -1,7 +1,7 @@
 # tests/
 
 NumPy is the oracle: every test compares with what NumPy gives on the same data. Strategy:
-`review/TESTS.md`; how to run: `documentation/dev/Testing & Benchmarks.md`.
+`review/TESTS.md`; how to run: `documentation/internals/Testing & Benchmarks.md`.
 
 | Path | What |
 |---|---|
