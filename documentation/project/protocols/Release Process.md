@@ -1,57 +1,26 @@
 # Release Process
 
-This page describes how PyCauset is released and versioned.
+How a version reaches PyPI.
 
-## Automated releases
+## Versions
 
-The primary way to release a new version is by pushing to the `main` branch.
+The version comes from the latest git tag (`vX.Y.Z`, read by `setuptools_scm` through
+scikit-build-core). Untagged commits build as `X.Y.(Z+1).devN`.
 
-1. **Commit your changes**: ensure your work is committed.
-2. **Push to main**:
-    ```bash
-    git push origin main
-    ```
-3. **Workflow trigger**: the GitHub Action `Publish to PyPI` will start automatically.
-    - **Bump version**: calculates the next **patch** version (e.g., `0.2.4` -> `0.2.5`).
-    - **Tag**: creates a new git tag and a GitHub Release using your commit message as the notes.
-    - **Build & publish**: builds wheels for Windows, macOS, and Linux, and publishes them to PyPI.
+## Steps
 
-## Manual releases
+1. **Tag.** `./tools/release.ps1` (Windows; `-Type patch|minor|major`, default patch, or
+   `-SetVersion 0.7.0`) reads the latest tag, asks for confirmation, then creates and pushes
+   the next one. Without PowerShell: `git tag v0.7.0 && git push origin v0.7.0`.
+2. **Publish a GitHub Release** for that tag (the Releases page, or `gh release create
+   v0.7.0`). Pushing a tag alone publishes nothing.
+3. **The workflow** `.github/workflows/publish.yml` runs on the published release (or by
+   hand, `workflow_dispatch`): `cibuildwheel` builds 64-bit wheels for Linux, Windows and
+   macOS for every Python the package supports (`requires-python`), plus the sdist, and
+   uploads them to PyPI with Trusted Publishing (OIDC).
 
-If you need to bump a minor/major version or set a specific version number, you can use the helper script or git tags directly.
+## Before tagging
 
-### Using the helper script (`release.ps1`)
-
-Bump minor version:
-```powershell
-.\release.ps1 -Type minor
-```
-
-Bump major version:
-```powershell
-.\release.ps1 -Type major
-```
-
-Set specific version:
-```powershell
-.\release.ps1 -SetVersion 0.4.0
-```
-
-### Using git tags
-
-```bash
-git tag v0.4.0
-git push origin v0.4.0
-```
-
-## CI/CD workflow details
-
-The workflow is defined in `.github/workflows/publish.yml`.
-
-- Triggers:
-  - `push` to `main`: triggers auto-bump (patch) and release
-  - `push` of tags (`v*`): triggers build and release for that tag
-  - `workflow_dispatch`: manual trigger from GitHub Actions UI
-- Versioning: uses `setuptools_scm` to determine the package version from git tags
-- Build system: uses `cibuildwheel` to build binary wheels for multiple platforms
-- Publishing: uses PyPI Trusted Publishing (OIDC) to upload artifacts
+- The gates are green on CI (`ci.yml`: the suites on Linux, Windows and macOS, the C++
+  tests), and the operation atlas has no wrong cells.
+- `CHANGELOG.md`'s Unreleased section becomes the version's section.

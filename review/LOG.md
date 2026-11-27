@@ -500,3 +500,9 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   diagonal writes raise, lower writes store the negation) is `test_antisymmetric_storage_writes`.
   ctest: 5/5 suites pass. Stale binaries of removed tests (op registry, lazy) cleared.
 - Gates: 4,111 + 4,053 (lazy off) passed, atlas CI 42, ctest 5/5.
+- Docs truth pass, documentation/project: Contributing (C++20, CMake 3.24, OpenBLAS/LAPACKE,
+  the real test commands, no CUDA), Philosophy (integer scaling is a view too), Release
+  Process rewritten (publish.yml runs on a published GitHub Release, not on push to main;
+  tagging alone publishes nothing), Installation guide (build.ps1 flags that do not exist).
+  `requires-python` 3.8 -> 3.10 (`Path | None` in _storage.py already needed it) and
+  `numpy>=2.0` (NumPy 2 is the oracle).

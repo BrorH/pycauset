@@ -9,6 +9,8 @@ milestone corresponds to **v0.6.1**.
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
 ### Changed
+- Requires Python 3.10+ and NumPy 2 (the code already needed 3.10; NumPy 2's promotion rules
+  are the oracle every test checks against). Was declared as 3.8+ and NumPy 1.20+.
 - Internal native helpers are no longer public names (`pc.sprinkle`, `pc.make_coordinates`,
   `pc.CausalSpacetime`, the native `pc.MinkowskiDiamond`, `pc.matrix_norm`,
   `pc.vector_norm`); use `pc.causet`, `pc.spacetime.MinkowskiDiamond`, `pc.norm`.

@@ -13,6 +13,7 @@ pip install pycauset
 If you want to build from source or contribute to development, you will need a C++ compiler.
 
 ### Prerequisites for Source Build
+*   Python 3.10+ and NumPy 2; CMake 3.24+; OpenBLAS and LAPACKE (Linux: `sudo apt install libopenblas-dev liblapacke-dev`).
 *   **Windows**: Install **Visual Studio Community 2022** (or Build Tools) with the **"Desktop development with C++"** workload.
 *   **Linux**: Install `g++` or `clang` (e.g., `sudo apt install build-essential`).
 *   **macOS**: Install Xcode Command Line Tools (`xcode-select --install`).
@@ -30,26 +31,15 @@ To install in editable mode (for development):
 pip install -e .
 ```
 
-## Method 3: Manual Build (Development)
-If you are developing the C++ core or prefer manual control over the build process, you can use the provided PowerShell script (`build.ps1`). This script handles CMake configuration, compilation, and testing.
+## Method 3: Rebuilding the extension during development
 
-### 1. Verify Compiler
-Ensure your compiler is discoverable in your terminal.
-*   **Windows**: Run `cl`. If it's not found, you may need to launch the "Developer PowerShell for VS 2022" or add MSVC to your PATH.
+For C++ work, rebuild only the extension and run from the source tree:
 
-### 2. Build Script
-Use the `build.ps1` script to build the project:
-
-```powershell
-# Build everything (C++ tests + Python module)
-./build.ps1 -All
-
-# Only build the Python module (copies to python/pycauset)
-./build.ps1 -Python
-
-# Only run C++ unit tests
-./build.ps1 -Tests
+```bash
+cmake --build build/cpp --target _pycauset
+cp build/cpp/_pycauset*.so build/cpp/libpycauset_core.so python/pycauset/
+PYTHONPATH=python python -m pytest
 ```
 
-### 3. Running Scripts
-If you used `./build.ps1 -Python` (and didn't use `pip`), the compiled module is located in `python/pycauset`. You can run scripts by ensuring this directory is in your `PYTHONPATH` or by running scripts from the root directory.
+On Windows, `./tools/build.ps1` wraps the pip build (`-Action editable|install|wheel`,
+`-PythonVersion 3.12`). Details: [[dev/Build System|Build System]].

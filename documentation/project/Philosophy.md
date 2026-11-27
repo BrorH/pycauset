@@ -9,7 +9,7 @@ PyCauset is for causal sets big enough that $O(N^2)$ storage is the bottleneck. 
 * We assume every matrix *might* be 10TB, meaning we design for the worst case (disk-backed, out-of-core) first, then optimize the best case (RAM-only) second. While NumPy crashes if you allocate 200GB, PyCauset should handle it just fine.
 
 ### Be Lazy
-*   Never compute what you can describe. For example, multiplying a float matrix by a scalar (`A * 3.5`) is just a metadata update, taking $O(1)$ time and 0 bytes. (Integer matrices are scaled for real, because the result's dtype must follow NumPy's rules.)
+*   Never compute what you can describe. For example, multiplying a float matrix by a scalar (`A * 3.5`) is just a metadata update, taking $O(1)$ time and 0 bytes. This holds for every dtype; the result's dtype still follows NumPy's rules.
 *   Never write to disk what you can keep in RAM. For example, matrices stay in RAM until they grow too large or the user explicitly saves them. 
 
 ### Numpy Compatibility, C++ Engine

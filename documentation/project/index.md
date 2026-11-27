@@ -8,7 +8,7 @@ Information about the PyCauset project itself.
 *   **[[project/Public API Contract|Public API Contract]]**: What counts as public API (names, imports, stability rules).
 *   **[[project/protocols/index|Protocols]]**: Development protocols and standards.
 *   **[[project/Contributing|Contributing]]**: How to set up the dev environment and contribute.
-*   **[[TODO|Roadmap]]**: Planned features and known issues.
+*   **[[internals/plans/TODO|Roadmap]]**: Planned features and known issues.
 
 ## Contributing
 

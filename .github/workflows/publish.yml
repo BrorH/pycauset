@@ -33,7 +33,7 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:
-          # Configure cibuildwheel to build for Python 3.8+
+          # Python versions follow requires-python (3.10+)
           # Skip 32-bit builds (Linux i686 is skipped by pattern, Windows 32-bit by ARCHS config)
           CIBW_SKIP: "cp36-* cp37-* pp* *i686* *-musllinux*"
           

@@ -13,13 +13,13 @@ Before you start, read the project protocols:
 
 To build PyCauset from source, you will need:
 
-*   **Python 3.8+**
+*   **Python 3.10+** and **NumPy 2** (CI tests Python 3.12)
 *   **C++ Compiler**:
     *   **Windows**: Visual Studio 2022 (Desktop development with C++)
     *   **Linux**: GCC or Clang
     *   **macOS**: Xcode Command Line Tools
-*   **CMake 3.15+**
-*   **CUDA Toolkit** (Optional, for GPU support)
+*   **CMake 3.24+**
+*   **OpenBLAS and LAPACKE** (Linux: `libopenblas-dev liblapacke-dev`; the wheels bundle them)
 
 ### Setting Up the Development Environment
 
@@ -45,25 +45,9 @@ To build PyCauset from source, you will need:
 
 ## Building the Project
 
-We provide helper scripts to simplify the build process.
-
-### Windows
-
-```powershell
-# Build Python extension and run tests
-./build.ps1 -All
-
-# Only build Python extension
-./build.ps1 -Python
-```
-
-### Linux/macOS
-
-Recommended workflow:
-
-```bash
-pip install -e .
-```
+`pip install -e .` is the build on every platform. On Windows, `./tools/build.ps1` wraps
+it (choose the Python with `-PythonVersion`). For quick rebuilds of the extension alone,
+see [[dev/Build System|Build System]].
 
 ## Running Tests
 
@@ -71,16 +55,20 @@ PyCauset has a test suite covering both the C++ core and the Python interface.
 
 ### Python Tests
 ```bash
-pytest tests/python
+pytest                          # tests/engine and tests/blockmatrix
+PYCAUSET_LAZY=0 pytest tests/engine
+pytest tests/atlas              # every op x dtype x structure x view against NumPy
 ```
 
 ### C++ Unit Tests
-If you built with CMake, you can run C++ tests via CTest from your build directory.
+Configure with `-DBUILD_TESTS=ON`, then `ctest --test-dir <build dir>`.
+
+See [[dev/Testing & Benchmarks|Testing & Benchmarks]].
 
 ## Coding Standards
 
 ### C++
-*   Use **C++17** features.
+*   **C++20**.
 *   Follow standard RAII principles.
 *   Use `pybind11` for Python bindings.
 *   Keep headers in `include/` and implementation in `src/`.
@@ -88,7 +76,7 @@ If you built with CMake, you can run C++ tests via CTest from your build directo
 ### Python
 *   Follow **PEP 8**.
 *   Use type hints.
-*   Document all public functions and classes using Google-style docstrings.
+*   Every public function and class has a page under `documentation/docs/` (a test checks).
 
 ## Documentation
 
