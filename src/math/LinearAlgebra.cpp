@@ -495,6 +495,27 @@ bool mm_has_diagonal(const MatrixBase& m) {
 //                  is cast to r.
 // Structured rules skip structural zeros, so they differ from NumPy only where a skipped
 // 0 * inf or 0 * nan would have produced nan.
+// A product value as the element type E of a diagonal result (every offered dtype).
+template <typename E>
+static E diag_elem(std::complex<double> z) {
+    if constexpr (std::is_same_v<E, std::complex<float>> || std::is_same_v<E, std::complex<double>> ||
+                  std::is_same_v<E, complex_half>) {
+        return E(z);
+    } else if constexpr (std::is_same_v<E, float16_t>) {
+        return float16_t(z.real());
+    } else if constexpr (std::is_same_v<E, bool>) {
+        return z.real() != 0.0;
+    } else {
+        return static_cast<E>(z.real());
+    }
+}
+
+template <typename E>
+static E diag_elem_from_int(__int128 v) {
+    if constexpr (std::is_integral_v<E> && !std::is_same_v<E, bool>) return static_cast<E>(v);
+    else return diag_elem<E>(std::complex<double>(static_cast<double>(v), 0.0));
+}
+
 std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBase& b, std::string saveas) {
     if (a.cols() != b.rows()) {
         throw std::invalid_argument("Dimension mismatch");
@@ -593,21 +614,21 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
                     }
                 }
                 debug_trace::set_last("cpu.matmul.diagonal");
-                write([&]<typename E>(uint64_t i) { return static_cast<E>(p[i]); });
+                write([&]<typename E>(uint64_t i) { return diag_elem_from_int<E>(p[i]); });
                 return res;
             }
         } else if (mm_complex(r)) {
             std::vector<std::complex<double>> x(m), y(m);
             if (read_diagonal(a, x.data()) && read_diagonal(b, y.data())) {
                 debug_trace::set_last("cpu.matmul.diagonal");
-                write([&]<typename E>(uint64_t i) { return E(x[i] * y[i]); });
+                write([&]<typename E>(uint64_t i) { return diag_elem<E>(x[i] * y[i]); });
                 return res;
             }
         } else {
             std::vector<double> x(m), y(m);
             if (read_diagonal(a, x.data()) && read_diagonal(b, y.data())) {
                 debug_trace::set_last("cpu.matmul.diagonal");
-                write([&]<typename E>(uint64_t i) { return static_cast<E>(x[i] * y[i]); });
+                write([&]<typename E>(uint64_t i) { return diag_elem<E>(std::complex<double>(x[i] * y[i], 0.0)); });
                 return res;
             }
         }
