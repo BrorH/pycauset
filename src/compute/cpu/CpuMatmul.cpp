@@ -248,6 +248,29 @@ namespace {
                 const int ldb = static_cast<int>(b_dense->base_cols());
                 const int ldc = static_cast<int>(c_dense->base_cols());
 
+                // Matrix-vector (N == 1) and vector-matrix (M == 1): BLAS gemv. OpenBLAS 0.3.26
+                // runs ?gemm with one column through the full GEMM packing (5x slower than
+                // gemv; newer versions forward it themselves).
+                if (!c_dense->is_transposed() && (N == 1 || M == 1)) {
+                    auto gemv = [&](bool trans, int rows, int cols, const T* mat, int ld, const T* x, int incx,
+                                    T* y, int incy) {
+                        const auto t = trans ? CblasTrans : CblasNoTrans;
+                        if constexpr (std::is_same_v<T, double>) cblas_dgemv(CblasRowMajor, t, rows, cols, 1.0, mat, ld, x, incx, 0.0, y, incy);
+                        else cblas_sgemv(CblasRowMajor, t, rows, cols, 1.0f, mat, ld, x, incx, 0.0f, y, incy);
+                    };
+                    if (N == 1) {  // y (M) = op(A) x, x = B's column, y = C's column
+                        const int incx = t_b ? 1 : ldb;
+                        if (!t_a) gemv(false, M, K, a_data, lda, b_data, incx, c_data, ldc);
+                        else gemv(true, K, M, a_data, lda, b_data, incx, c_data, ldc);
+                    } else {  // M == 1: y (N) = B^T x, x = A's row, y = C's row
+                        const int incx = t_a ? lda : 1;
+                        if (!t_b) gemv(true, K, N, b_data, ldb, a_data, incx, c_data, 1);
+                        else gemv(false, N, K, b_data, ldb, a_data, incx, c_data, 1);
+                    }
+                    c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
+                    return true;
+                }
+
                 if constexpr (std::is_same_v<T, double>) {
                     // GEMM scales well with threads, while small LAPACK
                     // factorizations (invert/determinant) do not, so we keep the

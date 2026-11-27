@@ -80,12 +80,37 @@ inline py::object exact_int_dot(const VectorBase& a, const VectorBase& b) {
                 const auto& va = static_cast<const typename DenseVectorOf<A>::type&>(a);
                 const auto& vb = static_cast<const typename DenseVectorOf<B>::type&>(b);
                 const uint64_t n = a.size();
-                for (uint64_t i = 0; i < n; ++i) {
-                    const __int128 x = scalar::wrap_scale<A>(va.get(i), ka);
-                    const __int128 y = scalar::wrap_scale<B>(vb.get(i), kb);
-                    __int128 term;
-                    if (__builtin_mul_overflow(x, y, &term) || __builtin_add_overflow(sum, term, &sum)) {
-                        throw std::overflow_error("dot: integer result does not fit the 128-bit accumulator");
+                // Bit vectors are packed: element reads go through get().
+                constexpr bool raw = !std::is_same_v<A, bool> && !std::is_same_v<B, bool>;
+                if constexpr (raw) {
+                const A* pa = va.data();
+                const B* pb = vb.data();
+                if (ka == 1 && kb == 1 && sizeof(A) <= 2 && sizeof(B) <= 2 && n < (uint64_t{1} << 30)) {
+                    // |x y| <= 2^32 and n < 2^30: the int64 sum is exact (and vectorizes).
+                    int64_t s64 = 0;
+                    for (uint64_t i = 0; i < n; ++i) s64 += static_cast<int64_t>(pa[i]) * static_cast<int64_t>(pb[i]);
+                    sum = s64;
+                } else if (ka == 1 && kb == 1 && sizeof(A) <= 4 && sizeof(B) <= 4) {
+                    // |x y| < 2^64 and n < 2^63: the 128-bit sum cannot overflow.
+                    for (uint64_t i = 0; i < n; ++i) sum += static_cast<__int128>(pa[i]) * static_cast<__int128>(pb[i]);
+                } else {
+                    for (uint64_t i = 0; i < n; ++i) {
+                        const __int128 x = scalar::wrap_scale<A>(pa[i], ka);
+                        const __int128 y = scalar::wrap_scale<B>(pb[i], kb);
+                        __int128 term;
+                        if (__builtin_mul_overflow(x, y, &term) || __builtin_add_overflow(sum, term, &sum)) {
+                            throw std::overflow_error("dot: integer result does not fit the 128-bit accumulator");
+                        }
+                    }
+                }
+                } else {
+                    for (uint64_t i = 0; i < n; ++i) {
+                        const __int128 x = scalar::wrap_scale<A>(va.get(i), ka);
+                        const __int128 y = scalar::wrap_scale<B>(vb.get(i), kb);
+                        __int128 term;
+                        if (__builtin_mul_overflow(x, y, &term) || __builtin_add_overflow(sum, term, &sum)) {
+                            throw std::overflow_error("dot: integer result does not fit the 128-bit accumulator");
+                        }
                     }
                 }
             }

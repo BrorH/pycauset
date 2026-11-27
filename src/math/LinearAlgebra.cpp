@@ -304,13 +304,6 @@ std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& 
     if (b.size() != n) {
         throw std::invalid_argument("Vector dimensions mismatch");
     }
-    std::vector<std::complex<double>> x(n), y(n);
-    if (read_rows(*as_row_matrix(a), 0, 1, x.data()) && read_rows(*as_row_matrix(b), 0, 1, y.data())) {
-        debug_trace::set_last("cpu.dot.typed_complex");
-        std::complex<double> acc{0.0, 0.0};
-        for (uint64_t i = 0; i < n; ++i) acc += x[i] * y[i];  // no conjugation (np.dot)
-        return acc;
-    }
     return ComputeContext::instance().get_device()->dot_complex(a, b);
 }
 

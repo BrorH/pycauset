@@ -18,6 +18,7 @@
 
 #ifdef _WIN32
 #include <cblas.h>
+#include <optional>
 #include <lapacke.h>
 #elif defined(__APPLE__)
 // On macOS, we can use Accelerate (native) or OpenBLAS (brew). 
@@ -153,7 +154,53 @@ std::complex<double> CpuSolver::dot_complex(const VectorBase& a, const VectorBas
         throw std::invalid_argument("Vector dimensions mismatch");
     }
 
-    // Semantics: simple sum_i a[i] * b[i] (no conjugation).
+    // Semantics: sum_i a[i] * b[i], no conjugation (np.dot), with BLAS's plain arithmetic.
+    // Plain complex64 / complex128 pairs: BLAS ?dotu on the storage, as NumPy (also NumPy's
+    // precision: complex64 accumulates in single).
+    // A conjugated operand is BLAS ?dotc (which conjugates its first argument): conj(a).b =
+    // dotc(a, b), a.conj(b) = dotc(b, a), conj(a).conj(b) = conj(dotu(a, b)). Exactly what NumPy
+    // computes on the conjugated arrays. Scaled views take the typed path below.
+    auto unscaled = [](const VectorBase& v) { return v.get_scalar() == std::complex<double>(1.0, 0.0); };
+    if (unscaled(a) && unscaled(b)) {
+        const bool ca = a.is_conjugated(), cb = b.is_conjugated();
+        auto run = [&](auto* x, auto* y, auto dotu, auto dotc) -> std::optional<std::complex<double>> {
+            if (!x || !y) return std::nullopt;
+            using C = std::remove_cv_t<std::remove_pointer_t<decltype(x->data())>>;
+            C r;
+            const int len = static_cast<int>(n);
+            if (!ca && !cb) dotu(len, x->data(), 1, y->data(), 1, &r);
+            else if (ca && !cb) dotc(len, x->data(), 1, y->data(), 1, &r);
+            else if (!ca && cb) dotc(len, y->data(), 1, x->data(), 1, &r);
+            else { dotu(len, x->data(), 1, y->data(), 1, &r); r = std::conj(r); }
+            return std::complex<double>(r.real(), r.imag());
+        };
+        using Z = DenseVector<std::complex<double>>;
+        using Cf = DenseVector<std::complex<float>>;
+        if (auto r = run(dynamic_cast<const Z*>(&a), dynamic_cast<const Z*>(&b),
+                         [](auto... p) { cblas_zdotu_sub(p...); }, [](auto... p) { cblas_zdotc_sub(p...); })) {
+            debug_trace::set_last("cpu.dot.zdot");
+            return *r;
+        }
+        if (auto r = run(dynamic_cast<const Cf*>(&a), dynamic_cast<const Cf*>(&b),
+                         [](auto... p) { cblas_cdotu_sub(p...); }, [](auto... p) { cblas_cdotc_sub(p...); })) {
+            debug_trace::set_last("cpu.dot.cdot");
+            return *r;
+        }
+    }
+    // Any other pair: typed reads (every view rule), multiply-adds written out (std::complex's
+    // operator* calls the C99 inf / NaN recovery routine per element: 50x slower than BLAS).
+    {
+        std::vector<std::complex<double>> x(n), y(n);
+        if (read_rows(*as_row_matrix(a), 0, 1, x.data()) && read_rows(*as_row_matrix(b), 0, 1, y.data())) {
+            debug_trace::set_last("cpu.dot.typed_complex");
+            double re = 0.0, im = 0.0;
+            for (uint64_t i = 0; i < n; ++i) {
+                re += x[i].real() * y[i].real() - x[i].imag() * y[i].imag();
+                im += x[i].real() * y[i].imag() + x[i].imag() * y[i].real();
+            }
+            return {re, im};
+        }
+    }
     debug_trace::set_last("cpu.dot.complex_fallback");
     double re = 0.0;
     double im = 0.0;

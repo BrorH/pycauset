@@ -582,3 +582,11 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Full atlas timing (11,295 cells): 6,306 below 0.9x (8,445 before this session's work);
   slowest: dot 0.05, bitwise 0.1, matvec / vecmat 0.13, trace 0.29, scalar add / sub and
   div ~0.3. Gates: 4,199 + 4,141 passed, atlas CI 42, ctest 5/5, docs build clean.
+- 6.1 continued, from the full timing: matrix-vector / vector-matrix products forward to BLAS
+  gemv (OpenBLAS 0.3.26 ran ?gemm with one column through the full packing: float64 197 ->
+  71 us); exact integer dot reads raw storage with per-width exact accumulators (int64 for
+  8/16-bit, 128-bit without checks for 32-bit; 8.5 ms -> 0.3-0.9 ms, 0.04x -> 0.5-1.5x);
+  complex dot through BLAS ?dotu / ?dotc for every conjugation (16 ms -> 0.34 ms, parity;
+  the typed path no longer uses std::complex's operator*, which calls the C99 recovery
+  routine per element). Unit-vector dot keeps the O(n) read: a shortcut would differ from
+  NumPy when the other vector holds inf / NaN (0 * inf). Gates green.
