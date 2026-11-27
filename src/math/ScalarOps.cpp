@@ -5,12 +5,14 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <vector>
 
 #include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
@@ -363,7 +365,13 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
         }
     }
 
-    auto out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
+    std::unique_ptr<DenseMatrix<R>> out;
+    {
+        // Every element is written below; skip zeroing the storage (not for bit rows: padding).
+        std::optional<UninitializedStorage> u;
+        if constexpr (!std::is_same_v<R, bool>) u.emplace();
+        out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
+    }
     R* dst = out->data();
 
     // Contiguous source, same result dtype (the common case: v + 1, 3 * v, -v): raw pointer,
@@ -421,7 +429,13 @@ template <typename R>
 std::unique_ptr<MatrixBase> run_virtual(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s) {
     const uint64_t rows = a.rows(), cols = a.cols();
     const R sv = scalar_as<R>(s);
-    auto out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
+    std::unique_ptr<DenseMatrix<R>> out;
+    {
+        // Every element is written below; skip zeroing the storage (not for bit rows: padding).
+        std::optional<UninitializedStorage> u;
+        if constexpr (!std::is_same_v<R, bool>) u.emplace();
+        out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
+    }
     R* dst = out->data();
     for_each_block(rows, cols, [&](uint64_t idx, uint64_t i, uint64_t j) {
         dst[idx] = apply<R>(op, from_logical<R>(a.get_element_as_complex(i, j)), sv);
@@ -438,7 +452,13 @@ std::unique_ptr<MatrixBase> narrow_wide(const MatrixBase& wide, ScalarOpKind op,
     const W* src = static_cast<const DenseMatrix<W>&>(wide).data();
     const uint64_t rows = wide.rows(), cols = wide.cols();
     const R sv = scalar_as<R>(s);
-    auto out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
+    std::unique_ptr<DenseMatrix<R>> out;
+    {
+        // Every element is written below; skip zeroing the storage (not for bit rows: padding).
+        std::optional<UninitializedStorage> u;
+        if constexpr (!std::is_same_v<R, bool>) u.emplace();
+        out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
+    }
     R* dst = out->data();
     for_each_block(rows, cols, [&](uint64_t idx, uint64_t, uint64_t) {
         R v;

@@ -14,6 +14,7 @@
 #include "pycauset/vector/DenseVector.hpp"
 #include "pycauset/vector/ComplexFloat16Vector.hpp"
 #include "pycauset/vector/UnitVector.hpp"
+#include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
 #include "pycauset/core/PromotionResolver.hpp"
 #include "pycauset/core/StructureResolver.hpp"
@@ -33,6 +34,7 @@
 #include <iostream>
 #include <complex>
 #include <limits>
+#include <optional>
 #include <cmath>
 #include <algorithm>
 #include <numeric>
@@ -128,8 +130,14 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
         return bit_counts(a, b, 1);
     }
 
-    auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
-    
+    std::unique_ptr<MatrixBase> result;
+    {
+        // A dense result is written completely by the kernel: no zeroing (F-096).
+        std::optional<UninitializedStorage> u;
+        if (res_mtype == Structure::DENSE && res_dtype != DataType::BIT && result_file.empty()) u.emplace();
+        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
+    }
+
     ComputeContext::instance().get_device()->add(a, b, *result);
     
     return result;
@@ -166,8 +174,14 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
         return bit_counts(a, b, -1);
     }
 
-    auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
-    
+    std::unique_ptr<MatrixBase> result;
+    {
+        // A dense result is written completely by the kernel: no zeroing (F-096).
+        std::optional<UninitializedStorage> u;
+        if (res_mtype == Structure::DENSE && res_dtype != DataType::BIT && result_file.empty()) u.emplace();
+        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
+    }
+
     ComputeContext::instance().get_device()->subtract(a, b, *result);
     
     return result;
@@ -203,8 +217,14 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
         return bitwise(a, b, BitwiseOp::And);
     }
 
-    auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
-    
+    std::unique_ptr<MatrixBase> result;
+    {
+        // A dense result is written completely by the kernel: no zeroing (F-096).
+        std::optional<UninitializedStorage> u;
+        if (res_mtype == Structure::DENSE && res_dtype != DataType::BIT && result_file.empty()) u.emplace();
+        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
+    }
+
     ComputeContext::instance().get_device()->elementwise_multiply(a, b, *result);
     
     return result;
@@ -220,7 +240,13 @@ std::unique_ptr<MatrixBase> elementwise_divide(const MatrixBase& a, const Matrix
     // Materialize a dense result for correctness.
     Structure res_mtype = Structure::DENSE;
 
-    auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
+    std::unique_ptr<MatrixBase> result;
+    {
+        // A dense result is written completely by the kernel: no zeroing (F-096).
+        std::optional<UninitializedStorage> u;
+        if (res_mtype == Structure::DENSE && res_dtype != DataType::BIT && result_file.empty()) u.emplace();
+        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
+    }
 
     ComputeContext::instance().get_device()->elementwise_divide(a, b, *result);
 

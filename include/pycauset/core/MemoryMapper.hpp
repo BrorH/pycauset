@@ -4,6 +4,20 @@
 #include <cstdint>
 #include <stdexcept>
 
+namespace pycauset {
+// While one of these is alive on a thread, new RAM (:memory:) storage is not zeroed: for a
+// result the caller then writes completely (an element-wise or scalar operation's dense
+// result). Zeroing a reused 8-16 MB block cost as much as the arithmetic (F-096). Scope it to
+// the one construction: `{ UninitializedStorage u; out = std::make_unique<...>(...); }`.
+struct UninitializedStorage {
+    UninitializedStorage();
+    ~UninitializedStorage();
+    UninitializedStorage(const UninitializedStorage&) = delete;
+    UninitializedStorage& operator=(const UninitializedStorage&) = delete;
+    static bool active();
+};
+}  // namespace pycauset
+
 class MemoryMapper {
 public:
     // size is the size of the DATA section.

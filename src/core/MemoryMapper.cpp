@@ -5,6 +5,13 @@
 #endif
 #include "pycauset/core/MemoryMapper.hpp"
 
+namespace {
+thread_local int g_uninitialized_depth = 0;
+}
+pycauset::UninitializedStorage::UninitializedStorage() { ++g_uninitialized_depth; }
+pycauset::UninitializedStorage::~UninitializedStorage() { --g_uninitialized_depth; }
+bool pycauset::UninitializedStorage::active() { return g_uninitialized_depth > 0; }
+
 #include "pycauset/compute/ComputeContext.hpp"
 #include <iostream>
 #include <filesystem>
@@ -251,7 +258,7 @@ void MemoryMapper::open_file(bool create_new) {
     // (the same class as malloc), closing most of the gap vs NumPy.
     if (hFile_ == INVALID_HANDLE_VALUE) {
         // RAM objects from the C heap (see the POSIX branch).
-        base_ptr_ = std::calloc(1, map_size);
+        base_ptr_ = pycauset::UninitializedStorage::active() ? std::malloc(map_size) : std::calloc(1, map_size);
         if (base_ptr_ == nullptr) throw std::bad_alloc();
         heap_ = true;
         hMapping_ = NULL;
@@ -500,7 +507,7 @@ void MemoryMapper::open_file(bool create_new) {
     // 8 MB element-wise result spent ~0.8 ms in page faults, more than the arithmetic). calloc
     // skips the memset for memory it gets fresh from the kernel.
     if (anonymous) {
-        base_ptr_ = std::calloc(1, map_size);
+        base_ptr_ = pycauset::UninitializedStorage::active() ? std::malloc(map_size) : std::calloc(1, map_size);
         if (base_ptr_ == nullptr) throw std::bad_alloc();
         heap_ = true;
         mapped_ptr_ = base_ptr_;
