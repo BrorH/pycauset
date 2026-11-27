@@ -10,90 +10,38 @@
 
 </div>
 
-## **A High-Performance Toolset for Causal Set Theory in Python.**
+## **NumPy for causal sets.**
 
-[Causal set theory](https://en.wikipedia.org/wiki/Causal_sets) is a discrete proposal for [quantum gravity](https://en.wikipedia.org/wiki/Quantum_gravity). PyCauset is a low-compromise numerical tool for causal sets ("causets"), built from the ground up to be fast, flexible, and easy to use. 
+[Causal set theory](https://en.wikipedia.org/wiki/Causal_sets) is a discrete proposal for [quantum gravity](https://en.wikipedia.org/wiki/Quantum_gravity). Its objects are large matrices: causal matrices, their powers and closures, propagators. PyCauset is the matrix engine for them.
 
-PyCauset is made of two main components:
-
-- The **PyCauset Engine** is built to be [NumPy](https://numpy.org/) for causal sets. If you know NumPy, you already know the engine: the same shapes, dtypes, operators, and conventions, backed by a C++ core for speed. It is specifically made for causal sets: bit-packed causal matrices, metadata that lets the math skip unnecessary work, storage that spills to disk when RAM runs out, and CPU dispatch handled behind the scenes.
-
-- The **PyCauset Physics Tool Suite** is an extensive collection of tools for working with causal sets: a [library](https://brorh.github.io/pycauset/guides/Spacetime/) of spacetimes, sprinkling routines, [field-theoretic machinery](https://brorh.github.io/pycauset/guides/Field%20Theory/) and visualizations. 
+If you know [NumPy](https://numpy.org/), you know PyCauset: the same shapes, dtypes, operators and results, NumPy being the reference every operation is tested against. Underneath is a C++ core built for causal-set matrices: causal matrices stored one bit per element, matrix classes that know their structure (triangular, symmetric, diagonal, ...) and skip the work it makes unnecessary, and storage that moves to disk when RAM runs out.
 
 Read the [documentation](https://brorh.github.io/pycauset/).
 
 ## Quick start
 
-Sprinkle a causal set into a 2D [Minkowski](https://en.wikipedia.org/wiki/Minkowski_space) diamond:
-
 ```python
-import pycauset as pc
-from pycauset.vis import plot_embedding
+import pycauset as pc   # import PyCauset before NumPy (they use separate BLAS thread pools)
+import numpy as np
 
-c = pc.CausalSet(n=3000, seed=42)   # 3000 points in a 2D diamond (default geometry)
+C = pc.causal_matrix(np.triu(np.ones((1000, 1000), dtype=bool), 1))   # a 1000-element chain, 1 bit per entry
+paths = C @ C                      # 2-step path counts (int32), computed on the bits
+R = C + C.T                        # comparability matrix: a lazy view, no memory until read
 
-fig = plot_embedding(c)             # interactive Plotly figure
-fig.show()
-```
-
-<img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/gallery/diamond_embedding.png" width="520" alt="3000 points in a 2D Minkowski diamond">
-
-
-
-Define a field and compute a propagator:
-
-```python
-Q = pc.field("scalar", mass=1.5).on(c)   # a massive scalar field on the same causet
-K = Q.propagator()                       # retarded propagator K_R = aC(I - baC)^-1
-```
-
-Or use the engine on its own:
-
-```python
-A = pc.causal_matrix(10000, populate=True)
-B = pc.causal_matrix(10000, populate=True)
-Paths = pc.dot(A, B)                       # alternatively, use `A @ B` 
-
-M = pc.identity(2000)                       # a 2000x2000 identity matrix
-M_inv = pc.invert(M)                        # inversion
+A = pc.matrix(np.random.default_rng(0).standard_normal((500, 500)))
+x = pc.solve(A, pc.vector(np.ones(500)))    # like np.linalg.solve
+w = pc.eigvalsh(A + A.T)                    # LAPACK, NumPy's dtypes and conventions
 ```
 
 ## Features
 
-**Numerical Engine**
+- **It speaks NumPy.** Same shapes, dtypes, operators and broadcasting; mix PyCauset matrices with NumPy arrays freely. Every operation, in every dtype, structure and view, is checked against NumPy (the operation atlas, about 88,000 combinations).
+- **Bit-packed causal matrices.** One bit per relation (8x less than bytes); products, sums and closures run on the packed words.
+- **Structure-aware.** Triangular, symmetric, antisymmetric, Hermitian, diagonal and identity matrices store only what they need, and operations keep the structure when the result has it.
+- **Bigger than RAM.** Matrices above a memory threshold live in memory-mapped files; operations that do not fit run tile by tile.
+- **Fast.** The same OpenBLAS/LAPACK as NumPy; the target is at least 0.9x NumPy's speed in memory (`review/atlas/TIMING.md`), and the structured classes are often faster.
 
-PyCauset has an optimized C++ core with Python bindings, which is built specifically for work with causal sets:
-
-- **Work with matrices bigger than your RAM.** Large matrices stream to disk and back, so the only limit to computation is your storage and time.
-- **It speaks [NumPy](https://numpy.org/).** Same shapes, dtypes, operators, and conventions. It is also compatible with NumPy arrays, so you can mix and match.
-- **Bit-wise causal relations.** The causal matrix elements are individual bits, which allows for 8x more efficient storage than a byte-based representation.
-- **CPU (and soon GPU) optimized.** *It just works.* 
-- **Storage and precision, handled.** Memory, precision, and hardware are automatically chosen.
-
-**Physics Tool Suite** 
-
-- **Spacetimes**: [Minkowski](https://en.wikipedia.org/wiki/Minkowski_space) diamond, cylinder, box. Arbitrary dimensions, signatures, and curved geometries ([de Sitter](https://en.wikipedia.org/wiki/De_Sitter_space), [anti-de Sitter](https://en.wikipedia.org/wiki/Anti-de_Sitter_space), [FLRW](https://en.wikipedia.org/wiki/Friedmann%E2%80%93Lema%C3%AEtre%E2%80%93Robertson%E2%80%93Walker_metric)) are on the R2 roadmap.
-- **Sprinkling**: fixed-N or Poisson density, seeded and reproducible.
-- **Fields**: scalar fields with [propagator](https://en.wikipedia.org/wiki/Propagator) and Pauli-Jordan functions.
-- **Visualization**: interactive 2D/3D embeddings, [Hasse diagrams](https://en.wikipedia.org/wiki/Hasse_diagram), and causal-matrix heatmaps.
-
-## Performance
-
-PyCauset's dense kernels use the same OpenBLAS/LAPACK backend as NumPy, so the goal is parity rather than a large speedup, with a goal of all PyCauset operations being at least 0.90x the speed of NumPy for in-memory operations, (see [BENCHMARKS.md](BENCHMARKS.md)).
-However, the biggest reason to use PyCauset is that it memory-maps past RAM, where NumPy raises MemoryError.
-
-## Gallery
-
-These images come straight from the public API. Reproduce them with `scripts/make_r1_gallery.py`.
-
-<img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/gallery/diamond_hasse.png" width="420" alt="Hasse diagram of an 80-point diamond">
-*The causal links of an 80-point diamond (Hasse diagram).*
-
-<img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/gallery/cylinder_embedding.png" width="420" alt="3000 points on a Minkowski cylinder">
-*3000 points sprinkled onto a Minkowski cylinder, rendered as a 3D tube.*
-
-<img src="https://raw.githubusercontent.com/BrorH/pycauset/main/documentation/docs/assets/gallery/causal_matrix.png" width="420" alt="Causal matrix heatmap of a 120-point diamond">
-*The causal matrix of a 120-point diamond as a heatmap: a bright cell means one element is in the causal past of another.*
+The physics layer (spacetimes, sprinkling, fields, plots) is parked in `experimental/physics` while R1 completes the engine.
 
 ## Installation
 
@@ -113,8 +61,7 @@ pip install .
 
 Set `pycauset.debug_mode = True` (default `False`) to print diagnostics to stderr:
 matrix shape/dtype and whether each is in RAM or spilled to disk, operation timings
-(`matmul`, `@`, `invert`, `solve`, …), sprinkling details, storage configuration
-changes, and file I/O. Every line is prefixed `[pycauset]`.
+(`matmul`, `@`, `invert`, `solve`, …), storage configuration changes, and file I/O. Every line is prefixed `[pycauset]`.
 
 ```python
 import pycauset as pc
@@ -124,23 +71,9 @@ A = pc.zeros((2000, 2000), dtype=pc.float64)   # [pycauset] allocated DenseMatri
 C = A @ A                                       # [pycauset] matmul ... : 1.2s
 ```
 
-### GPU acceleration (optional)
-
-The default install is CPU-only. To add GPU support:
-
-```bash
-pip install "pycauset[gpu]"
-```
-
-This also downloads the CUDA runtime, about 500 MB. It needs an NVIDIA GPU with
-Compute Capability 6.0 or newer, on Linux or Windows. macOS is not supported.
-
-If you have an NVIDIA GPU but are on the CPU-only build, the first `import pycauset`
-prints a short note with the install command. Set `PYCAUSET_GPU_HINT=0` to silence it.
-
 ## Status
 
-Pre-alpha. Release 1 (v0.6.1, the Foundation Release) shipped the numerical core, matrices, storage, and linear algebra, CPU-only (GPU parity is deferred). Release 2 (the Physics Release) adds the physics suite, arbitrary-dimension and curved spacetimes, fields, and the Sorkin-Johnston vacuum, and folds in the deferred optimization program. The current plan is tracked in the documentation.
+Pre-alpha, no backwards compatibility between versions. R1 is the linear-algebra engine, CPU only; GPU support (`experimental/cuda`) and the physics layer (`experimental/physics`) are parked until it is complete. The ongoing review and its plan are in `review/`.
 
 ## Documentation
 

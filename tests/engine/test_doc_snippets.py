@@ -8,13 +8,18 @@ import re
 
 import pytest
 
-DOCS = pathlib.Path(__file__).resolve().parents[2] / "documentation"
-CHECKED = ["guides/Quickstart.md"]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+CHECKED = ["README.md", "documentation/guides/Quickstart.md"]
 
 
 @pytest.mark.parametrize("page", CHECKED)
 def test_guide_code_runs(page, tmp_path, monkeypatch):
-    blocks = re.findall(r"```python\n(.*?)```", (DOCS / page).read_text(), re.S)
+    blocks = re.findall(r"```python\n(.*?)```", (ROOT / page).read_text(), re.S)
     assert blocks, f"{page} has no python blocks"
     monkeypatch.chdir(tmp_path)  # files the guide writes land in a temporary directory
-    exec(compile("\n".join(blocks), page, "exec"), {"__name__": "__doc_snippet__"})
+    import pycauset as pc
+
+    try:
+        exec(compile("\n".join(blocks), page, "exec"), {"__name__": "__doc_snippet__"})
+    finally:
+        pc.debug_mode = False  # a guide may switch it on
