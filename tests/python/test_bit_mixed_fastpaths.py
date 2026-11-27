@@ -131,7 +131,7 @@ class TestBitMixedFastPaths(unittest.TestCase):
         self.assertEqual(out[1], 0)
 
         trace = pycauset._debug_last_kernel_trace()
-        self.assertIn("cpu.matvec.bit_x_i32", trace)
+        self.assertIn("cpu.matmul.bit_x_dense", trace)
 
     def test_bit_x_int16_matvec_uses_fastpath(self):
 
@@ -156,7 +156,7 @@ class TestBitMixedFastPaths(unittest.TestCase):
         self.assertEqual(out[1], 0)
 
         trace = pycauset._debug_last_kernel_trace()
-        self.assertIn("cpu.matvec.bit_x_i16", trace)
+        self.assertIn("cpu.matmul.bit_x_dense", trace)
 
     def test_bit_x_float64_matvec_uses_fastpath(self):
         n = 128
@@ -179,7 +179,7 @@ class TestBitMixedFastPaths(unittest.TestCase):
         self.assertAlmostEqual(out[1], 0.0)
 
         trace = pycauset._debug_last_kernel_trace()
-        self.assertIn("cpu.matvec.bit_x_f64", trace)
+        self.assertIn("cpu.matmul.bit_x_dense", trace)
 
 
 if __name__ == "__main__":

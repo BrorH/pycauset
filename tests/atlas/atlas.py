@@ -212,6 +212,10 @@ VIEWS: dict[str, tuple[Callable, Callable, bool]] = {
     # Two flags at once: conjugation and a complex factor (conj(raw * s) vs conj(raw) * s was
     # wrong in one reader, F-086). Real dtypes become complex here.
     "conj_cscale": (lambda m: m.conj() * 2j, lambda a: np.conj(a) * 2j, True),
+    # Non-square: a rectangular window, transposed, then scaled (window offsets and the
+    # transposed shape were dropped or swapped by hand-built view copies, F-097).
+    "rect_T": (lambda m: m[1:W + 1, 0:W - 3].T, lambda a: a[1:W + 1, 0:W - 3].T, False),
+    "rect_T_scaled": (lambda m: m[0:W - 2, 1:W + 1].T * 2.5, None, False),
 }
 LINALG_VIEWS = {"plain", "T", "scaled_int", "scaled_float", "conj", "H", "window0", "window1", "lazy_sum", "conj_cscale"}
 
@@ -223,7 +227,8 @@ def view_reference(view: str, a: np.ndarray, pc_dtype: str) -> np.ndarray:
     target = np_dtype(pc_dtype)
     wide = np.complex128 if kind(pc_dtype) == "c" else (np.float64 if kind(pc_dtype) == "f" else object)
     x = a.astype(wide) if wide is not object else a.astype(np.int64).astype(object)
-    out = {"scaled_int": lambda: x * 2, "scaled_float": lambda: x * 2.5, "lazy_sum": lambda: x + x}[view]()
+    out = {"scaled_int": lambda: x * 2, "scaled_float": lambda: x * 2.5, "lazy_sum": lambda: x + x,
+           "rect_T_scaled": lambda: x[0:W - 2, 1:W + 1].T * 2.5}[view]()
     return _cast(out, pc_dtype)
 
 

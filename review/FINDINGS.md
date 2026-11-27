@@ -1224,3 +1224,21 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Remaining: the native call itself for tiny operands (result allocation through the
   MemoryGovernor and an anonymous mapping), the Python operator wrappers (`patching.py`,
   `__init__` tracking of every result in a WeakSet) and the IO trace itself (PLAN 4.7).
+
+### F-097 Views of non-square or windowed matrices: wrong values (atlas blind spot)
+- **Status:** fixed (session 8; found while moving matvec onto matmul, `I @ v` gave
+  `[1, 0, 0]`). Per-class hand-built view copies:
+  - `DenseMatrix<T>::multiply_scalar` passed the transposed (logical) shape as the storage
+    shape: `(B.T * 2)` was wrong for every non-square B, and an n x 1 column came back 1 x n.
+  - `DenseMatrix<T>::transpose` swapped the window offsets: `A[1:4, 2:6].T` read the wrong
+    elements.
+  - `DenseMatrix<bool>`, `TriangularMatrix<T>`, `TriangularMatrix<bool>` and
+    `ComplexFloat16Matrix` rebuilt transpose / scale copies from the full storage (windows
+    dropped); `IdentityMatrix::transpose` allocated new storage and dropped the conjugation
+    flag; `ComplexFloat16Matrix::multiply_scalar` copied the whole payload for an O(1) view.
+- Fix: two shared O(1) views, `MatrixBase::scaled_clone(f)` and `transposed_clone()` (a clone
+  keeps the whole view state: window, offsets, flags, factor, temporary flag); every class's
+  `transpose` / `multiply_scalar` is one line over them.
+- Why the atlas missed it: every operand was square and no view combined a window with a
+  transposition. New atlas views `rect_T` (a rectangular window, transposed) and
+  `rect_T_scaled` (then scaled); regression `test_F097_*`.

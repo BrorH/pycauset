@@ -427,3 +427,19 @@ def test_det_structure_rules_match_numpy(structure):
 def test_det_single_precision_like_numpy():
     a = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
     assert pc.determinant(pc.matrix(a)) == pytest.approx(float(np.linalg.det(a)), rel=1e-6)
+
+
+@pytest.mark.parametrize("dtype", [np.float64, np.int32, np.complex128, bool])
+def test_F097_views_of_non_square_and_windowed_matrices(dtype):
+    """Scaled views of transposed non-square matrices and transposed windows kept the wrong
+    shape / offsets (hand-built view copies, F-097)."""
+    a = (np.arange(1, 37).reshape(6, 6) % 5).astype(dtype)
+    m = pc.matrix(a)
+    np.testing.assert_array_equal(to_np(m[1:4, 2:6].T), a[1:4, 2:6].T)
+    if dtype is not bool:
+        b = a[:2, :3]
+        r = pc.matrix(b.copy())
+        np.testing.assert_array_equal(to_np(r.T * 2), b.T * 2)
+        np.testing.assert_array_equal(to_np(m[1:4, 2:6].T * 3), a[1:4, 2:6].T * 3)
+    v = pc.vector(np.array([1.0, 2.0, 3.0]))
+    np.testing.assert_array_equal(to_np(pc.IdentityMatrix(3) @ v), [1.0, 2.0, 3.0])

@@ -137,18 +137,28 @@ public:
         out->set_scalar(get_scalar() * f);
         return out;
     }
+    // O(1) views sharing this object's storage, with its whole view state (window, offsets,
+    // transposition, conjugation, factor, temporary flag) kept: one implementation for every
+    // class (hand-built copies passed the transposed shape as the storage shape and dropped
+    // windows, F-097).
     std::unique_ptr<MatrixBase> scaled_clone(std::complex<double> f) const {
         auto out = std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(clone().release()));
         out->set_scalar(get_scalar() * (is_conjugated() ? std::conj(f) : f));
+        out->set_temporary(is_temporary());
+        return out;
+    }
+    std::unique_ptr<MatrixBase> transposed_clone() const {
+        auto out = std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(clone().release()));
+        out->set_transposed(!is_transposed());
+        out->set_temporary(is_temporary());
         return out;
     }
 
     virtual std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const = 0;
 
 protected:
-    // Intentionally no in-object caches here.
-    // Pre-alpha policy: cached derived values live in the unified properties/cached.*
-    // system (Python layer + persistence), not in ad-hoc native members.
+    // No in-object result caches (F-081); the planned derived-value cache lives on the storage
+    // (review/features/DERIVED_CACHE.md).
 
     void set_view(uint64_t logical_rows, uint64_t logical_cols, uint64_t row_offset, uint64_t col_offset) {
         logical_rows_ = logical_rows;

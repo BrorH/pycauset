@@ -117,10 +117,9 @@ public:
 
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
-        // A diagonal matrix is its own transpose: share storage (copy-on-write), O(1) (F-044).
+        // Shares storage (copy-on-write), O(1) (F-044); the flag matters for windows.
         (void)result_file;
-        auto c = this->clone();
-        return std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(c.release()));
+        return transposed_clone();
     }
 
 protected:

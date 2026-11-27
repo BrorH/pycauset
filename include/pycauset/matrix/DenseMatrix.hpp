@@ -236,19 +236,7 @@ public:
 
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
         (void)result_file;
-        auto out = std::make_unique<DenseMatrix<T>>(rows(),
-                                                    cols(),
-                                                    mapper_,
-                                                    base_rows(),
-                                                    base_cols(),
-                                                    row_offset(),
-                                                    col_offset(),
-                                                    seed_,
-                                                    scalar_ * factor,
-                                                    is_transposed(),
-                                                    is_conjugated(),
-                                                    is_temporary());
-        return out;
+        return scaled_clone(factor);
     }
 
     std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
@@ -257,38 +245,14 @@ public:
 
     std::unique_ptr<MatrixBase> multiply_scalar(std::complex<double> factor, const std::string& result_file = "") const override {
         (void)result_file;
-        auto out = std::make_unique<DenseMatrix<T>>(rows(),
-                                                    cols(),
-                                                    mapper_,
-                                                    base_rows(),
-                                                    base_cols(),
-                                                    row_offset(),
-                                                    col_offset(),
-                                                    seed_,
-                                                    scalar_ * (is_conjugated() ? std::conj(factor) : factor),  // value = conj(raw * scalar), F-071
-                                                    is_transposed(),
-                                                    is_conjugated(),
-                                                    is_temporary());
-        return out;
+        return scaled_clone(factor);
     }
 
 
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
         (void)result_file;
-        auto out = std::make_unique<DenseMatrix<T>>(logical_rows(),
-                                                    logical_cols(),
-                                                    mapper_,
-                                                    base_rows(),
-                                                    base_cols(),
-                                                    col_offset(),
-                                                    row_offset(),
-                                                    seed_,
-                                                    scalar_,
-                                                    !is_transposed(),
-                                                    is_conjugated(),
-                                                    is_temporary());
-        return out;
+        return transposed_clone();
     }
 
     std::pair<std::unique_ptr<DenseMatrix<double>>, std::unique_ptr<DenseMatrix<double>>> qr(const std::string& q_file = "",

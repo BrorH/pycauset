@@ -134,10 +134,8 @@ public:
     }
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
-        auto result = std::make_unique<IdentityMatrix<T>>(base_rows(), base_cols(), result_file);
-        result->set_scalar(scalar_);
-        result->set_transposed(!is_transposed());
-        return result;
+        (void)result_file;
+        return transposed_clone();
     }
 
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& = "") const override {

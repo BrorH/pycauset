@@ -78,6 +78,15 @@ def test_scaled_integer_matrix_consumers(dtype, k, consumer, rng):
     pc_fn, np_fn = CONSUMERS[consumer]
     with np.errstate(over="ignore"):
         expected = np_fn(ref)
+    if consumer in ("matvec", "vecmat"):
+        # M @ v is matmul (F-095): an integer result that overflows its dtype raises (F-055)
+        # where NumPy wraps.
+        exact = ref.astype(np.int64).sum(axis=1 if consumer == "matvec" else 0)
+        info = np.iinfo(ref.dtype)
+        if exact.min() < info.min or exact.max() > info.max:
+            with pytest.raises(OverflowError):
+                pc_fn(m)
+            return
     got = pc_fn(m)
     if consumer == "sum":
         np.testing.assert_allclose(complex(got).real, float(expected), rtol=1e-12)

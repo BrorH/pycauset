@@ -154,22 +154,12 @@ double DenseMatrix<bool>::element_as_double(uint64_t i, uint64_t j) const {
 
 std::unique_ptr<MatrixBase> DenseMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {
     (void)result_file;
-    auto out = std::make_unique<DenseMatrix<bool>>(base_rows(), base_cols(), mapper_);
-    out->set_scalar(scalar_ * factor);
-    out->set_seed(seed_);
-    out->set_transposed(is_transposed());
-    out->set_conjugated(is_conjugated());
-    return out;
+    return scaled_clone(factor);
 }
 
 std::unique_ptr<MatrixBase> DenseMatrix<bool>::transpose(const std::string& result_file) const {
     (void)result_file;
-    auto out = std::make_unique<DenseMatrix<bool>>(base_rows(), base_cols(), mapper_);
-    out->set_transposed(!is_transposed());
-    out->set_scalar(scalar_);
-    out->set_seed(seed_);
-    out->set_conjugated(is_conjugated());
-    return out;
+    return transposed_clone();
 }
 
 std::unique_ptr<DenseMatrix<bool>> DenseMatrix<bool>::bitwise_not(const std::string& result_file) const {

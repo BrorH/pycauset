@@ -141,17 +141,8 @@ public:
     }
 
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override {
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto out = std::make_unique<ComplexFloat16Matrix>(base_rows(), base_cols(), std::move(mapper));
-        out->set_scalar(scalar_ * factor);
-        out->set_seed(seed_);
-        out->set_transposed(is_transposed());
-        out->set_conjugated(is_conjugated());
-        if (result_file.empty()) {
-            out->set_temporary(true);
-        }
-        return out;
+        (void)result_file;
+        return scaled_clone(factor);  // O(1) view, F-097
     }
 
     std::unique_ptr<MatrixBase> multiply_scalar(int64_t factor, const std::string& result_file = "") const override {
@@ -159,40 +150,15 @@ public:
     }
 
     std::unique_ptr<MatrixBase> multiply_scalar(std::complex<double> factor, const std::string& result_file = "") const override {
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto out = std::make_unique<ComplexFloat16Matrix>(base_rows(), base_cols(), std::move(mapper));
-        out->set_scalar(scalar_ * (is_conjugated() ? std::conj(factor) : factor));  // conj(raw * scalar), F-071
-        out->set_seed(seed_);
-        out->set_transposed(is_transposed());
-        out->set_conjugated(is_conjugated());
-        if (result_file.empty()) {
-            out->set_temporary(true);
-        }
-        return out;
+        (void)result_file;
+        return scaled_clone(factor);
     }
 
 
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
-        if (result_file.empty()) {
-            auto out = std::make_unique<ComplexFloat16Matrix>(base_rows(), base_cols(), mapper_);
-            out->set_transposed(!is_transposed());
-            out->set_scalar(scalar_);
-            out->set_seed(seed_);
-            out->set_conjugated(is_conjugated());
-            out->set_temporary(is_temporary());
-            return out;
-        }
-
-        std::string new_path = copy_storage(result_file);
-        auto mapper = std::make_unique<MemoryMapper>(new_path, 0, false);
-        auto out = std::make_unique<ComplexFloat16Matrix>(base_rows(), base_cols(), std::move(mapper));
-        out->set_transposed(!is_transposed());
-        out->set_scalar(scalar_);
-        out->set_seed(seed_);
-        out->set_conjugated(is_conjugated());
-        return out;
+        (void)result_file;
+        return transposed_clone();
     }
 };
 

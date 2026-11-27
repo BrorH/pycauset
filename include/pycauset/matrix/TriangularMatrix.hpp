@@ -189,20 +189,9 @@ public:
 
 
     std::unique_ptr<MatrixBase> transpose(const std::string& result_file = "") const override {
-        // Transposing a Triangular Matrix makes it Lower Triangular.
-        // But our storage format is strictly Upper Triangular.
-        // So we can not just flip a bit. We have to return a DenseMatrix (or a LowerTriangular wrapper if we had one).
-        // Or, we can support "Implicit Transpose" where get(i, j) maps to get(j, i).
-        // If we do implicit transpose, get(i, j) where i > j (lower triangle) becomes get(j, i) (upper triangle).
-        // This works perfectly!
-        
+        // Implicit transpose: get(i, j) of the lower triangle reads the stored upper one.
         (void)result_file;
-        auto out = std::make_unique<TriangularMatrix<T>>(base_rows(), mapper_, has_diagonal_);
-        out->set_transposed(!this->is_transposed());
-        out->set_scalar(scalar_);
-        out->set_seed(seed_);
-        out->set_conjugated(is_conjugated());
-        return out;
+        return transposed_clone();
     }
 
 };

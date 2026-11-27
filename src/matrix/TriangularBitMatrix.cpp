@@ -114,12 +114,7 @@ std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::random(uint64_t 
 
 std::unique_ptr<MatrixBase> TriangularMatrix<bool>::transpose(const std::string& result_file) const {
     (void)result_file;
-    auto out = std::make_unique<TriangularMatrix<bool>>(base_rows(), mapper_, has_diagonal_);
-    out->set_transposed(!is_transposed());
-    out->set_scalar(scalar_);
-    out->set_seed(seed_);
-    out->set_conjugated(is_conjugated());
-    return out;
+    return transposed_clone();
 }
 
 std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(const TriangularMatrix<bool>& other, const std::string& result_file) const {
