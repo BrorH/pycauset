@@ -310,17 +310,6 @@ void bind_vector_classes(py::module_& m) {
                 return out;
             },
             py::arg("allow_huge") = false)
-        .def(
-            "__array__",
-            [](const VectorBase& v, py::object dtype, py::object /*copy*/) -> py::object {
-                // The matrix exporter over the 1 x n bridge (every dtype and view, one path).
-                pycauset::bindings::ensure_numpy_export_allowed(v);
-                py::object out = pycauset_bindings::export_matrix_numpy(*pycauset::as_row_matrix(v));
-                if (!v.is_transposed()) out = out.attr("reshape")(static_cast<py::ssize_t>(v.size()));
-                return dtype.is_none() ? out : out.attr("astype")(dtype);
-            },
-            py::arg("dtype") = py::none(),
-            py::arg("copy") = py::none())
         .def_property_readonly(
             "T",
             [](const VectorBase& v) {

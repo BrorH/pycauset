@@ -73,6 +73,21 @@ Python suite + demos, **without** gtests).
 - Structured types barely run: IdentityMatrix 3%, DiagonalMatrix 5%,
   SymmetricMatrix 7%, TriangularMatrix (non-bit) 11%, AutoSolver 22%.
 
+### Runtime pass, session 9 (coverage build, whole new suite incl. atlas; gtests not included)
+118 of 1,189 C++ source functions never executed. Triage:
+- **Removed (dead):** native `__array__` on MatrixBase and VectorBase (shadowed by the Python
+  export hook: a second export path), `_native.matmul` and `_native._get_numpy_export_max_bytes`
+  (no callers), `get_storage_root` binding, the bool branch of `CpuSolver::elementwise_multiply`
+  (the entry function's bitwise rule owns bool * bool; it was a per-element accessor loop).
+- **Untested, now tested:** `+m`, `DenseMatrix.set_identity`, `DenseMatrix.random` (bool),
+  `v.conjugate()`, writes into scaled vectors, typed accessors.
+- **Kept, by design:** AutoSolver GPU routing and MemoryGovernor pinning (dormant CUDA hooks;
+  pinning has gtests), Windows-only branches (IOAccelerator `#ifdef _WIN32`), generic
+  fallbacks for operands `read_rows` cannot read (documented in Adding Operations §4),
+  file-backed `discard` (RAM storage returns early by design; test gap, not dead).
+- Command: `review/scripts/cpp_unexecuted.py` on a gcovr JSON from `build/cov` (run pytest
+  with `-o pythonpath=<cov package>`).
+
 ## 4. Candidate tiers
 
 ### Tier A: remove now (unreferenced AND never executed, or clearly obsolete)

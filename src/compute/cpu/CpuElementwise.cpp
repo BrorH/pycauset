@@ -781,34 +781,8 @@ void CpuSolver::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, M
         return;
     }
 
-    if (dtype == DataType::BIT) {
-        auto* out = dynamic_cast<DenseBitMatrix*>(&result);
-        if (!out) {
-            throw std::runtime_error("CpuSolver::elementwise_multiply bit result type mismatch");
-        }
-        const uint64_t rows = out->rows();
-        const uint64_t cols = out->cols();
-        if (!is_broadcast_compatible_dim(a.rows(), rows) ||
-            !is_broadcast_compatible_dim(a.cols(), cols) ||
-            !is_broadcast_compatible_dim(b.rows(), rows) ||
-            !is_broadcast_compatible_dim(b.cols(), cols)) {
-            throw std::invalid_argument("operands could not be broadcast together");
-        }
-        debug_trace::set_last("cpu.elementwise_multiply.bit");
-        ParallelFor(0, rows, [&](size_t i) {
-            for (uint64_t j = 0; j < cols; ++j) {
-                const uint64_t ia = broadcast_index(static_cast<uint64_t>(i), a.rows());
-                const uint64_t ja = broadcast_index(static_cast<uint64_t>(j), a.cols());
-                const uint64_t ib = broadcast_index(static_cast<uint64_t>(i), b.rows());
-                const uint64_t jb = broadcast_index(static_cast<uint64_t>(j), b.cols());
-                const bool va = (a.get_element_as_double(ia, ja) != 0.0);
-                const bool vb = (b.get_element_as_double(ib, jb) != 0.0);
-                out->set(i, j, va && vb);
-            }
-        });
-        out->set_scalar(1.0);
-        return;
-    }
+    // bool * bool never reaches the device: the entry function's structure rule computes it
+    // from the packed words (math/Bitwise.cpp, `bitwise(a, b, And)`).
 
     if (dtype == DataType::FLOAT64) {
         debug_trace::set_last("cpu.mul.f64");

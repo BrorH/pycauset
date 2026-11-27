@@ -96,9 +96,6 @@ void bind_core_classes(py::module_& m) {
         "set_storage_root",
         [](const std::string& path) { pycauset::set_storage_root(std::filesystem::path(path)); },
         py::arg("path"));
-    m.def(
-        "get_storage_root",
-        []() { return pycauset::get_storage_root().string(); });
 
 
     m.def(

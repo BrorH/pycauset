@@ -1108,16 +1108,6 @@ void bind_matrix_classes(py::module_& m) {
             }
             return export_numpy(mat);
         }, py::arg("allow_huge") = false)
-        .def(
-            "__array__",
-            [](const MatrixBase& mat, py::object dtype, py::object /*copy*/) -> py::object {
-                pycauset::bindings::ensure_numpy_export_allowed(mat);
-                py::object out = export_numpy(mat);
-                return dtype.is_none() ? out : out.attr("astype")(dtype);
-            },
-            py::arg("dtype") = py::none(),
-            py::arg("copy") = py::none())
-
         .def("trace", [](const MatrixBase& mat) { return pycauset_bindings::reduction_to_py(pycauset::trace(mat)); })
         .def("determinant", [](const MatrixBase& mat) -> py::object {
             // NumPy kinds: complex for complex matrices, float otherwise (F-059).
@@ -1214,7 +1204,6 @@ void bind_matrix_classes(py::module_& m) {
             pycauset::bindings::g_numpy_export_max_bytes.store(v);
         },
         py::arg("limit"));
-    m.def("_get_numpy_export_max_bytes", []() { return pycauset::bindings::g_numpy_export_max_bytes.load(); });
 
     // ------------------------------------------------------------------------------------
     // One Python class per structure; the dtype is an attribute (RESTRUCTURE 3.1 item 4).
@@ -1641,12 +1630,6 @@ void bind_matrix_classes(py::module_& m) {
         throw py::value_error("asarray only supports 1D or 2D arrays");
     });
 
-
-    m.def(
-        "matmul",
-        [](std::shared_ptr<MatrixBase> a, std::shared_ptr<MatrixBase> b) { return matmul_mm(*a, *b); },
-        py::arg("a"),
-        py::arg("b"));
 
     m.def(
         "cholesky",

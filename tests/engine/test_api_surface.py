@@ -236,3 +236,27 @@ def test_transpose_method_equals_T():
     a = np.arange(6.0).reshape(2, 3)
     np.testing.assert_array_equal(to_np(pc.matrix(a).transpose()), a.T)
     np.testing.assert_array_equal(to_np(pc.matrix(a).T), a.T)
+
+
+def test_unary_plus_and_set_identity():
+    a = np.arange(4.0).reshape(2, 2)
+    np.testing.assert_array_equal(to_np(+pc.matrix(a)), +a)
+    m = pc.DenseMatrix(3, dtype="int16")
+    m.set_identity()
+    np.testing.assert_array_equal(to_np(m), np.eye(3, dtype=np.int16))
+
+
+def test_dense_bool_random():
+    a = pc.DenseMatrix.random(100, 80, p=0.2, seed=9)
+    x = np.asarray(a).astype(bool)
+    assert x.shape == (100, 80) and a.dtype == "bool"
+    assert np.array_equal(x, np.asarray(pc.DenseMatrix.random(100, 80, p=0.2, seed=9)))
+    assert abs(x.mean() - 0.2) < 0.03
+
+
+def test_vector_conjugate_and_writes_into_views():
+    v = pc.vector(np.array([1 + 2j, 3 - 1j]))
+    np.testing.assert_array_equal(to_np(v.conjugate()), np.conj([1 + 2j, 3 - 1j]))
+    w = pc.vector(np.array([1.0, 2.0, 3.0])) * 2.0  # a scaled view
+    w[0] = 10.0  # the write folds the view into storage first; the other values are kept
+    np.testing.assert_array_equal(to_np(w), [10.0, 4.0, 6.0])

@@ -1449,7 +1449,6 @@ _INTERNAL_NATIVE_EXPORTS = frozenset(
         "MemoryGovernor",
         "IOAccelerator",
         # Native storage plumbing (public API is set_backing_dir / save / load).
-        "get_storage_root",
         "set_storage_root",
         # Causet-generation internals (public API is pc.causet).
         "make_coordinates",
