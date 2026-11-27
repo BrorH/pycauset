@@ -38,7 +38,7 @@ SKIP_GROUPS = {"io"}  # export / getitem / save_load: no NumPy operation to comp
 SKIP_OPS = {"qr", "lu"}  # no NumPy value reference in the atlas
 
 
-def _best(fn, budget=1.0, min_total=0.2, max_reps=200):
+def _best(fn, budget=1.0, min_total=0.05, max_reps=100):
     """Best of repeated runs: at least 3, then until `min_total` seconds or `max_reps` runs
     (sub-millisecond operations need many samples on a shared machine: a best-of-3 swung by
     100x between passes). One run longer than `budget` ends the sampling."""
@@ -53,7 +53,7 @@ def _best(fn, budget=1.0, min_total=0.2, max_reps=200):
     return best
 
 
-def _paired(f_np, f_pc, rounds=3):
+def _paired(f_np, f_pc, rounds=2):
     """Alternate NumPy and PyCauset rounds so drift (frequency, neighbours) hits both alike."""
     t_np = t_pc = float("inf")
     for _ in range(rounds):
