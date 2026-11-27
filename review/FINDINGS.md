@@ -1528,5 +1528,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   loops share `apply_span` (operator fixed at compile time). The values are those of `get`,
   so results do not change: full atlas 0 wrong of 88,361; test
   `test_bulk_reader_windows_and_transposes_match_numpy`. Numbers: LOG, session 9.
-- Not covered: bit storage, complex_float16, identity, lazy closures and windows of
-  structured classes keep the per-element path (none has a bulk reader yet).
+- Later the same session: bit storage (dense and triangular, with transposes) unpacks in bulk
+  too, and the Frobenius norm reads through the bulk tiles (`cpu.norm.bulk`).
+- Not covered: complex_float16, identity, lazy closures and windows of structured classes
+  keep the per-element path (none has a bulk reader yet).
