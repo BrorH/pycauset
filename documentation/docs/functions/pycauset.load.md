@@ -4,7 +4,7 @@
 pycauset.load(path: str)
 ```
 
-Loads a matrix, vector, block matrix, or `CausalSet` from a binary file created by PyCauset.
+Loads a matrix, vector or block matrix from a `.pycauset` file. (A file saved from a `CausalSet`, whose class is parked with the physics layer, loads as its causal matrix.)
 
 ## Parameters
 
@@ -12,7 +12,7 @@ Loads a matrix, vector, block matrix, or `CausalSet` from a binary file created 
 
 ## Returns
 
-*   **Matrix/vector/BlockMatrix/CausalSet**: The appropriate object for the container’s contents.
+*   **Matrix/vector/BlockMatrix**: The appropriate object for the container’s contents.
 
 	For `matrix_type = "BLOCK"`, this returns a `BlockMatrix` reconstructed from a manifest stored in the container file and child blocks stored in a sibling `.blocks/` directory.
 

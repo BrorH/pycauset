@@ -13,10 +13,8 @@ Public API is anything a user is expected to import and rely on.
 ### Public (stable entrypoints)
 
 - `pycauset.*` symbols that are documented in the API reference under `documentation/docs/`.
-- The documented submodules:
-  - `pycauset.spacetime`
-  - `pycauset.field`
-  - `pycauset.vis`
+- No public submodules in R1 (`spacetime`, `field`, `synthetic`, `vis` are parked with the
+  physics layer in `experimental/physics`).
 
 Rule of thumb:
 - If it is meant for users, it must be reachable at `pycauset.*`.
@@ -36,7 +34,7 @@ See also: [[dev/Python Internals|Python Internals]] and [[dev/Bindings & Dispatc
 
 ### Modules
 
-- Public modules are short, nouns, and lower-case (examples: `spacetime`, `field`, `vis`).
+- Public modules are short, nouns, and lower-case.
 - Internal modules live under `pycauset._internal`.
 
 ### Types (classes)

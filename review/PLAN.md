@@ -345,6 +345,11 @@ are engine-owned metadata on the storage).
 - [ ] D.5 Closures and expression nodes (with phase L)
 
 ## Phase 5: Documentation truth pass
+- session 9 (started with the pages physics touched): README, Quickstart, User Guide,
+  Examples, Saving and Loading, the three index pages, save/load, Public API Contract. Their
+  code runs in `tests/engine/test_doc_snippets.py` (add each page as it is rewritten).
+  Known stale: `internals/Compute Architecture.md` still documents `pycauset.cuda` routing
+  and pinning (CUDA is in experimental/); next.
 - [ ] 5.1 Fix every broken snippet (F-008); the snippet test is green. Includes removing GPU
       prose from guides/internals (pages moved in 4.0; prose left for this pass)
 - [ ] 5.2 API reference generated from docstrings, one page per public function/class

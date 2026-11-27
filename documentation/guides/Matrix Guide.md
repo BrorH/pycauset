@@ -1,4 +1,4 @@
-Matrices are the backbone of PyCauset. Most people use [[docs/classes/spacetime/pycauset.CausalSet.md|pycauset.CausalSet]], but the matrix engine runs underneath it, and it follows NumPy conventions so it feels familiar.
+Matrices are the backbone of PyCauset. The engine follows NumPy conventions, so it feels familiar.
 
 `pycauset` behaves like NumPy at small scales (storing data in RAM), but converts to a memory-efficient beast at high scales (automatically spilling to disk).
 

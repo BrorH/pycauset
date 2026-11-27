@@ -4,30 +4,27 @@
 pycauset.save(obj, path: str)
 ```
 
-Saves a matrix, vector, block matrix, or a `CausalSet` to a permanent location on disk.
+Saves a matrix, vector or block matrix to a permanent location on disk.
 
 This writes a new `.pycauset` **snapshot container**.
 
 *   **For native matrices/vectors**: writes a new container file by copying the payload data (via the object’s `copy_storage(...)` implementation) and recording metadata.
 *   **For block matrices**: writes a small container file plus a sibling sidecar directory holding the child blocks (see below). Thunk blocks are evaluated **blockwise** (no global densify). Saving raises deterministically if any captured input is stale.
-*   **For CausalSets**: saves the causal matrix payload plus causet metadata.
 
 !!! note "Snapshot semantics"
 	`.pycauset` files are treated as immutable snapshots. Mutating a loaded object does not implicitly overwrite the on-disk snapshot.
 
 ## Parameters
 
-*   **obj** (*matrix, vector, BlockMatrix, or CausalSet*): The object to save.
+*   **obj** (*matrix, vector, or BlockMatrix*): The object to save.
 *   **path** (*str*): The destination path.
 
 ## Example
 
 ```python
-# Save a raw matrix
-pc.save(matrix, "data.pycauset")
+import pycauset as pc
 
-# Save a Causal Set
-pc.save(causet, "universe.pycauset")
+pc.save(pc.matrix([[1.0, 2.0], [3.0, 4.0]]), "data.pycauset")
 
 # Save a block matrix (creates a sidecar directory)
 A = pc.matrix(((1.0, 0.0), (0.0, 1.0)))

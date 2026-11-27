@@ -4,28 +4,13 @@ PyCauset puts everything into a single `.pycauset` file: the payload, its dtype 
 shape, and any metadata. This page covers saving, loading, and converting between
 formats.
 
-## Save a causal set
+## Save a matrix or vector
 
-`CausalSet` has a `save` method, and `pc.load` reads it back:
+`pc.save` writes one file; `pc.load` memory-maps it back:
 
 ```python
 import pycauset as pc
 
-c = pc.causet(n=1000, seed=42)
-c.save("universe.pycauset")
-
-again = pc.load("universe.pycauset")
-print(again.n)          # 1000
-```
-
-The file holds the causal matrix, the coordinates, and the metadata (spacetime, seed,
-parameters), so `pc.load` rebuilds the object without re-sprinkling.
-
-## Save a raw matrix or vector
-
-The same functions work for matrices and vectors:
-
-```python
 A = pc.matrix([ [1.0, 2.0], [3.0, 4.0] ], dtype="float64")
 v = pc.vector([1, 2, 3])
 
@@ -49,6 +34,8 @@ pc.convert_file("A.pycauset", "A.npy")
 pc.convert_file("A.npy", "A_roundtrip.pycauset")
 
 # Pick a specific array inside an npz
+import numpy as np
+np.savez("bundle.npz", matrix0=np.eye(3), vector0=np.arange(3.0))
 pc.convert_file("bundle.npz", "vec.pycauset", npz_key="vector0")
 ```
 
@@ -83,7 +70,7 @@ can crash a process. PyCauset guards against this:
 - Spill/file-backed (`.tmp`) objects raise unless you opt in explicitly:
 
 ```python
-arr = pc.to_numpy(obj, allow_huge=True)   # "yes, I want it in RAM"
+arr = pc.to_numpy(A2, allow_huge=True)    # "yes, I want it in RAM"
 ```
 
 `pc.set_export_max_bytes(n)` sets a ceiling on materialization; `None` removes the
