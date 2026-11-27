@@ -690,3 +690,6 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   (dtype + structure + diagonal + view, no compiler type names). eigvals / eigvalsh are cached
   as one copy-on-write clone, a new clone per call (not saved). Container format and guide
   pages updated.
+- Scalar ops: `apply` is force-inlined (out of line it was a call per element: int16 vector *
+  2j 3.8 -> 0.64 ms, NumPy 1.4 ms). dot of two unit vectors (real, complex, integer: exact
+  int) is one product or none (0.3 us; it read every element). Full atlas 0 wrong.

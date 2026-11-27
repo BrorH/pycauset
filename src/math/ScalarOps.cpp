@@ -241,8 +241,18 @@ R scalar_as(const ScalarArg& s) {
     }
 }
 
+// Forced inline: in apply_span the operator is a compile-time constant, and inlined the
+// switch folds away; out of line it was a call per element (v * 2j for int16: 80% of the time).
+#if defined(__GNUC__) || defined(__clang__)
+#define PYCAUSET_FORCE_INLINE inline __attribute__((always_inline))
+#elif defined(_MSC_VER)
+#define PYCAUSET_FORCE_INLINE __forceinline
+#else
+#define PYCAUSET_FORCE_INLINE inline
+#endif
+
 template <typename R>
-R apply(ScalarOpKind op, R x, R s) {
+PYCAUSET_FORCE_INLINE R apply(ScalarOpKind op, R x, R s) {
     if constexpr (std::is_integral_v<R>) {
         switch (op) {
             case ScalarOpKind::Add: return static_cast<R>(scalar::WrapPlus{}(x, s));

@@ -672,3 +672,14 @@ def test_antisymmetric_diagonal_reads_plus_zero_in_bulk_reads():
         got = np.asarray(d / a)
     assert np.all(np.diag(got) == np.inf)
     assert np.all(np.diag(np.asarray(1.0 / a)) == np.inf)
+
+
+def test_unit_vector_pairs_dot_exactly():
+    """Two unit vectors: one product or none, in the right type (int for integers)."""
+    n = 1000
+    for dt in ("float64", "int16", "complex_float64"):
+        u, v, w = pc.UnitVector(n, 5, dtype=dt), pc.UnitVector(n, 5, dtype=dt), pc.UnitVector(n, 7, dtype=dt)
+        assert u.dot(v) == np.dot(np.asarray(u), np.asarray(v))
+        assert u.dot(w) == 0
+    assert type(pc.UnitVector(n, 1, dtype="int32").dot(pc.UnitVector(n, 1, dtype="int32"))) is int
+    assert (pc.UnitVector(n, 1, dtype="int32") * 3).dot(pc.UnitVector(n, 1, dtype="int32") * -2) == -6

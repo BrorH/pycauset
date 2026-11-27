@@ -288,6 +288,13 @@ double dot_product(const VectorBase& a, const VectorBase& b) {
     // instead of per-element virtual reads of both (dot with a unit vector was 0.05x NumPy).
     const auto* ua = dynamic_cast<const UnitVector*>(&a);
     const auto* ub = dynamic_cast<const UnitVector*>(&b);
+    if (ua && ub) {  // two unit vectors: one product or none (exact)
+        const std::complex<double> x = ua->active_value(), y = ub->active_value();
+        if (std::isfinite(x.real()) && std::isfinite(y.real())) {
+            debug_trace::set_last("cpu.dot.unit");
+            return ua->get_active_index() == ub->get_active_index() ? 0.0 + x.real() * y.real() : 0.0;
+        }
+    }
     if (const UnitVector* u = ua ? ua : ub) {
         const VectorBase& o = ua ? b : a;
         const std::complex<double> uk = u->active_value();
@@ -381,6 +388,19 @@ std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& 
     const uint64_t n = a.size();
     if (b.size() != n) {
         throw std::invalid_argument("Vector dimensions mismatch");
+    }
+    // Two unit vectors: one product or none (exact; the zero terms are 0 for finite factors).
+    if (const auto* ua = dynamic_cast<const UnitVector*>(&a)) {
+        if (const auto* ub = dynamic_cast<const UnitVector*>(&b)) {
+            const std::complex<double> x = ua->active_value(), y = ub->active_value();
+            auto finite = [](std::complex<double> z) { return std::isfinite(z.real()) && std::isfinite(z.imag()); };
+            if (finite(x) && finite(y)) {
+                debug_trace::set_last("cpu.dot.unit");
+                if (ua->get_active_index() != ub->get_active_index()) return {0.0, 0.0};
+                return std::complex<double>(x.real() * y.real() - x.imag() * y.imag(),
+                                            x.real() * y.imag() + x.imag() * y.real());
+            }
+        }
     }
     return ComputeContext::instance().get_device()->dot_complex(a, b);
 }

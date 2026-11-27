@@ -67,6 +67,30 @@ inline py::object exact_int_dot(const VectorBase& a, const VectorBase& b) {
     // nonzero; integers have no inf / NaN). It went through the float path and returned a float.
     const auto* ua = dynamic_cast<const UnitVector*>(&a);
     const auto* ub = dynamic_cast<const UnitVector*>(&b);
+    if (ua && ub) {  // two integer unit vectors: one product or none, exact
+        const auto int_unit = [](const UnitVector& u) {
+            const DataType dt = u.get_data_type();
+            return dt != DataType::BIT && dt != DataType::FLOAT16 && dt != DataType::FLOAT32 && dt != DataType::FLOAT64 &&
+                   dt != DataType::COMPLEX_FLOAT16 && dt != DataType::COMPLEX_FLOAT32 && dt != DataType::COMPLEX_FLOAT64 &&
+                   scalar::is_exact_int_factor(u.get_scalar());
+        };
+        if (int_unit(*ua) && int_unit(*ub)) {
+            if (a.size() != b.size()) throw py::value_error("dot: vector sizes differ");
+            if (ua->get_active_index() != ub->get_active_index()) return py::int_(0);
+            __int128 x = 0, y = 0;
+            visit_dtype(ua->get_data_type(), [&](auto t) {
+                using A = typename decltype(t)::type;
+                if constexpr (std::is_integral_v<A> && !std::is_same_v<A, bool>)
+                    x = scalar::wrap_scale<A>(A{1}, static_cast<int64_t>(ua->get_scalar().real()));
+            });
+            visit_dtype(ub->get_data_type(), [&](auto t) {
+                using B = typename decltype(t)::type;
+                if constexpr (std::is_integral_v<B> && !std::is_same_v<B, bool>)
+                    y = scalar::wrap_scale<B>(B{1}, static_cast<int64_t>(ub->get_scalar().real()));
+            });
+            return pycauset_bindings::int128_to_py(x * y);  // each is a wrapped factor: |x|, |y| < 2^64
+        }
+    }
     if ((ua != nullptr) != (ub != nullptr)) {
         const UnitVector& u = ua ? *ua : *ub;
         const VectorBase& o = ua ? b : a;
