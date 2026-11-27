@@ -640,3 +640,6 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   in 128 bits; floats with four accumulators. Chunks combine in order (deterministic). 1M
   elements: int32 vector 2.3 ms -> 0.12 ms, dense float64 0.69 -> 0.15 ms, symmetric int32
   0.81 -> 0.38 ms (NumPy ~0.29 ms). Full atlas: 0 wrong.
+- IO trace (F-100) keeps raw operand facts (shape, dtype, backing file) and the kernel list
+  per call and formats the record when `last_io_trace()` reads it: pc.trace on a 64 x 64
+  3.4 -> 2.5 us (the engine call is 0.6 us; the rest is the Python wrapper layers).
