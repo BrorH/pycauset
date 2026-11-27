@@ -1,194 +1,118 @@
 # User Guide
 
-A guided tour of PyCauset. It walks through one causal set from creation to a field
-on top of it, and points at the pieces as they come up. It is the page to read once
-so the rest of the guides make sense.
+A guided tour of the engine: how PyCauset thinks about a matrix, and what that buys you.
+Read it once and the rest of the guides fall into place. Every block runs as written
+(`tests/engine/test_doc_snippets.py`).
 
 ## The mental model
 
-PyCauset has three layers:
+A PyCauset matrix is NumPy's matrix (same values, same dtypes, same operator semantics)
+with four things NumPy does not have:
 
-1. **Geometry.** A `CausalSet` is a finite set of elements with a causal order
-   between them. You make one by *sprinkling* points into a `Spacetime` and reading
-   the order off the geometry.
-2. **Matter.** A `Field` is set-independent; apply it to a causal set and you get a
-   `CorrelatedField` with propagators on that set.
-3. **The engine.** Underneath both is a matrix/vector system that stores data in RAM
-   or on disk and does the linear algebra. You can use it directly without touching
-   the physics.
+1. **A structure class.** `DenseMatrix`, `TriangularMatrix`, `SymmetricMatrix`,
+   `AntiSymmetricMatrix`, `HermitianMatrix`, `SkewHermitianMatrix`, `DiagonalMatrix`,
+   `IdentityMatrix`. The class says what is stored and which algorithm applies. A causal
+   matrix is a `TriangularMatrix` of dtype `bool`, stored one bit per element.
+2. **Views.** Transposition, conjugation, scaling and windows are O(1) views over shared
+   storage; operations read them directly instead of copying.
+3. **Lazy results where they pay.** `C + C.T` of a causal matrix is a view over `C`'s bits
+   until something needs its values ([[guides/Lazy Evaluation|Lazy Evaluation]]).
+4. **Storage that scales.** Small matrices live in RAM; matrices above a threshold live in
+   memory-mapped files, and operations that do not fit run tile by tile.
 
-## Make a causal set
+NumPy is the reference: every operation is checked against it for every dtype, structure
+and view (the operation atlas). Where PyCauset deliberately differs, the
+[[internals/DType System|DType System]] page says so.
+
+## Make matrices
 
 ```python
 import pycauset as pc
-
-c = pc.causet(n=1000, seed=42)
-```
-
-That sprinkles 1000 points into the default region, a 2D Minkowski diamond, and
-stores the causal order between them. Points are labelled by time, so the order is a
-strictly upper-triangular matrix.
-
-Choose the region with the `spacetime` argument:
-
-```python
-st = pc.spacetime.MinkowskiDiamond(dimension=4)
-c = pc.causet(n=5000, spacetime=st, seed=1)
-```
-
-Sprinkle a *density* instead of a fixed count, and the number of points becomes a
-Poisson draw:
-
-```python
-c = pc.causet(density=500, seed=1)   # N ~ Poisson(rho * volume)
-```
-
-## Look inside it
-
-```python
-c.n                   # number of elements
-c.coordinates()       # (n, 2) array of points
-c.C                   # the causal matrix, a TriangularMatrix (bool)
-```
-
-`c.C[i, j]` is `True` when element `i` is in the causal past of `j`. It is bit-packed
-and disk-backed; get the dense boolean array when you actually want it:
-
-```python
 import numpy as np
 
-dense = np.asarray(c.C)
+A = pc.matrix([[4.0, 1.0], [1.0, 3.0]])          # from data
+B = pc.matrix(np.arange(6.0).reshape(2, 3))      # from NumPy (dtype kept)
+Z = pc.zeros((1000, 1000), dtype="float32")      # by shape
+v = pc.vector([1.0, 2.0])                        # 1-D, like NumPy
+A.shape, A.dtype                                 # ((2, 2), 'float64')
 ```
 
-View the same matrix as a heatmap:
+## Causal matrices
 
 ```python
-c.plot_causal_matrix().show()
+order = np.triu(np.ones((6, 6), dtype=bool), 1)     # a 6-element chain
+C = pc.causal_matrix(order)
+C.dtype, type(C).__name__                            # ('bool', 'TriangularMatrix')
+
+paths = C @ C          # paths[i, j]: number of 2-step chains from i to j (int32)
+R = C + C.T            # comparability matrix, lazy
+K = pc.compute_k(C, 2.0)   # C (2 I + C)^-1, a TriangularMatrix
 ```
 
-![Causal matrix heatmap](../docs/assets/gallery/causal_matrix.png)
+Writing below the diagonal of a triangular matrix raises `ValueError`: the class only
+stores the upper part.
 
-A bright cell means `i` is in the past of `j`; the upper-triangular pattern is the
-signature of a time-labelled causet.
-
-`c.validate()` checks the order is reflexive-free, antisymmetric, and transitive. The
-constructor already did this, so it should pass.
-
-## Analyse the order
-
-A causal set is a partial order, and its structure methods are first-class:
+## Structure is kept when the result has it
 
 ```python
-links = c.links()              # (n, n) boolean matrix of links (transitive reduction)
-chain = c.longest_chain()      # indices of one longest chain
-layers = c.layers()            # ranked layering
-
-c.is_chain(list(chain))        # True
-c.is_antichain([0, 1, 2])      # depends on the set
+D = pc.diagonal([1.0, 2.0, 3.0])
+type(D @ D).__name__                                 # 'DiagonalMatrix'
+S = pc.symmetric(np.array([[2.0, 1.0], [1.0, 2.0]]))
+type(S + S).__name__                                 # 'SymmetricMatrix'
+T = pc.TriangularMatrix(3, dtype="float64", has_diagonal=True)
+type(T * pc.matrix(np.ones((3, 3)))).__name__        # 'TriangularMatrix'
 ```
 
-`links()` is the Hasse skeleton: only immediate causal neighbours, not every related
-pair.
+Values and dtypes are NumPy's either way; only the storage and the work shrink.
 
-Two quantities a physicist reaches for straight away:
+## Views
 
 ```python
-c.relation_fraction()          # |relations| / max possible, in [0, 1]
-c.myrheim_meyer_dimension()    # dimension estimate from the order alone
+At = A.T                 # shares A's storage
+Ac = (A * 2j).conj()     # scaled and conjugated, still no copy
+W = A[0:1, :]            # a window
+At @ A                   # kernels read the views directly
 ```
 
-The relation fraction of a causet sprinkled into a $d$-dimensional diamond is
-characteristic of $d$; Myrheim-Meyer inverts that. See
-[[guides/Tutorials|Tutorials]] for the walkthrough.
+Writing into a view folds the view into storage first, so the write means what it says.
 
-## Plot it
+## Linear algebra
 
 ```python
-c.plot_embedding().show()      # points in spacetime
-c.plot_hasse().show()          # links only
-c.plot_causal_matrix().show()  # the order as a heatmap
-pc.show(c)                     # embedding plot, then .show(), in one call
+x = pc.solve(A, v)                  # like np.linalg.solve
+w, V = pc.eigh(A)                   # symmetric eigen decomposition
+U, s, Vt = pc.svd(A)
+pc.determinant(A), pc.matrix_rank(A), pc.norm(A, 2)
 ```
 
-![Embedding of a 2D diamond](../docs/assets/gallery/diamond_embedding.png)
+Factorisations and eigen problems run LAPACK in NumPy's precision (single stays single).
+The full list: [[guides/Linear Algebra Operations|Linear Algebra Operations]].
 
-![Hasse diagram](../docs/assets/gallery/diamond_hasse.png)
-
-![Causal matrix heatmap](../docs/assets/gallery/causal_matrix.png)
-
-*The three views: points in spacetime, links only, and the causal matrix.*
-
-## Put a field on it
+## NumPy in and out
 
 ```python
-phi = pc.field("scalar", mass=1.0)   # a Field, set-independent
-Q = phi.on(c)                        # a CorrelatedField on this causet
-
-K = Q.retarded()          # retarded propagator K_R
-iD = Q.pauli_jordan()     # iΔ = K_R - K_A
-W = Q.wightman()          # Sorkin-Johnston vacuum two-point function
-S = Q.entanglement_entropy([0, 1, 2, 3, 4])
+np.asarray(A)            # one copy into NumPy
+A + np.eye(2)            # NumPy arrays are operands
+np.ones(2) @ A           # on either side
 ```
 
-The propagators come back as NumPy arrays. See
-[[guides/Field Theory|Field Theory]] for what each one means and how the coefficients
-are set.
-
-## Save and load
-
-```python
-c.save("universe.pycauset")
-again = pc.load("universe.pycauset")
-```
-
-One file holds the causal matrix, coordinates, and metadata, so `pc.load` reconstructs
-the object without re-sprinkling.
-
-## Use the matrix engine directly
-
-The same storage and dispatch run underneath. You can skip the physics:
-
-```python
-A = pc.matrix([ [4.0, 1.0], [1.0, 3.0] ], dtype="float64")
-b = pc.matrix([ [1.0], [2.0] ], dtype="float64")
-
-x = pc.solve(A, b)           # solve A x = b
-pc.to_numpy(x)               # -> NumPy array
-
-vals, vecs = pc.eigh(A)      # symmetric eigenvalues/vectors
-```
-
-Operations return ordinary matrices. Transposes and float scalar multiples are O(1)
-views that share storage; everything else is computed when you call it.
-
-## Work with NumPy
-
-```python
-m = pc.matrix(np.array([ [1, 2], [3, 4] ]))   # from NumPy
-back = np.asarray(m)                          # to NumPy
-```
-
-Small objects behave like NumPy; large ones spill to disk automatically. See
-[[guides/Numpy Integration|NumPy Integration]] for the interop rules and the
-materialization guard.
+No PyCauset operation calls NumPy to compute its result. See
+[[guides/Numpy Integration|NumPy Integration]] for the export guard on large and
+file-backed matrices.
 
 ## Scale up
 
-When the data outgrows RAM, PyCauset moves it to disk instead of failing. Two knobs
-cover most of it:
-
 ```python
-pc.set_backing_dir("./pycauset_storage")    # where disk-backed files go
-pc.set_memory_threshold(100 * 1024 * 1024)  # spill above 100 MB
+pc.set_memory_threshold(100 * 1024 * 1024)  # matrices above 100 MB are file-backed
 pc.set_num_threads(4)                       # cap parallel work
+pc.save(A, "a.pycauset")                    # one file; load memory-maps it
 ```
 
 See [[guides/Storage and Memory|Storage and Memory]],
-[[guides/Performance Guide|Performance]], and
-[[guides/Advanced Usage|Advanced Usage]] for the full set of controls.
+[[guides/Performance Guide|Performance]] and [[guides/Advanced Usage|Advanced Usage]].
 
 ## Where next
 
-- [[guides/Tutorials|Tutorials]] — specific walkthroughs, run end to end.
-- [[guides/Examples|Examples]] — copy-paste recipes.
-- [[docs/index|API Reference]] — exact signatures.
+- [[guides/Examples|Examples]]: copy-paste recipes.
+- [[guides/Matrix Guide|Matrix Guide]] and [[guides/Vector Guide|Vector Guide]].
+- [[docs/index|API Reference]]: exact signatures.
