@@ -1240,6 +1240,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
     operations swung by 100x between passes. It now samples each side until 0.05 s and
     alternates NumPy and PyCauset rounds. Its operand cache was unbounded (14 GB, OOM-killed
     the pass) and is now a 6-entry LRU.
+  - RAM storage is now the C heap (calloc), reused after a free instead of a fresh mapping
+    page-faulting on every result; fully written dense results (`UninitializedStorage` scope)
+    skip zeroing; complex products use NumPy's formula instead of `std::complex`'s
+    `__muldc3` call per element.
+- Result, 1024 x 1024 float64 (pycauset imported first): `m + m` 3.0x NumPy, `m * m` 2.9x,
+  `m / m` 2.2x, `m + 1.0` 1.8x, complex `c * c` 0.88x (was 0.11-0.81x).
 - Result (4 x 4 operands): `a + b` 29 -> 1.9 µs, `a @ b` 49 -> 2.8 µs, `pc.matmul` 136 ->
   18.6 µs, `pc.sum` 51 -> 0.7 µs, `a @ v` 5.1 µs.
 - Remaining: `pc.matmul`'s Python layer (BlockMatrix import, IO trace: PLAN 4.7), the
