@@ -440,7 +440,12 @@ namespace {
                 const T* y = cb->data();
                 T* z = res_c->data();
                 debug_trace::set_last("cpu.elementwise.packed");
-                ParallelFor(0, bytes / sizeof(T), [&](size_t k) { z[k] = static_cast<T>(op(x[k], y[k])); });
+                ParallelForRange(0, bytes / sizeof(T), [&](size_t k0, size_t k1) {
+                    const T* __restrict xr = x;
+                    const T* __restrict yr = y;
+                    T* __restrict zr = z;
+                    for (size_t k = k0; k < k1; ++k) zr[k] = static_cast<T>(op(xr[k], yr[k]));
+                });
                 return true;
                 }
             };
@@ -473,8 +478,11 @@ namespace {
                 const T* b_data = b_dense->data();
                 T* res_data = res_dense->data();
                 
-                ParallelFor(0, rows * cols, [&](size_t i) {
-                    res_data[i] = op(a_data[i], b_data[i]);
+                ParallelForRange(0, rows * cols, [&](size_t i0, size_t i1) {
+                    const T* __restrict xr = a_data;
+                    const T* __restrict yr = b_data;
+                    T* __restrict zr = res_data;
+                    for (size_t i = i0; i < i1; ++i) zr[i] = op(xr[i], yr[i]);
                 });
                 return;
             }

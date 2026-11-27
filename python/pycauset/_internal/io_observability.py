@@ -12,10 +12,9 @@ Nothing here plans, routes or tunes anything.
 """
 from __future__ import annotations
 
-import contextlib
 import time
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from pycauset import _storage
 
@@ -49,26 +48,44 @@ class IOObservability:
         rec = self._last.get(op or "__latest__")
         return dict(rec) if rec is not None else None
 
-    @contextlib.contextmanager
-    def trace(self, op: str, operands: list[Any]) -> Iterator[dict[str, Any]]:
-        if self._depth:
-            yield {}
-            return
-        rec: dict[str, Any] = {
-            "op": op,
-            "operands": [_snapshot(o) for o in operands],
+    def trace(self, op: str, operands: list[Any]) -> "_Trace":
+        """Context manager recording `op`'s operands and the kernels the engine ran. A class,
+        not a generator: it wraps every traced call (per-call overhead, F-096)."""
+        return _Trace(self, op, operands)
+
+
+class _Trace:
+    __slots__ = ("obs", "op", "operands", "rec", "outer")
+
+    def __init__(self, obs: IOObservability, op: str, operands: list[Any]) -> None:
+        self.obs, self.op, self.operands = obs, op, operands
+        self.rec: dict[str, Any] = {}
+        self.outer = False
+
+    def __enter__(self) -> dict[str, Any]:
+        obs = self.obs
+        if obs._depth:  # a traced op calling another traced op: only the outer one logs
+            return self.rec
+        self.outer = True
+        self.rec = {
+            "op": self.op,
+            "operands": [_snapshot(o) for o in self.operands],
             "kernels": [],
             "streamed": False,
             "timestamp": time.time(),
         }
-        self._depth += 1
-        self._native._debug_kernel_log_start()
-        try:
-            yield rec
-        finally:
-            kernels = list(self._native._debug_kernel_log_stop())
-            self._depth -= 1
-            rec["kernels"] = kernels
-            rec["streamed"] = any(k.startswith("streaming.") for k in kernels)
-            self._last[op] = rec
-            self._last["__latest__"] = rec
+        obs._depth += 1
+        obs._native._debug_kernel_log_start()
+        return self.rec
+
+    def __exit__(self, *exc: Any) -> bool:
+        if not self.outer:
+            return False
+        obs, rec = self.obs, self.rec
+        kernels = list(obs._native._debug_kernel_log_stop())
+        obs._depth -= 1
+        rec["kernels"] = kernels
+        rec["streamed"] = any(k.startswith("streaming.") for k in kernels)
+        obs._last[self.op] = rec
+        obs._last["__latest__"] = rec
+        return False

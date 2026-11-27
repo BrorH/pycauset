@@ -372,6 +372,23 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
         const bool anti = a.get_structure() == Structure::ANTISYMMETRIC;
         if (!anti || preserves_zero(op, s)) {
             auto out = std::make_unique<SymmetricMatrix<R>>(rows, std::string(), anti ? Structure::ANTISYMMETRIC : Structure::SYMMETRIC);
+            // Same element type and no view (a transposed antisymmetric matrix is negated):
+            // the op over the packed storage, one element each (it went through get / set).
+            if constexpr (std::is_same_v<R, In> && !std::is_same_v<In, bool>) {
+                const size_t bytes = out->shared_mapper()->get_data_size();
+                if (!a.is_subview() && a.get_scalar() == std::complex<double>(1.0, 0.0) && !a.is_conjugated() &&
+                    !(anti && a.is_transposed()) && src.shared_mapper()->get_data_size() == bytes) {
+                    const In* x = src.data();
+                    R* z = out->data();
+                    ParallelForRange(0, bytes / sizeof(R), [&](size_t k0, size_t k1) {
+                        const In* __restrict xr = x;
+                        R* __restrict zr = z;
+                        const R s_local = sv;
+                        for (size_t k = k0; k < k1; ++k) zr[k] = apply<R>(op, convert_in<R>(xr[k]), s_local);
+                    });
+                    return out;
+                }
+            }
             for (uint64_t i = 0; i < rows; ++i) {
                 for (uint64_t j = anti ? i + 1 : i; j < cols; ++j) {
                     out->set(i, j, apply<R>(op, convert_in<R>(read(i, j)), sv));

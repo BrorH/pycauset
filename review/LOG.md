@@ -598,3 +598,11 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   spans (no per-element row / column bookkeeping), hoists the view-factor test and uses
   restrict locals: int8 / uint8 are char types that may alias anything, which kept the loop
   scalar. int8 + 7: 408 -> 68 us; int16 / int32 / int64 / float32 + s now 1.6-2.3x NumPy.
+- Char-type aliasing, fixed where it costs: `ParallelForRange` (func(begin, end)) for kernels
+  that write their own loop with restrict locals; used by the dense and packed element-wise
+  kernels and the bitwise kernels (whose per-element operator switch also moved out of the
+  loop, and whose output is no longer zeroed first). int8 & int8 320 -> 125 us (parity);
+  element-wise add beats NumPy for every dtype but int8 (0.8x). Scalar ops on symmetric /
+  antisymmetric inputs of the same element type run over the packed storage (int8 sym + 7:
+  ~8 ms -> 0.19 ms, parity; still a SymmetricMatrix). Full atlas: 0 wrong of 88,361.
+  Per-call: the IO-trace context manager is a class (3.2 -> 2.9 us for pc.trace).

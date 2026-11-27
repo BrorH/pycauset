@@ -60,11 +60,28 @@ std::unique_ptr<MatrixBase> int_bitwise(const MatrixBase& a, const MatrixBase& b
     std::unique_ptr<MatrixBase> hb = plain_dense<T>(b) ? nullptr : to_dense(b, r);
     const T* x = static_cast<const DenseMatrix<T>&>(ha ? *ha : a).data();
     const T* y = static_cast<const DenseMatrix<T>&>(hb ? *hb : b).data();
-    auto out = std::make_unique<DenseMatrix<T>>(a.rows(), a.cols(), std::string());
+    std::unique_ptr<DenseMatrix<T>> out;
+    {
+        UninitializedStorage u;  // every element is written below
+        out = std::make_unique<DenseMatrix<T>>(a.rows(), a.cols(), std::string());
+    }
     T* z = out->data();
     const uint64_t total = a.rows() * a.cols();
     debug_trace::set_last("cpu.bitwise.int");
-    ParallelFor(0, total, [&](size_t i) { z[i] = apply_op<T>(op, x[i], y[i]); });
+    // The operator chosen outside the loop: a switch per element kept it scalar.
+    auto run = [&](auto f) {
+        ParallelForRange(0, total, [&](size_t i0, size_t i1) {
+            const T* __restrict xr = x;
+            const T* __restrict yr = y;
+            T* __restrict zr = z;
+            for (size_t i = i0; i < i1; ++i) zr[i] = static_cast<T>(f(xr[i], yr[i]));
+        });
+    };
+    switch (op) {
+        case BitwiseOp::And: run([](T p, T q) { return p & q; }); break;
+        case BitwiseOp::Or: run([](T p, T q) { return p | q; }); break;
+        default: run([](T p, T q) { return p ^ q; }); break;
+    }
     return out;
 }
 
@@ -90,7 +107,12 @@ std::unique_ptr<MatrixBase> bitwise(const MatrixBase& a, const MatrixBase& b, Bi
         // Same shape, same stride: padding bits of both are zero, so they stay zero for & | ^.
         const uint64_t words = x.stride_bytes() * x.rows() / 8;
         debug_trace::set_last("cpu.bitwise.bits");
-        ParallelFor(0, words, [&](size_t w) { pz[w] = apply_op<uint64_t>(op, px[w], py[w]); });
+        ParallelForRange(0, words, [&](size_t w0, size_t w1) {
+            const uint64_t* __restrict xr = px;
+            const uint64_t* __restrict yr = py;
+            uint64_t* __restrict zr = pz;
+            for (size_t w = w0; w < w1; ++w) zr[w] = apply_op<uint64_t>(op, xr[w], yr[w]);
+        });
         return out;
     }
 
@@ -129,7 +151,11 @@ std::unique_ptr<MatrixBase> bitwise_not(const MatrixBase& a) {
             auto out = std::make_unique<DenseMatrix<T>>(a.rows(), a.cols(), std::string());
             T* z = out->data();
             debug_trace::set_last("cpu.bitwise.not_int");
-            ParallelFor(0, a.rows() * a.cols(), [&](size_t i) { z[i] = static_cast<T>(~x[i]); });
+            ParallelForRange(0, a.rows() * a.cols(), [&](size_t i0, size_t i1) {
+                const T* __restrict xr = x;
+                T* __restrict zr = z;
+                for (size_t i = i0; i < i1; ++i) zr[i] = static_cast<T>(~xr[i]);
+            });
             return out;
         } else {
             throw std::logic_error("bitwise_not: not an integer dtype");

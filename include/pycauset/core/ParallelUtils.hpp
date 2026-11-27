@@ -85,6 +85,13 @@ auto ThreadPool::enqueue(F&& f, Args&&... args)
     return res;
 }
 
+// func(begin, end) over [start, end) in blocks of `block`, in parallel: for kernels that
+// write their own inner loop. A per-element lambda reaches its pointers through captured
+// references; for char-typed elements (int8 / uint8 / bool) every store may alias those, so
+// such loops do not vectorize. Inside func, copy the pointers to __restrict locals.
+template <typename Func>
+void ParallelForRange(size_t start, size_t end, Func func, size_t block = size_t{1} << 14);
+
 // ParallelFor Helper
 // Executes func(i) for i in [start, end) in parallel
 template<typename Func>
@@ -182,6 +189,16 @@ void ParallelBlockMap(size_t rows, size_t cols, size_t block_size, Kernel kernel
             // Execute kernel on the block [i_start, i_end) x [j_start, j_end)
             kernel(i_start, i_end, j_start, j_end);
         }
+    });
+}
+
+template <typename Func>
+void ParallelForRange(size_t start, size_t end, Func func, size_t block) {
+    if (end <= start) return;
+    const size_t blocks = (end - start + block - 1) / block;
+    ParallelFor(0, blocks, [&](size_t b) {
+        const size_t begin = start + b * block;
+        func(begin, std::min(end, begin + block));
     });
 }
 
