@@ -262,7 +262,10 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.2 Split CpuSolver.cpp, bind_matrix.cpp and `__init__.py` (pure moves)
   - session 9: CpuSolver.cpp (2,574 lines) -> CpuMatmul.cpp, CpuElementwise.cpp,
     CpuIterative.cpp, CpuSolver.cpp (vector ops, norms, svd, solve) + internal
-    CpuKernelsCommon.hpp. Open: bind_matrix.cpp, `__init__.py`.
+    CpuKernelsCommon.hpp. bind_matrix.cpp 2,268 -> 1,784 lines: the NumPy importer shared
+    with bind_vector.cpp (numpy_import.hpp; bind_vector's copy had diverged). Open: the
+    indexing section of bind_matrix.cpp; `__init__.py`, which is not a pure move (its
+    functions read module globals such as `debug_mode`): do it with 4.3/4.4.
 - [ ] 4.3 Single source of truth for operators and properties (RESTRUCTURE §3.1 items 1–2); delete the monkeypatch stack
   - session 7: matrix `+ - * /` (and reflected) are one binding path (`matrix_arith`); vectors
     reuse the matrix machinery (F-058). Open: properties, `__iadd__`, the Python patch stack.

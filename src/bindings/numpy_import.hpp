@@ -287,6 +287,19 @@ std::shared_ptr<DenseMatrix<T>> dense_row_matrix_from_numpy_1d(const py::array_t
 }
 
 inline std::shared_ptr<VectorBase> vector_from_numpy(const py::array& array) {
+    if (is_numpy_float16(array)) {  // NumPy float16 has no C++ type in pybind11: read the bits
+        auto buf = array.request();
+        require_1d(buf);
+        const uint64_t n = static_cast<uint64_t>(buf.shape[0]);
+        auto result = std::make_shared<DenseVector<pycauset::float16_t>>(n);
+        const auto* src = static_cast<const uint16_t*>(buf.ptr);
+        const ptrdiff_t stride0 = static_cast<ptrdiff_t>(buf.strides[0] / static_cast<py::ssize_t>(sizeof(uint16_t)));
+        pycauset::float16_t* dst = result->data();
+        for (uint64_t i = 0; i < n; ++i) {
+            dst[i] = pycauset::float16_t(src[static_cast<ptrdiff_t>(i) * stride0]);
+        }
+        return result;
+    }
     if (py::isinstance<py::array_t<double>>(array)) {
         return dense_vector_from_numpy_1d<double>(array.cast<py::array_t<double>>());
     }
