@@ -25,7 +25,9 @@ there. Now one catalogue decides.
 | `throw_unsupported(s, dt)` | the error for a pair that does not exist, with the reason |
 
 `ObjectFactory`, persistence (`open_storage`), the constructor bindings, `visit_matrix`, the
-typed readers (`math/ViewRead.cpp`) and the result-structure resolver
+typed readers (`math/ViewRead.cpp`; a new storage layout also wants a bulk reader in
+`math/RawRows.hpp`, or whole-matrix kernels fall back to per-element reads) and the
+result-structure resolver
 (`core/StructureResolver.cpp`) all go through it. **Never add a `switch (dtype)` that lists
 classes elsewhere.**
 

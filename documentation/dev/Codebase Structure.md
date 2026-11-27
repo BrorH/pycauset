@@ -38,7 +38,7 @@ Where things live and how a call flows through them.
 |---|---|
 | `core/` | storage (`PersistentObject`, `MemoryMapper`, `MemoryGovernor`), `ObjectFactory`, `StructureResolver`, dtype dispatch, the kernel log (`DebugTrace`), `ParallelUtils` |
 | `matrix/`, `vector/` | the structure classes: dense, triangular (bit-packed for `bool`), symmetric / antisymmetric, Hermitian / skew-Hermitian, diagonal, identity; dense and unit vectors |
-| `math/` | entry functions of the operations (`LinearAlgebra`, `Eigen`, `Reductions`, `Bitwise`, `ScalarOps`, `VectorOps`, `CausalMatrix`: transitive reduction); `ViewRead` (typed reads of views) and `ViewValue.hpp`, the one definition of view semantics |
+| `math/` | entry functions of the operations (`LinearAlgebra`, `Eigen`, `Reductions`, `Bitwise`, `ScalarOps`, `VectorOps`, `CausalMatrix`: transitive reduction); `ViewRead` (typed reads of views), `RawRows.hpp` (bulk reads of stored values) and `ViewValue.hpp`, the one definition of view semantics |
 | `compute/` | `ComputeContext`, `AutoSolver`, `StreamingManager`; `cpu/` holds the kernels ([[internals/Compute Architecture]]) |
 | `causet/` | the sprinkler and the native Minkowski diamond |
 

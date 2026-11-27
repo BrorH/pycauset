@@ -48,7 +48,11 @@ storage another object (or a loaded snapshot file) shares gives the writer its o
 
 **One definition of view semantics:** `include/pycauset/math/ViewValue.hpp` (how scale,
 transposition and conjugation combine with a stored element). Every reader uses it;
-`ViewRead` reads whole blocks of a view into a typed buffer.
+`ViewRead` reads whole blocks of a view into a typed buffer. Underneath, `math/RawRows.hpp`
+copies rows of stored values out of dense (windows, transposes), triangular,
+symmetric-family and diagonal storage in bulk (no per-element `get`); the view rule is then
+applied per element. Whole-matrix kernels (to_dense, element-wise row loads, sums) read
+through it.
 
 ## Evaluation: eager results, lazy where it pays
 

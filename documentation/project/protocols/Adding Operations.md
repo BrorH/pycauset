@@ -138,6 +138,7 @@ never from a flag or assertion (the old `properties` store is removed, F-092).
 | An operand as plain dense of dtype T (every class, every view, typed) | `to_dense(a, dtype)` | `math/ScalarOps.hpp` (uses `read_wide`, `math/ViewRead.hpp`) |
 | Same dtype, view folded into storage | `write_out(a)` | `math/ScalarOps.hpp` |
 | Logical rows / the diagonal, typed, O(rows) memory (reductions, element-wise, streaming) | `read_rows(a, i0, i1, out)` / `read_diagonal(a, out)` (int64, double or complex128 buffers) | `math/ViewRead.hpp` |
+| Stored values of rows in bulk, the class's own element type (no view applied; for kernels that apply the factor themselves) | `raw_rows<T>(typed, i0, i1, out)` | `math/RawRows.hpp` |
 | A structured matrix from another matrix's stored region (same dtype, exact) | `pack_as(a, structure)` | `math/ScalarOps.hpp` |
 | NumPy's LAPACK dtype (linalg entries) | `lapack_dtype(a, b)` | `math/LinearAlgebra.hpp` |
 | Dtype conversion keeping structure | `cast_to(a, dtype)` | `math/ScalarOps.hpp` |
