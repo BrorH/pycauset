@@ -58,9 +58,9 @@ def test_scalar_op_matches_numpy(dtype, opname, sname):
     try:
         expected = np.asarray(_expected(op, a, s))
     except Exception:
-        pytest.skip("NumPy itself rejects this combination")
-    if expected.dtype.kind == "c" and a.dtype.kind in "ui" and np.issubdtype(type(s), np.unsignedinteger):
-        pytest.skip("exotic")
+        with pytest.raises(Exception):  # NumPy rejects it: no silent answer either
+            op(pc.matrix(a), s)
+        return
     got = to_np(op(pc.matrix(a), s))
     np.testing.assert_allclose(got.astype(np.complex128), expected.astype(np.complex128), rtol=1e-6, atol=1e-6)
     assert got.dtype == expected.dtype, f"dtype {got.dtype} != NumPy {expected.dtype}"

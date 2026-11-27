@@ -71,8 +71,10 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
       first GitHub run still to be observed).
 - [x] **1.3 Sanitizers on PRs:** `asan.yml` now runs ASan+UBSan (fatal) on pushes and PRs,
       over both suites. *TSan job still to do.*
-- [ ] **1.4 Remove stale skips** (F-009); every remaining skip must carry a reason
-      plus a FINDINGS id.
+- [x] **1.4 Remove stale skips** (F-009); every remaining skip must carry a reason
+      plus a FINDINGS id. (Session 9: the old suite and its skips are gone; the new suite's
+      only skips are the lazy-off markers and unsigned negation, each with its reason; the
+      "NumPy rejects it" skip became an assertion that PyCauset raises too.)
 - [~] **1.5 New-suite core** (TESTS.md §3.2), in progress: regressions, scalar ops and the
       dtype-pair conformance grid are done (session 2). Original item: `tests/conftest.py`, `tests/spec.py`,
       `engine/test_conformance.py`, `engine/test_invariants.py`, `engine/test_regressions.py`.
