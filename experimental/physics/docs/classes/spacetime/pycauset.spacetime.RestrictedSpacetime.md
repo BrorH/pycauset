@@ -52,4 +52,4 @@ left_half = spacetime.RestrictedSpacetime(box, region=lambda c: c[1] < 5.0)
 ## See also
 
 - [[docs/classes/spacetime/pycauset.spacetime.TransformedSpacetime.md|TransformedSpacetime]]
-- [[project/plans/R2_SPACETIME_CREATION.md|R2 Spacetime Creation spec]]
+- [[experimental/physics/docs/plans/R2_SPACETIME_CREATION.md|R2 Spacetime Creation spec]]

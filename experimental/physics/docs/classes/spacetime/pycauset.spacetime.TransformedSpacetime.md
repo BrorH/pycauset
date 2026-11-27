@@ -35,4 +35,4 @@ shifted = spacetime.TransformedSpacetime(
 ## See also
 
 - [[docs/classes/spacetime/pycauset.spacetime.RestrictedSpacetime.md|RestrictedSpacetime]]
-- [[project/plans/R2_SPACETIME_CREATION.md|R2 Spacetime Creation spec]]
+- [[experimental/physics/docs/plans/R2_SPACETIME_CREATION.md|R2 Spacetime Creation spec]]

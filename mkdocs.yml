@@ -243,7 +243,7 @@ nav:
     - Streaming Manager: internals/Streaming Manager.md
     - Algorithms: internals/Algorithms.md
     - Philosophy: project/Philosophy.md
-    - Roadmap: internals/plans/TODO.md
+    - Roadmap: project/Roadmap.md
   - Developers:
     - dev/index.md
     - Handbook:
@@ -271,8 +271,4 @@ nav:
       - project/protocols/Pre-alpha Policy.md
       - project/protocols/Release Process.md
       - project/protocols/Testing and Bug Tracking.md
-    - Plans:
-      - project/plans/index.md
-      - project/plans/R2_PLAN_MAP.md
-      - project/plans/R2_ROADMAP.md
-      - project/plans/R2_API_DESIGN.md
+    - project/Roadmap.md

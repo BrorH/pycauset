@@ -106,4 +106,4 @@ class MyDiamond(spacetime.Spacetime):
 - [[docs/classes/spacetime/pycauset.spacetime.MinkowskiDiamond.md|MinkowskiDiamond]]
 - [[docs/functions/pycauset.spacetime.register.md|spacetime.register]]
 - [[guides/Spacetime.md|Spacetime guide]]
-- [[project/plans/R2_SPACETIME_CREATION.md|R2 Spacetime Creation spec]]
+- [[experimental/physics/docs/plans/R2_SPACETIME_CREATION.md|R2 Spacetime Creation spec]]

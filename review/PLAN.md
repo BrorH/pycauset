@@ -372,8 +372,11 @@ are engine-owned metadata on the storage).
       runnable example; NumPy differences called out explicitly. No marketing words,
       no restating the name as a sentence, no "powerful/seamless/robust", no padding
       sections. Every example is executed in CI.
-- [~] 5.3 Delete historical plans/archive (done); one ROADMAP (needs the maintainer); merge
-      dev/ + internals/
+- [~] 5.3 Delete historical plans/archive (done); one ROADMAP (done, session 9:
+      `documentation/project/Roadmap.md` replaces internals/plans/TODO.md, whose "R1 is
+      complete" was no longer true; the R2 physics plans moved to
+      `experimental/physics/docs/plans/` with the other parked physics plans); merge dev/ +
+      internals/ (open)
 - [~] 5.4 README and BENCHMARKS claims re-measured (BENCHMARKS done on Linux, F-108; the
       maintainer's Windows numbers next) ("≥0.90× NumPy", "bigger than RAM")
 - [x] 5.5 ARCHITECTURE.md moves into `documentation/internals/` as the canonical map (rewritten

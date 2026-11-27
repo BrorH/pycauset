@@ -79,7 +79,7 @@ line-length = 100
 [tool.ruff.lint]
 # Baseline: mechanical, low-risk rules first (pyflakes E/F, import sorting I,
 # pyupgrade UP). NumPy-style docstrings (D) are enabled once docstring coverage
-# is cleaned up, per R1_POLISH.md.
+# is cleaned up.
 select = ["E", "F", "I", "UP"]
 
 [tool.mypy]

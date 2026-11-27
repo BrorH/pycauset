@@ -29,4 +29,4 @@ MyBox = ns["MyBox"]
 ## See also
 
 - [[docs/functions/pycauset.spacetime.create.md|spacetime.create]]
-- [[project/plans/R2_SPACETIME_CREATION.md|R2 Spacetime Creation spec]]
+- [[experimental/physics/docs/plans/R2_SPACETIME_CREATION.md|R2 Spacetime Creation spec]]

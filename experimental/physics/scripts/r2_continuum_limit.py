@@ -16,7 +16,7 @@ spectrum. This benchmark reports both:
 * the SJ Wightman positive spectrum (count, extremal eigenvalues, trace) vs ``n``.
 
 The analytic continuum **Wightman** (massive/Bessel + the massless log) is a
-deferred R2_CMVP item, see `documentation/project/plans/R2_ROADMAP.md`.
+deferred R2_CMVP item, see `experimental/physics/docs/plans/R2_ROADMAP.md`.
 """
 
 from __future__ import annotations
