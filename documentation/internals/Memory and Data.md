@@ -134,7 +134,9 @@ returned on the next call: `include/pycauset/math/DerivedCache.hpp`. The storage
 version that `PersistentObject::ensure_unique` bumps before any write (it is the write gate of
 copy-on-write), which drops every entry. Entries are keyed on the exact view (class, structure,
 factor, conjugation, transposition) and the parameters, so a cached answer is bit-for-bit the
-recomputed one; windows are not cached. Not persisted yet (review phase D.3). The old cache went
+recomputed one; windows are not cached. `save` writes the scalar entries into the metadata
+(`derived`: key, kind, values; the 128-bit integer sums as text) and `load` restores them; a
+loaded snapshot is mapped copy-on-write, so its file never changes under them. The old cache went
 stale on mutation and answered from user assertions (F-081). The user-assertion `properties` store is removed
 (F-092): structure is the class.
 

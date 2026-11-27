@@ -366,7 +366,10 @@ are engine-owned metadata on the storage).
       norms, rank. Keyed on the exact view instead of the spec's view rules (bit-identical to
       recomputation; the rules round differently). eigvals / eigvalsh too (a copy-on-write clone
       per call); svdvals open.
-- [ ] D.3 Persistence with invalidate-before-mutate on memory-mapped files
+- [x] D.3 Persistence with invalidate-before-mutate on memory-mapped files (session 9: a
+      `derived` metadata list written by save, restored by load; loaded files are private
+      copy-on-write mappings, so a write copies and drops the entries and the file never
+      changes; the crash case of the spec does not arise)
 - [ ] D.4 Matrix-valued results (inverse, eigenvectors, factors) as container sections
 - [ ] D.5 Closures and expression nodes (with phase L)
 

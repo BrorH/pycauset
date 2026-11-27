@@ -15,9 +15,10 @@
 #include <atomic>
 #include <cstdio>
 #include <string>
-#include <typeinfo>
 
+#include "pycauset/core/DTypeDispatch.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
+#include "pycauset/matrix/TriangularMatrix.hpp"
 #include "pycauset/vector/VectorBase.hpp"
 
 namespace pycauset {
@@ -29,13 +30,18 @@ inline std::atomic<uint64_t>& hits() { static std::atomic<uint64_t> h{0}; return
 inline std::atomic<uint64_t>& stores() { static std::atomic<uint64_t> s{0}; return s; }
 inline std::atomic<bool>& enabled() { static std::atomic<bool> e{true}; return e; }
 
+// The key names the matrix by what makes its values differ for the same storage: dtype,
+// structure (a C + C^T closure is int32 symmetric over C's bool triangular bits), a triangle's
+// diagonal, and the view. Portable (no compiler type names): keys are saved with the file.
 inline std::string view_key(const MatrixBase& m, const char* quantity, const std::string& params) {
     const std::complex<double> s = m.get_scalar();
-    char buf[96];
+    const auto* tri = dynamic_cast<const TriangularMatrixBase*>(&m);
+    char buf[160];
     // %a: the factor exactly (hex float), so 0.1 and 0.1000000000001 are different keys.
-    std::snprintf(buf, sizeof buf, "|%a|%a|%d|%d|%d", s.real(), s.imag(), m.is_conjugated() ? 1 : 0,
-                  m.is_transposed() ? 1 : 0, static_cast<int>(m.get_structure()));
-    return std::string(quantity) + "|" + params + "|" + typeid(m).name() + buf;
+    std::snprintf(buf, sizeof buf, "|%s|%d|%d|%a|%a|%d|%d", dtype_name(m.get_data_type()),
+                  static_cast<int>(m.get_structure()), tri && tri->has_diagonal() ? 1 : 0, s.real(), s.imag(),
+                  m.is_conjugated() ? 1 : 0, m.is_transposed() ? 1 : 0);
+    return std::string(quantity) + "|" + params + buf;
 }
 }  // namespace derived_cache
 

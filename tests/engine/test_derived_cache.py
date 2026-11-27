@@ -141,3 +141,40 @@ def test_eigenvalue_vectors_are_cached_and_returned_as_independent_copies(m):
     mat[0, 0] = -3.0
     a2 = a.copy(); a2[0, 0] = -3.0
     np.testing.assert_allclose(np.sort_complex(np.asarray(pc.eigvals(mat))), np.sort_complex(np.linalg.eigvals(a2)))
+
+
+def test_derived_values_are_saved_with_the_file(tmp_path):
+    rng = np.random.default_rng(9)
+    a = rng.standard_normal((5, 5)) + 5 * np.eye(5)
+    mat = pc.matrix(a)
+    det, total = pc.determinant(mat), pc.sum(mat)
+    pc.determinant(mat.T)  # a view's entry travels too
+    big = pc.matrix(np.full((3, 3), 2**62, dtype=np.int64))
+    big_sum = pc.sum(big)  # 9 * 2^62 does not fit 64 bits
+    pc.save(mat, tmp_path / "m.pycauset")
+    pc.save(big, tmp_path / "b.pycauset")
+    m2 = pc.load(tmp_path / "m.pycauset")
+    before = _hits()
+    assert pc.determinant(m2) == det and pc.sum(m2) == total
+    assert complex(pc.determinant(m2.T)) == pytest.approx(np.linalg.det(a.T))
+    assert _hits() >= before + 3  # served from the file's entries, not recomputed
+    b2 = pc.load(tmp_path / "b.pycauset")
+    assert pc.sum(b2) == big_sum == 9 * 2**62
+    m2[0, 0] = 0.0  # a loaded snapshot copies on write: the entries go
+    a2 = a.copy(); a2[0, 0] = 0.0
+    assert complex(pc.determinant(m2)) == pytest.approx(np.linalg.det(a2))
+    assert pc.load(tmp_path / "m.pycauset") is not None  # the file still holds the original
+    assert pc.determinant(pc.load(tmp_path / "m.pycauset")) == det
+
+
+def test_saving_a_window_or_a_scaled_view_keeps_values_right(tmp_path):
+    rng = np.random.default_rng(10)
+    a = rng.standard_normal((6, 6)) + 6 * np.eye(6)
+    mat = pc.matrix(a)
+    pc.determinant(mat)
+    pc.save(mat[1:4, 1:4], tmp_path / "w.pycauset")
+    w = pc.load(tmp_path / "w.pycauset")
+    assert complex(pc.determinant(w)) == pytest.approx(np.linalg.det(a[1:4, 1:4]))
+    s = mat * 3.0
+    pc.save(s, tmp_path / "s.pycauset")
+    assert complex(pc.determinant(pc.load(tmp_path / "s.pycauset"))) == pytest.approx(np.linalg.det(3 * a))

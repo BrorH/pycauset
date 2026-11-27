@@ -447,6 +447,14 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             "payload_layout": {"kind": "raw_native", "params": {}},
         }
 
+        # Derived values (determinant, sums, norms, ...; review DERIVED_CACHE.md D.3) of the
+        # storage being saved, keyed by view: the payload is that storage's bytes as they are.
+        # (Windows and closures were written out above into a new object, which has none.)
+        if isinstance(payload_obj, deps.native.MatrixBase):
+            derived = [list(e) for e in deps.native._derived_cache_export(payload_obj)]
+            if derived:
+                meta["derived"] = derived
+
         if causet_obj is not None:
             meta["object_type"] = "CausalSet"
             meta["n"] = int(causet_obj.n)
@@ -615,6 +623,10 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
 
     if is_conjugated and hasattr(obj, "set_conjugated"):
         obj.set_conjugated(True)
+
+    derived = metadata.get("derived")
+    if derived and isinstance(obj, deps.native.MatrixBase):
+        deps.native._derived_cache_import(obj, derived)
 
 
     if metadata.get("object_type") == "CausalSet":

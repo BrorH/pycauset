@@ -76,6 +76,11 @@ public:
         out = it->second;
         return true;
     }
+    // Every current entry (for saving them with the file).
+    std::map<std::string, std::any> cache_snapshot() const {
+        std::lock_guard<std::mutex> lock(cache_mutex_);
+        return cache_;
+    }
     void cache_put(const std::string& key, uint64_t computed_at, std::any value) {
         std::lock_guard<std::mutex> lock(cache_mutex_);
         if (version_.load(std::memory_order_acquire) != computed_at) return;  // changed meanwhile

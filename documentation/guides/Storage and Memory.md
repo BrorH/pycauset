@@ -169,8 +169,11 @@ Why this exists: it protects expensive “baseline” snapshots from accidental 
 matrix (and the same view of it: `A`, `A.T` and `2 * A` are separate entries) returns the
 stored value at once. Any write to the matrix (`A[i, j] = x`, a slice assignment, `fill`,
 `set_identity`) discards every stored value before the data changes, so an answer is always
-the one a fresh computation would give. Slices (`A[1:4, 2:6]`) are not cached. The values
-are not saved with `pc.save` yet.
+the one a fresh computation would give. Slices (`A[1:4, 2:6]`) are not cached.
+
+`pc.save` writes the stored values (not the eigenvalue vectors) into the file, and `pc.load`
+brings them back: a determinant that took an hour is there again after loading. A write to the
+loaded matrix discards them as usual (the file itself never changes).
 
 ```python
 import numpy as np

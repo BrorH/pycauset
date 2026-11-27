@@ -111,6 +111,12 @@ Reserved namespaces:
 - identity/header keys: `rows`, `cols`, `matrix_type`, `data_type`, `payload_layout`, `payload_uuid`, ...
 - `view`: system-managed view-state
 - `provenance`: optional non-semantic provenance
+- `derived`: computed values of the payload (determinant, slogdet, trace, sum, norms, rank),
+  a list of `[key, kind, values...]` entries; the key names the quantity, its parameters, the
+  dtype, structure and view it was computed for (`include/pycauset/math/DerivedCache.hpp`).
+  `kind` is `complex`, `slogdet`, `real`, `int` or `reduction` (an integer sum carries its
+  128-bit value as decimal text). Valid for the payload as written; a file whose payload was
+  changed by another program is not detected.
 
 Readers ignore unknown keys.
 

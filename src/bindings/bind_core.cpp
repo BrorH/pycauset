@@ -142,6 +142,65 @@ void bind_core_classes(py::module_& m) {
         return py::make_tuple(pycauset::derived_cache::hits().load(), pycauset::derived_cache::stores().load());
     });
     m.def("_set_derived_cache", [](bool on) { pycauset::derived_cache::enabled().store(on); }, py::arg("on"));
+    // Saving derived values with a file (DERIVED_CACHE.md D.3): the scalar entries of the
+    // object's storage as [key, kind, values...] (vector entries stay in memory), and back.
+    m.def("_derived_cache_export", [](const pycauset::MatrixBase& mat) {
+        py::list out;
+        if (!mat.shared_mapper()) return out;
+        using pycauset::ReductionValue;
+        for (const auto& [key, value] : mat.shared_mapper()->cache_snapshot()) {
+            if (const auto* c = std::any_cast<std::complex<double>>(&value)) {
+                out.append(py::make_tuple(key, "complex", c->real(), c->imag()));
+            } else if (const auto* sl = std::any_cast<std::pair<std::complex<double>, double>>(&value)) {
+                out.append(py::make_tuple(key, "slogdet", sl->first.real(), sl->first.imag(), sl->second));
+            } else if (const auto* d = std::any_cast<double>(&value)) {
+                out.append(py::make_tuple(key, "real", *d));
+            } else if (const auto* i = std::any_cast<int64_t>(&value)) {
+                out.append(py::make_tuple(key, "int", *i));
+            } else if (const auto* r = std::any_cast<ReductionValue>(&value)) {
+                // The 128-bit integer as text: the container's integers are 64-bit.
+                __int128 v = r->i;
+                const bool neg = v < 0;
+                unsigned __int128 u = neg ? static_cast<unsigned __int128>(-(v + 1)) + 1 : static_cast<unsigned __int128>(v);
+                std::string digits;
+                do { digits.insert(digits.begin(), static_cast<char>('0' + static_cast<int>(u % 10))); u /= 10; } while (u);
+                if (neg) digits.insert(digits.begin(), '-');
+                out.append(py::make_tuple(key, "reduction", static_cast<int>(r->kind), digits, r->r, r->c.real(), r->c.imag()));
+            }
+        }
+        return out;
+    });
+    m.def("_derived_cache_import", [](const pycauset::MatrixBase& mat, const py::list& entries) {
+        const auto& mapper = mat.shared_mapper();
+        if (!mapper) return;
+        const uint64_t version = mapper->version();
+        for (const auto& item : entries) {
+            const py::sequence e = py::reinterpret_borrow<py::sequence>(item);
+            const std::string key = e[0].cast<std::string>();
+            const std::string kind = e[1].cast<std::string>();
+            std::any value;
+            if (kind == "complex") value = std::complex<double>(e[2].cast<double>(), e[3].cast<double>());
+            else if (kind == "slogdet")
+                value = std::pair<std::complex<double>, double>({e[2].cast<double>(), e[3].cast<double>()}, e[4].cast<double>());
+            else if (kind == "real") value = e[2].cast<double>();
+            else if (kind == "int") value = e[2].cast<int64_t>();
+            else if (kind == "reduction") {
+                pycauset::ReductionValue r;
+                r.kind = static_cast<pycauset::ReductionValue::Kind>(e[2].cast<int>());
+                const std::string digits = e[3].cast<std::string>();
+                __int128 v = 0;
+                const bool neg = !digits.empty() && digits[0] == '-';
+                for (size_t k = neg ? 1 : 0; k < digits.size(); ++k) v = v * 10 + (digits[k] - '0');
+                r.i = neg ? -v : v;
+                r.r = e[4].cast<double>();
+                r.c = {e[5].cast<double>(), e[6].cast<double>()};
+                value = r;
+            } else {
+                throw py::value_error("derived-value entry of unknown kind: " + kind);
+            }
+            mapper->cache_put(key, version, std::move(value));
+        }
+    }, py::arg("mat"), py::arg("entries"));
     m.def("_storage_version", [](const pycauset::MatrixBase& mat) -> uint64_t {
         return mat.shared_mapper() ? mat.shared_mapper()->version() : 0;
     });

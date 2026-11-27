@@ -683,3 +683,10 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   The atlas, the timing harness and the benchmarks switch it off (they measure computation).
   Tests: `tests/engine/test_derived_cache.py` (every writer invalidates, views, copy-on-write,
   closures, vectors, integer results, parameters, the switch).
+- Derived-value cache, D.3 and vector results: `pc.save` writes the scalar entries into the
+  file's metadata (`derived`: key, kind, values; 128-bit integer sums as decimal text) and
+  `pc.load` restores them, so a determinant computed once comes back with the file; a loaded
+  snapshot copies on write, which drops them, and the file never changes. Keys are portable
+  (dtype + structure + diagonal + view, no compiler type names). eigvals / eigvalsh are cached
+  as one copy-on-write clone, a new clone per call (not saved). Container format and guide
+  pages updated.
