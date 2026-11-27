@@ -28,6 +28,10 @@ C = pc.causal_matrix(np.triu(np.ones((1000, 1000), dtype=bool), 1))   # a 1000-e
 paths = C @ C                      # 2-step path counts (int32), computed on the bits
 R = C + C.T                        # comparability matrix: a lazy view, no memory until read
 
+c = pc.causet(n=2000, spacetime=pc.spacetime.MinkowskiDiamond(4), seed=1)   # sprinkle a 4D diamond
+c.myrheim_meyer_dimension()        # about 4, read off the order alone
+len(c.longest_chain())             # the height of the order
+
 A = pc.matrix(np.random.default_rng(0).standard_normal((500, 500)))
 x = pc.solve(A, pc.vector(np.ones(500)))    # like np.linalg.solve
 w = pc.eigvalsh(A + A.T)                    # LAPACK, NumPy's dtypes and conventions
@@ -41,7 +45,7 @@ w = pc.eigvalsh(A + A.T)                    # LAPACK, NumPy's dtypes and convent
 - **Bigger than RAM.** Matrices above a memory threshold live in memory-mapped files; operations that do not fit run tile by tile.
 - **Fast.** The same OpenBLAS/LAPACK as NumPy; the target is at least 0.9x NumPy's speed in memory (`review/atlas/TIMING.md`), and the structured classes are often faster.
 
-The physics layer (spacetimes, sprinkling, fields, plots) is parked in `experimental/physics` while R1 completes the engine.
+- **Causal sets.** Sprinkle into the Minkowski diamond in any dimension, read links, chains, layers and intervals off the order, estimate the dimension, or build synthetic orders. Fields, plots and the wider spacetime library are parked in `experimental/physics` while R1 completes the engine.
 
 ## Installation
 
@@ -73,7 +77,7 @@ C = A @ A                                       # [pycauset] matmul ... : 1.2s
 
 ## Status
 
-Pre-alpha, no backwards compatibility between versions. R1 is the linear-algebra engine, CPU only; GPU support (`experimental/cuda`) and the physics layer (`experimental/physics`) are parked until it is complete. The ongoing review and its plan are in `review/`.
+Pre-alpha, no backwards compatibility between versions. R1 is the linear-algebra engine with the causal-set basics, CPU only; GPU support (`experimental/cuda`) and the rest of the physics layer (`experimental/physics`) are parked until it is complete. The ongoing review and its plan are in `review/`.
 
 ## Documentation
 
