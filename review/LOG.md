@@ -450,3 +450,10 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   removed; tie-break documented), test_stress (fuzz, threads, leaks: coverage can't see
   them; threaded I/O verified on Linux, 20/20). F-106: OpRegistry removed. storage_debug.py
   (unused) removed.
+- Physics parked (maintainer): `experimental/physics/` holds causet/spacetime/field/
+  synthetic/vis, the native sprinkler and spacetimes, their bindings, tests, docs and
+  guides, and the gallery script (README with a bring-back checklist). The link-matrix
+  kernel moved into the engine (`src/math/CausalMatrix.cpp`; windowed views rejected,
+  portable `countr_zero`). Docs pass started with the pages physics touched: README,
+  Quickstart, Examples, the three index pages; their code runs in `test_doc_snippets.py`
+  (which caught `pc.inverse` in my own Quickstart draft).

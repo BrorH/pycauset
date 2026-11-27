@@ -9,6 +9,12 @@ be. Expected duration: weeks. Many agents, and the maintainer, will work on it.
 benchmarks, tools, build and CI, docs). **Out of scope:** GPU/CUDA work (on hold;
 moves to `experimental/`, RESTRUCTURE §3.1) and new features.
 
+**Physics parked (maintainer, 2026-11-27):** for R1 the physics layer (causal sets,
+spacetimes, fields, synthetic orders, plots) lives in `experimental/physics` (README there):
+not built, imported, tested or documented with the package. Engine pieces stay
+(`causal_matrix`, lazy `C ± C.T`, `compute_k`, the link-matrix kernel). Not a strict rule:
+engine work that serves physics later (e.g. lazy Pauli-Jordan) is not ripped out.
+
 **Priority for R1 (maintainer, 2026-11-24):** the *engine*, meaning linear
 algebra and "NumPy for causal sets". The physics suite is **deprioritized**: smoke
 tests only, and fix glaring bugs if found, but no deep review or new spacetimes
@@ -296,7 +302,7 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
       by (structure, dtype); old per-dtype names removed from code, tests and docs
       (migration script: `review/scripts/migrate_class_names.py`).
 - [ ] 4.6b Naming sweep: milestone names out of code and docs.
-- [~] 4.7 One StreamingManager (done, F-100: the Python planner is gone); one Minkowski implementation path (open)
+- [~] 4.7 One StreamingManager (done, F-100: the Python planner is gone); one Minkowski implementation path (parked with physics, experimental/physics)
 - [~] 4.8 Silent-exception sweep (126 sites). Python first pass done (F-101); C++ catch(...) sites open.
 - [ ] 4.9 Per-directory README.md files (what lives here, what doesn't)
 

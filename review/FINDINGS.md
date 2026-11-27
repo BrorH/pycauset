@@ -1376,7 +1376,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
     no `__rmatmul__`.
 
 ### F-105 MinkowskiDiamond(d > 2) is not Minkowski space, silently
-- **Status:** open, maintainer decision (session 9). For d > 2 both implementations (Python
+- **Status:** parked with physics (session 9; `experimental/physics/README.md` lists it as a
+  precondition for bringing physics back). For d > 2 both implementations (Python
   `spacetime.MinkowskiDiamond` and native `causet/Spacetime.hpp`) sample the cube [0,1]^d
   and order points coordinate-wise (a random d-dimensional order), documented in the
   docstring as a placeholder ("tracked under R2_MINK"). Causality in (d-1)+1 Minkowski space
