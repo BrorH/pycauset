@@ -270,13 +270,17 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
     (runtime never-executed list), `_safe_rows_cols` copied in four Python files.
 - [x] 4.1b Remove `precision_mode` / `set_precision_mode` / `get_precision_mode` end to end
       (code, C++ mode, docs, tests); update the under-promotion warning text
-- [ ] 4.1d (now tracked by the atlas, Phase C) Dtype matrix completeness: every one of the 16 dtypes works with every other
+- [x] 4.1d (now tracked by the atlas, Phase C) Dtype matrix completeness: every one of the 16 dtypes works with every other
       in every op of the spec table (the conformance grid is the gate). Session 5: structured
       results (triangular/symmetric/antisymmetric/diagonal) for every real dtype the factory
       instantiates (was int32/float64 only). Gaps left: diagonal/identity float16/float32,
-      complex structured storage.
+      complex structured storage. Session 9: closed (N.5); the atlas's 103 "unsupported"
+      cells are all deliberate raises (integer matmul overflow raises where NumPy wraps;
+      signed x uint64 raises, F-035b).
 - [ ] 4.1e Fold `ComplexFloat16Matrix/Vector` into the generic templates if feasible
-- [ ] 4.1c bit/bool arithmetic = integer counting everywhere (RESTRUCTURE §3.2 B, F-013)
+- [x] 4.1c bit/bool arithmetic = integer counting everywhere (RESTRUCTURE §3.2 B, F-013).
+      Checked session 9: + - @ and scalar products count in int32, * is AND (the 0/1
+      product), unary minus raises as in NumPy; documented in DType System section 6.
 - [~] 4.2 Split CpuSolver.cpp, bind_matrix.cpp and `__init__.py` (pure moves). Session 9:
       bind_matrix.cpp 1769 -> 1043 lines (indexing into `src/bindings/matrix_indexing.hpp`);
       CpuSolver.cpp is 864 lines after the earlier kernel-file splits; `__init__.py` waits for
