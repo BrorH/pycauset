@@ -148,7 +148,11 @@ std::unique_ptr<MatrixBase> bitwise_not(const MatrixBase& a) {
         if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
             std::unique_ptr<MatrixBase> h = plain_dense<T>(a) ? nullptr : to_dense(a, d);
             const T* x = static_cast<const DenseMatrix<T>&>(h ? *h : a).data();
-            auto out = std::make_unique<DenseMatrix<T>>(a.rows(), a.cols(), std::string());
+            std::unique_ptr<DenseMatrix<T>> out;
+            {
+                UninitializedStorage u;  // every element is written below
+                out = std::make_unique<DenseMatrix<T>>(a.rows(), a.cols(), std::string());
+            }
             T* z = out->data();
             debug_trace::set_last("cpu.bitwise.not_int");
             ParallelForRange(0, a.rows() * a.cols(), [&](size_t i0, size_t i1) {

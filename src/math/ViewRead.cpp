@@ -1,12 +1,17 @@
 // Typed readers for every matrix class with the view applied once (review PLAN N.2).
 // Kept in its own translation unit: one instantiation per (class, wide type) pair.
 #include "pycauset/math/ViewRead.hpp"
+#include "pycauset/math/RawRows.hpp"
 #include "pycauset/math/ViewValue.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
 
 #include <string>
 #include <type_traits>
+#include <vector>
+#include <algorithm>
+#include <atomic>
 
+#include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/matrix/ComplexFloat16Matrix.hpp"
@@ -21,13 +26,10 @@
 namespace pycauset {
 namespace {
 
-// Logical value (i, j) of a as W, from the class's typed `get` (raw storage, transposition
-// applied) and the view rule.
-template <typename W, typename Src>
-inline W logical(const Src& m, uint64_t i, uint64_t j, std::complex<double> s, bool conj, bool anti) {
-    if (anti && i == j) return W(0);
-    const auto raw = m.get(i, j);
-    using In = std::decay_t<decltype(raw)>;
+// Logical value of a stored value `raw` (the class's typed `get`: raw storage, transposition
+// applied) as W, by the view rule.
+template <typename W, typename In>
+inline W logical_of(const In& raw, std::complex<double> s, bool conj) {
     if constexpr (std::is_same_v<W, int64_t> && std::is_integral_v<In> && !std::is_same_v<In, bool>) {
         // Integer storage into an integer result stays exact (no detour through double).
         if (scalar::is_exact_int_factor(s)) {
@@ -43,12 +45,38 @@ inline W logical(const Src& m, uint64_t i, uint64_t j, std::complex<double> s, b
     }
 }
 
-// Rows [i0, i1) into dst (row-major, cols wide).
+template <typename W, typename Src>
+inline W logical(const Src& m, uint64_t i, uint64_t j, std::complex<double> s, bool conj, bool anti) {
+    if (anti && i == j) return W(0);
+    return logical_of<W>(m.get(i, j), s, conj);
+}
+
+// Rows [i0, i1) into dst (row-major, cols wide): stored values in bulk (math/RawRows.hpp)
+// where the class has a bulk reader, then the view rule per element.
 template <typename W, typename Src>
 void fill_rows(const Src& m, const MatrixBase& a, bool anti, uint64_t i0, uint64_t i1, W* dst) {
     const std::complex<double> s = a.get_scalar();
     const bool conj = a.is_conjugated();
     const uint64_t cols = a.cols();
+    using In = std::decay_t<decltype(m.get(0, 0))>;
+    if constexpr (has_raw_rows_v<In, Src>) {
+        // At least 32 tiles when there are rows for it: ParallelFor runs fewer items inline.
+        const uint64_t TILE = std::clamp<uint64_t>((i1 - i0) / 32, 1, 32);
+        const uint64_t tiles = (i1 - i0 + TILE - 1) / TILE;
+        std::atomic<bool> ok{true};  // false for the same reason in every tile (a window, ...)
+        ParallelFor(0, tiles, [&](size_t t) {
+            const uint64_t r0 = i0 + t * TILE, r1 = std::min(i1, r0 + TILE);
+            std::unique_ptr<In[]> raw(new In[(r1 - r0) * cols]);  // filled by raw_rows: no zeroing
+            if (!raw_rows<In>(m, r0, r1, raw.get())) { ok = false; return; }
+            W* out = dst + (r0 - i0) * cols;
+            const In* __restrict rr = raw.get();
+            const uint64_t len = (r1 - r0) * cols;
+            for (uint64_t q = 0; q < len; ++q) out[q] = logical_of<W>(rr[q], s, conj);
+            if (anti)
+                for (uint64_t i = r0; i < r1 && i < cols; ++i) out[(i - r0) * cols + i] = W(0);
+        });
+        if (ok) return;
+    }
     ParallelFor(i0, i1, [&](size_t ii) {
         const uint64_t i = static_cast<uint64_t>(ii);
         W* row = dst + (i - i0) * cols;
@@ -87,7 +115,11 @@ bool diagonal_as(const MatrixBase& a, W* dst) {
 template <typename W>
 std::unique_ptr<MatrixBase> read_as(const MatrixBase& a) {
     if (!typed_readable(a)) return nullptr;
-    auto out = std::make_unique<DenseMatrix<W>>(a.rows(), a.cols(), std::string());
+    std::unique_ptr<DenseMatrix<W>> out;
+    {
+        UninitializedStorage u;  // rows_as writes every element
+        out = std::make_unique<DenseMatrix<W>>(a.rows(), a.cols(), std::string());
+    }
     rows_as<W>(a, 0, a.rows(), out->data());
     return out;
 }

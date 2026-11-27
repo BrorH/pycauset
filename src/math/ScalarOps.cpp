@@ -1,11 +1,13 @@
 // Matrix ⊕ scalar operations with NumPy result-dtype semantics. See ScalarOps.hpp.
 #include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/math/ScalarOps.hpp"
+#include "pycauset/math/RawRows.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <optional>
+#include <atomic>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -340,6 +342,48 @@ struct TypedReader {
     }
 };
 
+// out[q] = apply(op, src[q] scaled by the integer factor k / real factor f, s) for q < len,
+// with op, and whether there is a factor, fixed at compile time: a switch per element kept the
+// loop scalar. Locals and restrict: int8 / uint8 are char types, which may alias anything, so
+// through captures every store could change the operands (int8 + 7 was 0.1x NumPy).
+template <typename R, typename In>
+void apply_span(ScalarOpKind op, const In* __restrict src, R* __restrict out, uint64_t len, R sv, int64_t k,
+                double f) {
+    bool scaled = false;
+    if constexpr (std::is_integral_v<In>) scaled = k != 1;
+    else if constexpr (std::is_floating_point_v<In>) scaled = f != 1.0;
+    auto loop = [&](auto op_c, auto scaled_c) {
+        constexpr ScalarOpKind O = decltype(op_c)::value;
+        const In* __restrict x = src;
+        R* __restrict z = out;
+        const R s_local = sv;
+        const int64_t k_local = k;
+        const double f_local = f;
+        for (uint64_t q = 0; q < len; ++q) {
+            In v = x[q];
+            if constexpr (decltype(scaled_c)::value) {
+                if constexpr (std::is_integral_v<In>) v = scalar::wrap_scale(v, k_local);
+                else if constexpr (std::is_floating_point_v<In>) v = static_cast<In>(static_cast<double>(v) * f_local);
+            }
+            z[q] = apply<R>(O, convert_in<R>(v), s_local);
+        }
+        (void)k_local;
+        (void)f_local;
+    };
+    auto with_op = [&](auto scaled_c) {
+        switch (op) {
+            case ScalarOpKind::Add: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::Add>{}, scaled_c); break;
+            case ScalarOpKind::Sub: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::Sub>{}, scaled_c); break;
+            case ScalarOpKind::RSub: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::RSub>{}, scaled_c); break;
+            case ScalarOpKind::Mul: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::Mul>{}, scaled_c); break;
+            case ScalarOpKind::TrueDiv: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::TrueDiv>{}, scaled_c); break;
+            case ScalarOpKind::RTrueDiv: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::RTrueDiv>{}, scaled_c); break;
+        }
+    };
+    if (scaled) with_op(std::true_type{});
+    else with_op(std::false_type{});
+}
+
 template <typename R, typename In, typename Src>
 std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKind op, const ScalarArg& s,
                                 bool triangular_in, bool has_diag, bool keep_structure) {
@@ -416,47 +460,29 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
     if constexpr (std::is_same_v<Src, DenseMatrix<In>> && fast_pair && !std::is_same_v<In, bool>) {
         if (!a.is_transposed() && !a.is_subview() && cols == a.base_cols()) {
             const In* p = src.data();
-            bool scaled = false;
-            if constexpr (std::is_integral_v<In>) scaled = read.k != 1;
-            else if constexpr (std::is_floating_point_v<In>) scaled = read.f != 1.0;
-            auto loop = [&](auto op_c) {
-                constexpr ScalarOpKind O = decltype(op_c)::value;
-                auto run = [&](auto scaled_c) {
-                    for_each_span(rows * cols, [&](uint64_t begin, uint64_t end) {
-                        // Locals and restrict: int8 / uint8 are char types, which may alias
-                        // anything, so through the captures every store could change the
-                        // operands and the loop stayed scalar (int8 + 7 at 0.1x NumPy).
-                        const In* __restrict src = p + begin;
-                        R* __restrict out = dst + begin;
-                        const R s_local = sv;
-                        const int64_t k_local = read.k;
-                        const double f_local = read.f;
-                        const uint64_t len = end - begin;
-                        for (uint64_t q = 0; q < len; ++q) {
-                            In x = src[q];
-                            if constexpr (decltype(scaled_c)::value) {
-                                if constexpr (std::is_integral_v<In>) x = scalar::wrap_scale(x, k_local);
-                                else if constexpr (std::is_floating_point_v<In>) x = static_cast<In>(static_cast<double>(x) * f_local);
-                            }
-                            out[q] = apply<R>(O, convert_in<R>(x), s_local);
-                        }
-                        (void)k_local;
-                        (void)f_local;
-                    });
-                };
-                if (scaled) run(std::true_type{});
-                else run(std::false_type{});
-            };
-            switch (op) {
-                case ScalarOpKind::Add: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::Add>{}); break;
-                case ScalarOpKind::Sub: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::Sub>{}); break;
-                case ScalarOpKind::RSub: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::RSub>{}); break;
-                case ScalarOpKind::Mul: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::Mul>{}); break;
-                case ScalarOpKind::TrueDiv: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::TrueDiv>{}); break;
-                case ScalarOpKind::RTrueDiv: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::RTrueDiv>{}); break;
-            }
+            for_each_span(rows * cols, [&](uint64_t begin, uint64_t end) {
+                apply_span<R, In>(op, p + begin, dst + begin, end - begin, sv, read.k, read.f);
+            });
             return out;
         }
+    }
+
+    // Structured or transposed source: stored values in bulk, a tile of rows at a time
+    // (math/RawRows.hpp), then the same per-element arithmetic as TypedReader. Writing a
+    // structured operand out through get() per element made structured & | ^ ~ and / 5-10x
+    // slower than NumPy.
+    if constexpr (has_raw_rows_v<In, Src> && fast_pair) {
+        // At least 32 tiles when there are rows for it: ParallelFor runs fewer items inline.
+        const uint64_t TILE = std::clamp<uint64_t>(rows / 32, 1, 32);
+        const uint64_t tiles = (rows + TILE - 1) / TILE;
+        std::atomic<bool> ok{true};  // false for the same reason in every tile (a window, ...)
+        ParallelFor(0, tiles, [&](size_t t) {
+            const uint64_t r0 = t * TILE, r1 = std::min(rows, r0 + TILE);
+            std::unique_ptr<In[]> raw(new In[(r1 - r0) * cols]);  // filled by raw_rows: no zeroing
+            if (!raw_rows<In>(src, r0, r1, raw.get())) { ok = false; return; }
+            apply_span<R, In>(op, raw.get(), dst + r0 * cols, (r1 - r0) * cols, sv, read.k, read.f);
+        });
+        if (ok) return out;
     }
 
     for_each_block(rows, cols, [&](uint64_t idx, uint64_t i, uint64_t j) {
@@ -515,6 +541,12 @@ std::unique_ptr<MatrixBase> narrow_wide(const MatrixBase& wide, ScalarOpKind op,
         out = std::make_unique<DenseMatrix<R>>(rows, cols, std::string());
     }
     R* dst = out->data();
+    if constexpr (!std::is_same_v<W, std::complex<double>>) {
+        for_each_span(rows * cols, [&](uint64_t begin, uint64_t end) {
+            apply_span<R, W>(op, src + begin, dst + begin, end - begin, sv, 1, 1.0);
+        });
+        return out;
+    }
     for_each_block(rows, cols, [&](uint64_t idx, uint64_t, uint64_t) {
         R v;
         if constexpr (std::is_same_v<W, std::complex<double>>) v = from_logical<R>(src[idx]);

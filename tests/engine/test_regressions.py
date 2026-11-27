@@ -607,3 +607,18 @@ def test_F113_complex_infinities_survive_views_and_export():
         np.testing.assert_array_equal(np.asarray(m * 2), a * 2)
         b = np.array([[3 + 4j, 1], [1, 1]], dtype=complex)
         np.testing.assert_array_equal(np.asarray(m.T / pc.matrix(b).T), a.T / b.T)
+
+
+def test_bulk_reader_windows_and_transposes_match_numpy():
+    """Structured and transposed operands are written out through the bulk stored-value
+    reader (math/RawRows.hpp): dense windows, transposed windows and transposes read the
+    same elements as the per-element accessor did."""
+    rng = np.random.default_rng(1)
+    a = rng.integers(-50, 50, (40, 30)).astype(np.int32)
+    m = pc.matrix(a)
+    for got, want in [(m[3:20, 2:25], a[3:20, 2:25]), (m[3:20, 2:25].T, a[3:20, 2:25].T), (m.T, a.T)]:
+        np.testing.assert_array_equal(np.asarray(~got), ~want)
+        np.testing.assert_array_equal(np.asarray(got & got), want & want)
+        np.testing.assert_array_equal(np.asarray(got * 3), want * 3)
+        np.testing.assert_allclose(np.asarray(got / (got + 100)), want / (want + 100))
+        np.testing.assert_allclose(np.asarray(got + 0.5), want + 0.5)

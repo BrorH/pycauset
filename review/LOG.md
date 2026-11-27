@@ -619,3 +619,13 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   logged in BENCHMARKS (open: a blocked symv-style kernel). Atlas report: a subset run
   (`python -m tests.atlas.report matvec`) now merges into the full report instead of
   replacing it, like the timing harness. Full atlas: 0 wrong of 88,361.
+- Bulk stored-value reader (`include/pycauset/math/RawRows.hpp`): rows of a dense (windows,
+  transposes), triangular, symmetric-family or diagonal matrix straight from the packed
+  storage, 16 columns at a time for transposed reads (one column at a time hit a single cache
+  set). The typed row reader (ViewRead), the scalar-op / to_dense loop and the element-wise
+  row loader use it; the view rule is still applied per element by `view_value`. Also: the
+  scalar-op arithmetic runs with the operator fixed at compile time in every loop
+  (`apply_span`; the generic loops switched per element), the row reader tiles so ParallelFor
+  gets >= 32 items (8 tiles ran inline), and scratch buffers / wide copies are not zeroed.
+  int32 1024: tri & tri 2.6 -> 0.64 ms, ~tri 1.9 -> 0.34 ms, ~(D.T) 3.5 -> 0.67 ms,
+  diag / diag 6.1 -> 1.9 ms, tri / tri 6.2 -> 2.0 ms (NumPy 0.3 / 0.9 ms). Full atlas: 0 wrong.

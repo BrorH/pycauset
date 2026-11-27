@@ -289,6 +289,12 @@ namespace {
         using W = wide_of_t<T>;
         const uint64_t mr = m.rows(), mc = m.cols();
         const uint64_t r0 = mr == 1 ? 0 : i0, r1 = mr == 1 ? 1 : i1;
+        if constexpr (std::is_same_v<T, W>) {
+            if (mr != 1 && mc == cols) {  // no broadcast: straight into dst, no copy pass
+                dst.resize((i1 - i0) * cols);
+                return pycauset::read_rows(m, r0, r1, dst.data());
+            }
+        }
         std::vector<W> w((r1 - r0) * mc);
         if (!pycauset::read_rows(m, r0, r1, w.data())) return false;
         dst.resize((i1 - i0) * cols);
