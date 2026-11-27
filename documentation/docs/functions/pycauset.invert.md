@@ -7,7 +7,7 @@ pycauset.invert(a)
 The inverse of a square matrix, as NumPy's `linalg.inv`. Also `a.invert()`.
 
 Every dtype, structure and view works. The algorithm is NumPy's: LU with partial pivoting
-(LAPACK `?gesv` on `A X = I`) in the operand's precision; integer and bool matrices invert
+(LAPACK `?getrf` and triangular solves on `A X = I`) in the operand's precision; integer and bool matrices invert
 to float64, float32 stays float32. Structure is used where it is exact: the inverse of an
 upper triangular matrix is a `TriangularMatrix`, of a diagonal matrix a `DiagonalMatrix`
 (element-wise), of an identity `1/scale`; a scaled view inverts with the reciprocal scale.

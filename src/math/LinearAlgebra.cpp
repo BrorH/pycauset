@@ -738,7 +738,7 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const Ma
 }
 
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(
-    const MatrixBase& a, bool full_matrices)
+    const MatrixBase& a, bool full_matrices, bool compute_uv)
 {
     // The LAPACK kernel reads dense storage in a LAPACK dtype: integers/bit in float64,
     // float16 in float32, complex32 in complex64 (NumPy's rule); any structure or view is
@@ -747,7 +747,7 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique
         const DataType in = a.get_data_type();
         const DataType want = lapack_dtype(in, in);
         if (a.get_structure() != Structure::DENSE || in != want || !is_plain(a)) {
-            return svd(*to_dense(a, want), full_matrices);
+            return svd(*to_dense(a, want), full_matrices, compute_uv);
         }
     }
     const uint64_t m = a.rows(), n = a.cols(), k = std::min(m, n);
@@ -755,9 +755,10 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique
     const DataType s_dtype = dtype == DataType::COMPLEX_FLOAT32 ? DataType::FLOAT32
                            : dtype == DataType::COMPLEX_FLOAT64 ? DataType::FLOAT64 : dtype;
     // NumPy shapes: U (m, m) and VT (n, n) when full_matrices, else (m, k) and (k, n).
-    auto u = ObjectFactory::create_matrix(m, full_matrices ? m : k, dtype, Structure::DENSE, "");
+    // Values only: U m x 0 and VT 0 x n tell the kernel (?gesdd job 'N').
+    auto u = ObjectFactory::create_matrix(m, !compute_uv ? 0 : full_matrices ? m : k, dtype, Structure::DENSE, "");
     auto s = ObjectFactory::create_vector(k, s_dtype, Structure::VECTOR, "");
-    auto vt = ObjectFactory::create_matrix(full_matrices ? n : k, n, dtype, Structure::DENSE, "");
+    auto vt = ObjectFactory::create_matrix(!compute_uv ? 0 : full_matrices ? n : k, n, dtype, Structure::DENSE, "");
     ComputeContext::instance().get_device()->svd(a, *u, *s, *vt);
     return std::make_tuple(std::move(u), std::move(s), std::move(vt));
 }
@@ -949,7 +950,7 @@ static std::vector<double> abs_values(const MatrixBase& a) {
 }
 
 static std::vector<double> singular_values(const MatrixBase& a) {
-    auto s = std::get<1>(svd(a, false));
+    auto s = std::get<1>(svd(a, false, false));
     std::vector<double> out(s->size());
     for (uint64_t i = 0; i < s->size(); ++i) out[i] = s->get_element_as_double(i);
     return out;

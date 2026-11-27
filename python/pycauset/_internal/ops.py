@@ -385,8 +385,7 @@ def norm(x: Any, ord: Any = None, *, deps: OpsDeps) -> float:
 @_traced("svdvals")
 def svdvals(a: Any, *, deps: OpsDeps) -> Any:
     """Singular values of a matrix (the S vector of an SVD), descending; engine SVD (F-079)."""
-    _u, s, _vt = svd(a, full_matrices=False, deps=deps)
-    return s
+    return svd(a, compute_uv=False, deps=deps)
 
 
 @_traced("matrix_rank")
@@ -495,10 +494,13 @@ def svd(a: Any, full_matrices: bool = True, compute_uv: bool = True, *, deps: Op
     structure and view; no NumPy fallback (F-079)."""
     if not isinstance(a, deps.native.MatrixBase):
         a = deps.Matrix(deps.np_module.asarray(a))
-    u, s, vt = deps.native.svd(a, bool(full_matrices) and bool(compute_uv))
+    u, s, vt = deps.native.svd(a, bool(full_matrices), bool(compute_uv))
+    if not compute_uv:  # singular values only (?gesdd job 'N')
+        _track_and_mark_temporary_if_native(s, deps=deps)
+        return s
     for x in (u, s, vt):
         _track_and_mark_temporary_if_native(x, deps=deps)
-    return (u, s, vt) if compute_uv else s
+    return u, s, vt
 
 
 @_traced("lu")

@@ -1407,7 +1407,22 @@ the entry (the history is useful). New findings go at the bottom with the next f
   (bit matrices multiply in int32). `test_F107_*`.
 
 ### F-108 Row-major LAPACKE calls cost half of solve / invert / det / eigh
-- **Status:** open (Phase 6, item 6.0a). Found in the docs pass: `benchmarks/r2_parity.py`
+- **Status:** fixed (session 9). Two causes, both fixed; the numbers are in BENCHMARKS.md
+  (solve / invert / det 1.6-1.8x NumPy, cholesky 2.4x, svd / pinv 1.2-1.3x, eigh / qr / eig
+  at parity; lstsq 0.65x remains, it goes through pinv).
+  1. LAPACK is called column-major on the row-major buffers (the transpose A^T): getrf for
+     det / slogdet; getrf + two right-sided trsm + reversed row interchanges for solve and
+     invert; potrf('U') for cholesky (L lands in place); syevd / heevd 'U' for eigh (one
+     transpose-conjugate of V); gesdd with U / Vh swapped for svd, plus job 'N' when only
+     the values are wanted (svdvals, rank, cond, norm 2 / nuc computed U and V before);
+     gelqf + orglq for qr (identical to NumPy's geqrf + orgqr, signs included). lu and geev
+     stay row-major (lu must factor A itself; geev's transposes are small next to it, and
+     factoring A^T would change the eigenvalue order).
+  2. `import pycauset` set OPENBLAS_THREAD_TIMEOUT=4 (F-096): threads slept after every BLAS
+     call, and a factorization is many small calls, so qr / eigh / svd / eig ran 2x slower.
+     Measured 4..28: 16-22 keep factorizations at full speed with no cost when NumPy and
+     PyCauset calls alternate; 28 (OpenBLAS's default) brings the cross-pool starvation
+     back (matmul after a NumPy call 8 -> 28 ms). Default now 18 (~0.1 ms). Found in the docs pass: `benchmarks/r2_parity.py`
   (N = 1024 float64, 4 vCPU) gives solve 0.50-0.56x NumPy, invert 0.61-0.66x, determinant
   0.65-0.69x, eigh 0.52-0.63x, while the Performance Guide said "at parity" (measured when
   solve and eigh still ran NumPy, before N.3).

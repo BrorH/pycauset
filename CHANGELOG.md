@@ -9,6 +9,9 @@ milestone corresponds to **v0.6.1**.
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
 ### Changed
+- Faster linear algebra (no API change): solve / invert / det 1.6-1.8x NumPy's speed,
+  cholesky 2.4x, svd 1.3x (was 0.5-0.7x). `svd(compute_uv=False)` and `svdvals` compute
+  only the values. `OPENBLAS_THREAD_TIMEOUT` default 4 -> 18.
 - Indexing follows NumPy's shapes: `M[0, :]`, `M[:, 0]` and paired index arrays
   (`M[[0, 1], [2, 1]]`) return 1-D vectors (were 1 x n / n x 1 matrices).
 - Requires Python 3.10+ and NumPy 2 (the code already needed 3.10; NumPy 2's promotion rules

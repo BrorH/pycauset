@@ -21,22 +21,32 @@ the same machine only; BLAS timings differ a lot between machines and OpenBLAS b
 ## Current numbers
 
 4-vCPU Linux container, system OpenBLAS 0.3.26 (NumPy 2.x with its bundled OpenBLAS
-0.3.34), `benchmarks/r2_parity.py`, float64, N = 1024, 2026-11-27:
+0.3.34), float64, N = 1024 (n = 512 for `eig`), best of 4, 2026-11-27, PyCauset imported
+first. `benchmarks/r2_parity.py`: 9/9 operations at or above 0.90x.
 
-| op | ratio |
-|---|---|
-| `A @ B` | 0.94x |
-| `A + B`, `A * B` | 2.8x |
-| `dot`, export to NumPy | 1.0x |
-| `solve` | 0.50-0.56x |
-| `invert` | 0.61-0.66x |
-| `determinant` | 0.65-0.69x |
-| `eigh` | 0.52-0.63x |
+| op | NumPy | PyCauset | ratio |
+|---|---|---|---|
+| `A @ B` | 7.5 ms | 8.1 ms | 0.90-0.93x |
+| `A + B`, `A * B` | 1.3 ms | 0.45 ms | 2.7-3.2x |
+| `dot`, export to NumPy | | | 0.95-1.0x |
+| `solve` (matrix right-hand side) | 16 ms | 9.4 ms | 1.7x |
+| `solve` (vector) | 17 ms | 11 ms | 1.6x |
+| `invert` | 40 ms | 25 ms | 1.6x |
+| `determinant` / `slogdet` | 15-17 ms | 8.5-9.6 ms | 1.8x |
+| `cholesky` | 26 ms | 11 ms | 2.4x |
+| `eigh` / `eigvalsh` | 110 / 49 ms | 115 / 47 ms | 0.96-1.05x |
+| `qr` | 126 ms | 123 ms | 1.0x |
+| `svd` / values only | 436 / 219 ms | 343 / 166 ms | 1.3x |
+| `pinv`, `matrix_rank` | 425 / 181 ms | 354 / 145 ms | 1.2x |
+| `eig` (n = 512) | 207 ms | 211 ms | 1.0x |
+| `lstsq` (vector) | 203 ms | 312 ms | 0.65x (computes `pinv(a) @ b`; NumPy's `?gelsd` is next) |
 
-The LAPACK operations lose half their time to row-major LAPACKE calls, which transpose
-every operand in and out; called column-major on the same buffer the factorization runs 2x
-faster than NumPy's (review FINDINGS F-108, PLAN 6.0a). Most other cells of the atlas
-timing are below parity too, small operations most of all (per-call overhead).
+Two fixes got the LAPACK operations here from 0.5-0.7x (review F-108): LAPACK is called
+column-major on the row-major buffers (LAPACKE's row-major interface transposed every
+operand in and out), and OpenBLAS threads spin for about 0.1 ms after a call instead of
+going to sleep at once (`OPENBLAS_THREAD_TIMEOUT=18`; factorizations are many small BLAS
+calls, and waking the threads for each one cost 2x). Small operations elsewhere in the
+atlas timing are still below parity (per-call overhead).
 
 ## Where PyCauset is ahead by construction
 

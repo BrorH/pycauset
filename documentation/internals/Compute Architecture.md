@@ -51,18 +51,23 @@ worker is `CpuComputeWorker`, which calls the in-memory kernels on the tile. Det
 ## LAPACK
 
 Factorizations and eigen problems call LAPACKE in the operand's precision (single stays
-single, as in NumPy) and need the matrix in memory:
+single, as in NumPy) and need the matrix in memory. They are called **column-major on the
+row-major buffer**, which is the column-major transpose `A^T`, so LAPACKE never transposes
+operands in and out (row-major calls did, and that cost about half of each factorization;
+F-108). Each routine is chosen so that `A^T` gives `A`'s answer:
 
 | Operation | LAPACK |
 |---|---|
-| `eigh`, `eigvalsh` | `?syevd` / `?heevd` |
+| `eigh`, `eigvalsh` | `?syevd` / `?heevd` on `A^T`'s upper triangle (= `A`'s lower, NumPy's `UPLO`); vectors transposed (and conjugated) once |
 | `eig`, `eigvals` | `?geev` |
-| `svd` | `?gesdd` |
-| `solve`, `invert` | `?gesv` (`invert` solves `A X = I`, as NumPy does) |
-| `lu`, `determinant`, `slogdet` | `?getrf` |
-| `cholesky` | `?potrf` |
-| `qr` | `?geqrf` + `?orgqr` / `?ungqr` |
+| `svd` | `?gesdd` on `A^T` (job `N` without vectors): its `U` and `V^H` are `A`'s `V^H` and `U` |
+| `solve`, `invert` | `?getrf` on `A^T`, then two right-sided `?trsm` and the row interchanges on `B`'s buffer (the algorithm of `?gesv`; `invert` solves `A X = I`, as NumPy does) |
+| `determinant`, `slogdet` | `?getrf` on `A^T` (`det(A^T) = det(A)`) |
+| `lu` | `?getrf` (row-major: the factors of `A` itself are returned) |
+| `cholesky` | `?potrf('U')` on `A^T`: `L` lands in the buffer's lower triangle |
+| `qr` | `?gelqf` + `?orglq` / `?unglq` on `A^T`: the LQ of `A^T` is NumPy's QR of `A` transposed (same signs) |
 | `pinv`, `lstsq` | via `svd` (`lstsq` is `pinv(a) @ b`) |
+| `eig`, `eigvals` | `?geev` (row-major: the transposes are small next to it) |
 
 Structure shortcuts come first: the determinant of a triangular or diagonal matrix is the
 product of its diagonal, an identity's is `scale^n`, and so on.

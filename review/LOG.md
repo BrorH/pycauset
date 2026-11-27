@@ -536,3 +536,9 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - PLAN 5.5: `documentation/internals/Architecture.md` is the map (rewritten to the code);
   review/ARCHITECTURE.md is a pointer. CLAUDE.md and review/README point to it.
 - Gates: 4,192 + 4,134 passed; docs build clean.
+- Phase 6 started with F-108 (6.0a): LAPACK column-major on the row-major buffers (solve /
+  invert / det / slogdet / cholesky / eigh / svd / qr), svd values-only mode, and the
+  OpenBLAS thread timeout 4 -> 18 after measuring 4..28 for factorization speed and
+  NumPy / PyCauset interleaving. r2_parity 9/9 at parity; BENCHMARKS.md, Performance Guide,
+  Compute Architecture updated. QR now equals NumPy's to the last bit of sign convention.
+  Gates: 4,192 + 4,134 passed, atlas CI 42.

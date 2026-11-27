@@ -60,13 +60,14 @@ void bind_math_ops(py::module_& m) {
             std::shared_ptr<pycauset::MatrixBase>(u.release()));
     }, py::arg("a"), "Compute LU decomposition");
 
-    m.def("svd", [](const pycauset::MatrixBase& a, bool full_matrices) {
-        auto [u, s, vt] = pycauset::svd(a, full_matrices);
+    m.def("svd", [](const pycauset::MatrixBase& a, bool full_matrices, bool compute_uv) {
+        auto [u, s, vt] = pycauset::svd(a, full_matrices, compute_uv);
         return py::make_tuple(
             std::shared_ptr<pycauset::MatrixBase>(u.release()),
             std::shared_ptr<pycauset::VectorBase>(s.release()),
             std::shared_ptr<pycauset::MatrixBase>(vt.release()));
-    }, py::arg("a"), py::arg("full_matrices") = false, "SVD (NumPy shapes; any dtype, structure, view)");
+    }, py::arg("a"), py::arg("full_matrices") = false, py::arg("compute_uv") = true,
+       "SVD (NumPy shapes; any dtype, structure, view); compute_uv=False: S only");
 
     m.def("solve", [](const pycauset::MatrixBase& a, const pycauset::MatrixBase& b) {
         auto out = pycauset::solve(a, b);

@@ -19,7 +19,7 @@ QR decomposition `A = Q R`, as `numpy.linalg.qr`.
 
 ## Notes
 
-Every dtype, structure and view. Computed in NumPy's LAPACK dtype: integers and bool in float64, float16/float32 in float32, complex32/complex64 in complex64, complex128 as is. LAPACK `?geqrf` + `?orgqr` / `?ungqr`.
+Every dtype, structure and view. Computed in NumPy's LAPACK dtype: integers and bool in float64, float16/float32 in float32, complex32/complex64 in complex64, complex128 as is. The same factorization as NumPy's (`?geqrf` + `?orgqr`), computed as the LQ of the transposed buffer (`?gelqf` + `?orglq`); signs match NumPy.
 
 ## Examples
 

@@ -23,7 +23,10 @@ import sys as _sys
 # instead of 0.6 ms; F-096). Nothing can be changed in NumPy's library now; say how to avoid it.
 _NUMPY_FIRST = "numpy" in _sys.modules and "OPENBLAS_THREAD_TIMEOUT" not in os.environ
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
-os.environ.setdefault("OPENBLAS_THREAD_TIMEOUT", "4")  # 2^4 cycles: the OpenBLAS minimum
+# 2^18 cycles (~0.1 ms): long enough to keep threads awake between the many small BLAS calls
+# inside one LAPACK factorization (at 2^4, qr / eigh / svd ran 2x slower: F-108), far shorter
+# than the default 2^28 (~0.1 s) whose spinning starved the other pool (8 ms -> 28 ms).
+os.environ.setdefault("OPENBLAS_THREAD_TIMEOUT", "18")
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace as _SimpleNamespace
@@ -62,7 +65,7 @@ if _NUMPY_FIRST:
     warnings.warn(
         "numpy was imported before pycauset: NumPy's OpenBLAS threads spin after each call and "
         "slow PyCauset's BLAS/LAPACK operations (up to 50x for small ones). Import pycauset "
-        "first, or set OPENBLAS_THREAD_TIMEOUT=4 in the environment before starting Python.",
+        "first, or set OPENBLAS_THREAD_TIMEOUT=18 in the environment before starting Python.",
         PyCausetPerformanceWarning,
         stacklevel=2,
     )

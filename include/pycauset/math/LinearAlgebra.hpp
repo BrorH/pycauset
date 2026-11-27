@@ -31,9 +31,10 @@ std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& res
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a, const std::string& result_file = "");
 // NumPy's qr: reduced (Q m x k, R k x n) or complete (Q m x m, R m x n).
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const MatrixBase& a, bool complete = false);
-// NumPy's svd: any dtype/structure/view; U (m, m|k), S (k,) real, VT (n|k, n).
+// NumPy's svd: any dtype/structure/view; U (m, m|k), S (k,) real, VT (n|k, n). Without
+// compute_uv only S is computed (U is m x 0 and VT 0 x n).
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> svd(
-    const MatrixBase& a, bool full_matrices = false);
+    const MatrixBase& a, bool full_matrices = false, bool compute_uv = true);
 std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, const std::string& result_file = "");
 // NumPy's pinv (default rtol): through svd, any dtype/structure/view.
 std::unique_ptr<MatrixBase> pinv(const MatrixBase& a);

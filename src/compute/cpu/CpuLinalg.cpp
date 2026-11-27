@@ -25,6 +25,7 @@
 #include "pycauset/compute/ComputeDevice.hpp"
 #include "pycauset/compute/cpu/CpuSolver.hpp"
 #include "pycauset/core/DebugTrace.hpp"
+#include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/math/ScalarOps.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/vector/DenseVector.hpp"
@@ -35,6 +36,7 @@ namespace {
 template <typename T> struct real_of { using type = T; };
 template <typename V> struct real_of<std::complex<V>> { using type = V; };
 template <typename T> using real_t = typename real_of<T>::type;
+template <typename T> constexpr bool is_complex_v = !std::is_same_v<T, real_t<T>>;
 template <typename T> constexpr bool is_cplx_v = !std::is_same_v<T, real_t<T>>;
 
 [[noreturn]] void contract(const char* op) {
@@ -68,13 +70,36 @@ DenseVector<T>& out_vector(VectorBase& v, const char* op) {
     return *d;
 }
 
-// --- Hermitian / symmetric eigen decomposition (?syevd / ?heevd), lower triangle (NumPy's UPLO).
+// Every LAPACK call here is column-major on the row-major buffer, i.e. on A^T, so LAPACKE does
+// not transpose operands in and out (F-108: that cost about half of each factorization).
+
+// --- Hermitian / symmetric eigen decomposition (?syevd / ?heevd) reading A's lower triangle
+// (NumPy's UPLO='L'), which is the upper triangle of the column-major A^T. A^T is A (real
+// symmetric) or conj(A) (Hermitian): the same eigenvalues, and eigenvectors conj(v).
 template <typename T>
 lapack_int heevd(char jobz, lapack_int n, T* a, real_t<T>* w) {
-    if constexpr (std::is_same_v<T, float>) return LAPACKE_ssyevd(LAPACK_ROW_MAJOR, jobz, 'L', n, a, n, w);
-    else if constexpr (std::is_same_v<T, double>) return LAPACKE_dsyevd(LAPACK_ROW_MAJOR, jobz, 'L', n, a, n, w);
-    else if constexpr (std::is_same_v<T, std::complex<float>>) return LAPACKE_cheevd(LAPACK_ROW_MAJOR, jobz, 'L', n, a, n, w);
-    else return LAPACKE_zheevd(LAPACK_ROW_MAJOR, jobz, 'L', n, a, n, w);
+    if constexpr (std::is_same_v<T, float>) return LAPACKE_ssyevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, n, w);
+    else if constexpr (std::is_same_v<T, double>) return LAPACKE_dsyevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, n, w);
+    else if constexpr (std::is_same_v<T, std::complex<float>>) return LAPACKE_cheevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, n, w);
+    else return LAPACKE_zheevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, n, w);
+}
+
+// dst (row-major n x n) = src read column-major, conjugated for complex T: the eigenvectors
+// of A from those of A^T. Blocked for cache use.
+template <typename T>
+void transpose_conj_into(const T* src, T* dst, size_t n) {
+    constexpr size_t B = 64;
+    ParallelFor(0, (n + B - 1) / B, [&](size_t bi) {
+        const size_t i0 = bi * B, i1 = std::min(n, i0 + B);
+        for (size_t j0 = 0; j0 < n; j0 += B) {
+            const size_t j1 = std::min(n, j0 + B);
+            for (size_t i = i0; i < i1; ++i)
+                for (size_t j = j0; j < j1; ++j) {
+                    if constexpr (is_complex_v<T>) dst[i * n + j] = std::conj(src[j * n + i]);
+                    else dst[i * n + j] = src[j * n + i];
+                }
+        }
+    });
 }
 
 template <typename T>
@@ -89,7 +114,7 @@ bool eigh_t(const MatrixBase& in, VectorBase& w, MatrixBase* v) {
     if (info < 0) throw std::runtime_error("eigh: illegal argument to ?heevd");
     if (v) {
         auto& vm = out_matrix<T>(*v, "eigh");
-        std::copy(a.begin(), a.end(), vm.data());
+        transpose_conj_into<T>(a.data(), vm.data(), static_cast<size_t>(n));
     }
     return true;
 }
@@ -155,10 +180,13 @@ bool cholesky_t(const MatrixBase& in, MatrixBase& out) {
     const lapack_int n = static_cast<lapack_int>(in.rows());
     lapack_int info = 0;
     debug_trace::set_last("cpu.cholesky.potrf");
-    if constexpr (std::is_same_v<T, float>) info = LAPACKE_spotrf(LAPACK_ROW_MAJOR, 'L', n, a.data(), n);
-    else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dpotrf(LAPACK_ROW_MAJOR, 'L', n, a.data(), n);
-    else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cpotrf(LAPACK_ROW_MAJOR, 'L', n, a.data(), n);
-    else info = LAPACKE_zpotrf(LAPACK_ROW_MAJOR, 'L', n, a.data(), n);
+    // ?potrf('U') on the column-major A^T (its upper triangle is A's lower one): A^T = U^H U,
+    // so A = U^T conj(U) and L = U^T, which is the column-major U read row-major. L is in the
+    // buffer's lower triangle as it stands, real or complex.
+    if constexpr (std::is_same_v<T, float>) info = LAPACKE_spotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), n);
+    else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), n);
+    else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), n);
+    else info = LAPACKE_zpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), n);
     if (info > 0) throw std::domain_error("cholesky: matrix is not positive definite");
     if (info < 0) throw std::runtime_error("cholesky: illegal argument to ?potrf");
     auto& o = out_matrix<T>(out, "cholesky");
@@ -168,8 +196,11 @@ bool cholesky_t(const MatrixBase& in, MatrixBase& out) {
     return true;
 }
 
-// --- QR (?geqrf + ?orgqr / ?ungqr), k = min(m, n) reflectors. Reduced: Q m x k, R k x n.
-// Complete: Q m x m, R m x n (the shapes of the outputs say which).
+// --- QR, k = min(m, n) reflectors. Reduced: Q m x k, R k x n. Complete: Q m x m, R m x n (the
+// shapes of the outputs say which). The row-major buffer is the column-major A^T, and the LQ
+// of A^T (?gelqf + ?orglq / ?unglq) is NumPy's QR of A (?geqrf + ?orgqr) transposed: the
+// same reflectors and signs, A^T = L Q with R = L^T and Q_A = Q^T. Read row-major, the
+// column-major L is R in the buffer's upper triangle and the column-major Q is Q_A.
 template <typename T>
 bool qr_t(const MatrixBase& in, MatrixBase& qm, MatrixBase& rm) {
     std::vector<T> a;
@@ -180,30 +211,31 @@ bool qr_t(const MatrixBase& in, MatrixBase& qm, MatrixBase& rm) {
     if (qm.rows() != in.rows() || (qc != k && qc != m) || rr != qc || rm.cols() != in.cols()) contract("qr");
     std::vector<T> tau(std::max<lapack_int>(k, 1));
     lapack_int info = 0;
-    debug_trace::set_last("cpu.qr.geqrf");
+    debug_trace::set_last("cpu.qr.gelqf");
     if (k > 0) {
-        if constexpr (std::is_same_v<T, float>) info = LAPACKE_sgeqrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, tau.data());
-        else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dgeqrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, tau.data());
-        else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cgeqrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, tau.data());
-        else info = LAPACKE_zgeqrf(LAPACK_ROW_MAJOR, m, n, a.data(), n, tau.data());
-        if (info != 0) throw std::runtime_error("qr: ?geqrf failed");
+        if constexpr (std::is_same_v<T, float>) info = LAPACKE_sgelqf(LAPACK_COL_MAJOR, n, m, a.data(), n, tau.data());
+        else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dgelqf(LAPACK_COL_MAJOR, n, m, a.data(), n, tau.data());
+        else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cgelqf(LAPACK_COL_MAJOR, n, m, a.data(), n, tau.data());
+        else info = LAPACKE_zgelqf(LAPACK_COL_MAJOR, n, m, a.data(), n, tau.data());
+        if (info != 0) throw std::runtime_error("qr: ?gelqf failed");
     }
     auto& r = out_matrix<T>(rm, "qr");
     T* rp = r.data();
     for (lapack_int i = 0; i < rr; ++i)
         for (lapack_int j = 0; j < n; ++j) rp[i * n + j] = (i < k && j >= i) ? a[i * n + j] : T(0);
-    std::vector<T> q(static_cast<size_t>(m) * qc, T(0));
+    // The reflectors, as the column-major qc x m matrix (row-major m x qc) ?orglq expands in place.
+    auto& qo = out_matrix<T>(qm, "qr");
+    T* q = qo.data();
+    std::fill(q, q + static_cast<size_t>(m) * qc, T(0));
     for (lapack_int i = 0; i < m; ++i)
         for (lapack_int j = 0; j < std::min(qc, n); ++j) q[i * qc + j] = a[i * n + j];
     if (qc > 0) {
-        if constexpr (std::is_same_v<T, float>) info = LAPACKE_sorgqr(LAPACK_ROW_MAJOR, m, qc, k, q.data(), qc, tau.data());
-        else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dorgqr(LAPACK_ROW_MAJOR, m, qc, k, q.data(), qc, tau.data());
-        else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cungqr(LAPACK_ROW_MAJOR, m, qc, k, q.data(), qc, tau.data());
-        else info = LAPACKE_zungqr(LAPACK_ROW_MAJOR, m, qc, k, q.data(), qc, tau.data());
-        if (info != 0) throw std::runtime_error("qr: ?orgqr failed");
+        if constexpr (std::is_same_v<T, float>) info = LAPACKE_sorglq(LAPACK_COL_MAJOR, qc, m, k, q, qc, tau.data());
+        else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dorglq(LAPACK_COL_MAJOR, qc, m, k, q, qc, tau.data());
+        else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cunglq(LAPACK_COL_MAJOR, qc, m, k, q, qc, tau.data());
+        else info = LAPACKE_zunglq(LAPACK_COL_MAJOR, qc, m, k, q, qc, tau.data());
+        if (info != 0) throw std::runtime_error("qr: ?orglq failed");
     }
-    auto& qo = out_matrix<T>(qm, "qr");
-    std::copy(q.begin(), q.end(), qo.data());
     return true;
 }
 
@@ -251,10 +283,11 @@ bool pivots_t(const MatrixBase& in, LuPivots& out) {
     lapack_int info = 0;
     debug_trace::set_last("cpu.det.getrf");
     if (n > 0) {
-        if constexpr (std::is_same_v<T, float>) info = LAPACKE_sgetrf(LAPACK_ROW_MAJOR, n, n, a.data(), n, ipiv.data());
-        else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dgetrf(LAPACK_ROW_MAJOR, n, n, a.data(), n, ipiv.data());
-        else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cgetrf(LAPACK_ROW_MAJOR, n, n, a.data(), n, ipiv.data());
-        else info = LAPACKE_zgetrf(LAPACK_ROW_MAJOR, n, n, a.data(), n, ipiv.data());
+        // The LU of A^T (column-major on the buffer): det(A^T) = det(A), no transposes.
+        if constexpr (std::is_same_v<T, float>) info = LAPACKE_sgetrf(LAPACK_COL_MAJOR, n, n, a.data(), n, ipiv.data());
+        else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dgetrf(LAPACK_COL_MAJOR, n, n, a.data(), n, ipiv.data());
+        else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cgetrf(LAPACK_COL_MAJOR, n, n, a.data(), n, ipiv.data());
+        else info = LAPACKE_zgetrf(LAPACK_COL_MAJOR, n, n, a.data(), n, ipiv.data());
     }
     if (info < 0) throw std::runtime_error("det: illegal argument to ?getrf");  // info > 0: an exact zero pivot
     out.pivots.resize(n);

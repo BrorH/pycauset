@@ -372,8 +372,9 @@ are engine-owned metadata on the storage).
 - [ ] 6.0 One OpenBLAS per process: link against NumPy's bundled scipy-openblas (or share its
       thread pool) instead of the system OpenBLAS; two spinning pools cost up to 50x on BLAS
       calls when NumPy is imported first (F-096). Today: a warning and an import-order rule.
-- [ ] 6.0a LAPACK without row-major LAPACKE transposes (F-108): solve / invert / det / eigh at
+- [x] 6.0a LAPACK without row-major LAPACKE transposes (F-108; done: see BENCHMARKS.md): solve / invert / det / eigh at
       0.5-0.7x NumPy, the column-major call on the same buffer is 2x faster than NumPy
+- [ ] 6.0b `lstsq` through `?gelsd` (NumPy's routine) instead of `pinv(a) @ b` (0.65x)
 - [ ] 6.1 Elementwise/vector parity (F-012): profile the wrapper stack vs the kernels
 - [ ] 6.2 Thread-pool consolidation (F-014)
 - [ ] 6.3 Out-of-core paths for eigh/svd/rank (F-011) or document them as in-RAM only

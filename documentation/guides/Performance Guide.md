@@ -18,10 +18,10 @@ yourself are kept):
 | variable | default set by PyCauset | effect |
 |---|---|---|
 | `OMP_WAIT_POLICY` | `PASSIVE` | OpenMP threads sleep instead of spinning between kernels |
-| `OPENBLAS_THREAD_TIMEOUT` | `4` | OpenBLAS threads stop spinning almost immediately |
+| `OPENBLAS_THREAD_TIMEOUT` | `18` | OpenBLAS threads spin about 0.1 ms after a call (default: about 0.1 s): enough to stay awake inside one factorization, too short to starve the other pool |
 
 NumPy's OpenBLAS reads the variable when NumPy is first imported, so **import pycauset
-before numpy** (or export `OPENBLAS_THREAD_TIMEOUT=4` in your shell) to cover NumPy's
+before numpy** (or export `OPENBLAS_THREAD_TIMEOUT=18` in your shell) to cover NumPy's
 threads as well. This matters: with NumPy imported first, NumPy's OpenBLAS threads spin after
 every NumPy call and PyCauset's BLAS/LAPACK operations run next to them up to 50x slower
 (measured: Frobenius norm of a 1024 x 1024 matrix 32 ms instead of 0.7 ms; 384 x 384 matmul
@@ -35,9 +35,12 @@ vary by about ±10% between runs):
 
 | operation | PyCauset vs NumPy |
 |---|---|
-| `A @ B`, `dot`, export to NumPy | at parity (0.9–1.1×) |
-| `A + B`, `A * B` | 2–3× faster (multithreaded) |
-| `solve`, `inv`, `det`, `eigh` | 0.5–0.7× (being fixed: the LAPACK calls copy their operands twice) |
+| `A @ B`, `dot`, export to NumPy, `eigh`, `qr`, `eig` | at parity (0.9–1.05×) |
+| `A + B`, `A * B` | 2.7–3.2× faster (multithreaded) |
+| `solve`, `inv`, `det`, `slogdet` | 1.6–1.8× faster |
+| `cholesky` | 2.4× faster |
+| `svd`, `pinv`, `matrix_rank` | 1.2–1.3× faster |
+| `lstsq` | 0.65× (computed through the pseudoinverse) |
 
 Where PyCauset is structurally ahead:
 

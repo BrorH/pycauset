@@ -414,14 +414,19 @@ template <typename T> struct real_of { using type = T; };
 template <typename T> struct real_of<std::complex<T>> { using type = T; };
 template <typename T> using real_of_t = typename real_of<T>::type;
 
-// Reduced SVD A = U diag(S) VT of dense row-major storage (LAPACK ?gesdd, divide and conquer:
-// what NumPy uses). S is real for complex input.
+// SVD of dense row-major storage with LAPACK ?gesdd (divide and conquer, NumPy's routine),
+// without LAPACKE's row-major transposes (F-108): a row-major m x n buffer is the
+// column-major n x m matrix A^T. Factoring A^T = U' S V'^H gives A = conj(V') S U'^T, and the
+// column-major outputs read row-major are exactly that: VT' (= V'^H) is U_A and U' is Vh_A.
+// So the column-major call writes A's U into `u` and A's Vh into `vt`, no copies.
 template <typename T>
-lapack_int gesdd(char job, lapack_int m, lapack_int n, T* a, real_of_t<T>* s, T* u, lapack_int ldu, T* vt) {
-    if constexpr (std::is_same_v<T, double>) return LAPACKE_dgesdd(LAPACK_ROW_MAJOR, job, m, n, a, n, s, u, ldu, vt, n);
-    else if constexpr (std::is_same_v<T, float>) return LAPACKE_sgesdd(LAPACK_ROW_MAJOR, job, m, n, a, n, s, u, ldu, vt, n);
-    else if constexpr (std::is_same_v<T, std::complex<double>>) return LAPACKE_zgesdd(LAPACK_ROW_MAJOR, job, m, n, a, n, s, u, ldu, vt, n);
-    else return LAPACKE_cgesdd(LAPACK_ROW_MAJOR, job, m, n, a, n, s, u, ldu, vt, n);
+lapack_int gesdd_transposed(char job, lapack_int m, lapack_int n, T* a, real_of_t<T>* s, T* u, lapack_int ldu, T* vt) {
+    // Column-major problem: n x m matrix (lda n); its U' (n x .) goes to vt (ld n), its
+    // VT' (. x m) to u (ld = A's U columns).
+    if constexpr (std::is_same_v<T, double>) return LAPACKE_dgesdd(LAPACK_COL_MAJOR, job, n, m, a, n, s, vt, n, u, ldu);
+    else if constexpr (std::is_same_v<T, float>) return LAPACKE_sgesdd(LAPACK_COL_MAJOR, job, n, m, a, n, s, vt, n, u, ldu);
+    else if constexpr (std::is_same_v<T, std::complex<double>>) return LAPACKE_zgesdd(LAPACK_COL_MAJOR, job, n, m, a, n, s, vt, n, u, ldu);
+    else return LAPACKE_cgesdd(LAPACK_COL_MAJOR, job, n, m, a, n, s, vt, n, u, ldu);
 }
 
 template <typename T>
@@ -436,9 +441,12 @@ bool svd_dense(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& V
     const uint64_t m = in.rows(), n = in.cols();
     std::vector<T> a(A->data(), A->data() + m * n);  // gesdd destroys its input
     // U's shape says which: (m, m) is NumPy's full_matrices=True (job 'A'), (m, k) reduced ('S').
-    const char job = (U.cols() == m && m != std::min(m, n)) || (VT.rows() == n && n != std::min(m, n)) ? 'A' : 'S';
-    const lapack_int info = gesdd<T>(job, (lapack_int)m, (lapack_int)n, a.data(), s->data(), u->data(),
-                                     (lapack_int)U.cols(), vt->data());
+    // U's shape says which: (m, m) is NumPy's full_matrices=True (job 'A'), (m, k) reduced
+    // ('S'), (m, 0) singular values only ('N').
+    const char job = U.cols() == 0 ? 'N'
+                   : (U.cols() == m && m != std::min(m, n)) || (VT.rows() == n && n != std::min(m, n)) ? 'A' : 'S';
+    const lapack_int info = gesdd_transposed<T>(job, (lapack_int)m, (lapack_int)n, a.data(), s->data(), u->data(),
+                                                std::max<lapack_int>(1, (lapack_int)U.cols()), vt->data());
     if (info > 0) throw std::runtime_error("SVD did not converge");
     if (info < 0) throw std::runtime_error("SVD: illegal argument to gesdd");
     return true;
@@ -455,14 +463,31 @@ void CpuSolver::svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBa
 }
 
 namespace {
-// A X = B for dense row-major storage of one dtype (LAPACK ?gesv: LU with partial pivoting,
-// the routine NumPy's np.linalg.solve uses).
+// A X = B for dense row-major storage (F-108), the algorithm of LAPACK ?gesv (LU with partial
+// pivoting, NumPy's solve) without LAPACKE's row-major transposes of A, B and X. The row-major
+// A buffer is the column-major A^T: ?getrf factors it in place, A^T = P L U. Then
+// A X = B  <=>  X^T P L U = B^T, and the row-major B buffer is the column-major B^T (nrhs x n):
+// two right-sided triangular solves (U, then unit L) leave X^T P, and applying the row
+// interchanges in reverse gives X^T, i.e. X row-major. No copy besides A's (getrf
+// overwrites it) and B's into X.
 template <typename T>
-lapack_int gesv(lapack_int n, lapack_int nrhs, T* a, lapack_int* ipiv, T* b) {
-    if constexpr (std::is_same_v<T, double>) return LAPACKE_dgesv(LAPACK_ROW_MAJOR, n, nrhs, a, n, ipiv, b, nrhs);
-    else if constexpr (std::is_same_v<T, float>) return LAPACKE_sgesv(LAPACK_ROW_MAJOR, n, nrhs, a, n, ipiv, b, nrhs);
-    else if constexpr (std::is_same_v<T, std::complex<double>>) return LAPACKE_zgesv(LAPACK_ROW_MAJOR, n, nrhs, a, n, ipiv, b, nrhs);
-    else return LAPACKE_cgesv(LAPACK_ROW_MAJOR, n, nrhs, a, n, ipiv, b, nrhs);
+lapack_int getrf_transposed(lapack_int n, T* a, lapack_int* ipiv) {
+    if constexpr (std::is_same_v<T, double>) return LAPACKE_dgetrf(LAPACK_COL_MAJOR, n, n, a, n, ipiv);
+    else if constexpr (std::is_same_v<T, float>) return LAPACKE_sgetrf(LAPACK_COL_MAJOR, n, n, a, n, ipiv);
+    else if constexpr (std::is_same_v<T, std::complex<double>>) return LAPACKE_zgetrf(LAPACK_COL_MAJOR, n, n, a, n, ipiv);
+    else return LAPACKE_cgetrf(LAPACK_COL_MAJOR, n, n, a, n, ipiv);
+}
+
+// B := B * inv(op(F)) for the column-major nrhs x n matrix B and the triangle of F (n x n).
+template <typename T>
+void trsm_right(CBLAS_UPLO uplo, CBLAS_DIAG diag, int nrhs, int n, const T* f, T* b) {
+    if constexpr (std::is_same_v<T, double>) cblas_dtrsm(CblasColMajor, CblasRight, uplo, CblasNoTrans, diag, nrhs, n, 1.0, f, n, b, nrhs);
+    else if constexpr (std::is_same_v<T, float>) cblas_strsm(CblasColMajor, CblasRight, uplo, CblasNoTrans, diag, nrhs, n, 1.0f, f, n, b, nrhs);
+    else {
+        const T one(1);
+        if constexpr (std::is_same_v<T, std::complex<double>>) cblas_ztrsm(CblasColMajor, CblasRight, uplo, CblasNoTrans, diag, nrhs, n, &one, f, n, b, nrhs);
+        else cblas_ctrsm(CblasColMajor, CblasRight, uplo, CblasNoTrans, diag, nrhs, n, &one, f, n, b, nrhs);
+    }
 }
 
 template <typename T>
@@ -471,15 +496,23 @@ bool solve_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
     auto* B = dynamic_cast<const DenseMatrix<T>*>(&b);
     auto* X = dynamic_cast<DenseMatrix<T>*>(&x);
     if (!A || !B || !X) return false;
-    debug_trace::set_last("cpu.solve.gesv");
+    debug_trace::set_last("cpu.solve.getrf_trsm");
     const uint64_t n = a.rows(), nrhs = b.cols();
-    std::vector<T> wa(A->data(), A->data() + n * n);  // gesv overwrites A with its LU factors
-    std::vector<lapack_int> ipiv(n);
+    std::vector<T> wa(A->data(), A->data() + n * n);  // getrf overwrites A with its LU factors
+    std::vector<lapack_int> ipiv(std::max<uint64_t>(n, 1));
     T* xp = X->data();
     std::copy(B->data(), B->data() + n * nrhs, xp);
-    const lapack_int info = gesv<T>((lapack_int)n, (lapack_int)nrhs, wa.data(), ipiv.data(), xp);
+    if (n == 0) return true;
+    const lapack_int info = getrf_transposed<T>((lapack_int)n, wa.data(), ipiv.data());
     if (info > 0) throw std::runtime_error("solve failed: matrix singular (zero pivot at " + std::to_string(info) + ")");
-    if (info < 0) throw std::runtime_error("solve: illegal argument to gesv");
+    if (info < 0) throw std::runtime_error("solve: illegal argument to getrf");
+    if (nrhs == 0) return true;
+    trsm_right<T>(CblasUpper, CblasNonUnit, (int)nrhs, (int)n, wa.data(), xp);
+    trsm_right<T>(CblasLower, CblasUnit, (int)nrhs, (int)n, wa.data(), xp);
+    for (uint64_t j = n; j-- > 0;) {  // X^T = (X^T P) P^T: row swaps of X, last interchange first
+        const uint64_t p = static_cast<uint64_t>(ipiv[j] - 1);
+        if (p != j) std::swap_ranges(xp + j * nrhs, xp + (j + 1) * nrhs, xp + p * nrhs);
+    }
     return true;
 }
 }  // namespace
