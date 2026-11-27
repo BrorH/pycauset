@@ -226,8 +226,10 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
       virtual fallback in `binary_op_impl`. Timing pass: typed per-element `get` paths run at
       0.3-0.6x NumPy; contiguous rows are what NumPy-speed needs. Also fold ViewRead.cpp's
       dynamic_cast chain into `visit_matrix` (one dispatch mechanism).
-- [ ] C.3b Timing harness: integer operands overflow at timing size (values 1-4, n = 384) and
-      the int8 linalg recipe adds n to the diagonal; use small values at timing size.
+- [x] C.3b Timing harness: integer operands overflow at timing size (values 1-4, n = 384) and
+      the int8 linalg recipe adds n to the diagonal; use small values at timing size. (Session
+      9: integer linalg operands are sparse 0/1 + 3I; `outer` times n-element vectors, an
+      n^2-element pair asked NumPy for terabytes. The 390 error cells were these.)
 - [ ] N.5 Structure × dtype completeness (maintainer, session 8: "the heart of PyCauset:
       specialised matrix types for every occasion"; complex symmetric and Hermitian are
       different and both supported as separate flags). Steps, each gated by the atlas
