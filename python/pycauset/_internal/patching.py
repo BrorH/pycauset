@@ -56,12 +56,15 @@ def patch_matrix_class(
     cls.__init__ = _patched_init
 
     def _maybe_register_result(result: Any) -> None:
-        if result is None:
-            return
-        if not hasattr(result, "get_backing_file"):
+        # On every wrapped operator call (per-call overhead, F-096): one attribute lookup, and
+        # the temporary-file check only for file-backed results (RAM results have none).
+        backing = getattr(result, "get_backing_file", None)
+        if backing is None:
             return
         track_matrix(result)
-        mark_temporary_if_auto(result)
+        b = backing()
+        if b and b != ":memory:":
+            mark_temporary_if_auto(result)
 
     patch_matrix_methods(cls, maybe_register_result=_maybe_register_result)
 

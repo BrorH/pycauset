@@ -308,10 +308,11 @@ def clear_io_traces() -> None:
 
 # Perform initial cleanup of temporary files from previous runs
 _runtime.initial_cleanup()
+_live_add = _runtime.track_matrix
 
 
 def _track_matrix(instance: Any) -> None:
-    _runtime.track_matrix(instance)
+    _live_add(instance)
     if debug_mode:
         _debug(f"allocated {_matrix_desc(instance)}")
 
