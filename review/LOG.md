@@ -590,3 +590,11 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   the typed path no longer uses std::complex's operator*, which calls the C99 recovery
   routine per element). Unit-vector dot keeps the O(n) read: a shortcut would differ from
   NumPy when the other vector holds inf / NaN (0 * inf). Gates green.
+- The in-tree build (build/cpp) was configured RelWithDebInfo (-O2): GCC 13 at -O2 does not
+  vectorize loops that need a runtime alias check, so element-wise kernels measured several
+  times slower than in the Release (-O3) wheels users get. Reconfigured Release; CLAUDE.md
+  and the Build System page say to time Release builds only.
+- Scalar ops (add / sub / mul / div by a scalar): the contiguous fast path loops over flat
+  spans (no per-element row / column bookkeeping), hoists the view-factor test and uses
+  restrict locals: int8 / uint8 are char types that may alias anything, which kept the loop
+  scalar. int8 + 7: 408 -> 68 us; int16 / int32 / int64 / float32 + s now 1.6-2.3x NumPy.

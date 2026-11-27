@@ -61,6 +61,11 @@ PYTHONPATH=python python -m pytest -q -p no:cacheprovider
 Do not edit sources while a build runs: a compile that started before the edit finishes
 after it, its object is newer than the source, and make keeps the stale object.
 
+Configure the in-tree build as **Release** (`cmake -S . -B build/cpp -DCMAKE_BUILD_TYPE=Release`)
+before timing anything: wheels are built Release (`-O3`, scikit-build-core's default), and
+at RelWithDebInfo (`-O2`) GCC leaves loops that need a runtime alias check scalar, so
+element-wise kernels measure several times slower than what users get.
+
 ## Wrapper scripts policy
 
 We may keep convenience scripts like `tools/build.ps1`, but **they must remain wrappers** around the canonical pip-based commands.

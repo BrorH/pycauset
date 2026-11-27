@@ -24,6 +24,7 @@ backend. Pre-alpha: no backwards compatibility; removed things are removed with 
 
 ## Build and test
 ```
+cmake -S . -B build/cpp -DCMAKE_BUILD_TYPE=Release   # once; wheels are Release (-O3)
 cmake --build build/cpp --target _pycauset -j1        # -j2 runs out of memory
 # Do not edit sources while a build runs: a compile that started before the edit finishes
 # after it, its object is newer than the source, and make keeps the stale object.

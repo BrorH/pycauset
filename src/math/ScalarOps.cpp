@@ -297,6 +297,18 @@ void for_each_block(uint64_t rows, uint64_t cols, F&& f) {
     });
 }
 
+// The same blocks without the (i, j) bookkeeping: f(begin, end) runs a plain loop the
+// compiler can vectorize (the per-element row / column branch above prevented that).
+template <typename F>
+void for_each_span(uint64_t total, F&& f) {
+    if (total == 0) return;
+    constexpr uint64_t kBlock = 1u << 14;
+    ParallelFor(0, (total + kBlock - 1) / kBlock, [&](size_t b) {
+        const uint64_t begin = static_cast<uint64_t>(b) * kBlock;
+        f(begin, std::min(total, begin + kBlock));
+    });
+}
+
 // Integer factor of an integer view (1 for plain matrices and for non-integer dtypes).
 inline int64_t int_view_factor(const MatrixBase& a) {
     if (is_int(a.get_data_type()) && scalar::is_exact_int_factor(a.get_scalar())) {
@@ -387,17 +399,36 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
     if constexpr (std::is_same_v<Src, DenseMatrix<In>> && fast_pair && !std::is_same_v<In, bool>) {
         if (!a.is_transposed() && !a.is_subview() && cols == a.base_cols()) {
             const In* p = src.data();
+            bool scaled = false;
+            if constexpr (std::is_integral_v<In>) scaled = read.k != 1;
+            else if constexpr (std::is_floating_point_v<In>) scaled = read.f != 1.0;
             auto loop = [&](auto op_c) {
                 constexpr ScalarOpKind O = decltype(op_c)::value;
-                for_each_block(rows, cols, [&](uint64_t idx, uint64_t, uint64_t) {
-                    In x = p[idx];
-                    if constexpr (std::is_integral_v<In>) {
-                        if (read.k != 1) x = scalar::wrap_scale(x, read.k);
-                    } else if constexpr (std::is_floating_point_v<In>) {
-                        if (read.f != 1.0) x = static_cast<In>(static_cast<double>(x) * read.f);
-                    }
-                    dst[idx] = apply<R>(O, convert_in<R>(x), sv);
-                });
+                auto run = [&](auto scaled_c) {
+                    for_each_span(rows * cols, [&](uint64_t begin, uint64_t end) {
+                        // Locals and restrict: int8 / uint8 are char types, which may alias
+                        // anything, so through the captures every store could change the
+                        // operands and the loop stayed scalar (int8 + 7 at 0.1x NumPy).
+                        const In* __restrict src = p + begin;
+                        R* __restrict out = dst + begin;
+                        const R s_local = sv;
+                        const int64_t k_local = read.k;
+                        const double f_local = read.f;
+                        const uint64_t len = end - begin;
+                        for (uint64_t q = 0; q < len; ++q) {
+                            In x = src[q];
+                            if constexpr (decltype(scaled_c)::value) {
+                                if constexpr (std::is_integral_v<In>) x = scalar::wrap_scale(x, k_local);
+                                else if constexpr (std::is_floating_point_v<In>) x = static_cast<In>(static_cast<double>(x) * f_local);
+                            }
+                            out[q] = apply<R>(O, convert_in<R>(x), s_local);
+                        }
+                        (void)k_local;
+                        (void)f_local;
+                    });
+                };
+                if (scaled) run(std::true_type{});
+                else run(std::false_type{});
             };
             switch (op) {
                 case ScalarOpKind::Add: loop(std::integral_constant<ScalarOpKind, ScalarOpKind::Add>{}); break;
