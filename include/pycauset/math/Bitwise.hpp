@@ -17,4 +17,8 @@ std::unique_ptr<MatrixBase> bitwise(const MatrixBase& a, const MatrixBase& b, Bi
 // ~a: logical not for bool, two's-complement not for integers (NumPy). Dense result.
 std::unique_ptr<MatrixBase> bitwise_not(const MatrixBase& a);
 
+// a + b (sign +1) / a - b (sign -1) of two bool matrices of equal shape as int32 counts, from the
+// packed words. Dense result.
+std::unique_ptr<MatrixBase> bit_counts(const MatrixBase& a, const MatrixBase& b, int sign);
+
 }  // namespace pycauset

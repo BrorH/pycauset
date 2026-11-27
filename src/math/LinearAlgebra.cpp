@@ -1,4 +1,5 @@
 #include "pycauset/math/ScalarOps.hpp"
+#include "pycauset/math/Bitwise.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include <utility>
 #include "pycauset/matrix/TriangularMatrix.hpp"
@@ -121,6 +122,11 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::Add, type_a, type_b).result_dtype;
     Structure res_mtype = structure::resolve_result_structure(promotion::BinaryOp::Add, a, b, res_dtype);
+    // Structure rule: bool + bool of one shape counts from the packed words.
+    if (type_a == DataType::BIT && type_b == DataType::BIT && res_dtype == DataType::INT32 &&
+        res_mtype == Structure::DENSE && result_file.empty() && a.rows() == b.rows() && a.cols() == b.cols()) {
+        return bit_counts(a, b, 1);
+    }
 
     auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     
@@ -154,6 +160,11 @@ std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, c
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::Subtract, type_a, type_b).result_dtype;
     Structure res_mtype = structure::resolve_result_structure(promotion::BinaryOp::Subtract, a, b, res_dtype);
+    // Structure rule: bool - bool of one shape counts from the packed words.
+    if (type_a == DataType::BIT && type_b == DataType::BIT && res_dtype == DataType::INT32 &&
+        res_mtype == Structure::DENSE && result_file.empty() && a.rows() == b.rows() && a.cols() == b.cols()) {
+        return bit_counts(a, b, -1);
+    }
 
     auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     
@@ -186,6 +197,11 @@ std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const Matr
 
     DataType res_dtype = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, type_a, type_b).result_dtype;
     Structure res_mtype = structure::resolve_result_structure(promotion::BinaryOp::ElementwiseMultiply, a, b, res_dtype);
+    // Structure rule: bool * bool of one shape is a word-level AND.
+    if (type_a == DataType::BIT && type_b == DataType::BIT && res_dtype == DataType::BIT &&
+        res_mtype == Structure::DENSE && result_file.empty() && a.rows() == b.rows() && a.cols() == b.cols()) {
+        return bitwise(a, b, BitwiseOp::And);
+    }
 
     auto result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
     

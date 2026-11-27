@@ -9,6 +9,7 @@
 // and ~ went through per-class methods.
 #include "pycauset/math/Bitwise.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -134,6 +135,34 @@ std::unique_ptr<MatrixBase> bitwise_not(const MatrixBase& a) {
             throw std::logic_error("bitwise_not: not an integer dtype");
         }
     });
+}
+
+// a + b (sign +1) or a - b (sign -1) for two bool matrices of equal shape: int32 counts (bit
+// arithmetic counts, F-013), straight from the packed words (both operands as plain bits).
+std::unique_ptr<MatrixBase> bit_counts(const MatrixBase& a, const MatrixBase& b, int sign) {
+    if (a.rows() != b.rows() || a.cols() != b.cols()) throw std::invalid_argument("bit_counts: equal shapes");
+    std::unique_ptr<MatrixBase> ha = plain_bits(a) ? nullptr : write_out(a);
+    std::unique_ptr<MatrixBase> hb = plain_bits(b) ? nullptr : write_out(b);
+    const auto& x = static_cast<const DenseMatrix<bool>&>(ha ? *ha : a);
+    const auto& y = static_cast<const DenseMatrix<bool>&>(hb ? *hb : b);
+    const uint64_t rows = a.rows(), cols = a.cols(), stride = x.stride_bytes() / 8;
+    auto out = std::make_unique<DenseMatrix<int32_t>>(rows, cols, std::string());
+    int32_t* z = out->data();
+    const uint64_t* px = x.data();
+    const uint64_t* py = y.data();
+    debug_trace::set_last("cpu.bitwise.counts");
+    ParallelFor(0, rows, [&](size_t i) {
+        const uint64_t* wx = px + i * stride;
+        const uint64_t* wy = py + i * stride;
+        int32_t* row = z + i * cols;
+        for (uint64_t j0 = 0; j0 < cols; j0 += 64) {
+            const uint64_t u = wx[j0 / 64], v = wy[j0 / 64];
+            const uint64_t len = std::min<uint64_t>(64, cols - j0);
+            for (uint64_t k = 0; k < len; ++k)
+                row[j0 + k] = static_cast<int32_t>((u >> k) & 1u) + sign * static_cast<int32_t>((v >> k) & 1u);
+        }
+    });
+    return out;
 }
 
 }  // namespace pycauset
