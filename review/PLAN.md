@@ -269,6 +269,22 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
 - [ ] 4.3 Single source of truth for operators and properties (RESTRUCTURE §3.1 items 1–2); delete the monkeypatch stack
   - session 7: matrix `+ - * /` (and reflected) are one binding path (`matrix_arith`); vectors
     reuse the matrix machinery (F-058). Open: properties, `__iadd__`, the Python patch stack.
+  - session 9, design for the patch stack (`_internal/patching.py` + `track_matrix` /
+    `mark_temporary_if_auto` threaded through ops.py, matrix_api.py, `__init__.py`):
+    * It wraps 9 fixed methods per class to "register" results; `@`, `/`, `+=`, reflected ops
+      and every `pc.*` function not in ops.py are not wrapped, so tracking is partial anyway.
+    * Temporary marking is redundant: the engine marks every file it creates (`*.tmp`, from
+      `make_unique_storage_file`) temporary itself (`PersistentObject` ctor). The Python rule
+      ("under the storage root -> temporary") would also delete a user's own non-.tmp file
+      saved there.
+    * Tracking feeds two things: the `set_backing_dir` "live matrices" warning and closing
+      live matrices before the exit-time `.tmp` sweep (needed on Windows, where a mapped file
+      can't be deleted).
+    * Plan: a native live-object count (a member counter in PersistentObject: ctor/copy++,
+      dtor--) for the warning; at exit the sweep deletes what it can and the engine's
+      destructors delete the rest; then delete patching.py, `track_matrix`,
+      `mark_temporary_if_auto` and the `__init__` float->int argument coercion (NumPy raises
+      for float sizes). Needs a Windows run before merging (exit-time cleanup).
 - [ ] 4.4 Python `_internal/` subpackages; `.pyi` generation (F-007)
 - [ ] 4.5 Retire the old test suite per TESTS.md §4 migration rules
 - [x] 4.6a **Structure classes** (§3.1 item 4, revised): `MatrixType`→`Structure` enum; one
