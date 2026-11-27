@@ -78,10 +78,6 @@ void CpuDevice::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
     solver_.matrix_vector_multiply(m, v, result);
 }
 
-void CpuDevice::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) {
-    solver_.vector_matrix_multiply(v, m, result);
-}
-
 void CpuDevice::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     auto& governor = core::MemoryGovernor::instance();
     size_t required = (a.size() + b.size() + result.size()) * 8; 

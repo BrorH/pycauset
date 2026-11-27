@@ -107,7 +107,7 @@ W sum_values(const MatrixBase& m) {
             return acc;
         }
     } else {
-        const uint64_t block = std::max<uint64_t>(1, (uint64_t{1} << 16) / std::max<uint64_t>(cols, 1));
+        const uint64_t block = std::max<uint64_t>(1, (uint64_t{1} << 18) / std::max<uint64_t>(cols, 1));
         std::vector<W> buf(std::min(block, rows) * cols);
         W total{};
         bool ok = true;

@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import os
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -50,6 +50,8 @@ def _get_backing_path(obj: Any) -> Path | None:
             candidate = getattr(obj, attr, None)
             if callable(candidate):
                 candidate = candidate()
+            if candidate == ":memory:":  # anonymous RAM: no file to look at
+                return None
             if candidate:
                 return Path(candidate)
         except Exception:
@@ -211,7 +213,10 @@ class IOObservability:
             return 64, 64
 
     def _record(self, record: IORecord) -> dict[str, Any]:
-        payload = asdict(record)
+        # Shallow conversion: dataclasses.asdict deep-copies recursively and cost ~40 us per
+        # operation (review N.6); the record holds only flat values and one list of snapshots.
+        payload = dict(vars(record))
+        payload["operands"] = [dict(vars(snap)) for snap in record.operands]
         self._last["__latest__"] = payload
         self._last[record.op] = payload
         return payload

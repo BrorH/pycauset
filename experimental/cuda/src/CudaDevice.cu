@@ -1634,10 +1634,6 @@ void CudaDevice::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v
     throw std::runtime_error("CudaDevice::matrix_vector_multiply not implemented");
 }
 
-void CudaDevice::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) {
-    throw std::runtime_error("CudaDevice::vector_matrix_multiply not implemented");
-}
-
 void CudaDevice::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     throw std::runtime_error("CudaDevice::elementwise_multiply not implemented");
 }

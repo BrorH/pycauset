@@ -39,7 +39,6 @@ public:
 
     // Matrix-Vector Operations
     virtual void matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) = 0;
-    virtual void vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) = 0;
 
     // Element-wise Operations
     virtual void add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) = 0;

@@ -1431,7 +1431,7 @@ inline bool is_float_dtype(const DataType dt) {
 // complex_float16: complex64 (NumPy has no complex32). Replaces three exporters (dense-only
 // typed, generic per-element, and __array__ with a float64 default for unknown classes).
 // ---------------------------------------------------------------------------
-inline py::object export_numpy(const MatrixBase& mat) {
+py::object export_numpy(const MatrixBase& mat) {
     const uint64_t rows = mat.rows(), cols = mat.cols();
     const DataType dt = mat.get_data_type();
     const bool plain = mat.get_structure() == pycauset::Structure::DENSE && pycauset::is_plain(mat) &&
@@ -1522,6 +1522,10 @@ inline py::object matrix_arith(const MatrixBase& a, const py::object& other, Ari
 }
 
 } // namespace
+
+namespace pycauset_bindings {
+py::object export_matrix_numpy(const pycauset::MatrixBase& m) { return export_numpy(m); }
+}  // namespace pycauset_bindings
 
 void bind_matrix_classes(py::module_& m) {
     auto matrix_base_class = py::class_<MatrixBase, std::shared_ptr<MatrixBase>>(m, "MatrixBase", py::dynamic_attr());

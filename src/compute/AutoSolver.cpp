@@ -568,11 +568,6 @@ void AutoSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v
     cpu_device_->matrix_vector_multiply(m, v, result);
 }
 
-void AutoSolver::vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) {
-    // CUDA vector_matrix_multiply is not implemented; keep this CPU-only.
-    cpu_device_->vector_matrix_multiply(v, m, result);
-}
-
 void AutoSolver::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     uint64_t m = a.rows();
     uint64_t n = a.cols();

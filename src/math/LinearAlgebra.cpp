@@ -348,105 +348,35 @@ std::unique_ptr<MatrixBase> outer_product(const VectorBase& a, const VectorBase&
     return out;
 }
 
-std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, const std::string& result_file) {
-    if (m.cols() != v.size()) {
-        throw std::invalid_argument("Matrix columns must match vector size");
+// Matrix-vector products, NumPy's matmul with a 1-D operand: one path with matmul. The vector
+// is an n x 1 column (M @ v) or a 1 x n row (v @ M) over its own storage (as_row_matrix, its
+// view kept), so every structure, dtype, view and matmul rule (identity, bit-packed,
+// triangular, diagonal, dense; integer overflow raises, F-055) applies. Structure rule: a lazy
+// closure C +- C^T over causal bits keeps its two-pass bit kernel (no materialisation) when
+// the result is float64. Replaces ~900 lines of hand-written per-dtype matvec / vecmat kernels
+// whose structured and complex paths read every element through the virtual accessor.
+std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, const std::string&) {
+    if (m.cols() != v.size()) throw std::invalid_argument("Matrix columns must match vector size");
+    if (auto* cl = dynamic_cast<const BitClosureMatrix*>(&m); cl && !cl->is_materialized()) {
+        const DataType vt = v.get_data_type();
+        const std::complex<double> k = m.get_scalar();
+        const bool real_v = vt != DataType::COMPLEX_FLOAT16 && vt != DataType::COMPLEX_FLOAT32 && vt != DataType::COMPLEX_FLOAT64;
+        if (real_v && k.imag() == 0.0 && std::abs(k.real()) < 1073741824.0 &&
+            promotion::resolve(promotion::BinaryOp::MatrixVectorMultiply, m.get_data_type(), vt).result_dtype == DataType::FLOAT64) {
+            auto out = std::make_unique<DenseVector<double>>(m.rows(), std::string());
+            ComputeContext::instance().get_device()->matrix_vector_multiply(m, v, *out);
+            return out;
+        }
     }
-    
-    uint64_t n = m.rows();
-    DataType res_dtype = promotion::resolve(
-        promotion::BinaryOp::MatrixVectorMultiply,
-        m.get_data_type(),
-        v.get_data_type()).result_dtype;
-    
-    std::unique_ptr<VectorBase> result;
-    if (res_dtype == DataType::BIT) {
-        result = std::make_unique<DenseVector<bool>>(n, result_file);
-    } else if (res_dtype == DataType::INT8) {
-        result = std::make_unique<DenseVector<int8_t>>(n, result_file);
-    } else if (res_dtype == DataType::INT16) {
-        result = std::make_unique<DenseVector<int16_t>>(n, result_file);
-    } else if (res_dtype == DataType::INT32) {
-        result = std::make_unique<DenseVector<int32_t>>(n, result_file);
-    } else if (res_dtype == DataType::INT64) {
-        result = std::make_unique<DenseVector<int64_t>>(n, result_file);
-    } else if (res_dtype == DataType::UINT8) {
-        result = std::make_unique<DenseVector<uint8_t>>(n, result_file);
-    } else if (res_dtype == DataType::UINT16) {
-        result = std::make_unique<DenseVector<uint16_t>>(n, result_file);
-    } else if (res_dtype == DataType::UINT32) {
-        result = std::make_unique<DenseVector<uint32_t>>(n, result_file);
-    } else if (res_dtype == DataType::UINT64) {
-        result = std::make_unique<DenseVector<uint64_t>>(n, result_file);
-    } else if (res_dtype == DataType::FLOAT16) {
-        result = std::make_unique<DenseVector<pycauset::float16_t>>(n, result_file);
-    } else if (res_dtype == DataType::FLOAT32) {
-        result = std::make_unique<DenseVector<float>>(n, result_file);
-    } else if (res_dtype == DataType::COMPLEX_FLOAT16) {
-        result = std::make_unique<ComplexFloat16Vector>(n, result_file);
-    } else if (res_dtype == DataType::COMPLEX_FLOAT32) {
-        result = std::make_unique<DenseVector<std::complex<float>>>(n, result_file);
-    } else if (res_dtype == DataType::COMPLEX_FLOAT64) {
-        result = std::make_unique<DenseVector<std::complex<double>>>(n, result_file);
-    } else {
-        result = std::make_unique<DenseVector<double>>(n, result_file);
-    }
-    
-    ComputeContext::instance().get_device()->matrix_vector_multiply(m, v, *result);
-    
-    return result;
+    auto col = as_row_matrix(v);
+    col->set_transposed(true);  // n x 1
+    return as_vector(dispatch_matmul(m, *col), /*transposed=*/false);
 }
 
-std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, const std::string& result_file) {
-    if (v.size() != m.rows()) {
-        throw std::invalid_argument("Vector size must match matrix rows");
-    }
-    
-    uint64_t n = m.cols();
-    DataType res_dtype = promotion::resolve(
-        promotion::BinaryOp::VectorMatrixMultiply,
-        m.get_data_type(),
-        v.get_data_type()).result_dtype;
-    
-    std::unique_ptr<VectorBase> result;
-    if (res_dtype == DataType::BIT) {
-        result = std::make_unique<DenseVector<bool>>(n, result_file);
-    } else if (res_dtype == DataType::INT8) {
-        result = std::make_unique<DenseVector<int8_t>>(n, result_file);
-    } else if (res_dtype == DataType::INT16) {
-        result = std::make_unique<DenseVector<int16_t>>(n, result_file);
-    } else if (res_dtype == DataType::INT32) {
-        result = std::make_unique<DenseVector<int32_t>>(n, result_file);
-    } else if (res_dtype == DataType::INT64) {
-        result = std::make_unique<DenseVector<int64_t>>(n, result_file);
-    } else if (res_dtype == DataType::UINT8) {
-        result = std::make_unique<DenseVector<uint8_t>>(n, result_file);
-    } else if (res_dtype == DataType::UINT16) {
-        result = std::make_unique<DenseVector<uint16_t>>(n, result_file);
-    } else if (res_dtype == DataType::UINT32) {
-        result = std::make_unique<DenseVector<uint32_t>>(n, result_file);
-    } else if (res_dtype == DataType::UINT64) {
-        result = std::make_unique<DenseVector<uint64_t>>(n, result_file);
-    } else if (res_dtype == DataType::FLOAT16) {
-        result = std::make_unique<DenseVector<pycauset::float16_t>>(n, result_file);
-    } else if (res_dtype == DataType::FLOAT32) {
-        result = std::make_unique<DenseVector<float>>(n, result_file);
-    } else if (res_dtype == DataType::COMPLEX_FLOAT16) {
-        result = std::make_unique<ComplexFloat16Vector>(n, result_file);
-    } else if (res_dtype == DataType::COMPLEX_FLOAT32) {
-        result = std::make_unique<DenseVector<std::complex<float>>>(n, result_file);
-    } else if (res_dtype == DataType::COMPLEX_FLOAT64) {
-        result = std::make_unique<DenseVector<std::complex<double>>>(n, result_file);
-    } else {
-        result = std::make_unique<DenseVector<double>>(n, result_file);
-    }
-    
-    // Result of v * M is a row vector
-    result->set_transposed(true);
-
-    ComputeContext::instance().get_device()->vector_matrix_multiply(v, m, *result);
-    
-    return result;
+std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, const std::string&) {
+    if (v.size() != m.rows()) throw std::invalid_argument("Vector size must match matrix rows");
+    auto row = as_row_matrix(v);  // 1 x n
+    return as_vector(dispatch_matmul(*row, m), /*transposed=*/true);
 }
 
 

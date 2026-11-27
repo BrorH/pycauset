@@ -1191,3 +1191,36 @@ the entry (the history is useful). New findings go at the bottom with the next f
   block of rows at a time in the result type (int64 is lossless for every integer type) for
   dense and structured results; `exact_int_reader` deleted. The virtual accessor remains
   only for what the reader cannot read (lazy closures, windows of structured classes).
+
+### F-095 matvec / vecmat were ~900 lines of their own kernels beside matmul
+- **Status:** fixed (session 8, N.7). `M @ v` and `v @ M` had hand-written per-dtype kernels
+  (BLAS gemv for real dense, bit x int32/int16/float64/bit popcount kernels, triangular-bit
+  kernels, an exact-integer path, identity shortcuts, and complex and structured paths that
+  read every element through the virtual accessor: the atlas's 1,743 generic matvec/vecmat
+  cells), a hand-written result-dtype switch, and a device interface entry each.
+- Fix: one path with matmul. The vector is an n x 1 column (M @ v) or a 1 x n row (v @ M)
+  over its own storage (`as_row_matrix`, view kept), and `dispatch_matmul` applies every
+  structure rule and kernel (identity, bit-packed, triangular, diagonal, dense; integer
+  overflow raises as for matmul, F-055). Structure rule kept: a lazy closure C +- C^T over
+  causal bits keeps its two-pass bit kernel (no materialisation) for float64 results. The
+  Arnoldi operator (eigvals_arnoldi) calls the entry. Deleted: `CpuSolver::
+  vector_matrix_multiply`, everything but the closure kernel in `CpuSolver::
+  matrix_vector_multiply`, `vector_matrix_multiply` in the device interface (CPU, AutoSolver,
+  CUDA stub).
+
+### F-096 Per-call overhead (N.6, first pass): debug strings, trace deep-copies, pool wake-ups
+- **Status:** partly fixed (session 8). Measured on 4 x 4 operands: `a + b` 29 µs, `a @ b`
+  49 µs, `pc.matmul` 136 µs, `pc.sum` 51 µs (NumPy `a + b`: 0.27 µs). Causes found:
+  - every result allocation formatted a debug line (`_matrix_desc`, ~28 µs) whether or not
+    `debug_mode` was on; `_debug_time` built a class per call; the `@` debug wrapper always
+    ran its formatting. Now built only when `debug_mode` is on.
+  - the IO observer recorded every `pc.*` call with `dataclasses.asdict` (a recursive deep
+    copy, ~40 µs) and a `Path`/`stat` per anonymous-RAM operand. Now a shallow dict and no
+    path work for RAM operands.
+  - `ParallelFor` handed any loop of at least `num_threads` items to the pool (a future and a
+    mutex per worker, ~10-20 µs): a 4-row matrix ran its 4 rows on 4 threads. Now loops below
+    32 items run inline; the typed readers block rows coarser (2^18 elements per block) so
+    large matrices still run in parallel.
+- Remaining: the native call itself for tiny operands (result allocation through the
+  MemoryGovernor and an anonymous mapping), the Python operator wrappers (`patching.py`,
+  `__init__` tracking of every result in a WeakSet) and the IO trace itself (PLAN 4.7).

@@ -79,6 +79,9 @@ inline const void* structure_class_of(const pycauset::VectorBase* src, const std
     return as_structure<pycauset::DenseVectorBase>(src, type);
 }
 
+// NumPy export of any matrix (every class, dtype, view): bind_matrix.cpp.
+py::object export_matrix_numpy(const pycauset::MatrixBase& m);
+
 }  // namespace pycauset_bindings
 
 namespace pybind11 {

@@ -49,7 +49,6 @@ public:
     void batch_gemv(const MatrixBase& A, const double* x_data, double* y_data, size_t b) override;
 
     void matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) override;
-    void vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) override;
 
     void add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
     void subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;

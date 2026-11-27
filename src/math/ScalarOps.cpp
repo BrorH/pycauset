@@ -610,7 +610,7 @@ std::unique_ptr<MatrixBase> write_out(const MatrixBase& a) {
         auto out = std::make_unique<DenseMatrix<bool>>(rows, cols, std::string());
         uint64_t* words = out->data();
         const uint64_t stride = out->stride_bytes() / 8;
-        const uint64_t block = std::max<uint64_t>(1, (uint64_t{1} << 16) / std::max<uint64_t>(cols, 1));
+        const uint64_t block = std::max<uint64_t>(1, (uint64_t{1} << 18) / std::max<uint64_t>(cols, 1));
         std::vector<int64_t> buf(std::min(block, rows) * cols);
         bool typed = true;
         for (uint64_t i0 = 0; i0 < rows && typed; i0 += block) {

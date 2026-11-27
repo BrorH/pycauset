@@ -96,8 +96,12 @@ void ParallelFor(size_t start, size_t end, Func func) {
     if (num_threads == 0) num_threads = 1;
 
     // Run sequentially if the range is small, one thread was requested, or we are
-    // already inside a pool worker (nested parallelism would deadlock the pool).
-    if (range < num_threads || num_threads == 1 || ThreadPool::on_worker_thread()) {
+    // already inside a pool worker (nested parallelism would deadlock the pool). "Small":
+    // fewer than 32 items; handing a 4-row loop to the pool cost more (futures, a mutex, a
+    // wake-up per worker: ~10-20 us) than the work (review N.6). Callers that loop over
+    // heavy items in small numbers block them coarser (rows, not elements).
+    constexpr size_t kMinParallelRange = 32;
+    if (range < std::max(num_threads, kMinParallelRange) || num_threads == 1 || ThreadPool::on_worker_thread()) {
         for (size_t i = start; i < end; ++i) {
             func(i);
         }

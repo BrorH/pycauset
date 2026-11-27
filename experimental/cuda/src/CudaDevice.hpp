@@ -33,7 +33,6 @@ public:
 
     // Matrix-Vector Operations
     void matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) override;
-    void vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, VectorBase& result) override;
 
     // Element-wise Operations
     void add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) override;
