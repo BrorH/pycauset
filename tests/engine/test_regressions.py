@@ -386,8 +386,13 @@ def test_F093_loaded_file_is_a_snapshot(tmp_path):
     w[0, 0] = 99.0
     assert w[0, 0] == 99.0  # the object sees its write
     assert pc.to_numpy(pc.load(p), allow_huge=True)[0, 0] == 0.0  # the file does not
+    import os
+    from pathlib import Path
+
     code = f"import pycauset as pc; print(pc.to_numpy(pc.load({str(p)!r}), allow_huge=True)[0, 0])"
-    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    env = dict(os.environ, PYTHONPATH=str(Path(pc.__file__).resolve().parents[1]))
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
+    assert out.returncode == 0, out.stderr[-2000:]
     assert out.stdout.strip().splitlines()[-1] == "0.0"  # nor from another process
     pc.save(w, p)  # saving over the file it was loaded from (atomic replace)
     assert pc.to_numpy(pc.load(p), allow_huge=True)[0, 0] == 99.0

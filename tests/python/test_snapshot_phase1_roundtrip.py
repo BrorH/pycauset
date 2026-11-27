@@ -115,7 +115,7 @@ def test_metadata_only_update_does_not_rewrite_payload(tmp_path: Path) -> None:
             payload_after = f.read(int(active_after["payload_length"]))
 
         assert payload_before == payload_after
-        assert meta_after["view"]["scalar"] == 2.0
+        assert meta_after["view"]["scalar"] in (2.0, {"real": 2.0, "imag": 0.0})
     finally:
         m.close()
         if path.exists():

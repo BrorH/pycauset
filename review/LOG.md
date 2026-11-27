@@ -390,3 +390,12 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   NumPy path (float results). New atlas ops eig, eigh (residual checks; eigh against the
   Hermitian matrix of the lower triangle, as LAPACK reads it). Atlas 79,781 cells: 0 ✗,
   NumPy round trips 4,209 -> 0, ok 39,123 -> 41,570 (lu's 908 raises gone).
+- Properties removed (maintainer: flags, then user notes too; F-092) with their C++ bitmask,
+  GPU-routing hook, wrappers and saved-file namespace; F-082 helpers return structured classes
+  (`pack_as`); `pc.hermitian`. F-093: loaded files were written in place; now copy-on-write
+  mappings and atomic saves. F-094: typed row/diagonal readers for every class; det/slogdet
+  (structure rules + one ?getrf template in NumPy's precision), sum, trace, bool write-out,
+  one NumPy exporter, element-wise rows. Atlas harness: single-precision linear algebra is
+  checked against NumPy in single precision with single-precision tolerances (the tolerance
+  came from det's float64 result dtype). Atlas: 0 ✗, generic 10,152 -> 3,730, fast 31,379 ->
+  37,599. N.6 first cut: debug strings were built on every allocation (~28 µs per op).

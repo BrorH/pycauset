@@ -6,6 +6,7 @@ try:
 except ImportError:
     __version__ = "unknown"
 
+import contextlib as _contextlib
 import os
 import warnings
 
@@ -103,7 +104,11 @@ def _debug(message: str) -> None:
 
 
 def _debug_time(label: str):
-    """Context manager that logs the wall-clock time of the wrapped block."""
+    """Context manager that logs the wall-clock time of the wrapped block (a no-op unless
+    ``debug_mode``: the per-call cost of the wrappers is part of every operation, N.6)."""
+    if not debug_mode:
+        return _contextlib.nullcontext()
+
     class _Timer:
         def __enter__(self):
             self._t0 = _time.perf_counter()
@@ -364,7 +369,8 @@ _runtime.initial_cleanup()
 
 def _track_matrix(instance: Any) -> None:
     _runtime.track_matrix(instance)
-    _debug(f"allocated {_matrix_desc(instance)}")
+    if debug_mode:
+        _debug(f"allocated {_matrix_desc(instance)}")
 
 
 def _register_cleanup() -> None:
@@ -500,7 +506,8 @@ _PERSISTENCE_DEPS = _SimpleNamespace(CausalSet=CausalSet, native=_native)
 
 
 def save(obj: Any, path: str | Path) -> None:
-    _debug(f"save {_matrix_desc(obj)} -> {path}")
+    if debug_mode:
+        _debug(f"save {_matrix_desc(obj)} -> {path}")
     with _debug_time(f"save -> {path}"):
         return _persistence.save(obj, path, deps=_PERSISTENCE_DEPS)
 
@@ -668,6 +675,8 @@ def _wrap_matmul_for_debug(cls: Any) -> None:
         return
 
     def _timed(self: Any, other: Any) -> Any:
+        if not debug_mode:
+            return original(self, other)
         _debug(f"matmul {_matrix_desc(self)} @ {_matrix_desc(other)}")
         with _debug_time("matmul @"):
             return original(self, other)
@@ -1016,7 +1025,8 @@ def matmul(a: Any, b: Any) -> Any:
     If both inputs are TriangularBitMatrices, uses the optimized C++ implementation.
     Otherwise, performs generic multiplication (slow).
     """
-    _debug(f"matmul {_matrix_desc(a)} @ {_matrix_desc(b)}")
+    if debug_mode:
+        _debug(f"matmul {_matrix_desc(a)} @ {_matrix_desc(b)}")
     with _debug_time("matmul"):
         return _ops.matmul(a, b, deps=_OPS_DEPS)
 
@@ -1173,7 +1183,8 @@ def invert(matrix: Any) -> Any:
     Raises:
         RuntimeError: If the matrix is singular (e.g. strictly upper triangular).
     """
-    _debug(f"invert {_matrix_desc(matrix)}")
+    if debug_mode:
+        _debug(f"invert {_matrix_desc(matrix)}")
     with _debug_time("invert"):
         return _ops.invert(matrix, deps=_OPS_DEPS)
 
@@ -1285,7 +1296,8 @@ def lu(a: Any) -> Any:
 
 def solve(a: Any, b: Any) -> Any:
     """Solve linear system AX = B."""
-    _debug(f"solve {_matrix_desc(a)} with RHS {_matrix_desc(b)}")
+    if debug_mode:
+        _debug(f"solve {_matrix_desc(a)} with RHS {_matrix_desc(b)}")
     with _debug_time("solve"):
         return _ops.solve(a, b, deps=_OPS_DEPS)
 

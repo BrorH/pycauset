@@ -429,10 +429,18 @@ def _wide(dtype: str):
     return np.complex128 if k == "c" else np.float64
 
 
+_SINGLE = ("float16", "float32", "complex_float16", "complex_float32")
+
+
 def _arith_inputs(arrays, dtype: str, linalg: bool):
     """Reference inputs: exact Python ints for integer results, else wide floats/complex.
 
     Complex inputs stay complex even when the result is real (norm, abs)."""
+    if linalg and dtype in _SINGLE:
+        # NumPy computes linear algebra in single precision for single-precision input (float16
+        # is cast to float32, as PyCauset does): that is the oracle, not a float64 answer.
+        cplx = kind(dtype) == "c" or any(np.iscomplexobj(x) for x in arrays)
+        return [np.asarray(x).astype(np.complex64 if cplx else np.float32) for x in arrays]
     if any(np.iscomplexobj(x) for x in arrays):
         return [np.asarray(x).astype(np.complex128) for x in arrays]
     if linalg or not is_int(dtype):
@@ -620,8 +628,9 @@ def _check(op: Op, cell: Cell, got, a, b, arith: str, xdt: str, ydt: str) -> boo
         return _close(l @ l.conj().T, a.astype(np.complex128), arith, True)
     if op.compare == "slogdet":
         s, ld = got
-        rs, rld = np.linalg.slogdet(a.astype(np.complex128 if np.iscomplexobj(a) else np.float64))
-        return _close(np.asarray(ld), np.asarray(rld), "float64", True) and _close(np.asarray(s), np.asarray(rs), "float64", True)
+        rs, rld = np.linalg.slogdet(_arith_inputs([a], xdt, True)[0])
+        tol_dt = xdt if xdt in _SINGLE else "float64"
+        return _close(np.asarray(ld), np.asarray(rld), tol_dt, True) and _close(np.asarray(s), np.asarray(rs), tol_dt, True)
     if op.compare == "first":
         got = got[0] if isinstance(got, tuple) else got
     inputs = _arith_inputs([a] if op.arity == 1 or b is None else [a, b], arith if not op.linalg else xdt, op.linalg)
@@ -638,7 +647,9 @@ def _check(op: Op, cell: Cell, got, a, b, arith: str, xdt: str, ydt: str) -> boo
         ref = _cast(ref, arith)
     elif op.group == "linalg" and is_int(arith):
         ref = _cast(ref, arith)
-    return _close(got, ref, arith, op.linalg)
+    # Linear algebra on single-precision input is computed in single precision (NumPy and
+    # PyCauset alike), whatever the result's dtype (det returns a Python float).
+    return _close(got, ref, xdt if op.linalg and xdt in _SINGLE else arith, op.linalg)
 
 
 def classify(cell: Cell, op: Op) -> str:

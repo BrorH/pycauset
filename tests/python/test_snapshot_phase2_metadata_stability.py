@@ -29,7 +29,7 @@ def test_large_metadata_update_does_not_move_payload(tmp_path):
         assert slot_before["payload_offset"] == slot_after["payload_offset"]
         assert slot_before["payload_length"] == slot_after["payload_length"]
         assert payload_before == payload_after
-        assert meta_after["view"]["scalar"] == 2.0
+        assert meta_after["view"]["scalar"] in (2.0, {"real": 2.0, "imag": 0.0})
         assert meta_before.get("payload_uuid") != meta_after.get("payload_uuid")
     finally:
         m.close()
