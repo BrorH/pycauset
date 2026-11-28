@@ -741,3 +741,8 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Area 3.1, the rest of the urgent and medium items: the RAM budget follows cgroup limits
   (F-124, C-11); cache entries carry their version (F-125, C-15); `get_accelerator` replaced
   by per-call `_io_prefetch` / `_io_discard` (F-125, C-16).
+- Area 3.2, medium and low items (F-126): Hermitian x non-real computes eagerly; `fill` /
+  `set_identity` honour views and windows; `from_triangular` reads the view; one write fold
+  (Hermitian kinds, complex, conj of real); triangular bounds; element accessors through
+  `view_value`; random `p` checked and the seed kept; zero outside a triangle accepted.
+  C-10 and C-14 stay open (reasons in FINDINGS).

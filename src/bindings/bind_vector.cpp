@@ -237,8 +237,13 @@ inline py::object vector_element_get(const VectorBase& v, uint64_t i) {
 
 inline void vector_fold_value_view(VectorBase& v) {
     const std::complex<double> s = v.get_scalar();
-    const bool conj = v.is_conjugated();
-    if (s == std::complex<double>(1.0, 0.0) && !conj) return;
+    const DataType dt = v.get_data_type();
+    const bool conj = v.is_conjugated() && (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 ||
+                                            dt == DataType::COMPLEX_FLOAT64);
+    if (s == std::complex<double>(1.0, 0.0) && !conj) {
+        v.set_conjugated(false);  // conj of real values is a no-op flag (review 3.2 C-13)
+        return;
+    }
     pycauset::visit_vector(v, [&](auto& typed) {
         using V = std::decay_t<decltype(typed)>;
         using E = vec_element_t<V>;

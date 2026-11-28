@@ -683,7 +683,13 @@ std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, cons
     }
 
     // Float/complex input whose dtype is kept: the classes' O(1) scalar-view paths.
-    if (!is_integer_or_bit(in) && out == in && op != ScalarOpKind::RTrueDiv) {
+    // Structure rule: a (skew-)Hermitian matrix times a non-real factor is neither, so its
+    // class cannot be kept (H * 1j is skew-Hermitian, H * (1+1j) has no structure); those
+    // compute eagerly into a dense result (review 3.2 C-4). The class's view factor stays real.
+    const Structure st = a.get_structure();
+    const bool hermitian_kind = st == Structure::HERMITIAN || st == Structure::SKEW_HERMITIAN;
+    if (!is_integer_or_bit(in) && out == in && op != ScalarOpKind::RTrueDiv &&
+        !(hermitian_kind && s.as_complex().imag() != 0.0)) {
         const std::complex<double> c = s.as_complex();
         switch (op) {
             case ScalarOpKind::Mul:

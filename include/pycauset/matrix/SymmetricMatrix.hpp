@@ -204,8 +204,21 @@ public:
         const uint64_t n = source.rows();
         auto mat = std::make_unique<SymmetricMatrix<T>>(n, backing_file, kind);
         const bool skip_diag = kind == Structure::ANTISYMMETRIC;
+        // The source's values, through its view (T * 2, T.conj()): it copied the stored
+        // triangle (review 3.2 C-6). Integer views carry exact integer factors (wrap like
+        // NumPy); real storage carries real factors; conj of real values is a no-op.
+        const std::complex<double> s = source.get_scalar();
+        const bool conj = source.is_conjugated();
+        const bool plain = s == std::complex<double>(1.0, 0.0) && (!conj || !kComplex);
+        auto value = [&](uint64_t i, uint64_t j) -> T {
+            const T raw = source.get(i, j);
+            if (plain) return raw;
+            if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) return scalar::wrap_scale(raw, static_cast<int64_t>(s.real()));
+            else if constexpr (kComplex) return static_cast<T>(view_value(raw, s, conj));
+            else return static_cast<T>(view_value(raw, s, false).real());
+        };
         for (uint64_t i = 0; i < n; ++i) {
-            for (uint64_t j = skip_diag ? i + 1 : i; j < n; ++j) mat->set(i, j, source.get(i, j));
+            for (uint64_t j = skip_diag ? i + 1 : i; j < n; ++j) mat->set(i, j, value(i, j));
         }
         return mat;
     }

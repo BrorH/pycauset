@@ -1657,3 +1657,32 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-16: `m.get_accelerator()` handed Python a raw pointer that the next storage swap
     (copy-on-write) freed. Replaced by `m._io_prefetch()` / `m._io_discard()`, which look
     the accelerator up per call; the `IOAccelerator` Python class is gone.
+
+### F-126 Object-model view bugs: structure kept wrongly, views ignored or dropped
+- **Status:** fixed (session 9; area 3.2 review, C-4 to C-9, C-11 to C-13). Open: C-10
+  (antisymmetric `-A` diagonal is +0.0, NumPy -0.0) and C-14 (`A / s` computed as
+  `A * (1/s)`, an ulp off; an eager path would make `H / 3` dense, since complex results
+  lose their structure class there).
+  - C-4: `H * 1j` (and any non-real factor) kept the Hermitian / skew-Hermitian class with
+    values that are neither. The scalar entry computes those eagerly into a dense result;
+    the class's view factor stays real.
+  - C-5: `fill` wrote raw values under the view (`(A * 2).fill(1)` read 2, conj views read
+    the conjugate); it clears the view now. `set_identity` on a window looped over the
+    storage's rows and threw after zeroing.
+  - C-6: `Symmetric/AntiSymmetric/Hermitian.from_triangular(T)` copied the stored triangle
+    and ignored `T * 2`, `T.conj()`; it reads through the view, and a lower (transposed)
+    source raises.
+  - C-7 / C-13: the write fold had no Hermitian cases (a write into `H * 2` or `H.T`
+    dropped the view), read complex elements as doubles (complex structured views could
+    not be written), and raised for conj views of int / bool objects. One fold now: every
+    stored element through `view_value`, then the view is cleared; conj of real values is
+    a flag that is just cleared.
+  - C-8: triangular `get` returned 0 for out-of-range rows; it raises IndexError.
+  - C-9: `DenseMatrix`, `ComplexFloat16Matrix` / `Vector` and the bit classes re-derived the
+    view rule in their element accessors (`inf * 2` read `inf + nan j`, `False * -1.0` read
+    +0.0); they call `view_value`.
+  - C-11: random bit matrices took any `p` (1.5 gave all ones, NaN all zeros), treated
+    `|p - 0.5| < 1e-4` as 0.5, and the triangle did not record its seed.
+  - C-12: writing zero outside a float triangle raised (the bit triangle and DiagonalMatrix
+    accept it); accepted now.
+  - `test_F126_*`.

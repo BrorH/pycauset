@@ -1,4 +1,5 @@
 #pragma once
+#include "pycauset/math/ViewValue.hpp"
 
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/core/Float16.hpp"
@@ -87,6 +88,8 @@ public:
 
     void fill(std::complex<double> value) {
         ensure_unique();
+        set_scalar(1.0);  // the view applied to the old values (review 3.2 C-5)
+        set_conjugated(false);
         const uint64_t total = base_rows() * base_cols();
         auto* rdst = real_data();
         auto* idst = imag_data();
@@ -128,12 +131,7 @@ public:
     }
 
     std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override {
-        const std::complex<double> v = get(i, j);
-        std::complex<double> z = (scalar_ == 1.0) ? v : (v * scalar_);
-        if (is_conjugated()) {
-            z = std::conj(z);
-        }
-        return z;
+        return pycauset::view_value(get(i, j), scalar_, is_conjugated());
     }
 
     void set_element_double(uint64_t i, uint64_t j, double value) override {

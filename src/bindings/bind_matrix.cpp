@@ -171,6 +171,9 @@ inline py::object symmetric_from_triangular(const MatrixBase& source, pycauset::
     if (source.get_structure() != pycauset::Structure::TRIANGULAR) {
         throw py::type_error("from_triangular expects a TriangularMatrix");
     }
+    if (source.is_transposed()) {
+        throw py::value_error("from_triangular expects an upper triangle; this one is lower (use its .T)");
+    }
     return pycauset::visit_matrix(source, [&](const auto& tri) -> py::object {
         using M = std::decay_t<decltype(tri)>;
         using E = element_of_t<M>;

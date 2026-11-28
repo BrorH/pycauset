@@ -1,4 +1,5 @@
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
+#include "pycauset/math/ViewValue.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include <stdexcept>
@@ -53,6 +54,7 @@ TriangularMatrix<bool>::TriangularMatrix(uint64_t n, std::shared_ptr<MemoryMappe
 }
 
 void TriangularMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
+    if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
     ensure_unique();
     if (is_transposed()) {
         std::swap(i, j);
@@ -80,6 +82,7 @@ void TriangularMatrix<bool>::set(uint64_t i, uint64_t j, bool value) {
 }
 
 bool TriangularMatrix<bool>::get(uint64_t i, uint64_t j) const {
+    if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");  // review 3.2 C-8
     if (is_transposed()) {
         std::swap(i, j);
     }
@@ -97,10 +100,7 @@ bool TriangularMatrix<bool>::get(uint64_t i, uint64_t j) const {
 }
 
 double TriangularMatrix<bool>::element_as_double(uint64_t i, uint64_t j) const {
-    if (scalar_ == 1.0) {
-        return get(i, j) ? 1.0 : 0.0;
-    }
-    return get(i, j) ? scalar_.real() : 0.0;
+    return pycauset::view_value(get(i, j), scalar_, false).real();
 }
 
 std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::random(uint64_t n, double density,
@@ -224,22 +224,20 @@ std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(cons
 }
 
 void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t> seed) {
+    if (!(density >= 0.0 && density <= 1.0)) throw std::invalid_argument("p must be in [0, 1]");  // NaN too
     ensure_unique();
 
-    std::mt19937_64 gen;
-    if (seed.has_value()) {
-        gen.seed(*seed);
-    } else {
-        std::random_device rd;
-        gen.seed(rd());
-    }
+    // The seed used is recorded (as DenseMatrix.random does), so a run can be repeated.
+    const uint64_t used = seed.has_value() ? *seed : static_cast<uint64_t>(std::random_device{}());
+    std::mt19937_64 gen(used);
+    set_seed(used);
 
     // Writes rows through the storage's own mapping. (It mapped 64 MB windows of the file
     // one at a time and never unmapped them on POSIX, review 3.1 C-8; shared file pages are
     // written back by the kernel, so the windows saved nothing.)
     char* const base = static_cast<char*>(require_mapper()->get_data());
     const uint64_t n = rows();
-    const bool half = std::abs(density - 0.5) < 0.0001;
+    const bool half = density == 0.5;  // fair coins 64 at a time; p = 0.50005 is not 0.5 (C-11)
     std::bernoulli_distribution dist(density);
     for (uint64_t i = 0; i < n; ++i) {
         const uint64_t row_len = (n - 1) - i;

@@ -1,4 +1,5 @@
 #include "pycauset/matrix/DenseBitMatrix.hpp"
+#include "pycauset/math/ViewValue.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/compute/ComputeDevice.hpp"
@@ -83,6 +84,7 @@ DenseMatrix<bool>::DenseMatrix(uint64_t rows, uint64_t cols, std::shared_ptr<Mem
 
 void DenseMatrix<bool>::fill(bool value) {
     ensure_unique();
+    set_conjugated(false);  // conj of real values is a no-op flag; the fill replaces them
 
     const uint64_t words_per_row = stride_bytes_ / 8;
     const uint64_t total_words = base_rows() * words_per_row;
@@ -144,7 +146,7 @@ bool DenseMatrix<bool>::get(uint64_t i, uint64_t j) const {
 }
 
 double DenseMatrix<bool>::element_as_double(uint64_t i, uint64_t j) const {
-    return get(i, j) ? scalar_.real() : 0.0;
+    return pycauset::view_value(get(i, j), scalar_, false).real();  // False * -1.0 is -0.0
 }
 
 std::unique_ptr<MatrixBase> DenseMatrix<bool>::multiply_scalar(double factor, const std::string& result_file) const {
@@ -197,6 +199,7 @@ std::unique_ptr<DenseMatrix<bool>> DenseMatrix<bool>::random(uint64_t rows, uint
 }
 
 void DenseMatrix<bool>::fill_random(double density, std::optional<uint64_t> seed) {
+    if (!(density >= 0.0 && density <= 1.0)) throw std::invalid_argument("p must be in [0, 1]");  // NaN too
     std::mt19937_64 gen;
     if (seed) {
         gen.seed(*seed);
@@ -209,10 +212,6 @@ void DenseMatrix<bool>::fill_random(double density, std::optional<uint64_t> seed
     }
 
     std::bernoulli_distribution d(density);
-    
-    // We can optimize this by generating 64 bits at a time if density is 0.5.
-    // For arbitrary density, we iterate.
-    
     const uint64_t r = rows();
     const uint64_t c = cols();
     for (uint64_t i = 0; i < r; ++i) {

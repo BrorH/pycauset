@@ -754,3 +754,135 @@ def test_F119_indexing_copies_keep_the_view(view):
     for key in [(0, slice(None)), (slice(None), 1), ([0, 1], [2, 3]), (slice(None, None, 2), slice(None, None, 2)),
                 ([0, 2], slice(None))]:
         np.testing.assert_array_equal(np.asarray(m[key]), r[key])
+
+
+# --- area 3.2 review, medium and low items (F-126) -----------------------------------------
+
+_H = np.array([[1.0, 2 + 3j], [2 - 3j, 4.0]])
+
+
+@pytest.mark.parametrize("c", [1j, 2 + 1j, -0.5j])
+def test_F126_hermitian_times_non_real_drops_the_class(c):
+    """C-4: H * 1j kept the Hermitian class with non-Hermitian values."""
+    r = pc.hermitian(_H) * c
+    assert not isinstance(r, (pc.HermitianMatrix, pc.SkewHermitianMatrix))
+    np.testing.assert_allclose(to_np(r), _H * c)
+    assert isinstance(pc.hermitian(_H) * 2.0, pc.HermitianMatrix)  # real factors keep it
+    np.testing.assert_allclose(to_np(pc.hermitian(_H) / 1j), _H / 1j)
+
+
+@pytest.mark.parametrize("make, value", [
+    (lambda: pc.matrix(np.arange(4.0).reshape(2, 2)) * 2.0, 1.0),
+    (lambda: pc.matrix(np.arange(4, dtype=np.int16).reshape(2, 2)) * 3, 5),
+    (lambda: pc.matrix(np.ones((2, 2)) * (1 + 2j)).conj(), 1j),
+    (lambda: pc.matrix(np.arange(9.0).reshape(3, 3))[0:2, 1:3] * 2.0, 7.0),
+])
+def test_F126_fill_sets_every_visible_element(make, value):
+    """C-5: fill wrote raw values under the view, so (A * 2).fill(1) read 2."""
+    m = make()
+    m.fill(value)
+    np.testing.assert_array_equal(to_np(m), np.full(m.shape, value))
+
+
+def test_F126_set_identity_of_a_window():
+    a = pc.zeros((4, 4))
+    w = a[0:2, 1:3]
+    w.set_identity()
+    np.testing.assert_array_equal(to_np(w), np.eye(2))
+    with pytest.raises(ValueError):
+        a[0:2, 0:3].set_identity()
+
+
+def _upper3(dtype="float64"):
+    t = pc.TriangularMatrix(3, dtype=dtype, has_diagonal=True)
+    t[0, 0], t[0, 1], t[1, 2], t[2, 2] = 1, 2, 3, 4
+    return t
+
+
+@pytest.mark.parametrize("cls, f", [(pc.SymmetricMatrix, lambda u: u + np.triu(u, 1).T),
+                                    (pc.AntiSymmetricMatrix, lambda u: np.triu(u, 1) - np.triu(u, 1).T)])
+def test_F126_from_triangular_reads_the_view(cls, f):
+    """C-6: from_triangular copied the stored triangle, ignoring T * 2 and T.conj()."""
+    t = _upper3()
+    np.testing.assert_array_equal(to_np(cls.from_triangular(t * 2.0)), f(to_np(t) * 2.0))
+    with pytest.raises(ValueError, match="upper"):
+        cls.from_triangular(t.T)
+
+
+def test_F126_hermitian_from_a_conjugated_triangle():
+    t = pc.TriangularMatrix(2, dtype="complex_float64", has_diagonal=True)
+    t[0, 0], t[0, 1], t[1, 1] = 1, 2 + 3j, 4
+    u = np.conj(to_np(t))
+    np.testing.assert_array_equal(to_np(pc.HermitianMatrix.from_triangular(t.conj())), np.triu(u) + np.triu(u, 1).conj().T)
+
+
+@pytest.mark.parametrize("view", [lambda h: h * 2.0, lambda h: h.T, lambda h: h.conj()])
+def test_F126_writes_into_hermitian_views_keep_the_view(view):
+    """C-7: the write fold had no Hermitian case: the factor or transpose was dropped."""
+    r = view(pc.hermitian(_H))
+    expected = to_np(r).copy()
+    r[0, 1] = 1 + 1j
+    expected[0, 1], expected[1, 0] = 1 + 1j, 1 - 1j
+    np.testing.assert_allclose(to_np(r), expected)
+
+
+@pytest.mark.parametrize("make", [
+    lambda: pc.symmetric(np.array([[1, 2j], [2j, 3]])) * 2.0,
+    lambda: pc.diagonal(np.array([1 + 1j, 2])) * 2.0,
+])
+def test_F126_writes_into_complex_structured_views(make):
+    r = make()
+    expected = to_np(r).copy()
+    r[1, 1] = 5j
+    expected[1, 1] = 5j
+    np.testing.assert_allclose(to_np(r), expected)
+
+
+def test_F126_structured_reads_out_of_range_raise():
+    """C-8: triangular get returned 0 for an out-of-range row."""
+    for t in (pc.TriangularMatrix(4), pc.TriangularMatrix(4, dtype="bool")):
+        with pytest.raises(IndexError):
+            t.get_element_as_double(100, 0)
+
+
+def test_F126_element_accessors_use_the_view_rule():
+    """C-9: a complex multiply in DenseMatrix's own rule gave inf + nan j."""
+    m = pc.matrix(np.array([[np.inf, -0.0], [1.0, 2.0]])) * 2.0
+    assert m.get_element_as_complex(0, 0) == complex(np.inf, 0.0)
+    b = pc.matrix(np.array([[True, False]])) * -1.0
+    assert np.signbit(b.get_element_as_double(0, 1))
+
+
+def test_F126_random_bit_matrices_check_p_and_keep_the_seed():
+    """C-11."""
+    for cls in (pc.TriangularMatrix, pc.DenseMatrix):
+        for p in (1.5, -0.1, float("nan")):
+            with pytest.raises(ValueError):
+                cls.random(5, p=p)
+    assert pc.TriangularMatrix.random(5, seed=3).seed == 3
+    a = to_np(pc.TriangularMatrix.random(300, p=0.5, seed=2))
+    b = to_np(pc.TriangularMatrix.random(300, p=0.50005, seed=2))
+    assert not np.array_equal(a, b)
+
+
+def test_F126_zero_outside_the_triangle_is_accepted():
+    """C-12: T[1, 0] = 0.0 raised for float triangles (bit and diagonal accepted it)."""
+    t = _upper3()
+    t[1, 0] = 0.0
+    t[:, :] = 0.0
+    np.testing.assert_array_equal(to_np(t), np.zeros((3, 3)))
+    with pytest.raises(ValueError):
+        t[1, 0] = 1.0
+
+
+@pytest.mark.parametrize("make", [
+    lambda: pc.vector(np.array([1, 2], np.int32)).conj(),
+    lambda: pc.vector(np.array([True, False])).conj(),
+    lambda: pc.matrix(np.array([[True, False], [False, True]])).conj(),
+])
+def test_F126_write_to_conj_of_real_values(make):
+    """C-13: writing to conj() of an int / bool object raised ("carries a scale factor")."""
+    m = make()
+    idx = 1 if len(m.shape) == 1 else (0, 1)
+    m[idx] = 1
+    assert to_np(m)[idx] == 1

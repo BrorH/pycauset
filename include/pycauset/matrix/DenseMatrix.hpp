@@ -1,4 +1,5 @@
 #pragma once
+#include "pycauset/math/ViewValue.hpp"
 
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/core/MatrixTraits.hpp"
@@ -120,8 +121,13 @@ public:
         return data()[idx];
     }
 
+    // Every visible element becomes `value`: the view's factor and conjugation are dropped
+        // (they applied to the old values; a scaled view kept the factor and read 2x the fill,
+        // review 3.2 C-5).
     void fill(T value) {
         ensure_unique();
+        set_scalar(1.0);
+        set_conjugated(false);
         const bool full_span = row_offset() == 0 && col_offset() == 0 && !is_transposed() && rows() == base_rows() && cols() == base_cols();
         if (full_span) {
             T* ptr = data();
@@ -138,43 +144,28 @@ public:
     }
 
     void set_identity() {
-        if (base_rows() != base_cols()) {
+        // The visible matrix (a window too): it looped over the storage's rows with logical
+        // indices and threw after zeroing a window.
+        if (rows() != cols()) {
             throw std::invalid_argument("Identity requires a square matrix");
         }
         fill(pycauset::scalar::from_double<T>(0.0));
-        const uint64_t n = base_rows();
-        for (uint64_t i = 0; i < n; ++i) {
+        for (uint64_t i = 0; i < rows(); ++i) {
             set(i, i, pycauset::scalar::from_double<T>(1.0));
         }
-        set_scalar(1.0);
     }
 
     double element_as_double(uint64_t i, uint64_t j) const override {
         if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
             throw std::runtime_error("Complex matrix does not support get_element_as_double; use get_element_as_complex");
         }
-        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-            // Integer views: wrap like NumPy (int8 100 * 3 == 44), exactly.
-            if (scalar_ == 1.0) return static_cast<double>(get(i, j));
-            return static_cast<double>(pycauset::scalar::wrap_scale(get(i, j), static_cast<int64_t>(scalar_.real())));
-        }
-        const std::complex<double> v = pycauset::scalar::to_complex_double(get(i, j));
-        if (scalar_ == 1.0) {
-            return v.real();
-        }
-        return (v * scalar_).real();
+        // The one view rule (integer views wrap like NumPy; review 3.2 C-9: a complex multiply
+        // here turned (inf) * 2 into inf + nan j).
+        return pycauset::view_value(get(i, j), scalar_, false).real();
     }
 
     std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override {
-        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-            return {get_element_as_double(i, j), 0.0};
-        }
-        const std::complex<double> v = pycauset::scalar::to_complex_double(get(i, j));
-        std::complex<double> z = (scalar_ == 1.0) ? v : (v * scalar_);
-        if (is_conjugated()) {
-            z = std::conj(z);
-        }
-        return z;
+        return pycauset::view_value(get(i, j), scalar_, is_conjugated());
     }
 
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }

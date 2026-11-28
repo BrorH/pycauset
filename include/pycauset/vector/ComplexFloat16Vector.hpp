@@ -1,4 +1,5 @@
 #pragma once
+#include "pycauset/math/ViewValue.hpp"
 
 #include "pycauset/vector/VectorBase.hpp"
 #include "pycauset/core/Float16.hpp"
@@ -85,12 +86,7 @@ public:
     }
 
     std::complex<double> element_as_complex(uint64_t i) const override {
-        const std::complex<double> v = get(i);
-        std::complex<double> z = (scalar_ == 1.0) ? v : (v * scalar_);
-        if (is_conjugated()) {
-            z = std::conj(z);
-        }
-        return z;
+        return pycauset::view_value(get(i), scalar_, is_conjugated());
     }
 
 

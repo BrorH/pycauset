@@ -5,6 +5,8 @@
 // dispatch. Used only by bind_matrix.cpp.
 #include "pycauset/math/ScalarOps.hpp"
 #include "pycauset/math/VectorOps.hpp"
+#include "pycauset/math/ViewValue.hpp"
+#include <tuple>
 #include "pycauset/core/DTypeDispatch.hpp"
 #include "pycauset/math/Bitwise.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
@@ -615,85 +617,72 @@ inline py::object element_get(const MatrixBase& mat, uint64_t i, uint64_t j) {
     });
 }
 
-// Before writing into a view that carries a scale factor or conjugation, fold the view
-// into private storage so a write reads back exactly what was written (F-045). Dense only;
-// other structures with a factor raise instead of storing a wrong value (lazy L1 replaces
-// this with ViewSpec-aware writes).
+// One element's value through the view (the one view rule, ViewValue.hpp), in the element
+// type: exact wrapping for integer factors.
+template <typename M>
+auto viewed_element(const M& typed, uint64_t i, uint64_t j, std::complex<double> s, bool conj) {
+    using E = element_of_t<M>;
+    if constexpr (std::is_same_v<M, pycauset::ComplexFloat16Matrix>) {
+        return pycauset::view_value(typed.get(i, j), s, conj);  // its get / set speak complex128
+    } else if constexpr (std::is_integral_v<E> && !std::is_same_v<E, bool>) {
+        return pycauset::scalar::wrap_scale(typed.get(i, j), static_cast<int64_t>(s.real()));
+    } else if constexpr (std::is_same_v<E, std::complex<double>> || std::is_same_v<E, std::complex<float>>) {
+        return static_cast<E>(pycauset::view_value(typed.get(i, j), s, conj));
+    } else {
+        return static_cast<E>(pycauset::view_value(typed.get(i, j), s, false).real());
+    }
+}
+
+// Before writing into a view that carries a scale factor or conjugation, fold the view into
+// private storage so a write reads back exactly what was written (F-045): every stored
+// element is rewritten with its viewed value and the view is cleared. Conjugation of real
+// values is a no-op flag and is just cleared (writing to `v.conj()` of an int / bool object
+// raised, review 3.2 C-13).
 inline void fold_value_view_for_write(MatrixBase& mat) {
     const std::complex<double> s = mat.get_scalar();
-    const bool conj = mat.is_conjugated();
-    if (s == std::complex<double>(1.0, 0.0) && !conj) return;
-    if (mat.get_structure() != pycauset::Structure::DENSE) {
-        // Structured (real-valued) storage: read every stored element through the view, then
-        // rewrite it with the factor cleared. Positions follow the logical structure.
-        using S = pycauset::Structure;
-        const uint64_t n = mat.rows();
-        const auto st = mat.get_structure();
-        if (st == S::IDENTITY) throw py::type_error(describe(mat) + " is read-only");
-        bool lower = false, diag_too = false;
-        if (st == S::TRIANGULAR) {
-            lower = mat.is_transposed();
-            diag_too = dynamic_cast<const TriangularMatrixBase&>(mat).has_diagonal();
-        }
-        auto stored = [&](uint64_t i, uint64_t j) {
-            switch (st) {
-                case S::DIAGONAL: return i == j;
-                case S::SYMMETRIC: return j >= i;
-                case S::ANTISYMMETRIC: return j > i;
-                case S::TRIANGULAR: return lower ? (i > j || (diag_too && i == j)) : (j > i || (diag_too && i == j));
-                default: return false;
-            }
-        };
-        pycauset::visit_matrix(mat, [&](auto& typed) {
-            using E = element_of_t<std::decay_t<decltype(typed)>>;
-            if constexpr (requires { typed.set(uint64_t{0}, uint64_t{0}, E{}); }) {
-                // Read every stored element through the view (exactly for integers), clear the
-                // factor, write back.
-                std::vector<std::tuple<uint64_t, uint64_t, E>> values;
-                const int64_t k = static_cast<int64_t>(s.real());
-                for (uint64_t i = 0; i < n; ++i)
-                    for (uint64_t j = 0; j < n; ++j)
-                        if (stored(i, j)) {
-                            if constexpr (std::is_integral_v<E> && !std::is_same_v<E, bool>) {
-                                values.emplace_back(i, j, pycauset::scalar::wrap_scale(typed.get(i, j), k));
-                            } else {
-                                values.emplace_back(i, j, static_cast<E>(mat.get_element_as_double(i, j)));
-                            }
-                        }
-                mat.set_scalar(1.0);
-                mat.set_conjugated(false);
-                for (const auto& [i, j, v] : values) typed.set(i, j, v);
-            }
-        });
+    const bool conj = mat.is_conjugated() && is_complex_dtype(mat.get_data_type());
+    if (s == std::complex<double>(1.0, 0.0) && !conj) {
+        mat.set_conjugated(false);
         return;
     }
+    using S = pycauset::Structure;
+    const auto st = mat.get_structure();
+    if (st == S::IDENTITY) throw py::type_error(describe(mat) + " is read-only");
+    // Which logical positions are stored (each once). Dense: all of them.
+    bool lower = false, diag_too = false;
+    if (st == S::TRIANGULAR) {
+        lower = mat.is_transposed();
+        diag_too = dynamic_cast<const TriangularMatrixBase&>(mat).has_diagonal();
+    }
+    auto stored = [&](uint64_t i, uint64_t j) {
+        switch (st) {
+            case S::DENSE: return true;
+            case S::DIAGONAL: return i == j;
+            case S::SYMMETRIC:
+            case S::HERMITIAN:
+            case S::SKEW_HERMITIAN: return j >= i;  // the Hermitian kinds were missing (C-7)
+            case S::ANTISYMMETRIC: return j > i;
+            case S::TRIANGULAR: return lower ? (i > j || (diag_too && i == j)) : (j > i || (diag_too && i == j));
+            default: return false;
+        }
+    };
     pycauset::visit_matrix(mat, [&](auto& typed) {
-        using E = element_of_t<std::decay_t<decltype(typed)>>;
+        using M = std::decay_t<decltype(typed)>;
+        using E = element_of_t<M>;
         if constexpr (std::is_same_v<E, bool>) {
             throw std::logic_error("bit matrix carries a scale factor");
-        } else if constexpr (std::is_integral_v<E>) {
-            const int64_t k = static_cast<int64_t>(s.real());
+        } else if constexpr (requires { typed.set(uint64_t{0}, uint64_t{0}, viewed_element(typed, 0, 0, s, conj)); }) {
+            using V = decltype(viewed_element(typed, 0, 0, s, conj));
+            std::vector<std::tuple<uint64_t, uint64_t, V>> values;
             const uint64_t r = typed.rows(), c = typed.cols();
             for (uint64_t i = 0; i < r; ++i)
-                for (uint64_t j = 0; j < c; ++j) typed.set(i, j, pycauset::scalar::wrap_scale(typed.get(i, j), k));
+                for (uint64_t j = 0; j < c; ++j)
+                    if (stored(i, j)) values.emplace_back(i, j, viewed_element(typed, i, j, s, conj));
+            mat.set_scalar(1.0);
+            mat.set_conjugated(false);
+            for (const auto& [i, j, v] : values) typed.set(i, j, v);
         } else {
-            const uint64_t r = typed.rows(), c = typed.cols();
-            for (uint64_t i = 0; i < r; ++i) {
-                for (uint64_t j = 0; j < c; ++j) {
-                    if constexpr (std::is_same_v<E, std::complex<double>> || std::is_same_v<E, std::complex<float>>) {
-                        std::complex<double> v = pycauset::scalar::to_complex_double(typed.get(i, j)) * s;
-                        if (conj) v = std::conj(v);
-                        typed.set(i, j, static_cast<E>(v));
-                    } else if constexpr (std::is_same_v<std::decay_t<decltype(typed)>, pycauset::ComplexFloat16Matrix>) {
-                        std::complex<double> v = typed.get(i, j) * s;
-                        if (conj) v = std::conj(v);
-                        typed.set(i, j, v);
-                    } else {
-                        const double v = (pycauset::scalar::to_complex_double(typed.get(i, j)) * s).real();
-                        typed.set(i, j, static_cast<E>(v));
-                    }
-                }
-            }
+            throw py::type_error(describe(mat) + " cannot be written through a view");
         }
     });
     mat.set_scalar(1.0);

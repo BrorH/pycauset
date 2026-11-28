@@ -93,25 +93,17 @@ public:
     }
 
     void set(uint64_t i, uint64_t j, T value) {
-        ensure_unique();
-        if (is_transposed()) {
-            // Transposed: Lower Triangular.
-            // User sets (i, j). If i > j (lower), we map to (j, i) (upper) in storage.
-            if (has_diagonal_) {
-                if (i < j) throw std::invalid_argument("Lower triangular (transposed)");
-            } else {
-                if (i <= j) throw std::invalid_argument("Strictly lower triangular (transposed)");
-            }
-            std::swap(i, j);
-        } else {
-            if (has_diagonal_) {
-                if (i > j) throw std::invalid_argument("Upper triangular");
-            } else {
-                if (i >= j) throw std::invalid_argument("Strictly upper triangular");
-            }
+        if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");
+        // A zero outside the triangle is what is there already: accepted, as the bit triangle
+        // and DiagonalMatrix do (review 3.2 C-12; `T[:, :] = 0` raised).
+        const bool outside = is_transposed() ? (has_diagonal_ ? i < j : i <= j) : (has_diagonal_ ? i > j : i >= j);
+        if (outside) {
+            if (value == T{}) return;
+            throw std::invalid_argument(is_transposed() ? (has_diagonal_ ? "Lower triangular (transposed)" : "Strictly lower triangular (transposed)")
+                                                        : (has_diagonal_ ? "Upper triangular" : "Strictly upper triangular"));
         }
-        
-        if (j >= cols()) throw std::out_of_range("Index out of bounds");
+        ensure_unique();
+        if (is_transposed()) std::swap(i, j);  // lower view of the upper storage
 
         uint64_t row_offset_bytes = get_row_offset(i);
         // If strict: col_index = j - (i + 1)
@@ -129,6 +121,7 @@ public:
     }
 
     T get(uint64_t i, uint64_t j) const {
+        if (i >= rows() || j >= cols()) throw std::out_of_range("Index out of bounds");  // C-8
         if (is_transposed()) {
             // Transposed: Lower Triangular.
             // User gets (i, j). If i > j (lower), we map to (j, i) (upper).
