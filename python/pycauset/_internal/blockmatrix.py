@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from bisect import bisect_right
 from typing import Any, Iterable
 
