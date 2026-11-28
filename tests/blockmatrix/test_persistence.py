@@ -7,6 +7,14 @@ from pycauset._internal.blockmatrix import BlockMatrix, block_matmul
 from pycauset._internal.thunks import StaleThunkError
 
 
+def _tree(path: Path) -> Path:
+    """The child tree a saved block matrix's manifest names (`<name>.blocks.<token>`)."""
+    from pycauset._internal import persistence
+
+    meta, _ = persistence._read_new_container_metadata_and_offset(path)
+    return persistence._blocks_dir_of(path, meta["block_manifest"])
+
+
 def test_blockmatrix_save_load_roundtrip(tmp_path: Path):
     A = pycauset.matrix([[1, 2], [3, 4]])
     B = pycauset.matrix([[5], [6]])
@@ -43,10 +51,10 @@ def test_blockmatrix_save_load_roundtrip_nested(tmp_path: Path):
     assert out.get(1, 1) == 4
 
     # Ensure nested sidecar directory exists for the child BlockMatrix file.
-    top_blocks = Path(str(p) + ".blocks")
+    top_blocks = _tree(p)
     child = top_blocks / "block_r0_c0.pycauset"
     assert child.exists()
-    child_blocks = Path(str(child) + ".blocks")
+    child_blocks = _tree(child)
     assert child_blocks.exists()
     assert (child_blocks / "block_r0_c0.pycauset").exists()
 
@@ -71,7 +79,7 @@ def test_blockmatrix_save_evaluates_thunks_blockwise(tmp_path: Path):
     assert out2.get(0, 0) == (1 * 3) + (2 * 4)
 
     # Ensure child block files exist (deterministic naming).
-    blocks_dir = Path(str(p) + ".blocks")
+    blocks_dir = _tree(p)
     assert (blocks_dir / "block_r0_c0.pycauset").exists()
 
 
@@ -96,19 +104,51 @@ def test_blockmatrix_save_raises_on_stale_thunks(tmp_path: Path):
         pass
 
 
-def test_blockmatrix_overwrite_cleanup_preserves_unrelated_files(tmp_path: Path):
+def test_blockmatrix_overwrite_replaces_the_tree_and_keeps_other_files(tmp_path: Path):
+    """An overwrite writes a new child tree, replaces the parent, then deletes the old tree
+    (review 3.9 C-5: children were committed into the live tree before the parent was
+    replaced, so a crash in between lost the old snapshot). Files beside it are untouched."""
     A = pycauset.matrix([[1]])
     M = BlockMatrix([[A]])
 
     p = tmp_path / "bm_overwrite.pycauset"
     pycauset.save(M, p)
-
-    blocks_dir = Path(str(p) + ".blocks")
-    keep = blocks_dir / "KEEP_ME.txt"
+    first = _tree(p)
+    keep = tmp_path / "KEEP_ME.txt"
     keep.write_text("do not delete")
 
-    pycauset.save(M, p)
-    assert keep.exists()
+    pycauset.save(BlockMatrix([[pycauset.matrix([[2]])]]), p)
+    second = _tree(p)
+    assert second != first and second.exists() and not first.exists()
+    assert keep.exists() and pycauset.load(p).get(0, 0) == 2
+
+
+def test_blockmatrix_overwrite_interrupted_keeps_the_old_snapshot(tmp_path: Path, monkeypatch):
+    """A crash before the parent is replaced (simulated: the new parent cannot be renamed into
+    place) leaves the old file and its tree loadable."""
+    import os
+
+    from pycauset._internal import persistence
+
+    p = tmp_path / "bm_crash.pycauset"
+    pycauset.save(BlockMatrix([[pycauset.matrix([[1, 2], [3, 4]])]]), p)
+    real_replace = os.replace
+
+    def crash(src, dst):
+        if str(dst) == str(p):
+            raise OSError("simulated crash before the parent is replaced")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(persistence.os, "replace", crash)
+    try:
+        pycauset.save(BlockMatrix([[pycauset.matrix([[9, 9], [9, 9]])]]), p)
+        raise AssertionError("expected the simulated crash")
+    except OSError:
+        pass
+    monkeypatch.setattr(persistence.os, "replace", real_replace)
+    assert pycauset.load(p).get(1, 1) == 4
+    # Nothing of the failed save is left: one tree (the old one), no partial parent file.
+    assert [q.name for q in tmp_path.iterdir() if q.name != p.name] == [_tree(p).name]
 
 
 def test_blockmatrix_load_detects_child_replacement_via_payload_uuid(tmp_path: Path):
@@ -118,7 +158,7 @@ def test_blockmatrix_load_detects_child_replacement_via_payload_uuid(tmp_path: P
     p = tmp_path / "bm_uuid_pin.pycauset"
     pycauset.save(M, p)
 
-    blocks_dir = Path(str(p) + ".blocks")
+    blocks_dir = _tree(p)
     child = blocks_dir / "block_r0_c0.pycauset"
     assert child.exists()
 

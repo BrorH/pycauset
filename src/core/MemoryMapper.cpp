@@ -102,7 +102,10 @@ void MemoryMapper::open_file(bool create_new) {
         hFile_ = CreateFileW(
             path.c_str(),
             private_ ? GENERIC_READ : (GENERIC_READ | GENERIC_WRITE),
-            FILE_SHARE_READ | FILE_SHARE_WRITE, 
+            // FILE_SHARE_DELETE: a save may rename a new file over one that is mapped here, as on
+            // POSIX (the loaded object keeps reading the old file). Without it os.replace raised
+            // PermissionError on Windows (review 3.9 C-10).
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
             NULL,
             creationDisposition,
             FILE_ATTRIBUTE_NORMAL,

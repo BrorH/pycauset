@@ -127,7 +127,7 @@ Saving a block matrix writes a container file plus a sidecar directory:
 
 ```python
 pc.save(BM, "bm.pycauset")
-# creates bm.pycauset and bm.pycauset.blocks/
+# creates bm.pycauset and bm.pycauset.blocks.<token>/
 
 BM2 = pc.load("bm.pycauset")
 ```

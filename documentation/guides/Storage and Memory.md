@@ -227,13 +227,17 @@ Most objects persist as a single `.pycauset` file. Block matrices are the main e
 When you save a block matrix, PyCauset writes:
 
 - the container file, and
-- a sibling sidecar directory `path + ".blocks"` containing child block snapshots.
+- a sibling sidecar directory `path + ".blocks.<token>"` containing child block snapshots: a new
+  one per save, named in the container's manifest. An overwrite replaces the container
+  atomically and only then deletes the previous directory, so a crash leaves the old snapshot
+  whole.
 
 The block manifest pins each child’s `payload_uuid` so mixed-snapshot loads fail deterministically.
 
 Practical rule:
 
-- To move/copy a saved block matrix, copy `X.pycauset` **and** `X.pycauset.blocks/`.
+- To move/copy a saved block matrix, copy `X.pycauset` **and** its `X.pycauset.blocks.<token>/`
+  directory (keep both in one directory; the name must stay as it is).
 
 ## Format interoperability (what we support)
 
@@ -277,7 +281,7 @@ If you’re writing tooling, debugging a corrupted file, or just curious about t
 ### Copying snapshots correctly
 
 - For a plain matrix snapshot, copying the single `X.pycauset` file is sufficient.
-- For block matrices, also copy `X.pycauset.blocks/`.
+- For block matrices, also copy `X.pycauset.blocks.<token>/`.
 
 ## Memory efficiency (why causal sets fit)
 

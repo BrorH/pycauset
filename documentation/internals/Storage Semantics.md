@@ -11,7 +11,8 @@ This page is the developer-facing hub for how storage works in Release 1. User-f
 - Payload offset is 4096 and metadata offset 16-aligned. Each save writes a whole new file and
   renames it over the target; nothing is updated in place.
 - Typed metadata is a single map (keys in [[internals/PyCauset Container Format|Container Format]]).
-- Block matrices persist as a base container plus a sidecar `<name>.pycauset.blocks/`; the manifest pins child `payload_uuid` values to avoid mixed snapshots.
+- Block matrices persist as a base container plus a sidecar `<name>.pycauset.blocks.<token>/`
+  (a new one per save, named in the manifest); the manifest pins child `payload_uuid` values to avoid mixed snapshots.
 
 ## Snapshot + mutation semantics
 - `.pycauset` files are immutable snapshots; `load()` returns a snapshot-backed object: the

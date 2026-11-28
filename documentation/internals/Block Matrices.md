@@ -149,14 +149,17 @@ These hooks are intentionally best-effort and should never be required for corre
 Saving a block matrix uses a **single `.pycauset` container file** plus a sibling **sidecar directory**:
 
 - Container path: `bm.pycauset`
-- Sidecar directory: `bm.pycauset.blocks/`
+- Sidecar directory: `bm.pycauset.blocks.<token>/`, a fresh one per save, named in the manifest
+  (`block_manifest.blocks_dir`). The parent file is replaced atomically, then the previous tree
+  is deleted, so an interrupted overwrite leaves the old snapshot loadable. Files written before
+  generations used `bm.pycauset.blocks/` and still load.
 
 The container stores:
 
 - `matrix_type = "BLOCK"`
 - `data_type = "MIXED"`
 - `block_manifest` with:
-  - `row_partitions`, `col_partitions`
+  - `blocks_dir` (the sidecar's name), `row_partitions`, `col_partitions`
   - `children`: a grid of `{path, payload_uuid}` entries
 
 Child blocks are stored as `block_r{r}_c{c}.pycauset` files in the sidecar directory.
@@ -169,8 +172,9 @@ Snapshot integrity:
 Save policies (Release 1):
 
 - Stale thunks fail save deterministically (no implicit recompute).
-- Overwrite cleanup deletes only deterministic child filenames within the sidecar.
-- Saves stage child files (and nested sidecars) then commit/rename to reduce partial updates.
+- An overwrite writes a complete new tree, replaces the container atomically, then deletes the
+  previous tree (the one the old manifest named). A failed save removes its new tree and its
+  partial container; the old snapshot stays loadable. Files beside the tree are never touched.
 
 View blocks on save:
 

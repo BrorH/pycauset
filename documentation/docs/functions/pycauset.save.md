@@ -29,7 +29,7 @@ pc.save(pc.matrix([[1.0, 2.0], [3.0, 4.0]]), "data.pycauset")
 # Save a block matrix (creates a sidecar directory)
 A = pc.matrix(((1.0, 0.0), (0.0, 1.0)))
 BM = pc.matrix(((A, A), (A, A)))
-pc.save(BM, "bm.pycauset")  # writes bm.pycauset and bm.pycauset.blocks/
+pc.save(BM, "bm.pycauset")  # writes bm.pycauset and bm.pycauset.blocks.<token>/
 ```
 
 ## See Also
@@ -42,7 +42,8 @@ pc.save(BM, "bm.pycauset")  # writes bm.pycauset and bm.pycauset.blocks/
 When saving a `BlockMatrix`, PyCauset writes:
 
 - Container file: `bm.pycauset`
-- Sidecar directory: `bm.pycauset.blocks/`
+- Sidecar directory: `bm.pycauset.blocks.<token>/` (a new one per save, named in the manifest;
+  the previous one is deleted after the container is replaced)
 	- Child files: `block_r{r}_c{c}.pycauset`
 
 The container stores a `block_manifest` that records partitions and references child blocks. Manifest entries pin each child’s `payload_uuid`; load validates the pins.

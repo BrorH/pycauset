@@ -14,7 +14,7 @@ Loads a matrix, vector or block matrix from a `.pycauset` file. A file saved fro
 
 *   **Matrix/vector/BlockMatrix**: The appropriate object for the container’s contents.
 
-	For `matrix_type = "BLOCK"`, this returns a `BlockMatrix` reconstructed from a manifest stored in the container file and child blocks stored in a sibling `.blocks/` directory.
+	For `matrix_type = "BLOCK"`, this returns a `BlockMatrix` reconstructed from a manifest stored in the container file and child blocks stored in the sibling directory the manifest names (`<name>.blocks.<token>/`).
 
 ## Description
 
@@ -49,7 +49,8 @@ assert BM2.shape == (4, 4)
 If the container is a block matrix (`matrix_type = "BLOCK"`), load expects:
 
 - `bm.pycauset` (container file)
-- `bm.pycauset.blocks/` (sidecar directory)
+- `bm.pycauset.blocks.<token>/` (sidecar directory, named in the manifest; `bm.pycauset.blocks/`
+  for files from before generations)
 	- `block_r{r}_c{c}.pycauset` children
 
 The block manifest pins each child’s `payload_uuid`; load validates these pins and fails deterministically on mismatch. Missing sidecar entries or mismatched child files error rather than silently mixing snapshots. View blocks are loaded from the materialized child files (no view references on disk in Release 1).

@@ -657,210 +657,169 @@ def _save_blockmatrix(
     from .submatrix_view import SubmatrixView
 
 
-    blocks_dir = Path(str(path) + ".blocks")
-    blocks_dir.mkdir(parents=True, exist_ok=True)
-
-    # Stage all managed children in a temp directory first, then commit via rename/replace.
-    # This reduces the chance of leaving a partially updated multi-file tree.
-    staging_tag = uuid.uuid4().hex
-    staging_dir = blocks_dir / f".staging_{staging_tag}"
-    if staging_dir.exists():
-        try:
-            shutil.rmtree(staging_dir)
-        except OSError:
-            pass
-    staging_dir.mkdir(parents=True, exist_ok=True)
-
+    # Generations (review 3.9 C-5): every save writes a fresh tree `<name>.blocks.<token>/`
+    # and names it in the manifest; the parent container is replaced atomically, and only then
+    # is the previous tree deleted. A crash at any point leaves the old snapshot whole (the old
+    # parent still names the old tree). Children used to be committed into the live `.blocks/`
+    # directory, and stale ones deleted, before the parent was replaced.
     def _safe_rmtree(p: Path) -> None:
         try:
             shutil.rmtree(p)
         except OSError:
             pass
 
-    def _replace_dir(*, src: Path, dst: Path) -> None:
-        if not src.exists():
-            return
+    old_tree = None
+    if path.exists():
+        try:
+            old_meta, _ = _read_new_container_metadata_and_offset(path)
+            old_manifest = old_meta.get("block_manifest")
+            if isinstance(old_manifest, dict):
+                old_tree = _blocks_dir_of(path, old_manifest)
+        except (OSError, ValueError):
+            old_tree = None  # not a readable container: nothing of ours to delete
+    tree_name = f"{path.name}.blocks.{uuid.uuid4().hex}"
+    blocks_dir = path.parent / tree_name
+    blocks_dir.mkdir(parents=True)
 
-        # Renames only; a failure raises (it fell back to deleting the old tree and a
-        # non-atomic move, review 3.9 C-10). Only removing the replaced tree is best effort.
-        old = None
-        if dst.exists():
-            old = dst.with_name(dst.name + f".old_{staging_tag}")
-            os.replace(str(dst), str(old))
-        os.replace(str(src), str(dst))
-        if old is not None:
-            _safe_rmtree(old)
-
-    children: list[list[dict[str, Any]]] = []
-
-    expected_child_names: set[str] = set()
-
-    for r in range(obj.block_rows):
-        row_entries: list[dict[str, Any]] = []
-        for c in range(obj.block_cols):
-            blk = obj.get_block(r, c)
-
-            # Evaluate thunks blockwise on save.
-            if isinstance(blk, ThunkBlock):
-                blk = blk.materialize()
-
-
-            # A cut tile is saved as the block layer computes it (`_leaf_operand`): the engine's
-            # slice of its leaf (a window of a dense one, the tile of a structured or
-            # complex_float16 one), the sub-grid of a nested grid (saved as a nested grid), a
-            # slice of an evaluated thunk. It went through NumPy with a dtype table and an
-            # element loop, and raised for nested grids and thunks (review 3.10 C-9).
-            if isinstance(blk, SubmatrixView):
-                from .blockmatrix import _leaf_operand
-
-                blk = _leaf_operand(blk)
-
-            child_name = f"block_r{r}_c{c}.pycauset"
-            expected_child_names.add(child_name)
-
-            staged_child_path = staging_dir / child_name
-            final_child_path = blocks_dir / child_name
-
-            # Save recursively.
-            # NOTE: BlockMatrix persistence is multi-file (sidecar directory), so using a
-            # temp filename + rename would strand the sidecar directory under the temp name.
-            if isinstance(blk, BlockMatrix):
-                save(blk, staged_child_path, deps=deps)
-            else:
-                # Best-effort atomic replace for single-file children.
-                tmp_child_path = staged_child_path.with_suffix(staged_child_path.suffix + ".tmp")
-                if tmp_child_path.exists():
-                    try:
-                        tmp_child_path.unlink()
-                    except OSError:
-                        pass
-                save(blk, tmp_child_path, deps=deps)
-                os.replace(str(tmp_child_path), str(staged_child_path))
-
-            # Pin child payload UUID for snapshot/integrity validation on load. The child
-            # was just written by `save`: failing to read it back is an error, not a reason to
-            # store the block without its integrity pin.
-            child_meta, _ = _read_new_container_metadata_and_offset(staged_child_path)
-            child_uuid = child_meta.get("payload_uuid")
-            if isinstance(child_uuid, str) and child_uuid:
-                row_entries.append({"path": child_name, "payload_uuid": child_uuid})
-            else:
-                row_entries.append({"path": child_name})
-        children.append(row_entries)
-
-    # Commit staged children into the real blocks directory.
-    for child_name in sorted(expected_child_names):
-        staged_child_path = staging_dir / child_name
-        final_child_path = blocks_dir / child_name
-
-        # If the staged child is a BlockMatrix container, it has its own sidecar directory.
-        staged_child_blocks = Path(str(staged_child_path) + ".blocks")
-        final_child_blocks = Path(str(final_child_path) + ".blocks")
-        if staged_child_blocks.exists():
-            # Commit the sidecar first so the new file immediately points at the correct tree.
-            _replace_dir(src=staged_child_blocks, dst=final_child_blocks)
-
-        os.replace(str(staged_child_path), str(final_child_path))
-
-    # Cleanup staged directory.
-    _safe_rmtree(staging_dir)
-
-    # Best-effort cleanup of stale managed child files after commit.
-    # Preserve unrelated files in the blocks directory.
     try:
-        for child in blocks_dir.glob("block_r*_c*.pycauset"):
-            if child.name not in expected_child_names:
-                try:
-                    child.unlink()
-                except OSError:
-                    pass
-                # Also remove managed nested sidecar directory if present.
-                nested_dir = Path(str(child) + ".blocks")
-                if nested_dir.exists():
-                    _safe_rmtree(nested_dir)
-    except OSError:
-        pass
+        children: list[list[dict[str, Any]]] = []
+        for r in range(obj.block_rows):
+            row_entries: list[dict[str, Any]] = []
+            for c in range(obj.block_cols):
+                blk = obj.get_block(r, c)
 
-    # BlockMatrix containers use an empty payload and store structure in metadata.
-    meta: dict[str, Any] = {
-        "rows": int(obj.rows()),
-        "cols": int(obj.cols()),
-        "seed": 0,
-        "payload_uuid": uuid.uuid4().hex,
-        "view": {"is_transposed": False, "is_conjugated": False, "scalar": 1.0},
-        "payload_layout": {"kind": "none", "params": {}},
-        "matrix_type": "BLOCK",
-        "data_type": "MIXED",
-        "block_manifest": {
-            "version": 1,
-            "row_partitions": list(obj.row_partitions),
-            "col_partitions": list(obj.col_partitions),
-            "children": children,
-        },
-    }
+                # Evaluate thunks blockwise on save.
+                if isinstance(blk, ThunkBlock):
+                    blk = blk.materialize()
 
-    # Write file (single-file container) atomically via temp + replace.
-    payload_offset = _HEADER_BYTES
-    payload_length = 0
-    tmp_path = _staging_file(path.parent, f".{path.name}.", ".part")  # unique (C-1)
+                # A cut tile is saved as the block layer computes it (`_leaf_operand`): the engine's
+                # slice of its leaf (a window of a dense one, the tile of a structured or
+                # complex_float16 one), the sub-grid of a nested grid (saved as a nested grid), a
+                # slice of an evaluated thunk. It went through NumPy with a dtype table and an
+                # element loop, and raised for nested grids and thunks (review 3.10 C-9).
+                if isinstance(blk, SubmatrixView):
+                    from .blockmatrix import _leaf_operand
 
-    with tmp_path.open("wb") as out_f:
-        out_f.write(b"\x00" * _HEADER_BYTES)
+                    blk = _leaf_operand(blk)
 
-        cur = out_f.tell()
-        meta_offset = _align_up(cur, 16)
-        if meta_offset != cur:
-            out_f.write(b"\x00" * (meta_offset - cur))
+                child_name = f"block_r{r}_c{c}.pycauset"
+                child_path = blocks_dir / child_name
+                save(blk, child_path, deps=deps)  # a fresh directory: written in place
 
-        meta_payload = _encode_metadata_top_map(meta)
-        block_payload_crc = _crc32(meta_payload)
-        block_header = (
-            _METADATA_BLOCK_MAGIC
-            + struct.pack(
-                "<III",
-                _METADATA_BLOCK_VERSION,
-                _METADATA_ENCODING_VERSION,
-                0,
+                # Pin child payload UUID for snapshot/integrity validation on load. The child
+                # was just written by `save`: failing to read it back is an error, not a reason to
+                # store the block without its integrity pin.
+                child_meta, _ = _read_new_container_metadata_and_offset(child_path)
+                child_uuid = child_meta.get("payload_uuid")
+                if isinstance(child_uuid, str) and child_uuid:
+                    row_entries.append({"path": child_name, "payload_uuid": child_uuid})
+                else:
+                    row_entries.append({"path": child_name})
+            children.append(row_entries)
+        _fsync_dir(blocks_dir)
+
+        # BlockMatrix containers use an empty payload and store structure in metadata.
+        meta: dict[str, Any] = {
+            "rows": int(obj.rows()),
+            "cols": int(obj.cols()),
+            "seed": 0,
+            "payload_uuid": uuid.uuid4().hex,
+            "view": {"is_transposed": False, "is_conjugated": False, "scalar": 1.0},
+            "payload_layout": {"kind": "none", "params": {}},
+            "matrix_type": "BLOCK",
+            "data_type": "MIXED",
+            "block_manifest": {
+                "version": 1,
+                "blocks_dir": tree_name,
+                "row_partitions": list(obj.row_partitions),
+                "col_partitions": list(obj.col_partitions),
+                "children": children,
+            },
+        }
+
+        # Write file (single-file container) atomically via temp + replace.
+        payload_offset = _HEADER_BYTES
+        payload_length = 0
+        tmp_path = _staging_file(path.parent, f".{path.name}.", ".part")  # unique (C-1)
+
+        with tmp_path.open("wb") as out_f:
+            out_f.write(b"\x00" * _HEADER_BYTES)
+
+            cur = out_f.tell()
+            meta_offset = _align_up(cur, 16)
+            if meta_offset != cur:
+                out_f.write(b"\x00" * (meta_offset - cur))
+
+            meta_payload = _encode_metadata_top_map(meta)
+            block_payload_crc = _crc32(meta_payload)
+            block_header = (
+                _METADATA_BLOCK_MAGIC
+                + struct.pack(
+                    "<III",
+                    _METADATA_BLOCK_VERSION,
+                    _METADATA_ENCODING_VERSION,
+                    0,
+                )
+                + struct.pack("<Q", len(meta_payload))
+                + struct.pack("<I", block_payload_crc)
+                + struct.pack("<I", 0)
             )
-            + struct.pack("<Q", len(meta_payload))
-            + struct.pack("<I", block_payload_crc)
-            + struct.pack("<I", 0)
-        )
-        if len(block_header) != 32:
-            raise AssertionError("metadata block header size mismatch")
-        out_f.write(block_header)
-        out_f.write(meta_payload)
-        meta_length = 32 + len(meta_payload)
+            if len(block_header) != 32:
+                raise AssertionError("metadata block header size mismatch")
+            out_f.write(block_header)
+            out_f.write(meta_payload)
+            meta_length = 32 + len(meta_payload)
 
-        slot_a = _pack_slot(
-            generation=1,
-            payload_offset=payload_offset,
-            payload_length=payload_length,
-            metadata_offset=meta_offset,
-            metadata_length=meta_length,
-            hot_offset=0,
-            hot_length=0,
-        )
-        slot_b = _pack_slot(
-            generation=0,
-            payload_offset=payload_offset,
-            payload_length=payload_length,
-            metadata_offset=meta_offset,
-            metadata_length=meta_length,
-            hot_offset=0,
-            hot_length=0,
-        )
-        out_f.seek(0)
-        out_f.write(_pack_preamble())
-        out_f.seek(_SLOT_A_OFFSET)
-        out_f.write(slot_a)
-        out_f.seek(_SLOT_B_OFFSET)
-        out_f.write(slot_b)
-        out_f.flush()
-        os.fsync(out_f.fileno())
+            slot_a = _pack_slot(
+                generation=1,
+                payload_offset=payload_offset,
+                payload_length=payload_length,
+                metadata_offset=meta_offset,
+                metadata_length=meta_length,
+                hot_offset=0,
+                hot_length=0,
+            )
+            slot_b = _pack_slot(
+                generation=0,
+                payload_offset=payload_offset,
+                payload_length=payload_length,
+                metadata_offset=meta_offset,
+                metadata_length=meta_length,
+                hot_offset=0,
+                hot_length=0,
+            )
+            out_f.seek(0)
+            out_f.write(_pack_preamble())
+            out_f.seek(_SLOT_A_OFFSET)
+            out_f.write(slot_a)
+            out_f.seek(_SLOT_B_OFFSET)
+            out_f.write(slot_b)
+            out_f.flush()
+            os.fsync(out_f.fileno())
 
-    os.replace(str(tmp_path), str(path))
-    _fsync_dir(path.parent)
+        os.replace(str(tmp_path), str(path))
+        _fsync_dir(path.parent)
+    except BaseException:
+        _safe_rmtree(blocks_dir)  # the new tree is referenced by nothing: the old snapshot stands
+        part = locals().get("tmp_path")
+        if part is not None:
+            Path(part).unlink(missing_ok=True)
+        raise
+    # The new snapshot is in place: the previous tree is garbage now.
+    if old_tree is not None and old_tree != blocks_dir and old_tree.exists():
+        _safe_rmtree(old_tree)
+
+
+def _blocks_dir_of(path: Path, manifest: dict[str, Any]) -> Path:
+    """The child tree a manifest names: `<name>.blocks.<token>` beside the file (a simple
+    sibling name of that form only), or `<name>.blocks` for files written before generations."""
+    name = manifest.get("blocks_dir")
+    if name is None:
+        return Path(str(path) + ".blocks")
+    if (not isinstance(name, str) or name != Path(name).name or not name.startswith(f"{path.name}.blocks.")
+            or any(ch in name for ch in "/\\:")):
+        raise ValueError("invalid BLOCK file: blocks_dir must be a sibling '<name>.blocks.<token>' directory")
+    return path.parent / name
 
 
 def _load_blockmatrix(path: Path, metadata: dict[str, Any], *, deps: PersistenceDeps, BlockMatrix: Any) -> Any:
@@ -874,7 +833,7 @@ def _load_blockmatrix(path: Path, metadata: dict[str, Any], *, deps: Persistence
     if not (isinstance(row_parts, list) and isinstance(col_parts, list) and isinstance(children, list)):
         raise ValueError("invalid BLOCK file: malformed manifest")
 
-    blocks_dir = Path(str(path) + ".blocks")
+    blocks_dir = _blocks_dir_of(path, manifest)
     if not blocks_dir.exists():
         raise FileNotFoundError(f"missing blocks directory: {blocks_dir}")
 
