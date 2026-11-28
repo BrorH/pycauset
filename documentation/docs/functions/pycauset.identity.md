@@ -1,7 +1,7 @@
 # pycauset.identity
 
 ```python
-pycauset.identity(x)
+pycauset.identity(x, dtype="float64")
 ```
 
 Creates an identity-like matrix (ones on the diagonal, zeros elsewhere) with shape derived from `x`.
@@ -12,7 +12,7 @@ This is a convenience factory around [[pycauset.IdentityMatrix]] and supports mu
 
 `x` can be:
 
-1. **Integer `N`**
+1. **Integer `N`** (a Python or NumPy integer)
    - Returns an $N \times N$ identity matrix.
 
 2. **Shape sequence `[rows, cols]`**
@@ -22,6 +22,8 @@ This is a convenience factory around [[pycauset.IdentityMatrix]] and supports mu
 3. **A Matrix or Vector**
    - If `x` is a matrix, returns an identity-like matrix with shape `(x.rows(), x.cols())`.
    - If `x` is a vector, returns an $N \times N$ identity matrix where $N = $ `x.size`.
+
+`dtype` is the element type (float64 by default, as NumPy's `identity`).
 
 ## Examples
 

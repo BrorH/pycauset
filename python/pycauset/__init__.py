@@ -7,6 +7,7 @@ except ImportError:
     __version__ = "unknown"
 
 import contextlib as _contextlib
+import operator as _operator
 import os
 import warnings
 
@@ -39,6 +40,7 @@ from ._internal import export_guard as _export_guard
 from ._internal import factories as _factories
 from ._internal import formatting as _formatting
 from ._internal import io_observability as _io_observability
+from ._internal import dtypes as _dtypes
 from ._internal import matrix_api as _matrix_api
 from ._internal import native as _native_mod
 from ._internal import ops as _ops
@@ -669,7 +671,7 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
 
     if _is_sequence_like(source):
         if len(source) == 0:
-            raise ValueError("matrix/vector input must not be empty")
+            return vector(source, dtype=dtype, **kwargs)  # np.asarray([]): an empty float64 1-D array
         first = source[0]
         if _is_sequence_like(first):
             # Reject higher-rank nested sequences deterministically.
@@ -710,7 +712,7 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
                     "Provide either all matrices (block grid) or all numeric scalars (dense data)."
                 )
 
-            if all_matrix:
+            if all_matrix and any_matrix:  # (vacuously all for [[]], which is a 1 x 0 matrix)
                 if dtype is not None or kwargs:
                     raise TypeError("matrix(block_grid) does not accept dtype/kwargs")
                 if BlockMatrix is None:
@@ -734,13 +736,14 @@ def _allocate_like(shape: Any, kind: str, dtype: Any, kwargs: dict[str, Any]) ->
     limit = kw.pop("max_in_ram_bytes", None)
     if kw:
         raise TypeError(f"{kind}() got unexpected keyword arguments: {sorted(kw)}")
-    if isinstance(shape, int):
+    if not isinstance(shape, bool) and hasattr(shape, "__index__"):  # an int, np.int64, ...
         shape = (shape,)
     if not _is_sequence_like(shape):
         raise TypeError("shape must be an int or a tuple")
+    shape = tuple(_operator.index(d) for d in shape)  # NumPy's sizes (a float is a TypeError)
     if len(shape) not in (1, 2):
         raise ValueError("shape must be 1D or 2D")
-    out = _matrix_api.allocate(tuple(int(d) for d in shape), dtype, storage=storage, max_in_ram_bytes=limit)
+    out = _matrix_api.allocate(shape, dtype, storage=storage, max_in_ram_bytes=limit)
     if kind == "ones":
         out.fill(1)
     return out
@@ -1109,35 +1112,53 @@ def vecdot(a: Any, b: Any) -> Any:
     return _ops.vecdot(a, b, deps=_OPS_DEPS)
 
 
-def identity(x: Any) -> Any:
-    """Create an identity-like matrix.
+def identity(x: Any, dtype: Any = "float64") -> Any:
+    """Create an identity-like matrix of `dtype` (float64, as NumPy's `identity`).
 
     Accepted inputs:
-    - int N: returns an N×N identity matrix.
+    - int N (Python or NumPy): returns an N×N identity matrix.
     - sequence [rows, cols]: returns a rows×cols rectangular identity (ones on the diagonal, zeros elsewhere).
     - Matrix/Vector: returns an identity-like matrix sized to the input (matrix: rows×cols, vector: N×N).
     """
-    if isinstance(x, bool):
-        raise TypeError("identity(x): bool is not a valid size")
-    if isinstance(x, int):
-        return IdentityMatrix(x)
+    def size(d: Any) -> Any:
+        return None if isinstance(d, bool) or not hasattr(d, "__index__") else _operator.index(d)
+
+    if size(x) is not None:
+        return IdentityMatrix(size(x), dtype=dtype)
     if isinstance(x, _native.MatrixBase):
-        return IdentityMatrix(x.rows(), x.cols())
+        return IdentityMatrix(x.rows(), x.cols(), dtype=dtype)
     if isinstance(x, _native.VectorBase):
-        return IdentityMatrix(len(x))
-    if _is_sequence_like(x) and len(x) == 2 and all(isinstance(d, int) and not isinstance(d, bool) for d in x):
-        return IdentityMatrix(int(x[0]), int(x[1]))
+        return IdentityMatrix(x.size, dtype=dtype)
+    if _is_sequence_like(x) and len(x) == 2 and all(size(d) is not None for d in x):
+        return IdentityMatrix(size(x[0]), size(x[1]), dtype=dtype)
     raise TypeError("identity(x) expects an int, [rows, cols], or a matrix/vector")
 
 
+def _input_array(data: Any) -> Any:
+    """`data` as a NumPy array for the structured constructors. Python values follow the
+    matrix rules (Python ints are int32, F-103; np.asarray made them int64, review 3.8 C-11)."""
+    if isinstance(data, (list, tuple)):
+        flat: list[Any] = []
+
+        def walk(x: Any) -> None:
+            if isinstance(x, (list, tuple)):
+                for y in x:
+                    walk(y)
+            else:
+                flat.append(x)
+
+        walk(data)
+        inferred = _dtypes.infer_sequence_dtype(flat, np_module=_np)
+        return _np.asarray(data, dtype=_matrix_api._NUMPY_DTYPE.get(inferred, "complex64"))
+    return _np.asarray(data)
+
+
 def _as_square_array(data: Any, *, name: str) -> Any:
-    arr = _np.asarray(data)
+    arr = _input_array(data)
     if arr.ndim != 2:
         raise ValueError(f"{name}() expects a 2D array, got {arr.ndim}D")
     if arr.shape[0] != arr.shape[1]:
         raise ValueError(f"{name}() requires a square matrix, got shape {arr.shape}")
-    if arr.size == 0:
-        raise ValueError(f"{name}() does not support empty input")
     return arr
 
 
@@ -1186,12 +1207,14 @@ def antisymmetric(data: Any, *, rtol: float | None = None, atol: float | None = 
 def hermitian(data: Any, *, rtol: float | None = None, atol: float | None = None) -> Any:
     """A `HermitianMatrix` (A == A.conj().T, packed upper triangle) of the input's complex dtype.
 
-    Real input is promoted to complex_float64 (a real symmetric matrix is Hermitian; for a
-    real packed type use `symmetric`). Validated like `symmetric`; the diagonal must be real.
+    Real input is promoted to the complex dtype of its precision (float16 / float32 to
+    complex_float32, others to complex_float64, as NumPy's `astype(complex)` would not narrow);
+    a real symmetric matrix is Hermitian, and `symmetric` gives a real packed type. Validated
+    like `symmetric`; the diagonal must be real.
     """
     arr = _as_square_array(data, name="hermitian")
     if not _np.iscomplexobj(arr):
-        arr = arr.astype(_np.complex128)
+        arr = arr.astype(_np.complex64 if arr.dtype in (_np.float16, _np.float32) else _np.complex128)
     r, a = (1e-5 if rtol is None else rtol), (1e-8 if atol is None else atol)
     if not _np.allclose(arr, arr.conj().T, rtol=r, atol=a):
         raise ValueError("hermitian() input is not Hermitian: A != A.conj().T (within tolerance)")
@@ -1201,10 +1224,8 @@ def hermitian(data: Any, *, rtol: float | None = None, atol: float | None = None
 def diagonal(data: Any) -> Any:
     """A `DiagonalMatrix` of the input's dtype from a 1-D vector of entries or the diagonal of
     a square 2-D matrix (off-diagonal values are ignored)."""
-    arr = _np.asarray(data)
+    arr = _input_array(data)
     if arr.ndim == 1:
-        if arr.size == 0:
-            raise ValueError("diagonal() does not support empty input")
         arr = _np.diag(arr)
     elif arr.ndim != 2 or arr.shape[0] != arr.shape[1]:
         raise ValueError("diagonal() expects a 1D vector or a 2D square matrix")

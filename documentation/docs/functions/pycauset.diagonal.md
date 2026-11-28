@@ -13,7 +13,7 @@ matrix (off-diagonal values are ignored).
 ```python
 import pycauset as pc
 
-D = pc.diagonal([1, 2, 3])   # DiagonalMatrix, int64
+D = pc.diagonal([1, 2, 3])   # DiagonalMatrix, int32 (Python ints, as in pycauset.matrix)
 ```
 
 ## See also

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+import operator
 from typing import Any
 
 from .dtypes import infer_sequence_dtype as _infer_sequence_dtype
@@ -53,11 +54,12 @@ def causal_matrix_factory(
 ) -> Any:
     source_obj: Any = source
 
-    # Case 1: integer size
-    if isinstance(source_obj, (int, float)) and (
-        isinstance(source_obj, int) or source_obj.is_integer()
-    ):
-        n = int(source_obj)
+    # Case 1: an integer size (Python or NumPy; a float is a TypeError, as NumPy's sizes:
+    # causal_matrix(4.0) was accepted, review 3.8 C-20)
+    if isinstance(source_obj, float):
+        raise TypeError("causal_matrix(n): the size must be an integer, not a float")
+    if not isinstance(source_obj, bool) and isinstance(source_obj, (int, np_module.integer)):
+        n = operator.index(source_obj)
         if populate:
             return TriangularMatrix.random(n, p=0.5, **kwargs)
         return TriangularMatrix(n, dtype="bool", **kwargs)

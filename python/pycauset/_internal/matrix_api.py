@@ -140,6 +140,9 @@ def Matrix(size_or_data: Any, dtype: Any = None, **kwargs: Any) -> Any:
     # 2) Nested sequences: convert with the dtype rules above, then the array path.
     data = size_or_data
     if not isinstance(data, np.ndarray):
+        if not all(isinstance(r, (list, tuple, np.ndarray)) for r in data):
+            # NumPy's error for [[1], 2] (it was "TypeError: 'int' object is not iterable")
+            raise ValueError("matrix(): the requested array has an inhomogeneous shape (rows of different kinds)")
         rows = [list(r) for r in data]
         if rows and len({len(r) for r in rows}) != 1:
             raise ValueError("matrix() requires rows of equal length")

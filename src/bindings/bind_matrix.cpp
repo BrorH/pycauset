@@ -393,6 +393,7 @@ void bind_matrix_classes(py::module_& m) {
         })
         .def_property_readonly("size", &MatrixBase::size, "Number of elements (rows * cols), as NumPy's ndarray.size.")
         .def_property_readonly("ndim", [](const MatrixBase&) { return 2; }, "Number of dimensions (2), as NumPy's ndarray.ndim.")
+        .def("__len__", [](const MatrixBase& m) { return m.rows(); })  // NumPy: len is shape[0] (review 3.8 C-19)
         .def("rows", &MatrixBase::rows)
         .def("cols", &MatrixBase::cols)
         .def("get_element_as_double", &MatrixBase::get_element_as_double, py::arg("i"), py::arg("j"))

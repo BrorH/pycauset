@@ -2055,3 +2055,29 @@ def test_3_8_C10_public_functions_take_the_same_array_likes():
 
     with pytest.raises(TypeError, match="BlockMatrix"):
         pc.sum(BlockMatrix([[pc.matrix(a)]]))  # not densified behind the caller's back
+
+
+def test_3_8_C19_C20_constructors_and_len_as_numpy():
+    """len(A) raised; NumPy integer sizes raised; matrix([]) / matrix([[]]) / [[1], 2] differed
+    from NumPy; symmetric / diagonal of Python ints were int64; hermitian(float32) widened."""
+    A = pc.matrix(np.eye(3))
+    assert len(A) == 3 and [len(np.asarray(r)) for r in A] == [3, 3, 3]
+    assert pc.zeros(np.int64(3)).shape == (3,) and pc.zeros((np.int64(2), 3)).shape == (2, 3)
+    with pytest.raises(TypeError):
+        pc.zeros(2.0)
+    I = pc.identity(np.int64(3), dtype="int8")
+    assert I.shape == (3, 3) and I.dtype == "int8"
+    assert pc.causal_matrix(np.int64(4)).shape == (4, 4)
+    with pytest.raises(TypeError):
+        pc.causal_matrix(4.0)
+    e = pc.matrix([])
+    assert e.shape == np.asarray([]).shape and e.dtype == "float64"
+    assert pc.matrix([[]]).shape == np.zeros((1, 0)).shape
+    with pytest.raises(ValueError):
+        pc.matrix([[1], 2])
+    with pytest.raises(ValueError):
+        np.array([[1], 2])
+    assert pc.symmetric([[1, 2], [2, 3]]).dtype == pc.diagonal([1, 2]).dtype == pc.matrix([[1]]).dtype == "int32"
+    assert pc.symmetric(np.zeros((0, 0))).shape == pc.diagonal([]).shape == (0, 0)
+    assert pc.hermitian(np.eye(2, dtype=np.float32)).dtype == "complex_float32"
+    assert pc.hermitian(np.eye(2)).dtype == "complex_float64"
