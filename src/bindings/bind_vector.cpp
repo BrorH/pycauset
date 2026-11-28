@@ -57,7 +57,7 @@ inline bool u64_to_py_ssize(uint64_t v, Py_ssize_t* out) {
 // The engine's one dot (math/LinearAlgebra.cpp `dot`: matmul's rule), its 1 x 1 result read as
 // a Python scalar.
 inline py::object vector_dot(const VectorBase& a, const VectorBase& b) {
-    const auto r = translate_invalid_argument([&] { return pycauset::dot(a, b); });
+    const auto r = pycauset::dot(a, b);
     return pycauset_bindings::indexing::element_get(*r, 0, 0);
 }
 
@@ -230,11 +230,11 @@ inline py::object vector_bitwise(const VectorBase& a, const py::object& other, p
     auto ra = pycauset::as_row_matrix(a);
     std::unique_ptr<MatrixBase> out;
     if (other.is_none()) {
-        out = translate_invalid_argument([&] { return pycauset::bitwise_not(*ra); });
+        out = pycauset::bitwise_not(*ra);
     } else {
         const auto b = pycauset_bindings::indexing::bitwise_operand(*ra, other);
         if (!b) return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-        out = translate_invalid_argument([&] { return pycauset::bitwise(*ra, *b, op); });
+        out = pycauset::bitwise(*ra, *b, op);
     }  // pycauset::dtype_error is a TypeError (translated globally)
     if (out->rows() != 1) return py::cast(std::shared_ptr<MatrixBase>(out.release()));
     return py::cast(std::shared_ptr<VectorBase>(pycauset::as_vector(std::move(out), a.is_transposed()).release()));
@@ -282,7 +282,7 @@ inline py::object vector_compare(const VectorBase& v, const py::object& other, p
     const auto b = compare_operand(other);
     if (!b) return py::reinterpret_borrow<py::object>(Py_NotImplemented);
     auto row = pycauset::as_row_matrix(v);
-    auto out = translate_invalid_argument([&] { return pycauset::compare(*row, *b, op); });
+    auto out = pycauset::compare(*row, *b, op);
     if (out->rows() != 1) return py::cast(std::shared_ptr<MatrixBase>(out.release()));
     return py::cast(std::shared_ptr<VectorBase>(pycauset::as_vector(std::move(out), v.is_transposed()).release()));
 }
@@ -445,15 +445,13 @@ void bind_vector_classes(py::module_& m) {
         .def(
             "__matmul__",
             [](const VectorBase& a, const std::shared_ptr<MatrixBase>& mtx) {
-                return translate_invalid_argument([&]() {
-                    maybe_warn_bit_promotes_to_int32(
-                        "matmul",
-                        promotion::BinaryOp::VectorMatrixMultiply,
-                        a.get_data_type(),
-                        mtx->get_data_type());
-                    auto out = pycauset::vector_matrix_multiply(a, *mtx, "");
-                    return std::shared_ptr<VectorBase>(out.release());
-                });
+                maybe_warn_bit_promotes_to_int32(
+                    "matmul",
+                    promotion::BinaryOp::VectorMatrixMultiply,
+                    a.get_data_type(),
+                    mtx->get_data_type());
+                auto out = pycauset::vector_matrix_multiply(a, *mtx, "");
+                return std::shared_ptr<VectorBase>(out.release());
             },
             py::arg("other"), py::is_operator())
         // NumPy operands, as matrices take them (review 3.6 C-7): v @ arr and arr @ v (NumPy
@@ -465,7 +463,7 @@ void bind_vector_classes(py::module_& m) {
                 if (b.ndim() == 2) {
                     auto m = matrix_from_numpy(b);
                     return py::cast(std::shared_ptr<VectorBase>(
-                        translate_invalid_argument([&] { return pycauset::vector_matrix_multiply(a, *m, ""); }).release()));
+                        pycauset::vector_matrix_multiply(a, *m, "").release()));
                 }
                 throw py::value_error("matmul: a NumPy operand must be 1-D or 2-D");
             },
@@ -477,7 +475,7 @@ void bind_vector_classes(py::module_& m) {
                 if (b.ndim() == 2) {
                     auto m = matrix_from_numpy(b);
                     return py::cast(std::shared_ptr<VectorBase>(
-                        translate_invalid_argument([&] { return pycauset::matrix_vector_multiply(*m, a, ""); }).release()));
+                        pycauset::matrix_vector_multiply(*m, a, "").release()));
                 }
                 throw py::value_error("matmul: a NumPy operand must be 1-D or 2-D");
             },

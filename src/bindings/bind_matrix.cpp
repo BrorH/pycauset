@@ -145,20 +145,16 @@ using namespace pycauset_bindings::indexing;  // matrix_indexing.hpp
 inline py::object matrix_compare(const MatrixBase& a, const py::object& other, pycauset::CompareOp op) {
     const auto b = compare_operand(other);
     if (!b) return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-    return py::cast(std::shared_ptr<MatrixBase>(translate_invalid_argument([&] { return pycauset::compare(a, *b, op); }).release()));
+    return py::cast(std::shared_ptr<MatrixBase>(pycauset::compare(a, *b, op).release()));
 }
 
 // Bitwise ops (math/Bitwise.cpp): a float/complex operand is a TypeError (pycauset::dtype_error,
 // translated globally), as in NumPy.
-template <typename F>
-inline std::shared_ptr<MatrixBase> bitwise_call(F&& f) {
-    return translate_invalid_argument([&] { return std::shared_ptr<MatrixBase>(f().release()); });
-}
 
 inline py::object matrix_bitwise(const MatrixBase& a, const py::object& other, pycauset::BitwiseOp op) {
     const auto b = pycauset_bindings::indexing::bitwise_operand(a, other);
     if (!b) return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-    return py::cast(bitwise_call([&] { return pycauset::bitwise(a, *b, op); }));
+    return py::cast(std::shared_ptr<MatrixBase>(pycauset::bitwise(a, *b, op).release()));
 }
 
 inline std::shared_ptr<MatrixBase> matrix_inverse(const MatrixBase& mat) {
@@ -277,22 +273,18 @@ py::object export_numpy(const MatrixBase& mat) {
 // One matmul binding path (review 4.3): `@`, `.matmul`, `pycauset._native.matmul` and NumPy
 // operands all come here. The warnings are advisory and never change the result.
 inline std::shared_ptr<MatrixBase> matmul_mm(const MatrixBase& a, const MatrixBase& b) {
-    return translate_invalid_argument([&]() {
-        maybe_warn_float_underpromotion("matmul", promotion::BinaryOp::Matmul, a, b);
-        maybe_warn_bit_promotes_to_int32("matmul", promotion::BinaryOp::Matmul, a.get_data_type(), b.get_data_type());
-        maybe_warn_integer_matmul_overflow_risk_preflight(a, b);
-        return std::shared_ptr<MatrixBase>(pycauset::dispatch_matmul(a, b, "").release());
-    });
+    maybe_warn_float_underpromotion("matmul", promotion::BinaryOp::Matmul, a, b);
+    maybe_warn_bit_promotes_to_int32("matmul", promotion::BinaryOp::Matmul, a.get_data_type(), b.get_data_type());
+    maybe_warn_integer_matmul_overflow_risk_preflight(a, b);
+    return std::shared_ptr<MatrixBase>(pycauset::dispatch_matmul(a, b, "").release());
 }
 
 inline std::shared_ptr<VectorBase> matvec(const MatrixBase& a, const VectorBase& v) {
-    return translate_invalid_argument([&]() {
-        maybe_warn_float_underpromotion("matmul", promotion::BinaryOp::MatrixVectorMultiply, a.get_data_type(),
-                                        v.get_data_type());
-        maybe_warn_bit_promotes_to_int32("matmul", promotion::BinaryOp::MatrixVectorMultiply, a.get_data_type(),
-                                         v.get_data_type());
-        return std::shared_ptr<VectorBase>(pycauset::matrix_vector_multiply(a, v, "").release());
-    });
+    maybe_warn_float_underpromotion("matmul", promotion::BinaryOp::MatrixVectorMultiply, a.get_data_type(),
+                                    v.get_data_type());
+    maybe_warn_bit_promotes_to_int32("matmul", promotion::BinaryOp::MatrixVectorMultiply, a.get_data_type(),
+                                     v.get_data_type());
+    return std::shared_ptr<VectorBase>(pycauset::matrix_vector_multiply(a, v, "").release());
 }
 
 inline py::object matrix_arith(const MatrixBase& a, const py::object& other_in, Arith op, bool reflected) {
@@ -458,10 +450,8 @@ void bind_matrix_classes(py::module_& m) {
             // vector (NumPy's vector @ matrix), returned as a vector.
             [](const MatrixBase& a, const py::array& b) -> py::object {
                 if (b.ndim() == 1) {
-                    return py::cast(translate_invalid_argument([&]() {
-                        auto out = pycauset::vector_matrix_multiply(*vector_from_numpy(b), a, "");
-                        return std::shared_ptr<VectorBase>(out.release());  // 1-D, as NumPy
-                    }));
+                    // 1-D, as NumPy
+                    return py::cast(std::shared_ptr<VectorBase>(pycauset::vector_matrix_multiply(*vector_from_numpy(b), a, "").release()));
                 }
                 if (b.ndim() == 2) return py::cast(matmul_mm(*matrix_from_numpy(b), a));
                 throw py::value_error("Unsupported array rank for matmul");
@@ -564,7 +554,7 @@ void bind_matrix_classes(py::module_& m) {
         .def("__le__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Le); }, py::arg("other"), py::is_operator())
         .def("__gt__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Gt); }, py::arg("other"), py::is_operator())
         .def("__ge__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Ge); }, py::arg("other"), py::is_operator())
-        .def("__invert__", [](const MatrixBase& a) { return bitwise_call([&] { return pycauset::bitwise_not(a); }); },
+        .def("__invert__", [](const MatrixBase& a) { return std::shared_ptr<MatrixBase>(pycauset::bitwise_not(a).release()); },
              py::is_operator())
         // & | ^ are commutative, so the reflected forms are the same call.
         .def("__and__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::And); }, py::arg("other"), py::is_operator())
@@ -780,66 +770,54 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "cholesky",
         [](std::shared_ptr<MatrixBase> a) {
-            return translate_invalid_argument([&]() {
-                auto out = pycauset::cholesky(*a);
-                return std::shared_ptr<MatrixBase>(out.release());
-            });
+            auto out = pycauset::cholesky(*a);
+            return std::shared_ptr<MatrixBase>(out.release());
         },
         py::arg("a"));
 
     m.def(
         "eig",
         [](std::shared_ptr<MatrixBase> a) {
-            return translate_invalid_argument([&]() {
-                auto out = pycauset::eig(*a);
-                return std::make_pair(
-                    std::shared_ptr<VectorBase>(out.first.release()),
-                    std::shared_ptr<MatrixBase>(out.second.release())
-                );
-            });
+            auto out = pycauset::eig(*a);
+            return std::make_pair(
+                std::shared_ptr<VectorBase>(out.first.release()),
+                std::shared_ptr<MatrixBase>(out.second.release())
+            );
         },
         py::arg("a"));
 
     m.def(
         "eigvals",
         [](std::shared_ptr<MatrixBase> a) {
-            return translate_invalid_argument([&]() {
-                auto out = pycauset::eigvals(*a);
-                return std::shared_ptr<VectorBase>(out.release());
-            });
+            auto out = pycauset::eigvals(*a);
+            return std::shared_ptr<VectorBase>(out.release());
         },
         py::arg("a"));
 
     m.def(
         "eigh",
         [](std::shared_ptr<MatrixBase> a) {
-            return translate_invalid_argument([&]() {
-                auto out = pycauset::eigh(*a);
-                return std::make_pair(
-                    std::shared_ptr<VectorBase>(out.first.release()),
-                    std::shared_ptr<MatrixBase>(out.second.release())
-                );
-            });
+            auto out = pycauset::eigh(*a);
+            return std::make_pair(
+                std::shared_ptr<VectorBase>(out.first.release()),
+                std::shared_ptr<MatrixBase>(out.second.release())
+            );
         },
         py::arg("a"));
 
     m.def(
         "eigvalsh",
         [](std::shared_ptr<MatrixBase> a) {
-            return translate_invalid_argument([&]() {
-                auto out = pycauset::eigvalsh(*a);
-                return std::shared_ptr<VectorBase>(out.release());
-            });
+            auto out = pycauset::eigvalsh(*a);
+            return std::shared_ptr<VectorBase>(out.release());
         },
         py::arg("a"));
 
     m.def(
         "eigvals_arnoldi",
         [](std::shared_ptr<MatrixBase> a, int k, int m, double tol) {
-            return translate_invalid_argument([&]() {
-                auto out = pycauset::eigvals_arnoldi(*a, k, m, tol);
-                return std::shared_ptr<VectorBase>(out.release());
-            });
+            auto out = pycauset::eigvals_arnoldi(*a, k, m, tol);
+            return std::shared_ptr<VectorBase>(out.release());
         },
         py::arg("a"),
         py::arg("k"),
@@ -849,10 +827,8 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "eigvals_skew",
         [](std::shared_ptr<MatrixBase> a, int k) {
-            return translate_invalid_argument([&]() {
-                auto out = pycauset::eigvals_skew(*a, k);
-                return std::shared_ptr<VectorBase>(out.release());
-            });
+            auto out = pycauset::eigvals_skew(*a, k);
+            return std::shared_ptr<VectorBase>(out.release());
         },
         py::arg("a"),
         py::arg("k"));
@@ -860,13 +836,11 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "eig_skew",
         [](std::shared_ptr<MatrixBase> a, int k) {
-            return translate_invalid_argument([&]() {
-                auto out = pycauset::eig_skew(*a, k);
-                return std::make_pair(
-                    std::shared_ptr<VectorBase>(out.first.release()),
-                    std::shared_ptr<MatrixBase>(out.second.release())
-                );
-            });
+            auto out = pycauset::eig_skew(*a, k);
+            return std::make_pair(
+                std::shared_ptr<VectorBase>(out.first.release()),
+                std::shared_ptr<MatrixBase>(out.second.release())
+            );
         },
         py::arg("a"),
         py::arg("k"));
@@ -878,8 +852,7 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "_compute_k_matrix",
         [](std::shared_ptr<MatrixBase> C, double a) {
-            return translate_invalid_argument(
-                [&] { return std::shared_ptr<MatrixBase>(::compute_k_matrix(*C, a).release()); });
+            return std::shared_ptr<MatrixBase>(::compute_k_matrix(*C, a).release());
         },
         py::arg("C"),
         py::arg("a"));

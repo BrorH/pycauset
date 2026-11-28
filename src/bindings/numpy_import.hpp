@@ -270,15 +270,6 @@ inline std::shared_ptr<MatrixBase> elementwise_operand_matrix_from_numpy(const p
     return import_numpy_matrix(array, nd == 2 ? ImportAs::Matrix : ImportAs::Row);
 }
 
-template <typename Fn>
-inline auto translate_invalid_argument(Fn&& fn) {
-    try {
-        return fn();
-    } catch (const std::invalid_argument& e) {
-        throw py::value_error(e.what());
-    }
-}
-
 // The other operand of a comparison as an engine matrix (nullptr: not an operand, so the
 // operator returns NotImplemented): a matrix as is, a vector as its 1 x n row, an ndarray
 // through the one normalised import (1-D: a row, as in arithmetic), a Python or NumPy scalar as a
