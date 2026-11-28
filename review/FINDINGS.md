@@ -1870,9 +1870,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-137 Area 3.4 (dispatch and CPU kernels): bit dot counts padding, fork hang, thread limits
 - **Status:** reviewed (session 9), 19 findings in `review/areas/3.4-dispatch-kernels.md`
-  (1 S1, 5 S2, 9 S3, 4 S4). Open.
-  - C-1 (S1): the bit-vector dot counted the padding bits of the last word (`pc.dot(~u, ~u)`
-    = 64 for n = 5).
+  (1 S1, 5 S2, 9 S3, 4 S4). C-1 fixed; the rest open.
+  - C-1 (S1, fixed): the bit-vector dot counted the padding bits of the last word
+    (`pc.dot(~u, ~u)` = 64 for n = 5); the last word is masked now.
   - C-2: after `fork()` the first parallel kernel in the child hangs (ThreadPool, libgomp).
   - C-3: `eig_skew` uses `?geev`: eigenvectors of repeated eigenvalues are not orthonormal.
   - C-4: `compute_k(C.T)` ignores the transpose; `a = 0` returns inf / nan.
@@ -1883,13 +1883,15 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-138 Area 3.8 (Python facade): the temp sweep deleted users' files, double-scaled printing
 - **Status:** reviewed (session 9), 23 findings in `review/areas/3.8-python-facade.md`
-  (1 S1, 6 S2, 12 S3, 4 S4). C-1 fixed; the rest open.
+  (1 S1, 6 S2, 12 S3, 4 S4). C-1, C-2, C-3 fixed; the rest open.
   - C-1 (S1, fixed): the storage sweep deleted every `*.tmp` / `*.raw_tmp` file below the
     backing directory, recursively, whoever made it (at import, `set_backing_dir` and exit).
     Temp files are named `<prefix>_<pid>_<n>.pycauset-tmp` now and the sweep deletes only
     that exact form, directly in the root (`test_3_8_C1_the_sweep_leaves_other_files_alone`).
-  - C-2: `print(A * 2)` applies the factor twice, as complex numbers.
-  - C-3: `vector` / `zeros` / `ones` / `empty` ignore a bad dtype and unknown kwargs.
+  - C-2 (fixed): `print(A * 2)` applied the factor twice, as complex numbers.
+  - C-3 (fixed): `vector` / `zeros` / `ones` / `empty` ignored a bad dtype and unknown
+    keywords; one construction path for `matrix` and `vector` now (`matrix_api.allocate` /
+    `from_array`).
   - C-4: NumPy computes behind `pc.divide` / `pc.bitwise_*` (ndarray input) and the
     structured constructors export PyCauset input to NumPy.
   - C-5: per-call `storage="disk"` changes the process-wide threshold (thread-unsafe).

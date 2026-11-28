@@ -3,10 +3,7 @@ from __future__ import annotations
 import warnings
 from typing import Any
 
-from . import export_guard as _export_guard
 from .dtypes import infer_sequence_dtype as _infer_sequence_dtype
-from .dtypes import normalize_dtype as _normalize_dtype
-from .native_threshold import temporary_native_memory_threshold
 
 
 def vector_factory(
@@ -18,40 +15,32 @@ def vector_factory(
     kwargs: dict[str, Any],
     max_in_ram_bytes: int | None = None,
 ) -> Any:
-    """Build a DenseVector from a size or 1-D data (dtype inferred when not given)."""
-    dtype_norm = _normalize_dtype(dtype, np_module=np_module)
-    ctor_kwargs: dict[str, Any] = dict(kwargs)
-    limit = ctor_kwargs.pop("max_in_ram_bytes", max_in_ram_bytes)
+    """A DenseVector from a size or 1-D data (dtype inferred when not given). The same rules as
+    `matrix`: a bad dtype or an unknown keyword raises, `storage` and `max_in_ram_bytes` place
+    it (they were ignored for NumPy input, and a bad dtype gave float64, review 3.8 C-3)."""
+    from . import matrix_api
 
-    # 1) Creation by size
-    if isinstance(size_or_data, (int, float)) and (
+    target = matrix_api.dtype_or_raise(dtype)
+    kw = dict(kwargs)
+    limit = kw.pop("max_in_ram_bytes", max_in_ram_bytes)
+    storage = kw.pop("storage", None)
+    matrix_api.check_storage(storage)
+    if kw:
+        raise TypeError(f"vector() got unexpected keyword arguments: {sorted(kw)}")
+
+    if isinstance(size_or_data, (int, float)) and not isinstance(size_or_data, bool) and (
         isinstance(size_or_data, int) or size_or_data.is_integer()
     ):
-        return native.DenseVector(int(size_or_data), dtype=dtype_norm or "float64", **ctor_kwargs)
+        return matrix_api.allocate((int(size_or_data),), target, storage=storage, max_in_ram_bytes=limit)
 
     data: Any = size_or_data
-
-    # 2) NumPy: real dtypes go through the native bulk import; complex is copied element-wise
-    if isinstance(data, np_module.ndarray):
-        if dtype_norm is None and data.dtype.kind != "c":
-            if limit is not None:
-                est = _export_guard.estimate_materialized_bytes(data)
-                if est is not None and est > limit:
-                    with temporary_native_memory_threshold(native, int(limit)):
-                        return native.asarray(data)
-            return native.asarray(data)
-        if dtype_norm is None:
-            dtype_norm = _normalize_dtype(data.dtype, np_module=np_module)
-        data = data.tolist()
-
-    # 3) Infer dtype from Python values
-    if dtype_norm is None:
-        dtype_norm = _infer_sequence_dtype(list(data), np_module=np_module)
-
-    vec = native.DenseVector(len(data), dtype=dtype_norm, **ctor_kwargs)
-    for i, val in enumerate(data):
-        vec[i] = val
-    return vec
+    if not isinstance(data, np_module.ndarray):
+        values = list(data)
+        target = target or _infer_sequence_dtype(values, np_module=np_module)
+        data = np_module.array(values, dtype=matrix_api._NUMPY_DTYPE.get(target, "complex64"))
+        if data.ndim != 1:
+            raise TypeError("vector(...) expects 1D input; use matrix(...) for 2D")
+    return matrix_api.from_array(data, target, storage=storage, max_in_ram_bytes=limit)
 
 
 def causal_matrix_factory(

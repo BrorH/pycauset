@@ -39,23 +39,12 @@ def _format_matrix_row(
     col_tail: list[int],
     truncated: bool,
 ) -> str:
-    entries: list[str] = []
-
-    scalar = getattr(matrix, "scalar", 1.0)
-    use_scaling = scalar != 1.0
-
-    for col in col_head:
-        val = matrix.get(row_index, col)
-        if use_scaling:
-            val = val * scalar
-        entries.append(_format_value(val))
+    # `get` returns the value with every view applied (factor, transpose, conjugation): it was
+    # multiplied by the factor a second time, as a complex number (review 3.8 C-2).
+    entries: list[str] = [_format_value(matrix.get(row_index, col)) for col in col_head]
     if truncated:
         entries.append("...")
-    for col in col_tail:
-        val = matrix.get(row_index, col)
-        if use_scaling:
-            val = val * scalar
-        entries.append(_format_value(val))
+    entries.extend(_format_value(matrix.get(row_index, col)) for col in col_tail)
     return " ".join(entries)
 
 
@@ -67,9 +56,6 @@ def matrix_str(self: Any) -> str:
         raise TypeError("matrix_str requires rows()/cols()")
 
     info = [f"shape=({rows}, {cols})"]
-
-    if hasattr(self, "scalar") and self.scalar != 1.0:
-        info.append(f"scalar={self.scalar}")
 
     if hasattr(self, "seed") and self.seed != 0:
         info.append(f"seed={self.seed}")

@@ -1197,3 +1197,52 @@ def test_singular_matrix_is_a_value_error():
         pc.invert(z)
     with pytest.raises(np.linalg.LinAlgError, match="positive definite"):
         pc.cholesky(pc.matrix(-np.eye(2)))
+
+
+def test_3_8_C2_printing_shows_view_values_once():
+    """Review 3.8 C-2: str() multiplied each value by the view factor again, as a complex."""
+    A = pc.matrix(np.array([[1.0, 2.0], [3.0, 4.0]]))
+    assert "[2 4]" in str(A * 2) and "[6 8]" in str(A * 2)
+    assert "[-1 -2]" in str(-A)
+    assert "[0.5 1]" in str(A / 2)
+    assert "[3 6]" in str(pc.matrix(np.array([[1, 2]], np.int8)) * 3)
+    assert "[2 6]" in str(A.T * 2)
+    assert "j" not in str(A * 2)
+
+
+@pytest.mark.parametrize("make", [
+    lambda **k: pc.zeros(3, **k), lambda **k: pc.ones((2, 3), **k), lambda **k: pc.empty((2, 2), **k),
+    lambda **k: pc.vector([1.0, 2.0], **k), lambda **k: pc.vector(np.arange(3.0), **k),
+    lambda **k: pc.matrix(np.ones((2, 2)), **k),
+])
+def test_3_8_C3_constructors_reject_bad_dtypes_and_keywords(make):
+    """Review 3.8 C-3: vector / zeros / ones / empty ignored a bad dtype (float64) and unknown
+    keywords, and storage= for NumPy vector input."""
+    with pytest.raises(TypeError, match="dtype"):
+        make(dtype="junk")
+    with pytest.raises(TypeError, match="dtype"):
+        make(dtype=np.longdouble)
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        make(foo=1)
+    with pytest.raises(ValueError, match="storage"):
+        make(storage="tape")
+    assert make(storage="disk").get_backing_file() != ":memory:"
+    assert make(storage="ram").get_backing_file() == ":memory:"
+    assert make(max_in_ram_bytes=0).get_backing_file() != ":memory:"
+
+
+def test_3_8_C3_vector_keeps_the_matrix_rules():
+    assert pc.vector([1, 2]).dtype == "int32"
+    assert pc.vector([True, False]).dtype == "bool"
+    assert pc.vector([1 + 2j]).dtype == "complex_float64"
+    assert pc.vector([np.float32(1.5)]).dtype == "float32"
+    v = pc.vector([1 + 2j, 3], dtype="complex_float16")
+    assert v.dtype == "complex_float16" and np.allclose(np.asarray(v), [1 + 2j, 3])
+    np.testing.assert_array_equal(np.asarray(pc.vector(np.arange(4), dtype="float32")), np.arange(4.0))
+
+
+@pytest.mark.parametrize("n", [1, 5, 63, 64, 65, 130])
+def test_3_4_C1_bit_dot_ignores_padding_bits(n):
+    """Review 3.4 C-1: the bit dot counted the bits past n in the last word (~u sets them)."""
+    u = pc.vector(np.zeros(n, bool))
+    assert pc.dot(~u, ~u) == n and (~u) @ (~u) == n

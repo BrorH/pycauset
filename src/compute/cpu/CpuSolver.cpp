@@ -132,10 +132,15 @@ double CpuSolver::dot(const VectorBase& a, const VectorBase& b) {
         const uint64_t* b_data = b_bit->data();
         uint64_t num_words = (n + 63) / 64;
         
+        // The bits past n in the last word are not elements (bitwise_not sets them): mask them,
+        // as the matmul kernels and sum do (review 3.4 C-1: dot(~u, ~u) was 64 for n = 5).
+        const uint64_t tail = n % 64;
+        const uint64_t last_mask = tail == 0 ? ~uint64_t{0} : (uint64_t{1} << tail) - 1;
         int64_t count = 0;
         #pragma omp parallel for reduction(+:count)
         for (int64_t i = 0; i < (int64_t)num_words; ++i) {
-            count += std::popcount(a_data[i] & b_data[i]);
+            const uint64_t w = a_data[i] & b_data[i];
+            count += std::popcount(i + 1 == (int64_t)num_words ? (w & last_mask) : w);
         }
         const double scale = a.get_scalar().real() * b.get_scalar().real();
         return static_cast<double>(count) * scale;

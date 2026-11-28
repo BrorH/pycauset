@@ -42,7 +42,6 @@ from ._internal import native as _native_mod
 from ._internal import ops as _ops
 from ._internal import persistence as _persistence
 from ._internal import runtime as _runtime_mod
-from ._internal.dtypes import normalize_dtype as _normalize_dtype
 from ._internal.warnings import (
     PyCausetDTypeWarning as PyCausetDTypeWarning,
 )
@@ -729,46 +728,25 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
     raise TypeError("matrix(...) expects 1D or 2D input")
 
 
-def _allocate_dense_matrix_by_shape(rows: int, cols: int, *, dtype: Any, kwargs: dict[str, Any]) -> Any:
-    dtype_norm = _normalize_dtype(dtype, np_module=_np)
-    if dtype_norm is None:
-        raise TypeError("Unsupported dtype")
-    return DenseMatrix(rows, cols, dtype=dtype_norm, **kwargs)
-
-
 def _allocate_like(shape: Any, kind: str, dtype: Any, kwargs: dict[str, Any]) -> Any:
-    """Allocate a vector/matrix of the given dtype and apply the fill pattern.
-
-    kind is one of "zeros", "ones", or "empty" (empty applies no fill).
-    """
+    """A vector (int or 1-tuple shape) or matrix ((rows, cols)) of `dtype`; kind is "zeros",
+    "ones" or "empty". New storage is zero (calloc'd RAM, or a freshly sized file), so only
+    "ones" fills. `storage` / `max_in_ram_bytes` place it, as for `matrix`; other keywords raise."""
+    kw = dict(kwargs)
+    storage = kw.pop("storage", None)
+    limit = kw.pop("max_in_ram_bytes", None)
+    if kw:
+        raise TypeError(f"{kind}() got unexpected keyword arguments: {sorted(kw)}")
     if isinstance(shape, int):
-        vec = _factories.vector_factory(
-            int(shape),
-            dtype=dtype,
-            np_module=_np,
-            native=_native,
-            kwargs=kwargs,
-        )
-        if kind == "ones":
-            vec.fill(1)
-        return vec
-
+        shape = (shape,)
     if not _is_sequence_like(shape):
         raise TypeError("shape must be an int or a tuple")
-    if len(shape) == 1:
-        return _allocate_like(int(shape[0]), kind, dtype, kwargs)
-    if len(shape) != 2:
+    if len(shape) not in (1, 2):
         raise ValueError("shape must be 1D or 2D")
-    rows, cols = int(shape[0]), int(shape[1])
-    if rows != cols:
-        mat = _allocate_dense_matrix_by_shape(rows, cols, dtype=dtype, kwargs=kwargs)
-    else:
-        mat = _matrix_api.Matrix(rows, dtype=dtype, **kwargs)
-    # New storage is zero (calloc'd RAM, or a freshly sized file): "zeros" needs no fill (it
-    # wrote every byte again: 18 ms for 4000 x 4000, NumPy 0).
+    out = _matrix_api.allocate(tuple(int(d) for d in shape), dtype, storage=storage, max_in_ram_bytes=limit)
     if kind == "ones":
-        mat.fill(1)
-    return mat
+        out.fill(1)
+    return out
 
 
 def zeros(shape: Any, *, dtype: Any = "float64", **kwargs: Any) -> Any:
