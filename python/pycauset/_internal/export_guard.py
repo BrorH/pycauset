@@ -121,6 +121,10 @@ def ensure_export_allowed(obj: Any, *, allow_huge: bool, ceiling_bytes: int | No
     est = estimate_materialized_bytes(obj)
     if est is None:
         return
+    _check_size(est, ceiling_bytes)
+
+
+def _check_size(est: int, ceiling_bytes: int | None) -> None:
     hint = "; pass allow_huge=True via pycauset.to_numpy(...) to override."
     if ceiling_bytes is not None:
         if est > ceiling_bytes:
@@ -146,12 +150,24 @@ def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool
     export_count += 1
     import numpy as np  # type: ignore
 
+    if copy is False:
+        # As np.asarray(..., copy=False): every export is a new array (review 3.9 C-6; it
+        # returned a writable copy silently, or NumPy's error with dtype=).
+        raise ValueError("a PyCauset object cannot be exported without a copy; use copy=True")
+    target = _resolve_numpy_dtype(dtype, np) if dtype is not None else None
+    if target is not None and not allow_huge:
+        # The converted array exists next to the exported one: both count (only the export did).
+        shape = _safe_shape(obj)
+        if shape is not None:
+            converted = shape[0] * shape[1] * target.itemsize
+            _check_size((estimate_materialized_bytes(obj) or 0) + converted, _EXPORT_MAX_BYTES)
+
     fast_export = getattr(obj, "_to_numpy_fast", None)
     if callable(fast_export):
         arr = fast_export(allow_huge=allow_huge)  # the engine applies the guard (numpy_export_guard.hpp)
     else:
         ensure_export_allowed(obj, allow_huge=allow_huge, ceiling_bytes=_EXPORT_MAX_BYTES)
         arr = np.asarray(obj)
-    if dtype is not None:
-        return np.array(arr, dtype=_resolve_numpy_dtype(dtype, np), copy=copy)
+    if target is not None:
+        return arr.astype(target, copy=False)
     return arr

@@ -100,6 +100,13 @@ class ThunkBlock:
                 self._cache = self._compute()
             return self._cache
 
+    def __array__(self, dtype: Any = None, copy: Any = None) -> Any:
+        """The evaluated block's values (it exported as a 0-d object array, review 3.9 C-6)."""
+        import numpy as np
+
+        arr = np.asarray(self.materialize())
+        return arr if dtype is None else arr.astype(dtype, copy=False)
+
     def get(self, i: int, j: int) -> Any:
         m = self.materialize()
         get_fn = getattr(m, "get", None)

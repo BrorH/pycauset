@@ -396,11 +396,11 @@ def set_export_max_bytes(limit: int | None) -> None:
 
 
 def to_numpy(obj: Any, *, allow_huge: bool = False, dtype: Any = None, copy: bool = True) -> Any:
-    """Convert a PyCauset object to NumPy, enforcing out-of-core safety.
+    """Convert a PyCauset object to a new NumPy array under the export size guard.
 
-    - By default, file-backed or over-ceiling exports hard-error.
-    - Pass allow_huge=True to intentionally materialize.
-    - Ceiling is controlled via set_export_max_bytes(...).
+    An export larger than free RAM or the `set_export_max_bytes` ceiling raises unless
+    `allow_huge=True` (RAM- and file-backed objects alike). `dtype` converts the result;
+    `copy=False` raises (every export is a copy).
     """
 
     return _export_guard.export_to_numpy(obj, allow_huge=allow_huge, dtype=dtype, copy=copy)

@@ -15,10 +15,10 @@ This is the **explicit** NumPy export entrypoint. It exists because converting o
   - When `False`, the size guard applies: an export that would not fit in free RAM, or exceeds the
     `set_export_max_bytes` ceiling, raises. RAM- and file-backed objects are treated alike.
   - Set to `True` only when you intentionally want to materialize into RAM.
-- **dtype** (optional): Override NumPy dtype on export.
-- **copy** (bool, default `True`):
-  - If `True`, returns a deep copy (safe).
-  - If `False`, attempts to return a **read-only view** of the PyCauset memory. If a view is not possible (e.g. incompatible layout or bit-packed), it issues a `UserWarning` and falls back to a copy.
+- **dtype** (optional): the NumPy dtype of the result (converted after the export; the size
+  guard counts both arrays).
+- **copy** (bool, default `True`): every export is a new array. `copy=False` raises
+  `ValueError`, as `np.asarray(x, copy=False)` does when a copy cannot be avoided.
 
 ## Returns
 
@@ -28,6 +28,7 @@ This is the **explicit** NumPy export entrypoint. It exists because converting o
 
 - `RuntimeError` if NumPy is unavailable.
 - `RuntimeError` if the size guard blocks the export (too large, without `allow_huge=True`).
+- `ValueError` for `copy=False`.
 
 ## Examples
 
@@ -37,11 +38,8 @@ import numpy as np
 
 M = pc.zeros((3, 3), dtype="float32")
 arr = pc.to_numpy(M)
-assert isinstance(arr, np.ndarray)
-
-# Request a zero-copy view
-view = pc.to_numpy(M, copy=False)
-# view is generic read-only
+assert isinstance(arr, np.ndarray) and arr.dtype == np.float32
+wide = pc.to_numpy(M, dtype=np.float64)
 ```
 
 ## See also

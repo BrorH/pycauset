@@ -343,3 +343,29 @@ def test_F123_copy_of_a_small_loaded_matrix_goes_to_ram(backing_dir, tmp_path):
     m[0, 0] = 5.0
     assert m.get_backing_file() == ":memory:"
     assert float(np.asarray(v)[0, 0]) == 1.0 and float(np.asarray(m)[0, 0]) == 5.0
+
+
+def test_F131_export_guard_counts_dtype_and_copy_false_raises():
+    """3.9 C-6: dtype= was not counted; copy=False returned a copy silently."""
+    m = pc.matrix(np.ones((30, 30), dtype=bool))  # 900 bytes; as complex128 14,400
+    old = pc.get_export_max_bytes() if hasattr(pc, "get_export_max_bytes") else None
+    pc.set_export_max_bytes(2000)
+    try:
+        assert pc.to_numpy(m).nbytes == 900
+        with pytest.raises(RuntimeError, match="ceiling"):
+            pc.to_numpy(m, dtype="complex128")
+    finally:
+        pc.set_export_max_bytes(old)
+    with pytest.raises(ValueError, match="copy"):
+        pc.to_numpy(m, copy=False)
+
+
+def test_F131_submatrix_and_thunk_blocks_export_their_values():
+    from pycauset._internal.submatrix_view import SubmatrixView
+    from pycauset._internal.thunks import ThunkBlock
+
+    a = np.arange(16.0).reshape(4, 4)
+    v = SubmatrixView(pc.matrix(a), 1, 1, 2, 3)
+    np.testing.assert_array_equal(np.asarray(v), a[1:3, 1:4])
+    t = ThunkBlock(rows=2, cols=2, compute=lambda: pc.matrix(np.eye(2)))
+    np.testing.assert_array_equal(np.asarray(t), np.eye(2))

@@ -1739,3 +1739,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
     lost its imaginary part, `np.int64` values were rounded); one inference function now
     (`dtypes.infer_sequence_dtype`), NumPy's answer when a NumPy scalar is present.
     `test_F130_*`.
+
+### F-131 Export guard gaps (area 3.9 C-6)
+- **Status:** fixed in part (session 9). `to_numpy(x, dtype=...)` counted only the export, not
+  the converted array (900 bytes checked, 14,400 returned); both count now. `copy=False`
+  returned a writable copy silently (and NumPy's error with `dtype=`); it raises `ValueError`,
+  as `np.asarray(x, copy=False)` does, and the page no longer promises a read-only view.
+  `SubmatrixView` and `ThunkBlock` exported as 0-d object arrays; they have `__array__` now.
+  Open: BlockMatrix sums no leaf estimates and passes `allow_huge` to no leaf.
+  `test_F131_*`.
