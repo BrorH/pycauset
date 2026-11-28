@@ -14,7 +14,7 @@ This function is NumPy-like:
 
 - matrix-matrix: `(m, k) @ (k, n) -> (m, n)`
 - matrix-vector: `(m, k) @ (k,) -> (m,)`
-- vector-matrix: `(k,) @ (k, n) -> (1, n)` (row-vector semantics)
+- vector-matrix: `(k,) @ (k, n) -> (n,)`, as NumPy; a transposed `(1, k)` vector gives the `(1, n)` row
 - vector-vector: `(k,) @ (k,) -> scalar` (dot)
 
 Bit operands (`bool`/`bit`, i.e. `DenseMatrix` (dtype `bool`) or `TriangularMatrix` (dtype `bool`)) promote

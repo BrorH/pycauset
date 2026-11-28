@@ -463,8 +463,7 @@ void bind_matrix_classes(py::module_& m) {
                 if (b.ndim() == 1) {
                     return py::cast(translate_invalid_argument([&]() {
                         auto out = pycauset::vector_matrix_multiply(*vector_from_numpy(b), a, "");
-                        out->set_transposed(false);  // a 1-D result, as NumPy's (not a 1 x n row)
-                        return std::shared_ptr<VectorBase>(out.release());
+                        return std::shared_ptr<VectorBase>(out.release());  // 1-D, as NumPy
                     }));
                 }
                 if (b.ndim() == 2) return py::cast(matmul_mm(*matrix_from_numpy(b), a));

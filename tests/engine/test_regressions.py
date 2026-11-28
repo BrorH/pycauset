@@ -1590,3 +1590,16 @@ def test_3_7_C5_slice_assignment_as_numpy():
     assert np.asarray(A)[0].tolist() == [0, 0, 0]  # nothing written before the error
     with pytest.raises(ValueError):
         pc.matrix(np.zeros((2, 2)))[:, 0] = np.ones((2, 1))  # NumPy: (2,1) into (2,)
+
+
+def test_3_6_C8_vector_matrix_product_is_1d():
+    """Review 3.6 C-8: v @ M was a (1, n) row; NumPy, ndarray @ M and pc.dot gave (n,)."""
+    m = np.arange(6.0).reshape(3, 2)
+    v = np.array([1.0, 2.0, 3.0])
+    M, V = pc.matrix(m), pc.vector(v)
+    for got in (V @ M, pc.matmul(V, M), pc.dot(V, M), v @ M):
+        assert got.shape == (2,)
+        np.testing.assert_allclose(np.asarray(got), v @ m)
+    assert (V.T @ M).shape == (1, 2)
+    S = pc.symmetric(np.eye(3) + 1)  # the structured rule
+    assert (V @ S).shape == (3,)

@@ -832,15 +832,7 @@ def dot(a: Any, b: Any) -> Any:
             raise TypeError("pycauset.dot: expected a vector-like object with a .dot(other) method")
         return fn(b)
 
-    result = _ops.matmul(a, b, deps=_OPS_DEPS)
-
-    # np.dot(vector, matrix) returns a 1-D vector, but the native vec-mat path
-    # yields a transposed (row) vector; un-transpose it to match np.dot.
-    if a_is_vector and not b_is_vector:
-        transpose = getattr(result, "transpose", None)
-        if callable(transpose):
-            result = transpose()
-    return result
+    return _ops.matmul(a, b, deps=_OPS_DEPS)  # vector @ matrix is 1-D, as np.dot
 
 
 def add(a: Any, b: Any) -> Any:

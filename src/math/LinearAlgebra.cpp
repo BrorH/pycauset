@@ -565,12 +565,14 @@ std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const Ma
             (rd == DataType::FLOAT64 || rd == DataType::COMPLEX_FLOAT64) &&
             dynamic_cast<const BitClosureMatrix*>(&m) == nullptr) {
             auto out = matrix_vector_multiply(*m.transpose(), v, "");
-            out->set_transposed(true);
+            out->set_transposed(v.is_transposed());
             return out;
         }
     }
     auto row = as_row_matrix(v);  // 1 x n
-    return as_vector(dispatch_matmul(*row, m), /*transposed=*/true);
+    // NumPy's shapes: (k,) @ (k, n) is 1-D (n,); a transposed (1, k) vector gives the (1, n) row.
+    // It was always the row, while ndarray @ M and pc.dot gave (n,) (review 3.6 C-8).
+    return as_vector(dispatch_matmul(*row, m), v.is_transposed());
 }
 
 
