@@ -171,49 +171,16 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
         throw std::invalid_argument("resolve_promotion: UNKNOWN dtype");
     }
 
-    // Complex dominates real float/int/bit for supported matrix-matrix ops.
-    // Precision rule: underpromote to the smallest participating float precision.
+    // Complex dominates real float/int/bit for every op. Precision rule: the narrowest
+    // participating float precision; an int/bit operand raises the floor to the float that
+    // holds it (F-034; DType System 4.3). (One branch: it was written twice, once per op group,
+    // with an unreachable fallback.)
     if (is_complex_float(a) || is_complex_float(b)) {
-        switch (op) {
-            case BinaryOp::Add:
-            case BinaryOp::Subtract:
-            case BinaryOp::ElementwiseMultiply:
-            case BinaryOp::Divide:
-            case BinaryOp::Matmul: {
-                const uint8_t ra = float_rank(a);
-                const uint8_t rb = float_rank(b);
-                uint8_t r = 0;
-                if (ra && rb) {
-                    r = choose_rank(ra, rb);
-                } else {
-                    // One side is int/bit: it must fit too (F-034).
-                    const uint8_t need = std::max(float_rank_for_int(a), float_rank_for_int(b));
-                    r = static_cast<uint8_t>(std::max({ra, rb, need}));
-                }
-                if (r == 0) {
-                    // One side is complex, so this should never happen.
-                    r = 64;
-                }
-                return Decision{complex_from_rank(r), false, DataType::UNKNOWN};
-            }
-            case BinaryOp::MatrixVectorMultiply:
-            case BinaryOp::VectorMatrixMultiply: {
-                const uint8_t ra = float_rank(a);
-                const uint8_t rb = float_rank(b);
-                uint8_t r = 0;
-                if (ra && rb) {
-                    r = choose_rank(ra, rb);
-                } else {
-                    // One side is int/bit: it must fit too (F-034).
-                    const uint8_t need = std::max(float_rank_for_int(a), float_rank_for_int(b));
-                    r = static_cast<uint8_t>(std::max({ra, rb, need}));
-                }
-                if (r == 0) {
-                    r = 64;
-                }
-                return Decision{complex_from_rank(r), false, DataType::UNKNOWN};
-            }
-        }
+        const uint8_t ra = float_rank(a);
+        const uint8_t rb = float_rank(b);
+        const uint8_t r = (ra && rb) ? choose_rank(ra, rb)
+                                     : static_cast<uint8_t>(std::max({ra, rb, float_rank_for_int(a), float_rank_for_int(b)}));
+        return Decision{complex_from_rank(r), false, DataType::UNKNOWN};
     }
 
     // Fundamental kind rule: float dominates.
@@ -307,8 +274,7 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
             case BinaryOp::ElementwiseMultiply:
                 return Decision{DataType::BIT, false, DataType::UNKNOWN};
             case BinaryOp::Divide:
-                // Handled above (policy chooses float32 or float64 when neither operand is float/complex).
-                return Decision{DataType::FLOAT64, false, DataType::UNKNOWN};
+                break;  // unreachable: integer / bit division is decided above (float32 / float64)
         }
     }
 
