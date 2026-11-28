@@ -62,5 +62,9 @@ class MinkowskiDiamond:
     def _native_spacetime(self):
         return self._native
 
+    def __reduce__(self):
+        # Pickling (a CausalSet holds its spacetime): rebuilt from the dimension.
+        return (type(self), (self.dimension(),))
+
     def __repr__(self) -> str:
         return f"MinkowskiDiamond(dimension={self.dimension()})"

@@ -329,11 +329,41 @@ def _install_array_export_hook(native_type: Any) -> None:
     setattr(native_type, "__pycauset_array_wrapped__", True)
 
 
+def _unpickle(arr: Any, structure: str, has_diagonal: bool, transposed: bool) -> Any:
+    """Rebuild a pickled matrix or vector: its values, then its structure class."""
+    if structure == "unit_vector":
+        k = int(_np.flatnonzero(arr)[0]) if _np.any(arr) else 0
+        out = UnitVector(arr.shape[0], k, dtype=_matrix_api.dtype_or_raise(arr.dtype))
+        if arr.size and arr[k] != 1:
+            out = out * arr[k].item()
+    elif structure == "identity":  # no stored values: the identity times its factor
+        out = IdentityMatrix(arr.shape[0], arr.shape[1], dtype=_matrix_api.dtype_or_raise(arr.dtype))
+        if arr.size and arr[0, 0] != 1:
+            out = out * arr[0, 0].item()
+    else:
+        out = asarray(arr)
+        if structure not in ("dense", "vector"):
+            out = _native._pack_as(out, structure, has_diagonal)
+    return out.T if transposed else out
+
+
+def _reduce(self: Any) -> Any:
+    """Pickling (multiprocessing, joblib, copy.deepcopy): the values (an explicit copy, so the
+    export ceiling does not apply) and the structure class (review 3.8 C-19)."""
+    structure = _native._structure_of(self)
+    hd = getattr(self, "has_diagonal", False)
+    has_diagonal = bool(hd() if callable(hd) else hd)
+    transposed = isinstance(self, _native.VectorBase) and self.is_transposed()
+    arr = to_numpy(self.T if transposed else self, allow_huge=True)
+    return (_unpickle, (arr, structure, has_diagonal, transposed))
+
+
 # The native __setitem__ takes every key and value itself (NumPy scalars included; cast errors
 # are TypeErrors through the translator). A Python wrapper re-dispatched each write and tripled
 # its cost (review 3.8 C-14).
 for _cls in (_MatrixBaseType, _VectorBaseType, *_MATRIX_CLASSES, *_VECTOR_CLASSES):
     _install_array_export_hook(_cls)
+    _cls.__reduce__ = _reduce
 
 
 def set_export_max_bytes(limit: int | None) -> None:

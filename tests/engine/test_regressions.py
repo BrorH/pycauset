@@ -1670,3 +1670,28 @@ def test_3_8_C15_file_helpers_write_where_they_say(tmp_path):
         pc.convert_file(tmp_path / "c.npy", tmp_path / "c.pycauset", dtype="float32")
     with pytest.raises(ValueError, match="source"):
         pc.convert_file(tmp_path / "c.bin", tmp_path / "c.npy")
+
+
+def test_3_8_C19_pickle_round_trips_values_and_class():
+    """Review 3.8 C-19: matrices could not be pickled (multiprocessing, joblib, deepcopy)."""
+    import copy
+    import pickle
+
+    objs = [pc.matrix(np.arange(6.0).reshape(2, 3)), pc.matrix(np.arange(4, dtype=np.int8).reshape(2, 2)) * 3,
+            pc.causal_matrix(np.triu(np.ones((3, 3), bool), 1)), pc.TriangularMatrix(3, dtype="float64", has_diagonal=True),
+            pc.symmetric(np.eye(3) + 1), pc.hermitian(np.array([[1, 1j], [-1j, 2]])), pc.diagonal([1.0, 2.0]),
+            pc.IdentityMatrix(3) * 2.0, pc.IdentityMatrix(2, 3), pc.vector([1.0, 2.0]), pc.vector([1, 2]).T, pc.UnitVector(4, 2, dtype="float64") * 3.0,
+            pc.matrix(np.eye(2)).T]
+    for o in objs:
+        for c in (pickle.loads(pickle.dumps(o)), copy.deepcopy(o)):
+            assert type(c) is type(o) and c.dtype == o.dtype and c.shape == o.shape, (type(o), type(c))
+            np.testing.assert_array_equal(np.asarray(c), np.asarray(o))
+
+
+def test_3_8_C19_causal_sets_pickle():
+    import pickle
+
+    c = pc.causet(n=30, seed=3)
+    d = pickle.loads(pickle.dumps(c))
+    np.testing.assert_array_equal(np.asarray(d.C), np.asarray(c.C))
+    assert d.n == c.n and d.spacetime.dimension() == c.spacetime.dimension()
