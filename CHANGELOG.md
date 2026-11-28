@@ -15,6 +15,20 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   stores the scalar ones in the file and `pc.load` brings them back.
 
 ### Changed
+- Storage: an object is placed in RAM or a file once, when it is made; nothing is moved to
+  disk later (the memory governor used to spill live objects, which could crash an operation
+  under memory pressure). A temporary `.tmp` file is deleted when the last object using it
+  goes, not at exit; temp names carry the process id, so several processes can share a
+  backing directory; the RAM budget respects container / cgroup memory limits; file-backed
+  objects hold no open file descriptor; `pc.save` really syncs the file (flushes failed
+  silently before).
+- Removed: `pc.keep_temp_files` (temp files go with their objects; use `pc.save` to keep
+  one) and `matrix.get_accelerator()` (its handle could dangle; `matrix.hint(...)` stays).
+- `HermitianMatrix * 1j` (any non-real factor) returns a dense matrix: the result is not
+  Hermitian. `fill` and writes into scaled / conjugated / transposed views of every class
+  give the written values; `from_triangular` reads its argument's view (and rejects a lower
+  triangle); `random(..., p)` rejects p outside [0, 1]; writing 0 below a float triangle
+  is accepted, as for the bit triangle.
 - Faster on structured, transposed, windowed and bool matrices (no API change): whole-matrix
   reads go through a bulk reader of the packed storage, so structured `& | ^ ~ /`, scalar
   ops, sums and norms are 2-10x faster (most at or past NumPy); dot with a unit vector and
@@ -33,7 +47,7 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   `pc.vector_norm`); use `pc.causet`, `pc.spacetime.MinkowskiDiamond`, `pc.norm`.
   `pc.seed` (read by nothing) is removed.
 - The engine no longer prints to stdout / stderr (streamed matmuls and large file-backed
-  allocations printed a line each). A failed spill to disk raises instead of printing.
+  allocations printed a line each).
 - `spacetime.MinkowskiDiamond(d)` is the Minkowski causal diamond in every dimension: points
   are uniform in |x| < min(t, 1 - t) with coordinates (t, x), and the order is Minkowski
   causality (for d > 2 it was a coordinate-wise order on a cube). Coordinates are (t, x) in
