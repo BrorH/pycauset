@@ -84,9 +84,14 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 
 
 def _import_operand(x: Any, *, deps: OpsDeps) -> Any:
+    """The one array-like rule of the public functions (review 3.8 C-10): a PyCauset matrix or
+    vector as is; a NumPy array or nested lists imported (1-D: a vector, 2-D: a matrix); a
+    BlockMatrix refused (`_engine_matrix`'s rule: it is not densified behind the caller's back)."""
     native = (deps.native.MatrixBase, deps.native.VectorBase)
     if isinstance(x, native):
         return x
+    if _is_block(x):
+        return _engine_matrix(x, deps=deps)  # raises the explicit TypeError
     arr = deps.np_module.asarray(x)
     if arr.ndim == 1:
         return deps.native._asarray(arr)
@@ -94,7 +99,7 @@ def _import_operand(x: Any, *, deps: OpsDeps) -> Any:
 
 
 def compute_k(matrix: Any, a: float, *, deps: OpsDeps) -> Any:
-    return deps.native._compute_k_matrix(matrix, float(a))
+    return deps.native._compute_k_matrix(_engine_matrix(matrix, deps=deps), float(a))
 
 
 def _is_block(x: Any) -> bool:
@@ -188,7 +193,7 @@ def lstsq(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 def slogdet(a: Any, *, deps: OpsDeps) -> tuple[Any, float]:
     """(sign, log|det|) from the engine's LU pivots, as NumPy: no overflow for large n, a
     complex unit sign for complex matrices, (0, -inf) when singular (F-070)."""
-    return a._slogdet()
+    return _engine_matrix(a, deps=deps)._slogdet()
 
 
 @_traced("cond")

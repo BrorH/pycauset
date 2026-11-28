@@ -882,7 +882,7 @@ def norm(x: Any, ord: Any = None) -> float:
 
     if ord is not None:
         return _ops.norm(x, ord=ord, deps=_OPS_DEPS)
-    return float(_native.norm(x))
+    return float(_native.norm(_ops._import_operand(x, deps=_OPS_DEPS)))
 
 
 def sum(x: Any) -> int | float | complex:
@@ -892,7 +892,13 @@ def sum(x: Any) -> int | float | complex:
     128 bits), real floats a ``float``, complex inputs a ``complex``. Float sums are
     deterministic (fixed summation order, independent of the thread count).
     """
-    return _native.sum(x)
+    return _native.sum(_ops._import_operand(x, deps=_OPS_DEPS))
+
+
+def materialize(a: Any) -> Any:
+    """`a` with its elements stored (materialize.md); an array-like is imported (review 3.8
+    C-10: an ndarray or list raised pybind's TypeError dump)."""
+    return _native.materialize(_ops._import_operand(a, deps=_OPS_DEPS))
 
 def compute_k(matrix: Any, a: float):
     """

@@ -2034,3 +2034,24 @@ def test_3_7_C16_first_use_of_native_lookups_from_threads():
     env = dict(os.environ, PYTHONPATH=os.pathsep.join(sys.path))
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=120)
     assert out.stdout.strip() == "ok", out.stderr
+
+
+def test_3_8_C10_public_functions_take_the_same_array_likes():
+    """sum, norm, materialize and slogdet raised for an ndarray or a list (pybind's dump, or
+    AttributeError), while trace / det / solve imported them."""
+    a = np.array([[2.0, 1.0], [1.0, 3.0]])
+    fns = {
+        "trace": pc.trace, "det": pc.det, "slogdet": lambda x: pc.slogdet(x)[1], "inv": pc.inv,
+        "sum": pc.sum, "norm": pc.norm, "norm2": lambda x: pc.norm(x, 2), "materialize": pc.materialize,
+        "eigvalsh": pc.eigvalsh, "matrix_power": lambda x: pc.matrix_power(x, 2), "cholesky": pc.cholesky,
+        "matmul": lambda x: pc.matmul(x, x), "divide": lambda x: pc.divide(x, x),
+    }
+    for name, f in fns.items():
+        ref = np.asarray(f(pc.matrix(a)))
+        for x in (a, a.tolist()):
+            np.testing.assert_allclose(np.asarray(f(x)), ref, err_msg=name)
+    assert pc.sum([1, 2, 3]) == 6 and pc.norm([3.0, 4.0]) == 5.0
+    from pycauset._internal.blockmatrix import BlockMatrix
+
+    with pytest.raises(TypeError, match="BlockMatrix"):
+        pc.sum(BlockMatrix([[pc.matrix(a)]]))  # not densified behind the caller's back
