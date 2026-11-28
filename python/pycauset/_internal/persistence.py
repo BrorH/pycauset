@@ -657,47 +657,6 @@ def _save_blockmatrix(
     from .submatrix_view import SubmatrixView
 
 
-    def _numpy_dtype_hint_for(obj: Any) -> Any | None:
-        dt = getattr(obj, "dtype", None)
-        # NumPy has no complex16; complex_float16 blocks materialize as complex64.
-        return {"complex_float16": "complex64", "complex_float32": "complex64",
-                "complex_float64": "complex128"}.get(dt, dt)
-
-    def _materialize_view_block(view_obj: Any) -> Any:
-        # Materialize to a small numpy array (block-local) and convert to a native matrix.
-        asarray = deps.native._asarray
-        import numpy as np
-
-        src = getattr(view_obj, "source", None)
-        dtype_hint = _numpy_dtype_hint_for(src) if src is not None else None
-        if dtype_hint is None:
-            raise TypeError(
-                "cannot save SubmatrixView blocks (cannot infer dtype from view source; materialization policy requires a known dtype)"
-            )
-
-        rows = int(view_obj.rows())
-        cols = int(view_obj.cols())
-        # A dense source has native windows: save writes the window out natively (a 600 x 600
-        # block took 0.19 s element by element in Python, review 3.9 C-5).
-        if (isinstance(src, deps.native.MatrixBase) and deps.native._structure_of(src) == "dense"
-                and src.dtype != "complex_float16"):
-            r0, c0 = int(view_obj.row_offset), int(view_obj.col_offset)
-            return src[r0 : r0 + rows, c0 : c0 + cols]
-        arr = np.empty((rows, cols), dtype=dtype_hint)
-        get_fn = getattr(view_obj, "get", None)
-        if not callable(get_fn):
-            raise TypeError("cannot save SubmatrixView blocks (view has no get(i,j))")
-        for i in range(rows):
-            for j in range(cols):
-                arr[i, j] = get_fn(i, j)
-        if getattr(src, "dtype", None) == "complex_float16":  # NumPy has no complex32: keep it
-            out = deps.native.DenseMatrix(rows, cols, dtype="complex_float16")
-            for (i, j), z in np.ndenumerate(arr):
-                if z != 0:
-                    out.set(i, j, complex(z))
-            return out
-        return asarray(arr)
-
     blocks_dir = Path(str(path) + ".blocks")
     blocks_dir.mkdir(parents=True, exist_ok=True)
 
@@ -746,10 +705,15 @@ def _save_blockmatrix(
                 blk = blk.materialize()
 
 
-            # Persisting a view requires writing stable storage. In Phase E we
-            # materialize the view block-locally (no global densification).
+            # A cut tile is saved as the block layer computes it (`_leaf_operand`): the engine's
+            # slice of its leaf (a window of a dense one, the tile of a structured or
+            # complex_float16 one), the sub-grid of a nested grid (saved as a nested grid), a
+            # slice of an evaluated thunk. It went through NumPy with a dtype table and an
+            # element loop, and raised for nested grids and thunks (review 3.10 C-9).
             if isinstance(blk, SubmatrixView):
-                blk = _materialize_view_block(blk)
+                from .blockmatrix import _leaf_operand
+
+                blk = _leaf_operand(blk)
 
             child_name = f"block_r{r}_c{c}.pycauset"
             expected_child_names.add(child_name)

@@ -177,7 +177,9 @@ class BlockMatrix:
     __array_priority__ = 1e6
 
     def __init__(self, blocks: Iterable[Iterable[Any]]):
-        grid = [list(row) for row in blocks]
+        # NumPy leaves are imported (an ndarray leaf could not be saved or cut, review 3.10 C-9).
+        np = _np()
+        grid = [[_get_pycauset().matrix(b) if isinstance(b, np.ndarray) else b for b in row] for row in blocks]
         if not grid:
             raise ValueError("BlockMatrix blocks must be non-empty")
         if any(len(row) == 0 for row in grid):

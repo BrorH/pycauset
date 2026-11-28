@@ -185,3 +185,25 @@ def test_3_10_C5_nested_and_flat_grids_pin_their_leaves_alike():
     a[3, 3] = 5.0
     with pytest.raises(pc.StaleThunkError):
         out.get(3, 3)
+
+
+def test_3_10_C9_every_grid_saves_and_loads(tmp_path):
+    """Views of nested grids and of thunks, ndarray leaves and complex_float16 views could not be
+    saved (np.empty with dtype 'mixed' / 'thunk'; 'not a PyCauset matrix')."""
+    a, b = pc.matrix(np.arange(16.0).reshape(4, 4)), pc.matrix(np.eye(4))
+    grids = [
+        BlockMatrix([[BlockMatrix([[a]])]]).refine_partitions(row_partitions=[0, 1, 4], col_partitions=[0, 4]),
+        BlockMatrix([[(BlockMatrix([[a]]) @ BlockMatrix([[b]])).get_block(0, 0)]]).refine_partitions(
+            row_partitions=[0, 2, 4], col_partitions=[0, 4]),
+        BlockMatrix([[np.arange(4.0).reshape(2, 2)]]),
+        BlockMatrix([[pc.diagonal([1.0, 2, 3, 4]), pc.causal_matrix(np.triu(np.ones((4, 4), bool), 1))]]).refine_partitions(
+            row_partitions=[0, 2, 4], col_partitions=[0, 2, 4, 6, 8]),
+        BlockMatrix([[pc.matrix(np.array([[1 + 1j, 2], [3, 4j]]), dtype="complex_float16")]]).refine_partitions(
+            row_partitions=[0, 1, 2], col_partitions=[0, 2]),
+    ]
+    for k, g in enumerate(grids):
+        p = tmp_path / f"g{k}.pycauset"
+        pc.save(g, p)
+        h = pc.load(p)
+        assert isinstance(h, BlockMatrix) and h.dtype == g.dtype
+        np.testing.assert_allclose(np.asarray(h), np.asarray(g))
