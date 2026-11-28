@@ -326,8 +326,8 @@ void bind_vector_classes(py::module_& m) {
             "dtype",
             [](const VectorBase& v) { return std::string(pycauset::dtype_name(v.get_data_type())); },
             "Element type, e.g. 'float64', 'int32', 'bool' (bit), 'complex_float64'.")
-        .def("get", [](const VectorBase& v, uint64_t i) { return vector_element_get(v, i); }, py::arg("i"))
-        .def("set", [](VectorBase& v, uint64_t i, const py::object& value) { vector_element_set(v, i, value); },
+        .def("get", [](const VectorBase& v, int64_t i) { return vector_element_get(v, index_arg(i, v.size())); }, py::arg("i"))
+        .def("set", [](VectorBase& v, int64_t i, const py::object& value) { vector_element_set(v, index_arg(i, v.size()), value); },
              py::arg("i"), py::arg("value"))
         .def("__getitem__", &vector_getitem, py::arg("key"))
         .def("__setitem__", &vector_setitem, py::arg("key"), py::arg("value"))
@@ -486,8 +486,8 @@ void bind_vector_classes(py::module_& m) {
     // One Python class per structure; dtype is an attribute (RESTRUCTURE 3.1 item 4).
     py::class_<pycauset::DenseVectorBase, VectorBase, std::shared_ptr<pycauset::DenseVectorBase>>(
         m, "DenseVector", "Dense vector of any dtype. Prefer pycauset.vector / zeros to construct.")
-        .def(py::init([](uint64_t n, const py::object& dtype) {
-                 auto obj = pycauset::ObjectFactory::create_vector(n, dtype_arg(dtype), pycauset::Structure::VECTOR, "");
+        .def(py::init([](int64_t n, const py::object& dtype) {
+                 auto obj = pycauset::ObjectFactory::create_vector(dim_arg(n), dtype_arg(dtype), pycauset::Structure::VECTOR, "");
                  auto* typed = dynamic_cast<pycauset::DenseVectorBase*>(obj.get());
                  if (typed == nullptr) throw std::logic_error("factory returned the wrong vector structure");
                  obj.release();
@@ -496,8 +496,9 @@ void bind_vector_classes(py::module_& m) {
              py::arg("n"), py::arg("dtype") = "float64");
 
     py::class_<UnitVector, VectorBase, std::shared_ptr<UnitVector>>(m, "UnitVector", "Standard basis vector e_k (read-only).")
-        .def(py::init([](uint64_t n, uint64_t active_index, const py::object& dtype) {
-                 return std::make_shared<UnitVector>(n, active_index, "", dtype_arg(dtype));
+        .def(py::init([](int64_t n, int64_t active_index, const py::object& dtype) {
+                 const uint64_t size = dim_arg(n);
+                 return std::make_shared<UnitVector>(size, index_arg(active_index, size), "", dtype_arg(dtype));
              }),
              py::arg("n"), py::arg("active_index"), py::arg("dtype") = "float64")
         .def_property_readonly("active_index", &UnitVector::get_active_index);

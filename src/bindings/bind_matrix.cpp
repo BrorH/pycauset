@@ -526,9 +526,11 @@ void bind_matrix_classes(py::module_& m) {
             "dtype",
             [](const MatrixBase& mat) { return std::string(pycauset::dtype_name(mat.get_data_type())); },
             "Element type, e.g. 'float64', 'int32', 'bool' (bit), 'complex_float64'.")
-        .def("get", [](const MatrixBase& mat, uint64_t i, uint64_t j) { return element_get(mat, i, j); },
+        .def("get", [](const MatrixBase& mat, int64_t i, int64_t j) { return element_get(mat, index_arg(i, mat.rows()), index_arg(j, mat.cols())); },
              py::arg("i"), py::arg("j"))
-        .def("set", [](MatrixBase& mat, uint64_t i, uint64_t j, const py::object& value) { element_set(mat, i, j, value); },
+        .def("set", [](MatrixBase& mat, int64_t i, int64_t j, const py::object& value) {
+                 element_set(mat, index_arg(i, mat.rows()), index_arg(j, mat.cols()), value);
+             },
              py::arg("i"), py::arg("j"), py::arg("value"))
         .def("__getitem__", [](const MatrixBase& mat, const py::object& key) -> py::object {
             return matrixbase_getitem_dispatch(mat, key);
@@ -583,9 +585,9 @@ void bind_matrix_classes(py::module_& m) {
     // --- DenseMatrix ---------------------------------------------------------------------
     py::class_<pycauset::DenseMatrixBase, MatrixBase, std::shared_ptr<pycauset::DenseMatrixBase>>(
         m, "DenseMatrix", "Dense matrix of any dtype. Prefer pycauset.matrix / zeros / empty to construct.")
-        .def(py::init([](uint64_t rows, std::optional<uint64_t> cols, const py::object& dtype) {
+        .def(py::init([](int64_t rows, std::optional<int64_t> cols, const py::object& dtype) {
                  return make_structure<pycauset::DenseMatrixBase>(
-                     rows, cols.value_or(rows), pycauset::Structure::DENSE, dtype);
+                     dim_arg(rows), dim_arg(cols.value_or(rows)), pycauset::Structure::DENSE, dtype);
              }),
              py::arg("rows"), py::arg("cols") = std::nullopt, py::arg("dtype") = "float64")
         .def("set_identity", [](pycauset::DenseMatrixBase& mat) {
@@ -599,8 +601,8 @@ void bind_matrix_classes(py::module_& m) {
         })
         .def_static(
             "random",
-            [](uint64_t rows, std::optional<uint64_t> cols, double p, std::optional<uint64_t> seed) {
-                auto out = DenseBitMatrix::random(rows, cols.value_or(rows), p, "", seed);
+            [](int64_t rows, std::optional<int64_t> cols, double p, std::optional<uint64_t> seed) {
+                auto out = DenseBitMatrix::random(dim_arg(rows), dim_arg(cols.value_or(rows)), p, "", seed);
                 return std::shared_ptr<MatrixBase>(out.release());
             },
             py::arg("rows"), py::arg("cols") = std::nullopt, py::arg("p") = 0.5, py::arg("seed") = std::nullopt,
@@ -609,18 +611,18 @@ void bind_matrix_classes(py::module_& m) {
     // --- TriangularMatrix (strictly upper; a causal matrix is TriangularMatrix of dtype 'bool') ---
     py::class_<TriangularMatrixBase, MatrixBase, std::shared_ptr<TriangularMatrixBase>>(
         m, "TriangularMatrix", "Upper-triangular matrix (strict unless has_diagonal). Causal matrices have dtype 'bool'.")
-        .def(py::init([](uint64_t n, const py::object& dtype, bool has_diagonal) {
+        .def(py::init([](int64_t n, const py::object& dtype, bool has_diagonal) {
                  pycauset::MatrixOptions opts;
                  opts.has_diagonal = has_diagonal;
-                 auto m = pycauset::make_matrix(pycauset::Structure::TRIANGULAR, dtype_arg(dtype), n, n, "", opts);
+                 auto m = pycauset::make_matrix(pycauset::Structure::TRIANGULAR, dtype_arg(dtype), dim_arg(n), dim_arg(n), "", opts);
                  return std::shared_ptr<TriangularMatrixBase>(static_cast<TriangularMatrixBase*>(m.release()));
              }),
              py::arg("n"), py::arg("dtype") = "float64", py::arg("has_diagonal") = false)
         .def_property_readonly("has_diagonal", &TriangularMatrixBase::has_diagonal)
         .def_static(
             "random",
-            [](uint64_t n, double p, std::optional<uint64_t> seed) {
-                auto out = TriangularBitMatrix::random(n, p, "", seed);
+            [](int64_t n, double p, std::optional<uint64_t> seed) {
+                auto out = TriangularBitMatrix::random(dim_arg(n), p, "", seed);
                 return std::shared_ptr<MatrixBase>(out.release());
             },
             py::arg("n"), py::arg("p") = 0.5, py::arg("seed") = std::nullopt,
@@ -629,20 +631,26 @@ void bind_matrix_classes(py::module_& m) {
     // --- DiagonalMatrix / IdentityMatrix ---------------------------------------------------
     py::class_<pycauset::DiagonalMatrixBase, MatrixBase, std::shared_ptr<pycauset::DiagonalMatrixBase>>(
         m, "DiagonalMatrix", "Diagonal matrix (stores n elements).")
-        .def(py::init([](uint64_t n, const py::object& dtype) {
-                 return make_structure<pycauset::DiagonalMatrixBase>(n, n, pycauset::Structure::DIAGONAL, dtype);
+        .def(py::init([](int64_t n, const py::object& dtype) {
+                 return make_structure<pycauset::DiagonalMatrixBase>(dim_arg(n), dim_arg(n), pycauset::Structure::DIAGONAL, dtype);
              }),
              py::arg("n"), py::arg("dtype") = "float64")
-        .def("get_diagonal", [](const pycauset::DiagonalMatrixBase& mat, uint64_t i) { return element_get(mat, i, i); },
+        .def("get_diagonal", [](const pycauset::DiagonalMatrixBase& mat, int64_t i) {
+                 const uint64_t k = index_arg(i, mat.rows());
+                 return element_get(mat, k, k);
+             },
              py::arg("i"))
-        .def("set_diagonal", [](pycauset::DiagonalMatrixBase& mat, uint64_t i, const py::object& v) { element_set(mat, i, i, v); },
+        .def("set_diagonal", [](pycauset::DiagonalMatrixBase& mat, int64_t i, const py::object& v) {
+                 const uint64_t k = index_arg(i, mat.rows());
+                 element_set(mat, k, k, v);
+             },
              py::arg("i"), py::arg("value"));
 
     py::class_<pycauset::IdentityMatrixBase, MatrixBase, std::shared_ptr<pycauset::IdentityMatrixBase>>(
         m, "IdentityMatrix", "Identity matrix (no element storage; read-only).")
-        .def(py::init([](uint64_t rows, std::optional<uint64_t> cols, const py::object& dtype) {
+        .def(py::init([](int64_t rows, std::optional<int64_t> cols, const py::object& dtype) {
                  return make_structure<pycauset::IdentityMatrixBase>(
-                     rows, cols.value_or(rows), pycauset::Structure::IDENTITY, dtype);
+                     dim_arg(rows), dim_arg(cols.value_or(rows)), pycauset::Structure::IDENTITY, dtype);
              }),
              py::arg("rows"), py::arg("cols") = std::nullopt, py::arg("dtype") = "float64");
 
@@ -654,8 +662,8 @@ void bind_matrix_classes(py::module_& m) {
                                    const char* from_doc) {
         using B = typename decltype(marker)::type;
         py::class_<B, MatrixBase, std::shared_ptr<B>>(m, name, doc)
-            .def(py::init([kind](uint64_t n, const py::object& dtype) {
-                     return make_structure<B>(n, n, kind, dtype);
+            .def(py::init([kind](int64_t n, const py::object& dtype) {
+                     return make_structure<B>(dim_arg(n), dim_arg(n), kind, dtype);
                  }),
                  py::arg("n"), py::arg("dtype") = "float64")
             .def_static("from_triangular", [kind](const MatrixBase& source) { return symmetric_from_triangular(source, kind); },

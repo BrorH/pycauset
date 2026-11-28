@@ -59,8 +59,9 @@ def test_symmetric_assignment_mirrors():
 
 def test_element_conversion_errors_match_numpy():
     b = pc.matrix(np.zeros((2, 2), dtype=bool))
-    with pytest.raises(TypeError):
-        b[0, 0] = 2
+    b[0, 0] = 2  # a bool element takes the truth value, as NumPy's (0/1 only raised TypeError)
+    b[0, 1] = None
+    assert b[0, 0] is True and b[0, 1] is False
     i8 = pc.matrix(np.zeros((2, 2), dtype=np.int8))
     with pytest.raises(OverflowError):
         i8[0, 0] = 1000

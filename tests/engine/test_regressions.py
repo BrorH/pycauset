@@ -1950,3 +1950,29 @@ def test_3_7_C12_one_numpy_importer_for_every_path():
         return min(times)
 
     assert best(lambda: Z * b) < 10 * best(lambda: pc.asarray(b)) + 0.002
+
+
+def test_3_7_C6_element_values_and_arguments_as_numpy():
+    """None into a float matrix is NaN, strings parse as NumPy's, bool elements take the truth
+    value; negative dimensions are a ValueError and get / set index as A[i, j]."""
+    def outcome(target, value):
+        try:
+            target[0, 0] = value
+        except (TypeError, ValueError, OverflowError) as e:
+            return type(e).__name__
+        v = np.asarray(target)[0, 0]
+        return "nan" if v != v else complex(v)
+
+    for dt in ("float64", "float32", "float16", "complex128", "int32", "int8", "bool"):
+        for value in (None, "abc", "1.5", "3", "1+2j", 2.5, 1000):
+            assert outcome(pc.matrix(np.zeros((2, 2), dtype=dt)), value) == outcome(np.zeros((2, 2), dtype=dt), value), (dt, value)
+    for make in (lambda: pc.DenseMatrix(-1), lambda: pc.TriangularMatrix(-2), lambda: pc.DiagonalMatrix(-1),
+                 lambda: pc.SymmetricMatrix(-1), lambda: pc.IdentityMatrix(-1), lambda: pc.DenseVector(-1)):
+        with pytest.raises(ValueError, match="negative"):
+            make()
+    A = pc.matrix(np.arange(4.0).reshape(2, 2))
+    assert A.get(-1, -1) == 3.0 and pc.vector([1.0, 2.0]).get(-1) == 2.0
+    with pytest.raises(IndexError):
+        A.get(2, 0)
+    with pytest.raises(IndexError):
+        pc.UnitVector(3, 5)

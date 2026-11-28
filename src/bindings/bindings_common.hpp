@@ -102,6 +102,20 @@ struct polymorphic_type_hook<itype, detail::enable_if_t<std::is_base_of<pycauset
 
 }  // namespace pybind11
 
+// A dimension argument: NumPy's ValueError for a negative one (uint64_t parameters gave pybind's
+// "incompatible function arguments" TypeError, review 3.7 C-6).
+inline uint64_t dim_arg(int64_t n) {
+    if (n < 0) throw py::value_error("negative dimensions are not allowed");
+    return static_cast<uint64_t>(n);
+}
+
+// An element index along an axis of length `dim`: negative counts from the end, as A[i, j].
+inline uint64_t index_arg(int64_t i, uint64_t dim) {
+    if (i < 0) i += static_cast<int64_t>(dim);
+    if (i < 0 || static_cast<uint64_t>(i) >= dim) throw py::index_error("index out of bounds");
+    return static_cast<uint64_t>(i);
+}
+
 // A user's dtype argument (a name, a NumPy code, np.float32, np.dtype(...), int, ...) through
 // the one parser, pycauset._internal.dtypes.normalize_dtype (review 3.3 C-9: the native
 // constructors had their own table: pc.DenseMatrix(2, dtype="bit") raised, pc.zeros accepted

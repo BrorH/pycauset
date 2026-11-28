@@ -19,17 +19,13 @@ namespace pycauset_bindings {
     throw py::error_already_set();
 }
 
+// A value stored into a bool element: its truth value, as NumPy's bool assignment (B[0, 0] = 2.5
+// is True, = None is False). Only 0/1/False/True were accepted, a TypeError otherwise (review
+// 3.7 C-6: NumPy is the oracle).
 inline bool coerce_bit_value(const py::handle& value) {
-    // Accepts Python and NumPy booleans, integers and floats equal to 0 or 1.
-    if (PyBool_Check(value.ptr())) return value.ptr() == Py_True;
-    const std::string type_name = py::str(py::type::of(value).attr("__name__"));
-    if (type_name == "bool" || type_name == "bool_") return value.cast<bool>();
-    if (!PyComplex_Check(value.ptr()) && PyNumber_Check(value.ptr())) {
-        const double v = py::reinterpret_borrow<py::object>(value).cast<double>();
-        if (v == 0.0) return false;
-        if (v == 1.0) return true;
-    }
-    throw py::type_error("bit (dtype 'bool') matrices only accept 0/1/False/True");
+    const int t = PyObject_IsTrue(value.ptr());
+    if (t < 0) throw py::error_already_set();
+    return t == 1;
 }
 
 // float(value), with Python's own errors: a string that is no number is a ValueError and a
@@ -49,6 +45,11 @@ E py_to_element(const py::object& value) {
         return coerce_bit_value(value);
     } else if constexpr (std::is_integral_v<E>) {
         if (PyComplex_Check(value.ptr())) throw py::type_error("can't assign a complex value to an integer matrix");
+        if (PyUnicode_Check(value.ptr())) {  // int(value), as NumPy: '3' is 3, '1.5' a ValueError
+            PyObject* i = PyNumber_Long(value.ptr());
+            if (i == nullptr) throw py::error_already_set();
+            return py_to_element<E>(py::reinterpret_steal<py::object>(i));
+        }
         if (!PyIndex_Check(value.ptr())) {  // floats (Python or NumPy): truncate like NumPy
             const double d = py_float(value);
             if (!std::isfinite(d)) throw py::value_error("can't assign a non-finite value to an integer matrix");
@@ -80,12 +81,16 @@ E py_to_element(const py::object& value) {
         }
     } else if constexpr (std::is_same_v<E, pycauset::float16_t>) {
         if (PyComplex_Check(value.ptr())) throw py::type_error("can't assign a complex value to a real matrix");
-        return pycauset::float16_t(py_float(value));
+        return pycauset::float16_t(value.is_none() ? std::numeric_limits<double>::quiet_NaN() : py_float(value));
     } else if constexpr (std::is_floating_point_v<E>) {
+        // None is NaN for float dtypes, as in NumPy (it raised RuntimeError, review 3.7 C-6).
         if (PyComplex_Check(value.ptr())) throw py::type_error("can't assign a complex value to a real matrix");
-        return static_cast<E>(py_float(value));
+        return value.is_none() ? std::numeric_limits<E>::quiet_NaN() : static_cast<E>(py_float(value));
     } else {
-        return static_cast<E>(value.cast<std::complex<double>>());
+        // complex(value), with Python's errors and its string parsing ('1+2j'), as NumPy.
+        if (value.is_none()) return E(std::numeric_limits<double>::quiet_NaN(), 0.0);
+        static py::object* complex_type = new py::object(py::module_::import("builtins").attr("complex"));
+        return static_cast<E>((*complex_type)(value).cast<std::complex<double>>());
     }
 }
 
