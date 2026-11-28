@@ -2121,3 +2121,20 @@ def test_3_8_C17_dtype_compares_with_numpy_and_every_token():
     for token in ("int", "float", "complex16", "complex64", np.int16, np.float32, "bool", "f4"):
         assert pc.to_numpy(pc.zeros(2), dtype=token).dtype == np.dtype(
             pc._internal.dtypes.NUMPY_EXPORT[pc.zeros(2, dtype=token).dtype])
+
+
+def test_3_6_C17_vector_times_closure_uses_the_bit_kernel():
+    """v @ (C - C.T) wrote the closure out as an n x n float64 matrix (D @ v used the bit kernel)."""
+    import warnings
+
+    rng = np.random.default_rng(1)
+    C = pc.causal_matrix(np.triu(rng.random((7, 7)) > 0.5, 1))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for D in (C + C.T, C - C.T, (C - C.T) * 3, (C - C.T).T, (C + C.T) * -2):
+            for v in (pc.vector(np.arange(7.0)), pc.vector(np.arange(7.0)).T, pc.vector(np.arange(7))):
+                pc._debug_clear_kernel_trace()
+                r = v @ D
+                if v.dtype == "float64":
+                    assert pc._debug_last_kernel_trace() == "cpu.matvec.bit_closure"
+                np.testing.assert_allclose(np.asarray(r).ravel(), np.asarray(v).ravel() @ np.asarray(D))

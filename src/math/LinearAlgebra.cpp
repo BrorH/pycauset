@@ -149,23 +149,47 @@ static std::unique_ptr<MatrixBase> transposed_pair(const MatrixBase& a, const Ma
     return op(*at, *bt)->transpose();
 }
 
-std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
-    if (auto r = transposed_pair(a, b, result_file, [](const MatrixBase& x, const MatrixBase& y) { return add(x, y); })) return r;
-    if (auto r = identity_pair(a, b, promotion::BinaryOp::Add, "add", result_file)) return r;
+namespace {
+enum class Ew { Add, Sub, Mul, Div };
 
-    if (auto closure = try_bit_closure(a, b, +1, result_file)) return closure;
-    const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "add");
+// The one entry of the four element-wise operations (review 3.6 C-16: four copies of this body).
+// Shortcuts by structure first (a transposed pair, an identity operand, a causal closure
+// C +- C^T, bool counts / AND on the packed words); then the result's dtype and structure from
+// the resolvers, and the kernel. Division is not structure-preserving (0 / 0 off a triangle):
+// its result is dense.
+std::unique_ptr<MatrixBase> elementwise_entry(Ew op, const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
+    static constexpr const char* names[] = {"add", "subtract", "elementwise_multiply", "elementwise_divide"};
+    static constexpr promotion::BinaryOp bops[] = {promotion::BinaryOp::Add, promotion::BinaryOp::Subtract,
+                                                   promotion::BinaryOp::ElementwiseMultiply, promotion::BinaryOp::Divide};
+    const char* name = names[static_cast<int>(op)];
+    const promotion::BinaryOp bop = bops[static_cast<int>(op)];
 
-    DataType type_a = a.get_data_type();
-    DataType type_b = b.get_data_type();
+    if (auto r = transposed_pair(a, b, result_file, [op](const MatrixBase& x, const MatrixBase& y) {
+            return elementwise_entry(op, x, y, "");
+        })) return r;
+    if (op != Ew::Div) {
+        if (auto r = identity_pair(a, b, bop, name, result_file)) return r;
+    }
+    if (op == Ew::Add || op == Ew::Sub) {
+        if (auto closure = try_bit_closure(a, b, op == Ew::Add ? +1 : -1, result_file)) return closure;
+    }
+    const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, name);
 
-    DataType res_dtype = promotion::resolve(promotion::BinaryOp::Add, type_a, type_b).result_dtype;
-    const auto res_shape = structure::resolve_result_structure(promotion::BinaryOp::Add, a, b, res_dtype);
-    const Structure res_mtype = res_shape.structure;
-    // Structure rule: bool + bool of one shape counts from the packed words.
-    if (type_a == DataType::BIT && type_b == DataType::BIT && res_dtype == DataType::INT32 &&
-        res_mtype == Structure::DENSE && result_file.empty() && a.rows() == b.rows() && a.cols() == b.cols()) {
-        return bit_counts(a, b, 1);
+    const DataType type_a = a.get_data_type(), type_b = b.get_data_type();
+    const DataType res_dtype = promotion::resolve(bop, type_a, type_b).result_dtype;
+    Structure res_mtype = Structure::DENSE;
+    bool has_diagonal = false;
+    if (op != Ew::Div) {
+        const auto res_shape = structure::resolve_result_structure(bop, a, b, res_dtype);
+        res_mtype = res_shape.structure;
+        has_diagonal = res_shape.has_diagonal;
+    }
+    // Structure rules on the packed words for two bool operands of one shape: + and - count,
+    // * is an AND.
+    if (type_a == DataType::BIT && type_b == DataType::BIT && res_mtype == Structure::DENSE && result_file.empty() &&
+        a.rows() == b.rows() && a.cols() == b.cols()) {
+        if ((op == Ew::Add || op == Ew::Sub) && res_dtype == DataType::INT32) return bit_counts(a, b, op == Ew::Add ? 1 : -1);
+        if (op == Ew::Mul && res_dtype == DataType::BIT) return bitwise(a, b, BitwiseOp::And);
     }
 
     std::unique_ptr<MatrixBase> result;
@@ -173,102 +197,33 @@ std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const 
         // A dense result is written completely by the kernel: no zeroing (F-096).
         std::optional<UninitializedStorage> u;
         if (res_mtype == Structure::DENSE && res_dtype != DataType::BIT && result_file.empty()) u.emplace();
-        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file,
-                                              MatrixOptions{res_shape.has_diagonal});
+        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file, MatrixOptions{has_diagonal});
     }
-
-    ComputeContext::instance().get_device()->add(a, b, *result);
-    
+    auto* device = ComputeContext::instance().get_device();
+    switch (op) {
+        case Ew::Add: device->add(a, b, *result); break;
+        case Ew::Sub: device->subtract(a, b, *result); break;
+        case Ew::Mul: device->elementwise_multiply(a, b, *result); break;
+        case Ew::Div: device->elementwise_divide(a, b, *result); break;
+    }
     return result;
+}
+}  // namespace
+
+std::unique_ptr<MatrixBase> add(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
+    return elementwise_entry(Ew::Add, a, b, result_file);
 }
 
 std::unique_ptr<MatrixBase> subtract(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
-    if (auto r = transposed_pair(a, b, result_file, [](const MatrixBase& x, const MatrixBase& y) { return subtract(x, y); })) return r;
-    if (auto r = identity_pair(a, b, promotion::BinaryOp::Subtract, "subtract", result_file)) return r;
-
-    if (auto closure = try_bit_closure(a, b, -1, result_file)) return closure;
-    const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "subtract");
-
-    DataType type_a = a.get_data_type();
-    DataType type_b = b.get_data_type();
-
-    DataType res_dtype = promotion::resolve(promotion::BinaryOp::Subtract, type_a, type_b).result_dtype;
-    const auto res_shape = structure::resolve_result_structure(promotion::BinaryOp::Subtract, a, b, res_dtype);
-    const Structure res_mtype = res_shape.structure;
-    // Structure rule: bool - bool of one shape counts from the packed words.
-    if (type_a == DataType::BIT && type_b == DataType::BIT && res_dtype == DataType::INT32 &&
-        res_mtype == Structure::DENSE && result_file.empty() && a.rows() == b.rows() && a.cols() == b.cols()) {
-        return bit_counts(a, b, -1);
-    }
-
-    std::unique_ptr<MatrixBase> result;
-    {
-        // A dense result is written completely by the kernel: no zeroing (F-096).
-        std::optional<UninitializedStorage> u;
-        if (res_mtype == Structure::DENSE && res_dtype != DataType::BIT && result_file.empty()) u.emplace();
-        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file,
-                                              MatrixOptions{res_shape.has_diagonal});
-    }
-
-    ComputeContext::instance().get_device()->subtract(a, b, *result);
-    
-    return result;
+    return elementwise_entry(Ew::Sub, a, b, result_file);
 }
 
 std::unique_ptr<MatrixBase> elementwise_multiply(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
-    if (auto r = transposed_pair(a, b, result_file, [](const MatrixBase& x, const MatrixBase& y) { return elementwise_multiply(x, y); })) return r;
-    if (auto r = identity_pair(a, b, promotion::BinaryOp::ElementwiseMultiply, "elementwise_multiply", result_file)) return r;
-
-    const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "elementwise_multiply");
-
-    DataType type_a = a.get_data_type();
-    DataType type_b = b.get_data_type();
-
-    DataType res_dtype = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, type_a, type_b).result_dtype;
-    const auto res_shape = structure::resolve_result_structure(promotion::BinaryOp::ElementwiseMultiply, a, b, res_dtype);
-    const Structure res_mtype = res_shape.structure;
-    // Structure rule: bool * bool of one shape is a word-level AND.
-    if (type_a == DataType::BIT && type_b == DataType::BIT && res_dtype == DataType::BIT &&
-        res_mtype == Structure::DENSE && result_file.empty() && a.rows() == b.rows() && a.cols() == b.cols()) {
-        return bitwise(a, b, BitwiseOp::And);
-    }
-
-    std::unique_ptr<MatrixBase> result;
-    {
-        // A dense result is written completely by the kernel: no zeroing (F-096).
-        std::optional<UninitializedStorage> u;
-        if (res_mtype == Structure::DENSE && res_dtype != DataType::BIT && result_file.empty()) u.emplace();
-        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file,
-                                              MatrixOptions{res_shape.has_diagonal});
-    }
-
-    ComputeContext::instance().get_device()->elementwise_multiply(a, b, *result);
-    
-    return result;
+    return elementwise_entry(Ew::Mul, a, b, result_file);
 }
 
 std::unique_ptr<MatrixBase> elementwise_divide(const MatrixBase& a, const MatrixBase& b, const std::string& result_file) {
-    if (auto r = transposed_pair(a, b, result_file, [](const MatrixBase& x, const MatrixBase& y) { return elementwise_divide(x, y); })) return r;
-    const auto [out_rows, out_cols] = broadcast_shape_2d(a, b, "elementwise_divide");
-
-    DataType type_a = a.get_data_type();
-    DataType type_b = b.get_data_type();
-    DataType res_dtype = promotion::resolve(promotion::BinaryOp::Divide, type_a, type_b).result_dtype;
-    // Division is not generally structure-preserving (e.g., implicit 0/0 off-triangle).
-    // Materialize a dense result for correctness.
-    Structure res_mtype = Structure::DENSE;
-
-    std::unique_ptr<MatrixBase> result;
-    {
-        // A dense result is written completely by the kernel: no zeroing (F-096).
-        std::optional<UninitializedStorage> u;
-        if (res_mtype == Structure::DENSE && res_dtype != DataType::BIT && result_file.empty()) u.emplace();
-        result = ObjectFactory::create_matrix(out_rows, out_cols, res_dtype, res_mtype, result_file);
-    }
-
-    ComputeContext::instance().get_device()->elementwise_divide(a, b, *result);
-
-    return result;
+    return elementwise_entry(Ew::Div, a, b, result_file);
 }
 
 // --- Vector Operations ---
@@ -556,6 +511,15 @@ std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const Ve
 
 std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, const std::string&) {
     if (v.size() != m.rows()) throw std::invalid_argument("Vector size must match matrix rows");
+    // A closure C +- C^T is its own transpose up to sign (M^T = M, or -M for C - C^T, whatever
+    // its view flags): v @ M = +-(M v), the closure's bit kernel. It was written out as an
+    // n x n float64 matrix (review 3.6 C-17).
+    if (auto* cl = dynamic_cast<const BitClosureMatrix*>(&m); cl && !cl->is_materialized()) {
+        std::unique_ptr<VectorBase> out = matrix_vector_multiply(m, v, "");
+        if (m.get_structure() == Structure::ANTISYMMETRIC) out = negate(*out);
+        out->set_transposed(v.is_transposed());
+        return out;
+    }
     // v @ M = (M^T v)^T: the structured matrix-vector rule above on the transposed view.
     {
         const Structure st = m.get_structure();
