@@ -1769,3 +1769,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
   names and aliases are listed in one table now; everything else goes to `np.dtype`, and
   types PyCauset does not store raise. Open (C-9): the native constructors
   (`pc.DenseMatrix(2, dtype="bit")`) still parse with their own table. `test_F133_*`.
+
+### F-134 Persistence docs described an update path that does not exist (area 3.9 C-9)
+- **Status:** fixed (session 9). Container Format and Storage Semantics described appending
+  metadata and flipping header slots in place, listed metadata keys load never reads
+  (`matrix_type`, `data_type`, `provenance`) and omitted the ones it does (`structure`,
+  `dtype`, `has_diagonal`, causal-set and block keys); DERIVED_CACHE.md described a
+  pre-F-093 in-place design; `load.md` said a saved CausalSet loads as its causal matrix (it
+  loads as a CausalSet); npz "first key" is the alphabetically first; two docstrings said
+  file-backed exports always fail. All rewritten to the code.

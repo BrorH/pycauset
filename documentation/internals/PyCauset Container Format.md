@@ -81,11 +81,12 @@ The payload is raw bytes suitable for memory mapping:
 
 - Starts at `payload_offset`.
 - Spans `payload_length` bytes.
-- Interpretation is defined by identity metadata (shape, dtype, matrix type, `payload_layout`).
+- Interpretation is defined by the metadata: `structure`, `dtype`, `rows` / `cols`, and
+  `has_diagonal` for triangles (the packed layout depends on it).
 
-## Metadata blocks (append-only)
+## Metadata block
 
-Metadata is stored as blocks after the payload. The active header slot points to the authoritative block.
+Metadata is one block after the payload. The active header slot points to it.
 
 ### Metadata framing (at `metadata_offset`)
 
@@ -108,28 +109,33 @@ The encoded metadata payload is a single top-level map with string keys.
 
 Reserved namespaces:
 
-- identity/header keys: `rows`, `cols`, `matrix_type`, `data_type`, `payload_layout`, `payload_uuid`, ...
-- `view`: system-managed view-state
-- `provenance`: optional non-semantic provenance
+- identity: `rows`, `cols`, `structure` (`dense`, `triangular`, `symmetric`, ...), `dtype`,
+  `has_diagonal` (triangles), `seed`, `payload_uuid`, `payload_layout` (written, not checked
+  on load)
+- `view`: the saved view state (`scalar`, `is_transposed`, `is_conjugated`)
+- causal sets: `object_type` (`"CausalSet"`), `n`, `spacetime`, `seed`
+- block matrices: `block_manifest` (partitions and child files with their `payload_uuid`)
 - `derived`: computed values of the payload (determinant, slogdet, trace, sum, norms, rank),
   a list of `[key, kind, values...]` entries; the key names the quantity, its parameters, the
   dtype, structure and view it was computed for (`include/pycauset/math/DerivedCache.hpp`).
   `kind` is `complex`, `slogdet`, `real`, `int` or `reduction` (an integer sum carries its
-  128-bit value as decimal text). Valid for the payload as written; a file whose payload was
-  changed by another program is not detected.
+  128-bit value as decimal text). `derived_engine` names the build that computed them; load
+  imports them only into the same build. Valid for the payload as written; a file whose
+  payload was changed by another program is not detected.
 
 Readers ignore unknown keys.
 
-## Crash-consistent metadata update rule
+## How a file is written
 
-To update metadata without scanning:
+Every save writes a whole new file: a uniquely named hidden sibling (`.<name>.XXXX.part`)
+with the header, payload, metadata block and both slots (identical but for the generation,
+so a damaged slot has a CRC-checked backup), fsynced, then renamed over the target and the
+directory fsynced. An object loaded from the old file keeps reading its mapping of it. No
+code appends metadata to an existing file or flips slots in place; the two-slot header
+leaves room for that (an O(1) metadata update) if it is ever needed.
 
-1) Append the new metadata block to the end of the file.
-2) Ensure it is fully written (and flushed if applicable).
-3) Write the inactive header slot with `generation = active.generation + 1` and the new metadata pointer.
-4) Optionally flush the header region.
-
-This guarantees deterministic $O(1)$ load and never moves the payload region.
+Load is O(1): pick the valid slot with the highest generation, check its pointers and CRCs,
+read the metadata, map the payload at `payload_offset` copy-on-write.
 
 ## Debugging notes
 

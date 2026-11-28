@@ -9,7 +9,7 @@ Loads a NumPy `.npz` archive into a PyCauset matrix or vector.
 ## Parameters
 
 *   **path** (str or Path): Path to the `.npz` archive.
-*   **key** (str, optional): Which array to load. Defaults to the first key in the archive.
+*   **key** (str, optional): Which array to load. Defaults to the alphabetically first key in the archive.
 
 ## Returns
 

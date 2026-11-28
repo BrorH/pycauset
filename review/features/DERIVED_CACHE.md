@@ -44,11 +44,13 @@ rule in CLAUDE.md becomes: no result caching outside this mechanism.
   Integer views (exact factor k) use the same rules in the result dtype. A window view
   (`m[1:4, 2:6]`) is a different matrix: no cache. Lazy closures (`A + A.T`) get their own
   entry keyed on the operands' versions (later step).
-- **Persistence:** the container's metadata block (typed map, A/B header slots for atomic
-  rewrites) gains a `derived` map saved with `payload_version`. A loaded file is memory-mapped
-  and written in place, so the first mutation after load rewrites the metadata without the
-  `derived` map (flip to the other header slot) *before* the payload changes. A crash between
-  the two leaves no cache, never a stale one.
+- **Persistence (as built, D.3):** `pc.save` writes the storage's entries into the container's
+  `derived` metadata entry, with `derived_engine` (the build that computed them); `pc.load`
+  imports them only into the same build (review 3.9 C-3). A loaded file is mapped
+  copy-on-write (F-093): a write never reaches the file, it only bumps the loaded storage's
+  version, which drops the imported entries. So no in-place metadata rewrite is needed and no
+  crash window exists. (The first design rewrote the metadata in place with a
+  `payload_version` before the first write; superseded by F-093.)
 - **Large results** (inverse, eigenvectors, SVD factors, Cholesky / QR / LU factors): stored as
   extra payload sections of the same container (a format version bump), step D.4.
 

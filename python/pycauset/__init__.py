@@ -386,7 +386,8 @@ for _cls in (
 def set_export_max_bytes(limit: int | None) -> None:
     """Set the materialization ceiling (bytes) for NumPy exports.
 
-    None disables the size ceiling (file-backed objects still hard-error).
+    Exports larger than it raise unless `allow_huge=True`. None removes the ceiling: then an
+    export raises only when it would not fit in free RAM.
     """
 
     global _EXPORT_MAX_BYTES

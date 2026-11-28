@@ -8,7 +8,7 @@ Convert between PyCauset snapshots and NumPy container formats.
 
 - Supported formats: `.pycauset` (canonical snapshot), `.npy`, `.npz`.
 - `dst_format` defaults from `dst_path` when omitted; must be one of the supported suffixes.
-- `.npz` imports default to the first key; set `npz_key` to choose a specific array name.
+- `.npz` imports default to the alphabetically first key; set `npz_key` to choose a specific array name.
 - Exports honor the NumPy size guard (see [[docs/functions/pycauset.to_numpy.md|to_numpy]]); `allow_huge=True` skips it.
 - Optional `dtype` casts on export (to NumPy formats) before writing.
 
@@ -25,7 +25,7 @@ Convert between PyCauset snapshots and NumPy container formats.
 - **dst_format** (str, optional): Override destination format (`"pycauset"`, `"npy"`, or `"npz"`). If omitted, inferred from `dst_path`.
 - **allow_huge** (bool, default `False`): Skips the size guard.
 - **dtype** (optional): Override dtype on export to NumPy formats.
-- **npz_key** (str, optional): Key to read from/write to when the source or destination is `.npz`. Defaults to the first key on import and to `"array"` on export.
+- **npz_key** (str, optional): Key to read from/write to when the source or destination is `.npz`. Defaults to the alphabetically first key on import and to `"array"` on export.
 
 ## Returns
 

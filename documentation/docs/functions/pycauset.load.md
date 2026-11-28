@@ -4,7 +4,7 @@
 pycauset.load(path: str)
 ```
 
-Loads a matrix, vector or block matrix from a `.pycauset` file. (A file saved from a `CausalSet`, whose class is parked with the physics layer, loads as its causal matrix.)
+Loads a matrix, vector or block matrix from a `.pycauset` file. A file saved from a `CausalSet` loads as a `CausalSet` (its spacetime and seed are saved).
 
 ## Parameters
 

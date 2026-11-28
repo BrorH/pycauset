@@ -8,26 +8,24 @@ This page is the developer-facing hub for how storage works in Release 1. User-f
 
 ## Release 1 guarantees (storage)
 - Single-file `.pycauset` container, little-endian, with a 4096-byte header holding two slots (A/B). The valid slot with the highest generation is active; CRC mismatch or out-of-range pointers fail deterministically.
-- Payload offset is aligned (≥4096) and never moves after creation. Metadata offset is aligned (≥16). Updates append metadata and flip the inactive header slot; no scanning is required.
-- Typed metadata is a single sparse map with reserved namespaces: `view`, `provenance`, plus identity/header keys (`rows`, `cols`, `matrix_type`, `data_type`, `payload_layout`). Missing keys stay missing (tri-state semantics).
+- Payload offset is 4096 and metadata offset 16-aligned. Each save writes a whole new file and
+  renames it over the target; nothing is updated in place.
+- Typed metadata is a single map (keys in [[internals/PyCauset Container Format|Container Format]]).
 - Block matrices persist as a base container plus a sidecar `<name>.pycauset.blocks/`; the manifest pins child `payload_uuid` values to avoid mixed snapshots.
 
 ## Snapshot + mutation semantics
 - `.pycauset` files are immutable snapshots; `load()` returns a snapshot-backed object: the
   payload is mapped copy-on-write (MAP_PRIVATE / FILE_MAP_COPY), so a write makes that page
   private and never reaches the file (F-093).
-- Saving writes a sibling `.part` file and renames it over the target (atomic): an object
-  loaded from the target keeps reading its mapping of the old file.
-- Frequently changing runtime epochs stay in memory; header `hot_offset`/`hot_length` remain 0 in R1.
-- Saving writes a new snapshot (base file, plus sidecar for block matrices). Overwrites replace the header slot generation and metadata pointer but keep the payload offset stable.
+- Saving writes a uniquely named hidden sibling (`.<name>.XXXX.part`), fsyncs it, renames it
+  over the target (atomic) and fsyncs the directory: an object loaded from the target keeps
+  reading its mapping of the old file, and a crash leaves either the old or the new file.
+  On Windows a loaded file cannot be replaced while it is mapped (review 3.9 C-10).
+- Header `hot_offset` / `hot_length` are 0.
+- Block matrices: a base container plus the sidecar directory, committed by directory renames.
 
-## Crash-consistent update path
-1) Append the new typed metadata block (framing: `PCMB`, block_version=1, encoding_version=1, payload_crc32 validated).
-2) Flush if the implementation uses explicit flush.
-3) Write the inactive header slot with `generation = active + 1` and the new metadata pointer; include slot CRC32.
-4) Optionally flush the header region.
-
-Load is $O(1)$: pick the highest-generation valid slot, validate pointers/CRCs, read metadata, mmap payload at `payload_offset`.
+Load is O(1): pick the highest-generation valid slot, validate pointers and CRCs, read
+metadata, map the payload at `payload_offset`.
 
 ## Debugging checklist
 - Confirm magic/version/endian in the preamble (`PYCAUSET`, version 1, little-endian).
