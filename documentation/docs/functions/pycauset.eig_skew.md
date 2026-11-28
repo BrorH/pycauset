@@ -34,7 +34,9 @@ A tuple `(w, v)`:
 
 ## Notes
 
-* The eigenpairs come from LAPACK's general solver (`dgeev`).
+* The eigenpairs come from LAPACK's Hermitian solver (`zheevd`) on `i A`, which is Hermitian
+  for a real skew-symmetric `A`: the eigenvalues are exactly imaginary and come in `±` pairs,
+  and the eigenvectors are orthonormal.
 * Requesting `k > n` returns at most `n` eigenpairs; a 0 x 0 matrix gives empty results.
 
 ## Example

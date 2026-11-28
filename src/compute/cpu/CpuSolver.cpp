@@ -160,6 +160,7 @@ double CpuSolver::l2_norm(const VectorBase& v) {
 // math/LinearAlgebra.cpp).
 void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) {
     const uint64_t rows = m.rows();
+    require_blas_dims({m.rows(), m.cols()}, "matrix-vector product");
     // Closure view C +- C^T over causal bits (LAZY.md L2b): two triangular passes over the
     // bits, nothing materialized. Used when the int32 entries can't wrap under the factor.
     if (auto* cl = dynamic_cast<const BitClosureMatrix*>(&m); cl && !cl->is_materialized()) {
@@ -716,6 +717,7 @@ bool svd_dense(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& V
     auto* vt = dynamic_cast<DenseMatrix<T>*>(&VT);
     auto* s = dynamic_cast<DenseVector<R>*>(&S);
     if (!A || !u || !vt || !s) return false;
+    if (!is_plain(in)) throw std::logic_error("svd kernel called with a view operand");  // (3.4 C-18)
     debug_trace::set_last("cpu.svd.gesdd");
     const uint64_t m = in.rows(), n = in.cols();
     if (m == 0 || n == 0) {
@@ -782,6 +784,9 @@ bool solve_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
     auto* B = dynamic_cast<const DenseMatrix<T>*>(&b);
     auto* X = dynamic_cast<DenseMatrix<T>*>(&x);
     if (!A || !B || !X) return false;
+    // The contract: plain operands (no factor, transpose, window or conjugation), as the entry
+    // writes them out; data() would silently misread anything else (review 3.4 C-18).
+    if (!is_plain(a) || !is_plain(b)) throw std::logic_error("dense LAPACK kernel called with a view operand");
     debug_trace::set_last("cpu.solve.getrf_trsm");
     const uint64_t n = a.rows(), nrhs = b.cols();
     std::vector<T> wa(A->data(), A->data() + n * n);  // getrf overwrites A with its LU factors
@@ -815,6 +820,9 @@ bool lstsq_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
     auto* B = dynamic_cast<const DenseMatrix<T>*>(&b);
     auto* X = dynamic_cast<DenseMatrix<T>*>(&x);
     if (!A || !B || !X) return false;
+    // The contract: plain operands (no factor, transpose, window or conjugation), as the entry
+    // writes them out; data() would silently misread anything else (review 3.4 C-18).
+    if (!is_plain(a) || !is_plain(b)) throw std::logic_error("dense LAPACK kernel called with a view operand");
     debug_trace::set_last("cpu.lstsq.gelsd");
     const uint64_t m = a.rows(), n = a.cols(), k = b.cols();
     T* xp = X->data();
@@ -865,6 +873,9 @@ bool solve_triangular_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase
     auto* B = dynamic_cast<const DenseMatrix<T>*>(&b);
     auto* X = dynamic_cast<DenseMatrix<T>*>(&x);
     if (!A || !B || !X) return false;
+    // The contract: plain operands (no factor, transpose, window or conjugation), as the entry
+    // writes them out; data() would silently misread anything else (review 3.4 C-18).
+    if (!is_plain(a) || !is_plain(b)) throw std::logic_error("dense LAPACK kernel called with a view operand");
     debug_trace::set_last("cpu.solve.trsm");
     const uint64_t n = a.rows(), nrhs = b.cols();
     const T* ap = A->data();

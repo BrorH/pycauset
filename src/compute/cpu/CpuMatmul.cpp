@@ -74,12 +74,6 @@
 #include <immintrin.h>
 #endif
 
-#ifdef _WIN32
-#include <intrin.h>
-#elif defined(__x86_64__) || defined(_M_X64)
-#include <cpuid.h>
-#endif
-
 #include "CpuKernelsCommon.hpp"
 
 namespace pycauset {
@@ -106,40 +100,7 @@ using namespace cpu_detail;
 
 namespace {
     // Runtime CPU detection for AVX-512 VPOPCNTDQ
-    bool has_avx512_vpopcntdq() {
-#if defined(__x86_64__) || defined(_M_X64)
-        static bool checked = false;
-        static bool available = false;
-        if (checked) return available;
-
-        // Check for AVX-512 Foundation (bit 16 of EBX in leaf 7, subleaf 0)
-        // Check for VPOPCNTDQ (bit 14 of ECX in leaf 7, subleaf 0)
-        
-#ifdef _WIN32
-        int cpuInfo[4];
-        __cpuid(cpuInfo, 0);
-        int nIds = cpuInfo[0];
-        if (nIds >= 7) {
-            __cpuidex(cpuInfo, 7, 0);
-            bool avx512f = (cpuInfo[1] & (1 << 16)) != 0;
-            bool avx512vpopcntdq = (cpuInfo[2] & (1 << 14)) != 0;
-            available = avx512f && avx512vpopcntdq;
-        }
-#else
-        unsigned int eax, ebx, ecx, edx;
-        if (__get_cpuid_max(0, &eax) >= 7) {
-            __cpuid_count(7, 0, eax, ebx, ecx, edx);
-            bool avx512f = (ebx & (1 << 16)) != 0;
-            bool avx512vpopcntdq = (ecx & (1 << 14)) != 0;
-            available = avx512f && avx512vpopcntdq;
-        }
-#endif
-        checked = true;
-        return available;
-#else
-        return false;
-#endif
-    }
+    bool has_avx512_vpopcntdq() { return cpu_has_avx512_vpopcntdq(); }  // CpuKernelsCommon.hpp
 
 #if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(_M_X64))
     __attribute__((target("avx512f,avx512vpopcntdq")))
@@ -718,6 +679,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     if (a.cols() != b.rows() || result.rows() != a.rows() || result.cols() != b.cols()) {
         throw std::invalid_argument("Dimension mismatch");
     }
+    require_blas_dims({a.rows(), a.cols(), b.cols()}, "matmul");
     auto viewed = [](const MatrixBase& m) {
         const DataType d = m.get_data_type();
         const bool cplx = is_complex_dtype(d);

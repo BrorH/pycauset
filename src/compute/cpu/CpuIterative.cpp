@@ -74,16 +74,6 @@
 #include <iostream>
 #include <limits>
 #include <random>
-#if defined(__x86_64__) || defined(_M_X64)
-#include <immintrin.h>
-#endif
-
-#ifdef _WIN32
-#include <intrin.h>
-#elif defined(__x86_64__) || defined(_M_X64)
-#include <cpuid.h>
-#endif
-
 #include "CpuKernelsCommon.hpp"
 
 namespace pycauset {

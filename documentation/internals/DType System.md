@@ -152,6 +152,13 @@ Float overflow is possible (e.g., float32 can overflow to `inf`). PyCauset follo
 
 Optional “strict” validation (e.g., finiteness checks) can exist, but it is not the default because scanning 100GB+ outputs is expensive.
 
+Single-precision accumulation (a deliberate difference from NumPy): `norm` of a float32 /
+complex64 operand and the triangular and structured float32 products accumulate in double,
+then round once. So they are at least as accurate as NumPy's float32 sums, which differ in the
+last ulps, and `norm` stays finite where NumPy's float32 square sum overflows
+(`norm([3e19, 4e19])` is 5e19, NumPy `inf`). `norm` returns a Python float. `dot` and dense
+float32 products use `sdot` / `sgemm` as NumPy does, and match it.
+
 ## 6) Bit is special (scale-first rules)
 
 Bit matrices/vectors are used to store very large binary structures where widening is often infeasible.

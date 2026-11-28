@@ -1,7 +1,8 @@
 # Performance Guide
 
-PyCauset runs on the CPU: OpenMP for element-wise kernels, OpenBLAS/LAPACK for products,
-solves and decompositions. This page covers what is fast, what to avoid, and the few
+PyCauset runs on the CPU: its own thread pool for element-wise kernels, reductions and
+structured products, OpenBLAS/LAPACK for dense products, solves and decompositions (one thread
+setting caps both, `pc.set_num_threads`). This page covers what is fast, what to avoid, and the few
 settings that matter. (A CUDA backend exists in `experimental/cuda` but is not built or
 supported.)
 

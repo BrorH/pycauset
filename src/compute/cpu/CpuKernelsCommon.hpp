@@ -2,7 +2,73 @@
 // Internal to src/compute/cpu: include after the solver headers, not part of the public API.
 #pragma once
 
+#include <cstdint>
+#include <initializer_list>
+#include <limits>
+#include <stdexcept>
+#include <string>
+
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+#include <intrin.h>
+#include <immintrin.h>
+#endif
+
 namespace pycauset::cpu_detail {
+
+    // BLAS is LP64 here (int lengths): a dimension of 2^31 or more became a negative length,
+    // for which BLAS silently returns (review 3.4 C-12). The matmul and matrix-vector entries
+    // check their dimensions first.
+    inline void require_blas_dims(std::initializer_list<uint64_t> dims, const char* op) {
+        for (uint64_t d : dims)
+            if (d > static_cast<uint64_t>(std::numeric_limits<int>::max()))
+                throw std::length_error(std::string(op) + ": a dimension of " + std::to_string(d) +
+                                        " exceeds the BLAS int range (2^31 - 1)");
+    }
+
+    // CPU features for the runtime-dispatched kernels, checked once (a static const: thread-safe
+    // initialisation), CPU and OS alike: AVX state must be saved by the OS (XGETBV), or an AVX
+    // instruction is SIGILL where a hypervisor turns it off. The hand-written CPUID tests
+    // checked the CPU only, in unsynchronised statics (review 3.4 C-18).
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+    inline bool os_saves_xstate(unsigned long long mask) {
+        int r[4];
+        __cpuid(r, 1);
+        if (!(r[2] & (1 << 27))) return false;  // OSXSAVE
+        return (_xgetbv(0) & mask) == mask;
+    }
+    inline bool cpu_has_avx2() {
+        static const bool v = [] {
+            int r[4];
+            __cpuid(r, 0);
+            if (r[0] < 7) return false;
+            __cpuidex(r, 7, 0);
+            return (r[1] & (1 << 5)) != 0 && os_saves_xstate(0x6);  // XMM | YMM
+        }();
+        return v;
+    }
+    inline bool cpu_has_avx512_vpopcntdq() {
+        static const bool v = [] {
+            int r[4];
+            __cpuid(r, 0);
+            if (r[0] < 7) return false;
+            __cpuidex(r, 7, 0);
+            return (r[1] & (1 << 16)) != 0 && (r[2] & (1 << 14)) != 0 && os_saves_xstate(0xE6);  // + opmask, ZMM
+        }();
+        return v;
+    }
+#elif defined(__x86_64__) || defined(__i386__)
+    inline bool cpu_has_avx2() {
+        static const bool v = __builtin_cpu_supports("avx2");
+        return v;
+    }
+    inline bool cpu_has_avx512_vpopcntdq() {
+        static const bool v = __builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512vpopcntdq");
+        return v;
+    }
+#else
+    inline bool cpu_has_avx2() { return false; }
+    inline bool cpu_has_avx512_vpopcntdq() { return false; }
+#endif
 
     template <typename T>
     constexpr bool is_std_complex_v = false;

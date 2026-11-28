@@ -76,12 +76,6 @@
 #include <immintrin.h>
 #endif
 
-#ifdef _WIN32
-#include <intrin.h>
-#elif defined(__x86_64__) || defined(_M_X64)
-#include <cpuid.h>
-#endif
-
 #include "CpuKernelsCommon.hpp"
 
 namespace pycauset {
@@ -90,32 +84,7 @@ using namespace cpu_detail;
 namespace {
     // --- SIMD Infrastructure for Phase 4 ---
     
-    bool has_avx2() {
-#if defined(__x86_64__) || defined(_M_X64)
-        static bool checked = false;
-        static bool available = false;
-        if (checked) return available;
-        
-#ifdef _WIN32
-        int cpuInfo[4];
-        __cpuid(cpuInfo, 0);
-        if (cpuInfo[0] >= 7) {
-            __cpuidex(cpuInfo, 7, 0);
-            available = (cpuInfo[1] & (1 << 5)) != 0; // EBX bit 5 is AVX2
-        }
-#else
-        unsigned int eax, ebx, ecx, edx;
-        if (__get_cpuid_max(0, &eax) >= 7) {
-            __cpuid_count(7, 0, eax, ebx, ecx, edx);
-            available = (ebx & (1 << 5)) != 0;
-        }
-#endif
-        checked = true;
-        return available;
-#else
-        return false;
-#endif
-    }
+    bool has_avx2() { return cpu_has_avx2(); }  // CpuKernelsCommon.hpp (CPU and OS state)
 
     template<typename T>
     using SimdKernel = void(*)(T* dst, const T* a, const T* b, size_t n);
