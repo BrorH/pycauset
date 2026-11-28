@@ -67,15 +67,20 @@ See [[internals/Testing & Benchmarks|Testing & Benchmarks]].
 
 ## Coding Standards
 
+Read [[project/protocols/Adding Operations|Adding Operations]] before adding or changing an
+operation, and [[project/protocols/Adding Types|Adding Types]] for a structure or dtype.
+
 ### C++
-*   **C++20**.
-*   Follow standard RAII principles.
-*   Use `pybind11` for Python bindings.
-*   Keep headers in `include/` and implementation in `src/`.
+*   **C++20**, RAII; headers in `include/`, implementation in `src/`, bindings (`pybind11`)
+    in `src/bindings/`.
+*   The engine core builds warning-free: `-DPYCAUSET_WERROR=ON` (`-Wall -Wextra -Werror`)
+    is on in the Linux CI job.
+*   No output from the engine (no `std::cout` / `std::cerr`) and no silent fallbacks: an
+    error raises.
 
 ### Python
-*   Follow **PEP 8**.
-*   Use type hints.
+*   Follow **PEP 8**; use type hints.
+*   `ruff check --select F python tests benchmarks` must be clean (CI gate).
 *   Every public function and class has a page under `documentation/docs/` (a test checks).
 
 ## Documentation

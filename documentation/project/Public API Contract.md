@@ -13,8 +13,9 @@ Public API is anything a user is expected to import and rely on.
 ### Public (stable entrypoints)
 
 - `pycauset.*` symbols that are documented in the API reference under `documentation/docs/`.
-- No public submodules in R1 (`spacetime`, `field`, `synthetic`, `vis` are parked with the
-  physics layer in `experimental/physics`).
+- Public submodules in R1: `pycauset.spacetime` (the Minkowski diamond), `pycauset.synthetic`
+  (poset generators) and `pycauset.vis` (lightweight plots). The rest of the physics layer
+  (fields, other spacetimes) is parked in `experimental/physics`.
 
 Rule of thumb:
 - If it is meant for users, it must be reachable at `pycauset.*`.
@@ -48,8 +49,9 @@ See also: [[internals/Python Internals|Python Internals]] and [[internals/Bindin
 A matrix or vector carries its shape, dtype, structure (its class: `TriangularMatrix`,
 `SymmetricMatrix`, `HermitianMatrix`, `DiagonalMatrix`, ...) and view state (scale factor,
 transposition, conjugation), all saved with it. There is no user-assertion or notes store:
-structure that operations exploit is the class, which guarantees it. Computed results are not
-cached yet; a cache discarded on every change is planned (review phase D).
+structure that operations exploit is the class, which guarantees it. Scalar results computed
+from a matrix (`determinant`, `trace`, `sum`, `norm`, `matrix_rank`, `eigvals`, ...) are kept
+with its storage until it changes, and saved with it.
 
 ### Functions
 

@@ -10,7 +10,7 @@ PyCauset is for causal sets big enough that $O(N^2)$ storage is the bottleneck. 
 
 ### Be Lazy
 *   Never compute what you can describe. For example, multiplying a float matrix by a scalar (`A * 3.5`) is just a metadata update, taking $O(1)$ time and 0 bytes. This holds for every dtype; the result's dtype still follows NumPy's rules.
-*   Never write to disk what you can keep in RAM. For example, matrices stay in RAM until they grow too large or the user explicitly saves them. 
+*   Never write to disk what you can keep in RAM. A matrix lives in RAM unless it is larger than the memory threshold, or free RAM is short when it is made; only `save` writes a file the user keeps.
 
 ### Numpy Compatibility, C++ Engine
 *   The API should feel like home to numpy-users and be intimately compatible. The engine is pure C++ optimized for our specific storage formats and causal set operations. Every operation aims to benchmark at  >0.90x the speed of NumPy for in-memory operations.
