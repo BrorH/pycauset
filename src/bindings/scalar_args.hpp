@@ -19,8 +19,9 @@ inline bool is_numpy_scalar(const py::handle& obj) {
 }
 
 // --- Scalar arguments (F-001/F-002) -------------------------------------------------
-// Converts a Python int of any size in [INT64_MIN, UINT64_MAX]; larger ones raise
-// OverflowError like NumPy.
+// Converts a Python int: exactly in [INT64_MIN, UINT64_MAX]; beyond, a float marked
+// `beyond_64_bits` (scalar_op raises OverflowError for integer matrices, as NumPy 2; with a
+// float matrix it is a float, so float64 M + 2**64 works; it raised before the dtype was known).
 inline pycauset::ScalarArg scalar_arg_from_pyint(const py::handle& obj) {
     int overflow = 0;
     const long long v = PyLong_AsLongLongAndOverflow(obj.ptr(), &overflow);
@@ -33,7 +34,11 @@ inline pycauset::ScalarArg scalar_arg_from_pyint(const py::handle& obj) {
         if (!PyErr_Occurred()) return pycauset::ScalarArg::from_uint64(static_cast<uint64_t>(u));
         PyErr_Clear();
     }
-    throw std::overflow_error("Python integer out of bounds for 64-bit matrix dtypes");
+    const double d = PyLong_AsDouble(obj.ptr());  // OverflowError beyond float64, as NumPy
+    if (d == -1.0 && PyErr_Occurred()) throw py::error_already_set();
+    pycauset::ScalarArg out = pycauset::ScalarArg::from_double(d);
+    out.beyond_64_bits = true;
+    return out;
 }
 
 inline pycauset::DataType numpy_scalar_dtype(const py::handle& obj) {

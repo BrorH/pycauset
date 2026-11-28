@@ -113,3 +113,32 @@ def test_3_10_C4_block_results_use_the_grids_dtype():
     i = pc.matrix(np.full((2, 2), 3, np.int16))
     B = pc.matrix([[b, i]])
     np.testing.assert_array_equal(np.asarray(B * B), np.asarray(B) * np.asarray(B))
+
+
+def test_3_10_C6_block_exports_go_through_the_one_guard():
+    """allow_huge did not reach thunk tiles, thunk tiles were not counted against the ceiling,
+    and copy=False returned a copy (NumPy 2's protocol raises)."""
+    from pycauset._internal import export_guard
+    from pycauset._internal.blockmatrix import BlockMatrix
+
+    a = pc.matrix(np.ones((4, 4)))
+    b = pc.matrix(np.full((4, 4), 2.0))
+    product = BlockMatrix([[a, a]]) @ BlockMatrix([[b], [b]])  # one 4 x 4 thunk tile: 128 bytes
+    grid = BlockMatrix([[a, b]])  # 256 bytes
+    old = export_guard.get_max_bytes()
+    try:
+        export_guard.set_max_bytes(100)
+        for obj in (product, grid, product.get_block(0, 0)):
+            with pytest.raises(RuntimeError, match="ceiling"):
+                np.asarray(obj)
+            assert pc.to_numpy(obj, allow_huge=True).shape == obj.shape
+        np.testing.assert_array_equal(pc.to_numpy(product, allow_huge=True), np.full((4, 4), 16.0))
+        export_guard.set_max_bytes(200)
+        with pytest.raises(RuntimeError, match="ceiling"):
+            np.asarray(BlockMatrix([[product, product]]))  # two 128-byte thunk tiles
+    finally:
+        export_guard.set_max_bytes(old)
+    for obj in (product, grid, product.get_block(0, 0)):
+        with pytest.raises(ValueError, match="copy"):
+            np.asarray(obj, copy=False)
+    np.testing.assert_array_equal(np.asarray(grid, dtype=np.float32), np.hstack([np.ones((4, 4)), np.full((4, 4), 2.0)]))

@@ -39,6 +39,9 @@ struct ScalarArg {
     // NumPy scalars are "strong": their dtype takes part in promotion.
     bool strong = false;
     DataType strong_dtype = DataType::UNKNOWN;
+    // A Python int beyond 64 bits, held as a Float: NumPy 2 computes it with a float or complex
+    // matrix and raises OverflowError for an integer or bool one (review 3.7 C-9).
+    bool beyond_64_bits = false;
 
     static ScalarArg from_int64(int64_t v);
     static ScalarArg from_uint64(uint64_t v);

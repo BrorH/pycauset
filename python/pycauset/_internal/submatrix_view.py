@@ -72,17 +72,22 @@ class SubmatrixView:
         self._rect = _Rect(row0=row0, col0=col0, rows=rows, cols=cols)
 
     def __array__(self, dtype: Any = None, copy: Any = None) -> Any:
-        """The window's values (it exported as a 0-d object array, review 3.9 C-6): a native
-        source exports its own window natively, other sources element by element."""
+        """The window's values, under the export guard (`export_to_numpy`)."""
+        from . import export_guard
+
+        return export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype, copy=copy is not False)
+
+    def _export_numpy(self) -> Any:
+        """A native source exports its own window natively, other sources element by element."""
         import numpy as np
+
+        from . import export_guard
 
         r, c = self._rect.row0, self._rect.col0
         h, w = self._rect.rows, self._rect.cols
         if hasattr(self._source, "_to_numpy_fast") and hasattr(self._source, "__getitem__"):
-            arr = np.asarray(self._source[r : r + h, c : c + w])
-        else:
-            arr = np.array([[self._source.get(r + i, c + j) for j in range(w)] for i in range(h)])
-        return arr if dtype is None else arr.astype(dtype, copy=False)
+            return export_guard.export_part(self._source[r : r + h, c : c + w])
+        return np.array([[self._source.get(r + i, c + j) for j in range(w)] for i in range(h)])
 
     # --- minimal matrix protocol ---
 

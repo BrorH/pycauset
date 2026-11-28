@@ -155,6 +155,12 @@ inline std::shared_ptr<MatrixBase> bitwise_call(F&& f) {
     return translate_invalid_argument([&] { return std::shared_ptr<MatrixBase>(f().release()); });
 }
 
+inline py::object matrix_bitwise(const MatrixBase& a, const py::object& other, pycauset::BitwiseOp op) {
+    const auto b = pycauset_bindings::indexing::bitwise_operand(a, other);
+    if (!b) return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+    return py::cast(bitwise_call([&] { return pycauset::bitwise(a, *b, op); }));
+}
+
 inline std::shared_ptr<MatrixBase> matrix_inverse(const MatrixBase& mat) {
     return std::shared_ptr<MatrixBase>(pycauset::inverse(mat).release());  // one entry (LinearAlgebra.cpp)
 }
@@ -571,15 +577,13 @@ void bind_matrix_classes(py::module_& m) {
         .def("__ge__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Ge); }, py::is_operator())
         .def("__invert__", [](const MatrixBase& a) { return bitwise_call([&] { return pycauset::bitwise_not(a); }); },
              py::is_operator())
-        .def("__and__", [](const MatrixBase& a, const MatrixBase& b) {
-                 return bitwise_call([&] { return pycauset::bitwise(a, b, pycauset::BitwiseOp::And); });
-             }, py::is_operator())
-        .def("__or__", [](const MatrixBase& a, const MatrixBase& b) {
-                 return bitwise_call([&] { return pycauset::bitwise(a, b, pycauset::BitwiseOp::Or); });
-             }, py::is_operator())
-        .def("__xor__", [](const MatrixBase& a, const MatrixBase& b) {
-                 return bitwise_call([&] { return pycauset::bitwise(a, b, pycauset::BitwiseOp::Xor); });
-             }, py::is_operator())
+        // & | ^ are commutative, so the reflected forms are the same call.
+        .def("__and__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::And); }, py::is_operator())
+        .def("__rand__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::And); }, py::is_operator())
+        .def("__or__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::is_operator())
+        .def("__ror__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::is_operator())
+        .def("__xor__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::is_operator())
+        .def("__rxor__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::is_operator())
         .def_property_readonly("is_lazy", [](const MatrixBase& mat) {
             if (auto* c = dynamic_cast<const pycauset::BitClosureMatrix*>(&mat)) {
                 if (!c->is_materialized()) return true;

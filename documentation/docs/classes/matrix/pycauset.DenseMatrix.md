@@ -18,7 +18,8 @@ A matrix that stores every element. Supports all dtypes. Prefer
 Everything in [[docs/classes/matrix/pycauset.MatrixBase.md|MatrixBase]], plus:
 
 * `set_identity()`: ones on the diagonal, zeros elsewhere.
-* `&`, `|`, `^`: element-wise logic for dtype `bool`.
+* `&`, `|`, `^`, `~`: element-wise logic for `bool`, bitwise for integer dtypes (NumPy's
+  rules: see [[docs/functions/pycauset.bitwise_and.md|bitwise_and]]).
 * `DenseMatrix.random(rows, cols=None, p=0.5, seed=None)`: a `bool` matrix whose entries
   are 1 with probability `p`.
 

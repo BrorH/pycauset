@@ -624,6 +624,9 @@ std::unique_ptr<MatrixBase> int_scale_view(const MatrixBase& a, int64_t k) {
 // ------------------------------------------------------------- entry points
 std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s) {
     const DataType in = a.get_data_type();
+    if (s.beyond_64_bits && is_integer_or_bit(in)) {
+        throw std::overflow_error("Python integer out of bounds for " + std::string(dtype_name(in == DataType::BIT ? DataType::INT64 : in)));
+    }
     const DataType out = scalar_result_dtype(in, op, s);
 
     if (is_integer_or_bit(in) && s.kind == ScalarArg::Kind::Int && is_int_dtype(out) && !int_fits(s, out)) {

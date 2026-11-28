@@ -6,7 +6,10 @@ pycauset.bitwise_nand(a, b)    # ~(a & b)
 
 Element-wise NAND, `~(a & b)` (no NumPy equivalent). For matrices and vectors of dtype `bool` or an integer dtype.
 
-Works for every structure and view (results are dense); operands of equal shape.
+Works for every structure and view (results are dense). Shapes broadcast as in NumPy (a
+vector is a row). A scalar operand follows NumPy 2: a Python `bool` or `int` takes the integer
+operand's dtype and must fit it (`OverflowError` otherwise; with a `bool` operand a Python int
+gives `int64`); a NumPy scalar or 0-d array brings its own dtype.
 
 dtype rule (NumPy): `bool` op `bool` is `bool`; integer operands promote as NumPy does
 (`int8` op `uint8` is `int16`; `bool` op `int32` is `int32`). Float and complex operands
@@ -14,7 +17,8 @@ raise `TypeError`, as in NumPy.
 
 ## Parameters
 
-*   **a**, **b** (matrix or vector): operands of equal shape.
+*   **a**, **b** (matrix, vector, NumPy array or scalar; at least one not a scalar): the
+    operands, broadcast together.
 
 ## Returns
 

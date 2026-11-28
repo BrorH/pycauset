@@ -224,20 +224,20 @@ inline void vector_setitem(VectorBase& v, const py::object& key, const py::objec
 // NumPy array or a scalar. Everything runs through the matrix machinery (math/VectorOps.hpp),
 // so result dtypes follow NumPy and integers are exact. Anything else: NotImplemented.
 // b == nullptr: ~a.
-inline std::shared_ptr<VectorBase> vector_bitwise(const VectorBase& a, const VectorBase* b, pycauset::BitwiseOp op) {
-    try {
-        auto ra = pycauset::as_row_matrix(a);
-        std::unique_ptr<MatrixBase> out;
-        if (b == nullptr) {
-            out = pycauset::bitwise_not(*ra);
-        } else {
-            auto rb = pycauset::as_row_matrix(*b);
-            out = pycauset::bitwise(*ra, *rb, op);
-        }
-        return std::shared_ptr<VectorBase>(pycauset::as_vector(std::move(out), a.is_transposed()).release());
-    } catch (const std::invalid_argument& e) {
-        throw py::value_error(e.what());
+// v & other (| ^), or ~v when `other` is None: as a row against the operand (bitwise_operand),
+// a vector unless broadcasting against a matrix makes more than one row (as comparisons).
+inline py::object vector_bitwise(const VectorBase& a, const py::object& other, pycauset::BitwiseOp op) {
+    auto ra = pycauset::as_row_matrix(a);
+    std::unique_ptr<MatrixBase> out;
+    if (other.is_none()) {
+        out = translate_invalid_argument([&] { return pycauset::bitwise_not(*ra); });
+    } else {
+        const auto b = pycauset_bindings::indexing::bitwise_operand(*ra, other);
+        if (!b) return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+        out = translate_invalid_argument([&] { return pycauset::bitwise(*ra, *b, op); });
     }  // pycauset::dtype_error is a TypeError (translated globally)
+    if (out->rows() != 1) return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+    return py::cast(std::shared_ptr<VectorBase>(pycauset::as_vector(std::move(out), a.is_transposed()).release()));
 }
 
 inline py::object vector_arith(const VectorBase& a, const py::object& other, Arith op, bool reflected) {
@@ -246,6 +246,14 @@ inline py::object vector_arith(const VectorBase& a, const py::object& other, Ari
         b = other.cast<std::shared_ptr<VectorBase>>();
     } else if (py::isinstance<py::array>(other) && other.cast<py::array>().ndim() == 1) {
         b = vector_from_numpy(other.cast<py::array>());
+    }
+    if (!b && (py::isinstance<MatrixBase>(other) || (py::isinstance<py::array>(other) && other.cast<py::array>().ndim() == 2))) {
+        // Against a matrix the vector is a row that broadcasts, as NumPy's (n,) with (m, n)
+        // (review 3.7 C-9: a 2-D ndarray raised).
+        static const char* names[2][4] = {{"__add__", "__sub__", "__mul__", "__truediv__"},
+                                          {"__radd__", "__rsub__", "__rmul__", "__rtruediv__"}};
+        py::object row = py::cast(std::shared_ptr<MatrixBase>(pycauset::as_row_matrix(a).release()));
+        return row.attr(names[reflected ? 1 : 0][static_cast<int>(op)])(other);
     }
     if (b) {
         const VectorBase& x = reflected ? *b : a;
@@ -405,10 +413,13 @@ void bind_vector_classes(py::module_& m) {
             [](const VectorBase& a, const std::shared_ptr<VectorBase>& b) { return vector_dot(a, *b); },
             py::arg("other"))
         // Bitwise ops through the matrix machinery (1 x n bridge, math/Bitwise.cpp).
-        .def("__and__", [](const VectorBase& a, const VectorBase& b) { return vector_bitwise(a, &b, pycauset::BitwiseOp::And); }, py::is_operator())
-        .def("__or__", [](const VectorBase& a, const VectorBase& b) { return vector_bitwise(a, &b, pycauset::BitwiseOp::Or); }, py::is_operator())
-        .def("__xor__", [](const VectorBase& a, const VectorBase& b) { return vector_bitwise(a, &b, pycauset::BitwiseOp::Xor); }, py::is_operator())
-        .def("__invert__", [](const VectorBase& a) { return vector_bitwise(a, nullptr, pycauset::BitwiseOp::And); }, py::is_operator())
+        .def("__and__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::And); }, py::is_operator())
+        .def("__rand__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::And); }, py::is_operator())
+        .def("__or__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::is_operator())
+        .def("__ror__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::is_operator())
+        .def("__xor__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::is_operator())
+        .def("__rxor__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::is_operator())
+        .def("__invert__", [](const VectorBase& a) { return vector_bitwise(a, py::none(), pycauset::BitwiseOp::And); }, py::is_operator())
         .def("__add__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Add, false); }, py::is_operator())
         .def("__radd__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Add, true); }, py::is_operator())
         .def("__sub__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Sub, false); }, py::is_operator())

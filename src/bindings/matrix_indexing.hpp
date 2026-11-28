@@ -981,4 +981,25 @@ inline void matrixbase_setitem_dispatch(MatrixBase& mat, const py::object& key_i
     });
 }
 
+// The other operand of `a & other` (and | ^), as NumPy 2 reads it: a pycauset matrix or vector
+// (a row), an ndarray, a NumPy scalar or 0-d array (strong: its own dtype), or a Python bool / int
+// (weak: it takes the dtype of an integer `a`, and must fit; a Python int with a bool `a` is
+// int64). Other values: nullptr (NotImplemented). Float operands reach `bitwise`, which raises
+// TypeError as NumPy does (review 3.7 C-9: scalars, ndarrays and reflected forms raised).
+inline std::shared_ptr<MatrixBase> bitwise_operand(const MatrixBase& a, const py::object& other) {
+    PyObject* p = other.ptr();
+    if (PyBool_Check(p) || PyLong_Check(p)) {
+        const DataType adt = a.get_data_type();
+        const DataType dt = PyBool_Check(p) ? (adt == DataType::BIT || !pycauset::is_int_dtype(adt) ? DataType::BIT : adt)
+                                            : (pycauset::is_int_dtype(adt) ? adt : DataType::INT64);
+        std::shared_ptr<MatrixBase> m = pycauset::ObjectFactory::create_matrix(1, 1, dt, pycauset::Structure::DENSE);
+        element_set(*m, 0, 0, other);  // OverflowError when the value does not fit, as NumPy 2
+        return m;
+    }
+    if (py::isinstance<py::array>(other) && py::array::ensure(other).ndim() == 0) {
+        return matrix_from_numpy(py::array::ensure(other).attr("reshape")(1, 1));
+    }
+    return compare_operand(other);  // matrices, vectors, ndarrays, NumPy scalars, floats
+}
+
 }  // namespace pycauset_bindings::indexing

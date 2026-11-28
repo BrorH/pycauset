@@ -115,11 +115,15 @@ class ThunkBlock:
             return self._cache
 
     def __array__(self, dtype: Any = None, copy: Any = None) -> Any:
-        """The evaluated block's values (it exported as a 0-d object array, review 3.9 C-6)."""
-        import numpy as np
+        """The evaluated block's values, under the export guard (`export_to_numpy`)."""
+        from . import export_guard
 
-        arr = np.asarray(self.materialize())
-        return arr if dtype is None else arr.astype(dtype, copy=False)
+        return export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype, copy=copy is not False)
+
+    def _export_numpy(self) -> Any:
+        from . import export_guard
+
+        return export_guard.export_part(self.materialize())
 
     def get(self, i: int, j: int) -> Any:
         m = self.materialize()

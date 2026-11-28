@@ -1804,3 +1804,37 @@ def test_3_7_C13_write_into_a_view_of_structured_complex_float16_keeps_imaginary
     V = T.conj()
     V[2, 2] = 1
     assert V[0, 1] == 1 - 2j and V[1, 1] == -3j and V[2, 2] == 1
+
+
+def test_3_7_C9_operand_coverage_as_numpy():
+    """Bitwise operators took pycauset objects only; v + 2-D raised; float64 M + 2**64 raised."""
+    import operator as o
+    b = np.array([[True, False], [True, True]])
+    i = np.array([[1, 2], [3, -4]], dtype=np.int32)
+    u = np.array([[1, 200]], dtype=np.uint8)
+    vb = np.array([True, False])
+    operands = (True, 3, 300, -1, np.int8(3), np.array(5), b, i, 1.5, vb)
+
+    def outcome(fn):
+        try:
+            r = np.asarray(fn())
+        except (TypeError, ValueError, OverflowError) as e:
+            return type(e).__name__
+        return r.dtype, r.tolist()
+
+    for P, N in ((pc.matrix(b), b), (pc.matrix(i), i), (pc.matrix(u), u), (pc.vector(vb), vb)):
+        for op in (o.and_, o.or_, o.xor):
+            for q in operands:
+                assert outcome(lambda: op(P, q)) == outcome(lambda: op(N, q)), (N.dtype, op, q)
+                assert outcome(lambda: op(q, P)) == outcome(lambda: op(q, N)), (N.dtype, op, q, "reflected")
+
+    v, vn, a = pc.vector(np.arange(3.0)), np.arange(3.0), np.arange(6.0).reshape(2, 3)
+    for got, ref in ((v + a, vn + a), (a - v, a - vn), (v * pc.matrix(a), vn * a)):
+        assert got.shape == ref.shape
+        np.testing.assert_array_equal(np.asarray(got), ref)
+
+    F = pc.matrix(np.ones((2, 2)))
+    np.testing.assert_array_equal(np.asarray(F + 2**64), np.ones((2, 2)) + 2**64)
+    for m in (pc.matrix(i), pc.matrix(b)):
+        with pytest.raises(OverflowError):
+            m + 2**64

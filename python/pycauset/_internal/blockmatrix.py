@@ -467,18 +467,21 @@ class BlockMatrix:
     # --- numpy interop (explicit conversion) ---
 
     def __array__(self, dtype: Any = None, copy: Any = None) -> Any:
-        """The assembled matrix, block by block, under the export size guard. (It recursed
-        through the export guard into itself and always failed; a catch-all reported that
-        as "cannot be converted".)"""
+        """The assembled matrix, under the export guard (`export_to_numpy`)."""
+        from . import export_guard
+
+        return export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype, copy=copy is not False)
+
+    def _export_numpy(self) -> Any:
+        """The assembled matrix, block by block (the guard checked the whole grid)."""
         import numpy as np
 
         from . import export_guard
 
-        export_guard.ensure_export_allowed(self, allow_huge=False, ceiling_bytes=export_guard.get_max_bytes())
-        arr = np.block([[np.asarray(b) for b in row] for row in self._blocks])
+        arr = np.block([[export_guard.export_part(b) for b in row] for row in self._blocks])
         if self.dtype in _DTYPES:
-            arr = arr.astype(self._numpy_dtype(), copy=False)
-        return arr if dtype is None else arr.astype(dtype, copy=False)
+            arr = arr.astype(self._numpy_dtype(), copy=False)  # the grid's (engine) dtype
+        return arr
 
     def _numpy_dtype(self) -> str:
         """The grid's dtype as NumPy's (np.block promotes by NumPy's rules; the grid's dtype is the

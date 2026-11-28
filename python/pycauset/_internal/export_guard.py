@@ -97,7 +97,8 @@ def _resolve_numpy_dtype(token: Any, np_module: Any) -> Any:
 
 def estimate_materialized_bytes(obj: Any) -> int | None:
     blocks = getattr(obj, "_blocks", None)
-    if isinstance(blocks, list):  # a BlockMatrix: its leaves (it has no single dtype)
+    if isinstance(blocks, list) and getattr(obj, "dtype", "mixed") == "mixed":
+        # A grid of leaves without dtypes (duck-typed matrices): the sum of its leaves.
         sizes = [estimate_materialized_bytes(b) for row in blocks for b in row]
         return None if any(s is None for s in sizes) else int(sum(sizes))
     shape = _safe_shape(obj)
@@ -145,11 +146,27 @@ def _check_size(est: int, ceiling_bytes: int | None) -> None:
 export_count = 0
 
 
+def export_part(obj: Any) -> Any:
+    """A part of an export already checked as a whole (a grid's leaf, an evaluated tile, a
+    window): no size check and not counted as an export of its own."""
+    fast_export = getattr(obj, "_to_numpy_fast", None)
+    if callable(fast_export):
+        return fast_export(allow_huge=True)
+    if callable(getattr(obj, "_export_numpy", None)):
+        return obj._export_numpy()
+    import numpy as np  # type: ignore
+
+    return np.asarray(obj)
+
+
 def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool = True) -> Any:
     """One copy into a new NumPy array, natively (every class, dtype and view: the engine's
     exporter, bind_matrix.cpp export_numpy). `dtype` converts afterwards. No fallback: an
-    engine error is the answer. Objects that are not engine matrices/vectors (BlockMatrix,
-    submatrix views) export through their own __array__."""
+    engine error is the answer. The Python classes (BlockMatrix, ThunkBlock, SubmatrixView)
+    give their values through `_export_numpy()` after one size check for the whole object;
+    their `__array__` comes here, so `allow_huge`, `copy` and `dtype` mean the same for every
+    object (review 3.10 C-6: `to_numpy(product, allow_huge=True)` still raised, `copy=False`
+    returned a copy, `dtype=` was not counted)."""
     global export_count
     export_count += 1
     import numpy as np  # type: ignore
@@ -169,13 +186,11 @@ def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool
     fast_export = getattr(obj, "_to_numpy_fast", None)
     if callable(fast_export):
         arr = fast_export(allow_huge=allow_huge)  # the engine applies the guard (numpy_export_guard.hpp)
-    elif isinstance(getattr(obj, "_blocks", None), list):
-        # A BlockMatrix: one check for the whole matrix, then its leaves without their own
-        # (they ignored allow_huge and were checked one by one against the ceiling).
+    elif callable(getattr(obj, "_export_numpy", None)):
+        # One check for the whole object, then its parts without their own (a grid's leaves
+        # ignored allow_huge and were checked one by one against the ceiling).
         ensure_export_allowed(obj, allow_huge=allow_huge, ceiling_bytes=_EXPORT_MAX_BYTES)
-        arr = np.block([[export_to_numpy(b, allow_huge=True) for b in row] for row in obj._blocks])
-        if obj.dtype != "mixed":
-            arr = arr.astype(obj._numpy_dtype(), copy=False)  # the grid's (engine) dtype
+        arr = obj._export_numpy()
     else:
         ensure_export_allowed(obj, allow_huge=allow_huge, ceiling_bytes=_EXPORT_MAX_BYTES)
         arr = np.asarray(obj)
