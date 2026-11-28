@@ -82,7 +82,7 @@ Why it’s needed:
 
 When PyCauset needs to create these backing files automatically, it uses a storage root directory:
 
-- Default: a `.pycauset/` directory under your current working directory.
+- Default: a `.pycauset/` directory under the working directory at import (a later `os.chdir` does not move it). It is created with the first file-backed object, not at import.
 - To change it: call `pc.set_backing_dir(...)` once after import (and ideally before allocating large matrices).
 
 Example:

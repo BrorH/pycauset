@@ -31,15 +31,13 @@ namespace pycauset {
         std::lock_guard<std::mutex> lock(g_storage_root_mu);
         if (!g_storage_root_set) {
             g_storage_root = std::filesystem::current_path() / ".pycauset";
-            std::filesystem::create_directories(g_storage_root);
             g_storage_root_set = true;
         }
         return g_storage_root;
     }
 
     void set_storage_root(const std::filesystem::path& root) {
-        std::filesystem::path resolved = root;
-        std::filesystem::create_directories(resolved);
+        std::filesystem::path resolved = root;  // created with its first file (review 3.8 C-6)
 
         std::lock_guard<std::mutex> lock(g_storage_root_mu);
         g_storage_root = std::move(resolved);
@@ -60,6 +58,9 @@ namespace pycauset {
         const unsigned long pid = static_cast<unsigned long>(getpid());
 #endif
         const auto filename = prefix + "_" + std::to_string(pid) + "_" + std::to_string(id) + ".pycauset-tmp";
-        return (get_storage_root() / filename).string();
+        // The directory is created with its first file, not at import or when it is set.
+        const auto root = get_storage_root();
+        std::filesystem::create_directories(root);
+        return (root / filename).string();
     }
 }

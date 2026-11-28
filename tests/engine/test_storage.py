@@ -417,3 +417,38 @@ def test_F131_block_matrix_export_is_checked_once_as_a_whole():
         np.testing.assert_array_equal(pc.to_numpy(bm, allow_huge=True), np.ones((4, 4)))
     finally:
         pc.set_export_max_bytes(None)
+
+
+def test_3_8_C6_import_creates_nothing_and_chdir_keeps_the_root(tmp_path):
+    """Review 3.8 C-6: import made ./.pycauset in the working directory (and failed where it
+    is not writable); after os.chdir, Python and the engine used different roots."""
+    import os
+    import subprocess
+    import sys
+
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    code = (
+        "import os, numpy as np, pycauset as pc\n"
+        "assert not os.path.exists('.pycauset')\n"
+        "os.chdir('../b')\n"
+        "m = pc.matrix(np.ones((4, 4)), storage='disk')\n"
+        "print(os.path.dirname(m.get_backing_file()), pc._storage_root())\n"
+    )
+    env = {**os.environ, "PYTHONPATH": str(Path(pc.__file__).parent.parent)}
+    out = subprocess.run([sys.executable, "-c", code], cwd=a, env=env, check=True,
+                         capture_output=True, text=True).stdout.split()
+    assert Path(out[0]).resolve() == Path(out[1]).resolve() == (a / ".pycauset").resolve()
+    assert not (b / ".pycauset").exists()
+    if os.name != "nt" and os.geteuid() != 0:  # root ignores directory permissions
+        ro = tmp_path / "ro"
+        ro.mkdir()
+        ro.chmod(0o555)
+        try:
+            subprocess.run([sys.executable, "-c", "import pycauset"], cwd=ro, env=env, check=True)
+            assert not (ro / ".pycauset").exists()
+        finally:
+            ro.chmod(0o755)
+    if os.path.isdir("/proc/self"):  # not writable even for root
+        subprocess.run([sys.executable, "-c", "import pycauset"], cwd="/proc", env=env, check=True)

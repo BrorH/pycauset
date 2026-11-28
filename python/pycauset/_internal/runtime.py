@@ -19,16 +19,14 @@ class Runtime:
         self._storage_roots_seen: set[Path] = set()
 
     def storage_root(self) -> Path:
-        if self._storage_root_cache is not None:
-            self._storage_roots_seen.add(self._storage_root_cache)
-            return self._storage_root_cache
-
-        base = Path.cwd().resolve() / ".pycauset"
-
-        base.mkdir(parents=True, exist_ok=True)
-        self._storage_root_cache = base
-        self._storage_roots_seen.add(base)
-        return base
+        """The backing directory: `./.pycauset` of the working directory at import (fixed then,
+        so a later chdir does not move it), or the one set. Not created here: the engine creates
+        it with the first file-backed object (importing created it, and failed in a read-only
+        working directory, review 3.8 C-6)."""
+        if self._storage_root_cache is None:
+            self._storage_root_cache = Path.cwd().resolve() / ".pycauset"
+        self._storage_roots_seen.add(self._storage_root_cache)
+        return self._storage_root_cache
 
     def set_storage_root(self, root: Path) -> Path:
         """Set the directory used for auto-created backing files. Every root used is swept at

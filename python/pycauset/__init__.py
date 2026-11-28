@@ -290,7 +290,11 @@ def clear_io_traces() -> None:
     _IO_OBS.clear()
 
 
-# Perform initial cleanup of temporary files from previous runs
+# One default backing directory for Python and the engine, fixed at import (the engine took the
+# working directory at its first file-backed object, so after os.chdir the two disagreed).
+# Not created until a file-backed object needs it. Leftovers of crashed runs are swept if it
+# exists.
+_native.set_storage_root(str(_runtime.storage_root()))
 _runtime.initial_cleanup()
 def _register_cleanup() -> None:
     _runtime.register_cleanup()
