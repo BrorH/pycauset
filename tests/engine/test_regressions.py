@@ -702,3 +702,15 @@ def test_float_and_complex_vector_views_stay_views(tmp_path):
     np.testing.assert_array_equal(np.asarray(v), z)
     f = pc.vector(np.array([0.0, -0.0, 1.5]))
     np.testing.assert_array_equal(np.signbit(np.asarray(-f)), np.signbit(-np.array([0.0, -0.0, 1.5])))
+
+
+def test_complex32_bulk_reads_match_numpy():
+    """complex_float16 matrices (two float16 planes) are read in bulk by whole-matrix kernels;
+    values match NumPy's complex64 on data exact in float16."""
+    a = ((np.arange(36).reshape(6, 6) % 7) / 4 + 1j * ((np.arange(36).reshape(6, 6) % 5) / 8)).astype(np.complex64)
+    m = pc.matrix(a, dtype="complex_float16")
+    for got, want in [(m, a), (m.T, a.T)]:
+        np.testing.assert_allclose(np.asarray(got + (1 + 1j)), want + (1 + 1j), rtol=1e-3)
+        np.testing.assert_allclose(np.asarray(got * 2), want * 2, rtol=1e-3)
+        assert complex(pc.sum(got)) == pytest.approx(complex(want.sum()), rel=1e-3)
+        np.testing.assert_allclose(np.asarray(got + got), want + want, rtol=1e-3)

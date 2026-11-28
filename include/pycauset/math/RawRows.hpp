@@ -18,6 +18,7 @@
 #include <type_traits>
 
 #include "pycauset/core/Float16.hpp"
+#include "pycauset/matrix/ComplexFloat16Matrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/DiagonalMatrix.hpp"
@@ -29,7 +30,9 @@ namespace pycauset {
 
 template <typename T, typename Src>
 inline constexpr bool has_raw_rows_v =
-    std::is_same_v<T, bool>
+    std::is_same_v<Src, ComplexFloat16Matrix>
+        ? std::is_same_v<T, std::complex<double>>  // its get() widens the two float16 planes
+        : std::is_same_v<T, bool>
         ? (std::is_same_v<Src, DenseMatrix<bool>> || std::is_same_v<Src, TriangularMatrix<bool>>)
         : (std::is_same_v<Src, DenseMatrix<T>> || std::is_same_v<Src, TriangularMatrix<T>> ||
            std::is_same_v<Src, SymmetricMatrix<T>> || std::is_same_v<Src, DiagonalMatrix<T>>);
@@ -107,7 +110,24 @@ bool raw_rows(const Src& m, uint64_t i0, uint64_t i1, T* __restrict dst) {
     } else {
         const uint64_t cols = m.cols();
         const uint64_t nr = i1 - i0;
-        if constexpr (std::is_same_v<T, bool>) {
+        if constexpr (std::is_same_v<Src, ComplexFloat16Matrix>) {
+            // Split real / imaginary float16 planes (no windows: the class has none).
+            const pycauset::float16_t* re = m.real_data();
+            const pycauset::float16_t* im = m.imag_data();
+            const uint64_t bc = m.base_cols();
+            for (uint64_t i = i0; i < i1; ++i) {
+                T* out = dst + (i - i0) * cols;
+                if (!m.is_transposed()) {
+                    const uint64_t b = i * bc;
+                    for (uint64_t j = 0; j < cols; ++j)
+                        out[j] = T(static_cast<double>(re[b + j]), static_cast<double>(im[b + j]));
+                } else {
+                    for (uint64_t j = 0; j < cols; ++j)
+                        out[j] = T(static_cast<double>(re[j * bc + i]), static_cast<double>(im[j * bc + i]));
+                }
+            }
+            return true;
+        } else if constexpr (std::is_same_v<T, bool>) {
             // Bit storage (no windows: get() of the bit classes does not apply them).
             if (m.is_subview()) return false;
             const auto* bytes = static_cast<const uint8_t*>(m.shared_mapper()->get_data());
