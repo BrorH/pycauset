@@ -96,6 +96,10 @@ def _resolve_numpy_dtype(token: Any, np_module: Any) -> Any:
 
 
 def estimate_materialized_bytes(obj: Any) -> int | None:
+    blocks = getattr(obj, "_blocks", None)
+    if isinstance(blocks, list):  # a BlockMatrix: its leaves (it has no single dtype)
+        sizes = [estimate_materialized_bytes(b) for row in blocks for b in row]
+        return None if any(s is None for s in sizes) else int(sum(sizes))
     shape = _safe_shape(obj)
     if shape is None:
         return None
@@ -165,6 +169,11 @@ def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool
     fast_export = getattr(obj, "_to_numpy_fast", None)
     if callable(fast_export):
         arr = fast_export(allow_huge=allow_huge)  # the engine applies the guard (numpy_export_guard.hpp)
+    elif isinstance(getattr(obj, "_blocks", None), list):
+        # A BlockMatrix: one check for the whole matrix, then its leaves without their own
+        # (they ignored allow_huge and were checked one by one against the ceiling).
+        ensure_export_allowed(obj, allow_huge=allow_huge, ceiling_bytes=_EXPORT_MAX_BYTES)
+        arr = np.block([[export_to_numpy(b, allow_huge=True) for b in row] for row in obj._blocks])
     else:
         ensure_export_allowed(obj, allow_huge=allow_huge, ceiling_bytes=_EXPORT_MAX_BYTES)
         arr = np.asarray(obj)

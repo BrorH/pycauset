@@ -369,3 +369,17 @@ def test_F131_submatrix_and_thunk_blocks_export_their_values():
     np.testing.assert_array_equal(np.asarray(v), a[1:3, 1:4])
     t = ThunkBlock(rows=2, cols=2, compute=lambda: pc.matrix(np.eye(2)))
     np.testing.assert_array_equal(np.asarray(t), np.eye(2))
+
+
+def test_F131_block_matrix_export_is_checked_once_as_a_whole():
+    from pycauset._internal.blockmatrix import BlockMatrix
+
+    leaf = pc.matrix(np.ones((2, 2)))  # 32 bytes each, 128 in all
+    bm = BlockMatrix([[leaf, leaf], [leaf, leaf]])
+    pc.set_export_max_bytes(100)
+    try:
+        with pytest.raises(RuntimeError, match="ceiling"):
+            pc.to_numpy(bm)
+        np.testing.assert_array_equal(pc.to_numpy(bm, allow_huge=True), np.ones((4, 4)))
+    finally:
+        pc.set_export_max_bytes(None)

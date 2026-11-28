@@ -1746,5 +1746,5 @@ the entry (the history is useful). New findings go at the bottom with the next f
   returned a writable copy silently (and NumPy's error with `dtype=`); it raises `ValueError`,
   as `np.asarray(x, copy=False)` does, and the page no longer promises a read-only view.
   `SubmatrixView` and `ThunkBlock` exported as 0-d object arrays; they have `__array__` now.
-  Open: BlockMatrix sums no leaf estimates and passes `allow_huge` to no leaf.
-  `test_F131_*`.
+  A BlockMatrix is estimated as the sum of its leaves and checked once (it was checked leaf
+  by leaf, ignoring `allow_huge`). `test_F131_*`.
