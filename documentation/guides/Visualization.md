@@ -21,8 +21,8 @@ pc.show(c)                    # one-verb sugar: plot + .show()
 `pc.show(c)` picks the embedding plot and calls `.show()` for you. The other two
 views are `plot_hasse` and `plot_causal_matrix`, also available both ways.
 
-Plotting needs `plotly`. It comes with `pip install pycauset`; if it is missing, the
-plotters raise an `ImportError` telling you to install it.
+Plotting needs `plotly`, an optional extra: `pip install "pycauset[plot]"`. Without it the
+plotters raise an `ImportError` that says so.
 
 Here is what the embedding plot of a 2D Minkowski diamond looks like:
 

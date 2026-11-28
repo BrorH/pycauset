@@ -16,7 +16,7 @@ authors = [
   { name = "Bror Hjemgaard" },
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -27,13 +27,17 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=2.0",
-    "plotly>=5.0.0",
 ]
 
 [project.optional-dependencies]
+# pycauset.vis (plotly figures); the engine does not need it.
+plot = [
+    "plotly>=5.0.0",
+]
 test = [
     "pytest",
     "psutil",
+    "plotly>=5.0.0",
 ]
 dev = [
     "ruff",

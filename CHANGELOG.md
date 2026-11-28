@@ -49,6 +49,7 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
 - `pc.save`: staging files are unique (two concurrent saves could swap payloads), the saved
   file is fsynced, and saved derived values are only brought back by the same build.
   `load_npy` memory-maps the file.
+- plotly is an optional extra (`pip install "pycauset[plot]"`), needed only by `pycauset.vis`.
 - `pc.TriangularMatrix(4.0)` and other float sizes raise (as NumPy); `debug_mode` no longer
   logs allocations.
 - Faster on structured, transposed, windowed and bool matrices (no API change): whole-matrix

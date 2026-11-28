@@ -9,6 +9,8 @@ To install the latest published version:
 pip install pycauset
 ```
 
+The plots in `pycauset.vis` use plotly, an optional extra: `pip install "pycauset[plot]"`.
+
 ## Method 2: Building from Source
 If you want to build from source or contribute to development, you will need a C++ compiler.
 

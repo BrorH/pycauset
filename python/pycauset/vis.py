@@ -38,7 +38,7 @@ def _subset(n: int, max_points: Optional[int], force: bool, kind: str):
 
 def _check_plotly():
     if go is None:
-        raise ImportError("Plotly is required for visualization. Install it with 'pip install plotly'.")
+        raise ImportError("pycauset.vis needs plotly: pip install \"pycauset[plot]\" (or pip install plotly)")
 
 
 def _spacetime_of(causet: CausalSet):
