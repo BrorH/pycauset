@@ -226,7 +226,9 @@ class TestBlockMatrixPhaseFIntegration(unittest.TestCase):
             out = pycauset.matmul(left, right)
             _ = out.get(0, 0)
 
-            self.assertEqual(pycauset._debug_last_io_trace(), "io.discard")
+            # The thunk prefetches its leaves; with one term there is no temporary to discard, and
+            # the inputs are kept (review 3.10 C-11: they were discarded after every product).
+            self.assertEqual(pycauset._debug_last_io_trace(), "io.prefetch")
         finally:
             for obj in (a, b):
                 if obj is not None:
