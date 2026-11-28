@@ -902,6 +902,17 @@ std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, cons
     const MatrixBase& B = pb ? *pb : b;
 
     auto x = ObjectFactory::create_matrix(B.rows(), B.cols(), dt, Structure::DENSE, result_file);
+    // Structure rule: a triangular or diagonal A is one triangular solve on its dense form, not an
+    // LU (review 3.6 C-17). A strictly triangular A (no diagonal) is singular.
+    const Structure sa = a.get_structure();
+    if (sa == Structure::TRIANGULAR || sa == Structure::DIAGONAL) {
+        if (sa == Structure::TRIANGULAR && !dynamic_cast<const TriangularMatrixBase&>(a).has_diagonal() && a.rows() > 0) {
+            throw pycauset::linalg_error("Singular matrix");
+        }
+        const bool upper = sa == Structure::DIAGONAL || !a.is_transposed();
+        ComputeContext::instance().get_device()->solve_triangular(A, B, *x, upper);
+        return x;
+    }
     ComputeContext::instance().get_device()->solve(A, B, *x);
     return x;
 }

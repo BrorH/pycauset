@@ -52,6 +52,8 @@ public:
     void lu(const MatrixBase& in, MatrixBase& P, MatrixBase& L, MatrixBase& U);
     void svd(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& VT);
     void solve(const MatrixBase& A, const MatrixBase& B, MatrixBase& X);
+    // A X = B for a triangular A (dense, plain, `upper` or lower, non-unit diagonal): one ?trsm.
+    void solve_triangular(const MatrixBase& A, const MatrixBase& B, MatrixBase& X, bool upper);
     void lstsq(const MatrixBase& A, const MatrixBase& B, MatrixBase& X);
 
     // Eigen Solvers

@@ -855,6 +855,39 @@ void CpuSolver::lstsq(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
     throw std::runtime_error("lstsq: operands must be dense float32/float64/complex64/complex128");
 }
 
+namespace {
+// A X = B for a triangular A: X^T A^T = B^T on the row-major buffers read column-major, one
+// right-sided ?trsm (O(n^2) per right-hand side; it was the full LU, review 3.6 C-17). A zero
+// on the diagonal is NumPy's singular-matrix error.
+template <typename T>
+bool solve_triangular_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& x, bool upper) {
+    auto* A = dynamic_cast<const DenseMatrix<T>*>(&a);
+    auto* B = dynamic_cast<const DenseMatrix<T>*>(&b);
+    auto* X = dynamic_cast<DenseMatrix<T>*>(&x);
+    if (!A || !B || !X) return false;
+    debug_trace::set_last("cpu.solve.trsm");
+    const uint64_t n = a.rows(), nrhs = b.cols();
+    const T* ap = A->data();
+    for (uint64_t i = 0; i < n; ++i)
+        if (ap[i * n + i] == T(0)) throw pycauset::linalg_error("Singular matrix");
+    T* xp = X->data();
+    std::copy(B->data(), B->data() + n * nrhs, xp);
+    if (n == 0 || nrhs == 0) return true;
+    // The buffer read column-major is A^T: lower for an upper A.
+    trsm_right<T>(upper ? CblasLower : CblasUpper, CblasNonUnit, (int)nrhs, (int)n, ap, xp);
+    return true;
+}
+}  // namespace
+
+void CpuSolver::solve_triangular(const MatrixBase& a, const MatrixBase& b, MatrixBase& x, bool upper) {
+    if (solve_triangular_dense<double>(a, b, x, upper) || solve_triangular_dense<float>(a, b, x, upper) ||
+        solve_triangular_dense<std::complex<double>>(a, b, x, upper) ||
+        solve_triangular_dense<std::complex<float>>(a, b, x, upper)) {
+        return;
+    }
+    throw std::runtime_error("solve_triangular: operands must be dense float32/float64/complex64/complex128");
+}
+
 // Inputs are dense, plain and of the result dtype (LinearAlgebra::solve writes them out).
 void CpuSolver::solve(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
     if (a.rows() != a.cols()) throw std::invalid_argument("solve: A must be square");

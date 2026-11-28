@@ -2134,7 +2134,27 @@ def test_3_6_C17_vector_times_closure_uses_the_bit_kernel():
         for D in (C + C.T, C - C.T, (C - C.T) * 3, (C - C.T).T, (C + C.T) * -2):
             for v in (pc.vector(np.arange(7.0)), pc.vector(np.arange(7.0)).T, pc.vector(np.arange(7))):
                 pc._debug_clear_kernel_trace()
+                D @ pc.vector(np.arange(7.0))
+                expected = pc._debug_last_kernel_trace()  # the bit kernel (or, PYCAUSET_LAZY=0, the stored matrix's)
+                pc._debug_clear_kernel_trace()
                 r = v @ D
                 if v.dtype == "float64":
-                    assert pc._debug_last_kernel_trace() == "cpu.matvec.bit_closure"
+                    assert pc._debug_last_kernel_trace() == expected
                 np.testing.assert_allclose(np.asarray(r).ravel(), np.asarray(v).ravel() @ np.asarray(D))
+
+
+def test_3_6_C17_triangular_solve_is_one_trsm():
+    """solve / solve_triangular of a triangular matrix ran a full LU (O(n^3))."""
+    rng = np.random.default_rng(0)
+    U = np.triu(rng.standard_normal((6, 6))) + 4 * np.eye(6)
+    T = pc._native._pack_as(pc.matrix(U), "triangular", has_diagonal=True)
+    b = rng.standard_normal((6, 3))
+    for M, ref in ((T, U), (T.T, U.T), (T * 2, U * 2), (pc.diagonal([1.0, 2.0, 4.0]), np.diag([1.0, 2.0, 4.0]))):
+        rhs = b[: ref.shape[0]]
+        pc._debug_clear_kernel_trace()
+        x = pc.solve_triangular(M, rhs)
+        assert pc._debug_last_kernel_trace() == "cpu.solve.trsm"
+        np.testing.assert_allclose(np.asarray(x), np.linalg.solve(ref, rhs))
+    for S in (pc.TriangularMatrix(3), pc.diagonal([1.0, 0.0, 2.0])):  # strictly triangular / a zero pivot
+        with pytest.raises(np.linalg.LinAlgError, match="Singular"):
+            pc.solve(S, np.ones((3, 1)))
