@@ -1537,8 +1537,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
   `test_bulk_reader_windows_and_transposes_match_numpy`. Numbers: LOG, session 9.
 - Later the same session: bit storage (dense and triangular, with transposes) unpacks in bulk
   too, and the Frobenius norm reads through the bulk tiles (`cpu.norm.bulk`).
-- Not covered: complex_float16, identity, lazy closures and windows of structured classes
-  keep the per-element path (none has a bulk reader yet).
+- Later still: complex_float16 (its two float16 planes) and the bit closures (`C +- C.T`) got
+  bulk readers too; the atlas's generic per-element cells are 0 (190 before, all closures).
+  Identity has no storage to read; windows of structured classes read per element.
 
 ### F-116 GPU routing prints and falls back silently (dormant until CUDA returns)
 - **Status:** open, dormant. `AutoSolver` wraps each GPU call in

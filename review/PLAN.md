@@ -215,10 +215,13 @@ several places; Python wraps engine calls in silent fallbacks. Cure, mechanism n
 - [~] N.6 Per-call overhead (F-083 a; F-096: `a + b` 29 -> 1.9 µs, `a @ b` 49 -> 2.8 µs;
       remaining in `pc.matmul`'s Python layer and the operator wrappers). Original item:: 30-50 µs per `+` / `@` vs NumPy's 0.3-0.7 µs; profile
       the Python wrapper stack (monkeypatches, property patches, io traces) and cut it.
-- [~] N.7 Row readers for every class (the speed half of N.2). Done (F-094, F-095): typed
+- [x] N.7 Row readers for every class (the speed half of N.2). Done (F-094, F-095): typed
       `read_rows`/`read_diagonal` for every class; det/sum/trace/export/element-wise/bool
-      write-out on them; matvec/vecmat through matmul. Remaining generic (1,556 cells):
-      lstsq, inv rules, closures and structured windows (virtual by design), dot.
+      write-out on them; matvec/vecmat through matmul. Session 9 (F-115): bulk stored-value
+      reads (`math/RawRows.hpp`) for dense (windows, transposes), triangular, symmetric
+      family, diagonal, bit, complex_float16 and closure storage; the atlas has no generic
+      per-element cell left (1,556 at the start of N.7). Structured windows read per element
+      by design (no class has a window layout).
       Original item:: extend `StridedReader`
       (row-at-a-time, typed, `view_value`) from dense storage to every class through
       `visit_matrix` (packed triangular/symmetric rows are contiguous). Element-wise ops
