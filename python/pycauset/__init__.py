@@ -996,11 +996,9 @@ def eigvals_arnoldi(a: Any, k: int, m: int, tol: float = 1e-6) -> Any:
     return _ops.eigvals_arnoldi(a, k, m, tol, deps=_OPS_DEPS)
 
 
-def solve_triangular(*args: Any, **kwargs: Any) -> Any:
-    if "deps" in kwargs:
-        raise TypeError("solve_triangular: deps is internal")
-    kwargs["deps"] = _OPS_DEPS
-    return _ops.solve_triangular(*args, **kwargs)
+def solve_triangular(a: Any, b: Any) -> Any:
+    """Solve A X = B for a triangular, diagonal or identity A (by class)."""
+    return _ops.solve_triangular(a, b, deps=_OPS_DEPS)
 
 
 def pinv(a: Any) -> Any:
