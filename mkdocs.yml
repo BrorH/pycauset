@@ -172,7 +172,10 @@ nav:
       - docs/functions/pycauset.det.md
       - docs/functions/pycauset.determinant.md
       - docs/functions/pycauset.diagonal.md
+      - docs/functions/pycauset.add.md
       - docs/functions/pycauset.divide.md
+      - docs/functions/pycauset.multiply.md
+      - docs/functions/pycauset.subtract.md
       - docs/functions/pycauset.dot.md
       - docs/functions/pycauset.eig.md
       - docs/functions/pycauset.eig_skew.md

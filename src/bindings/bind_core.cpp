@@ -93,8 +93,9 @@ void bind_core_classes(py::module_& m) {
 
     m.def("set_memory_threshold", &pycauset::set_memory_threshold, py::arg("bytes"));
     m.def("get_memory_threshold", &pycauset::get_memory_threshold);
+    m.def("_set_thread_memory_threshold", &pycauset::set_thread_memory_threshold, py::arg("bytes"));
 
-    // Storage root for auto-created backing files (.tmp). Public API lives in Python:
+    // Storage root for auto-created backing files (.pycauset-tmp). Public API lives in Python:
     // pycauset.set_backing_dir(...)
     m.def(
         "set_storage_root",

@@ -854,9 +854,24 @@ def dot(a: Any, b: Any) -> Any:
     return result
 
 
+def add(a: Any, b: Any) -> Any:
+    """Element-wise `a + b` with NumPy's broadcasting; array-like operands are imported."""
+    return _ops.elementwise(lambda x, y: x + y, a, b, "add", deps=_OPS_DEPS)
+
+
+def subtract(a: Any, b: Any) -> Any:
+    """Element-wise `a - b` with NumPy's broadcasting; array-like operands are imported."""
+    return _ops.elementwise(lambda x, y: x - y, a, b, "subtract", deps=_OPS_DEPS)
+
+
+def multiply(a: Any, b: Any) -> Any:
+    """Element-wise `a * b` with NumPy's broadcasting; array-like operands are imported."""
+    return _ops.elementwise(lambda x, y: x * y, a, b, "multiply", deps=_OPS_DEPS)
+
+
 def divide(a: Any, b: Any) -> Any:
-    """Element-wise division with NumPy-style 2D broadcasting (the `/` operator)."""
-    return a / b
+    """Element-wise `a / b` with NumPy's broadcasting; array-like operands are imported."""
+    return _ops.elementwise(lambda x, y: x / y, a, b, "divide", deps=_OPS_DEPS)
 
 
 def norm(x: Any, ord: Any = None) -> float:
@@ -1291,6 +1306,9 @@ _extra_exports = [
     "UnitVector",
     "matmul",
     "dot",
+    "add",
+    "subtract",
+    "multiply",
     "divide",
     "norm",
     "compute_k",

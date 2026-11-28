@@ -97,27 +97,44 @@ def compute_k(matrix: Any, a: float, *, deps: OpsDeps) -> Any:
     return deps.native._compute_k_matrix(matrix, float(a))
 
 
+def _is_scalar(x: Any, deps: OpsDeps) -> bool:
+    return isinstance(x, (bool, int, float, complex, deps.np_module.generic))
+
+
+def elementwise(op: Any, a: Any, b: Any, name: str, *, deps: OpsDeps) -> Any:
+    """`op(a, b)` in the engine for the function forms (`add`, `divide`, `bitwise_and`, ...):
+    array-like operands (NumPy arrays, nested lists) are imported first, scalars stay scalars.
+    `pc.divide(ndarray, ndarray)` computed in NumPy and returned an ndarray (review 3.8 C-4)."""
+    if _is_scalar(a, deps) and _is_scalar(b, deps):
+        raise TypeError(f"{name}: at least one operand must be a matrix, vector or array")
+    a = a if _is_scalar(a, deps) else _import_operand(a, deps=deps)
+    b = b if _is_scalar(b, deps) else _import_operand(b, deps=deps)
+    return op(a, b)
+
+
 def bitwise_not(matrix: Any, *, deps: OpsDeps) -> Any:
     """~x (NumPy invert): logical not for bool, bitwise not for integers. Engine only."""
-    return ~matrix
+    if _is_scalar(matrix, deps):
+        raise TypeError("bitwise_not: the operand must be a matrix, vector or array")
+    return ~_import_operand(matrix, deps=deps)
 
 
 @_traced("bitwise_and", 2)
 def bitwise_and(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """a & b with NumPy's dtype rules (bool & bool is bool; integers promote). Engine only."""
-    return a & b
+    return elementwise(lambda x, y: x & y, a, b, "bitwise_and", deps=deps)
 
 
 @_traced("bitwise_or", 2)
 def bitwise_or(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """a | b with NumPy's dtype rules. Engine only."""
-    return a | b
+    return elementwise(lambda x, y: x | y, a, b, "bitwise_or", deps=deps)
 
 
 @_traced("bitwise_xor", 2)
 def bitwise_xor(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """a ^ b with NumPy's dtype rules. Engine only."""
-    return a ^ b
+    return elementwise(lambda x, y: x ^ y, a, b, "bitwise_xor", deps=deps)
 
 
 @_traced("bitwise_nand", 2)

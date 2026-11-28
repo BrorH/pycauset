@@ -27,6 +27,18 @@ namespace pycauset {
         return g_memory_threshold.load();
     }
 
+    static thread_local int64_t t_threshold_override = -1;
+
+    int64_t set_thread_memory_threshold(int64_t bytes) {
+        const int64_t previous = t_threshold_override;
+        t_threshold_override = bytes < 0 ? -1 : bytes;
+        return previous;
+    }
+
+    uint64_t placement_threshold() {
+        return t_threshold_override >= 0 ? static_cast<uint64_t>(t_threshold_override) : g_memory_threshold.load();
+    }
+
     std::filesystem::path get_storage_root() {
         std::lock_guard<std::mutex> lock(g_storage_root_mu);
         if (!g_storage_root_set) {

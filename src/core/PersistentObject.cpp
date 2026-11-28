@@ -56,7 +56,7 @@ void PersistentObject::ensure_unique() {
 // an auto-named temporary file. One rule for new objects and copies (review 3.1 C-13: a
 // copy of a loaded snapshot went to a file that was never deleted, however small).
 static bool place_in_ram(uint64_t bytes) {
-    return bytes <= pycauset::get_memory_threshold() && pycauset::core::MemoryGovernor::instance().can_fit_in_ram(bytes);
+    return bytes <= pycauset::placement_threshold() && pycauset::core::MemoryGovernor::instance().can_fit_in_ram(bytes);
 }
 
 void PersistentObject::copy_storage_now() {

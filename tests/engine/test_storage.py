@@ -452,3 +452,30 @@ def test_3_8_C6_import_creates_nothing_and_chdir_keeps_the_root(tmp_path):
             ro.chmod(0o755)
     if os.path.isdir("/proc/self"):  # not writable even for root
         subprocess.run([sys.executable, "-c", "import pycauset"], cwd="/proc", env=env, check=True)
+
+
+def test_3_8_C5_per_call_placement_is_per_thread(backing_dir):
+    """Review 3.8 C-5: storage="disk" set the process-wide threshold for the call, so other
+    threads' small matrices went to files meanwhile, and interleaved calls left it at 0."""
+    import threading
+
+    before = pc.get_memory_threshold()
+    stop = threading.Event()
+    misplaced = []
+
+    def other():
+        while not stop.is_set():
+            m = pc.zeros((8, 8))
+            if m.get_backing_file() != ":memory:":
+                misplaced.append(m.get_backing_file())
+
+    t = threading.Thread(target=other)
+    t.start()
+    try:
+        for _ in range(300):
+            assert pc.matrix(np.ones((16, 16)), storage="disk").get_backing_file() != ":memory:"
+    finally:
+        stop.set()
+        t.join()
+    assert misplaced == []
+    assert pc.get_memory_threshold() == before

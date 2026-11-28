@@ -6,22 +6,14 @@ from typing import Any, Iterator
 
 @contextmanager
 def temporary_native_memory_threshold(native: Any, limit_bytes: int | None) -> Iterator[None]:
-    """Temporarily override the native memory threshold (best-effort).
-
-    This is used to implement per-call import behavior like max_in_ram_bytes
-    without permanently changing global process settings.
-
-    Note: the underlying native threshold is process-global; this helper is
-    best-effort and not intended to provide strict thread isolation.
-    """
-
+    """Objects created on this thread inside the block are placed by `limit_bytes` (0: in a
+    file). Other threads and the global threshold are not affected: the override is the
+    engine's per-thread one (it was the global threshold, review 3.8 C-5)."""
     if limit_bytes is None:
         yield
         return
-
-    prev = native.get_memory_threshold()
-    native.set_memory_threshold(int(limit_bytes))
+    previous = native._set_thread_memory_threshold(int(limit_bytes))
     try:
         yield
     finally:
-        native.set_memory_threshold(int(prev))
+        native._set_thread_memory_threshold(int(previous))

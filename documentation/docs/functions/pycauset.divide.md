@@ -6,12 +6,15 @@ pycauset.divide(a, b) -> Any
 
 Elementwise division.
 
-This is a convenience wrapper around the `/` operator and follows **NumPy-style 2D broadcasting** for matrix inputs.
+The function form of the `/` operator, with **NumPy-style 2D broadcasting**. Matrices,
+vectors, NumPy arrays and nested lists are accepted: array-like operands are imported into the
+engine first (an ndarray pair used to be divided by NumPy). One operand may be a scalar; two
+scalars raise `TypeError`.
 
 ## Parameters
 
 - `a`: Left operand (typically a matrix).
-- `b`: Right operand (matrix, scalar, or NumPy array depending on the operator overload).
+- `b`: Right operand (matrix, vector, array-like or scalar).
 
 ## Returns
 
@@ -35,8 +38,9 @@ When mixing a matrix with a **1D NumPy array** in an elementwise operation, the 
 
 ## Exceptions
 
-- Raises `TypeError` if the operand types are not supported by the `/` operator.
-- Raises `ValueError` / `RuntimeError` on invalid shapes or unsupported dtype combinations.
+- Raises `TypeError` if the operand types are not supported by the `/` operator, or both are
+  scalars.
+- Raises `ValueError` on shapes that do not broadcast.
 
 ## Examples
 

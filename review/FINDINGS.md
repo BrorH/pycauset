@@ -1886,7 +1886,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-138 Area 3.8 (Python facade): the temp sweep deleted users' files, double-scaled printing
 - **Status:** reviewed (session 9), 23 findings in `review/areas/3.8-python-facade.md`
-  (1 S1, 6 S2, 12 S3, 4 S4). C-1, C-2, C-3, C-6, C-7 fixed; the rest open.
+  (1 S1, 6 S2, 12 S3, 4 S4). C-1, C-2, C-3, C-5, C-6, C-7 fixed, C-4 partly; the rest open.
   - C-1 (S1, fixed): the storage sweep deleted every `*.tmp` / `*.raw_tmp` file below the
     backing directory, recursively, whoever made it (at import, `set_backing_dir` and exit).
     Temp files are named `<prefix>_<pid>_<n>.pycauset-tmp` now and the sweep deletes only
@@ -1895,9 +1895,11 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-3 (fixed): `vector` / `zeros` / `ones` / `empty` ignored a bad dtype and unknown
     keywords; one construction path for `matrix` and `vector` now (`matrix_api.allocate` /
     `from_array`).
-  - C-4: NumPy computes behind `pc.divide` / `pc.bitwise_*` (ndarray input) and the
-    structured constructors export PyCauset input to NumPy.
-  - C-5: per-call `storage="disk"` changes the process-wide threshold (thread-unsafe).
+  - C-4 (part): NumPy computed behind `pc.divide` / `pc.bitwise_*` (ndarray input): the
+    function forms import their operands now, and `add` / `subtract` / `multiply` exist. Open:
+    the structured constructors export PyCauset input to NumPy for validation.
+  - C-5 (fixed): per-call `storage="disk"` changed the process-wide threshold; it is a
+    per-thread override in the engine now.
   - C-6 (fixed): import created `./.pycauset` in the working directory (and failed where it
     is not writable); after `os.chdir` Python and the engine used different roots.
   - C-7 (fixed): `pc.invert` was the matrix inverse, NumPy's `invert` is bitwise NOT. `pc.inv`

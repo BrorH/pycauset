@@ -1320,3 +1320,26 @@ def test_3_8_C7_invert_is_numpys_invert():
     m = np.array([[4.0, 7.0], [2.0, 6.0]])
     np.testing.assert_allclose(np.asarray(pc.inv(pc.matrix(m))), np.linalg.inv(m))
     assert not hasattr(pc.matrix(m), "inverse") and not hasattr(pc.matrix(m), "invert")
+
+
+@pytest.mark.parametrize("name", ["add", "subtract", "multiply", "divide"])
+def test_3_8_C4_function_forms_compute_in_the_engine(name):
+    """Review 3.8 C-4: pc.divide(ndarray, ndarray) computed in NumPy and returned an ndarray."""
+    a = np.arange(1.0, 7.0).reshape(2, 3)
+    b = np.full((2, 3), 2.0)
+    for x, y in ((a, b), (pc.matrix(a), b), (a, pc.matrix(b)), (a, 2.0), (a.tolist(), b)):
+        got = getattr(pc, name)(x, y)
+        assert isinstance(got, pc.MatrixBase)
+        np.testing.assert_allclose(np.asarray(got), getattr(np, name)(np.asarray(x), np.asarray(y)))
+    with pytest.raises(TypeError, match="at least one operand"):
+        getattr(pc, name)(2, 3)
+
+
+def test_3_8_C4_bitwise_forms_compute_in_the_engine():
+    b = np.array([[True, False], [True, True]])
+    for f, g in ((pc.bitwise_and, np.bitwise_and), (pc.bitwise_or, np.bitwise_or), (pc.bitwise_xor, np.bitwise_xor)):
+        got = f(b, ~b)
+        assert isinstance(got, pc.MatrixBase)
+        np.testing.assert_array_equal(np.asarray(got), g(b, ~b))
+    assert isinstance(pc.bitwise_not(b), pc.MatrixBase)
+    assert isinstance(pc.invert(b), pc.MatrixBase)

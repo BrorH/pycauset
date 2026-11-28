@@ -25,7 +25,10 @@
 * **[[docs/functions/pycauset.vecdot.md|vecdot]]**
 * **[[docs/functions/pycauset.cross.md|cross]]**
 * **[[docs/functions/pycauset.outer.md|outer]]**
+* **[[docs/functions/pycauset.add.md|add]]**
 * **[[docs/functions/pycauset.divide.md|divide]]**
+* **[[docs/functions/pycauset.multiply.md|multiply]]**
+* **[[docs/functions/pycauset.subtract.md|subtract]]**
 * **[[docs/functions/pycauset.norm.md|norm]]**
 * **[[docs/functions/pycauset.sum.md|sum]]**
 * **[[docs/functions/pycauset.trace.md|trace]]**
