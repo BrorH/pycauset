@@ -340,7 +340,7 @@ def test_F051_integer_dot_is_an_exact_int(dtype, rng):
 def test_F051_integer_dot_applies_the_view_factor_and_is_exact_beyond_2_53():
     v = pc.vector(np.arange(1, 6, dtype=np.int32))
     w = pc.vector(np.arange(1, 6, dtype=np.int32))
-    w.scalar = 3  # an integer view: logical elements 3, 6, ...
+    w = w * 3  # an integer scale view: logical elements 3, 6, ...
     assert pc.dot(w, v) == v @ w == 165
     big = pc.vector(np.array([2**61, 3], dtype=np.int64))  # exact past 2**53, inside int64
     assert pc.dot(big, pc.vector(np.array([3, -1], dtype=np.int64))) == 3 * 2**61 - 3
@@ -1724,3 +1724,18 @@ def test_3_6_C7_broadcasting_gaps():
     m = np.arange(6.0).reshape(3, 2)
     np.testing.assert_allclose(np.asarray(v @ m), np.array([1.0, 2.0, 3.0]) @ m)
     np.testing.assert_allclose(np.asarray(m.T @ v), m.T @ np.array([1.0, 2.0, 3.0]))
+
+
+def test_3_7_C8_view_flags_are_read_only():
+    """The view flags were public setters: set_scalar(0.5) on an int32 matrix gave five readers five answers."""
+    m = pc.matrix(np.arange(4, dtype=np.int32).reshape(2, 2))
+    v = pc.vector(np.arange(3, dtype=np.int32))
+    for obj in (m, v):
+        for name in ("set_scalar", "set_transposed", "set_conjugated", "set_temporary", "get_scalar"):
+            assert not hasattr(obj, name)
+        with pytest.raises(AttributeError):
+            obj.scalar = 2
+        assert obj.scalar == 1
+        with pytest.raises(AttributeError):
+            obj.seed = 5  # the seed is the generator's, set at construction
+    np.testing.assert_array_equal(np.asarray(m * 3), np.arange(4).reshape(2, 2) * 3)

@@ -627,7 +627,7 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         )
 
     if is_conjugated:  # _open_storage applies the transpose (and factor) itself
-        obj.set_conjugated(True)
+        obj._restore_conjugated()
 
     derived = metadata.get("derived")
     if derived and isinstance(obj, deps.native.MatrixBase) and metadata.get("derived_engine") == _engine_stamp(deps.native):

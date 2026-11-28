@@ -215,7 +215,6 @@ void bind_vector_classes(py::module_& m) {
         .def_property_readonly("backing_file", &VectorBase::get_backing_file)
         .def("get_backing_file", &VectorBase::get_backing_file)
         .def_property_readonly("is_temporary", &VectorBase::is_temporary)
-        .def("set_temporary", &VectorBase::set_temporary)
         .def("close", &VectorBase::close)
         .def_property_readonly("size", &VectorBase::size, "Number of elements, as NumPy's ndarray.size.")
         .def_property_readonly("ndim", [](const VectorBase& v) { return v.is_transposed() ? 2 : 1; },
@@ -233,14 +232,15 @@ void bind_vector_classes(py::module_& m) {
         .def("__le__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Le); }, py::is_operator())
         .def("__gt__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Gt); }, py::is_operator())
         .def("__ge__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Ge); }, py::is_operator())
-        .def_property("seed", &VectorBase::get_seed, &VectorBase::set_seed)
-        .def_property("scalar", &VectorBase::get_scalar, &VectorBase::set_scalar)
-        .def("get_scalar", &VectorBase::get_scalar)
-        .def("set_scalar", &VectorBase::set_scalar)
+        .def_property_readonly("seed", &VectorBase::get_seed)
+        // The view flags are read-only (review 3.7 C-8: set_scalar(0.5) on an int32 matrix gave five
+        // readers five answers); persistence restores conjugation through `_restore_conjugated`
+        // (the factor and transpose come with the storage, `_open_storage`).
+        .def_property_readonly("scalar", &VectorBase::get_scalar)
         .def("is_transposed", &VectorBase::is_transposed)
-        .def("set_transposed", &VectorBase::set_transposed)
         .def("is_conjugated", &VectorBase::is_conjugated)
-        .def("set_conjugated", &VectorBase::set_conjugated)
+        // Internal (persistence): the saved conjugation flag (`conj()` sets it on every dtype).
+        .def("_restore_conjugated", [](VectorBase& o) { o.set_conjugated(true); })
         .def("get_element_as_double", &VectorBase::get_element_as_double)
         .def("get_element_as_complex", &VectorBase::get_element_as_complex)
         .def_property_readonly(

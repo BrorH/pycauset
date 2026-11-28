@@ -72,7 +72,7 @@ def test_integers_are_exact_and_wrap_like_numpy():
 def test_orientation_and_factor_carry_over():
     v = pc.vector(np.arange(5, dtype=np.int32))
     w = pc.vector(np.arange(5, dtype=np.int32))
-    w.scalar = 3  # integer view: logical values 0, 3, 6, ...
+    w = w * 3  # an integer scale view: logical values 0, 3, 6, ...
     np.testing.assert_array_equal(to_np(w + 1), np.arange(5) * 3 + 1)
     np.testing.assert_array_equal(to_np(v * w), np.arange(5) ** 2 * 3)
     t = v.T + 1

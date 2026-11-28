@@ -363,7 +363,6 @@ void bind_matrix_classes(py::module_& m) {
         .def_property_readonly("backing_file", &MatrixBase::get_backing_file)
         .def("get_backing_file", &MatrixBase::get_backing_file)
         .def_property_readonly("is_temporary", &MatrixBase::is_temporary)
-        .def("set_temporary", &MatrixBase::set_temporary)
         .def("close", &MatrixBase::close)
         // Read-ahead / drop hints for the whole storage. The accelerator is looked up per call:
         // a handle kept in Python dangled after the next storage swap (review 3.1 C-16).
@@ -374,14 +373,15 @@ void bind_matrix_classes(py::module_& m) {
             if (auto* acc = m.get_accelerator()) acc->discard(0, SIZE_MAX);
         })
         .def("hint", &MatrixBase::hint, py::arg("hint"))
-        .def_property("seed", &MatrixBase::get_seed, &MatrixBase::set_seed)
-        .def_property("scalar", &MatrixBase::get_scalar, &MatrixBase::set_scalar)
-        .def("get_scalar", &MatrixBase::get_scalar)
-        .def("set_scalar", &MatrixBase::set_scalar)
+        .def_property_readonly("seed", &MatrixBase::get_seed)
+        // The view flags are read-only (review 3.7 C-8: set_scalar(0.5) on an int32 matrix gave five
+        // readers five answers); persistence restores conjugation through `_restore_conjugated`
+        // (the factor and transpose come with the storage, `_open_storage`).
+        .def_property_readonly("scalar", &MatrixBase::get_scalar)
         .def("is_transposed", &MatrixBase::is_transposed)
-        .def("set_transposed", &MatrixBase::set_transposed)
         .def("is_conjugated", &MatrixBase::is_conjugated)
-        .def("set_conjugated", &MatrixBase::set_conjugated)
+        // Internal (persistence): the saved conjugation flag (`conj()` sets it on every dtype).
+        .def("_restore_conjugated", [](MatrixBase& o) { o.set_conjugated(true); })
         .def_property_readonly(
             "T",
             [](const MatrixBase& mat) {
