@@ -350,7 +350,6 @@ void bind_matrix_classes(py::module_& m) {
         .def_property_readonly("is_temporary", &MatrixBase::is_temporary)
         .def("set_temporary", &MatrixBase::set_temporary)
         .def("close", &MatrixBase::close)
-        .def("copy_storage", &MatrixBase::copy_storage, py::arg("result_file_hint") = "")
         // Read-ahead / drop hints for the whole storage. The accelerator is looked up per call:
         // a handle kept in Python dangled after the next storage swap (review 3.1 C-16).
         .def("_io_prefetch", [](const MatrixBase& m) {

@@ -14,7 +14,6 @@ _MAGIC = b"PYCAUSET"  # 8 bytes
 _FORMAT_VERSION = 1
 _ENDIAN_LITTLE = 1
 _HEADER_BYTES = 4096
-_RAW_STORAGE_HEADER_BYTES = 64
 _SLOT_SIZE = 128
 _SLOT_A_OFFSET = 16
 _SLOT_B_OFFSET = _SLOT_A_OFFSET + _SLOT_SIZE
@@ -46,36 +45,6 @@ def _align_up(value: int, alignment: int) -> int:
     if alignment <= 0 or (alignment & (alignment - 1)) != 0:
         raise ValueError("alignment must be a power of two")
     return (value + alignment - 1) & ~(alignment - 1)
-
-
-def _raw_storage_header_bytes(path: Path) -> int:
-    """Return header size for raw storage files created by MemoryMapper.
-
-    copy_storage writes a 64-byte header (magic/version + zeroed reserved bytes)
-    followed by raw payload bytes. Detect that header so we can persist only
-    the data payload in the container.
-    """
-
-    try:
-        with path.open("rb") as f:
-            header = f.read(_RAW_STORAGE_HEADER_BYTES)
-    except OSError:
-        return 0
-
-    if len(header) != _RAW_STORAGE_HEADER_BYTES:
-        return 0
-    if header[:8] != _MAGIC:
-        return 0
-
-    version = struct.unpack("<I", header[8:12])[0]
-    if version != 1:
-        return 0
-
-    # MemoryMapper uses a "simple" header (reserved bytes all zero).
-    if any(b != 0 for b in header[12:]):
-        return 0
-
-    return _RAW_STORAGE_HEADER_BYTES
 
 
 class _Cursor:
@@ -438,16 +407,16 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
     # Closure views (LAZY.md L2b) read another object's storage; save their packed result.
     if isinstance(payload_obj, deps.native.MatrixBase):
         payload_obj = deps.native._materialize_for_save(payload_obj)
-    if not hasattr(payload_obj, "copy_storage"):
-        raise TypeError("Object does not support saving (missing copy_storage)")
+    if not isinstance(payload_obj, (deps.native.MatrixBase, deps.native.VectorBase)):
+        raise TypeError(f"save: not a PyCauset matrix or vector: {type(payload_obj).__name__}")
 
-    # Staging files are unique to this call and are the only files it ever deletes (the fixed
-    # names `<stem>.raw_tmp` / `<name>.part` let two saves swap payloads, and saving to
-    # "x.raw_tmp" deleted the result, review 3.9 C-1).
-    temp_raw = _staging_file(path.parent, f".{path.name}.", ".raw_tmp")
+    # The staging file is unique to this call and the only file it ever deletes (fixed names
+    # let two saves swap payloads, and saving to "x.raw_tmp" deleted the result, review 3.9 C-1).
     part: Path | None = None
     try:
-        payload_obj.copy_storage(str(temp_raw))
+        # The storage version before anything is read: if it moves while the payload is copied
+        # (another thread writes), the derived values are dropped (review 3.9 C-8).
+        version_before = deps.native._storage_version(payload_obj)
         is_transposed = getattr(payload_obj, "is_transposed", False)
         if callable(is_transposed):
             is_transposed = is_transposed()
@@ -458,7 +427,7 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
 
         if isinstance(payload_obj, deps.native.MatrixBase):
             rows, cols = payload_obj.rows(), payload_obj.cols()
-        else:  # a vector (only engine objects reach here: copy_storage is checked above)
+        else:  # a vector
             rows, cols = len(payload_obj), 1
 
         scalar = getattr(payload_obj, "scalar", 1.0)
@@ -507,29 +476,19 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
 
 
         # Write file: header placeholder, then payload, then metadata block, then header slots.
+        # A sibling file renamed over `path` (atomic): an object loaded from `path` keeps
+        # reading its (copy-on-write) mapping of the old file, and a crash never leaves a
+        # half-written container (F-093). The engine writes the payload straight into it
+        # (one copy; it went through a staging file first, review 3.9 C-2).
         payload_offset = _HEADER_BYTES
-        raw_header = _raw_storage_header_bytes(temp_raw)
-        raw_size = temp_raw.stat().st_size
-        payload_length = raw_size - raw_header
-        if payload_length < 0:
-            raise ValueError("invalid raw payload size")
-
-        # Write a sibling file, then rename it over `path` (atomic): an object loaded from
-        # `path` keeps reading its (copy-on-write) mapping of the old file, and a crash never
-        # leaves a half-written container (F-093).
         part = _staging_file(path.parent, f".{path.name}.", ".part")
         with part.open("wb") as out_f:
             out_f.write(b"\x00" * _HEADER_BYTES)
-            with temp_raw.open("rb") as in_f:
-                if raw_header:
-                    in_f.seek(raw_header)
-                # copy_storage writes a small raw header; persist only the payload bytes.
-                while True:
-                    chunk = in_f.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    out_f.write(chunk)
-
+        payload_length = int(deps.native._write_payload(payload_obj, str(part), payload_offset))
+        if "derived" in meta and deps.native._storage_version(payload_obj) != version_before:
+            del meta["derived"], meta["derived_engine"]  # written meanwhile: not this payload's
+        with part.open("r+b") as out_f:
+            out_f.seek(0, os.SEEK_END)
             # pad to 16-byte boundary for metadata
             cur = out_f.tell()
             meta_offset = _align_up(cur, 16)
@@ -590,12 +549,11 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
         _fsync_dir(path.parent)
 
     finally:
-        for staged in (part, temp_raw):
-            if staged is not None:
-                try:
-                    staged.unlink()
-                except FileNotFoundError:
-                    pass
+        if part is not None:
+            try:
+                part.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def load(path: str | Path, *, deps: PersistenceDeps) -> Any:

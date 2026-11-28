@@ -1710,15 +1710,18 @@ the entry (the history is useful). New findings go at the bottom with the next f
   (`CpuElementwise`), comparisons as element-wise ops with a bool result.
 
 ### F-129 Saves: shared staging names, no fsync of the container, untrusted cached values
-- **Status:** fixed in part (session 9; area 3.9 review C-1, C-2 partly, C-3 partly).
+- **Status:** fixed (session 9; area 3.9 review C-1, C-2, C-3 in part, C-4, C-8).
   - C-1: the staging files had fixed names (`<stem>.raw_tmp`, `<name>.part`), so `r.pycauset`
     and `r.bak` saved at once swapped payloads (4 of 5 runs), two saves of one path raised,
     and `pc.save(m, "x.raw_tmp")` deleted its own result. They are unique (`mkstemp`) now, and
     a save deletes only files it created.
   - C-2: the container is fsynced before the rename and the directory after it (only the
-    staging copy was synced). Open: the payload is still written twice (the staging copy, then
-    the container): 2x disk, ~8x `np.save`'s time; the fix is an engine copy straight into the
-    container (needs a binding).
+    staging copy was synced). The engine writes the payload straight into the container
+    (`_write_payload`; it was copied into a populated staging file, then again in Python: 2x
+    disk, the payload added to RSS). 488 MiB: 1.2-1.5 s -> 0.6-0.8 s; `np.save` takes 0.15 s
+    without an fsync. The `copy_storage` Python binding is gone with it.
+  - C-8: the storage version is read before the derived values are exported and after the
+    payload is written; if it moved (another thread wrote), the derived values are dropped.
   - C-3: saved derived values carry an engine stamp (version, native module size and mtime)
     and are only imported by the same build. Open: a payload edited by another tool is not
     detected (no checksum); documented in the Storage guide.

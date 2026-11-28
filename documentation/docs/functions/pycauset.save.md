@@ -8,7 +8,7 @@ Saves a matrix, vector or block matrix to a permanent location on disk.
 
 This writes a new `.pycauset` **snapshot container**.
 
-*   **For native matrices/vectors**: writes a new container file by copying the payload data (via the object’s `copy_storage(...)` implementation) and recording metadata.
+*   **For native matrices/vectors**: writes a new container file: the engine writes the storage's bytes straight into it, then the metadata (shape, dtype, structure, view, saved derived values) follows.
 *   **For block matrices**: writes a small container file plus a sibling sidecar directory holding the child blocks (see below). Thunk blocks are evaluated **blockwise** (no global densify). Saving raises deterministically if any captured input is stale.
 
 !!! note "Snapshot semantics"

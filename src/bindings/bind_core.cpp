@@ -12,12 +12,15 @@
 #include "pycauset/core/MemoryHints.hpp"
 #include "pycauset/core/IOAccelerator.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
+#include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/vector/VectorBase.hpp"
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <cctype>
 #include <optional>
 #include <string>
@@ -207,6 +210,36 @@ void bind_core_classes(py::module_& m) {
     m.def("_storage_version", [](const pycauset::VectorBase& vec) -> uint64_t {
         return vec.shared_mapper() ? vec.shared_mapper()->version() : 0;
     });
+
+    // pc.save's payload: the storage's bytes written straight into the container at `offset`
+    // (review 3.9 C-2: it was copied into a populated staging file first, then copied again in
+    // Python: twice the disk, the payload added to RSS, ~8x np.save's time). Returns the
+    // number of bytes written. The GIL is released during the write.
+    auto write_payload = [](const std::shared_ptr<MemoryMapper>& mapper, const std::string& path, uint64_t offset) {
+        if (!mapper) throw std::runtime_error("Backing file has been closed.");
+        const char* data = static_cast<const char*>(mapper->get_data());
+        const uint64_t size = mapper->get_data_size();
+        {
+            py::gil_scoped_release release;
+            std::fstream out(std::filesystem::path(reinterpret_cast<const char8_t*>(path.c_str())),
+                             std::ios::in | std::ios::out | std::ios::binary);
+            if (!out) throw std::runtime_error("save: cannot open " + path);
+            out.seekp(static_cast<std::streamoff>(offset));
+            constexpr uint64_t chunk = 64ull << 20;
+            for (uint64_t done = 0; done < size && out; done += chunk) {
+                out.write(data + done, static_cast<std::streamsize>(std::min(chunk, size - done)));
+            }
+            out.flush();
+            if (!out) throw std::runtime_error("save: writing the payload to " + path + " failed");
+        }
+        return size;
+    };
+    m.def("_write_payload", [write_payload](const pycauset::MatrixBase& mat, const std::string& path, uint64_t offset) {
+        return write_payload(mat.shared_mapper(), path, offset);
+    }, py::arg("obj"), py::arg("path"), py::arg("offset"));
+    m.def("_write_payload", [write_payload](const pycauset::VectorBase& vec, const std::string& path, uint64_t offset) {
+        return write_payload(vec.shared_mapper(), path, offset);
+    }, py::arg("obj"), py::arg("path"), py::arg("offset"));
 
     m.def(
         "_set_ram_safety_margin",
