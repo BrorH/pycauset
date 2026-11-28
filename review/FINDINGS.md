@@ -1969,3 +1969,21 @@ the entry (the history is useful). New findings go at the bottom with the next f
     than `pc.asarray`).
   - C-14 (fixed): internal and duplicate names off the surface; every signature names its
     arguments and Python types; the stub declares only what exists.
+
+### F-141 Areas 3.12 / 3.15 (visualization, benchmarks, demos, tools): invented coordinates, full exports behind subsampled plots, misleading benchmarks
+- **Status:** reviewed (session 9), 20 findings in `review/areas/3.12-3.15-vis-benchmarks.md`
+  (0 S1, 2 S2, 11 S3, 6 S4, 1 decision). Fixes in progress.
+  - C-1 (S2): a causet built from a matrix is plotted at coordinates regenerated from a random
+    seed and the default diamond; half of the related pairs are spacelike there.
+  - C-2 (S2): every subsampled plot exports the whole causal matrix first (the heatmap as
+    int64: 22 GB at n = 50,000 for a 2000² image).
+  - C-3, C-4, C-6: `force=True` raises above 100k elements; a subsampled Hasse diagram draws the
+    sub-order's links unannounced; titles, warning locations, the global `random` stream.
+  - C-5, C-7: plot docs wrong; plot tests vacuous under a mock, and `test_show` opens a browser.
+  - C-8 to C-15: benchmarks that import NumPy first (NumPy's timings off by 10-100x), time
+    their setup, compare unlike things (a "Write 3x PASS"), crash at small n; demo 06's
+    claims; `bench_ram.py` asserts instead of measuring.
+  - C-16, C-17: `build.ps1 -Clean` deletes `build/` and `.pycauset/` in the current
+    directory; `release.ps1` claims a release it does not trigger.
+  - C-18 to C-20: stale benchmark docs (the README was gitignored); dead code; five
+    redundant harnesses.
