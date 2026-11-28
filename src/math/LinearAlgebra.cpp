@@ -55,10 +55,18 @@ namespace {
         const uint64_t br = b.rows();
         const uint64_t bc = b.cols();
         if (ar == br && ac == bc) return {ar, ac};
-        // Numpy-style 2D broadcasting.
-        const uint64_t rr = (ar == br) ? ar : (ar == 1 ? br : (br == 1 ? ar : 0));
-        const uint64_t rc = (ac == bc) ? ac : (ac == 1 ? bc : (bc == 1 ? ac : 0));
-        if (rr == 0 || rc == 0) {
+        // NumPy's 2D broadcasting: equal axes, or one of them 1 (then the other, 0 included). A
+        // flag, not 0, marks failure: (0, 3) + (1, 3) is (0, 3) (review 3.6 C-7).
+        bool ok = true;
+        auto dim = [&ok](uint64_t x, uint64_t y) -> uint64_t {
+            if (x == y || y == 1) return x;
+            if (x == 1) return y;
+            ok = false;
+            return 0;
+        };
+        const uint64_t rr = dim(ar, br);
+        const uint64_t rc = dim(ac, bc);
+        if (!ok) {
             std::string msg = std::string(opname) + ": operands could not be broadcast together with shapes (" +
                               std::to_string(ar) + "," + std::to_string(ac) + ") and (" +
                               std::to_string(br) + "," + std::to_string(bc) + ")";

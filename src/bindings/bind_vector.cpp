@@ -375,6 +375,32 @@ void bind_vector_classes(py::module_& m) {
                     return std::shared_ptr<VectorBase>(out.release());
                 });
             },
+            py::is_operator())
+        // NumPy operands, as matrices take them (review 3.6 C-7): v @ arr and arr @ v (NumPy
+        // defers to us, __array_ufunc__ = None). 1-D: the dot; 2-D: the vector-matrix product.
+        .def(
+            "__matmul__",
+            [](const VectorBase& a, const py::array& b) -> py::object {
+                if (b.ndim() == 1) return vector_dot(a, *vector_from_numpy(b));
+                if (b.ndim() == 2) {
+                    auto m = matrix_from_numpy(b);
+                    return py::cast(std::shared_ptr<VectorBase>(
+                        translate_invalid_argument([&] { return pycauset::vector_matrix_multiply(a, *m, ""); }).release()));
+                }
+                throw py::value_error("matmul: a NumPy operand must be 1-D or 2-D");
+            },
+            py::is_operator())
+        .def(
+            "__rmatmul__",
+            [](const VectorBase& a, const py::array& b) -> py::object {
+                if (b.ndim() == 1) return vector_dot(*vector_from_numpy(b), a);
+                if (b.ndim() == 2) {
+                    auto m = matrix_from_numpy(b);
+                    return py::cast(std::shared_ptr<VectorBase>(
+                        translate_invalid_argument([&] { return pycauset::matrix_vector_multiply(*m, a, ""); }).release()));
+                }
+                throw py::value_error("matmul: a NumPy operand must be 1-D or 2-D");
+            },
             py::is_operator());
 
     // One Python class per structure; dtype is an attribute (RESTRUCTURE 3.1 item 4).

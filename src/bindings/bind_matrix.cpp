@@ -293,8 +293,12 @@ inline std::shared_ptr<VectorBase> matvec(const MatrixBase& a, const VectorBase&
     });
 }
 
-inline py::object matrix_arith(const MatrixBase& a, const py::object& other, Arith op, bool reflected) {
+inline py::object matrix_arith(const MatrixBase& a, const py::object& other_in, Arith op, bool reflected) {
     std::shared_ptr<MatrixBase> b;
+    // A 0-d array is a scalar of its dtype, as in NumPy (M + np.array(3.0) raised, 3.6 C-7).
+    const py::object other = (py::isinstance<py::array>(other_in) && other_in.cast<py::array>().ndim() == 0)
+                                 ? other_in[py::tuple()]
+                                 : other_in;
     if (py::isinstance<MatrixBase>(other)) {
         b = other.cast<std::shared_ptr<MatrixBase>>();
     } else if (pycauset::ScalarArg s; to_scalar_arg(other, s)) {

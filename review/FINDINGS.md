@@ -1838,7 +1838,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
 ### F-136 Area 3.6 (math entry): silent integer wrap, NaN rejected by LAPACK, identity product
 - **Status:** C-1 to C-4, C-6, C-10, C-11, C-13, C-15 fixed, C-5 partly (session 9); the rest
   open in `review/areas/3.6-math-entry.md` (C-5's float32 last-ulp and fold-overflow cases,
-  documented; C-7 broadcasting gaps (`M == M2` fixed with F-128); C-8 fixed (`v @ M` is 1-D); C-9 fixed (one dot, matmul's rule); was: three dot
+  documented; C-7 fixed (broadcasting gaps, `M == M2` with F-128); C-8 fixed (`v @ M` is 1-D); C-9 fixed (one dot, matmul's rule); was: three dot
   implementations; C-12, C-14, C-16, C-17).
   - C-6: integer `.conj()` / `.H` sums and traces are exact (conj of an integer is a no-op).
   - C-10: `eigvals_skew` / `eig_skew` check their input exactly (non-skew: `ValueError`;

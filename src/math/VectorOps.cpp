@@ -93,10 +93,8 @@ std::unique_ptr<VectorBase> negate(const VectorBase& v) {
 }
 
 std::unique_ptr<VectorBase> binary_op(const VectorBase& a, const VectorBase& b, VectorBinaryOp op) {
-    if (a.size() != b.size()) {
-        throw std::invalid_argument("vector sizes differ: " + std::to_string(a.size()) + " and " +
-                                    std::to_string(b.size()));
-    }
+    // The 1 x n rows broadcast as matrices do: a length-1 vector with any (NumPy; it raised,
+    // review 3.6 C-7); other differing lengths raise there.
     auto ra = as_row_matrix(a);
     auto rb = as_row_matrix(b);
     std::unique_ptr<MatrixBase> r;

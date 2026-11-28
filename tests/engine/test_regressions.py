@@ -1709,3 +1709,18 @@ def test_3_6_C12_norm_of_empty_matrices_as_numpy(shape):
                 pc.norm(pc.matrix(z), o)
             continue
         assert pc.norm(pc.matrix(z), o) == want
+
+
+def test_3_6_C7_broadcasting_gaps():
+    """Review 3.6 C-7: empty axes, length-1 vectors, 0-d arrays and vector NumPy operands."""
+    assert (pc.zeros((0, 3)) + pc.ones((1, 3))).shape == (0, 3)
+    assert (pc.ones((1, 3)) + pc.zeros((0, 1))).shape == (0, 3)
+    np.testing.assert_array_equal(np.asarray(pc.vector([1.0]) + pc.vector([1.0, 2.0, 3.0])), [2.0, 3.0, 4.0])
+    with pytest.raises(ValueError):
+        pc.vector([1.0, 2.0]) + pc.vector([1.0, 2.0, 3.0])
+    np.testing.assert_array_equal(np.asarray(pc.ones((2, 2)) + np.array(3.0)), np.full((2, 2), 4.0))
+    v = pc.vector([1.0, 2.0, 3.0])
+    assert v @ np.ones(3) == 6.0 and np.ones(3) @ v == 6.0
+    m = np.arange(6.0).reshape(3, 2)
+    np.testing.assert_allclose(np.asarray(v @ m), np.array([1.0, 2.0, 3.0]) @ m)
+    np.testing.assert_allclose(np.asarray(m.T @ v), m.T @ np.array([1.0, 2.0, 3.0]))
