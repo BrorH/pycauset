@@ -89,3 +89,28 @@ def normalize_dtype(dtype: Any, *, np_module: Any | None) -> str | None:
     # Wider kinds than PyCauset stores (longdouble, clongdouble): the widest float / complex.
     return {"f": "float64", "c": "complex_float64"}.get(np_dtype.kind)
 
+
+
+def infer_sequence_dtype(values: list[Any], *, np_module: Any) -> str:
+    """The dtype of a matrix or vector built from Python values (every element, flattened).
+
+    NumPy decides when any element is a NumPy scalar (`np.array(values).dtype`: NumPy is the
+    oracle; `np.complex64(1j)` lost its imaginary part and `np.int64` values were rounded
+    through float64, review 3.3 C-5). Plain Python values follow the documented rules: bool,
+    then Python ints -> int32 (F-103), any complex -> complex_float64, else float64. Empty
+    input is float64, as in NumPy.
+    """
+    if not values:
+        return "float64"
+    if any(isinstance(v, np_module.generic) for v in values):
+        inferred = normalize_dtype(np_module.array(values).dtype, np_module=np_module)
+        if inferred is None:
+            raise TypeError("matrix/vector elements must be numbers")
+        return inferred
+    if all(isinstance(v, bool) for v in values):
+        return "bool"
+    if any(isinstance(v, complex) for v in values):
+        return "complex_float64"
+    if all(isinstance(v, int) for v in values):
+        return "int32"
+    return "float64"

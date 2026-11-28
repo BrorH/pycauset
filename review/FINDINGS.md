@@ -1724,3 +1724,18 @@ the entry (the history is useful). New findings go at the bottom with the next f
     detected (no checksum); documented in the Storage guide.
   - `test_F129_*`. The rest of the 3.9 list (C-4 ThunkBlock staleness, C-5..C-12) is in
     `review/areas/3.9-persistence.md`.
+
+### F-130 Area 3.3 (factory and promotion): wrong values from structure rules, identity matmul, list input
+- **Status:** C-5 fixed (session 9); C-1, C-2 next (C++); the rest open in
+  `review/areas/3.3-factory-promotion.md` (C-3 two promotion tables, C-4 NumPy float64 /
+  complex128 scalars taken as Python scalars, C-6 the dtype warning covers one case, C-14 the
+  dtype tests take their expectation from the resolver, C-7..C-13 smaller).
+  - C-1: element-wise structure rules checked that each operand is square, not that the
+    shapes are equal: `Diagonal(3) + Diagonal(1)` (a 1x1 operand broadcasts) came back
+    diagonal without the off-diagonal values.
+  - C-2: `I @ X` multiplied X by a Python float 1.0, which promotes int64 / uint64 to float64
+    before the cast back: 2**60 + 1 came back off by one, 2**64 - 1 as 0.
+  - C-5: lists with NumPy scalars were inferred from Python types only (`np.complex64(1j)`
+    lost its imaginary part, `np.int64` values were rounded); one inference function now
+    (`dtypes.infer_sequence_dtype`), NumPy's answer when a NumPy scalar is present.
+    `test_F130_*`.

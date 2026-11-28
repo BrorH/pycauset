@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from . import export_guard
+from .dtypes import infer_sequence_dtype as _infer_sequence_dtype
 from .dtypes import normalize_dtype as _normalize_dtype
 from .formatting import MatrixMixin
 from .native_threshold import temporary_native_memory_threshold
@@ -44,17 +45,6 @@ def configure(*, np_module: Any | None, native: Any, track_matrix: Callable[[Any
     _np = np_module
     _native = native
     _track_matrix = track_matrix
-
-
-def _infer_list_dtype(rows: list[list[Any]]) -> str:
-    values = [v for row in rows for v in row]
-    if any(isinstance(v, complex) for v in values):
-        return "complex_float64"
-    if values and all(isinstance(v, bool) for v in values):
-        return "bool"
-    if all(isinstance(v, (int, bool)) for v in values):
-        return "int32"
-    return "float64"
 
 
 def Matrix(size_or_data: Any, dtype: Any = None, **kwargs: Any) -> Any:
@@ -103,7 +93,7 @@ def Matrix(size_or_data: Any, dtype: Any = None, **kwargs: Any) -> Any:
         rows = [list(r) for r in data]
         if rows and len({len(r) for r in rows}) != 1:
             raise ValueError("matrix() requires rows of equal length")
-        inferred = target or _infer_list_dtype(rows)
+        inferred = target or _infer_sequence_dtype([v for row in rows for v in row], np_module=np)
         np_dtype = _NUMPY_DTYPE.get(inferred, "complex64")
         data = np.array(rows, dtype=np_dtype).reshape(len(rows), len(rows[0]) if rows else 0)
         target = inferred

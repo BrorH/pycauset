@@ -4,6 +4,7 @@ import warnings
 from typing import Any
 
 from . import export_guard as _export_guard
+from .dtypes import infer_sequence_dtype as _infer_sequence_dtype
 from .dtypes import normalize_dtype as _normalize_dtype
 from .native_threshold import temporary_native_memory_threshold
 
@@ -45,13 +46,7 @@ def vector_factory(
 
     # 3) Infer dtype from Python values
     if dtype_norm is None:
-        dtype_norm = "float64"
-        if any(isinstance(x, complex) for x in data):
-            dtype_norm = "complex_float64"
-        elif all(isinstance(x, (int, bool)) for x in data):
-            dtype_norm = "int32"
-        if all(isinstance(x, bool) for x in data):
-            dtype_norm = "bool"
+        dtype_norm = _infer_sequence_dtype(list(data), np_module=np_module)
 
     vec = native.DenseVector(len(data), dtype=dtype_norm, **ctor_kwargs)
     for i, val in enumerate(data):

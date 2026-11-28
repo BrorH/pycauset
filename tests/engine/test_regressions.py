@@ -886,3 +886,25 @@ def test_F126_write_to_conj_of_real_values(make):
     idx = 1 if len(m.shape) == 1 else (0, 1)
     m[idx] = 1
     assert to_np(m)[idx] == 1
+
+
+# --- area 3.3 review (F-130) ---------------------------------------------------------------
+
+@pytest.mark.parametrize("values", [
+    [np.complex64(1j), 2], [np.int64(2**53 + 1)], [np.int8(1)], [np.uint64(2**64 - 1)],
+    [np.float16(0.5), np.float16(1)], [np.bool_(True), np.bool_(False)], [np.float32(1), 2.5],
+])
+def test_F130_lists_with_numpy_scalars_infer_like_numpy(values):
+    """C-5: list input tested only for Python types: np.complex64(1j) lost its imaginary part,
+    np.int64 values were rounded through float64."""
+    want = np.array(values)
+    v = pc.vector(values)
+    assert np.asarray(v).dtype == want.dtype
+    np.testing.assert_array_equal(np.asarray(v), want)
+    m = pc.matrix([values])
+    assert np.asarray(m).dtype == want.dtype
+    np.testing.assert_array_equal(np.asarray(m)[0], want)
+
+
+def test_F130_empty_vector_is_float64():
+    assert pc.vector([]).dtype == "float64"
