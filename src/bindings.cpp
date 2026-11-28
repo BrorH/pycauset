@@ -20,6 +20,8 @@ PYBIND11_MODULE(_pycauset, m) {
         }
     });
 
+    pycauset::init_thread_budget();  // the OpenBLAS default (core/ParallelUtils.hpp)
+
     bind_core_classes(m);
     bind_matrix_classes(m);
     bind_vector_classes(m);

@@ -161,11 +161,6 @@ def _matrix_desc(matrix: Any) -> str:
 _native_mod.configure_windows_dll_search_paths(package_dir=os.path.dirname(__file__))
 _native = _native_mod.import_native_extension(package=__name__)
 
-# One-shot native configuration (OpenBLAS thread default).
-from ._internal.native_setup import configure_openblas_threads
-
-configure_openblas_threads()
-
 from ._storage import cleanup_storage
 
 # Causal sets (R1: sprinkling into the Minkowski diamond, the order methods, synthetic
@@ -1282,7 +1277,6 @@ _extra_exports = [
     "set_memory_threshold",
     "last_io_trace",
     "clear_io_traces",
-    "bool",
     "matrix",
     "vector",
     "zeros",

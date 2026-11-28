@@ -11,6 +11,7 @@ Nothing here plans, routes or tunes anything.
 """
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -46,7 +47,11 @@ class IOObservability:
         self._native = native
         # op -> (op, operand facts, kernels, timestamp); the record dict is built by last()
         self._last: dict[str, tuple[str, list[Any], list[str], float]] = {}
-        self._depth = 0  # a traced op calling another traced op: only the outer one logs
+        # Per thread: a traced op calling another traced op logs only the outer one, and the
+        # engine's kernel log is per thread too. One counter for the process dropped every
+        # other thread's traces while one call ran (review 3.8 C-12).
+        self._local = threading.local()
+        self._lock = threading.Lock()
 
     def clear(self) -> None:
         self._last.clear()
@@ -77,14 +82,14 @@ class _Trace:
         self.outer = False
 
     def __enter__(self) -> None:
-        obs = self.obs
-        if obs._depth:  # a traced op calling another traced op: only the outer one logs
+        local = self.obs._local
+        if getattr(local, "depth", 0):  # nested in a traced op of this thread: the outer logs
             return None
         self.outer = True
         self.facts = [_facts(o) for o in self.operands]
         self.stamp = time.time()
-        obs._depth += 1
-        obs._native._debug_kernel_log_start()
+        local.depth = 1
+        self.obs._native._debug_kernel_log_start()
         return None
 
     def __exit__(self, *exc: Any) -> bool:
@@ -92,8 +97,9 @@ class _Trace:
             return False
         obs = self.obs
         kernels = obs._native._debug_kernel_log_stop()
-        obs._depth -= 1
+        obs._local.depth = 0
         raw = (self.op, self.facts, kernels, self.stamp)
-        obs._last[self.op] = raw
-        obs._last["__latest__"] = raw
+        with obs._lock:  # "the last trace" is of any thread
+            obs._last[self.op] = raw
+            obs._last["__latest__"] = raw
         return False

@@ -1343,3 +1343,28 @@ def test_3_8_C4_bitwise_forms_compute_in_the_engine():
         np.testing.assert_array_equal(np.asarray(got), g(b, ~b))
     assert isinstance(pc.bitwise_not(b), pc.MatrixBase)
     assert isinstance(pc.invert(b), pc.MatrixBase)
+
+
+def test_3_4_C6_blas_threads_follow_the_budget():
+    """Review 3.4 C-6: every float64 GEMM raised OpenBLAS to all hardware threads, even with
+    OPENBLAS_NUM_THREADS=1, and set_num_threads did not reach BLAS."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    code = (
+        "import ctypes, numpy as np, pycauset as pc\n"
+        "try:\n    blas = ctypes.CDLL('libopenblas.so.0')\nexcept OSError:\n    print('skip'); raise SystemExit\n"
+        "a = pc.matrix(np.ones((300, 300)))\n"
+        "_ = a @ a\n"
+        "first = blas.openblas_get_num_threads()\n"
+        "pc.set_num_threads(2)\n"
+        "_ = a @ a\n"
+        "print(first, blas.openblas_get_num_threads(), pc.get_num_threads())\n"
+    )
+    env = {**os.environ, "OPENBLAS_NUM_THREADS": "1", "PYTHONPATH": str(Path(pc.__file__).parent.parent)}
+    out = subprocess.run([sys.executable, "-c", code], env=env, check=True, capture_output=True, text=True).stdout.split()
+    if out == ["skip"]:
+        pytest.skip("no libopenblas.so.0 to query")
+    assert out == ["1", "2", "2"]

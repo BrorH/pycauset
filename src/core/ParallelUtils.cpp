@@ -1,14 +1,47 @@
 #include "pycauset/core/ParallelUtils.hpp"
 
+#include <cstdlib>
+
 #ifdef _WIN32
 #include <process.h>
 #else
+#include <sched.h>
 #include <unistd.h>
 #endif
 
 namespace pycauset {
 
-std::atomic<size_t> ThreadPool::global_num_threads{std::thread::hardware_concurrency()};
+namespace {
+size_t env_threads() {
+    for (const char* name : {"OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS"}) {
+        if (const char* v = std::getenv(name)) {
+            char* end = nullptr;
+            const long n = std::strtol(v, &end, 10);
+            if (end != v && n > 0) return static_cast<size_t>(n);
+        }
+    }
+    return 0;
+}
+size_t affinity_cpus() {
+#if defined(__linux__)
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    if (sched_getaffinity(0, sizeof(set), &set) == 0) {
+        const int c = CPU_COUNT(&set);
+        if (c > 0) return static_cast<size_t>(c);
+    }
+#endif
+    const unsigned h = std::thread::hardware_concurrency();
+    return h ? h : 1;
+}
+size_t default_threads() {
+    const size_t e = env_threads();
+    return e ? e : affinity_cpus();
+}
+std::atomic<bool> g_threads_limited{env_threads() != 0};
+}  // namespace
+
+std::atomic<size_t> ThreadPool::global_num_threads{default_threads()};
 
 namespace {
 thread_local bool t_is_pool_worker = false;
@@ -17,6 +50,11 @@ thread_local bool t_is_pool_worker = false;
 void ThreadPool::set_num_threads(size_t n) {
     if (n == 0) n = 1;
     global_num_threads.store(n);
+    g_threads_limited.store(true);
+}
+
+bool ThreadPool::threads_limited() {
+    return g_threads_limited.load();
 }
 
 size_t ThreadPool::get_num_threads() {

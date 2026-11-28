@@ -1870,7 +1870,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-137 Area 3.4 (dispatch and CPU kernels): bit dot counts padding, fork hang, thread limits
 - **Status:** reviewed (session 9), 19 findings in `review/areas/3.4-dispatch-kernels.md`
-  (1 S1, 5 S2, 9 S3, 4 S4). C-1 to C-4 fixed; the rest open.
+  (1 S1, 5 S2, 9 S3, 4 S4). C-1 to C-4, C-6 fixed; the rest open.
   - C-1 (S1, fixed): the bit-vector dot counted the padding bits of the last word
     (`pc.dot(~u, ~u)` = 64 for n = 5); the last word is masked now.
   - C-2 (fixed): after `fork()` the first parallel kernel in the child hung (ThreadPool,
@@ -1879,14 +1879,17 @@ the entry (the history is useful). New findings go at the bottom with the next f
     orthonormal, so the Sorkin-Johnston W was off by up to 0.08. `?heevd` on `-iA` now, one
     order for both skew functions.
   - C-4 (fixed): `compute_k(C.T)` ignored the transpose; `a = 0` returned inf / nan.
-  - C-5: no kernel releases the GIL. C-6: thread limits are overridden around every dgemm.
+  - C-5: no kernel releases the GIL.
+  - C-6 (fixed): thread limits were overridden around every dgemm; one budget now
+    (`set_num_threads` reaches OpenBLAS, the default follows the environment and affinity).
   - S3 / S4: norm factor after the sum (overflow), float32 dot in double, NaN in eig / svd /
     lstsq, empty SVD, int-cast BLAS lengths, forwarding layers (AutoSolver, CpuDevice),
     per-dtype if-ladders, dead integer divide kernels, RUNPATHs into `build/cpp`.
 
 ### F-138 Area 3.8 (Python facade): the temp sweep deleted users' files, double-scaled printing
 - **Status:** reviewed (session 9), 23 findings in `review/areas/3.8-python-facade.md`
-  (1 S1, 6 S2, 12 S3, 4 S4). C-1, C-2, C-3, C-5, C-6, C-7 fixed, C-4 partly; the rest open.
+  (1 S1, 6 S2, 12 S3, 4 S4). C-1 to C-3, C-5 to C-8, C-12 fixed, C-4 and C-11 partly; the
+  rest open.
   - C-1 (S1, fixed): the storage sweep deleted every `*.tmp` / `*.raw_tmp` file below the
     backing directory, recursively, whoever made it (at import, `set_backing_dir` and exit).
     Temp files are named `<prefix>_<pid>_<n>.pycauset-tmp` now and the sweep deletes only

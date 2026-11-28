@@ -32,9 +32,12 @@ public:
     // Destructor
     ~ThreadPool();
 
-    // Global concurrency control
+    // Global concurrency control. The default is OPENBLAS_NUM_THREADS / OMP_NUM_THREADS when
+    // set, else the CPUs this process may run on (the affinity mask, not the host's count).
     static void set_num_threads(size_t n);
     static size_t get_num_threads();
+    // True once the user limited threads (set_num_threads, or one of those variables).
+    static bool threads_limited();
 
     // True on threads owned by the pool. Parallel helpers called from a worker run
     // inline instead of enqueueing: a worker blocking on tasks queued behind it can
@@ -59,6 +62,15 @@ private:
     // Concurrency setting (read concurrently by every ParallelFor caller)
     static std::atomic<size_t> global_num_threads;
 };
+
+// One thread budget (review 3.4 C-6): pycauset.set_num_threads caps the pool and OpenBLAS
+// (products, every LAPACK kernel). Defined with the BLAS kernels (CpuMatmul.cpp).
+void set_num_threads(size_t n);
+// Called once when the extension loads: the OpenBLAS default for LAPACK kernels (at most 8
+// threads: more slow small factorizations down), unless the user limited threads.
+void init_thread_budget();
+// Threads for one GEMM: the budget when the user limited threads, else up to 20 (GEMM scales).
+int gemm_thread_count();
 
 // Template implementation must be in header
 template<class F, class... Args>

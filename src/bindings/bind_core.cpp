@@ -88,7 +88,7 @@ inline pycauset::promotion::BinaryOp parse_op(const std::string& s_raw) {
 }
 
 void bind_core_classes(py::module_& m) {
-    m.def("set_num_threads", [](size_t n) { pycauset::ThreadPool::set_num_threads(n); }, py::arg("n"));
+    m.def("set_num_threads", [](size_t n) { pycauset::set_num_threads(n); }, py::arg("n"));
     m.def("get_num_threads", []() { return pycauset::ThreadPool::get_num_threads(); });
 
     m.def("set_memory_threshold", &pycauset::set_memory_threshold, py::arg("bytes"));

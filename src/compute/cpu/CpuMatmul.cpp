@@ -86,6 +86,25 @@
 #include "CpuKernelsCommon.hpp"
 
 namespace pycauset {
+
+void set_num_threads(size_t n) {
+    ThreadPool::set_num_threads(n);
+    openblas_set_num_threads(static_cast<int>(ThreadPool::get_num_threads()));
+}
+
+void init_thread_budget() {
+    const int n = static_cast<int>(ThreadPool::get_num_threads());
+    // A limit from the user (OPENBLAS_NUM_THREADS / OMP_NUM_THREADS) is the BLAS budget too;
+    // otherwise LAPACK kernels default to at most 8 threads.
+    openblas_set_num_threads(ThreadPool::threads_limited() ? n : std::min(n, 8));
+}
+
+int gemm_thread_count() {
+    const int n = static_cast<int>(ThreadPool::get_num_threads());
+    // Capped at 20: asking OpenBLAS for more threads than it started with grows its pool at
+    // run time, which deadlocked on a 3-vCPU macOS runner.
+    return ThreadPool::threads_limited() ? n : std::min(n, 20);
+}
 using namespace cpu_detail;
 
 namespace {
@@ -274,24 +293,15 @@ namespace {
                     return true;
                 }
 
+                // GEMM scales with threads, small LAPACK factorizations do not: the OpenBLAS
+                // default stays low (init_thread_budget) and a GEMM gets gemm_thread_count(),
+                // which is the user's budget when they set one (it was every hardware thread
+                // whatever OPENBLAS_NUM_THREADS said, review 3.4 C-6). No set call when the
+                // count already matches (no pool reconfiguration).
+                const int prev_threads = openblas_get_num_threads();
+                const int gemm_threads = gemm_thread_count();
+                if (gemm_threads != prev_threads) openblas_set_num_threads(gemm_threads);
                 if constexpr (std::is_same_v<T, double>) {
-                    // GEMM scales well with threads, while small LAPACK
-                    // factorizations (invert/determinant) do not, so we keep the
-                    // global OpenBLAS default low and bump it here only for the
-                    // matmul GEMM, then restore. The bump is capped to the number
-                    // of hardware threads: asking for 20 threads on a small vCPU
-                    // runner (macOS CI exposes 3) made OpenBLAS grow its pthread
-                    // pool at runtime, which deadlocked. We also skip the set call
-                    // entirely when the target already equals the current count, so
-                    // no pool reconfiguration happens on machines where the global
-                    // default already matches the hardware thread count.
-                    const int prev_threads = openblas_get_num_threads();
-                    unsigned hw_threads = std::thread::hardware_concurrency();
-                    if (hw_threads == 0) hw_threads = 1;
-                    const int gemm_threads = static_cast<int>(hw_threads > 20u ? 20u : hw_threads);
-                    if (gemm_threads != prev_threads) {
-                        openblas_set_num_threads(gemm_threads);
-                    }
                     cblas_dgemm(
                         CblasRowMajor,
                         t_a ? CblasTrans : CblasNoTrans,
@@ -301,9 +311,6 @@ namespace {
                         b_data, ldb,
                         0.0, c_data, ldc
                     );
-                    if (gemm_threads != prev_threads) {
-                        openblas_set_num_threads(prev_threads);
-                    }
                 } else {
                     cblas_sgemm(
                         CblasRowMajor,
@@ -315,6 +322,7 @@ namespace {
                         0.0f, c_data, ldc
                     );
                 }
+                if (gemm_threads != prev_threads) openblas_set_num_threads(prev_threads);
 
                 c_dense->set_scalar(compose_factors(a_dense->get_scalar(), b_dense->get_scalar()));
                 return true;

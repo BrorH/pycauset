@@ -69,3 +69,35 @@ def test_file_backed_operand_is_reported(tmp_path):
 def test_the_threshold_knob_that_controlled_nothing_is_gone():
     assert not hasattr(pc, "set_io_streaming_threshold")
     assert not hasattr(pc, "get_io_streaming_threshold")
+
+
+def test_3_8_C12_traces_of_other_threads_are_kept():
+    """Review 3.8 C-12: one depth counter for the process dropped every trace of another thread
+    while a traced call ran."""
+    import threading
+
+    big = pc.matrix(np.ones((600, 600)))
+    pc.clear_io_traces()
+    done = threading.Event()
+
+    def worker():
+        for _ in range(5):
+            pc.matmul(big, big)
+        done.set()
+
+    t = threading.Thread(target=worker)
+    t.start()
+    v = pc.matrix(np.eye(3))
+    pc.trace(v)  # at least one call while the worker runs
+    while not done.is_set():
+        pc.trace(v)
+    t.join()
+    assert pc.last_io_trace("trace") is not None
+    assert pc.last_io_trace("matmul") is not None
+
+
+def test_3_8_C8_star_import_keeps_the_builtins():
+    """Review 3.8 C-8: `from pycauset import *` replaced the builtin bool with the string "bool"."""
+    ns: dict = {}
+    exec("from pycauset import *", ns)
+    assert ns.get("bool", bool) is bool

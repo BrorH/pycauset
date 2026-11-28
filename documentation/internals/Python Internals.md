@@ -19,7 +19,7 @@ Nothing in `_internal/` should be treated as a public API.
 
 | Module | Owns |
 |---|---|
-| `native.py`, `native_setup.py` | importing the extension (Windows DLL paths); the OpenBLAS thread default |
+| `native.py` | importing the extension (Windows DLL paths); the thread budget is the engine's (`ParallelUtils`, `init_thread_budget`) |
 | `runtime.py` | backing-directory roots and temporary-file cleanup at exit |
 | `ops.py` | the glue of the linear algebra entry points (`solve`, `lstsq`, `pinv`, `norm`, ...), each traced for `last_io_trace` |
 | `matrix_api.py`, `factories.py`, `coercion.py`, `dtypes.py` | constructing matrices and vectors from data, dtype tokens |
