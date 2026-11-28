@@ -86,11 +86,11 @@ void fill_rows(const Src& m, const MatrixBase& a, bool anti, uint64_t i0, uint64
 
 // Can the class's typed `get` read a? Dense `get` honours windows and transposition; the
 // other classes' `get` (and the bit specialisation's) honour transposition, not windows:
-// their windows read virtually. A lazy closure computes on read (virtual path).
+// their windows read virtually.
 bool typed_readable(const MatrixBase& a) {
     const Structure st = a.get_structure();
     if (a.is_subview() && (st != Structure::DENSE || a.get_data_type() == DataType::BIT)) return false;
-    return dynamic_cast<const BitClosureMatrix*>(&a) == nullptr;
+    return true;  // lazy closures read through their own typed get (and in bulk, RawRows.hpp)
 }
 
 template <typename W>

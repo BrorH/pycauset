@@ -18,6 +18,7 @@
 #include <type_traits>
 
 #include "pycauset/core/Float16.hpp"
+#include "pycauset/matrix/BitClosureMatrix.hpp"
 #include "pycauset/matrix/ComplexFloat16Matrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
@@ -30,7 +31,9 @@ namespace pycauset {
 
 template <typename T, typename Src>
 inline constexpr bool has_raw_rows_v =
-    std::is_same_v<Src, ComplexFloat16Matrix>
+    std::is_same_v<Src, BitClosureMatrix>
+        ? std::is_same_v<T, int32_t>  // C + C^T / C - C^T over causal bits, read as int32
+        : std::is_same_v<Src, ComplexFloat16Matrix>
         ? std::is_same_v<T, std::complex<double>>  // its get() widens the two float16 planes
         : std::is_same_v<T, bool>
         ? (std::is_same_v<Src, DenseMatrix<bool>> || std::is_same_v<Src, TriangularMatrix<bool>>)
@@ -110,7 +113,28 @@ bool raw_rows(const Src& m, uint64_t i0, uint64_t i1, T* __restrict dst) {
     } else {
         const uint64_t cols = m.cols();
         const uint64_t nr = i1 - i0;
-        if constexpr (std::is_same_v<Src, ComplexFloat16Matrix>) {
+        if constexpr (std::is_same_v<Src, BitClosureMatrix>) {
+            // (i, j) = C(i, j) + sign * C(j, i) from C's strict upper bits, as get() (no view).
+            const auto& c = m.bits();
+            if (m.is_materialized() || m.is_subview() || c.is_transposed() || c.has_diagonal()) return false;
+            const auto* bytes = static_cast<const uint8_t*>(c.shared_mapper()->get_data());
+            auto srow = [&](uint64_t r) { return reinterpret_cast<const uint64_t*>(bytes + c.get_row_offset(r)); };
+            const T sg = static_cast<T>(m.sign());
+            std::fill(dst, dst + nr * cols, T(0));
+            for (uint64_t i = i0; i < i1; ++i) {  // upper part: row i's own bits (columns > i)
+                const uint64_t len = c.row_bits(i);
+                if (!len) continue;
+                const uint64_t* w = srow(i);
+                T* out = dst + (i - i0) * cols + (i + 1);
+                for (uint64_t b = 0; b < len; ++b) out[b] = bit_at(w, b) ? T(1) : T(0);
+            }
+            for (uint64_t j = 0; j < std::min(i1, cols); ++j) {  // lower part: column i of row j
+                const uint64_t* w = srow(j);
+                for (uint64_t i = std::max(i0, j + 1); i < i1; ++i)
+                    if (bit_at(w, i - (j + 1))) dst[(i - i0) * cols + j] = sg;
+            }
+            return true;
+        } else if constexpr (std::is_same_v<Src, ComplexFloat16Matrix>) {
             // Split real / imaginary float16 planes (no windows: the class has none).
             const pycauset::float16_t* re = m.real_data();
             const pycauset::float16_t* im = m.imag_data();

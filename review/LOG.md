@@ -715,3 +715,8 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   typed tile path and write a complex32 result straight from the complex64 computation (no
   complex128 copy): 1024 c16 + (1+1j) 12 -> 3.6 ms (NumPy has no complex32; complex64 0.7 ms,
   the float16 conversions are the floor without F16C). Atlas 0 wrong.
+- Lazy closures (`C + C.T`, `C - C.T` over causal bits) get a bulk reader (int32 rows from C's
+  bits: row i's own bits above the diagonal, column i of the rows above it below), and the typed
+  row reader no longer sends them to the per-element accessor: the atlas's generic
+  per-element cells 190 -> 6 (all were closures). Atlas 0 wrong. C++ core library: no warnings
+  under -Wall -Wextra (unused parameters aside), GCC 13.
