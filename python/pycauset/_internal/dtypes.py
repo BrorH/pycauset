@@ -66,7 +66,8 @@ def normalize_dtype(dtype: Any, *, np_module: Any | None) -> str | None:
     or None.
 
     Accepted inputs include:
-    - Case-insensitive strings: "int16", "INT16", "f32", "bool_", "bit", ...
+    - Case-insensitive PyCauset names and aliases: "int16", "INT16", "bool_", "bit", "half",
+      "complex16", ...; NumPy's type codes ("f4", "<i8", ...) as NumPy reads them
     - Python builtins: int, float, bool
     - NumPy dtypes/scalars: np.int16, np.dtype("int16"), np.float32, ...
     """

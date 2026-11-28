@@ -40,8 +40,8 @@ The `k` eigenvalues of largest magnitude, computed with a restarted Krylov metho
 ## Example
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 rng = np.random.default_rng(0)
 a = rng.standard_normal((300, 300))

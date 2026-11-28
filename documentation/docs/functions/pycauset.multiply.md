@@ -16,8 +16,8 @@ for the broadcasting rules.
 ## Example
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 A = pc.matrix(np.arange(6.0).reshape(2, 3))
 np.testing.assert_array_equal(np.asarray(pc.multiply(A, np.ones(3))), np.multiply(np.arange(6.0).reshape(2, 3), np.ones(3)))

@@ -14,8 +14,8 @@ The matrix inverse is [[docs/functions/pycauset.inv.md|pycauset.inv]] (NumPy's `
 ## Example
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 C = pc.causal_matrix(np.triu(np.ones((3, 3), bool), 1))
 np.testing.assert_array_equal(np.asarray(pc.invert(C)), np.invert(np.asarray(C)))

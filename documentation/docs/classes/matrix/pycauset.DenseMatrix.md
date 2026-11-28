@@ -26,8 +26,8 @@ Everything in [[docs/classes/matrix/pycauset.MatrixBase.md|MatrixBase]], plus:
 ## Example
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 A = pc.DenseMatrix(2, 3, dtype="uint8")
 A[1, 2] = 255

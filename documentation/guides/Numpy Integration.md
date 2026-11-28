@@ -27,8 +27,8 @@ A byte-swapped, unaligned or odd-strided array (a struct field, `'>f8'`) is firs
 one NumPy copy.
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 # Convert 1D NumPy array to Vector
 arr_1d = np.array([1.0, 2.0, 3.0])
@@ -60,8 +60,8 @@ matrices: they raise `TypeError` rather than silently pulling a possibly huge ma
 RAM. Use PyCauset's own operators and functions, or convert explicitly:
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 A = pc.matrix(np.random.rand(100, 100))
 B = pc.matrix(np.sin(pc.to_numpy(A)))   # explicit, in RAM

@@ -17,8 +17,8 @@ Singular value decomposition `a = U @ diag(S) @ Vh`, as NumPy's `linalg.svd`: LA
 ## Example
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 a = np.arange(6.0).reshape(2, 3)
 U, S, Vh = pc.svd(pc.matrix(a), full_matrices=False)

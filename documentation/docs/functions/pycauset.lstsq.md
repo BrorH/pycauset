@@ -31,8 +31,8 @@ $$
 ## Example
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 a = np.array([[1.0, 0.0], [1.0, 1.0], [1.0, 2.0]])
 b = np.array([1.0, 2.0, 2.0])

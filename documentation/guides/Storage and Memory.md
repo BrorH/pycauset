@@ -176,8 +176,8 @@ and PyCauset cannot see a file's payload edited by other tools (e.g. `np.memmap`
 `.pycauset` file): after such an edit, load it with a fresh build or recompute.
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 A = pc.matrix(np.random.default_rng(0).standard_normal((300, 300)))
 d1 = pc.determinant(A)   # computed

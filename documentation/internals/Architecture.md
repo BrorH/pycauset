@@ -93,9 +93,13 @@ owner (views share the storage). `pc.save` writes a single-file `.pycauset` cont
 
 ## Python layer
 
-`__init__.py` defines every public name (thin: argument checks, then the engine) and
-adds Python conveniences to the native classes (`repr` / `str` in `_internal/formatting.py`,
-factories). `_internal/ops.py` holds the linear-algebra glue, `persistence.py` the
+`__init__.py` is the public module. It defines the Python functions (thin: the array-like
+rule `ops._import_operand`, argument checks, then the engine); every other non-underscore native
+name reaches users through its `__getattr__` and `__all__`. At import it also:
+- patches the native classes: `repr` / `str` (`_internal/formatting.py`), `__array__` through
+  the export guard, `__array_ufunc__ = None`, pickling, `.dtype` as a `DType`, and the debug
+  wrapper on `@`;
+- fixes the storage root and sweeps it. `_internal/ops.py` holds the linear-algebra glue, `persistence.py` the
 container, `blockmatrix.py` / `thunks.py` the Python-level block matrices
 ([[internals/Block Matrices|Block Matrices]]). The causal-set layer (`CausalSet`, the
 Minkowski diamond, synthetic orders, plots) is built on the engine: a `CausalSet` is a bit

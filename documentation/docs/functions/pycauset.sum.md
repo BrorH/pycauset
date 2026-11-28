@@ -30,8 +30,8 @@ Notes:
 ## Examples
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 v = pc.vector(np.array([1.0, 2.0, 3.0], dtype=np.float64), dtype="float64")
 assert pc.sum(v) == 6.0

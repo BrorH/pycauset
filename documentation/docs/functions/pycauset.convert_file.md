@@ -15,7 +15,6 @@ Convert between PyCauset snapshots and NumPy container formats.
 ## Exceptions / warnings
 
 - `ValueError` if source or destination format is not one of `.pycauset`, `.npy`, `.npz` (or cannot be inferred from the suffix).
-- `RuntimeError` if NumPy is unavailable when exporting to `.npy`/`.npz`.
 - Size guard: an export to a NumPy format that would not fit in free RAM (or exceeds the `set_export_max_bytes` ceiling) raises unless `allow_huge=True`.
 
 ## Parameters
@@ -34,8 +33,8 @@ Convert between PyCauset snapshots and NumPy container formats.
 ## Examples
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 pc.save(pc.matrix([[1.0, 2.0], [3.0, 4.0]]), "A.pycauset")
 # Snapshot (.pycauset) -> NumPy .npy -> snapshot

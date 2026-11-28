@@ -35,8 +35,8 @@ Matrix cases route through `pycauset.matmul`.
 ## Examples
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 v = pc.vector([1.0, 2.0, 3.0])
 assert pc.dot(v, v) == 14.0

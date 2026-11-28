@@ -45,8 +45,8 @@ When mixing a matrix with a **1D NumPy array** in an elementwise operation, the 
 ## Examples
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 A = pc.zeros((3, 4), dtype="float64")
 row = np.arange(4, dtype=np.float64)

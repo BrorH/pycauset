@@ -15,7 +15,7 @@ Saves a PyCauset matrix or vector to a NumPy `.npy` file.
 
 ## Returns
 
-The resolved `Path` of the written file.
+The `Path` of the written file: exactly `path` (no `.npy` is added, unlike `numpy.save`).
 
 ## See also
 

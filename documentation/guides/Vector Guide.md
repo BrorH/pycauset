@@ -46,8 +46,8 @@ v3 = pc.vector([True, False, True, True])
 If you already have a `numpy.ndarray` and want an explicitly-typed PyCauset vector, most concrete vector classes support a direct NumPy constructor.
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 v64 = pc.vector(np.array([1.0, 2.0, 3.0], dtype=np.float64), dtype="float64")
 v32 = pc.vector(np.array([1.0, 2.0, 3.0], dtype=np.float32), dtype="float32")

@@ -268,7 +268,7 @@ def _byte_count(limit: Any, what: str) -> int:
 
 def set_memory_threshold(limit: int | None) -> int:
     """Objects up to `limit` bytes live in RAM, larger ones are file-backed; `None` restores
-    the default (1 GiB). Returns the threshold now in effect."""
+    the threshold in effect at import (the engine's default). Returns the threshold now in effect."""
     target = _DEFAULT_MEMORY_THRESHOLD if limit is None else _byte_count(limit, "set_memory_threshold")
     _native.set_memory_threshold(target)
     _debug(f"set_memory_threshold -> {target} bytes")
@@ -588,7 +588,7 @@ def vector(
     """Create a 1D vector from vector-like input.
 
     NumPy alignment: this is a data constructor. Use `zeros/ones/empty` for allocation.
-    The optional max_in_ram_bytes routes NumPy inputs through native-backed asarray when set.
+    `max_in_ram_bytes`: a vector larger than this goes to a file (vector.md).
     """
     max_in_ram_bytes = kwargs.pop("max_in_ram_bytes", max_in_ram_bytes)
     if _is_scalar_0d(source):

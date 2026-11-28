@@ -22,8 +22,8 @@ upper triangular matrix is a `TriangularMatrix`, of a diagonal matrix a `Diagona
 ## Example
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 A = pc.matrix([[4.0, 7.0], [2.0, 6.0]])
 np.testing.assert_allclose(np.asarray(pc.inv(A)), [[0.6, -0.7], [-0.2, 0.4]])

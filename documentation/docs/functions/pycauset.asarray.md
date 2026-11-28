@@ -42,8 +42,8 @@ Other NumPy dtypes map to the corresponding native class (e.g. `float32` →
 ## Examples
 
 ```python
-import numpy as np
 import pycauset as pc
+import numpy as np
 
 arr = np.arange(6).reshape(2, 3)   # int64 2D
 M = pc.asarray(arr)
