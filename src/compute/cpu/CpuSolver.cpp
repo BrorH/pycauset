@@ -107,18 +107,55 @@ double CpuSolver::dot(const VectorBase& a, const VectorBase& b) {
     auto* a_dbl = dynamic_cast<const DenseVector<double>*>(&a);
     auto* b_dbl = dynamic_cast<const DenseVector<double>*>(&b);
 
-    if (a_dbl && b_dbl) {
-        // BLAS ddot: the former OpenMP reduction cost ~8 ms for 1M elements (thread-team
-        // start-up next to OpenBLAS's own pool); ddot ~0.1 ms. View factors multiply in.
+    // Dense float64 / float32: fixed blocks of eight-accumulator sums in double, combined in
+    // block order, so the result does not depend on the thread count (BLAS ddot splits across
+    // its own threads, review 3.4 C-11) and no length goes through an int (BLAS lengths: a dot of
+    // 2^31 elements gave 0, C-12). The view factors multiply each value, as NumPy's dot of the
+    // scaled vectors (a factor applied to the sum overflowed where the values did not).
+    auto dense_dot = [&](const auto* x, const auto* y) -> double {
+        const double fa = a.get_scalar().real(), fb = b.get_scalar().real();
+        // OpenBLAS runs a ?dot of at most 10,000 elements on one thread: 8,192-element blocks
+        // are deterministic, the pool runs them, and BLAS has the AVX2 / FMA kernels.
+        constexpr uint64_t kBlock = 8192;
+        const uint64_t blocks = (n + kBlock - 1) / kBlock;
+        std::vector<double> part(blocks, 0.0);
+        const auto* __restrict xp = x;
+        const auto* __restrict yp = y;
+        using E = std::remove_cv_t<std::remove_pointer_t<decltype(x)>>;
+        ParallelFor(0, blocks, [&](size_t blk) {
+            const uint64_t lo = static_cast<uint64_t>(blk) * kBlock, hi = std::min(n, lo + kBlock);
+            if (fa == 1.0 && fb == 1.0) {
+                const int len = static_cast<int>(hi - lo);
+                if constexpr (std::is_same_v<E, double>) part[blk] = cblas_ddot(len, xp + lo, 1, yp + lo, 1);
+                else part[blk] = cblas_dsdot(len, xp + lo, 1, yp + lo, 1);
+                return;
+            }
+            auto prod = [&](uint64_t i) { return (fa * static_cast<double>(xp[i])) * (fb * static_cast<double>(yp[i])); };
+            const uint64_t quads = (hi - lo) / 4;
+            double a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+#pragma omp simd reduction(+ : a0, a1, a2, a3)
+            for (uint64_t q = 0; q < quads; ++q) {
+                a0 += prod(lo + 4 * q);
+                a1 += prod(lo + 4 * q + 1);
+                a2 += prod(lo + 4 * q + 2);
+                a3 += prod(lo + 4 * q + 3);
+            }
+            for (uint64_t i = lo + 4 * quads; i < hi; ++i) a0 += prod(i);
+            part[blk] = (a0 + a1) + (a2 + a3);
+        });
+        double sum = 0.0;
+        for (double q : part) sum += q;
+        return sum;
+    };
+    if (a_dbl && b_dbl && a.get_scalar().imag() == 0.0 && b.get_scalar().imag() == 0.0) {
         debug_trace::set_last("cpu.dot.f64");
-        const double s = cblas_ddot(static_cast<int>(n), a_dbl->data(), 1, b_dbl->data(), 1);
-        return s * (a.get_scalar() * b.get_scalar()).real();
+        return dense_dot(a_dbl->data(), b_dbl->data());
     }
     if (auto* a_f = dynamic_cast<const DenseVector<float>*>(&a)) {
-        if (auto* b_f = dynamic_cast<const DenseVector<float>*>(&b)) {
+        if (auto* b_f = dynamic_cast<const DenseVector<float>*>(&b);
+            b_f && a.get_scalar().imag() == 0.0 && b.get_scalar().imag() == 0.0) {
             debug_trace::set_last("cpu.dot.f32");
-            const double s = cblas_dsdot(static_cast<int>(n), a_f->data(), 1, b_f->data(), 1);
-            return s * (a.get_scalar() * b.get_scalar()).real();
+            return dense_dot(a_f->data(), b_f->data());
         }
     }
     
@@ -173,13 +210,21 @@ std::complex<double> CpuSolver::dot_complex(const VectorBase& a, const VectorBas
         auto run = [&](auto* x, auto* y, auto dotu, auto dotc) -> std::optional<std::complex<double>> {
             if (!x || !y) return std::nullopt;
             using C = std::remove_cv_t<std::remove_pointer_t<decltype(x->data())>>;
-            C r;
-            const int len = static_cast<int>(n);
-            if (!ca && !cb) dotu(len, x->data(), 1, y->data(), 1, &r);
-            else if (ca && !cb) dotc(len, x->data(), 1, y->data(), 1, &r);
-            else if (!ca && cb) dotc(len, y->data(), 1, x->data(), 1, &r);
-            else { dotu(len, x->data(), 1, y->data(), 1, &r); r = std::conj(r); }
-            return std::complex<double>(r.real(), r.imag());
+            // BLAS lengths are int (LP64): chunks below 2^31 (review 3.4 C-12).
+            constexpr uint64_t kChunk = uint64_t{1} << 30;
+            std::complex<double> total{0.0, 0.0};
+            for (uint64_t lo = 0; lo < n; lo += kChunk) {
+                const int len = static_cast<int>(std::min(n - lo, kChunk));
+                const C* xp = x->data() + lo;
+                const C* yp = y->data() + lo;
+                C r;
+                if (!ca && !cb) dotu(len, xp, 1, yp, 1, &r);
+                else if (ca && !cb) dotc(len, xp, 1, yp, 1, &r);
+                else if (!ca && cb) dotc(len, yp, 1, xp, 1, &r);
+                else { dotu(len, xp, 1, yp, 1, &r); r = std::conj(r); }
+                total += std::complex<double>(r.real(), r.imag());
+            }
+            return total;
         };
         using Z = DenseVector<std::complex<double>>;
         using Cf = DenseVector<std::complex<float>>;
@@ -632,6 +677,65 @@ double block_sum(uint64_t rows, uint64_t cols, F&& f) {
 // do not change it and a factor f scales it by |f|, except integer storage with an integer
 // factor, where NumPy wraps each element first. One class dispatch, typed reads; plain
 // contiguous float32/float64 storage sums squares with BLAS dot in fixed blocks.
+namespace {
+// sum (k |x|)^2 of len stored values, eight accumulators (one would serialise on the add) in a
+// fixed order: the same result for any thread count (BLAS ddot splits a block across its own
+// threads, review 3.4 C-11). The view factor k multiplies each value before squaring, as NumPy
+// takes the norm of the scaled values (k * sqrt(sum x^2) overflowed: norm(A * 1e-100) with
+// A = 1e200 was inf, review 3.4 C-7).
+// (omp simd over four interleaved accumulators: the vector order is fixed at compile time, so
+// the result is the same for any thread count; one accumulator ran at the add latency, and a
+// plain loop does not vectorise a reduction.)
+template <typename T>
+double sum_squares(const T* __restrict p, uint64_t len, double k) {
+    auto sq = [k](const T& v) {
+        if constexpr (is_std_complex_v<T>) {
+            const double re = k * static_cast<double>(v.real()), im = k * static_cast<double>(v.imag());
+            return re * re + im * im;
+        } else {
+            const double x = k * static_cast<double>(v);
+            return x * x;
+        }
+    };
+    const uint64_t quads = len / 4;
+    double a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+#pragma omp simd reduction(+ : a0, a1, a2, a3)
+    for (uint64_t q = 0; q < quads; ++q) {
+        a0 += sq(p[4 * q]);
+        a1 += sq(p[4 * q + 1]);
+        a2 += sq(p[4 * q + 2]);
+        a3 += sq(p[4 * q + 3]);
+    }
+    for (uint64_t i = 4 * quads; i < len; ++i) a0 += sq(p[i]);
+    return (a0 + a1) + (a2 + a3);
+}
+
+// Blocks of the norm and dot: OpenBLAS runs a ?dot of at most 10,000 elements on one thread,
+// so a block's BLAS result is the same for any thread count; the pool runs the blocks.
+constexpr uint64_t kDotBlock = 8192;
+
+// sum |x|^2 of an unscaled block: BLAS (runtime-dispatched AVX2 / FMA kernels; the engine
+// itself is built for the baseline ISA). Other element types: the loop above.
+template <typename T>
+double block_sum_squares(const T* p, uint64_t len, double k) {
+    const int n = static_cast<int>(len);  // len <= kDotBlock
+    if (k == 1.0) {
+        if constexpr (std::is_same_v<T, double>) return cblas_ddot(n, p, 1, p, 1);
+        else if constexpr (std::is_same_v<T, float>) return cblas_dsdot(n, p, 1, p, 1);
+        else if constexpr (std::is_same_v<T, std::complex<double>>) {
+            T r;
+            cblas_zdotc_sub(n, p, 1, p, 1, &r);
+            return r.real();
+        } else if constexpr (std::is_same_v<T, std::complex<float>>) {
+            T r;
+            cblas_cdotc_sub(n, p, 1, p, 1, &r);
+            return static_cast<double>(r.real());
+        }
+    }
+    return sum_squares<T>(p, len, k);
+}
+}  // namespace
+
 double CpuSolver::frobenius_norm(const MatrixBase& m) {
     const uint64_t rows = m.rows(), cols = m.cols();
     if (rows == 0 || cols == 0) return 0.0;
@@ -650,77 +754,25 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
                 }));
             }
         }
-        const double af = std::abs(f);
+        const double af = std::abs(f);  // |f x| = |f| |x|: conjugation and the sign do not matter
         // The Frobenius norm is the same for A, A^T and conj(A): any dense matrix that is not
         // a window is its whole storage (a transposed view took the per-element path, 0.03x).
         const bool whole = !typed.is_subview() && rows * cols == typed.base_rows() * typed.base_cols();
-        if constexpr (std::is_same_v<M, DenseMatrix<double>> || std::is_same_v<M, DenseMatrix<float>>) {
-            if (whole) {
-                debug_trace::set_last("cpu.norm.blas");
-                const T* p = typed.data();
-                const uint64_t total = rows * cols;
-                constexpr uint64_t kBlock = 1u << 16;
-                const uint64_t blocks = (total + kBlock - 1) / kBlock;
-                std::vector<double> part(blocks, 0.0);
-                ParallelFor(0, blocks, [&](size_t blk) {
-                    const uint64_t lo = static_cast<uint64_t>(blk) * kBlock;
-                    const int len = static_cast<int>(std::min(total, lo + kBlock) - lo);
-                    if constexpr (std::is_same_v<T, double>) part[blk] = cblas_ddot(len, p + lo, 1, p + lo, 1);
-                    else part[blk] = cblas_dsdot(len, p + lo, 1, p + lo, 1);
-                });
-                double sum = 0.0;
-                for (double q : part) sum += q;
-                return af * std::sqrt(sum);
-            }
-        }
-        if constexpr (std::is_same_v<M, DenseMatrix<std::complex<double>>> || std::is_same_v<M, DenseMatrix<std::complex<float>>>) {
-            if (whole) {  // sum |z|^2 = Re(z^H z): BLAS ?dotc per block
-                debug_trace::set_last("cpu.norm.blas_complex");
-                const T* p = typed.data();
-                const uint64_t total = rows * cols;
-                constexpr uint64_t kBlock = 1u << 16;
-                const uint64_t blocks = (total + kBlock - 1) / kBlock;
-                std::vector<double> part(blocks, 0.0);
-                ParallelFor(0, blocks, [&](size_t blk) {
-                    const uint64_t lo = static_cast<uint64_t>(blk) * kBlock;
-                    const int len = static_cast<int>(std::min(total, lo + kBlock) - lo);
-                    T r;
-                    if constexpr (std::is_same_v<T, std::complex<double>>) cblas_zdotc_sub(len, p + lo, 1, p + lo, 1, &r);
-                    else cblas_cdotc_sub(len, p + lo, 1, p + lo, 1, &r);
-                    part[blk] = static_cast<double>(r.real());
-                });
-                double sum = 0.0;
-                for (double q : part) sum += q;
-                return af * std::sqrt(sum);
-            }
-        }
         if constexpr (std::is_same_v<M, DenseMatrix<T>> && !std::is_same_v<T, bool> &&
                       !std::is_same_v<T, pycauset::float16_t>) {
-            if (whole) {  // other dense dtypes: one contiguous pass over the storage
+            if (whole) {  // one contiguous pass over the storage, fixed blocks
                 debug_trace::set_last("cpu.norm.dense");
                 const T* p = typed.data();
                 const uint64_t total = rows * cols;
-                constexpr uint64_t kBlock = 1u << 16;
-                const uint64_t blocks = (total + kBlock - 1) / kBlock;
+                const uint64_t blocks = (total + kDotBlock - 1) / kDotBlock;
                 std::vector<double> part(blocks, 0.0);
                 ParallelFor(0, blocks, [&](size_t blk) {
-                    const uint64_t lo = static_cast<uint64_t>(blk) * kBlock, hi = std::min(total, lo + kBlock);
-                    const T* __restrict q = p;
-                    double acc = 0.0;
-                    for (uint64_t k = lo; k < hi; ++k) {
-                        if constexpr (is_std_complex_v<T>) {
-                            const double re = static_cast<double>(q[k].real()), im = static_cast<double>(q[k].imag());
-                            acc += re * re + im * im;
-                        } else {
-                            const double x = static_cast<double>(q[k]);
-                            acc += x * x;
-                        }
-                    }
-                    part[blk] = acc;
+                    const uint64_t lo = static_cast<uint64_t>(blk) * kDotBlock;
+                    part[blk] = block_sum_squares<T>(p + lo, std::min(total, lo + kDotBlock) - lo, af);
                 });
                 double sum = 0.0;
                 for (double q : part) sum += q;
-                return af * std::sqrt(sum);
+                return std::sqrt(sum);
             }
         }
         // Structured, transposed-window and bit storage: stored values in bulk, a tile of rows
@@ -734,31 +786,18 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
                 const uint64_t r0 = t * tile, r1 = std::min(rows, r0 + tile);
                 std::unique_ptr<T[]> raw(new T[(r1 - r0) * cols]);
                 if (!raw_rows<T>(typed, r0, r1, raw.get())) { ok = false; return; }
-                const T* __restrict q = raw.get();
-                const uint64_t len = (r1 - r0) * cols;
-                double a0 = 0, a1 = 0;
-                for (uint64_t k = 0; k < len; ++k) {
-                    if constexpr (is_std_complex_v<T>) {
-                        const double re = static_cast<double>(q[k].real()), im = static_cast<double>(q[k].imag());
-                        a0 += re * re;
-                        a1 += im * im;
-                    } else {
-                        const double x = static_cast<double>(q[k]);
-                        a0 += x * x;
-                    }
-                }
-                part[t] = a0 + a1;
+                part[t] = sum_squares<T>(raw.get(), (r1 - r0) * cols, af);
             });
             if (ok) {
                 debug_trace::set_last("cpu.norm.bulk");
                 double sum = 0.0;
                 for (double q : part) sum += q;
-                return af * std::sqrt(sum);
+                return std::sqrt(sum);
             }
         }
-        debug_trace::set_last("cpu.norm.typed");
-        return af * std::sqrt(block_sum(rows, cols, [&](uint64_t i, uint64_t j) {
-            return std::norm(scalar::to_complex_double(typed.get(i, j)));
+        debug_trace::set_last("cpu.norm.typed");  // typed get() is the stored value: scale it
+        return std::sqrt(block_sum(rows, cols, [&](uint64_t i, uint64_t j) {
+            return std::norm(af * scalar::to_complex_double(typed.get(i, j)));
         }));
     });
 }
@@ -798,15 +837,22 @@ bool svd_dense(const MatrixBase& in, MatrixBase& U, VectorBase& S, MatrixBase& V
     if (!A || !u || !vt || !s) return false;
     debug_trace::set_last("cpu.svd.gesdd");
     const uint64_t m = in.rows(), n = in.cols();
+    if (m == 0 || n == 0) {
+        // No singular values; the square factors of full_matrices=True are identities, as in
+        // NumPy (job 'N' left them zero, review 3.4 C-10).
+        if (U.cols() == m) for (uint64_t i = 0; i < m; ++i) u->data()[i * m + i] = T(1);
+        if (VT.rows() == n) for (uint64_t i = 0; i < n; ++i) vt->data()[i * n + i] = T(1);
+        return true;
+    }
     std::vector<T> a(A->data(), A->data() + m * n);  // gesdd destroys its input
-    // U's shape says which: (m, m) is NumPy's full_matrices=True (job 'A'), (m, k) reduced ('S').
+    require_finite(a.data(), a.size(), "SVD did not converge");  // NumPy's message for NaN / inf
     // U's shape says which: (m, m) is NumPy's full_matrices=True (job 'A'), (m, k) reduced
     // ('S'), (m, 0) singular values only ('N').
     const char job = U.cols() == 0 ? 'N'
                    : (U.cols() == m && m != std::min(m, n)) || (VT.rows() == n && n != std::min(m, n)) ? 'A' : 'S';
     const lapack_int info = gesdd_transposed<T>(job, (lapack_int)m, (lapack_int)n, a.data(), s->data(), u->data(),
                                                 std::max<lapack_int>(1, (lapack_int)U.cols()), vt->data());
-    if (info > 0) throw std::runtime_error("SVD did not converge");
+    if (info > 0) throw pycauset::linalg_error("SVD did not converge");
     if (info < 0) throw std::runtime_error("SVD: illegal argument to gesdd");
     return true;
 }
@@ -901,6 +947,8 @@ bool lstsq_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
         for (uint64_t j = 0; j < n; ++j) ac[j * m + i] = ap[i * n + j];
     for (uint64_t i = 0; i < m; ++i)
         for (uint64_t c = 0; c < k; ++c) bc[c * ldb + i] = bp[i * k + c];
+    require_finite(ac.data(), ac.size(), "SVD did not converge in Linear Least Squares");  // NumPy's
+    require_finite(bc.data(), bc.size(), "SVD did not converge in Linear Least Squares");
     std::vector<R> s(std::min(m, n));
     const R rcond = std::numeric_limits<R>::epsilon() * static_cast<R>(std::max(m, n));
     lapack_int rank = 0, info = 0;
@@ -910,7 +958,7 @@ bool lstsq_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
     else if constexpr (std::is_same_v<T, float>) info = LAPACKE_sgelsd(LAPACK_COL_MAJOR, M, N, K, ac.data(), M, bc.data(), LDB, s.data(), rcond, &rank);
     else if constexpr (std::is_same_v<T, std::complex<double>>) info = LAPACKE_zgelsd(LAPACK_COL_MAJOR, M, N, K, ac.data(), M, bc.data(), LDB, s.data(), rcond, &rank);
     else info = LAPACKE_cgelsd(LAPACK_COL_MAJOR, M, N, K, ac.data(), M, bc.data(), LDB, s.data(), rcond, &rank);
-    if (info > 0) throw std::runtime_error("lstsq: SVD did not converge");
+    if (info > 0) throw pycauset::linalg_error("SVD did not converge in Linear Least Squares");
     if (info < 0) throw std::runtime_error("lstsq: illegal argument to gelsd");
     for (uint64_t i = 0; i < n; ++i)
         for (uint64_t c = 0; c < k; ++c) xp[i * k + c] = bc[c * ldb + i];

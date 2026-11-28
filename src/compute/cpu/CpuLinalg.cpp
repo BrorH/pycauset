@@ -141,6 +141,7 @@ bool eig_t(const MatrixBase& in, VectorBase& w, MatrixBase* v) {
     const char jobvr = v ? 'V' : 'N';
     const lapack_int ldvr = v ? n : 1;
     lapack_int info = 0;
+    require_finite(a.data(), a.size(), "Array must not contain infs or NaNs");  // NumPy's eig message
     debug_trace::set_last(v ? "cpu.eig.geev" : "cpu.eigvals.geev");
     if constexpr (is_cplx_v<T>) {
         if constexpr (std::is_same_v<T, std::complex<float>>)
@@ -177,7 +178,7 @@ bool eig_t(const MatrixBase& in, VectorBase& w, MatrixBase* v) {
             }
         }
     }
-    if (info > 0) throw std::runtime_error("eig: eigenvalues did not converge");
+    if (info > 0) throw linalg_error("Eigenvalues did not converge");
     if (info < 0) throw std::runtime_error("eig: illegal argument to ?geev");
     return true;
 }

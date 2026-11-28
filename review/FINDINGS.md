@@ -1870,7 +1870,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-137 Area 3.4 (dispatch and CPU kernels): bit dot counts padding, fork hang, thread limits
 - **Status:** reviewed (session 9), 19 findings in `review/areas/3.4-dispatch-kernels.md`
-  (1 S1, 5 S2, 9 S3, 4 S4). C-1 to C-4, C-6 fixed; the rest open.
+  (1 S1, 5 S2, 9 S3, 4 S4). C-1 to C-4, C-6, C-7, C-9 to C-11 fixed, C-12 partly; the rest
+  open (C-5 GIL, C-8 float32 accumulation, C-13 to C-19).
   - C-1 (S1, fixed): the bit-vector dot counted the padding bits of the last word
     (`pc.dot(~u, ~u)` = 64 for n = 5); the last word is masked now.
   - C-2 (fixed): after `fork()` the first parallel kernel in the child hung (ThreadPool,
@@ -1882,9 +1883,11 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-5: no kernel releases the GIL.
   - C-6 (fixed): thread limits were overridden around every dgemm; one budget now
     (`set_num_threads` reaches OpenBLAS, the default follows the environment and affinity).
-  - S3 / S4: norm factor after the sum (overflow), float32 dot in double, NaN in eig / svd /
-    lstsq, empty SVD, int-cast BLAS lengths, forwarding layers (AutoSolver, CpuDevice),
-    per-dtype if-ladders, dead integer divide kernels, RUNPATHs into `build/cpp`.
+  - S3 / S4: norm factor after the sum (overflow; fixed), float32 dot in double, NaN in eig /
+    svd / lstsq (fixed: NumPy's LinAlgError, nothing printed), empty SVD (fixed), dot / norm
+    depending on the BLAS thread count (fixed: fixed blocks), int-cast BLAS lengths (dot
+    fixed), forwarding layers (AutoSolver, CpuDevice), per-dtype if-ladders, dead integer divide
+    kernels, RUNPATHs into `build/cpp`.
 
 ### F-138 Area 3.8 (Python facade): the temp sweep deleted users' files, double-scaled printing
 - **Status:** reviewed (session 9), 23 findings in `review/areas/3.8-python-facade.md`

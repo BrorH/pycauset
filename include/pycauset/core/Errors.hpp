@@ -1,6 +1,10 @@
 #pragma once
 
+#include <cmath>
+#include <complex>
+#include <cstddef>
 #include <stdexcept>
+#include <type_traits>
 
 namespace pycauset {
 
@@ -17,5 +21,18 @@ struct dtype_error : std::logic_error {
 struct linalg_error : std::domain_error {
     using std::domain_error::domain_error;
 };
+
+// LAPACK's ?gebal / ?lascl reject NaN through xerbla, which prints to stderr and returns an
+// "illegal argument" (review 3.4 C-9): the kernels that call them check first and raise with
+// NumPy's message.
+template <typename T>
+void require_finite(const T* p, std::size_t n, const char* numpy_message) {
+    for (std::size_t i = 0; i < n; ++i) {
+        bool ok;
+        if constexpr (std::is_arithmetic_v<T>) ok = std::isfinite(p[i]);
+        else ok = std::isfinite(p[i].real()) && std::isfinite(p[i].imag());
+        if (!ok) throw linalg_error(numpy_message);
+    }
+}
 
 }  // namespace pycauset

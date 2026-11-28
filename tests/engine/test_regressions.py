@@ -1368,3 +1368,68 @@ def test_3_4_C6_blas_threads_follow_the_budget():
     if out == ["skip"]:
         pytest.skip("no libopenblas.so.0 to query")
     assert out == ["1", "2", "2"]
+
+
+def test_3_4_C7_norm_and_dot_scale_each_value():
+    """Review 3.4 C-7: the norm applied the view factor after summing squares (inf for
+    norm(A * 1e-100), A = 1e200; NumPy 1e100); the dot did the same."""
+    m = np.array([[1e200, 0.0]])
+    assert pc.norm(pc.matrix(m) * 1e-100) == pytest.approx(np.linalg.norm(m * 1e-100))
+    assert pc.norm(pc.vector([1e200, 0.0]) * 1e-100) == pytest.approx(1e100)
+    assert pc.norm(pc.matrix(np.array([[1e-200]])) * 1e100) == pytest.approx(1e-100)
+    v = pc.vector([1e200, 1.0]) * 1e-100
+    assert pc.dot(v, v) == pytest.approx(1e200)
+
+
+@pytest.mark.parametrize("op,msg", [
+    (lambda a: pc.eigvals(a), "infs or NaNs"),
+    (lambda a: pc.eig(a), "infs or NaNs"),
+    (lambda a: pc.svd(a), "SVD did not converge"),
+    (lambda a: pc.lstsq(a, pc.matrix(np.ones((2, 1)))), "Linear Least Squares"),
+])
+def test_3_4_C9_nan_input_raises_numpys_linalgerror_quietly(op, msg, capfd):
+    """Review 3.4 C-9: NaN reached LAPACK's ?gebal / ?lascl, which printed to stderr and returned
+    an "illegal argument" RuntimeError."""
+    a = pc.matrix(np.array([[np.nan, 1.0], [1.0, 2.0]]))
+    with pytest.raises(np.linalg.LinAlgError, match=msg):
+        op(a)
+    assert capfd.readouterr().err == ""
+
+
+@pytest.mark.parametrize("shape", [(0, 3), (3, 0)])
+def test_3_4_C10_empty_svd_full_matrices_are_identities(shape):
+    a = np.zeros(shape)
+    u, s, vh = pc.svd(pc.matrix(a), full_matrices=True)
+    nu, ns, nvh = np.linalg.svd(a, full_matrices=True)
+    np.testing.assert_array_equal(np.asarray(u), nu)
+    np.testing.assert_array_equal(np.asarray(vh), nvh)
+    assert np.asarray(s).shape == ns.shape
+
+
+def test_3_4_C11_dot_and_norm_do_not_depend_on_the_thread_count():
+    """Review 3.4 C-11: BLAS ddot split a block across its own threads, so dot and norm changed
+    in the last digits with the thread count."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    code = (
+        "import sys, numpy as np, pycauset as pc\n"
+        "pc.set_num_threads(int(sys.argv[1]))\n"
+        "r = np.random.default_rng(0)\n"
+        "x = r.standard_normal(1_000_003) * 10.0 ** r.integers(-8, 8, 1_000_003)\n"
+        "v = pc.vector(x)\n"
+        "print(repr(pc.dot(v, v)), repr(pc.norm(v)), repr(pc.norm(pc.matrix(x[:1_000_000].reshape(1000, 1000)))))\n"
+    )
+    env = {**os.environ, "PYTHONPATH": str(Path(pc.__file__).parent.parent)}
+    outs = [subprocess.run([sys.executable, "-c", code, str(t)], env=env, check=True, capture_output=True,
+                           text=True).stdout for t in (1, 2, 3)]
+    assert outs[0] == outs[1] == outs[2]
+
+
+def test_3_4_C7_norm_of_scaled_views_of_every_path():
+    """The per-element factor must reach every norm path (the typed one too: float16, identity)."""
+    for m in (pc.matrix(np.ones((3, 3), np.float16)) * 3.0, pc.IdentityMatrix(3) * 3.0,
+              pc.matrix(np.arange(6.0).reshape(2, 3)).T * -2.0, pc.matrix(np.ones((2, 2), np.int8)) * 3):
+        assert pc.norm(m) == pytest.approx(np.linalg.norm(np.asarray(m).astype(np.float64)))
