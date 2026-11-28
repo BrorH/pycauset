@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <atomic>
+#include <optional>
+#include <string>
 
 namespace pycauset {
 namespace core {
@@ -15,6 +17,18 @@ namespace core {
  * into their operands' storage (F-120). No registry: the OS's available-RAM figure already
  * counts what PyCauset holds.
  */
+// Linux cgroup memory limit of this process: the tightest (limit, usage) pair over its cgroup
+// and the cgroups above it, v2 (memory.max / memory.current) or v1 (memory.limit_in_bytes /
+// memory.usage_in_bytes). None when there is no limit. Containers, Kubernetes and Slurm limit
+// memory this way while /proc/meminfo shows the host (review 3.1 C-11). The roots are
+// parameters for tests.
+struct CgroupMemory {
+    uint64_t limit;
+    uint64_t usage;
+};
+std::optional<CgroupMemory> read_cgroup_memory(const std::string& self_cgroup_file = "/proc/self/cgroup",
+                                               const std::string& cgroup_root = "/sys/fs/cgroup");
+
 class MemoryGovernor {
 public:
     static MemoryGovernor& instance();

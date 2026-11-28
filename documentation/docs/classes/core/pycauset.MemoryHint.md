@@ -4,11 +4,13 @@
 pycauset.MemoryHint
 ```
 
-A memory-access hint attached to a streaming operation.
+A memory-access hint for a file-backed object: the region and order in which its storage
+will be read, passed with `matrix.hint(h)`. The IO accelerator reads `Sequential` and
+`Strided` regions ahead (`madvise(MADV_WILLNEED)` / `PrefetchVirtualMemory`); the other
+patterns are accepted and do nothing yet. No engine operation issues hints itself today.
 
-The solver emits a hint describing the region and order in which a backing buffer
-will be read, so the IO accelerator can prefetch and discard ranges ahead of use
-(CCA lookahead).
+Build one with the static constructors `MemoryHint.sequential(start, len)` and
+`MemoryHint.strided(start, len, stride, block)`.
 
 ## Attributes
 
@@ -17,7 +19,6 @@ will be read, so the IO accelerator can prefetch and discard ranges ahead of use
 *   **pattern** (*pycauset.AccessPattern*): The declared access order.
 *   **block_bytes** (*int*): Block size for blocked access.
 *   **stride_bytes** (*int*): Stride between accesses when the pattern is strided.
-*   **sequential** / **strided** (*bool*): Convenience flags derived from the pattern.
 
 ## See also
 

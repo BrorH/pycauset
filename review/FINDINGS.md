@@ -1637,3 +1637,23 @@ the entry (the history is useful). New findings go at the bottom with the next f
     RAM), not in a never-deleted file because the source was a snapshot; `memcpy` of
     empty storage is skipped.
   - `test_F123_*`.
+
+### F-124 The RAM budget ignored cgroup limits (containers, Kubernetes, Slurm)
+- **Status:** fixed (session 9; area 3.1 review, C-11). The governor read only
+  `/proc/meminfo`, which shows the host. Under a container or batch-job memory limit it
+  put objects in RAM that the limit did not have, and the job was OOM-killed instead of
+  going to files. It now also reads the process's cgroup (v2 `memory.max` /
+  `memory.current`, v1 `memory.limit_in_bytes` / `memory.usage_in_bytes`, at its own level
+  and each level above), counts usage minus inactive page cache (the working set, as docker
+  and the kubelet do), and takes the tightest. gtests `CgroupMemory.*` (fake cgroup trees;
+  this container has no limit).
+
+### F-125 Two latent storage hazards: a stale cached value, a dangling accelerator
+- **Status:** fixed (session 9; area 3.1 review, C-15, C-16).
+  - C-15: a derived value computed before a write could survive the write when the
+    computation's `cache_put` and the writer's `bump_version` interleaved (unreachable
+    while the GIL is held throughout; reachable once kernels release it). Entries carry
+    the version they were computed at and are served only while it is current.
+  - C-16: `m.get_accelerator()` handed Python a raw pointer that the next storage swap
+    (copy-on-write) freed. Replaced by `m._io_prefetch()` / `m._io_discard()`, which look
+    the accelerator up per call; the `IOAccelerator` Python class is gone.

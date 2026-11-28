@@ -45,23 +45,10 @@ def _leaf_elementwise(a: Any, b: Any, op: str) -> Any:
 
 
 def _io_hint(obj: Any, action: str) -> None:
-    """Prefetch / discard hint for a leaf's backing storage (MemoryHints via its accelerator)."""
-    get_acc = getattr(obj, "get_accelerator", None)
-    if not callable(get_acc):
-        return
-    acc = get_acc()
-    if acc is None:
-        return
-    get_bf = getattr(obj, "get_backing_file", None)
-    path = get_bf() if callable(get_bf) else getattr(obj, "backing_file", None)
-    size = 0
-    if path and path != ":memory:" and os.path.exists(path):
-        size = int(os.path.getsize(path))
-    if size <= 0:
-        from . import export_guard
-
-        size = export_guard.estimate_materialized_bytes(obj) or 1
-    getattr(acc, action)(0, int(size))
+    """Prefetch / discard hint for a leaf's whole storage (native matrices only)."""
+    hint = getattr(obj, f"_io_{action}", None)
+    if callable(hint):
+        hint()
 
 
 def _try_io_prefetch(obj: Any) -> None:

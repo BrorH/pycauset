@@ -229,14 +229,13 @@ def test_F122_prefetch_and_discard_keep_values(backing_dir, tmp_path):
     """The madvise hints were EINVAL no-ops (unaligned start). Now they run, so discard must
     only drop pages that read back: shared file pages, never a loaded snapshot's writes."""
     m = pc.matrix(np.arange(512 * 512, dtype=np.float64).reshape(512, 512), storage="disk")
-    acc = m.get_accelerator()
-    acc.prefetch(0, 512 * 512 * 8)
-    acc.discard(0, 512 * 512 * 8)
+    m._io_prefetch()
+    m._io_discard()
     np.testing.assert_array_equal(np.asarray(m), np.arange(512 * 512.0).reshape(512, 512))
     pc.save(m, tmp_path / "s.pycauset")
     s = pc.load(tmp_path / "s.pycauset")
     s[0, 0] = -5.0
-    s.get_accelerator().discard(0, 512 * 512 * 8)
+    s._io_discard()
     assert float(np.asarray(s)[0, 0]) == -5.0
 
 

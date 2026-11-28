@@ -111,7 +111,7 @@ Concurrency: each `ThunkBlock` uses single-eval locking (e.g., `once_flag`/`mute
 
 Orchestrated evaluation performs best-effort IO hints:
 
-- Prefetch before using a backing file: `obj.get_accelerator().prefetch(0, size)`
+- Prefetch before using a backing file: `obj._io_prefetch()` (and `obj._io_discard()` after use)
 - Discard after a temporary is no longer needed: `discard(0, size)`
 
 These hooks are intentionally best-effort and should never be required for correctness.

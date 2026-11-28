@@ -54,9 +54,10 @@ public:
 
     // Storage version and derived-value cache (review/features/DERIVED_CACHE.md). The storage
     // is the owner: every view of the same payload shares it. `bump_version` runs before any
-    // byte can change (PersistentObject::ensure_unique, the write gate of copy-on-write) and
-    // drops every cached value. An entry is stored only if the version did not move while it
-    // was computed (`cache_put` with the version read before the computation).
+    // byte can change (PersistentObject::ensure_unique, the write gate of copy-on-write).
+    // Each entry carries the version it was computed at and is returned only while that is
+    // still the version, so a value computed before a write can never be served after it,
+    // whatever the interleaving (review 3.1 C-15). Clearing on a bump only frees memory.
     uint64_t version() const { return version_.load(std::memory_order_acquire); }
     void bump_version() {
         version_.fetch_add(1, std::memory_order_acq_rel);
@@ -70,19 +71,24 @@ public:
         if (!has_cache_.load(std::memory_order_acquire)) return false;
         std::lock_guard<std::mutex> lock(cache_mutex_);
         const auto it = cache_.find(key);
-        if (it == cache_.end()) return false;
-        out = it->second;
+        if (it == cache_.end() || it->second.computed_at != version()) return false;
+        out = it->second.value;
         return true;
     }
     // Every current entry (for saving them with the file).
     std::map<std::string, std::any> cache_snapshot() const {
         std::lock_guard<std::mutex> lock(cache_mutex_);
-        return cache_;
+        std::map<std::string, std::any> out;
+        const uint64_t now = version();
+        for (const auto& [key, entry] : cache_) {
+            if (entry.computed_at == now) out.emplace(key, entry.value);
+        }
+        return out;
     }
     void cache_put(const std::string& key, uint64_t computed_at, std::any value) {
+        if (version() != computed_at) return;  // changed meanwhile
         std::lock_guard<std::mutex> lock(cache_mutex_);
-        if (version_.load(std::memory_order_acquire) != computed_at) return;  // changed meanwhile
-        cache_[key] = std::move(value);
+        cache_[key] = CacheEntry{computed_at, std::move(value)};
         has_cache_.store(true, std::memory_order_release);
     }
 
@@ -90,7 +96,11 @@ private:
     std::atomic<uint64_t> version_{0};
     std::atomic<bool> has_cache_{false};
     mutable std::mutex cache_mutex_;
-    std::map<std::string, std::any> cache_;
+    struct CacheEntry {
+        uint64_t computed_at;
+        std::any value;
+    };
+    std::map<std::string, CacheEntry> cache_;
 
     struct FileHeader {
         char magic[8];      // "PYCAUSET"

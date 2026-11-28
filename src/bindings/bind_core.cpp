@@ -249,10 +249,6 @@ void bind_core_classes(py::module_& m) {
             py::arg("stride"),
             py::arg("block"));
 
-    py::class_<pycauset::core::IOAccelerator>(m, "IOAccelerator")
-        .def("prefetch", &pycauset::core::IOAccelerator::prefetch, py::arg("offset"), py::arg("size"))
-        .def("discard", &pycauset::core::IOAccelerator::discard, py::arg("offset"), py::arg("size"))
-        .def("process_hint", &pycauset::core::IOAccelerator::process_hint, py::arg("hint"));
 
     m.def("_debug_last_io_trace", []() { return pycauset::debug_trace::get_last_io(); });
     m.def("_debug_clear_io_trace", []() { pycauset::debug_trace::clear_io(); });

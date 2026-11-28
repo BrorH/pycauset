@@ -1315,7 +1315,6 @@ _INTERNAL_NATIVE_EXPORTS = frozenset(
     {
         # Memory / I/O machinery.
         "MemoryGovernor",
-        "IOAccelerator",
         # Native storage plumbing (public API is set_backing_dir / save / load).
         "set_storage_root",
     }

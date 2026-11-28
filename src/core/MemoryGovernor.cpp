@@ -20,6 +20,66 @@
 namespace pycauset {
 namespace core {
 
+namespace {
+std::optional<uint64_t> read_u64(const std::string& path) {
+    std::ifstream f(path);
+    std::string word;
+    if (!(f >> word) || word == "max") return std::nullopt;
+    try {
+        return static_cast<uint64_t>(std::stoull(word));
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+}
+}  // namespace
+
+std::optional<CgroupMemory> read_cgroup_memory(const std::string& self_cgroup_file, const std::string& cgroup_root) {
+    std::ifstream self(self_cgroup_file);
+    std::string line;
+    std::optional<CgroupMemory> best;
+    auto consider = [&](const std::string& dir, const char* limit_name, const char* usage_name, const char* inactive_key) {
+        const auto limit = read_u64(dir + "/" + limit_name);
+        // v1 reports "no limit" as a huge number (PAGE_COUNTER_MAX pages).
+        if (!limit || *limit >= (uint64_t{1} << 62)) return;
+        uint64_t usage = read_u64(dir + "/" + usage_name).value_or(0);
+        // Usage counts the page cache; its inactive part is reclaimed before an OOM kill (the
+        // working-set figure docker and the kubelet use). Without this, a job that wrote big
+        // files would see no room and put everything in files.
+        std::ifstream stat(dir + "/memory.stat");
+        std::string key;
+        uint64_t value = 0;
+        while (stat >> key >> value) {
+            if (key == inactive_key) {
+                usage -= std::min(usage, value);
+                break;
+            }
+        }
+        if (!best || (*limit > usage ? *limit - usage : 0) < (best->limit > best->usage ? best->limit - best->usage : 0)) {
+            best = CgroupMemory{*limit, usage};
+        }
+    };
+    // Each level from the process's cgroup up to the root: a parent's limit binds too.
+    auto walk = [&](std::string base, std::string rel, const char* limit_name, const char* usage_name, const char* inactive_key) {
+        while (true) {
+            consider(base + rel, limit_name, usage_name, inactive_key);
+            if (rel.empty() || rel == "/") break;
+            rel = rel.substr(0, rel.find_last_of('/'));
+        }
+    };
+    while (std::getline(self, line)) {
+        // "hierarchy-id:controllers:path"; v2 is "0::path".
+        const auto a = line.find(':'), b = line.find(':', a + 1);
+        if (a == std::string::npos || b == std::string::npos) continue;
+        const std::string controllers = line.substr(a + 1, b - a - 1), path = line.substr(b + 1);
+        if (controllers.empty()) {
+            walk(cgroup_root, path == "/" ? "" : path, "memory.max", "memory.current", "inactive_file");
+        } else if (("," + controllers + ",").find(",memory,") != std::string::npos) {
+            walk(cgroup_root + "/memory", path == "/" ? "" : path, "memory.limit_in_bytes", "memory.usage_in_bytes", "total_inactive_file");
+        }
+    }
+    return best;
+}
+
 MemoryGovernor& MemoryGovernor::instance() {
     // Intentionally leaked: objects made or freed during interpreter finalization may still
     // ask it, and the destruction order of a Meyers singleton is undefined then.
@@ -110,18 +170,22 @@ void MemoryGovernor::refresh_system_stats() const {
             }
         }
     }
-    if (mem_available != 0) {
-        cached_total_ram_ = (mem_total != 0) ? mem_total : cached_total_ram_.load();
-        cached_available_ram_ = mem_available;
-    } else {
+    if (mem_available == 0) {
         struct sysinfo info;
         if (sysinfo(&info) == 0) {
-            cached_total_ram_ = (uint64_t)info.totalram * info.mem_unit;
-            cached_available_ram_ = (uint64_t)info.freeram * info.mem_unit;
+            mem_total = (uint64_t)info.totalram * info.mem_unit;
+            mem_available = (uint64_t)info.freeram * info.mem_unit;
         } else {
-            cached_available_ram_ = 1024 * 1024 * 1024; // Assume 1GB free
+            mem_available = 1024 * 1024 * 1024; // Assume 1GB free
         }
     }
+    if (const auto cg = read_cgroup_memory()) {
+        // The cgroup's room (limit minus working set).
+        mem_total = mem_total ? std::min(mem_total, cg->limit) : cg->limit;
+        mem_available = std::min(mem_available, cg->limit > cg->usage ? cg->limit - cg->usage : uint64_t{0});
+    }
+    if (mem_total != 0) cached_total_ram_ = mem_total;
+    cached_available_ram_ = mem_available;
 #endif
 }
 

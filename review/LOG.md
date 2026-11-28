@@ -738,3 +738,6 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   the plain mapping (the leaking 64 MB window remaps and the whole region / pin API
   removed); the governor's registry removed (`can_fit_in_ram` is the one check); copies
   placed like new objects; `pc.keep_temp_files` removed.
+- Area 3.1, the rest of the urgent and medium items: the RAM budget follows cgroup limits
+  (F-124, C-11); cache entries carry their version (F-125, C-15); `get_accelerator` replaced
+  by per-call `_io_prefetch` / `_io_discard` (F-125, C-16).

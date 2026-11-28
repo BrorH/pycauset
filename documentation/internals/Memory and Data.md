@@ -88,9 +88,10 @@ read-ahead) or narrows it to the pages inside it (discard). A failed `msync` rai
 
 The workflow is: create (reserve space) -> prefetch -> compute -> discard.
 
-Solvers declare their access pattern up front (sequential, strided, random, or
-once) through `pycauset.AccessPattern` / `pycauset.MemoryHint`, and the accelerator
-turns that into the right prefetch/discard syscalls.
+Callers can declare an access pattern through `pycauset.MemoryHint` (`matrix.hint(h)`):
+`Sequential` and `Strided` become read-ahead calls, the other patterns do nothing yet, and
+no engine operation issues hints itself today. The block-matrix layer prefetches a leaf's
+whole storage before using it and drops it after (`_io_prefetch` / `_io_discard`).
 
 ## Export guard
 

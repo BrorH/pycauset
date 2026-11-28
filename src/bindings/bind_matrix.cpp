@@ -348,10 +348,14 @@ void bind_matrix_classes(py::module_& m) {
         .def("set_temporary", &MatrixBase::set_temporary)
         .def("close", &MatrixBase::close)
         .def("copy_storage", &MatrixBase::copy_storage, py::arg("result_file_hint") = "")
-        .def(
-            "get_accelerator",
-            &MatrixBase::get_accelerator,
-            py::return_value_policy::reference_internal)
+        // Read-ahead / drop hints for the whole storage. The accelerator is looked up per call:
+        // a handle kept in Python dangled after the next storage swap (review 3.1 C-16).
+        .def("_io_prefetch", [](const MatrixBase& m) {
+            if (auto* acc = m.get_accelerator()) acc->prefetch(0, SIZE_MAX);
+        })
+        .def("_io_discard", [](const MatrixBase& m) {
+            if (auto* acc = m.get_accelerator()) acc->discard(0, SIZE_MAX);
+        })
         .def("hint", &MatrixBase::hint, py::arg("hint"))
         .def_property("seed", &MatrixBase::get_seed, &MatrixBase::set_seed)
         .def_property("scalar", &MatrixBase::get_scalar, &MatrixBase::set_scalar)
