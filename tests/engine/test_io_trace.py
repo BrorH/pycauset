@@ -54,7 +54,7 @@ def test_nested_traced_ops_record_only_the_outer_call():
     a = pc.matrix(np.array([[4.0, 1.0], [2.0, 3.0]]))
     pc.cond(a, 1)  # cond calls invert and norm, both traced on their own
     assert pc.last_io_trace()["op"] == "cond"
-    assert pc.last_io_trace("invert") is None
+    assert pc.last_io_trace("inv") is None
 
 
 def test_file_backed_operand_is_reported(tmp_path):

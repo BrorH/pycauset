@@ -82,10 +82,6 @@ Slicing/indexing assignment warnings
 
 - When `M[slice] = X` triggers dtype conversion or promotion, emit `PyCausetDTypeWarning` (and `PyCausetOverflowRiskWarning` if the conversion increases overflow risk) while applying the NumPy broadcast/shape rules for the indexed region. Shape-changing assignments must raise.
 
-Suggested message pattern:
-
-- `pycauset invert cache unavailable (missing/corrupt cached object); cached entry ignored`
-
 ## Where warnings should be emitted
 
 Goal: warnings must fire for the *real user entrypoints*, not only for convenience wrappers.

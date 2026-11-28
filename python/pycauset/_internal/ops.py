@@ -94,7 +94,7 @@ def _import_operand(x: Any, *, deps: OpsDeps) -> Any:
 
 
 def compute_k(matrix: Any, a: float, *, deps: OpsDeps) -> Any:
-    return deps.native.compute_k_matrix(matrix, a, 0)
+    return deps.native._compute_k_matrix(matrix, float(a))
 
 
 def bitwise_not(matrix: Any, *, deps: OpsDeps) -> Any:
@@ -138,14 +138,11 @@ def bitwise_xnor(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     return bitwise_not(bitwise_xor(a, b, deps=deps), deps=deps)
 
 
-@_traced("invert")
-def invert(matrix: Any, *, deps: OpsDeps) -> Any:
-    if not isinstance(matrix, deps.native.MatrixBase):
-        raise TypeError("Object does not support matrix inversion.")
-    # The engine inverts every dtype, structure and view (LinearAlgebra.cpp `inverse`); a
-    # singular matrix raises. No NumPy fallback.
-    result = matrix.invert()
-    return result
+@_traced("inv")
+def inv(matrix: Any, *, deps: OpsDeps) -> Any:
+    """The matrix inverse (NumPy's `linalg.inv`). The engine inverts every dtype, structure and
+    view (LinearAlgebra.cpp `inverse`); a singular matrix raises LinAlgError."""
+    return deps.native._inv(_engine_matrix(matrix, deps=deps))
 
 
 @_traced("lstsq", 2)
@@ -181,7 +178,7 @@ def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
             return smin / smax if smax != 0 else float("inf")
         return smax / smin if smin != 0 else float("inf")
     try:
-        inv_a = invert(a, deps=deps)
+        inv_a = inv(a, deps=deps)
     except deps.np_module.linalg.LinAlgError:  # singular: NumPy returns inf here too
         return float("inf")
     return float(norm(a, p, deps=deps) * norm(inv_a, p, deps=deps))
@@ -356,8 +353,7 @@ def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
     # already O(1) in the engine (F-067).
     # No is_zero shortcut: results come from the values (F-090).
     if n < 0:
-        inv = invert(a, deps=deps)
-        return matrix_power(inv, -n, deps=deps)
+        return matrix_power(inv(a, deps=deps), -n, deps=deps)
 
     # Binary exponentiation via matmul. No identity seed: multiplying by a float64
     # identity would promote integer/causal powers to float (and costs one extra matmul).

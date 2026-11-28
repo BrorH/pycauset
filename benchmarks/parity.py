@@ -86,9 +86,9 @@ def main() -> None:
             if hasattr(m, "_cached_inverse"):
                 del m._cached_inverse
 
-    def _pc_invert():
+    def _pc_inv():
         _clear_derived_caches(spd)
-        return pc.invert(spd)
+        return pc.inv(spd)
 
     def _pc_determinant():
         _clear_derived_caches(spd)
@@ -96,7 +96,7 @@ def main() -> None:
 
     run("matmul", lambda: A_np @ B_np, lambda: pc.matmul(A, B))
     run("solve", lambda: np.linalg.solve(spd_np, b_np), lambda: pc.solve(spd, b))
-    run("invert", lambda: np.linalg.inv(spd_np), _pc_invert)
+    run("inv", lambda: np.linalg.inv(spd_np), _pc_inv)
     run("dot", lambda: np.dot(v_np, v_np), lambda: pc.dot(v, v))
     run("add", lambda: A_np + B_np, lambda: A + B)
     run("multiply", lambda: A_np * B_np, lambda: A * B)

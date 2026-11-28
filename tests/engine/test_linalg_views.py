@@ -26,7 +26,7 @@ VIEWS = {
 }
 B = np.linspace(-1, 1, 6)
 OPS = {
-    "inv": (lambda m, n: to_np(pc.invert(m)), lambda x, n: np.linalg.inv(x)),
+    "inv": (lambda m, n: to_np(pc.inv(m)), lambda x, n: np.linalg.inv(x)),
     "solve": (lambda m, n: to_np(pc.solve(m, pc.vector(B[:n]))).ravel(), lambda x, n: np.linalg.solve(x, B[:n])),
     "eigvals": (lambda m, n: np.sort_complex(to_np(pc.eigvals(m)).astype(complex)),
                 lambda x, n: np.sort_complex(np.linalg.eigvals(x).astype(complex))),
@@ -86,4 +86,4 @@ def test_rectangular_complex_pinv_and_singular_diagonal():
     np.testing.assert_allclose(to_np(pc.pinv(pc.matrix(r))), np.linalg.pinv(r), atol=1e-10)
     d = pc.DiagonalMatrix(3, dtype="float64")
     d[0, 0], d[1, 1], d[2, 2] = 1e-13, 2.0, 4.0
-    np.testing.assert_allclose(np.diag(to_np(pc.invert(d))), [1e13, 0.5, 0.25])
+    np.testing.assert_allclose(np.diag(to_np(pc.inv(d))), [1e13, 0.5, 0.25])

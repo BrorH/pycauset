@@ -63,7 +63,7 @@ F-108). Each routine is chosen so that `A^T` gives `A`'s answer:
 | `eigh`, `eigvalsh` | `?syevd` / `?heevd` on `A^T`'s upper triangle (= `A`'s lower, NumPy's `UPLO`); vectors transposed (and conjugated) once |
 | `eig`, `eigvals` | `?geev` |
 | `svd` | `?gesdd` on `A^T` (job `N` without vectors): its `U` and `V^H` are `A`'s `V^H` and `U` |
-| `solve`, `invert` | `?getrf` on `A^T`, then two right-sided `?trsm` and the row interchanges on `B`'s buffer (the algorithm of `?gesv`; `invert` solves `A X = I`, as NumPy does) |
+| `solve`, `inv` | `?getrf` on `A^T`, then two right-sided `?trsm` and the row interchanges on `B`'s buffer (the algorithm of `?gesv`; `inv` solves `A X = I`, as NumPy does) |
 | `determinant`, `slogdet` | `?getrf` on `A^T` (`det(A^T) = det(A)`) |
 | `lu` | `?getrf` (row-major: the factors of `A` itself are returned) |
 | `cholesky` | `?potrf('U')` on `A^T`: `L` lands in the buffer's lower triangle |

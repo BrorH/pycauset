@@ -12,7 +12,7 @@ for them, and so do their Python constructors. Identity matrices are shape-flexi
 
 ## Square by mathematics
 
-`determinant`, `slogdet`, `invert`, `solve` (its `A`), `cholesky`, `eig`, `eigh` and
+`determinant`, `slogdet`, `inv`, `solve` (its `A`), `cholesky`, `eig`, `eigh` and
 the other eigen problems, `matrix_power`.
 They raise `ValueError` for a rectangular operand. `svd`, `qr`, `lu`, `pinv`, `lstsq`,
 `matrix_rank`, `norm` and `trace` take rectangular matrices, as in NumPy.

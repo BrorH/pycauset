@@ -166,7 +166,6 @@ nav:
       - docs/functions/pycauset.cholesky.md
       - docs/functions/pycauset.clear_io_traces.md
       - docs/functions/pycauset.compute_k.md
-      - docs/functions/pycauset.compute_k_matrix.md
       - docs/functions/pycauset.cond.md
       - docs/functions/pycauset.convert_file.md
       - docs/functions/pycauset.cross.md
@@ -187,6 +186,7 @@ nav:
       - docs/functions/pycauset.get_num_threads.md
       - docs/functions/pycauset.hermitian.md
       - docs/functions/pycauset.identity.md
+      - docs/functions/pycauset.inv.md
       - docs/functions/pycauset.invert.md
       - docs/functions/pycauset.last_io_trace.md
       - docs/functions/pycauset.load.md

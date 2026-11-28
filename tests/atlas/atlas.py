@@ -309,7 +309,7 @@ OPS: list[Op] = [
     Op("vecmat", "product", lambda x, y: VEC[x.dtype] @ x, lambda a, b: VEC_REF[DT[0]] @ a, 1),
     Op("outer", "product", lambda x, y: pc.outer(x, y), lambda a, b: np.outer(a, b), 2, matrix=False, vector=True),
     # linear algebra
-    Op("inv", "linalg", lambda x, y: pc.invert(x), lambda a, b: np.linalg.inv(a), linalg=True, o_n2=False),
+    Op("inv", "linalg", lambda x, y: pc.inv(x), lambda a, b: np.linalg.inv(a), linalg=True, o_n2=False),
     Op("solve", "linalg", lambda x, y: pc.solve(x, RHS[0]), lambda a, b: np.linalg.solve(a, RHS_REF[0]), linalg=True, o_n2=False),
     Op("det", "linalg", lambda x, y: pc.determinant(x), lambda a, b: np.linalg.det(a), linalg=True, o_n2=False),
     Op("slogdet", "linalg", lambda x, y: pc.slogdet(x), lambda a, b: np.linalg.slogdet(a), linalg=True, o_n2=False, compare="slogdet"),

@@ -555,8 +555,6 @@ void bind_matrix_classes(py::module_& m) {
             }
             return mat.get_scalar() != std::complex<double>(1.0, 0.0) || mat.is_transposed() || mat.is_conjugated();
         }, "True when the elements are computed on read (a view or closure) rather than stored.")
-        .def("inverse", [](const MatrixBase& mat) { return matrix_inverse(mat); })
-        .def("invert", [](const MatrixBase& mat) { return matrix_inverse(mat); })
         .def("matmul", [](const MatrixBase& a, const MatrixBase& b) { return matmul_mm(a, b); }, py::arg("other"))
         .def("eig", [](const MatrixBase& mat) {
             auto r = pycauset::eig(mat);
@@ -1028,20 +1026,17 @@ void bind_matrix_classes(py::module_& m) {
         py::arg("a"),
         py::arg("k"));
 
+    // The matrix inverse (pycauset.inv). NumPy's `invert` is bitwise NOT, so there is no
+    // .invert() / .inverse() method (review 3.8 C-7).
+    m.def("_inv", [](const MatrixBase& mat) { return matrix_inverse(mat); }, py::arg("a"));
+
     m.def(
-        "compute_k_matrix",
-        [](std::shared_ptr<MatrixBase> C_any,
-           double a,
-           int num_threads) {
-            auto* C = dynamic_cast<TriangularBitMatrix*>(C_any.get());
-            if (C == nullptr) {
-                throw py::type_error("compute_k_matrix expects a causal matrix (TriangularMatrix of dtype 'bool')");
-            }
-            auto out = ComputeContext::instance().get_device()->compute_k_matrix(*C, a, "", num_threads);
-            return std::shared_ptr<TriangularMatrix<double>>(out.release());
+        "_compute_k_matrix",
+        [](std::shared_ptr<MatrixBase> C, double a) {
+            return translate_invalid_argument(
+                [&] { return std::shared_ptr<MatrixBase>(::compute_k_matrix(*C, a).release()); });
         },
         py::arg("C"),
-        py::arg("a"),
-        py::arg("num_threads") = 0);
+        py::arg("a"));
 
 }

@@ -252,11 +252,11 @@ PyCauset includes a suite of linear algebra tools.
 
 ## Inversion
 
-`pc.invert` works for every dtype, structure and view (integers invert to float64, as in NumPy); the matrix must be square.
+`pc.inv` works for every dtype, structure and view (integers invert to float64, as in NumPy); the matrix must be square.
 
 ```python
 # Compute inverse
-Inv = pc.invert(pc.matrix([[4.0, 7.0], [2.0, 6.0]]))
+Inv = pc.inv(pc.matrix([[4.0, 7.0], [2.0, 6.0]]))
 ```
 
 

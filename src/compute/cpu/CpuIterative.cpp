@@ -5,6 +5,7 @@
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/math/ViewRead.hpp"
 #include "pycauset/compute/cpu/CpuSolver.hpp"
+#include <algorithm>
 #include <complex>
 #define lapack_complex_float std::complex<float>
 #define lapack_complex_double std::complex<double>
@@ -229,6 +230,51 @@ void CpuSolver::eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int
     write_sorted(std::move(vals));
 }
 
+namespace {
+
+// A real skew-symmetric A: M = -iA is Hermitian, and LAPACK's Hermitian solver gives its real
+// eigenvalues mu with orthonormal eigenvectors u, A u = i mu u: exact +- pairs in real-arithmetic
+// accuracy (?geev's eigenvectors were not orthogonal within a repeated eigenvalue, so the
+// Sorkin-Johnston W built from them was wrong; review 3.4 C-3). The row-major buffer of iA,
+// read column-major, is (iA)^T = -iA. `vectors`: also compute u (columns of `h`, column-major).
+std::vector<double> skew_hermitian_solve(const MatrixBase& a, std::vector<std::complex<double>>& h, bool vectors,
+                                         const char* op) {
+    const uint64_t n = a.rows();
+    auto data = to_memory_flat_real_square(a);  // folds in the matrix scalar
+    h.assign(n * n, {});
+    for (uint64_t idx = 0; idx < n * n; ++idx) h[idx] = std::complex<double>(0.0, data[idx]);
+    data.clear();
+    data.shrink_to_fit();
+    std::vector<double> mu(n);
+    lapack_int info = LAPACKE_zheevd(LAPACK_COL_MAJOR, vectors ? 'V' : 'N', 'U', static_cast<lapack_int>(n),
+        reinterpret_cast<lapack_complex_double*>(h.data()), static_cast<lapack_int>(n), mu.data());
+    if (info > 0) throw std::runtime_error(std::string(op) + " failed to converge");
+    if (info < 0) throw std::runtime_error(std::string(op) + ": illegal argument");
+    return mu;
+}
+
+// The order of the eigenvalues i*mu, shared by eigvals_skew and eig_skew: descending |mu|;
+// values whose |mu| agree to 1e-12 of the largest are one pair (or cluster) and go +i first.
+// (The two functions used different orders, and the pair loop skipped pairs it did not swap.)
+std::vector<size_t> skew_order(const std::vector<double>& mu) {
+    const size_t n = mu.size();
+    std::vector<size_t> idx(n);
+    for (size_t i = 0; i < n; ++i) idx[i] = i;
+    std::stable_sort(idx.begin(), idx.end(), [&](size_t x, size_t y) { return std::abs(mu[x]) > std::abs(mu[y]); });
+    double scale = 0.0;
+    for (double m : mu) scale = std::max(scale, std::abs(m));
+    const double tol = 1e-12 * scale;
+    for (size_t i = 0; i < n;) {
+        size_t j = i + 1;
+        while (j < n && std::abs(mu[idx[i]]) - std::abs(mu[idx[j]]) <= tol) ++j;
+        std::stable_sort(idx.begin() + i, idx.begin() + j, [&](size_t x, size_t y) { return mu[x] > mu[y]; });
+        i = j;
+    }
+    return idx;
+}
+
+}  // namespace
+
 void CpuSolver::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {
     if (k <= 0) {
         throw std::invalid_argument("CpuSolver::eigvals_skew requires positive k");
@@ -244,44 +290,10 @@ void CpuSolver::eigvals_skew(const MatrixBase& a, VectorBase& out, int k) {
 
     const uint64_t n = a.rows();
     const int kk = std::min(k, static_cast<int>(n));
-
-    // A real skew-symmetric A is normal with eigenvalues +-i*lambda. H = iA is Hermitian, so
-    // the Hermitian solver gives real mu with A's eigenvalues -i*mu: exact +- pairs, real
-    // arithmetic accuracy, ~2.4x faster than the general dgeev used before (L7.1).
-    // to_memory_flat_real_square folds in the matrix scalar.
-    auto data = to_memory_flat_real_square(a);
-    std::vector<std::complex<double>> h(n * n);
-    for (uint64_t idx = 0; idx < n * n; ++idx) h[idx] = std::complex<double>(0.0, data[idx]);
-    data.clear();
-    data.shrink_to_fit();
-    std::vector<double> mu(n);
-    // Column-major view of the row-major buffer is conj(H): same (real) eigenvalues, no copy.
-    lapack_int info = LAPACKE_zheevd(LAPACK_COL_MAJOR, 'N', 'U', static_cast<lapack_int>(n),
-        reinterpret_cast<lapack_complex_double*>(h.data()), static_cast<lapack_int>(n), mu.data());
-    if (info > 0) throw std::runtime_error("CpuSolver::eigvals_skew failed to converge");
-    if (info < 0) throw std::runtime_error("CpuSolver::eigvals_skew: illegal argument");
-
-    std::vector<std::complex<double>> evals(n);
-    for (uint64_t i = 0; i < n; ++i) evals[i] = std::complex<double>(0.0, -mu[i]);
-    // Descending magnitude; within a +-pair (magnitudes equal up to rounding: relative 1e-12 of
-    // the largest), +i first. A deterministic function of the values.
-    double scale = 0.0;
-    for (const auto& z : evals) scale = std::max(scale, std::abs(z.imag()));
-    const double tol = 1e-12 * scale;
-    std::sort(evals.begin(), evals.end(), [](const std::complex<double>& x, const std::complex<double>& y) {
-        return std::abs(x.imag()) > std::abs(y.imag());
-    });
-    for (uint64_t i = 0; i + 1 < n; ++i) {
-        if (std::abs(std::abs(evals[i].imag()) - std::abs(evals[i + 1].imag())) <= tol &&
-            evals[i].imag() < evals[i + 1].imag()) {
-            std::swap(evals[i], evals[i + 1]);
-            ++i;
-        }
-    }
-
-    for (int i = 0; i < kk; ++i) {
-        out_c->set(i, evals[i]);
-    }
+    std::vector<std::complex<double>> h;
+    const std::vector<double> mu = skew_hermitian_solve(a, h, false, "eigvals_skew");
+    const std::vector<size_t> order = skew_order(mu);
+    for (int t = 0; t < kk; ++t) out_c->set(t, std::complex<double>(0.0, mu[order[t]]));
 }
 
 void CpuSolver::eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBase& eigenvectors, int k) {
@@ -304,56 +316,13 @@ void CpuSolver::eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBas
         throw std::invalid_argument("CpuSolver::eig_skew eigenvectors matrix bad shape");
     }
 
-    // Same scratch-and-factorize pattern as eigvals_skew, but request the right
-    // eigenvectors so the Sorkin-Johnston W = V_+ diag(σ) V_+^H can be built.
-    auto data = to_memory_flat_real_square(a);
-
-    std::vector<double> wr(n);
-    std::vector<double> wi(n);
-    std::vector<double> vr(n * n);
-    lapack_int info = LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', 'V', static_cast<lapack_int>(n),
-        data.data(), static_cast<lapack_int>(n), wr.data(), wi.data(),
-        nullptr, static_cast<lapack_int>(n), vr.data(), static_cast<lapack_int>(n));
-    if (info > 0) throw std::runtime_error("CpuSolver::eig_skew failed to converge");
-    if (info < 0) throw std::runtime_error("CpuSolver::eig_skew: illegal argument");
-
-    // Build the full complex eigensystem (eigenvalues + eigenvectors), unpacking
-    // conjugate pairs exactly like the general eig path. Eigenvalues are set in a
-    // separate loop first: each conjugate pair contributes BOTH eigenvalues, and the
-    // eigenvector loop below skips the second column of each pair (++j), so writing
-    // full_evals inside that loop would leave the "-i*lambda" eigenvalue unset.
-    std::vector<std::complex<double>> full_evals(n);
-    for (size_t j = 0; j < n; ++j) {
-        full_evals[j] = { wr[j], wi[j] };
-    }
-    std::vector<std::complex<double>> full_evecs(n * n);
-    for (size_t j = 0; j < n; ++j) {
-        if (wi[j] == 0.0) {
-            for (size_t i = 0; i < n; ++i) full_evecs[i * n + j] = { vr[i * n + j], 0.0 };
-        } else {
-            // Conjugate pair (j, j+1): v[j] = VR[:,j] + i VR[:,j+1],
-            //                          v[j+1] = VR[:,j] - i VR[:,j+1].
-            for (size_t i = 0; i < n; ++i) {
-                full_evecs[i * n + j] = { vr[i * n + j], vr[i * n + (j + 1)] };
-                full_evecs[i * n + (j + 1)] = { vr[i * n + j], -vr[i * n + (j + 1)] };
-            }
-            ++j;
-        }
-    }
-
-    // Order by descending eigenvalue magnitude and return the top k.
-    std::vector<size_t> idx(n);
-    for (size_t i = 0; i < n; ++i) idx[i] = i;
-    std::sort(idx.begin(), idx.end(), [&](size_t x, size_t y) {
-        return std::norm(full_evals[x]) > std::norm(full_evals[y]);
-    });
-
+    std::vector<std::complex<double>> h;
+    const std::vector<double> mu = skew_hermitian_solve(a, h, true, "eig_skew");
+    const std::vector<size_t> order = skew_order(mu);
     for (int t = 0; t < kk; ++t) {
-        const size_t src = idx[t];
-        out_w->set(t, full_evals[src]);
-        for (size_t i = 0; i < n; ++i) {
-            out_v->set(i, t, full_evecs[i * n + src]);
-        }
+        const size_t src = order[t];
+        out_w->set(t, std::complex<double>(0.0, mu[src]));
+        for (uint64_t r = 0; r < n; ++r) out_v->set(r, t, h[src * n + r]);
     }
 }
 

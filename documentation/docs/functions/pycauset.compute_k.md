@@ -15,4 +15,11 @@ This function uses an optimized column-independent backward substitution algorit
 
 ## Returns
 
-*   **TriangularMatrix (float64)**: The result matrix $K$.
+*   **TriangularMatrix (float64)**: The result matrix $K$. For a transposed (past-pointing)
+    `C.T`, the transposed $K$ of `C` (an O(1) view: $(aI + C^T)^{-1}$ commutes with $C^T$).
+
+## Raises
+
+*   `TypeError` if `matrix` is not a causal matrix (a `TriangularMatrix` of dtype `bool`).
+*   `ValueError` for a triangle with a diagonal, a window or a scaled view.
+*   `numpy.linalg.LinAlgError` (a `ValueError`) for `a == 0`: $aI + C$ is singular.

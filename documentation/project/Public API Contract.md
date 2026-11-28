@@ -56,7 +56,7 @@ with its storage until it changes, and saved with it.
 ### Functions
 
 - Public functions use `snake_case`.
-  - Examples: `matmul`, `compute_k`, `invert`.
+  - Examples: `matmul`, `compute_k`, `inv`.
 
 ### Dtype tokens
 

@@ -633,11 +633,10 @@ double AutoSolver::l2_norm(const VectorBase& v) {
 std::unique_ptr<TriangularMatrix<double>> AutoSolver::compute_k_matrix(
     const TriangularMatrix<bool>& C,
     double a,
-    const std::string& output_path,
-    int num_threads
+    const std::string& output_path
 ) {
     // Always CPU for now (structured, bit-packed triangular)
-    return cpu_device_->compute_k_matrix(C, a, output_path, num_threads);
+    return cpu_device_->compute_k_matrix(C, a, output_path);
 }
 
 double AutoSolver::frobenius_norm(const MatrixBase& m) {

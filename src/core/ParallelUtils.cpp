@@ -1,5 +1,11 @@
 #include "pycauset/core/ParallelUtils.hpp"
 
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace pycauset {
 
 std::atomic<size_t> ThreadPool::global_num_threads{std::thread::hardware_concurrency()};
@@ -21,14 +27,37 @@ bool ThreadPool::on_worker_thread() {
     return t_is_pool_worker;
 }
 
+namespace {
+long current_pid() {
+#ifdef _WIN32
+    return static_cast<long>(_getpid());
+#else
+    return static_cast<long>(getpid());
+#endif
+}
+std::atomic<ThreadPool*> g_pool{nullptr};
+std::atomic<long> g_pool_pid{0};
+std::mutex g_pool_mu;
+}  // namespace
+
 ThreadPool& ThreadPool::instance() {
-    // Keep this a normal (non-leaked) Meyers singleton. Its destructor notifies
-    // workers to stop and joins them, which is safe and keeps worker threads from
-    // leaking into forked children (macOS). The leaked singletons that matter for
-    // teardown ordering are MemoryGovernor/ComputeContext, whose destructors are
-    // reached from PersistentObject destructors during finalization.
-    static ThreadPool pool;
-    return pool;
+    // One pool per process. A forked child (multiprocessing's fork start method) inherits the
+    // pool object but not its worker threads: tasks queued there never ran and the first
+    // parallel kernel waited forever (review 3.4 C-2). The pool records the pid that built it;
+    // in a child a new pool is built, and the parent's is abandoned (its std::thread objects
+    // cannot be joined or destroyed there). The pool is never destroyed: at exit its idle
+    // workers end with the process.
+    const long pid = current_pid();
+    ThreadPool* pool = g_pool.load(std::memory_order_acquire);
+    if (pool != nullptr && g_pool_pid.load(std::memory_order_acquire) == pid) return *pool;
+    std::lock_guard<std::mutex> lock(g_pool_mu);
+    pool = g_pool.load(std::memory_order_acquire);
+    if (pool == nullptr || g_pool_pid.load(std::memory_order_acquire) != pid) {
+        pool = new ThreadPool();
+        g_pool_pid.store(pid, std::memory_order_release);
+        g_pool.store(pool, std::memory_order_release);
+    }
+    return *pool;
 }
 
 ThreadPool::ThreadPool(size_t threads) : stop(false) {

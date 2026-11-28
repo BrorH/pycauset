@@ -23,7 +23,7 @@ Base class of every matrix. Not constructed directly; its methods are available 
 
 ## Linear algebra
 
-`A @ B`, `A.matmul(B)`, `A.inverse()` (`invert()`), `A.eig()`, `A.eigvals()`, `A.eigh()`,
+`A @ B`, `A.matmul(B)`, `A.eig()`, `A.eigvals()`, `A.eigh()`,
 `A.eigvalsh()`, `A.trace()`, `A.determinant()`. The same operations exist as functions
 (`pycauset.matmul`, `pycauset.eigh`, ...).
 

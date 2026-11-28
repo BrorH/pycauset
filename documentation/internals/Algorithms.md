@@ -29,7 +29,7 @@ The algorithms behind the operations, as they run in R1 (CPU only; see
 
 ## Inverse and solves
 
-`invert` is NumPy's algorithm: `solve(A, I)` by LU with partial pivoting (`?getrf` and two
+`inv` is NumPy's algorithm: `solve(A, I)` by LU with partial pivoting (`?getrf` and two
 triangular solves, column-major on the row-major buffers; see
 [[internals/Compute Architecture|Compute Architecture]]). An
 upper triangular matrix's inverse is upper triangular (the class is kept), a diagonal's is

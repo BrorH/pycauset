@@ -28,8 +28,7 @@ public:
     std::unique_ptr<TriangularMatrix<double>> compute_k_matrix(
         const TriangularMatrix<bool>& C,
         double a,
-        const std::string& output_path,
-        int num_threads) override;
+        const std::string& output_path) override;
 
     double frobenius_norm(const MatrixBase& m) override;
 

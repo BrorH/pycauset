@@ -47,7 +47,7 @@ P, L, U = pc.lu(A)                     # LU decomposition
 Lc = pc.cholesky(A)                    # lower-triangular Cholesky factor
 w, V = pc.eigh(A)                      # symmetric eigenvalues / eigenvectors
 U_, s, Vt = pc.svd(A)                  # singular value decomposition
-pc.invert(A), pc.cond(A), pc.slogdet(A), pc.norm(A, "fro")
+pc.inv(A), pc.cond(A), pc.slogdet(A), pc.norm(A, "fro")
 ```
 
 Results come back as PyCauset objects in NumPy's dtypes; `np.asarray(...)` or

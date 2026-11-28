@@ -1320,11 +1320,25 @@ std::unique_ptr<MatrixBase> pinv(const MatrixBase& a) {
 
 // --- Special Solvers (Implementation from MatrixOperations.cpp) ---
 
-std::unique_ptr<pycauset::TriangularMatrix<double>> compute_k_matrix(
-    const pycauset::TriangularMatrix<bool>& C, 
-    double a, 
-    const std::string& output_path, 
-    int num_threads
-) {
-    return pycauset::ComputeContext::instance().get_device()->compute_k_matrix(C, a, output_path, num_threads);
+std::unique_ptr<pycauset::MatrixBase> compute_k_matrix(const pycauset::MatrixBase& c, double a) {
+    // The kernel reads the stored bits by rows: it ignored a transpose (compute_k(C.T) was K of
+    // C) and divided by a = 0 (review 3.4 C-4).
+    const auto* C = dynamic_cast<const pycauset::TriangularMatrix<bool>*>(&c);
+    if (C == nullptr) {
+        throw pycauset::dtype_error("compute_k: expects a causal matrix (TriangularMatrix of dtype bool), got " +
+                                    std::string(pycauset::dtype_name(c.get_data_type())));
+    }
+    if (C->has_diagonal()) {
+        throw std::invalid_argument("compute_k: expects a causal (strictly upper triangular) matrix");
+    }
+    if (c.is_subview() || c.get_scalar() != std::complex<double>(1.0, 0.0)) {
+        throw std::invalid_argument("compute_k: expects a whole causal matrix (not a window or scaled view)");
+    }
+    if (a == 0.0) throw pycauset::linalg_error("compute_k: aI + C is singular for a = 0");
+    auto& device = *pycauset::ComputeContext::instance().get_device();
+    if (c.is_transposed()) {
+        const auto base = c.transpose();
+        return device.compute_k_matrix(static_cast<const pycauset::TriangularMatrix<bool>&>(*base), a, "")->transpose();
+    }
+    return device.compute_k_matrix(*C, a, "");
 }

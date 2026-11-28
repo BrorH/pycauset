@@ -5,7 +5,7 @@ pycauset.last_io_trace(op: str | None = None) -> dict | None
 ```
 
 Return the trace of the most recent traced call, optionally the most recent call of one
-operation. Traced calls are the `pycauset.<op>(...)` functions (`matmul`, `invert`, `solve`,
+operation. Traced calls are the `pycauset.<op>(...)` functions (`matmul`, `inv`, `solve`,
 the decompositions and norms, `trace`, `determinant`, the bitwise functions, ...); operators
 such as `a @ b` are not traced.
 

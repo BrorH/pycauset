@@ -1,23 +1,15 @@
 # pycauset.invert
 
 ```python
-pycauset.invert(a)
+pycauset.invert(a)    # ~a
 ```
 
-The inverse of a square matrix, as NumPy's `linalg.inv`. Also `a.invert()`.
+NumPy's `invert`: element-wise NOT, the same function as
+[[docs/functions/pycauset.bitwise_not.md|pycauset.bitwise_not]]. Logical not for dtype `bool`,
+two's-complement not for integer dtypes; float and complex operands raise `TypeError`.
 
-Every dtype, structure and view works. The algorithm is NumPy's: LU with partial pivoting
-(LAPACK `?getrf` and triangular solves on `A X = I`) in the operand's precision; integer and bool matrices invert
-to float64, float32 stays float32. Structure is used where it is exact: the inverse of an
-upper triangular matrix is a `TriangularMatrix`, of a diagonal matrix a `DiagonalMatrix`
-(element-wise), of an identity `1/scale`; a scaled view inverts with the reciprocal scale.
-
-## Raises
-
-*   **ValueError**: the matrix is not square.
-*   **ValueError**: the matrix is singular (a zero pivot), including every strictly
-    upper triangular matrix such as a causal matrix. NumPy raises `LinAlgError`, a
-    `ValueError`.
+The matrix inverse is [[docs/functions/pycauset.inv.md|pycauset.inv]] (NumPy's `linalg.inv`).
+`pycauset.invert` used to be the inverse: a NumPy name with another meaning (review 3.8 C-7).
 
 ## Example
 
@@ -25,13 +17,6 @@ upper triangular matrix is a `TriangularMatrix`, of a diagonal matrix a `Diagona
 import numpy as np
 import pycauset as pc
 
-A = pc.matrix([[4.0, 7.0], [2.0, 6.0]])
-np.testing.assert_allclose(np.asarray(pc.invert(A)), [[0.6, -0.7], [-0.2, 0.4]])
-assert pc.invert(pc.matrix([[4, 7], [2, 6]])).dtype == "float64"
-assert type(pc.invert(pc.diagonal([2.0, 4.0]))).__name__ == "DiagonalMatrix"
+C = pc.causal_matrix(np.triu(np.ones((3, 3), bool), 1))
+np.testing.assert_array_equal(np.asarray(pc.invert(C)), np.invert(np.asarray(C)))
 ```
-
-## See also
-
-*   [[docs/functions/pycauset.solve.md|pycauset.solve]]
-*   [[docs/functions/pycauset.pinv.md|pycauset.pinv]]

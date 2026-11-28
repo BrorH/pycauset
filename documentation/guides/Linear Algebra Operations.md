@@ -100,14 +100,14 @@ pinv = pc.pinv(sym)
 
 ```python
 A = pc.matrix([ [4., 7.], [2., 6.] ], dtype="float64")
-A_inv = pc.invert(A)
+A_inv = pc.inv(A)
 
 val, logabsdet = pc.slogdet(A)
 κ = pc.cond(A)
 ```
-- `invert`/`inverse` require square, supported dtypes (float64/float32); errors on singular.
+- `inv` takes a square matrix of any dtype, structure and view (integers give float64); a singular matrix raises `numpy.linalg.LinAlgError`.
 - `slogdet` returns `(sign, logabsdet)`; `cond` returns condition number.
-- See [[docs/functions/pycauset.invert.md|pycauset.invert]], [[docs/functions/pycauset.slogdet.md|pycauset.slogdet]], [[docs/functions/pycauset.cond.md|pycauset.cond]].
+- See [[docs/functions/pycauset.inv.md|pycauset.inv]], [[docs/functions/pycauset.slogdet.md|pycauset.slogdet]], [[docs/functions/pycauset.cond.md|pycauset.cond]].
 
 ## Dtype, precision, and device routing
 
@@ -126,7 +126,7 @@ Dense matrices support NumPy-style indexing: basic slices are views; advanced (i
 
 ## Size limits
 
-Factorizations and eigen problems (`solve`, `invert`, `det`, `cholesky`, `qr`, `lu`, `svd`,
+Factorizations and eigen problems (`solve`, `inv`, `det`, `cholesky`, `qr`, `lu`, `svd`,
 `eigh`, `eig`, `lstsq`, `pinv`, `matrix_rank`, `cond`) copy the matrix into a LAPACK work
 buffer, so they need it to fit in RAM, also when it is file-backed. Matrix products and
 element-wise operations stream through larger-than-RAM matrices, and

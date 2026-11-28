@@ -110,7 +110,7 @@ def main() -> None:
     def np_inv(n):
         return np.linalg.inv(_general(n))
     def pc_inv(n):
-        return pc.invert(pc.matrix(_general(n)))
+        return pc.inv(pc.matrix(_general(n)))
     _measure("inverse", fact_sizes, np_inv, pc_inv, results)
 
     # solve

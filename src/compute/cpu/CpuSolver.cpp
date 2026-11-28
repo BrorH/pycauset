@@ -136,8 +136,8 @@ double CpuSolver::dot(const VectorBase& a, const VectorBase& b) {
         // as the matmul kernels and sum do (review 3.4 C-1: dot(~u, ~u) was 64 for n = 5).
         const uint64_t tail = n % 64;
         const uint64_t last_mask = tail == 0 ? ~uint64_t{0} : (uint64_t{1} << tail) - 1;
+        // Serial (a popcount per 64 elements; no OpenMP team in the engine, review 3.4 C-2).
         int64_t count = 0;
-        #pragma omp parallel for reduction(+:count)
         for (int64_t i = 0; i < (int64_t)num_words; ++i) {
             const uint64_t w = a_data[i] & b_data[i];
             count += std::popcount(i + 1 == (int64_t)num_words ? (w & last_mask) : w);
@@ -212,7 +212,7 @@ std::complex<double> CpuSolver::dot_complex(const VectorBase& a, const VectorBas
     double re = 0.0;
     double im = 0.0;
 
-    #pragma omp parallel for reduction(+:re, im)
+    // Serial: no OpenMP team in the engine (libgomp hangs in a forked child, review 3.4 C-2).
     for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
         const std::complex<double> prod = a.get_element_as_complex(static_cast<uint64_t>(i)) *
                                           b.get_element_as_complex(static_cast<uint64_t>(i));
@@ -532,10 +532,9 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
 std::unique_ptr<TriangularMatrix<double>> CpuSolver::compute_k_matrix(
     const TriangularMatrix<bool>& C,
     double a,
-    const std::string& output_path,
-    int num_threads
+    const std::string& output_path
 ) {
-    (void)num_threads; // ParallelFor uses global ThreadPool settings
+    debug_trace::set_last("cpu.compute_k.bit_triangular");
     if (C.has_diagonal()) {
         throw std::invalid_argument("compute_k_matrix expects a causal (strictly upper triangular) matrix");
     }

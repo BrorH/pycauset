@@ -63,7 +63,7 @@ triangular + triangular is triangular) and returns NumPy's values.
 
 ```python
 pc.solve(A, v)          # like np.linalg.solve
-pc.invert(A)            # also A.inverse()
+pc.inv(A)               # NumPy's linalg.inv
 pc.svd(A)               # U, S, Vt with NumPy's shapes
 pc.norm(A, "fro"), pc.cond(A), pc.matrix_rank(A)
 ```

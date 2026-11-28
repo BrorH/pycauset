@@ -375,7 +375,7 @@ _F081_OPS = {
     "trace": lambda m: m.trace(),
     "det": lambda m: pc.determinant(m),
     "norm": lambda m: pc.norm(m),
-    "inv": lambda m: to_np(pc.invert(m)),
+    "inv": lambda m: to_np(pc.inv(m)),
     "eigvalsh": lambda m: np.sort(to_np(pc.eigvalsh(m))),
 }
 
@@ -1063,7 +1063,7 @@ def test_F136_nan_input_gives_numpy_results_not_errors(op):
     a = np.array([[1.0, np.nan], [np.nan, 2.0]])
     m = pc.matrix(a)
     fns = {"det": (pc.determinant, np.linalg.det), "slogdet": (pc.slogdet, np.linalg.slogdet),
-           "inv": (pc.invert, np.linalg.inv), "solve": (lambda x: pc.solve(x, pc.matrix(np.eye(2))),
+           "inv": (pc.inv, np.linalg.inv), "solve": (lambda x: pc.solve(x, pc.matrix(np.eye(2))),
                                                         lambda x: np.linalg.solve(x, np.eye(2))),
            "qr": (lambda x: pc.qr(x)[1], lambda x: np.linalg.qr(x)[1]),
            "svd": (pc.svdvals if hasattr(pc, "svdvals") else (lambda x: pc.svd(x, compute_uv=False)),
@@ -1187,14 +1187,14 @@ def test_3_6_C13_bool_scalar_is_a_bool_operand():
 def test_singular_matrix_is_a_value_error():
     """NumPy raises LinAlgError (a ValueError) for a singular matrix; PyCauset raised RuntimeError."""
     z = pc.matrix(np.zeros((2, 2)))
-    for f in (pc.invert, lambda m: pc.matrix_power(m, -1), lambda m: pc.solve(m, pc.matrix(np.ones((2, 1))))):
+    for f in (pc.inv, lambda m: pc.matrix_power(m, -1), lambda m: pc.solve(m, pc.matrix(np.ones((2, 1))))):
         with pytest.raises(ValueError, match="singular"):
             f(z)
     d = pc.DiagonalMatrix(2, dtype="float64")  # zero diagonal: the structure rule
     with pytest.raises(ValueError, match="singular"):
-        pc.invert(d)
+        pc.inv(d)
     with pytest.raises(np.linalg.LinAlgError):  # NumPy's own class
-        pc.invert(z)
+        pc.inv(z)
     with pytest.raises(np.linalg.LinAlgError, match="positive definite"):
         pc.cholesky(pc.matrix(-np.eye(2)))
 
@@ -1246,3 +1246,77 @@ def test_3_4_C1_bit_dot_ignores_padding_bits(n):
     """Review 3.4 C-1: the bit dot counted the bits past n in the last word (~u sets them)."""
     u = pc.vector(np.zeros(n, bool))
     assert pc.dot(~u, ~u) == n and (~u) @ (~u) == n
+
+
+def _degenerate_skew():
+    rng = np.random.default_rng(3)
+    q, _ = np.linalg.qr(rng.standard_normal((6, 6)))
+    j = np.array([[0.0, 1.0], [-1.0, 0.0]])
+    blocks = np.zeros((6, 6))
+    blocks[0:2, 0:2], blocks[2:4, 2:4], blocks[4:6, 4:6] = j, j, 2 * j
+    a = q @ blocks @ q.T
+    return (a - a.T) / 2  # exactly skew in floating point
+
+
+def test_3_4_C3_eig_skew_vectors_are_orthonormal_and_orders_agree():
+    """Review 3.4 C-3: eig_skew used ?geev, whose eigenvectors are not orthogonal within a
+    repeated eigenvalue (V^H V - I up to 0.2), and its order differed from eigvals_skew's."""
+    a = _degenerate_skew()
+    w, v = pc.eig_skew(pc.matrix(a), 6)
+    w, v = np.asarray(w), np.asarray(v)
+    np.testing.assert_allclose(v.conj().T @ v, np.eye(6), atol=1e-12)
+    np.testing.assert_allclose(a @ v, v * w, atol=1e-12)
+    np.testing.assert_allclose(w, np.asarray(pc.eigvals_skew(pc.matrix(a), 6)), atol=1e-12)  # same order
+    np.testing.assert_allclose(w.imag, [2, -2, 1, 1, -1, -1], atol=1e-12)  # +i first per cluster
+    # The Sorkin-Johnston W from the positive part, against numpy's Hermitian solver.
+    pos = w.imag > 0
+    W = (v[:, pos] * w.imag[pos]) @ v[:, pos].conj().T
+    mu, u = np.linalg.eigh(1j * a)
+    Wn = (u[:, mu > 0] * mu[mu > 0]) @ u[:, mu > 0].conj().T
+    np.testing.assert_allclose(W, Wn.conj(), atol=1e-12)
+
+
+def test_3_4_C4_compute_k_views_and_singular_a():
+    """Review 3.4 C-4: compute_k(C.T) returned K of C, and a = 0 gave inf / nan."""
+    rng = np.random.default_rng(1)
+    c = np.triu(rng.random((6, 6)) < 0.5, 1)
+    C = pc.causal_matrix(c)
+    for m, arr in ((C, c), (C.T, c.T)):
+        want = arr @ np.linalg.inv(2.0 * np.eye(6) + arr)
+        np.testing.assert_allclose(np.asarray(pc.compute_k(m, 2.0)), want, atol=1e-12)
+    with pytest.raises(np.linalg.LinAlgError, match="singular"):
+        pc.compute_k(C, 0.0)
+    with pytest.raises(TypeError, match="causal matrix"):
+        pc.compute_k(pc.matrix(np.eye(3)), 1.0)
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "fork"), reason="POSIX fork")
+def test_3_4_C2_parallel_kernels_run_after_fork():
+    """Review 3.4 C-2: a forked child inherited the pool without its threads, so the first
+    parallel kernel waited forever (multiprocessing's fork start method)."""
+    import os
+    import signal
+
+    big = pc.matrix(np.ones((1024, 1024)))
+    _ = big + big  # the parent's pool exists
+    pid = os.fork()
+    if pid == 0:  # child: a hang ends in SIGALRM, an error in exit status 2
+        signal.alarm(20)
+        try:
+            ok = float(np.asarray(big + big)[3, 4]) == 2.0
+            u = pc.vector(np.ones(5000, bool))
+            ok = ok and pc.dot(u, u) == 5000
+            os._exit(0 if ok else 1)
+        except BaseException:
+            os._exit(2)
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+
+
+def test_3_8_C7_invert_is_numpys_invert():
+    """Review 3.8 C-7: pc.invert was the matrix inverse; NumPy's invert is element-wise NOT."""
+    for a in (np.array([[1, 2], [3, 5]], np.int8), np.array([[True, False]])):
+        np.testing.assert_array_equal(np.asarray(pc.invert(pc.matrix(a))), np.invert(a))
+    m = np.array([[4.0, 7.0], [2.0, 6.0]])
+    np.testing.assert_allclose(np.asarray(pc.inv(pc.matrix(m))), np.linalg.inv(m))
+    assert not hasattr(pc.matrix(m), "inverse") and not hasattr(pc.matrix(m), "invert")

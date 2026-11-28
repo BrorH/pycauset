@@ -19,7 +19,7 @@ that does not fit in RAM are placed in files, so element-wise operations, reduct
 matrix-vector products, `eigvals_arnoldi`, matmul and the causal-matrix products work on
 data larger than RAM (as fast as the disk and the access pattern allow).
 
-Exception, today: the LAPACK operations (`solve`, `invert`, `determinant`, `cholesky`, `qr`,
+Exception, today: the LAPACK operations (`solve`, `inv`, `determinant`, `cholesky`, `qr`,
 `lu`, `svd`, `lstsq`, `eigh`, `eig`) copy the whole operand into a heap work buffer, which is
 not checked against free RAM (review 3.5 C-4). On data larger than RAM they need that much
 memory.

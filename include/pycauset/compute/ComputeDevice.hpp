@@ -53,8 +53,7 @@ public:
     virtual std::unique_ptr<TriangularMatrix<double>> compute_k_matrix(
         const TriangularMatrix<bool>& C,
         double a,
-        const std::string& output_path,
-        int num_threads) = 0;
+        const std::string& output_path) = 0;
 
     // Reductions / norms
     virtual double frobenius_norm(const MatrixBase& m) = 0;

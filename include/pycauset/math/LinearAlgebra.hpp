@@ -76,9 +76,6 @@ std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const Ma
 
 // --- Special Solvers ---
 
-std::unique_ptr<pycauset::TriangularMatrix<double>> compute_k_matrix(
-    const pycauset::TriangularMatrix<bool>& C, 
-    double a, 
-    const std::string& output_path, 
-    int num_threads = 0
-);
+// K = C (aI + C)^-1 for a causal matrix C (TriangularMatrix of dtype bool, no diagonal). A
+// transposed C gives K(C)^T (the inverse commutes with C). a == 0: linalg_error (singular).
+std::unique_ptr<pycauset::MatrixBase> compute_k_matrix(const pycauset::MatrixBase& C, double a);

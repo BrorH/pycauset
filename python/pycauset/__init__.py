@@ -927,14 +927,20 @@ def bitwise_xnor(a: Any, b: Any) -> Any:
     return _ops.bitwise_xnor(a, b, deps=_OPS_DEPS)
 
 
-def invert(a: Any) -> Any:
+def inv(a: Any) -> Any:
     """The inverse of a square matrix, as NumPy's `linalg.inv` (integers give float64).
 
-    Raises RuntimeError if the matrix is singular."""
+    Raises numpy.linalg.LinAlgError (a ValueError) if the matrix is singular."""
     if debug_mode:
-        _debug(f"invert {_matrix_desc(a)}")
-    with _debug_time("invert"):
-        return _ops.invert(a, deps=_OPS_DEPS)
+        _debug(f"inv {_matrix_desc(a)}")
+    with _debug_time("inv"):
+        return _ops.inv(a, deps=_OPS_DEPS)
+
+
+def invert(a: Any) -> Any:
+    """Element-wise NOT (`~a`), NumPy's `invert` (the same as `bitwise_not`). The matrix inverse
+    is `inv` (review 3.8 C-7: `invert` was the inverse, a NumPy name with another meaning)."""
+    return _ops.bitwise_not(a, deps=_OPS_DEPS)
 
 
 def lstsq(a: Any, b: Any) -> Any:
@@ -1291,6 +1297,7 @@ _extra_exports = [
     "bitwise_nand",
     "bitwise_nor",
     "bitwise_xnor",
+    "inv",
     "invert",
     "solve",
     "lstsq",

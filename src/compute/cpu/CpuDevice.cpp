@@ -64,10 +64,9 @@ double CpuDevice::l2_norm(const VectorBase& v) {
 std::unique_ptr<TriangularMatrix<double>> CpuDevice::compute_k_matrix(
     const TriangularMatrix<bool>& C,
     double a,
-    const std::string& output_path,
-    int num_threads
+    const std::string& output_path
 ) {
-    return solver_.compute_k_matrix(C, a, output_path, num_threads);
+    return solver_.compute_k_matrix(C, a, output_path);
 }
 
 double CpuDevice::frobenius_norm(const MatrixBase& m) {

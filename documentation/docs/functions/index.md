@@ -21,7 +21,6 @@
 * **[[docs/functions/pycauset.bitwise_nor.md|bitwise_nor]]**
 * **[[docs/functions/pycauset.bitwise_xnor.md|bitwise_xnor]]**
 * **[[docs/functions/pycauset.compute_k.md|compute_k]]**
-* **[[docs/functions/pycauset.compute_k_matrix.md|compute_k_matrix]]**
 * **[[docs/functions/pycauset.dot.md|dot]]**
 * **[[docs/functions/pycauset.vecdot.md|vecdot]]**
 * **[[docs/functions/pycauset.cross.md|cross]]**
@@ -34,6 +33,7 @@
 * **[[docs/functions/pycauset.det.md|det]]**
 * **[[docs/functions/pycauset.get_memory_threshold.md|get_memory_threshold]]**
 * **[[docs/functions/pycauset.get_num_threads.md|get_num_threads]]**
+* **[[docs/functions/pycauset.inv.md|inv]]**
 * **[[docs/functions/pycauset.invert.md|invert]]**
 * **[[docs/functions/pycauset.solve.md|solve]]**
 * **[[docs/functions/pycauset.lstsq.md|lstsq]]**
