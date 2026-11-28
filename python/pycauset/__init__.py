@@ -686,52 +686,7 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
             "Scalars/0D are not supported."
         )
 
-    _MatrixBase = _native.MatrixBase
-    if _MatrixBase is not None and isinstance(source, _MatrixBase):
-        if dtype is not None or kwargs:
-            raise TypeError(
-                "matrix(...) does not accept dtype/kwargs when source is already a matrix. "
-                "Pass data instead."
-            )
-        return source
-
-    # Internal BlockMatrix support (Phase F integration): if the input is already
-    # an internal block/view/thunk matrix, treat it as a matrix.
-    from ._internal.blockmatrix import BlockMatrix
-    from ._internal.submatrix_view import SubmatrixView
-    from ._internal.thunks import ThunkBlock
-
-    if isinstance(source, BlockMatrix):
-        if dtype is not None or kwargs:
-            raise TypeError(
-                "matrix(...) does not accept dtype/kwargs when source is already a matrix. "
-                "Pass data instead."
-            )
-        return source
-    if isinstance(source, SubmatrixView):
-        if dtype is not None or kwargs:
-            raise TypeError(
-                "matrix(...) does not accept dtype/kwargs when source is already a matrix. "
-                "Pass data instead."
-            )
-        return source
-    if isinstance(source, ThunkBlock):
-        if dtype is not None or kwargs:
-            raise TypeError(
-                "matrix(...) does not accept dtype/kwargs when source is already a matrix. "
-                "Pass data instead."
-            )
-        return source
-
-    _VectorBase = _native.VectorBase
-    if _VectorBase is not None and isinstance(source, _VectorBase):
-        if dtype is not None or kwargs:
-            raise TypeError(
-                "matrix(...) does not accept dtype/kwargs when source is already a vector. "
-                "Pass data instead."
-            )
-        return source
-
+    # NumPy arrays first: the common case (2.9 us per call when checked last, F-096).
     if isinstance(source, _np.ndarray):
         if source.ndim == 2:
             if dtype is None:
@@ -740,6 +695,21 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
         if source.ndim == 1:
             return vector(source, dtype=dtype, **kwargs)
         raise TypeError("matrix(...) expects 1D or 2D input")
+
+    # Already a matrix or vector (engine objects and the internal block / view / thunk
+    # matrices): returned as they are.
+    from ._internal.blockmatrix import BlockMatrix
+    from ._internal.submatrix_view import SubmatrixView
+    from ._internal.thunks import ThunkBlock
+
+    if isinstance(source, (_native.MatrixBase, _native.VectorBase, BlockMatrix, SubmatrixView, ThunkBlock)):
+        if dtype is not None or kwargs:
+            what = "vector" if isinstance(source, _native.VectorBase) else "matrix"
+            raise TypeError(
+                f"matrix(...) does not accept dtype/kwargs when source is already a {what}. "
+                "Pass data instead."
+            )
+        return source
 
     if _is_sequence_like(source):
         if len(source) == 0:
