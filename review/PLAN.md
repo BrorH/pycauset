@@ -427,6 +427,14 @@ are engine-owned metadata on the storage).
       overhead (~2 us of Python layers per op), complex32 and bool structured operands,
       symmetric matvec (0.3x: needs a blocked symv-style kernel), page-faulting fresh results.
 - [ ] 6.2 Thread-pool consolidation (F-014)
+      - Tried and reverted (session 9): workers spinning 100 us before sleeping, plus the
+        caller taking a share of the chunks. `dot` of 10^5 / 10^6 did not improve (0.0146 /
+        0.13 ms; NumPy 0.005 / 0.036 ms, whose OpenBLAS threads spin between calls),
+        `(C @ C) @ C` at n = 2000 went 24 -> 32 ms and parity matmul 1.2x -> 0.9x (spinning
+        workers compete with OpenBLAS's threads). The `dot` gap is wake-up latency (~25 us
+        per pool dispatch); 2,048-element blocks made a 10^5 dot slower for that reason. A fix
+        needs one thread budget shared with OpenBLAS (6.0, one OpenBLAS per process), not a
+        second spinning pool.
 - [x] 6.3 Out-of-core paths for eigh/svd/rank (F-011) or document them as in-RAM only
       (documented, session 9)
 - [ ] 6.4 Large-N out-of-core benchmark on a real disk (README's headline claim)
