@@ -67,6 +67,7 @@
 #include <vector>
 #include <cstring>
 #include <atomic>
+#include <optional>
 #include <functional>
 #include "pycauset/matrix/BitClosureMatrix.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
@@ -154,15 +155,166 @@ double CpuSolver::l2_norm(const VectorBase& v) {
     return frobenius_norm(*row);
 }
 
-// Kernel contract: a lazy closure C +- C^T over causal bits (LAZY.md L2b), a real factor
-// below 2^30, a real vector, a DenseVector<double> result. Two triangular passes over the
-// bits, nothing materialized. Every other matrix-vector product is matmul (the matvec entry,
-// math/LinearAlgebra.cpp).
+namespace {
+// Packed bit rows of a DenseMatrix<bool> or TriangularMatrix<bool> in storage orientation: row
+// i holds the bits of columns first(i) .. first(i) + nbits(i) - 1, in 64-bit words (padding
+// bits are masked, not trusted).
+struct BitRows {
+    const char* base = nullptr;
+    uint64_t rows = 0, cols = 0, stride = 0;
+    const TriangularMatrix<bool>* tri = nullptr;
+    const uint64_t* words(uint64_t i) const {
+        return reinterpret_cast<const uint64_t*>(base + (tri ? tri->get_row_offset(i) : i * stride));
+    }
+    uint64_t first(uint64_t i) const { return tri ? tri->first_col(i) : 0; }
+    uint64_t nbits(uint64_t i) const { return tri ? tri->row_bits(i) : cols; }
+};
+
+std::optional<BitRows> bit_rows(const MatrixBase& m) {
+    BitRows b;
+    b.rows = m.base_rows();
+    b.cols = m.base_cols();
+    if (auto* t = dynamic_cast<const TriangularMatrix<bool>*>(&m)) {
+        b.tri = t;
+    } else if (auto* d = dynamic_cast<const DenseMatrix<bool>*>(&m)) {
+        b.stride = d->stride_bytes();
+    } else {
+        return std::nullopt;
+    }
+    b.base = static_cast<const char*>(m.require_mapper()->get_data());
+    return b;
+}
+
+// Checked = false: plain sums (floating point, or integers whose largest possible sum fits).
+template <bool Checked, typename Acc>
+inline Acc bit_add(Acc a, Acc b) {
+    if constexpr (Checked) {
+        if ((b > 0 && a > (std::numeric_limits<Acc>::max)() - b) || (b < 0 && a < (std::numeric_limits<Acc>::min)() - b)) {
+            throw std::overflow_error("Integer matmul overflow: accumulator overflow");
+        }
+    }
+    return a + b;
+}
+
+// Below ~2^20 bits one thread beats waking the pool.
+inline bool bit_parallel(const BitRows& b) { return b.rows * b.cols >= (uint64_t{1} << 20); }
+
+// y_i = sum of x over the set bits of row i (y has b.rows entries): visits set bits only.
+template <bool Checked, typename Acc>
+void bit_gather(const BitRows& b, const Acc* x, Acc* y) {
+    auto one_row = [&](size_t i) {
+        const uint64_t* w = b.words(i);
+        const uint64_t nb = b.nbits(i);
+        const Acc* xs = x + b.first(i);
+        Acc acc = 0;
+        for (uint64_t q = 0; q * 64 < nb; ++q) {
+            uint64_t bits = w[q];
+            if (nb - q * 64 < 64) bits &= (uint64_t{1} << (nb - q * 64)) - 1;
+            const Acc* xq = xs + q * 64;
+            while (bits) {
+                acc = bit_add<Checked>(acc, xq[std::countr_zero(bits)]);
+                bits &= bits - 1;
+            }
+        }
+        y[i] = acc;
+    };
+    if (bit_parallel(b)) ParallelFor(0, b.rows, one_row);
+    else for (uint64_t i = 0; i < b.rows; ++i) one_row(i);
+}
+
+// y_j = sum_i bit(i, j) x_i (y has b.cols entries): a scatter, parallel over disjoint column
+// blocks so no two tasks write the same y_j.
+template <bool Checked, typename Acc>
+void bit_scatter(const BitRows& b, const Acc* x, Acc* y) {
+    std::fill(y, y + b.cols, Acc(0));
+    // At least 64 blocks when parallel (ParallelFor runs fewer than 32 inline), 64-column
+    // aligned; each block scans the rows that reach it (a triangle's rows start later and later).
+    const bool par = bit_parallel(b);
+    const uint64_t kBlock = par ? std::max<uint64_t>(64, (b.cols / 64 + 63) / 64 * 64) : b.cols + 1;
+    auto one_block = [&](size_t blk) {
+        const uint64_t c0 = blk * kBlock, c1 = std::min<uint64_t>(b.cols, c0 + kBlock);
+        for (uint64_t i = 0; i < b.rows; ++i) {
+            const uint64_t f = b.first(i), nb = b.nbits(i);
+            if (b.tri && f >= c1) break;
+            const uint64_t j_lo = std::max(c0, f), j_hi = std::min(c1, f + nb);
+            if (j_lo >= j_hi || x[i] == Acc(0)) continue;
+            const uint64_t* w = b.words(i);
+            const Acc xi = x[i];
+            const uint64_t b_lo = j_lo - f, b_hi = j_hi - f;  // bit range [b_lo, b_hi)
+            for (uint64_t q = b_lo / 64; q * 64 < b_hi; ++q) {
+                uint64_t bits = w[q];
+                const uint64_t q0 = q * 64;
+                if (b_lo > q0) bits &= ~uint64_t{0} << (b_lo - q0);
+                if (b_hi < q0 + 64) bits &= (uint64_t{1} << (b_hi - q0)) - 1;
+                Acc* yq = y + f + q0;
+                while (bits) {
+                    const int t = std::countr_zero(bits);
+                    yq[t] = bit_add<Checked>(yq[t], xi);
+                    bits &= bits - 1;
+                }
+            }
+        }
+    };
+    const uint64_t blocks = (b.cols + kBlock - 1) / kBlock;
+    if (par) ParallelFor(0, blocks, one_block);
+    else for (uint64_t k = 0; k < blocks; ++k) one_block(k);
+}
+
+// M x for a bit matrix in either orientation: the gather over its rows, or the scatter for M^T.
+template <bool Checked, typename Acc>
+void bit_times(const BitRows& b, bool transposed, const Acc* x, Acc* y) {
+    if (transposed) bit_scatter<Checked>(b, x, y);
+    else bit_gather<Checked>(b, x, y);
+}
+
+// Kernel contract: a bit matrix (DenseMatrix<bool> / TriangularMatrix<bool>, either
+// orientation, not a window, view scalar 1), a real vector, and a DenseVector<R> result with R
+// int8..int64, uint8..uint32, float32 or float64. Integers sum exactly in int64 and raise when
+// the sum does not fit R (F-055); floats sum in double.
+template <typename R>
+bool bit_matvec(const MatrixBase& m, const VectorBase& v, VectorBase& result) {
+    auto* out = dynamic_cast<DenseVector<R>*>(&result);
+    if (!out || m.is_subview() || m.get_scalar() != std::complex<double>(1.0, 0.0)) return false;
+    const auto b = bit_rows(m);
+    if (!b) return false;
+    const bool tr = m.is_transposed();
+    const uint64_t nx = tr ? b->rows : b->cols, ny = tr ? b->cols : b->rows;
+    R* y = out->data();
+    if constexpr (std::is_integral_v<R>) {
+        std::vector<int64_t> x(nx), acc(ny);
+        if (!read_rows(*as_row_matrix(v), 0, 1, x.data())) return false;
+        uint64_t maxabs = 0;
+        for (int64_t e : x) maxabs = std::max<uint64_t>(maxabs, e < 0 ? uint64_t(0) - uint64_t(e) : uint64_t(e));
+        const bool exact = nx == 0 || maxabs <= static_cast<uint64_t>((std::numeric_limits<int64_t>::max)()) / nx;
+        if (exact) bit_times<false>(*b, tr, x.data(), acc.data());
+        else bit_times<true>(*b, tr, x.data(), acc.data());
+        for (uint64_t i = 0; i < ny; ++i) {
+            if (acc[i] < static_cast<int64_t>((std::numeric_limits<R>::min)()) ||
+                acc[i] > static_cast<int64_t>((std::numeric_limits<R>::max)())) {
+                throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
+            }
+            y[i] = static_cast<R>(acc[i]);
+        }
+    } else {
+        std::vector<double> x(nx), acc(ny);
+        if (!read_rows(*as_row_matrix(v), 0, 1, x.data())) return false;
+        bit_times<false>(*b, tr, x.data(), acc.data());
+        for (uint64_t i = 0; i < ny; ++i) y[i] = static_cast<R>(acc[i]);
+    }
+    out->set_scalar(1.0);
+    debug_trace::set_last("cpu.matvec.bit");
+    return true;
+}
+}  // namespace
+
+// Kernel contracts: (1) a lazy closure C +- C^T over causal bits (LAZY.md L2b), a real factor
+// below 2^30, a real vector, a DenseVector<double> result: a gather and a scatter over the
+// bits, nothing materialized. (2) A bit matrix with a real vector (bit_matvec). (3) A
+// structured float64 / complex128 product (below). Every other matrix-vector product is matmul
+// (the matvec entry, math/LinearAlgebra.cpp).
 void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result) {
     const uint64_t rows = m.rows();
     require_blas_dims({m.rows(), m.cols()}, "matrix-vector product");
-    // Closure view C +- C^T over causal bits (LAZY.md L2b): two triangular passes over the
-    // bits, nothing materialized. Used when the int32 entries can't wrap under the factor.
     if (auto* cl = dynamic_cast<const BitClosureMatrix*>(&m); cl && !cl->is_materialized()) {
         auto* out = dynamic_cast<DenseVector<double>*>(&result);
         const double k = m.get_scalar().real();
@@ -170,63 +322,24 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             v.get_data_type() != DataType::COMPLEX_FLOAT16 && v.get_data_type() != DataType::COMPLEX_FLOAT32 &&
             v.get_data_type() != DataType::COMPLEX_FLOAT64) {
             debug_trace::set_last("cpu.matvec.bit_closure");
-            const auto& c = cl->bits();
+            const auto b = bit_rows(cl->bits());
             const double sg = static_cast<double>(cl->sign());
             const uint64_t n = rows;
             std::vector<double> x(n);
             for (uint64_t j = 0; j < n; ++j) x[j] = v.get_element_as_double(j);
-            // Row i holds columns i+1..n-1 as bits, starting at byte offset row_offset(i).
-            const auto* base = static_cast<const char*>(c.require_mapper()->get_data());
-            auto row_words = [&](uint64_t i) {
-                return reinterpret_cast<const uint64_t*>(base + c.get_row_offset(i));
-            };
-            std::vector<double> up(n, 0.0), down(n, 0.0);
-            // (C x)_i: gather along row i, visiting set bits only.
-            ParallelFor(0, n, [&](size_t i) {
-                if (i + 1 >= n) return;
-                const uint64_t* w = row_words(i);
-                const uint64_t nbits = n - 1 - i;
-                double acc = 0.0;
-                for (uint64_t q = 0; q * 64 < nbits; ++q) {
-                    uint64_t bits = w[q];
-                    const uint64_t remaining = nbits - q * 64;
-                    if (remaining < 64) bits &= (uint64_t{1} << remaining) - 1;
-                    while (bits) {
-                        const uint64_t t = static_cast<uint64_t>(__builtin_ctzll(bits));
-                        acc += x[i + 1 + q * 64 + t];
-                        bits &= bits - 1;
-                    }
-                }
-                up[i] = acc;
-            });
-            // (C^T x)_j = sum_{i<j} C_ij x_i: scatter, parallel over disjoint column blocks.
-            constexpr uint64_t BLOCK = 4096;
-            ParallelFor(0, (n + BLOCK - 1) / BLOCK, [&](size_t blk) {
-                const uint64_t c0 = blk * BLOCK, c1 = std::min<uint64_t>(n, c0 + BLOCK);
-                for (uint64_t i = 0; i + 1 < c1; ++i) {
-                    const uint64_t j_lo = std::max<uint64_t>(c0, i + 1);
-                    if (j_lo >= c1) continue;
-                    const uint64_t* w = row_words(i);
-                    const double xi = x[i];
-                    const uint64_t b_lo = j_lo - (i + 1), b_hi = c1 - (i + 1);  // bit range [b_lo, b_hi)
-                    for (uint64_t q = b_lo / 64; q * 64 < b_hi; ++q) {
-                        uint64_t bits = w[q];
-                        const uint64_t q0 = q * 64;
-                        if (b_lo > q0) bits &= ~uint64_t{0} << (b_lo - q0);
-                        if (b_hi < q0 + 64) bits &= (uint64_t{1} << (b_hi - q0)) - 1;
-                        while (bits) {
-                            const uint64_t t = static_cast<uint64_t>(__builtin_ctzll(bits));
-                            down[i + 1 + q0 + t] += xi;
-                            bits &= bits - 1;
-                        }
-                    }
-                }
-            });
+            std::vector<double> up(n), down(n);
+            bit_gather<false>(*b, x.data(), up.data());     // C x
+            bit_scatter<false>(*b, x.data(), down.data());  // C^T x
             double* y = out->data();
             for (uint64_t i = 0; i < n; ++i) y[i] = k * (up[i] + sg * down[i]);
             out->set_scalar(1.0);
             return;
         }
+    }
+    if (bit_matvec<double>(m, v, result) || bit_matvec<float>(m, v, result) || bit_matvec<int64_t>(m, v, result) ||
+        bit_matvec<int32_t>(m, v, result) || bit_matvec<int16_t>(m, v, result) || bit_matvec<int8_t>(m, v, result) ||
+        bit_matvec<uint32_t>(m, v, result) || bit_matvec<uint16_t>(m, v, result) || bit_matvec<uint8_t>(m, v, result)) {
+        return;
     }
     // A structured (non-dense) matrix with a float64 / complex128 result: a block of rows at a
     // time through the typed row reader (every view rule), each block times x with BLAS gemv.
@@ -453,7 +566,7 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
         if (packed(0.0) || packed(std::complex<double>(0.0, 0.0))) return;
         if (blocked(0.0) || blocked(std::complex<double>(0.0, 0.0))) return;
     }
-    throw std::invalid_argument("CpuSolver::matrix_vector_multiply: kernel contract is a bit closure or a structured matrix");
+    throw std::invalid_argument("CpuSolver::matrix_vector_multiply: kernel contract is a bit closure, a bit matrix or a structured matrix");
 }
 
 std::unique_ptr<TriangularMatrix<double>> CpuSolver::compute_k_matrix(

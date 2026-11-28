@@ -2242,3 +2242,56 @@ def test_3_4_C5_kernels_release_the_gil_and_threads_agree():
         ticks[0] += 1
     t.join()
     assert ticks[0] > 1000
+
+
+@pytest.mark.parametrize("n", [5, 64, 130, 1100])
+@pytest.mark.parametrize("dense", [False, True])
+def test_6_5_bit_matvec_sums_over_the_packed_bits(n, dense):
+    """C @ v, C.T @ v, v @ C and v @ C.T of a bit matrix (causal triangular or dense) sum v over
+    the packed bits for every integer / float result dtype: the bits were converted to an n x n
+    matrix of the result dtype first (65x NumPy's float32 gemv at n = 256, PLAN 6.5). Integer
+    results are exact and raise when they do not fit the dtype."""
+    rng = np.random.default_rng(n)
+    bits = rng.random((n, n)) < 0.4
+    if dense:
+        C = pc.matrix(bits)
+        ref = bits
+    else:
+        ref = np.triu(bits, 1)
+        C = pc.causal_matrix(ref)
+    vals = rng.integers(-50, 50, n)
+    for dt in ("bool", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "float32", "float64"):
+        x = np.abs(vals) % 2 if dt == "bool" else (np.abs(vals) if dt.startswith("u") else vals)
+        x = x.astype(dt)
+        v = pc.vector(x)
+        for M, R in ((C, ref), (C.T, ref.T)):
+            for left in (False, True):
+                pc._debug_clear_kernel_trace()
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    try:
+                        r = v @ M if left else M @ v
+                    except OverflowError:
+                        assert dt in ("int8", "uint8", "int16", "uint16"), dt
+                        exact = x.astype(np.int64) @ R.astype(np.int64) if left else R.astype(np.int64) @ x.astype(np.int64)
+                        info = np.iinfo(dt)
+                        assert exact.min() < info.min or exact.max() > info.max
+                        continue
+                assert pc._debug_last_kernel_trace() == "cpu.matvec.bit", (dt, left)
+                xf, Rf = x.astype(np.float64), R.astype(np.float64)  # exact here; NumPy's bool @ bool is logical
+                expected = xf @ Rf if left else Rf @ xf
+                assert r.dtype == ("int32" if dt == "bool" else dt)
+                np.testing.assert_allclose(np.asarray(r), expected, rtol=1e-6, err_msg=dt)
+
+
+def test_6_5_bit_matvec_views_take_the_general_path():
+    """A window or a scaled bit matrix is not plain packed bits: the general product, correct."""
+    rng = np.random.default_rng(3)
+    ref = np.triu(rng.random((9, 9)) < 0.5, 1)
+    C = pc.causal_matrix(ref)
+    x = np.arange(9.0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        np.testing.assert_allclose(np.asarray(C[1:6, 2:7] @ pc.vector(x[:5])), ref[1:6, 2:7] @ x[:5])
+        np.testing.assert_allclose(np.asarray((C * 3) @ pc.vector(x)), (3 * ref) @ x)
+        np.testing.assert_allclose(np.asarray(pc.vector(x) @ (C * -2)), x @ (-2 * ref))

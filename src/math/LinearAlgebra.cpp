@@ -467,6 +467,27 @@ std::unique_ptr<MatrixBase> outer_product(const VectorBase& a, const VectorBase&
     return out;
 }
 
+namespace {
+// Structure rule for matrix-vector products: a bit matrix (dense or causal triangular, not a
+// window, no scale) times a real vector whose result is int8..int64, uint8..uint32, float32 or
+// float64 is summed over the packed bits (CpuSolver's bit kernel). It converted the n x n
+// bits to the result dtype first (0.27 ms at n = 256; NumPy's float32 gemv 0.004 ms, review
+// 3.15 C-15 / PLAN 6.5). nullptr when the rule does not apply.
+std::unique_ptr<VectorBase> bit_matvec_rule(const MatrixBase& m, const VectorBase& v, DataType rd) {
+    const bool bit_m = dynamic_cast<const TriangularMatrix<bool>*>(&m) || dynamic_cast<const DenseMatrix<bool>*>(&m);
+    if (!bit_m || m.is_subview() || m.get_scalar() != std::complex<double>(1.0, 0.0) || m.rows() == 0) return nullptr;
+    switch (rd) {
+        case DataType::INT8: case DataType::INT16: case DataType::INT32: case DataType::INT64:
+        case DataType::UINT8: case DataType::UINT16: case DataType::UINT32:
+        case DataType::FLOAT32: case DataType::FLOAT64: break;
+        default: return nullptr;
+    }
+    auto out = ObjectFactory::create_vector(m.rows(), rd, Structure::VECTOR, "");
+    ComputeContext::instance().get_device()->matrix_vector_multiply(m, v, *out);
+    return out;
+}
+}  // namespace
+
 // Matrix-vector products, NumPy's matmul with a 1-D operand: one path with matmul. The vector
 // is an n x 1 column (M @ v) or a 1 x n row (v @ M) over its own storage (as_row_matrix, its
 // view kept), so every structure, dtype, view and matmul rule (identity, bit-packed,
@@ -494,6 +515,7 @@ std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const Ve
         const Structure st = m.get_structure();
         const DataType rd = promotion::resolve(promotion::BinaryOp::MatrixVectorMultiply, m.get_data_type(),
                                                v.get_data_type()).result_dtype;
+        if (auto out = bit_matvec_rule(m, v, rd)) return out;
         if (st != Structure::DENSE && st != Structure::IDENTITY && m.rows() > 0 &&
             (rd == DataType::FLOAT64 || rd == DataType::COMPLEX_FLOAT64) &&
             dynamic_cast<const BitClosureMatrix*>(&m) == nullptr) {
@@ -520,11 +542,15 @@ std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const Ma
         out->set_transposed(v.is_transposed());
         return out;
     }
-    // v @ M = (M^T v)^T: the structured matrix-vector rule above on the transposed view.
+    // v @ M = (M^T v)^T: the bit and structured matrix-vector rules above on the transposed view.
     {
         const Structure st = m.get_structure();
         const DataType rd = promotion::resolve(promotion::BinaryOp::MatrixVectorMultiply, m.get_data_type(),
                                                v.get_data_type()).result_dtype;
+        if (auto out = bit_matvec_rule(*m.transpose(), v, rd)) {
+            out->set_transposed(v.is_transposed());
+            return out;
+        }
         if (st != Structure::DENSE && st != Structure::IDENTITY && m.rows() > 0 &&
             (rd == DataType::FLOAT64 || rd == DataType::COMPLEX_FLOAT64) &&
             dynamic_cast<const BitClosureMatrix*>(&m) == nullptr) {
