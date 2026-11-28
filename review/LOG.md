@@ -766,3 +766,31 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   - Also: the Python patch stack is gone (PLAN 4.3), `size` is an attribute,
     `pc.zeros` no longer fills zeroed storage (4000²: 18 -> 0.2 ms), `a + b` 0.8 µs, C++
     coverage re-measured (194 of 1,234 functions never run). Atlas 0 wrong after each step.
+- Night of 2026-11-28, autonomous (areas 3.4, 3.5, 3.6, 3.7, 3.8, 3.10 reviewed, by agents for
+  3.4 / 3.7 / 3.8 / 3.10; notes in `review/areas/`, F-135 to F-140). Fixed the same night, each
+  with regression tests and the gates (suite, lazy off, atlas, ruff, mkdocs):
+  - Silent wrong values: integer matmul in unchecked int64 (128-bit now); real view factors
+    composed in complex (`A * inf`); the bit-vector dot counted padding bits; eig_skew's
+    eigenvectors not orthonormal on repeated eigenvalues (the Sorkin-Johnston W was off);
+    `compute_k(C.T)` ignored the transpose; printing applied the view factor twice; norm and dot
+    overflowed through the factor; `A[[0, 2]]` read one element; NumPy import ignored byte
+    order and strides; `M == M2` compared identity (comparisons are element-wise ops now, with
+    NumPy's truth value); `eigvals_skew` trusted non-skew input.
+  - Crashes and hangs: export of a closed matrix segfaulted; a forked child hung in the first
+    parallel kernel; storage freed by another thread during export / save.
+  - User data: the temp-file sweep deleted every `*.tmp` under the backing directory (temp files
+    are `<prefix>_<pid>_<n>.pycauset-tmp` now, and only those are swept); import created
+    `./.pycauset` and failed in read-only directories.
+  - NumPy contract: `pc.inv` is the inverse and `pc.invert` NumPy's NOT; `pc.asarray` is NumPy's;
+    `add` / `subtract` / `multiply`; `ndim`; `v @ M` is 1-D; one `dot` (matmul's rule); bool
+    scalars are bool operands; singular matrices raise `np.linalg.LinAlgError`; NaN input to
+    eig / svd / lstsq raises NumPy's messages instead of LAPACK printing; exception classes for
+    casts and indices; slice assignment broadcasts as NumPy; bitwise ops broadcast.
+  - Engine structure: the forwarding device layers (AutoSolver, CpuDevice, ComputeDevice) and
+    the CUDA plugin load at start are gone (-1,060 lines); one thread budget (pool + OpenBLAS;
+    the environment and affinity respected); per-thread placement for `storage="disk"`; one
+    construction path for `matrix` / `vector` / `zeros`; one set of dtype predicates; one
+    element-wise device function instead of four ladders; RUNPATH `$ORIGIN` (the copied
+    extension loaded `build/cpp`'s core, and the current directory was searched).
+  - Cost noted: dot / norm now sum fixed blocks (thread-count independent), 0.19 ms vs NumPy's
+    0.05-0.09 ms for 10^6 elements (TIMING.md); speed phase item.
