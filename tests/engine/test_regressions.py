@@ -325,8 +325,16 @@ def test_F051_integer_dot_is_an_exact_int(dtype, rng):
     a = rng.integers(0, 2 if dtype == "bool" else 100, 50).astype(dtype)
     b = rng.integers(0, 2 if dtype == "bool" else 100, 50).astype(dtype)
     exact = int(np.dot(a.astype(object), b.astype(object)))
-    for got in (pc.dot(pc.vector(a), pc.vector(b)), pc.vector(a) @ pc.vector(b)):
-        assert type(got) is int and got == exact  # reductions never wrap (DType System 5.1)
+    # dot is the 1-D case of matmul (review 3.6 C-9): matmul's result dtype (bool counts in
+    # int32), computed exactly; a value the dtype cannot hold raises, it never wraps.
+    info = np.iinfo(np.int32 if dtype == "bool" else dtype)
+    for f in (lambda: pc.dot(pc.vector(a), pc.vector(b)), lambda: pc.vector(a) @ pc.vector(b)):
+        if info.min <= exact <= info.max:
+            got = f()
+            assert type(got) is int and got == exact
+        else:
+            with pytest.raises(OverflowError):
+                f()
 
 
 def test_F051_integer_dot_applies_the_view_factor_and_is_exact_beyond_2_53():
@@ -334,8 +342,10 @@ def test_F051_integer_dot_applies_the_view_factor_and_is_exact_beyond_2_53():
     w = pc.vector(np.arange(1, 6, dtype=np.int32))
     w.scalar = 3  # an integer view: logical elements 3, 6, ...
     assert pc.dot(w, v) == v @ w == 165
-    big = pc.vector(np.array([2**62, 3], dtype=np.int64))
-    assert pc.dot(big, pc.vector(np.array([3, -1], dtype=np.int64))) == 3 * 2**62 - 3
+    big = pc.vector(np.array([2**61, 3], dtype=np.int64))  # exact past 2**53, inside int64
+    assert pc.dot(big, pc.vector(np.array([3, -1], dtype=np.int64))) == 3 * 2**61 - 3
+    with pytest.raises(OverflowError):  # past int64: matmul's rule (3.6 C-9)
+        pc.dot(pc.vector(np.array([2**62, 3], dtype=np.int64)), pc.vector(np.array([3, -1], dtype=np.int64)))
     with pytest.raises(OverflowError):
         huge = pc.vector(np.full(8, 2**64 - 1, dtype=np.uint64))
         pc.dot(huge, huge)
@@ -1603,3 +1613,13 @@ def test_3_6_C8_vector_matrix_product_is_1d():
     assert (V.T @ M).shape == (1, 2)
     S = pc.symmetric(np.eye(3) + 1)  # the structured rule
     assert (V @ S).shape == (3,)
+
+
+def test_3_6_C9_dot_is_the_1d_matmul():
+    """Review 3.6 C-9: three dot implementations with a rule different from matmul's."""
+    for a, b in ((np.array([1.0, 2.0]), np.array([3.0, 4.0])), (np.array([1 + 2j, 3]), np.array([2, 1j])),
+                 (np.array([True, True, False]), np.array([True, False, True])), (np.arange(4, dtype=np.int32), np.arange(4, dtype=np.int32))):
+        A, B = pc.vector(a), pc.vector(b)
+        want = pc.matmul(pc.matrix(a.reshape(1, -1)), pc.matrix(b.reshape(-1, 1)))[0, 0]
+        assert pc.dot(A, B) == want and A @ B == want
+    np.testing.assert_allclose(pc.dot(pc.vector([1 + 1j, 2]).conj(), pc.vector([1j, 1])), np.dot(np.conj([1 + 1j, 2]), [1j, 1]))

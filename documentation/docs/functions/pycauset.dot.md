@@ -21,7 +21,10 @@ Matrix cases route through `pycauset.matmul`.
 
 ## Returns
 
-*   `int` (exact) for integer/bool vector · vector, otherwise `float | complex`.
+*   For two vectors, a scalar of matmul's result dtype: `dot` is the 1-D case of `matmul`
+    (`(1, n) @ (n, 1)`). Integers are computed exactly and returned as a Python `int`; a value
+    the result dtype cannot hold raises `OverflowError` (NumPy wraps). Bool · bool counts in
+    int32. Otherwise `float | complex`.
 *   `MatrixBase | VectorBase` for matrix cases.
 
 ## Exceptions

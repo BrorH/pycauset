@@ -140,7 +140,7 @@ Complex permutations of non-float dtypes are a non-goal by design.
 Overflow behavior depends on the operation class:
 
 - **Elementwise** (`add`, `sub`, `mul`, `div`, and their scalar variants): integer overflow **wraps silently** (C/NumPy two's-complement semantics). This is the documented, supported behavior: it is not an error and does not auto-promote.
-- **Reductions** (`matmul`): PyCauset uses a **wider internal accumulator** and **throws `OverflowError`** when the final result does not fit the output dtype. This keeps reductions free of silent wrap. (`dot` of two integer vectors returns an exact Python `int`, also beyond int64; NumPy wraps. Review 3.6 C-9 tracks making `dot` and the 1-D matmul case one rule.)
+- **Reductions** (`matmul`): PyCauset uses a **wider internal accumulator** and **throws `OverflowError`** when the final result does not fit the output dtype. This keeps reductions free of silent wrap. `dot` is the 1-D case of matmul and follows the same rule (review 3.6 C-9).
 
 For large int32 matmuls PyCauset may also emit an **advisory** `PyCausetOverflowRiskWarning`, estimated from a fixed sample of entries, before computing. It never affects the result.
 

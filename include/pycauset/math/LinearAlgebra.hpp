@@ -53,8 +53,9 @@ std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string& re
 
 // --- Vector Operations ---
 
-double dot_product(const VectorBase& a, const VectorBase& b);
-std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& b);
+// a . b (orientation ignored, no conjugation, as np.dot) as a 1 x 1 matrix of matmul's result
+// dtype: the 1-D case of matmul (integers exact, overflow raises; bool counts).
+std::unique_ptr<MatrixBase> dot(const VectorBase& a, const VectorBase& b);
 double norm(const VectorBase& v);
 double norm(const MatrixBase& m);
 // NumPy's ord-norms: matrix ord in {"fro", "nuc", "1", "-1", "2", "-2", "inf", "-inf"}; vector p

@@ -37,7 +37,6 @@ public:
     void elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
 
     double dot(const VectorBase& a, const VectorBase& b);
-    std::complex<double> dot_complex(const VectorBase& a, const VectorBase& b);
     double l2_norm(const VectorBase& v);
 
 

@@ -92,21 +92,13 @@
 namespace pycauset {
 using namespace cpu_detail;
 
+// Contract: two plain dense float64 or float32 vectors with real view factors (math's `dot`
+// sends every other dtype and view through matmul).
 double CpuSolver::dot(const VectorBase& a, const VectorBase& b) {
-    uint64_t n = a.size();
+    const uint64_t n = a.size();
     if (b.size() != n) throw std::invalid_argument("Vector dimensions mismatch");
-
-    const auto dt_a = a.get_data_type();
-    const auto dt_b = b.get_data_type();
-    if (is_complex_dtype(dt_a) ||
-        is_complex_dtype(dt_b)) {
-        throw std::runtime_error("CpuSolver::dot not implemented for complex vectors");
-    }
-
-    // 1. Dense Double * Dense Double
     auto* a_dbl = dynamic_cast<const DenseVector<double>*>(&a);
     auto* b_dbl = dynamic_cast<const DenseVector<double>*>(&b);
-
     // Dense float64 / float32: fixed blocks of eight-accumulator sums in double, combined in
     // block order, so the result does not depend on the thread count (BLAS ddot splits across
     // its own threads, review 3.4 C-11) and no length goes through an int (BLAS lengths: a dot of
@@ -147,126 +139,18 @@ double CpuSolver::dot(const VectorBase& a, const VectorBase& b) {
         for (double q : part) sum += q;
         return sum;
     };
-    if (a_dbl && b_dbl && a.get_scalar().imag() == 0.0 && b.get_scalar().imag() == 0.0) {
+    if (a_dbl && b_dbl) {
         debug_trace::set_last("cpu.dot.f64");
         return dense_dot(a_dbl->data(), b_dbl->data());
     }
-    if (auto* a_f = dynamic_cast<const DenseVector<float>*>(&a)) {
-        if (auto* b_f = dynamic_cast<const DenseVector<float>*>(&b);
-            b_f && a.get_scalar().imag() == 0.0 && b.get_scalar().imag() == 0.0) {
-            debug_trace::set_last("cpu.dot.f32");
-            return dense_dot(a_f->data(), b_f->data());
-        }
+    auto* a_f = dynamic_cast<const DenseVector<float>*>(&a);
+    auto* b_f = dynamic_cast<const DenseVector<float>*>(&b);
+    if (a_f && b_f) {
+        debug_trace::set_last("cpu.dot.f32");
+        return dense_dot(a_f->data(), b_f->data());
     }
-    
-    // 2. BitVector * BitVector (Popcount)
-    auto* a_bit = dynamic_cast<const DenseVector<bool>*>(&a);
-    auto* b_bit = dynamic_cast<const DenseVector<bool>*>(&b);
-    
-    if (a_bit && b_bit) {
-        debug_trace::set_last("cpu.dot.bitbit_popcount");
-        const uint64_t* a_data = a_bit->data();
-        const uint64_t* b_data = b_bit->data();
-        uint64_t num_words = (n + 63) / 64;
-        
-        // The bits past n in the last word are not elements (bitwise_not sets them): mask them,
-        // as the matmul kernels and sum do (review 3.4 C-1: dot(~u, ~u) was 64 for n = 5).
-        const uint64_t tail = n % 64;
-        const uint64_t last_mask = tail == 0 ? ~uint64_t{0} : (uint64_t{1} << tail) - 1;
-        // Serial (a popcount per 64 elements; no OpenMP team in the engine, review 3.4 C-2).
-        int64_t count = 0;
-        for (int64_t i = 0; i < (int64_t)num_words; ++i) {
-            const uint64_t w = a_data[i] & b_data[i];
-            count += std::popcount(i + 1 == (int64_t)num_words ? (w & last_mask) : w);
-        }
-        const double scale = a.get_scalar().real() * b.get_scalar().real();
-        return static_cast<double>(count) * scale;
-    }
-
-    // Fallback
-    debug_trace::set_last("cpu.dot.generic_fallback");
-    double sum = 0.0;
-    for (uint64_t i = 0; i < n; ++i) {
-        sum += a.get_element_as_double(i) * b.get_element_as_double(i);
-    }
-    return sum;
+    throw std::logic_error("CpuSolver::dot: plain dense float64 / float32 vectors only");
 }
-
-std::complex<double> CpuSolver::dot_complex(const VectorBase& a, const VectorBase& b) {
-    const uint64_t n = a.size();
-    if (b.size() != n) {
-        throw std::invalid_argument("Vector dimensions mismatch");
-    }
-
-    // Semantics: sum_i a[i] * b[i], no conjugation (np.dot), with BLAS's plain arithmetic.
-    // Plain complex64 / complex128 pairs: BLAS ?dotu on the storage, as NumPy (also NumPy's
-    // precision: complex64 accumulates in single).
-    // A conjugated operand is BLAS ?dotc (which conjugates its first argument): conj(a).b =
-    // dotc(a, b), a.conj(b) = dotc(b, a), conj(a).conj(b) = conj(dotu(a, b)). Exactly what NumPy
-    // computes on the conjugated arrays. Scaled views take the typed path below.
-    auto unscaled = [](const VectorBase& v) { return v.get_scalar() == std::complex<double>(1.0, 0.0); };
-    if (unscaled(a) && unscaled(b)) {
-        const bool ca = a.is_conjugated(), cb = b.is_conjugated();
-        auto run = [&](auto* x, auto* y, auto dotu, auto dotc) -> std::optional<std::complex<double>> {
-            if (!x || !y) return std::nullopt;
-            using C = std::remove_cv_t<std::remove_pointer_t<decltype(x->data())>>;
-            // BLAS lengths are int (LP64): chunks below 2^31 (review 3.4 C-12).
-            constexpr uint64_t kChunk = uint64_t{1} << 30;
-            std::complex<double> total{0.0, 0.0};
-            for (uint64_t lo = 0; lo < n; lo += kChunk) {
-                const int len = static_cast<int>(std::min(n - lo, kChunk));
-                const C* xp = x->data() + lo;
-                const C* yp = y->data() + lo;
-                C r;
-                if (!ca && !cb) dotu(len, xp, 1, yp, 1, &r);
-                else if (ca && !cb) dotc(len, xp, 1, yp, 1, &r);
-                else if (!ca && cb) dotc(len, yp, 1, xp, 1, &r);
-                else { dotu(len, xp, 1, yp, 1, &r); r = std::conj(r); }
-                total += std::complex<double>(r.real(), r.imag());
-            }
-            return total;
-        };
-        using Z = DenseVector<std::complex<double>>;
-        using Cf = DenseVector<std::complex<float>>;
-        if (auto r = run(dynamic_cast<const Z*>(&a), dynamic_cast<const Z*>(&b),
-                         [](auto... p) { cblas_zdotu_sub(p...); }, [](auto... p) { cblas_zdotc_sub(p...); })) {
-            debug_trace::set_last("cpu.dot.zdot");
-            return *r;
-        }
-        if (auto r = run(dynamic_cast<const Cf*>(&a), dynamic_cast<const Cf*>(&b),
-                         [](auto... p) { cblas_cdotu_sub(p...); }, [](auto... p) { cblas_cdotc_sub(p...); })) {
-            debug_trace::set_last("cpu.dot.cdot");
-            return *r;
-        }
-    }
-    // Any other pair: typed reads (every view rule), multiply-adds written out (std::complex's
-    // operator* calls the C99 inf / NaN recovery routine per element: 50x slower than BLAS).
-    {
-        std::vector<std::complex<double>> x(n), y(n);
-        if (read_rows(*as_row_matrix(a), 0, 1, x.data()) && read_rows(*as_row_matrix(b), 0, 1, y.data())) {
-            debug_trace::set_last("cpu.dot.typed_complex");
-            double re = 0.0, im = 0.0;
-            for (uint64_t i = 0; i < n; ++i) {
-                re += x[i].real() * y[i].real() - x[i].imag() * y[i].imag();
-                im += x[i].real() * y[i].imag() + x[i].imag() * y[i].real();
-            }
-            return {re, im};
-        }
-    }
-    debug_trace::set_last("cpu.dot.complex_fallback");
-    double re = 0.0;
-    double im = 0.0;
-
-    // Serial: no OpenMP team in the engine (libgomp hangs in a forked child, review 3.4 C-2).
-    for (int64_t i = 0; i < static_cast<int64_t>(n); ++i) {
-        const std::complex<double> prod = a.get_element_as_complex(static_cast<uint64_t>(i)) *
-                                          b.get_element_as_complex(static_cast<uint64_t>(i));
-        re += prod.real();
-        im += prod.imag();
-    }
-    return {re, im};
-}
-
 
 double CpuSolver::l2_norm(const VectorBase& v) {
     auto row = as_row_matrix(v);  // the 1 x n bridge: one norm implementation

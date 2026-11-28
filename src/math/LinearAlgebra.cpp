@@ -267,20 +267,15 @@ std::unique_ptr<MatrixBase> elementwise_divide(const MatrixBase& a, const Matrix
 
 
 
-double dot_product(const VectorBase& a, const VectorBase& b) {
+// a . b in float64 for two real vectors whose dot is float64 (dot() below): the dense kernel
+// (fixed blocks, thread-count independent), the unit-vector rule, the typed reader.
+static double dot_real(const VectorBase& a, const VectorBase& b) {
     const auto dt_a = a.get_data_type();
     const auto dt_b = b.get_data_type();
-    if (is_complex_dtype(dt_a) ||
-        is_complex_dtype(dt_b)) {
-        throw std::invalid_argument("dot_product: complex vectors not supported yet");
-    }
-    if (a.size() != b.size()) throw std::invalid_argument("dot: vector sizes differ");
-    // Plain dense float64 / float32 pairs and bit pairs: the device kernels (BLAS, popcount).
     auto plain = [](const VectorBase& v) {
         return v.get_structure() == Structure::VECTOR && v.get_scalar() == std::complex<double>(1.0, 0.0);
     };
-    if (plain(a) && plain(b) && dt_a == dt_b &&
-        (dt_a == DataType::FLOAT64 || dt_a == DataType::FLOAT32 || dt_a == DataType::BIT)) {
+    if (plain(a) && plain(b) && dt_a == dt_b && (dt_a == DataType::FLOAT64 || dt_a == DataType::FLOAT32)) {
         return ComputeContext::instance().get_device()->dot(a, b);
     }
     // A unit vector (finite factor): sum_i u_i y_i is u_k y_k plus terms 0 * y_i, which are 0
@@ -372,7 +367,25 @@ double dot_product(const VectorBase& a, const VectorBase& b) {
         for (uint64_t i = 0; i < x.size(); ++i) acc += x[i] * y[i];
         return acc;
     }
-    return ComputeContext::instance().get_device()->dot(a, b);
+    throw std::logic_error("dot: the typed reader could not read a real vector");
+}
+
+std::unique_ptr<MatrixBase> dot(const VectorBase& a, const VectorBase& b) {
+    if (a.size() != b.size()) throw std::invalid_argument("dot: vector sizes differ");
+    // One rule with matmul (review 3.6 C-9: three implementations; the integer one in the
+    // binding returned exact Python ints past int64 where matmul raises, and bool . bool was
+    // computed apart): the result dtype is matmul's, and every dtype but float64 is the 1-D
+    // case of matmul, 1 x n @ n x 1.
+    const DataType r = promotion::resolve(promotion::BinaryOp::Matmul, a.get_data_type(), b.get_data_type()).result_dtype;
+    if (r == DataType::FLOAT64 && a.get_scalar().imag() == 0.0 && b.get_scalar().imag() == 0.0) {
+        auto out = std::make_unique<DenseMatrix<double>>(1, 1, std::string());
+        out->set(0, 0, dot_real(a, b));
+        return out;
+    }
+    auto row = as_row_matrix(a);
+    auto col = as_row_matrix(b);
+    col->set_transposed(true);  // n x 1
+    return dispatch_matmul(*row, *col);
 }
 
 double norm(const VectorBase& v) {
@@ -384,27 +397,6 @@ double norm(const MatrixBase& m) {
 }
 
 
-
-std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& b) {
-    const uint64_t n = a.size();
-    if (b.size() != n) {
-        throw std::invalid_argument("Vector dimensions mismatch");
-    }
-    // Two unit vectors: one product or none (exact; the zero terms are 0 for finite factors).
-    if (const auto* ua = dynamic_cast<const UnitVector*>(&a)) {
-        if (const auto* ub = dynamic_cast<const UnitVector*>(&b)) {
-            const std::complex<double> x = ua->active_value(), y = ub->active_value();
-            auto finite = [](std::complex<double> z) { return std::isfinite(z.real()) && std::isfinite(z.imag()); };
-            if (finite(x) && finite(y)) {
-                debug_trace::set_last("cpu.dot.unit");
-                if (ua->get_active_index() != ub->get_active_index()) return {0.0, 0.0};
-                return std::complex<double>(x.real() * y.real() - x.imag() * y.imag(),
-                                            x.real() * y.imag() + x.imag() * y.real());
-            }
-        }
-    }
-    return ComputeContext::instance().get_device()->dot_complex(a, b);
-}
 
 // Cross product of two 3-vectors, NumPy's cross: NumPy's multiply dtype (bool raises, as
 // NumPy's subtract does); integers wrap. float16 / complex32: each product is rounded to the
