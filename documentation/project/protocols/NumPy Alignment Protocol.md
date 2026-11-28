@@ -69,11 +69,10 @@ Constructor vs allocation rule:
 - Shape-based allocation uses `pycauset.zeros/ones/empty(shape, dtype=...)`.
 - Scalars/0D arrays are out of scope; scalar input to `matrix/vector` must raise.
 
-### B) `size()` and `shape` match NumPy
+### B) `size` and `shape` match NumPy
 
-- `size()` is the total element count.
-- `shape` exists as a property/attribute.
-- If a callable form exists, `shape()` mirrors `shape`.
+- `size` is an attribute: the total element count (`rows * cols`; `n` for a vector).
+- `shape` is an attribute: `(rows, cols)` or `(n,)`.
 
 ### C) `.fill(value)` exists
 

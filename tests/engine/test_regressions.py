@@ -922,3 +922,68 @@ def test_F133_dtype_tokens_mean_what_numpy_says(token, want):
 def test_F133_unstored_dtypes_raise(token):
     with pytest.raises((TypeError, ValueError)):
         pc.zeros((1, 1), dtype=token)
+
+
+@pytest.mark.parametrize("make_a, make_b", [
+    (lambda: pc.diagonal(np.array([1.0, 2.0, 3.0])), lambda: pc.diagonal(np.array([5.0]))),
+    (lambda: pc.diagonal(np.array([1.0, 2.0, 3.0])), lambda: pc.matrix(np.array([[5.0]]))),
+    (lambda: pc.symmetric(np.array([[1.0, 2.0], [2.0, 3.0]])), lambda: pc.diagonal(np.array([4.0]))),
+    (lambda: pc.hermitian(np.array([[1.0, 2j], [-2j, 3.0]])), lambda: pc.hermitian(np.array([[4.0]]))),
+    (lambda: pc.identity(3), lambda: pc.identity(1)),
+])
+@pytest.mark.parametrize("op", ["+", "-", "*"])
+def test_F130_structured_operands_broadcast_like_numpy(make_a, make_b, op):
+    """C-1: a 1 x 1 operand is square too: Diagonal(3) + Diagonal(1) came back diagonal without
+    the off-diagonal values; Identity(3) + Identity(1) raised."""
+    a, b = make_a(), make_b()
+    for x, y in ((a, b), (b, a)):
+        np.testing.assert_allclose(to_np(_BIN[op](x, y)), _BIN[op](to_np(x), to_np(y)))
+
+
+@pytest.mark.parametrize("dtype, big", [("int64", 2**60 + 1), ("uint64", 2**64 - 1)])
+def test_F130_identity_matmul_is_exact_for_wide_integers(dtype, big):
+    """C-2: I @ X multiplied by the Python float 1.0, through float64."""
+    x = pc.matrix(np.array([[big, 1], [2, 3]], dtype=dtype))
+    i = pc.IdentityMatrix(2, dtype=dtype)
+    for r in (i @ x, x @ i):
+        assert str(r.dtype) == dtype
+        assert int(to_np(r)[0, 0]) == big
+
+
+def test_F130_numpy_float64_scalars_are_numpy_scalars():
+    """C-4: np.float64 / np.complex128 are subclasses of Python float / complex and were taken
+    as weak Python scalars."""
+    a = np.ones((2, 2), dtype=np.float32)
+    m = pc.matrix(a)
+    for s in (np.float64(1), np.float32(1), 1.0):
+        assert np.dtype(str((m + s).dtype)) == (a + s).dtype  # Python floats stay weak
+    assert str((m * np.complex128(1j)).dtype) == "complex_float64"
+
+
+def test_F130_signed_uint64_error_names_the_dtypes():
+    with pytest.raises(ValueError, match="int8 and uint64"):
+        pc.matrix(np.ones((2, 2), np.int8)) + pc.matrix(np.ones((2, 2), np.uint64))
+
+
+def test_size_is_an_attribute_as_in_numpy():
+    assert pc.zeros((2, 3)).size == 6
+    assert pc.vector(np.arange(4.0)).size == 4
+
+
+def test_F129_thunk_blocks_notice_writes_to_native_leaves():
+    """3.9 C-4: ThunkBlock read a `version` attribute native matrices do not have, so a block
+    product kept (and saved) its old value after a leaf was written."""
+    from pycauset._internal.thunks import StaleThunkError, ThunkBlock
+
+    a = pc.matrix(np.ones((2, 2)))
+    t = ThunkBlock(rows=2, cols=2, compute=lambda: a @ a, sources_for_staleness=[a])
+    assert float(to_np(t.materialize())[0, 0]) == 2.0
+    a[0, 0] = 7.0
+    with pytest.raises(StaleThunkError):
+        t.materialize()
+    v = a.T  # a view shares the storage; a write copies it first, with a fresh version
+    t2 = ThunkBlock(rows=2, cols=2, compute=lambda: v @ v, sources_for_staleness=[v])
+    t2.materialize()
+    v[0, 1] = 3.0
+    with pytest.raises(StaleThunkError):
+        t2.materialize()

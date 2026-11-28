@@ -403,7 +403,7 @@ void bind_matrix_classes(py::module_& m) {
         .def_property_readonly("shape", [](const MatrixBase& mat) {
             return py::make_tuple(mat.rows(), mat.cols());
         })
-        .def("size", &MatrixBase::size)
+        .def_property_readonly("size", &MatrixBase::size, "Number of elements (rows * cols), as NumPy's ndarray.size.")
         .def("rows", &MatrixBase::rows)
         .def("cols", &MatrixBase::cols)
         .def("get_element_as_double", &MatrixBase::get_element_as_double)

@@ -58,9 +58,13 @@ public:
     // Each entry carries the version it was computed at and is returned only while that is
     // still the version, so a value computed before a write can never be served after it,
     // whatever the interleaving (review 3.1 C-15). Clearing on a bump only frees memory.
+    // Versions come from one process-wide counter, so a version never repeats across storages:
+    // (storage, version) is identified by the version alone. A copy-on-write copy starts with a
+    // fresh one, never the version its source had (a Python staleness pin compared versions of
+    // different storages, review 3.9 C-4).
     uint64_t version() const { return version_.load(std::memory_order_acquire); }
     void bump_version() {
-        version_.fetch_add(1, std::memory_order_acq_rel);
+        version_.store(next_version(), std::memory_order_release);
         if (has_cache_.load(std::memory_order_acquire)) {
             std::lock_guard<std::mutex> lock(cache_mutex_);
             cache_.clear();
@@ -93,7 +97,11 @@ public:
     }
 
 private:
-    std::atomic<uint64_t> version_{0};
+    static uint64_t next_version() {
+        static std::atomic<uint64_t> counter{0};
+        return counter.fetch_add(1, std::memory_order_acq_rel) + 1;
+    }
+    std::atomic<uint64_t> version_{next_version()};
     std::atomic<bool> has_cache_{false};
     mutable std::mutex cache_mutex_;
     struct CacheEntry {

@@ -10,6 +10,14 @@ class StaleThunkError(RuntimeError):
 
 
 def _get_version(obj: Any) -> int | None:
+    """The source's version: the storage version of an engine matrix (process-unique, changed
+    by every write), or a Python object's own `version`. Native matrices have no `version`
+    attribute, so writes to them went unnoticed and stale results were served and saved
+    (review 3.9 C-4)."""
+    from .. import _native
+
+    if isinstance(obj, (_native.MatrixBase, _native.VectorBase)):
+        return int(_native._storage_version(obj))
     v = getattr(obj, "version", None)
     if v is None:
         return None

@@ -146,8 +146,7 @@ class CausalSet:
                         f"Provided matrix shape ({matrix.rows()}, {matrix.cols()}) does not match n ({self._n})."
                     )
             else:
-                if matrix.size() != self._n:
-                    raise ValueError(f"Provided matrix size ({matrix.size()}) does not match n ({self._n}).")
+                raise TypeError("matrix must be a square matrix")
             self._matrix = matrix
             if validate:
                 validate_causal_matrix(matrix, context="CausalSet(matrix=...)")

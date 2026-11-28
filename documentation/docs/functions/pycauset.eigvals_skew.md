@@ -41,6 +41,6 @@ M = rng.random((8, 8))
 A = M - M.T          # skew-symmetric
 
 evals = pc.eigvals_skew(pc.matrix(A), 3)   # top-3 imaginary eigenvalues
-for i in range(evals.size()):
+for i in range(evals.size):
     print(evals.get(i))                     # e.g. 0+1.23j, 0-1.23j, 0+0.91j
 ~~~

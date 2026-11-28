@@ -344,7 +344,7 @@ void bind_vector_classes(py::module_& m) {
         .def("set_temporary", &VectorBase::set_temporary)
         .def("close", &VectorBase::close)
         .def("copy_storage", &VectorBase::copy_storage, py::arg("result_file_hint") = "")
-        .def("size", &VectorBase::size)
+        .def_property_readonly("size", &VectorBase::size, "Number of elements, as NumPy's ndarray.size.")
         .def("__len__", &VectorBase::size)
         .def_property("seed", &VectorBase::get_seed, &VectorBase::set_seed)
         .def_property("scalar", &VectorBase::get_scalar, &VectorBase::set_scalar)

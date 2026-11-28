@@ -91,13 +91,13 @@ class TestEigenBlockMatrixSupport(unittest.TestCase):
         
         # eigh should work on dense
         w, v = pycauset.eigh(A)
-        self.assertEqual(w.size(), 4)
+        self.assertEqual(w.size, 4)
         self.assertEqual(v.rows(), 4)
         self.assertEqual(v.cols(), 4)
         
         # eigvalsh should work on dense
         w2 = pycauset.eigvalsh(A)
-        self.assertEqual(w2.size(), 4)
+        self.assertEqual(w2.size, 4)
 
 
 if __name__ == "__main__":

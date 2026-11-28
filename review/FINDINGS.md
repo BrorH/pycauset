@@ -1722,14 +1722,21 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-3: saved derived values carry an engine stamp (version, native module size and mtime)
     and are only imported by the same build. Open: a payload edited by another tool is not
     detected (no checksum); documented in the Storage guide.
-  - `test_F129_*`. The rest of the 3.9 list (C-4 ThunkBlock staleness, C-5..C-12) is in
+  - C-4: ThunkBlock (block-matrix lazy products) pinned a `version` attribute native matrices
+    do not have, so a write to a leaf went unnoticed and the stale product was served and
+    saved. It pins the storage version now, and storage versions come from one process-wide
+    counter (a copy-on-write copy never reuses its source's number).
+  - `test_F129_*`. The rest of the 3.9 list (C-5, C-7, C-8, the payload copied twice) is in
     `review/areas/3.9-persistence.md`.
 
 ### F-130 Area 3.3 (factory and promotion): wrong values from structure rules, identity matmul, list input
-- **Status:** C-5 fixed (session 9); C-1, C-2 next (C++); the rest open in
-  `review/areas/3.3-factory-promotion.md` (C-3 two promotion tables, C-4 NumPy float64 /
-  complex128 scalars taken as Python scalars, C-6 the dtype warning covers one case, C-14 the
-  dtype tests take their expectation from the resolver, C-7..C-13 smaller).
+- **Status:** C-1, C-2, C-4, C-5, C-9 (Python parser, F-133), C-10 fixed (session 9); C-14 in
+  part. Open in `review/areas/3.3-factory-promotion.md`: C-3 (two promotion tables; three
+  questions for the maintainer), C-6 (the dtype warning covers one case), C-7 (the complex
+  rule is undocumented), C-8, C-11..C-13.
+  - C-4: `np.float64` / `np.complex128` (subclasses of Python float / complex) were taken as
+    weak Python scalars; NumPy scalars are recognised first now.
+  - C-10: the signed / uint64 error names both dtypes and what to do.
   - C-1: element-wise structure rules checked that each operand is square, not that the
     shapes are equal: `Diagonal(3) + Diagonal(1)` (a 1x1 operand broadcasts) came back
     diagonal without the off-diagonal values.

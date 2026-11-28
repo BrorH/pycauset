@@ -89,7 +89,10 @@ bool packed_same(const MatrixBase& a, const MatrixBase& b, Structure t, DataType
 ResultStructure resolve_result_structure(promotion::BinaryOp op, const MatrixBase& a, const MatrixBase& b,
                                           DataType dt) {
     using promotion::BinaryOp;
-    if (a.rows() != a.cols() || b.rows() != b.cols()) return {};
+    // Structured results only for equal square shapes: a 1 x 1 operand is square too but
+    // broadcasts, and the n x n operand's structure does not survive that (Diagonal(3) +
+    // Diagonal(1) lost its off-diagonal values, review 3.3 C-1).
+    if (a.rows() != a.cols() || b.rows() != b.cols() || a.rows() != b.rows()) return {};
 
     if (op == BinaryOp::Add || op == BinaryOp::Subtract) {
         // A + A^T / A - A^T (e.g. the comparability matrix C + C^T, Pauli-Jordan-like C - C^T).

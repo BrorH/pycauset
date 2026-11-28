@@ -6,7 +6,7 @@ Base class of every matrix. Not constructed directly; its methods are available 
 ## Attributes
 
 * **dtype** (*str*): element type, e.g. `"float64"`, `"int32"`, `"bool"`.
-* **shape** (*tuple*): `(rows, cols)`. Also `rows()`, `cols()`, `size()`.
+* **shape** (*tuple*): `(rows, cols)`; **size** (*int*): `rows * cols` (attributes, as in NumPy). Also `rows()`, `cols()`.
 * **T**, **H**: transpose and conjugate transpose. O(1): they share storage.
 * **backing_file** (*str*): `":memory:"` or the path of the file holding the data.
 

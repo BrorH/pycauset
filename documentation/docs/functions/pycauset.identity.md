@@ -21,7 +21,7 @@ This is a convenience factory around [[pycauset.IdentityMatrix]] and supports mu
 
 3. **A Matrix or Vector**
    - If `x` is a matrix, returns an identity-like matrix with shape `(x.rows(), x.cols())`.
-   - If `x` is a vector, returns an $N \times N$ identity matrix where $N = x.size()$.
+   - If `x` is a vector, returns an $N \times N$ identity matrix where $N = $ `x.size`.
 
 ## Examples
 

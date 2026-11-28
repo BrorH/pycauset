@@ -204,6 +204,9 @@ void bind_core_classes(py::module_& m) {
     m.def("_storage_version", [](const pycauset::MatrixBase& mat) -> uint64_t {
         return mat.shared_mapper() ? mat.shared_mapper()->version() : 0;
     });
+    m.def("_storage_version", [](const pycauset::VectorBase& vec) -> uint64_t {
+        return vec.shared_mapper() ? vec.shared_mapper()->version() : 0;
+    });
 
     m.def(
         "_set_ram_safety_margin",

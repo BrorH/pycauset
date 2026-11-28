@@ -21,10 +21,38 @@ Symbols: ✓ ok, fast kernel · ◐ ok, input written out first (O(n²) op) · �
 ## Unsupported (—): 103
 
 * **matmul** ×71 — OverflowError: Integer matmul overflow: result does not fit in output dtype: int8/antisymmetric/conj, int8/antisymmetric/lazy_sum, int8/antisymmetric/plain, int8/antisymmetric/scaled_int, int8/dense/H, int8/dense/T, int8/dense/conj, int8/dense/lazy_sum (+63)
-* **add** ×8 — ValueError: resolve_promotion: unsupported signed/unsigned mix (no safe integer supertype): int16xuint64/dense/plain, int32xuint64/dense/plain, int64xuint64/dense/plain, int8xuint64/dense/plain, uint64xint16/dense/plain, uint64xint32/dense/plain, uint64xint64/dense/plain, uint64xint8/dense/plain
-* **sub** ×8 — ValueError: resolve_promotion: unsupported signed/unsigned mix (no safe integer supertype): int16xuint64/dense/plain, int32xuint64/dense/plain, int64xuint64/dense/plain, int8xuint64/dense/plain, uint64xint16/dense/plain, uint64xint32/dense/plain, uint64xint64/dense/plain, uint64xint8/dense/plain
-* **mul** ×8 — ValueError: resolve_promotion: unsupported signed/unsigned mix (no safe integer supertype): int16xuint64/dense/plain, int32xuint64/dense/plain, int64xuint64/dense/plain, int8xuint64/dense/plain, uint64xint16/dense/plain, uint64xint32/dense/plain, uint64xint64/dense/plain, uint64xint8/dense/plain
-* **matmul** ×8 — ValueError: resolve_promotion: unsupported signed/unsigned mix (no safe integer supertype): int16xuint64/dense/plain, int32xuint64/dense/plain, int64xuint64/dense/plain, int8xuint64/dense/plain, uint64xint16/dense/plain, uint64xint32/dense/plain, uint64xint64/dense/plain, uint64xint8/dense/plain
+* **add** ×1 — ValueError: no integer dtype holds both int8 and uint64 (NumPy would give float64, which r: int8xuint64/dense/plain
+* **add** ×1 — ValueError: no integer dtype holds both int16 and uint64 (NumPy would give float64, which : int16xuint64/dense/plain
+* **add** ×1 — ValueError: no integer dtype holds both int32 and uint64 (NumPy would give float64, which : int32xuint64/dense/plain
+* **add** ×1 — ValueError: no integer dtype holds both int64 and uint64 (NumPy would give float64, which : int64xuint64/dense/plain
+* **add** ×1 — ValueError: no integer dtype holds both uint64 and int8 (NumPy would give float64, which r: uint64xint8/dense/plain
+* **add** ×1 — ValueError: no integer dtype holds both uint64 and int16 (NumPy would give float64, which : uint64xint16/dense/plain
+* **add** ×1 — ValueError: no integer dtype holds both uint64 and int32 (NumPy would give float64, which : uint64xint32/dense/plain
+* **add** ×1 — ValueError: no integer dtype holds both uint64 and int64 (NumPy would give float64, which : uint64xint64/dense/plain
+* **sub** ×1 — ValueError: no integer dtype holds both int8 and uint64 (NumPy would give float64, which r: int8xuint64/dense/plain
+* **sub** ×1 — ValueError: no integer dtype holds both int16 and uint64 (NumPy would give float64, which : int16xuint64/dense/plain
+* **sub** ×1 — ValueError: no integer dtype holds both int32 and uint64 (NumPy would give float64, which : int32xuint64/dense/plain
+* **sub** ×1 — ValueError: no integer dtype holds both int64 and uint64 (NumPy would give float64, which : int64xuint64/dense/plain
+* **sub** ×1 — ValueError: no integer dtype holds both uint64 and int8 (NumPy would give float64, which r: uint64xint8/dense/plain
+* **sub** ×1 — ValueError: no integer dtype holds both uint64 and int16 (NumPy would give float64, which : uint64xint16/dense/plain
+* **sub** ×1 — ValueError: no integer dtype holds both uint64 and int32 (NumPy would give float64, which : uint64xint32/dense/plain
+* **sub** ×1 — ValueError: no integer dtype holds both uint64 and int64 (NumPy would give float64, which : uint64xint64/dense/plain
+* **mul** ×1 — ValueError: no integer dtype holds both int8 and uint64 (NumPy would give float64, which r: int8xuint64/dense/plain
+* **mul** ×1 — ValueError: no integer dtype holds both int16 and uint64 (NumPy would give float64, which : int16xuint64/dense/plain
+* **mul** ×1 — ValueError: no integer dtype holds both int32 and uint64 (NumPy would give float64, which : int32xuint64/dense/plain
+* **mul** ×1 — ValueError: no integer dtype holds both int64 and uint64 (NumPy would give float64, which : int64xuint64/dense/plain
+* **mul** ×1 — ValueError: no integer dtype holds both uint64 and int8 (NumPy would give float64, which r: uint64xint8/dense/plain
+* **mul** ×1 — ValueError: no integer dtype holds both uint64 and int16 (NumPy would give float64, which : uint64xint16/dense/plain
+* **mul** ×1 — ValueError: no integer dtype holds both uint64 and int32 (NumPy would give float64, which : uint64xint32/dense/plain
+* **mul** ×1 — ValueError: no integer dtype holds both uint64 and int64 (NumPy would give float64, which : uint64xint64/dense/plain
+* **matmul** ×1 — ValueError: no integer dtype holds both int8 and uint64 (NumPy would give float64, which r: int8xuint64/dense/plain
+* **matmul** ×1 — ValueError: no integer dtype holds both int16 and uint64 (NumPy would give float64, which : int16xuint64/dense/plain
+* **matmul** ×1 — ValueError: no integer dtype holds both int32 and uint64 (NumPy would give float64, which : int32xuint64/dense/plain
+* **matmul** ×1 — ValueError: no integer dtype holds both int64 and uint64 (NumPy would give float64, which : int64xuint64/dense/plain
+* **matmul** ×1 — ValueError: no integer dtype holds both uint64 and int8 (NumPy would give float64, which r: uint64xint8/dense/plain
+* **matmul** ×1 — ValueError: no integer dtype holds both uint64 and int16 (NumPy would give float64, which : uint64xint16/dense/plain
+* **matmul** ×1 — ValueError: no integer dtype holds both uint64 and int32 (NumPy would give float64, which : uint64xint32/dense/plain
+* **matmul** ×1 — ValueError: no integer dtype holds both uint64 and int64 (NumPy would give float64, which : uint64xint64/dense/plain
 
 ## Operand availability
 

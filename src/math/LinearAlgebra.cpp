@@ -80,9 +80,10 @@ bool is_identity(const MatrixBase& m) {
 static std::unique_ptr<MatrixBase> identity_pair(const MatrixBase& a, const MatrixBase& b, promotion::BinaryOp op,
                                           const char* name, const std::string& result_file) {
     if (!is_identity(a) || !is_identity(b)) return nullptr;
-    if (a.rows() != b.rows() || a.cols() != b.cols()) {
-        throw std::invalid_argument(std::string(name) + ": identity operands must have identical shapes");
-    }
+    // Unequal shapes broadcast (a 1 x 1 identity) or raise: the general path decides (it threw
+    // where NumPy broadcasts, review 3.3 C-1).
+    if (a.rows() != b.rows() || a.cols() != b.cols()) return nullptr;
+    (void)name;
     const DataType dt = a.get_data_type();
     if (!result_file.empty() || b.get_data_type() != dt || a.is_subview() || b.is_subview()) return nullptr;
     if (promotion::resolve(op, dt, dt).result_dtype != dt) return nullptr;
@@ -699,7 +700,11 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     }
     auto identity_times = [&](const MatrixBase& id, const MatrixBase& other) {
         const std::complex<double> s = view_value(1.0, id.get_scalar(), id.is_conjugated());
-        const ScalarArg arg = s.imag() == 0.0 ? ScalarArg::from_double(s.real()) : ScalarArg::from_complex(s);
+        // An integer result multiplies by an exact integer: a Python float 1.0 promoted int64 /
+        // uint64 to float64 and back, rounding above 2^53 (review 3.3 C-2).
+        const bool int_factor = is_integer_or_bit(r) && scalar::is_exact_int_factor(s);
+        const ScalarArg arg = int_factor ? ScalarArg::from_int64(static_cast<int64_t>(s.real()))
+                            : s.imag() == 0.0 ? ScalarArg::from_double(s.real()) : ScalarArg::from_complex(s);
         auto out = scalar_op(other, ScalarOpKind::Mul, arg);  // integer-safe (F-001), promotes
         if (out->get_data_type() != r) out = cast_to(*out, r);
         return out;

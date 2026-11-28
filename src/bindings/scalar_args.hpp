@@ -60,9 +60,10 @@ inline bool to_scalar_arg(const py::handle& obj, pycauset::ScalarArg& out) {
     PyObject* p = obj.ptr();
     if (PyBool_Check(p)) { out = pycauset::ScalarArg::from_int64(p == Py_True ? 1 : 0); return true; }
     if (PyLong_Check(p)) { out = scalar_arg_from_pyint(obj); return true; }
-    if (PyFloat_Check(p)) { out = pycauset::ScalarArg::from_double(PyFloat_AsDouble(p)); return true; }
-    if (PyComplex_Check(p)) { out = pycauset::ScalarArg::from_complex(obj.cast<std::complex<double>>()); return true; }
-    if (is_numpy_scalar(obj)) {
+    // NumPy scalars before Python float / complex: np.float64 and np.complex128 are subclasses
+    // of those and were taken as weak Python scalars (float32 matrix + np.float64(1) stayed
+    // float32; NumPy gives float64, review 3.3 C-4).
+    if (!PyFloat_CheckExact(p) && !PyComplex_CheckExact(p) && is_numpy_scalar(obj)) {
         const pycauset::DataType dt = numpy_scalar_dtype(obj);
         if (dt == pycauset::DataType::UNKNOWN) return false;
         if (dt == pycauset::DataType::COMPLEX_FLOAT32 || dt == pycauset::DataType::COMPLEX_FLOAT64) {
@@ -80,6 +81,8 @@ inline bool to_scalar_arg(const py::handle& obj, pycauset::ScalarArg& out) {
         }
         return true;
     }
+    if (PyFloat_Check(p)) { out = pycauset::ScalarArg::from_double(PyFloat_AsDouble(p)); return true; }
+    if (PyComplex_Check(p)) { out = pycauset::ScalarArg::from_complex(obj.cast<std::complex<double>>()); return true; }
     return false;
 }
 

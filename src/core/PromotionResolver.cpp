@@ -1,7 +1,9 @@
 #include "pycauset/core/PromotionResolver.hpp"
+#include "pycauset/core/DTypeDispatch.hpp"
 
 #include <algorithm>
 #include <stdexcept>
+#include <string>
 
 namespace pycauset::promotion {
 
@@ -284,7 +286,10 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
         const uint8_t rounded_signed_bits = round_up_int_bits(required_signed_bits);
         if (rounded_signed_bits == 0) {
             // There is no integer dtype that can represent both int64 and uint64 ranges.
-            throw std::invalid_argument("resolve_promotion: unsupported signed/unsigned mix (no safe integer supertype)");
+            // Which dtypes, and what to do (it named an internal function, review 3.3 C-10).
+            throw std::invalid_argument(std::string("no integer dtype holds both ") + dtype_name(a) + " and " +
+                                        dtype_name(b) + " (NumPy would give float64, which rounds above 2**53); "
+                                        "convert one operand first, e.g. to int64 or float64");
         }
 
         return Decision{signed_from_bits(rounded_signed_bits), false, DataType::UNKNOWN};
