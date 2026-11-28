@@ -47,10 +47,12 @@ vary by about ±10% between runs):
 Where PyCauset is structurally ahead:
 
 * **Causal (bit) matrices.** A causal matrix stores 1 bit per relation: 8× less than a
-  NumPy `bool` array, 64× less than float64. Products of bit matrices use word-level
-  popcount kernels (n = 2000: 0.05 s, versus 0.11 s for a float64 BLAS product and seconds
-  for NumPy's `bool @ bool`). `pc.sum(C)` counts the relations from the bits (n = 20,000
-  in 2 ms).
+  NumPy `bool` array, 64× less than float64. Products read the packed bits: `C @ C` adds
+  bit rows (a 3D diamond, n = 2000: 6 ms; NumPy's fastest route, float32 BLAS, 25 ms),
+  `C @ v` and `v @ C` visit the set bits (at or ahead of NumPy's float32 `gemv` from
+  n = 2000), and powers such as `matrix_power(C, 3)` sum in int32 while the counts provably
+  fit (n = 2000: 23 ms, NumPy 46 ms). Dense bit products use word-level popcount.
+  `pc.sum(C)` counts the relations from the bits (n = 20,000 in 2 ms).
 * **Structured results.** `C + C.T` and `C - C.T` are read from `C`'s bits without being
   written out, and iterative eigensolvers work on them directly: the top of the spectrum of
   `C - C.T` for n = 20,000 in about 2 s and 100 MB. See the

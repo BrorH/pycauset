@@ -56,10 +56,6 @@ public:
         set(i, j, value != 0.0);
     }
 
-    // Path counts: strictly upper x strictly upper -> strictly upper int32 (word-level popcounts).
-    // Both operands must be strict (dispatch_matmul's bit rule checks; others go dense).
-    std::unique_ptr<TriangularMatrix<int32_t>> multiply(const TriangularMatrix<bool>& other, const std::string& result_file) const;
-
     // Scalar multiplication
     std::unique_ptr<MatrixBase> multiply_scalar(double factor, const std::string& result_file = "") const override;
 

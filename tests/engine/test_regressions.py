@@ -2295,3 +2295,44 @@ def test_6_5_bit_matvec_views_take_the_general_path():
         np.testing.assert_allclose(np.asarray(C[1:6, 2:7] @ pc.vector(x[:5])), ref[1:6, 2:7] @ x[:5])
         np.testing.assert_allclose(np.asarray((C * 3) @ pc.vector(x)), (3 * ref) @ x)
         np.testing.assert_allclose(np.asarray(pc.vector(x) @ (C * -2)), x @ (-2 * ref))
+
+
+@pytest.mark.parametrize("n", [3, 65, 300])
+def test_6_5_path_counts_and_triangular_powers(n):
+    """C @ C (the path-count kernel), (C @ C) @ C and matrix_power(C, 3) (the triangular kernel
+    on int32, summed in int64 when no sum can leave it) equal NumPy's exact int64 products."""
+    rng = np.random.default_rng(n)
+    ref = np.triu(rng.random((n, n)) < 0.5, 1)
+    C = pc.causal_matrix(ref)
+    R = ref.astype(np.int64)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        P = C @ C
+        assert pc._debug_last_kernel_trace() == "cpu.matmul.bit_triangular"
+        np.testing.assert_array_equal(np.asarray(P), R @ R)
+        P3 = P @ C
+        assert pc._debug_last_kernel_trace() == "cpu.matmul.triangular"
+        np.testing.assert_array_equal(np.asarray(P3), R @ R @ R)
+        np.testing.assert_array_equal(np.asarray(pc.matrix_power(C, 3)), R @ R @ R)
+
+
+def _upper(values, dtype="int64"):
+    n = len(values)
+    t = pc.TriangularMatrix(n, dtype=dtype, has_diagonal=True)
+    for i in range(n):
+        for j in range(i, n):
+            t[i, j] = int(values[i][j])
+    return t
+
+
+def test_6_5_triangular_integer_overflow_still_raises():
+    """Values whose sums could leave int64 take the checked 128-bit path: an overflow of the
+    result dtype raises, a sum that fits after cancellation is exact."""
+    big = _upper(np.triu(np.full((4, 4), 2**40, dtype=object)))
+    with pytest.raises(OverflowError):
+        big @ big  # 2^80 per product
+    mixed = np.array([[2**62, -(2**62), 5], [0, 1, 1], [0, 0, 1]], dtype=object)
+    ones = np.triu(np.ones((3, 3), dtype=object))
+    r = _upper(mixed) @ _upper(ones)
+    assert pc._debug_last_kernel_trace() == "cpu.matmul.triangular"
+    np.testing.assert_array_equal(np.asarray(r).astype(object), np.triu(mixed) @ ones)

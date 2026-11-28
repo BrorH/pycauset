@@ -836,3 +836,12 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
     - One element-wise entry; `A / s` is NumPy's quotient (the O(1) view only for powers of
       two).
   - Windows run to-do added: the GIL release, FILE_SHARE_DELETE, the generational block saves.
+  - Benchmarks, demos, tools (3.15, closed): five harnesses deleted; parity.py adds I/O rows;
+    scenario_benchmarks.py compares against NumPy's int64 and float32 routes; build.ps1
+    `-Clean` deletes only build outputs; release.ps1 checks git exit codes. Gallery script
+    `tools/make_gallery.py` (3.12 C-5).
+  - Causal-matrix speed (PLAN 6.5), against NumPy's float32 BLAS route:
+    - Bit matvec over the packed bits: n = 256, 0.27 -> 0.007 ms (NumPy 0.004).
+    - `C @ C` adds bit rows in place (AVX2): n = 2000, 72 -> 6 ms (NumPy 25).
+    - Triangular products sum in int32 / int64 when bounded; the triangular cast runs per
+      stored row (165 -> 1.6 ms at n = 2000): `(C @ C) @ C` 221 -> 24 ms (NumPy 72).

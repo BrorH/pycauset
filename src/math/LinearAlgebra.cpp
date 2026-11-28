@@ -711,9 +711,9 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     if (r == DataType::INT32 && bit_ready(a) && bit_ready(b)) {
         if (sa == Structure::TRIANGULAR && sb == Structure::TRIANGULAR && !a.is_transposed() && !b.is_transposed() &&
             !mm_has_diagonal(a) && !mm_has_diagonal(b)) {  // the path-count kernel: strict operands
-            debug_trace::set_last("cpu.matmul.bit_triangular");
-            return static_cast<const TriangularMatrix<bool>&>(a).multiply(static_cast<const TriangularMatrix<bool>&>(b),
-                                                                          saveas);
+            auto res = std::make_unique<TriangularMatrix<int32_t>>(m, saveas);
+            device->matmul(a, b, *res);
+            return res;
         }
         std::unique_ptr<MatrixBase> ha = sa == Structure::DENSE ? nullptr : write_out(a);
         std::unique_ptr<MatrixBase> hb = sb == Structure::DENSE ? nullptr : write_out(b);

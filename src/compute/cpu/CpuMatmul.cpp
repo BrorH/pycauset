@@ -569,6 +569,28 @@ bool dense_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& result, 
     return true;
 }
 
+// dst[j] += va * src[j]: the row update of the triangular kernel. The AVX2 copy is the same
+// loop compiled for AVX2 (GCC / Clang `target`, chosen at run time); the baseline build is
+// SSE2, which has no 32-bit lane multiply (pmulld is SSE4.1) and no 4-wide double FMA.
+template <typename Acc, typename T>
+void row_axpy(Acc* __restrict dst, Acc va, const T* __restrict src, uint64_t len) {
+    for (uint64_t j = 0; j < len; ++j) dst[j] += va * static_cast<Acc>(src[j]);
+}
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(_M_X64))
+#define PYCAUSET_HAS_AVX2_AXPY 1
+template <typename Acc, typename T>
+__attribute__((target("avx2"))) void row_axpy_avx2(Acc* __restrict dst, Acc va, const T* __restrict src, uint64_t len) {
+    for (uint64_t j = 0; j < len; ++j) dst[j] += va * static_cast<Acc>(src[j]);
+}
+#endif
+template <typename Acc, typename T>
+auto pick_row_axpy() -> void (*)(Acc*, Acc, const T*, uint64_t) {
+#ifdef PYCAUSET_HAS_AVX2_AXPY
+    if (cpu_has_avx2()) return row_axpy_avx2<Acc, T>;
+#endif
+    return row_axpy<Acc, T>;
+}
+
 // Triangular: upper TriangularMatrix<T> x upper TriangularMatrix<T> -> upper TriangularMatrix<T>,
 // T a real non-bit, non-float16 type. Row i of the product sums rows k >= i of B; only the
 // stored triangles are read. Integers accumulate in int64 and raise on overflow of T.
@@ -582,38 +604,76 @@ bool triangular_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
         throw std::invalid_argument("CpuSolver::matmul: triangular kernel takes upper (untransposed) operands");
     }
     debug_trace::set_last("cpu.matmul.triangular");
-    using Acc = std::conditional_t<std::is_integral_v<T>, __int128, double>;  // exact (review 3.6 C-1)
     const uint64_t n = A->rows();
     const bool a_diag = A->has_diagonal(), b_diag = B->has_diagonal(), c_diag = C->has_diagonal();
     const char* a_base = reinterpret_cast<const char*>(A->data());
     const char* b_base = reinterpret_cast<const char*>(B->data());
     char* c_base = reinterpret_cast<char*>(C->data());
-    ParallelFor(0, n, [&](size_t i) {
-        std::vector<Acc> acc(n, Acc(0));
-        const uint64_t k0 = a_diag ? i : i + 1;
-        const T* a_row = reinterpret_cast<const T*>(a_base + A->get_row_offset(i));
-        for (uint64_t k = k0; k < n; ++k) {
-            const Acc va = static_cast<Acc>(a_row[k - k0]);
-            if constexpr (std::is_integral_v<T>) {
-                if (va == 0) continue;  // exact: integer zeros contribute nothing
-            }
-            const uint64_t j0 = b_diag ? k : k + 1;
-            const T* b_row = reinterpret_cast<const T*>(b_base + B->get_row_offset(k));
-            for (uint64_t j = j0; j < n; ++j) {
+    // Row i sums a_ik * (row k of B) over k >= i into acc, then checks and stores it. Integers:
+    // Checked = false sums in plain int32 / int64 when no partial sum can leave it (max|a|
+    // max|b| n below 2^31 / 2^63, checked once up front); otherwise 128 bits with a checked add
+    // (review 3.6 C-1). The checked add ran for every product (10x NumPy's float32 route on
+    // causal powers, PLAN 6.5).
+    auto run = [&]<typename Acc, bool Checked>() {
+        auto* axpy = pick_row_axpy<Acc, T>();
+        ParallelFor(0, n, [&](size_t i) {
+            const uint64_t k0 = a_diag ? i : i + 1;
+            std::vector<Acc> acc(n - std::min<uint64_t>(n, k0), Acc(0));  // columns k0 .. n-1
+            Acc* acc_k0 = acc.data();
+            const T* a_row = reinterpret_cast<const T*>(a_base + A->get_row_offset(i));
+            for (uint64_t k = k0; k < n; ++k) {
+                const Acc va = static_cast<Acc>(a_row[k - k0]);
                 if constexpr (std::is_integral_v<T>) {
-                    acc[j] = checked_add_i128(acc[j], va * static_cast<Acc>(b_row[j - j0]));
+                    if (va == 0) continue;  // exact: integer zeros contribute nothing
+                }
+                const uint64_t j0 = b_diag ? k : k + 1;
+                const T* __restrict b_row = reinterpret_cast<const T*>(b_base + B->get_row_offset(k));
+                Acc* __restrict dst = acc_k0 + (j0 - k0);
+                const uint64_t len = n - j0;
+                if constexpr (Checked) {
+                    for (uint64_t j = 0; j < len; ++j) dst[j] = checked_add_i128(dst[j], va * static_cast<Acc>(b_row[j]));
                 } else {
-                    acc[j] += va * static_cast<Acc>(b_row[j - j0]);
+                    axpy(dst, va, b_row, len);
                 }
             }
-        }
-        const uint64_t c0 = c_diag ? i : i + 1;
-        T* c_row = reinterpret_cast<T*>(c_base + C->get_row_offset(i));
-        for (uint64_t j = c0; j < n; ++j) {
-            if constexpr (std::is_integral_v<T>) check_fits<T>(acc[j]);
-            c_row[j - c0] = static_cast<T>(acc[j]);
-        }
-    });
+            const uint64_t c0 = c_diag ? i : i + 1;
+            T* c_row = reinterpret_cast<T*>(c_base + C->get_row_offset(i));
+            for (uint64_t j = c0; j < n; ++j) {
+                if constexpr (std::is_integral_v<T>) check_fits<T>(static_cast<__int128>(acc[j - k0]));
+                c_row[j - c0] = static_cast<T>(acc[j - k0]);
+            }
+        });
+    };
+    if constexpr (std::is_integral_v<T>) {
+        auto max_abs = [n](const TriangularMatrix<T>& M) {
+            uint64_t mx = 0;
+            const char* base = reinterpret_cast<const char*>(M.data());
+            for (uint64_t i = 0; i < n; ++i) {
+                const uint64_t c0 = M.has_diagonal() ? i : i + 1;
+                const T* row = reinterpret_cast<const T*>(base + M.get_row_offset(i));
+                for (uint64_t j = 0; j + c0 < n; ++j) {
+                    const T e = row[j];
+                    uint64_t m;
+                    if constexpr (std::is_signed_v<T>) m = e < 0 ? uint64_t(0) - static_cast<uint64_t>(e) : static_cast<uint64_t>(e);
+                    else m = static_cast<uint64_t>(e);
+                    mx = std::max(mx, m);
+                }
+            }
+            return mx;
+        };
+        const uint64_t ma = max_abs(*A), mb = max_abs(*B);
+        constexpr uint64_t kMax = static_cast<uint64_t>((std::numeric_limits<int64_t>::max)());
+        auto fits = [&](uint64_t lim) {
+            return ma == 0 || mb == 0 || (ma <= lim / mb && ma * mb <= lim / std::max<uint64_t>(n, 1));
+        };
+        // int32 lanes when every partial sum fits them (path-count powers: max|a| max|b| n < 2^31
+        // up to n ~ 1290 for C^3), int64 when they fit 64 bits, else 128 bits checked.
+        if (fits(static_cast<uint64_t>((std::numeric_limits<int32_t>::max)()))) run.template operator()<int32_t, false>();
+        else if (fits(kMax)) run.template operator()<int64_t, false>();
+        else run.template operator()<__int128, true>();
+    } else {
+        run.template operator()<double, false>();
+    }
     C->set_scalar(compose_factors(A->get_scalar(), B->get_scalar()));
     return true;
 }
@@ -668,6 +728,84 @@ bool bit_x_dense_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
 }
 
 // Bit x bit: DenseMatrix<bool> x DenseMatrix<bool> -> DenseMatrix<int32_t> (path counts).
+// dst[b] += 1 for every set bit b of an nbits-bit row (padding bits masked). The full words
+// are a branchless loop that the AVX2 build vectorises (4-5x the set-bit walk at densities
+// 0.05-0.5); the walk is the baseline and the MSVC path (no per-function target there).
+inline void add_bits_walk(int32_t* dst, const uint64_t* w, uint64_t nbits) {
+    for (uint64_t q = 0; q * 64 < nbits; ++q) {
+        uint64_t bits = w[q];
+        if (nbits - q * 64 < 64) bits &= (uint64_t{1} << (nbits - q * 64)) - 1;
+        int32_t* d = dst + q * 64;
+        while (bits) {
+            ++d[std::countr_zero(bits)];
+            bits &= bits - 1;
+        }
+    }
+}
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(_M_X64))
+#define PYCAUSET_HAS_AVX2_BIT_ADD 1
+__attribute__((target("avx2"))) void add_bits_avx2(int32_t* __restrict dst, const uint64_t* w, uint64_t nbits) {
+    const uint64_t full = nbits / 64;
+    for (uint64_t q = 0; q < full; ++q) {
+        const uint32_t lo = static_cast<uint32_t>(w[q]), hi = static_cast<uint32_t>(w[q] >> 32);
+        int32_t* __restrict d = dst + q * 64;
+        for (int b = 0; b < 32; ++b) d[b] += static_cast<int32_t>((lo >> b) & 1u);
+        for (int b = 0; b < 32; ++b) d[32 + b] += static_cast<int32_t>((hi >> b) & 1u);
+    }
+    if (nbits > full * 64) add_bits_walk(dst + full * 64, w + full, nbits - full * 64);
+}
+#endif
+
+// Path counts: strictly upper TriangularMatrix<bool> x strictly upper TriangularMatrix<bool> ->
+// strictly upper TriangularMatrix<int32_t> (no overflow: a count is below n < 2^31). Row i of
+// the product, stored as columns i+1.., is the sum of the bit rows k of B for the set bits k
+// of A's row i, accumulated in place in C's row. It was a method of the bit class that walked
+// every set bit of every added row and stored each count through set() (2.8x NumPy's float32
+// route at n = 256, PLAN 6.5).
+bool bit_triangular_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
+    auto* A = dynamic_cast<const TriangularMatrix<bool>*>(&a);
+    auto* B = dynamic_cast<const TriangularMatrix<bool>*>(&b);
+    auto* C = dynamic_cast<TriangularMatrix<int32_t>*>(&result);
+    if (!A || !B || !C) return false;
+    if (A->is_transposed() || B->is_transposed() || C->is_transposed() || A->has_diagonal() ||
+        B->has_diagonal() || C->has_diagonal()) {
+        throw std::invalid_argument("CpuSolver::matmul: the path-count kernel takes strictly upper operands");
+    }
+    debug_trace::set_last("cpu.matmul.bit_triangular");
+#ifdef PYCAUSET_HAS_AVX2_BIT_ADD
+    auto* add_bits = cpu_has_avx2() ? add_bits_avx2 : add_bits_walk;
+#else
+    auto* add_bits = add_bits_walk;
+#endif
+    const uint64_t n = A->rows();
+    const char* a_base = reinterpret_cast<const char*>(A->data());
+    const char* b_base = reinterpret_cast<const char*>(B->data());
+    char* c_base = reinterpret_cast<char*>(C->data());
+    // Rows shrink with i: chunk c takes rows c, c + chunks, ... so the chunks carry equal work.
+    const uint64_t chunks = std::min<uint64_t>(n, 256);
+    ParallelFor(0, chunks, [&](size_t c) {
+        for (uint64_t i = c; i + 1 < n; i += chunks) {
+            int32_t* acc = reinterpret_cast<int32_t*>(c_base + C->get_row_offset(i));  // columns i+1 .. n-1
+            std::fill(acc, acc + (n - 1 - i), 0);
+            const uint64_t* aw = reinterpret_cast<const uint64_t*>(a_base + A->get_row_offset(i));
+            const uint64_t na = n - 1 - i;
+            for (uint64_t q = 0; q * 64 < na; ++q) {
+                uint64_t bits = aw[q];
+                if (na - q * 64 < 64) bits &= (uint64_t{1} << (na - q * 64)) - 1;
+                while (bits) {
+                    const uint64_t k = i + 1 + q * 64 + static_cast<uint64_t>(std::countr_zero(bits));
+                    bits &= bits - 1;
+                    if (k + 1 >= n) continue;  // row n-1 of B is empty
+                    // B's row k holds columns k+1..: offset k - i in C's row i.
+                    add_bits(acc + (k - i), reinterpret_cast<const uint64_t*>(b_base + B->get_row_offset(k)), n - 1 - k);
+                }
+            }
+        }
+    });
+    C->set_scalar(compose_factors(A->get_scalar(), B->get_scalar()));
+    return true;
+}
+
 bool bit_x_bit_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
     auto* A = dynamic_cast<const DenseMatrix<bool>*>(&a);
     auto* B = dynamic_cast<const DenseMatrix<bool>*>(&b);
@@ -723,7 +861,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
         triangular_kernel<uint32_t>(a, b, result) || triangular_kernel<uint64_t>(a, b, result)) {
         return;
     }
-    if (bit_x_bit_kernel(a, b, result) || bit_x_dense_kernel<double>(a, b, result) ||
+    if (bit_triangular_kernel(a, b, result) || bit_x_bit_kernel(a, b, result) || bit_x_dense_kernel<double>(a, b, result) ||
         bit_x_dense_kernel<float>(a, b, result) || bit_x_dense_kernel<int32_t>(a, b, result) ||
         bit_x_dense_kernel<int16_t>(a, b, result)) {
         return;

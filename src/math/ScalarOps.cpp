@@ -366,6 +366,32 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
         auto out = std::make_unique<TriangularMatrix<R>>(rows, std::string(), has_diag);
         const bool lower = a.is_transposed();
         out->set_transposed(lower);
+        // The result stores the same triangle as the input (a transposed input gives a
+        // transposed result): stored row i in, stored row i out, through the typed span loop.
+        // Element by element through get / set it was 80 ns per element (a 2000 x 2000 causal
+        // matrix cast to int32 took 165 ms, 9x the product it fed; PLAN 6.5).
+        if constexpr (std::is_same_v<Src, TriangularMatrix<In>> && !std::is_same_v<R, bool>) if (!a.is_subview()) {
+            const uint64_t n = src.base_rows();
+            const int64_t k = int_view_factor(a);
+            const double f = is_real_float_dtype(a.get_data_type()) ? a.get_scalar().real() : 1.0;
+            const char* in_base = static_cast<const char*>(src.require_mapper()->get_data());
+            char* out_base = static_cast<char*>(out->require_mapper()->get_data());
+            ParallelFor(0, n, [&](size_t i) {
+                const uint64_t c0 = has_diag ? i : i + 1;
+                if (c0 >= n) return;
+                const uint64_t len = n - c0;
+                R* orow = reinterpret_cast<R*>(out_base + out->get_row_offset(i));
+                if constexpr (std::is_same_v<In, bool>) {
+                    const uint64_t* w = reinterpret_cast<const uint64_t*>(in_base + src.get_row_offset(i));
+                    std::vector<uint8_t> bits(len);
+                    for (uint64_t t = 0; t < len; ++t) bits[t] = static_cast<uint8_t>((w[t / 64] >> (t % 64)) & 1u);
+                    apply_span<R, bool>(op, reinterpret_cast<const bool*>(bits.data()), orow, len, sv, k, f);
+                } else {
+                    apply_span<R, In>(op, reinterpret_cast<const In*>(in_base + src.get_row_offset(i)), orow, len, sv, k, f);
+                }
+            });
+            return out;
+        }
         ParallelFor(0, rows, [&](size_t i) {
             const uint64_t j0 = lower ? 0 : (has_diag ? i : i + 1);
             const uint64_t j1 = lower ? (has_diag ? i + 1 : i) : cols;

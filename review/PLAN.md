@@ -430,11 +430,15 @@ are engine-owned metadata on the storage).
 - [x] 6.3 Out-of-core paths for eigh/svd/rank (F-011) or document them as in-RAM only
       (documented, session 9)
 - [ ] 6.4 Large-N out-of-core benchmark on a real disk (README's headline claim)
-- [ ] 6.5 Causal-matrix kernels against NumPy's float32 BLAS route (benchmarks/scenario_benchmarks.py,
-      review 3.15 C-15): at n = 256 the bit matvec `C @ ones(int32)` is 0.26 ms vs 0.004 ms
-      (65x behind), `C @ C` 0.39 vs 0.14 ms, `(C @ C) @ C` 3.0 vs 0.3 ms (the int32 product of a
-      bit matrix takes the generic path). At n = 2000, `C @ C` is 72 vs 25 ms; `B @ C` already wins
-      (1.9x).
+- [x] 6.5 Causal-matrix kernels against NumPy's float32 BLAS route (benchmarks/scenario_benchmarks.py,
+      review 3.15 C-15). Was, at n = 256: `C @ ones(int32)` 0.26 ms vs 0.004 ms, `C @ C` 0.39 vs
+      0.14 ms, `(C @ C) @ C` 3.0 vs 0.3 ms; at n = 2000 `C @ C` 72 vs 25 ms. Fixed (session 9):
+      a bit matvec over the packed bits (gather / scatter; 0.007 ms at n = 256), the path-count
+      kernel adds bit rows in place (AVX2-vectorised; n = 2000: 6 ms), the triangular kernel sums
+      in int32 / int64 when the bounds allow (128-bit checked otherwise) with an AVX2 row update,
+      and the triangular cast runs per stored row (a bit -> int32 cast at n = 2000 was 165 ms, now
+      1.6 ms). `(C @ C) @ C` at n = 2000: 221 -> 24 ms (NumPy 72 ms). Left: n = 256 powers at
+      0.66x (per-call costs: the cast, pool wake-ups).
 - [ ] 6.6 I/O rows of parity.py: `pc.matrix(ndarray)` 0.80x, `pc.save` 0.85x (both fsync'd).
 
 ---

@@ -9,7 +9,6 @@
 #include <random>
 #include <cmath>
 #include <filesystem>
-#include <future>
 #include <memory>
 
 namespace pycauset {
@@ -115,112 +114,6 @@ std::unique_ptr<TriangularMatrix<bool>> TriangularMatrix<bool>::random(uint64_t 
 std::unique_ptr<MatrixBase> TriangularMatrix<bool>::transpose(const std::string& result_file) const {
     (void)result_file;
     return transposed_clone();
-}
-
-std::unique_ptr<TriangularMatrix<int32_t>> TriangularMatrix<bool>::multiply(const TriangularMatrix<bool>& other, const std::string& result_file) const {
-    if (has_diagonal_ || other.has_diagonal()) {
-        throw std::logic_error("TriangularMatrix<bool>::multiply: kernel contract is strictly upper operands");
-    }
-    const uint64_t n = rows();
-    if (rows() != other.rows() || cols() != other.cols()) {
-        throw std::invalid_argument("Matrix dimensions must match");
-    }
-    
-    auto result = std::make_unique<TriangularMatrix<int32_t>>(n, result_file);
-    
-    const char* a_base = static_cast<const char*>(require_mapper()->get_data());
-    const char* b_base = static_cast<const char*>(other.require_mapper()->get_data());
-
-    std::vector<std::future<void>> futures;
-    auto& pool = pycauset::ThreadPool::instance();
-    TriangularMatrix<int32_t>* result_ptr = result.get();
-
-    size_t num_threads = pycauset::ThreadPool::get_num_threads();
-    uint64_t chunk_size = (n + num_threads - 1) / num_threads;
-
-    for (size_t t = 0; t < num_threads; ++t) {
-        uint64_t start = t * chunk_size;
-        uint64_t end = std::min(start + chunk_size, n);
-        if (start >= end) break;
-
-        futures.emplace_back(pool.enqueue([this, start, end, &other, result_ptr, a_base, b_base, n]() {
-            // Buffer to accumulate one row of results
-            std::vector<uint32_t> accumulator(n);
-
-            for (uint64_t i = start; i < end; ++i) {
-                std::fill(accumulator.begin(), accumulator.end(), 0);
-                
-                // Iterate over Row i of A
-                // Row i has length N - 1 - i
-                uint64_t row_len_a = (n - 1) - i;
-                if (row_len_a == 0) continue;
-
-                uint64_t words_a = (row_len_a + 63) / 64;
-                const uint64_t* a_row_ptr = (const uint64_t*)(a_base + row_offsets_[i]);
-
-                for (uint64_t w = 0; w < words_a; ++w) {
-                    uint64_t word = a_row_ptr[w];
-                    if (word == 0) continue;
-
-                    // Iterate set bits in word
-                    while (word) {
-                        int bit = std::countr_zero(word); // Number of trailing zeros
-                        // The column index k in A corresponding to this bit
-                        // bit 0 corresponds to col i+1 + w*64
-                        uint64_t k = (i + 1) + w * 64 + bit;
-                        
-                        if (k < n) {
-                            // Add Row k of B to accumulator
-                            // Row k of B starts at col k+1
-                            uint64_t row_len_b = (n - 1) - k;
-                            if (row_len_b > 0) {
-                                uint64_t words_b = (row_len_b + 63) / 64;
-                                const uint64_t* b_row_ptr = (const uint64_t*)(b_base + other.get_row_offset(k));
-                                
-                                for (uint64_t wb = 0; wb < words_b; ++wb) {
-                                    uint64_t word_b = b_row_ptr[wb];
-                                    if (word_b == 0) continue;
-                                    
-                                    // Add bits of B[k] to accumulator
-                                    // bit b in wordB corresponds to col (k+1) + wb*64 + b
-                                    uint64_t base_col = (k + 1) + wb * 64;
-                                    
-                                    // Unroll loop for performance?
-                                    while (word_b) {
-                                        int bit_b = std::countr_zero(word_b);
-                                        uint64_t col = base_col + bit_b;
-                                        if (col < n) {
-                                            accumulator[col]++;
-                                        }
-                                        word_b &= ~(1ULL << bit_b);
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Clear the processed bit
-                        word &= ~(1ULL << bit);
-                    }
-                }
-
-                // Write accumulator to result matrix
-                // Result is strictly upper triangular, so we only care about cols > i
-                for (uint64_t j = i + 1; j < n; ++j) {
-                    if (accumulator[j] > 0) {
-                        result_ptr->set(i, j, accumulator[j]);
-                    }
-                }
-            }
-        }));
-    }
-    
-    for(auto& f : futures) {
-        f.get();
-    }
-    
-    result->set_scalar(compose_factors(scalar_, other.get_scalar()));
-
-    return result;
 }
 
 void TriangularMatrix<bool>::fill_random(double density, std::optional<uint64_t> seed) {

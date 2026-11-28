@@ -67,7 +67,9 @@ atlas timing are still below parity (per-call overhead).
 ## Where PyCauset is ahead by construction
 
 - **Causal (bit) matrices:** one bit per relation, 8x smaller than a NumPy `bool` array and
-  64x smaller than float64; `C @ C` counts paths with word-level popcount.
+  64x smaller than float64. `C @ C` adds packed bit rows and `C @ v` visits the set bits
+  (`scenario_benchmarks.py`: at n = 2000, `C @ C` 6 ms against NumPy's float32 BLAS 25 ms;
+  at n = 256 about even, where per-call costs dominate).
 - **Structure:** identity and diagonal products, inverses and determinants are O(N) or
   O(1); triangular, symmetric and antisymmetric matrices store about half the elements; a
   lazy `C + C.T` is never written out.
