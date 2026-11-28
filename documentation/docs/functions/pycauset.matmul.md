@@ -61,7 +61,7 @@ Block-matrix results are **semi-lazy**:
 Determinism:
 
 - Fixed `k` order for each output block’s accumulation.
-- Accumulator dtype is chosen from operand dtype metadata only (folding add-result dtype across terms) before evaluation.
+- The result dtype is the engine's matmul dtype of the two grids' dtypes (each grid's dtype is the promotion over its leaves), chosen before evaluation; every leaf is cast to it in the engine first.
 - Each leaf product is an ordinary `pycauset.matmul`.
 
 See [[internals/Block Matrices.md|Block Matrices]] for details.

@@ -54,11 +54,13 @@ class ThunkBlock:
         compute: Callable[[], Any],
         sources_for_staleness: Iterable[Any] = (),
         label: str = "thunk",
+        dtype: str | None = None,
     ):
         self._rows = int(rows)
         self._cols = int(cols)
         self._compute = compute
         self._label = str(label)
+        self._dtype = dtype  # the operation's result dtype, known before evaluation
 
         pins: list[_VersionPin] = []
         for src in sources_for_staleness:
@@ -87,8 +89,7 @@ class ThunkBlock:
 
     @property
     def dtype(self) -> str:
-        # Structure-only label; heterogeneous containers use MIXED anyway.
-        return self._label
+        return self._dtype if self._dtype is not None else self._label
 
     def _check_stale(self) -> None:
         for pin in self._pins:

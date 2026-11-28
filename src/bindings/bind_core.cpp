@@ -14,6 +14,7 @@
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
+#include "pycauset/math/ScalarOps.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/vector/VectorBase.hpp"
 
@@ -119,6 +120,14 @@ void bind_core_classes(py::module_& m) {
 
     // --- Internal / test-only helpers ---
     // Exposes the promotion resolver without running kernels.
+    // Internal: `a` converted to `dtype` in the engine (a dense copy; the block layer casts its
+    // leaves to a grid's result dtype with it, review 3.10 C-4).
+    m.def("_cast", [](const pycauset::MatrixBase& a, const std::string& dtype) {
+        const auto dt = parse_dtype(dtype);
+        if (dt == pycauset::DataType::BIT) throw std::invalid_argument("_cast: no cast to bool");
+        return std::shared_ptr<pycauset::MatrixBase>(pycauset::cast_to(a, dt).release());
+    }, py::arg("a"), py::arg("dtype"));
+
     m.def(
         "_debug_resolve_promotion",
         [](const std::string& op, const std::string& a_dtype, const std::string& b_dtype) {

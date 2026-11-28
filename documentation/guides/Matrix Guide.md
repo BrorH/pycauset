@@ -67,7 +67,7 @@ C = pc.causal_matrix(100)
 
 ### Goal
 
-Represent a large matrix as a 2D grid of child matrices (blocks) without global densification or surprise dtype promotion.
+Represent a large matrix as a 2D grid of child matrices (blocks) without global densification; a grid has one dtype (the engine's promotion over its blocks), and block operations compute in it, so they agree with the same operations on the assembled matrix.
 
 ### Minimal example
 

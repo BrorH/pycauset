@@ -174,6 +174,8 @@ def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool
         # (they ignored allow_huge and were checked one by one against the ceiling).
         ensure_export_allowed(obj, allow_huge=allow_huge, ceiling_bytes=_EXPORT_MAX_BYTES)
         arr = np.block([[export_to_numpy(b, allow_huge=True) for b in row] for row in obj._blocks])
+        if obj.dtype != "mixed":
+            arr = arr.astype(obj._numpy_dtype(), copy=False)  # the grid's (engine) dtype
     else:
         ensure_export_allowed(obj, allow_huge=allow_huge, ceiling_bytes=_EXPORT_MAX_BYTES)
         arr = np.asarray(obj)

@@ -90,8 +90,17 @@ through `pycauset.matmul`, so the engine's structure rules and its out-of-core d
 to each leaf product. Other operands (nested block matrices, other matrix-likes) use their own
 `@`. The choice is by type (`_leaf_matmul`), never by trying one path and catching its error.
 Each leaf product is an ordinary engine operation
-([[internals/Compute Architecture.md|Compute Architecture]]); mixed-dtype containers stay
-heterogeneous because promotion is per leaf product.
+([[internals/Compute Architecture.md|Compute Architecture]]).
+
+### One dtype per grid
+
+A block matrix has one dtype, `bm.dtype`: the engine's promotion over its leaves (as for the
+operands of an addition; DType System). Every block operation resolves its result dtype once
+from the two grids' dtypes, before evaluation, and each tile casts its leaves to it in the
+engine first, so a block result equals the same operation on the assembled matrices (an int8
+tile beside a float32 one computes in float32). The export (`np.asarray`, `to_numpy`) has the
+grid's dtype. A grid with a matrix-like leaf that has no PyCauset dtype is `"mixed"`, and its
+tiles keep their own operations.
 
 ### Evaluation triggers (semi-lazy)
 
@@ -104,8 +113,8 @@ Concurrency: each `ThunkBlock` uses single-eval locking (e.g., `once_flag`/`mute
 ### Deterministic accumulation per output block
 
 - Fixed `k` order for `Σ_k A_ik @ B_kj`.
-- Accumulator dtype is chosen from metadata before evaluation by folding the add-result dtype across term dtypes.
-- Local promotion is per-block; container stays heterogeneous.
+- The result dtype is the engine's matmul dtype of the two grids' dtypes (see above); every
+  term computes in it, so the sum is in it too.
 
 ## IO accelerator integration
 

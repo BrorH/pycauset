@@ -43,11 +43,35 @@ def _leaf_operand(x: Any) -> Any:
     return x
 
 
-def _leaf_matmul(a: Any, b: Any) -> Any:
+_DTYPES = {"bool", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "float16",
+           "float32", "float64", "complex_float16", "complex_float32", "complex_float64"}
+
+
+def _promote(op: str, a: str | None, b: str | None) -> str | None:
+    """The engine's result dtype of `a op b` (promotion::resolve); None when an operand is a
+    matrix-like without a PyCauset dtype (then each tile keeps its own operation)."""
+    if a not in _DTYPES or b not in _DTYPES:
+        return None
+    r = _get_pycauset()._native._debug_resolve_promotion(op, a, b)["result_dtype"]
+    return "bool" if r == "bit" else r
+
+
+def _cast_leaf(x: Any, dtype: str | None) -> Any:
+    """An engine leaf converted to the operation's result dtype, in the engine (cast_to). Every
+    tile computes in the grid's result dtype, so a block result equals the same operation on the
+    assembled matrices; tiles promoted on their own (an int8 tile wrapped at 200 where the grid is
+    float32, review 3.10 C-4). Nested grids cast their own leaves."""
+    pc = _get_pycauset()
+    if dtype is None or not isinstance(x, pc.MatrixBase) or x.dtype == dtype:
+        return x
+    return pc._native._cast(x, dtype)
+
+
+def _leaf_matmul(a: Any, b: Any, dtype: str | None = None) -> Any:
     """Matmul of two leaf blocks: engine operands through the public entry
     (`pycauset.matmul`), so the engine's structure rules apply to each leaf product. Chosen by
     type, not by trying one path and swallowing its error."""
-    a, b = _leaf_operand(a), _leaf_operand(b)
+    a, b = _cast_leaf(_leaf_operand(a), dtype), _cast_leaf(_leaf_operand(b), dtype)
     pc = _get_pycauset()
     engine = (pc.MatrixBase, pc.VectorBase, SubmatrixView)
     if isinstance(a, engine) and isinstance(b, engine):
@@ -55,9 +79,9 @@ def _leaf_matmul(a: Any, b: Any) -> Any:
     return a @ b  # block operands recurse; other matrix-likes use their own operator
 
 
-def _leaf_elementwise(a: Any, b: Any, op: str) -> Any:
+def _leaf_elementwise(a: Any, b: Any, op: str, dtype: str | None = None) -> Any:
     """Element-wise op of two leaf blocks: the operators (one engine path, F-086)."""
-    a, b = _leaf_operand(a), _leaf_operand(b)
+    a, b = _cast_leaf(_leaf_operand(a), dtype), _cast_leaf(_leaf_operand(b), dtype)
     if op == "add":
         return a + b
     if op == "sub":
@@ -82,6 +106,13 @@ def _try_io_prefetch(obj: Any) -> None:
 
 def _try_io_discard(obj: Any) -> None:
     _io_hint(obj, "discard")
+
+
+def _leaf_dtype(obj: Any) -> str | None:
+    if isinstance(obj, SubmatrixView):
+        return _leaf_dtype(obj.source)
+    d = getattr(obj, "dtype", None)
+    return None if d is None else str(d)
 
 
 def _infer_dtype_label(obj: Any) -> str:
@@ -196,7 +227,16 @@ class BlockMatrix:
 
     @property
     def dtype(self) -> str:
-        return "mixed"
+        """One dtype for the grid: the engine's promotion over its leaves (as for the operands of
+        an addition). It was "mixed", and every tile promoted on its own (review 3.10 C-4)."""
+        out: str | None = None
+        for row in self._blocks:
+            for blk in row:
+                d = _leaf_dtype(blk)
+                if d not in _DTYPES:
+                    return "mixed"  # a matrix-like leaf without a PyCauset dtype
+                out = d if out is None else (out if out == d else _promote("add", out, d))
+        return out or "float64"
 
     # --- integration helpers (Phase F) ---
 
@@ -398,7 +438,7 @@ class BlockMatrix:
 
     def _format(self, *, max_blocks: int) -> str:
         header = (
-            f"BlockMatrix(shape={self.shape}, grid={self.block_rows}x{self.block_cols}, dtype=MIXED)"
+            f"BlockMatrix(shape={self.shape}, grid={self.block_rows}x{self.block_cols}, dtype={self.dtype})"
         )
         parts = [
             header,
@@ -436,7 +476,16 @@ class BlockMatrix:
 
         export_guard.ensure_export_allowed(self, allow_huge=False, ceiling_bytes=export_guard.get_max_bytes())
         arr = np.block([[np.asarray(b) for b in row] for row in self._blocks])
+        if self.dtype in _DTYPES:
+            arr = arr.astype(self._numpy_dtype(), copy=False)
         return arr if dtype is None else arr.astype(dtype, copy=False)
+
+    def _numpy_dtype(self) -> str:
+        """The grid's dtype as NumPy's (np.block promotes by NumPy's rules; the grid's dtype is the
+        engine's, which keeps float32 with float64, review 3.10 C-4)."""
+        from .matrix_api import _NUMPY_DTYPE
+
+        return _NUMPY_DTYPE.get(self.dtype, "complex64")
 
 
 def block_matmul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
@@ -451,6 +500,7 @@ def block_matmul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
             f"matmul dimension mismatch: {left.rows()}x{left.cols()} @ {right.rows()}x{right.cols()}"
         )
 
+    rdtype = _promote("matmul", left.dtype, right.dtype)
     inner = sorted(set(left.col_partitions) | set(right.row_partitions))
     left_r = left.refine_partitions(col_partitions=inner)
     right_r = right.refine_partitions(row_partitions=inner)
@@ -480,7 +530,7 @@ def block_matmul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
                 for a, b in pairs:
                     _try_io_prefetch(a)
                     _try_io_prefetch(b)
-                    prod = _leaf_matmul(a, b)
+                    prod = _leaf_matmul(a, b, rdtype)
                     if acc is None:
                         acc = prod
                     else:
@@ -502,6 +552,7 @@ def block_matmul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
                     compute=_compute,
                     sources_for_staleness=staleness_sources,
                     label="thunk",
+                    dtype=rdtype,
                 )
             )
         out_blocks.append(out_row)
@@ -521,6 +572,7 @@ def block_add(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
             f"add dimension mismatch: {left.rows()}x{left.cols()} + {right.rows()}x{right.cols()}"
         )
 
+    rdtype = _promote("add", left.dtype, right.dtype)
     rows_u = sorted(set(left.row_partitions) | set(right.row_partitions))
     cols_u = sorted(set(left.col_partitions) | set(right.col_partitions))
 
@@ -545,7 +597,7 @@ def block_add(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
             def _compute(a0: Any = a0, b0: Any = b0) -> Any:
                 _try_io_prefetch(a0)
                 _try_io_prefetch(b0)
-                out = _leaf_elementwise(a0, b0, "add")
+                out = _leaf_elementwise(a0, b0, "add", rdtype)
                 _try_io_discard(a0)
                 _try_io_discard(b0)
                 _try_io_discard(out)
@@ -558,6 +610,7 @@ def block_add(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
                     compute=_compute,
                     sources_for_staleness=staleness_sources,
                     label="thunk",
+                    dtype=rdtype,
                 )
             )
         out_blocks.append(out_row)
@@ -577,6 +630,7 @@ def block_sub(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
             f"subtract dimension mismatch: {left.rows()}x{left.cols()} - {right.rows()}x{right.cols()}"
         )
 
+    rdtype = _promote("sub", left.dtype, right.dtype)
     rows_u = sorted(set(left.row_partitions) | set(right.row_partitions))
     cols_u = sorted(set(left.col_partitions) | set(right.col_partitions))
 
@@ -601,7 +655,7 @@ def block_sub(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
             def _compute(a0: Any = a0, b0: Any = b0) -> Any:
                 _try_io_prefetch(a0)
                 _try_io_prefetch(b0)
-                out = _leaf_elementwise(a0, b0, "sub")
+                out = _leaf_elementwise(a0, b0, "sub", rdtype)
                 _try_io_discard(a0)
                 _try_io_discard(b0)
                 _try_io_discard(out)
@@ -614,6 +668,7 @@ def block_sub(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
                     compute=_compute,
                     sources_for_staleness=staleness_sources,
                     label="thunk",
+                    dtype=rdtype,
                 )
             )
         out_blocks.append(out_row)
@@ -629,6 +684,7 @@ def block_mul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
             f"multiply dimension mismatch: {left.rows()}x{left.cols()} * {right.rows()}x{right.cols()}"
         )
 
+    rdtype = _promote("mul", left.dtype, right.dtype)
     rows_u = sorted(set(left.row_partitions) | set(right.row_partitions))
     cols_u = sorted(set(left.col_partitions) | set(right.col_partitions))
 
@@ -653,7 +709,7 @@ def block_mul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
             def _compute(a0: Any = a0, b0: Any = b0) -> Any:
                 _try_io_prefetch(a0)
                 _try_io_prefetch(b0)
-                out = _leaf_elementwise(a0, b0, "mul")
+                out = _leaf_elementwise(a0, b0, "mul", rdtype)
                 _try_io_discard(a0)
                 _try_io_discard(b0)
                 _try_io_discard(out)
@@ -666,6 +722,7 @@ def block_mul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
                     compute=_compute,
                     sources_for_staleness=staleness_sources,
                     label="thunk",
+                    dtype=rdtype,
                 )
             )
         out_blocks.append(out_row)
@@ -681,6 +738,7 @@ def block_div(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
             f"divide dimension mismatch: {left.rows()}x{left.cols()} / {right.rows()}x{right.cols()}"
         )
 
+    rdtype = _promote("div", left.dtype, right.dtype)
     rows_u = sorted(set(left.row_partitions) | set(right.row_partitions))
     cols_u = sorted(set(left.col_partitions) | set(right.col_partitions))
 
@@ -705,7 +763,7 @@ def block_div(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
             def _compute(a0: Any = a0, b0: Any = b0) -> Any:
                 _try_io_prefetch(a0)
                 _try_io_prefetch(b0)
-                out = _leaf_elementwise(a0, b0, "div")
+                out = _leaf_elementwise(a0, b0, "div", rdtype)
                 _try_io_discard(a0)
                 _try_io_discard(b0)
                 _try_io_discard(out)
@@ -718,6 +776,7 @@ def block_div(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
                     compute=_compute,
                     sources_for_staleness=staleness_sources,
                     label="thunk",
+                    dtype=rdtype,
                 )
             )
         out_blocks.append(out_row)

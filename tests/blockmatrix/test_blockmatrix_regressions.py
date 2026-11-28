@@ -92,3 +92,24 @@ def test_3_10_C3_refined_matmul_stays_in_the_engine(leaf):
     out = np.asarray(got)
     assert export_guard.export_count - before <= 1  # the final np.asarray only
     np.testing.assert_allclose(out, ref @ x)
+
+
+def test_3_10_C4_block_results_use_the_grids_dtype():
+    """Review 3.10 C-4: tiles promoted on their own, so an int8 tile wrapped (-56) where NumPy on
+    the assembled matrices gives 200, and an int8 product overflowed where the grid is float32."""
+    a8 = pc.matrix(np.full((2, 2), 100, np.int8))
+    f32 = pc.matrix(np.ones((2, 2), np.float32))
+    L = pc.matrix([[a8, f32]])
+    assert L.dtype == "float32"
+    np.testing.assert_array_equal(np.asarray(L + L), np.asarray(L) + np.asarray(L))
+    G = pc.matrix([[f32, a8]]) @ pc.matrix([[f32], [a8]])
+    assert G.dtype == "float32"
+    np.testing.assert_allclose(np.asarray(G), np.full((2, 2), 20002.0))
+    c = pc.matrix(np.ones((2, 2), np.complex128))
+    Z = pc.matrix([[c, f32]])
+    assert Z.dtype == "complex_float32"  # the engine's rule (narrowest float precision)
+    assert np.asarray(Z + Z).dtype == np.complex64
+    b = pc.matrix(np.ones((2, 2), bool))
+    i = pc.matrix(np.full((2, 2), 3, np.int16))
+    B = pc.matrix([[b, i]])
+    np.testing.assert_array_equal(np.asarray(B * B), np.asarray(B) * np.asarray(B))
