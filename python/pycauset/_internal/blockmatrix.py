@@ -19,10 +19,18 @@ def _get_pycauset() -> Any:
     return _PYCAUSET_MODULE
 
 
+def _leaf_operand(x: Any) -> Any:
+    """A leaf as an operand: a thunk (the result of an earlier block operation) is evaluated.
+    `(L @ R) @ R` and `(L + R) + R` raised TypeError: ThunkBlock has no operators (review 3.10
+    C-1)."""
+    return x.materialize() if isinstance(x, ThunkBlock) else x
+
+
 def _leaf_matmul(a: Any, b: Any) -> Any:
     """Matmul of two leaf blocks: engine operands through the public entry
     (`pycauset.matmul`), so the engine's structure rules apply to each leaf product. Chosen by
     type, not by trying one path and swallowing its error."""
+    a, b = _leaf_operand(a), _leaf_operand(b)
     pc = _get_pycauset()
     engine = (pc.MatrixBase, pc.VectorBase, SubmatrixView)
     if isinstance(a, engine) and isinstance(b, engine):
@@ -32,6 +40,7 @@ def _leaf_matmul(a: Any, b: Any) -> Any:
 
 def _leaf_elementwise(a: Any, b: Any, op: str) -> Any:
     """Element-wise op of two leaf blocks: the operators (one engine path, F-086)."""
+    a, b = _leaf_operand(a), _leaf_operand(b)
     if op == "add":
         return a + b
     if op == "sub":
@@ -94,6 +103,11 @@ class BlockMatrix:
 
     It intentionally does NOT implement full compute semantics yet.
     """
+
+    # NumPy defers to the block operators (`ndarray @ bm` exported the grid and computed in
+    # NumPy, review 3.10 C-7), as for the engine classes.
+    __array_ufunc__ = None
+    __array_priority__ = 1e6
 
     def __init__(self, blocks: Iterable[Iterable[Any]]):
         grid = [list(row) for row in blocks]
@@ -173,6 +187,9 @@ class BlockMatrix:
     def _as_blockmatrix(obj: Any) -> BlockMatrix:
         if isinstance(obj, BlockMatrix):
             return obj
+        pc = _get_pycauset()
+        if not isinstance(obj, (pc.MatrixBase, pc.VectorBase, SubmatrixView, ThunkBlock)):
+            obj = pc.matrix(obj)  # an ndarray or nested list: imported, not a NumPy leaf
         return BlockMatrix([[obj]])
 
     def __matmul__(self, other: Any) -> BlockMatrix:

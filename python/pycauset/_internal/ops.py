@@ -97,6 +97,12 @@ def compute_k(matrix: Any, a: float, *, deps: OpsDeps) -> Any:
     return deps.native._compute_k_matrix(matrix, float(a))
 
 
+def _is_block(x: Any) -> bool:
+    from .blockmatrix import BlockMatrix
+
+    return isinstance(x, BlockMatrix)
+
+
 def _is_scalar(x: Any, deps: OpsDeps) -> bool:
     return isinstance(x, (bool, int, float, complex, deps.np_module.generic))
 
@@ -107,6 +113,8 @@ def elementwise(op: Any, a: Any, b: Any, name: str, *, deps: OpsDeps) -> Any:
     `pc.divide(ndarray, ndarray)` computed in NumPy and returned an ndarray (review 3.8 C-4)."""
     if _is_scalar(a, deps) and _is_scalar(b, deps):
         raise TypeError(f"{name}: at least one operand must be a matrix, vector or array")
+    if _is_block(a) or _is_block(b):
+        return op(a, b)  # block operators ("once block, always block"; it densified, 3.10 C-7)
     a = a if _is_scalar(a, deps) else _import_operand(a, deps=deps)
     b = b if _is_scalar(b, deps) else _import_operand(b, deps=deps)
     return op(a, b)

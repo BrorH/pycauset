@@ -62,6 +62,11 @@ class ThunkBlock:
 
         pins: list[_VersionPin] = []
         for src in sources_for_staleness:
+            if isinstance(src, ThunkBlock):
+                # A thunk operand: this result depends on its inputs too (a write to them made
+                # the outer cached result stale unnoticed, review 3.10 C-1 / C-5).
+                pins.extend(src._pins)
+                continue
             v = _get_version(src)
             if v is not None:
                 pins.append(_VersionPin(obj=src, version=v))

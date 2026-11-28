@@ -1914,15 +1914,15 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-139 Area 3.10 (block matrices): block results cannot be reused, mismatched partitions fail
 - **Status:** reviewed (session 9), 12 findings in `review/areas/3.10-block-matrices.md`
-  (0 S1, 4 S2, 6 S3, 2 S4). Open. 3.9 C-4 (stale thunk cache) is fixed: engine leaves are pinned
-  by storage version.
-  - C-1: a block result (`ThunkBlock`) has no operators: `(L @ R) @ R`, `(L + R) + R` raise.
+  (0 S1, 4 S2, 6 S3, 2 S4). C-1, C-7 fixed; the rest open. 3.9 C-4 (stale thunk cache) is
+  fixed: engine leaves are pinned by storage version.
+  - C-1 (fixed): a block result (`ThunkBlock`) had no operators: `(L @ R) @ R` raised.
   - C-2: element-wise ops on grids with different partitions fail in 7 of 8 cases.
   - C-3: refined matmul round-trips each cut tile through NumPy (export ceiling, two RAM
     copies) and raises for cut structured leaves.
   - C-4: mixed-dtype grids promote per tile (int8 tile wraps where NumPy gives 200): the
     block dtype contract needs a decision.
   - C-5: thunk and nested-grid leaves are not pinned; the thunk cache is outside DerivedCache.
-  - C-7: `ndarray @ bm` computes in NumPy (no `__array_ufunc__ = None`).
+  - C-7 (fixed): `ndarray @ bm` computed in NumPy (no `__array_ufunc__ = None`).
   - C-6, C-8 to C-12: export guard, missing scalar ops / transpose / slicing, persistence
     leftovers, stale docs, IO hints, dead `DensePythonMatrix`.
