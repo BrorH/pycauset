@@ -42,12 +42,13 @@ first. `benchmarks/parity.py`: 9/9 operations at or above 0.90x.
 | `lstsq` (vector) | 253 ms | 210 ms | 1.2x |
 
 Across the whole operation atlas (`review/atlas/TIMING.md`: every op x dtype x structure x
-view, 11,598 cells) 4,998 cells are below 0.9x, down from 8,445 at the start of this round and
-6,057 before the last pass (bulk reads of structured, transposed and bit storage, chunked sums,
-unit-vector dot, structured matvec, element-wise rows without copies). What is left is mostly
+view, 11,598 cells) 4,533 cells are below 0.9x, down from 8,445 at the start of this round and
+6,057 before the last passes (bulk reads of structured, transposed and bit storage, chunked sums,
+unit-vector dot, structured and symmetric matvec, element-wise rows without copies, tiled
+bitwise reads, inlined scalar arithmetic, vector views). What is left is mostly
 per-call overhead on small and O(1) operations (`trace`: ~2 us of Python layers per call),
-structured bitwise and division (each operand is written out once), complex32, and dense
-symmetric matrix-vector products. The 87 remaining error cells are intended raises (singular
+structured division, complex32 (software float16 conversions, as in NumPy's float16), and
+small structured matrix-vector products. The 87 remaining error cells are intended raises (singular
 systems, integer overflow, non-positive-definite input). The derived-value cache is off for
 timing (a repeated determinant of the same matrix is otherwise a lookup).
 
