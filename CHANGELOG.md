@@ -8,7 +8,19 @@ milestone corresponds to **v0.6.1**.
 
 Pre-alpha: these changes are breaking and come without compatibility shims.
 
+### Added
+- Computed values are remembered with the matrix until it changes: `determinant`, `slogdet`,
+  `trace`, `sum`, `norm` (matrix norms), `matrix_rank`, `eigvals`, `eigvalsh`. A second call
+  on the same matrix (and view) returns at once; any write discards them first. `pc.save`
+  stores the scalar ones in the file and `pc.load` brings them back.
+
 ### Changed
+- Faster on structured, transposed, windowed and bool matrices (no API change): whole-matrix
+  reads go through a bulk reader of the packed storage, so structured `& | ^ ~ /`, scalar
+  ops, sums and norms are 2-10x faster (most at or past NumPy); dot with a unit vector and
+  symmetric matrix-vector products too. Integer unit-vector dots return an exact `int`.
+- `-v`, `s * v` and `v.conj()` of float / complex vectors are views (no copy), as for
+  matrices.
 - Faster linear algebra (no API change): solve / invert / det 1.6-1.8x NumPy's speed,
   cholesky 2.4x, svd 1.3x (was 0.5-0.7x). `svd(compute_uv=False)` and `svdvals` compute
   only the values. `OPENBLAS_THREAD_TIMEOUT` default 4 -> 18.
