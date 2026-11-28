@@ -219,7 +219,6 @@ _runtime = _runtime_mod.Runtime(
     cleanup_storage=cleanup_storage,
 )
 
-_EXPORT_MAX_BYTES: int | None = None
 _DEFAULT_MEMORY_THRESHOLD = _native.get_memory_threshold()
 _IO_OBS = _io_observability.IOObservability(_native)
 
@@ -390,8 +389,6 @@ def set_export_max_bytes(limit: int | None) -> None:
     export raises only when it would not fit in free RAM.
     """
 
-    global _EXPORT_MAX_BYTES
-    _EXPORT_MAX_BYTES = limit
     _export_guard.set_max_bytes(limit)
     _native._set_numpy_export_max_bytes(limit)
 

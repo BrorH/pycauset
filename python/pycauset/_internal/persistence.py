@@ -456,15 +456,10 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
         if callable(is_conjugated):
             is_conjugated = is_conjugated()
 
-        if hasattr(payload_obj, "rows") and hasattr(payload_obj, "cols"):
-            rows = payload_obj.rows() if callable(payload_obj.rows) else payload_obj.rows
-            cols = payload_obj.cols() if callable(payload_obj.cols) else payload_obj.cols
-        elif hasattr(payload_obj, "size"):
-            rows = payload_obj.size()
-            cols = 1
-        else:
-            rows = len(payload_obj)
-            cols = 1
+        if isinstance(payload_obj, deps.native.MatrixBase):
+            rows, cols = payload_obj.rows(), payload_obj.cols()
+        else:  # a vector (only engine objects reach here: copy_storage is checked above)
+            rows, cols = len(payload_obj), 1
 
         scalar = getattr(payload_obj, "scalar", 1.0)
         view: dict[str, Any] = {
@@ -661,10 +656,7 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         bool(metadata.get("has_diagonal", False)),
     )
 
-    if is_transposed and hasattr(obj, "set_transposed"):
-        obj.set_transposed(True)
-
-    if is_conjugated and hasattr(obj, "set_conjugated"):
+    if is_conjugated:  # _open_storage applies the transpose (and factor) itself
         obj.set_conjugated(True)
 
     derived = metadata.get("derived")
