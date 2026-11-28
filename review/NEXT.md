@@ -9,8 +9,9 @@ previous conversation.
   an ancestor, so it is a clean continuation). `main` does NOT have this work.
 - Start from that branch: `git fetch origin ccr-366933fe-71cbew` and create your own working
   branch from `FETCH_HEAD` (or work on the branch your session is told to use, based on that
-  commit). Check `git log --oneline -1` shows "Review notes: thread-pool spin experiment" or
-  a later commit from this list. Never start from `main` unless the maintainer has merged it.
+  commit). `git log --oneline -3` must show the commit "Handoff for the next session:
+  review/NEXT.md ..." (or later ones on that branch). Never start from `main` unless the
+  maintainer has merged this branch into it.
 - Push only to your session's designated branch. No pull requests unless the maintainer asks.
 
 ## 2. Read, in this order
