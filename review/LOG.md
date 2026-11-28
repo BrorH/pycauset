@@ -845,3 +845,7 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
     - `C @ C` adds bit rows in place (AVX2): n = 2000, 72 -> 6 ms (NumPy 25).
     - Triangular products sum in int32 / int64 when bounded; the triangular cast runs per
       stored row (165 -> 1.6 ms at n = 2000): `(C @ C) @ C` 221 -> 24 ms (NumPy 72).
+  - Tried and reverted: a spinning thread pool and smaller dot blocks (PLAN 6.2 says why).
+  - 3.8 C-4 rest designed (area file), not implemented.
+  - Handoff written: `review/NEXT.md` (branch, setup, gates, rules, state, ordered queue);
+    session 9 decisions recorded in RESTRUCTURE §3.1 item 12.

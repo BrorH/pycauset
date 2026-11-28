@@ -5,6 +5,9 @@ that started on 2026-11-24. It is written for **agents and humans picking up the
 work cold**. Read this file first, then the ones it points to.
 
 ## Read in this order
+**Picking the work up in a new session? Start with [NEXT.md](NEXT.md)** (the handoff: branch,
+setup, gates, rules, state, work queue).
+
 0. **`documentation/project/protocols/Adding Operations.md`** and **`Adding Types.md`**: the
    procedures the review established (Phase N). Every change to an operation or type follows them.
 1. **`documentation/internals/Architecture.md`**: map of every moving part and how a call
@@ -24,6 +27,7 @@ work cold**. Read this file first, then the ones it points to.
 ```
 review/
   README.md         this file
+  NEXT.md           the handoff for the next session: start there
   ARCHITECTURE.md   pointer: the map is documentation/internals/Architecture.md
   PLAN.md           phases & checklists
   FINDINGS.md       issue log, F-001...

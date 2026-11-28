@@ -192,6 +192,30 @@ engine and everything behind it is C++.* Python is a thin packaging layer.
    individually in Phase 3 by coverage and usefulness (DEADCODE Tier B), not cut
    wholesale.
 
+12. **Technical decisions of session 9** (tech lead; reported to the maintainer 2026-11-28).
+    Do not re-open them without a new reason:
+    - Promotion: the C-3 rule (review 3.3). `pc.int_` is int64; `pc.uint` and `pc.float_`
+      are removed. `.dtype` is a `DType` str subclass. A block matrix has one dtype.
+    - API: `pc.inv` is the matrix inverse and `pc.invert` is bitwise NOT (NumPy's names);
+      `dot` is the 1-D case of matmul; `bool(M)` follows NumPy; comparisons make matrices
+      unhashable; singular matrices raise `LinAlgError`; bool elements take Python truthiness;
+      no import-time warning when NumPy is imported first.
+    - Lazy: a window is not "lazy"; `A / s` is a lazy view only for a power-of-two `s` (exact
+      quotient otherwise).
+    - Storage: StreamingManager and `keep_temp_files` removed; copy-on-write snapshots kept;
+      the temp suffix is `.pycauset-tmp`; block saves are generational
+      (`<name>.blocks.<token>`); saved derived values are trusted only with a matching payload
+      checksum; Windows opens files with FILE_SHARE_DELETE.
+    - Threads: kernels release the GIL (operands pinned); the threading rule is documented,
+      not locked.
+    - Causal sets: a causet built from a matrix has no coordinates (`coordinates()` raises);
+      plotly is optional.
+    - Block matrices: duck-typed cut tiles raise TypeError (`pc.StaleThunkError` for stale
+      thunks).
+    - Numerics: the float32 norm keeps a double accumulator (documented).
+    - Benchmarks: five scripts deleted; `parity.py`, `scenario_benchmarks.py`, `bench_ram.py`
+      kept (BENCHMARKS.md).
+
 ### 3.2 Product questions for the creative director (open)
 A. **[Decided by maintainer 2026-11-24] Scope for R1:** all 16 dtypes (§3.1 item 10).
    **Keep and test:** skew-symmetric eigensolvers (`eigvals_skew`, `eig_skew`) and
