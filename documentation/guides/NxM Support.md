@@ -35,7 +35,7 @@ Rectangular dense matrices are supported for:
 
 - `pycauset.identity(n)` creates an $n \times n$ identity matrix.
 - `pycauset.identity([rows, cols])` creates a `rows × cols` identity-like matrix (ones on the diagonal up to $\min(rows, cols)$).
-- `pycauset.I(...)` / `pycauset.IdentityMatrix(...)` also support rectangular shapes.
+- `pycauset.I(...)` and `pycauset.IdentityMatrix(rows, cols)` also support rectangular shapes.
 
 ### NumPy interop
 
@@ -53,7 +53,9 @@ Rectangular dense matrices are supported for:
 
   $$ (m, k) @ (k, n) \to (m, n) $$
 
-- Elementwise ops (`+`, `-`, `*` elementwise) require exact shape match.
+- Element-wise arithmetic (`+ - * /`) broadcasts as NumPy does: equal shapes, a `(1, n)` or
+  `(m, 1)` matrix, or a 1-D vector (a row). Other shape pairs raise `ValueError`.
+- Bitwise `& | ^` need equal shapes (NumPy would broadcast; F-128).
 
 ## Restricted / square-only
 
@@ -73,7 +75,7 @@ These structures are square-only by definition:
 
 If you hit a shape-related exception:
 
-- Verify you’re using `rows()/cols()` (or `shape`) rather than relying on legacy “N”.
+- Check `shape` (or `rows()` / `cols()`).
 - For matmul, verify inner dimensions match.
 
 If the status here disagrees with observed behavior, treat it as a bug and update this page along with a regression test.

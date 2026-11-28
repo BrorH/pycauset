@@ -1699,3 +1699,10 @@ the entry (the history is useful). New findings go at the bottom with the next f
   narrowed to the errors that occur (`OSError`, `ImportError`, `ValueError`), or removed
   where nothing can be raised (`close()`). C++: only the dormant GPU fallbacks (F-116)
   catch and continue; `persistence.py` is left to the area 3.9 review.
+
+### F-128 Bitwise ops do not broadcast; comparisons are missing
+- **Status:** open (session 9, found checking the NxM guide). `A & B` raises
+  "bitwise ops need equal shapes" for `(2, 3) & (1, 3)`, which NumPy broadcasts, while `+ - * /`
+  broadcast. `A < B` (and the other comparisons) are not defined at all (`TypeError`); NumPy
+  returns a bool array. Both belong to the element-wise family: one broadcast rule
+  (`CpuElementwise`), comparisons as element-wise ops with a bool result.
