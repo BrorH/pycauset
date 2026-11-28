@@ -20,10 +20,27 @@ def _get_pycauset() -> Any:
 
 
 def _leaf_operand(x: Any) -> Any:
-    """A leaf as an operand: a thunk (the result of an earlier block operation) is evaluated.
-    `(L @ R) @ R` and `(L + R) + R` raised TypeError: ThunkBlock has no operators (review 3.10
-    C-1)."""
-    return x.materialize() if isinstance(x, ThunkBlock) else x
+    """A leaf as an operand of the engine.
+
+    - A thunk (the result of an earlier block operation) is evaluated: `(L @ R) @ R` raised
+      TypeError, ThunkBlock has no operators (review 3.10 C-1).
+    - A cut tile (`SubmatrixView`) of an engine leaf is an engine window: zero-copy for a dense
+      leaf; a structured leaf is written out dense in the engine first (a split by structure is
+      open). The tile went through NumPy (export ceiling, two RAM copies), and raised for
+      structured leaves and for every element-wise op but `view + engine` (3.10 C-2, C-3).
+      Tiles of other sources (nested grids) stay views.
+    """
+    if isinstance(x, ThunkBlock):
+        return x.materialize()
+    if isinstance(x, SubmatrixView):
+        src = _leaf_operand(x.source)
+        pc = _get_pycauset()
+        if isinstance(src, pc.MatrixBase):
+            if pc._structure_of(src) != "dense":
+                src = pc._pack_as(src, "dense")
+            r0, c0 = x.row_offset, x.col_offset
+            return src[r0 : r0 + x.rows(), c0 : c0 + x.cols()]
+    return x
 
 
 def _leaf_matmul(a: Any, b: Any) -> Any:

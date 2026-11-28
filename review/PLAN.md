@@ -133,7 +133,7 @@ risk: storage and object model first, since everything rests on them.
 | 3.4 | Dispatch & CPU kernels: ComputeContext, AutoSolver, CpuDevice, **CpuSolver**, ParallelUtils, SIMD **(reviewed, F-137; open)** | `src/compute` | 7,800 |
 | 3.5 | Streaming / out-of-core **(reviewed: yes, mmap-only; the StreamingManager removed, F-135)** | | 1,000 |
 | 3.6 | Math entry & expressions: LinearAlgebra.cpp, Eigen.cpp, expression templates, LazyMatrix **(reviewed, F-136; most fixed)** | `src/math`, `matrix/expression` | 1,900 |
-| 3.7 | Bindings | `src/bindings*` | 7,300 |
+| 3.7 | Bindings **(reviewed, F-140; open)** | `src/bindings*` | 7,300 |
 | 3.8 | Python facade & glue: `__init__`, patching, properties, ops, factories, dtypes, lazy_allocation **(reviewed, F-138; C-1 fixed)** | `python/pycauset` | 6,500 |
 | 3.9 | Persistence & caches **(reviewed; F-129, F-131, F-132, F-134)** | | 2,300 |
 | 3.10 | Block matrices: blockmatrix, submatrix_view, thunks, dense_python **(reviewed, F-139; open)** | | 1,200 |

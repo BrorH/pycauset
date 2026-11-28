@@ -49,3 +49,46 @@ def test_3_10_C7_numpy_operands_use_the_block_operators():
                       (pc.add(L, L), a + a), (pc.multiply(L, L), a * a)):
         assert isinstance(got, BlockMatrix), type(got)
         np.testing.assert_allclose(np.asarray(got), want)
+
+
+@pytest.mark.parametrize("op", ["add", "sub", "mul", "div"])
+def test_3_10_C2_elementwise_with_different_partitions(op):
+    """Review 3.10 C-2: grids with different partitions failed in 7 of 8 cases; R + L gave Python
+    tiles that exported as an object array."""
+    f = {"add": lambda x, y: x + y, "sub": lambda x, y: x - y, "mul": lambda x, y: x * y,
+         "div": lambda x, y: x / y}[op]
+    a = np.arange(1.0, 17.0).reshape(4, 4)
+    c = np.full((4, 4), 2.0)
+    A, C = pc.matrix(a), pc.matrix(c)
+    L = pc.matrix([[A[:, :2], A[:, 2:]]])
+    R = pc.matrix([[C]])
+    for got, want in ((f(L, R), f(a, c)), (f(R, L), f(c, a))):
+        arr = np.asarray(got)
+        assert arr.dtype == np.float64 and arr.shape == (4, 4)
+        np.testing.assert_allclose(arr, want)
+
+
+@pytest.mark.parametrize("leaf", ["dense", "diagonal", "identity", "symmetric", "causal"])
+def test_3_10_C3_refined_matmul_stays_in_the_engine(leaf):
+    """Review 3.10 C-3: each cut tile of a refined product was exported to NumPy and imported
+    again (export ceiling, RAM), and cut structured leaves raised NotImplementedError."""
+    from pycauset._internal import export_guard
+
+    n = 4
+    x = np.arange(1.0, 1.0 + n * n).reshape(n, n)
+    leaves = {
+        "dense": (lambda: pc.matrix(x), x),
+        "diagonal": (lambda: pc.diagonal(np.array([1.0, 2.0, 3.0, 4.0])), np.diag([1.0, 2.0, 3.0, 4.0])),
+        "identity": (lambda: pc.IdentityMatrix(n), np.eye(n)),
+        "symmetric": (lambda: pc.symmetric(x + x.T), x + x.T),
+        "causal": (lambda: pc.causal_matrix(np.triu(np.ones((n, n), bool), 1)), np.triu(np.ones((n, n)), 1)),
+    }
+    make, ref = leaves[leaf]
+    G = pc.matrix([[make()]])
+    X = pc.matrix(x)
+    split = pc.matrix([[X[:2, :]], [X[2:, :]]])
+    before = export_guard.export_count
+    got = G @ split
+    out = np.asarray(got)
+    assert export_guard.export_count - before <= 1  # the final np.asarray only
+    np.testing.assert_allclose(out, ref @ x)
