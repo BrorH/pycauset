@@ -1610,6 +1610,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   flush. IOAccelerator's `madvise` hints were no-ops for the same reason: prefetch covers
   the range now and discard drops only whole pages inside it, never a copy-on-write snapshot's
   (its writes exist only in memory). `MADV_HUGEPAGE` removed. Helper: `PageRange.hpp`.
+  Correction (area 3.9 review): `pc.save`'s *container* was still never fsynced (only the
+  staging copy, through msync); fixed in F-129.
   `test_F122_*`.
 
 ### F-123 Temp files of dead objects stayed until exit; one fd per object; leaked mappings
@@ -1706,3 +1708,19 @@ the entry (the history is useful). New findings go at the bottom with the next f
   broadcast. `A < B` (and the other comparisons) are not defined at all (`TypeError`); NumPy
   returns a bool array. Both belong to the element-wise family: one broadcast rule
   (`CpuElementwise`), comparisons as element-wise ops with a bool result.
+
+### F-129 Saves: shared staging names, no fsync of the container, untrusted cached values
+- **Status:** fixed in part (session 9; area 3.9 review C-1, C-2 partly, C-3 partly).
+  - C-1: the staging files had fixed names (`<stem>.raw_tmp`, `<name>.part`), so `r.pycauset`
+    and `r.bak` saved at once swapped payloads (4 of 5 runs), two saves of one path raised,
+    and `pc.save(m, "x.raw_tmp")` deleted its own result. They are unique (`mkstemp`) now, and
+    a save deletes only files it created.
+  - C-2: the container is fsynced before the rename and the directory after it (only the
+    staging copy was synced). Open: the payload is still written twice (the staging copy, then
+    the container): 2x disk, ~8x `np.save`'s time; the fix is an engine copy straight into the
+    container (needs a binding).
+  - C-3: saved derived values carry an engine stamp (version, native module size and mtime)
+    and are only imported by the same build. Open: a payload edited by another tool is not
+    detected (no checksum); documented in the Storage guide.
+  - `test_F129_*`. The rest of the 3.9 list (C-4 ThunkBlock staleness, C-5..C-12) is in
+    `review/areas/3.9-persistence.md`.

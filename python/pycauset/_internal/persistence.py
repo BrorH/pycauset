@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import struct
+import tempfile
 import uuid
 import zlib
 from pathlib import Path
@@ -378,6 +379,41 @@ class PersistenceDeps(Protocol):
     native: Any  # the native module
 
 
+def _engine_stamp(native: Any) -> str:
+    """Identifies the engine build that computed saved derived values (review 3.9 C-3). Values
+    from another build are not trusted: a fixed kernel must not keep serving old answers. The
+    package version alone does not change in a source checkout, so the native module's size and
+    modification time are part of it (a rebuild or reinstall drops saved values: they are
+    recomputed on the next call)."""
+    try:
+        from .._version import version
+    except ImportError:
+        version = "unknown"
+    native_file = getattr(native, "__file__", None)
+    if not native_file:
+        return f"{version}|unknown"
+    st = os.stat(native_file)
+    return f"{version}|{st.st_size}|{st.st_mtime_ns}"
+
+
+def _staging_file(directory: Path, prefix: str, suffix: str) -> Path:
+    """A new, uniquely named file in `directory` (two saves never share one, review 3.9 C-1)."""
+    fd, name = tempfile.mkstemp(dir=directory, prefix=prefix, suffix=suffix)
+    os.close(fd)
+    return Path(name)
+
+
+def _fsync_dir(directory: Path) -> None:
+    """Make a rename in `directory` durable (POSIX; Windows has no directory handles)."""
+    if os.name == "nt":
+        return
+    fd = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
     """Save a matrix or vector to a file (new single-file format)."""
     path = Path(path).resolve()
@@ -393,8 +429,6 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
         _save_blockmatrix(obj, path, deps=deps, BlockMatrix=BlockMatrix, ThunkBlock=ThunkBlock)
         return
 
-    temp_raw = path.with_suffix(".raw_tmp")
-
     causet_obj: Any | None = None
     payload_obj = obj
     if isinstance(obj, deps.CausalSet):  # its payload is the causal matrix
@@ -404,12 +438,16 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
     # Closure views (LAZY.md L2b) read another object's storage; save their packed result.
     if isinstance(payload_obj, deps.native.MatrixBase):
         payload_obj = deps.native._materialize_for_save(payload_obj)
-    if hasattr(payload_obj, "copy_storage"):
-        payload_obj.copy_storage(str(temp_raw))
-    else:
+    if not hasattr(payload_obj, "copy_storage"):
         raise TypeError("Object does not support saving (missing copy_storage)")
 
+    # Staging files are unique to this call and are the only files it ever deletes (the fixed
+    # names `<stem>.raw_tmp` / `<name>.part` let two saves swap payloads, and saving to
+    # "x.raw_tmp" deleted the result, review 3.9 C-1).
+    temp_raw = _staging_file(path.parent, f".{path.name}.", ".raw_tmp")
+    part: Path | None = None
     try:
+        payload_obj.copy_storage(str(temp_raw))
         is_transposed = getattr(payload_obj, "is_transposed", False)
         if callable(is_transposed):
             is_transposed = is_transposed()
@@ -454,6 +492,7 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             derived = [list(e) for e in deps.native._derived_cache_export(payload_obj)]
             if derived:
                 meta["derived"] = derived
+                meta["derived_engine"] = _engine_stamp(deps.native)
 
         if causet_obj is not None:
             meta["object_type"] = "CausalSet"
@@ -483,7 +522,7 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
         # Write a sibling file, then rename it over `path` (atomic): an object loaded from
         # `path` keeps reading its (copy-on-write) mapping of the old file, and a crash never
         # leaves a half-written container (F-093).
-        part = path.with_name(path.name + ".part")
+        part = _staging_file(path.parent, f".{path.name}.", ".part")
         with part.open("wb") as out_f:
             out_f.write(b"\x00" * _HEADER_BYTES)
             with temp_raw.open("rb") as in_f:
@@ -547,17 +586,21 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             out_f.write(slot_a)
             out_f.seek(_SLOT_B_OFFSET)
             out_f.write(slot_b)
+            # The container's bytes reach the disk before it replaces the old file, and the
+            # rename itself after (only the staging copy was synced, review 3.9 C-2).
+            out_f.flush()
+            os.fsync(out_f.fileno())
         os.replace(part, path)
+        part = None
+        _fsync_dir(path.parent)
 
     finally:
-        part = path.with_name(path.name + ".part")
-        if part.exists():
-            part.unlink()
-        if temp_raw.exists():
-            try:
-                temp_raw.unlink()
-            except OSError:
-                pass
+        for staged in (part, temp_raw):
+            if staged is not None:
+                try:
+                    staged.unlink()
+                except FileNotFoundError:
+                    pass
 
 
 def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
@@ -625,7 +668,7 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         obj.set_conjugated(True)
 
     derived = metadata.get("derived")
-    if derived and isinstance(obj, deps.native.MatrixBase):
+    if derived and isinstance(obj, deps.native.MatrixBase) and metadata.get("derived_engine") == _engine_stamp(deps.native):
         deps.native._derived_cache_import(obj, derived)
 
 

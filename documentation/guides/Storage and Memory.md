@@ -68,8 +68,8 @@ What a saved object carries: shape, dtype, its structure (the class: `Triangular
 sets the spacetime and seed. Structure is part of the storage, so it cannot disagree with the
 values.
 
-Computed results are not cached yet; a result always reflects the current values, also after
-`M[i, j] = v`. A cache that is discarded on every change is planned (review phase D).
+Some computed values are kept with the matrix until it changes (see "Computed values are
+remembered" below); a result always reflects the current values, also after `M[i, j] = v`.
 
 ## Where backing files go (temporary storage)
 
@@ -95,8 +95,8 @@ pc.set_backing_dir(r"D:\\pycauset_tmp")
 
 A temporary backing file (`.tmp`) belongs to its storage: it is deleted when the last
 object using it goes (a matrix and its views share one). `del` a big intermediate and its
-disk space comes back at once. PyCauset also sweeps the directory for leftovers (`.tmp` /
-`.raw_tmp`):
+disk space comes back at once. PyCauset also sweeps the directory for leftover `.tmp`
+files:
 
 - **On import** (and on `set_backing_dir`): files of earlier runs that crashed.
 - **On interpreter exit**: anything still there from this run.
@@ -120,7 +120,7 @@ memory directly), so under memory pressure it is the new results that go to file
 You may see these extensions in your backing directory:
 
 - `.tmp`: temporary backing files that hold **payload bytes** during a session (objects placed in a file at creation). Their names carry the process id, so several processes can share one backing directory.
-- `.raw_tmp`: a staging file used while writing a snapshot via `save()`. It is only renamed/committed to `.pycauset` when the write completes.
+- `.<name>.XXXX.raw_tmp` / `.part` (hidden, next to the file being saved, not in the backing directory): staging files of a `save()` in progress. The finished container replaces the target in one rename; a save that was killed can leave them behind, and they can be deleted.
 - `.pycauset`: a **snapshot container** you created explicitly via `save()`.
 
 ## NumPy conversion safety: when materialization is allowed
@@ -170,7 +170,10 @@ the one a fresh computation would give. Slices (`A[1:4, 2:6]`) are not cached.
 
 `pc.save` writes the stored values (not the eigenvalue vectors) into the file, and `pc.load`
 brings them back: a determinant that took an hour is there again after loading. A write to the
-loaded matrix discards them as usual (the file itself never changes).
+loaded matrix discards them as usual (the file itself never changes). They are only brought
+back by the same PyCauset build that saved them (another version may compute differently),
+and PyCauset cannot see a file's payload edited by other tools (e.g. `np.memmap` on the
+`.pycauset` file): after such an edit, load it with a fresh build or recompute.
 
 ```python
 import numpy as np

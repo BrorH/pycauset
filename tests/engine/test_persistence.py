@@ -137,3 +137,47 @@ def test_max_in_ram_bytes_imports_large_arrays_to_disk(make, tmp_path):
     np.testing.assert_array_equal(pc.to_numpy(obj, allow_huge=True), x)
     small = make(x, max_in_ram_bytes=1 << 20)
     assert small.get_backing_file() == ":memory:"
+
+
+# --- area 3.9 review (F-129) ---------------------------------------------------------------
+
+def test_F129_concurrent_saves_keep_their_own_payloads(tmp_path):
+    """C-1: `r.pycauset` and `r.bak` shared the staging file `r.raw_tmp`; one file got the
+    other's payload."""
+    import threading
+
+    ones, twos = pc.matrix(np.full((300, 300), 1.0)), pc.matrix(np.full((300, 300), 2.0))
+    for _ in range(3):
+        ts = [threading.Thread(target=pc.save, args=(ones, tmp_path / "r.pycauset")),
+              threading.Thread(target=pc.save, args=(twos, tmp_path / "r.bak"))]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        assert float(np.asarray(pc.load(tmp_path / "r.pycauset")).max()) == 1.0
+        assert float(np.asarray(pc.load(tmp_path / "r.bak")).min()) == 2.0
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["r.bak", "r.pycauset"]  # no leftovers
+
+
+def test_F129_saving_to_a_raw_tmp_name(tmp_path):
+    """C-1: saving to "x.raw_tmp" deleted the result (it was its own staging file)."""
+    pc.save(pc.matrix(np.eye(3)), tmp_path / "x.raw_tmp")
+    np.testing.assert_array_equal(np.asarray(pc.load(tmp_path / "x.raw_tmp")), np.eye(3))
+
+
+def test_F129_saved_derived_values_need_the_same_engine(tmp_path, monkeypatch):
+    """C-3: values computed by another engine build are not served (a fixed kernel must not
+    keep returning the old answer)."""
+    m = pc.matrix(np.diag([2.0, 3.0]))
+    pc.determinant(m)
+    pc.save(m, tmp_path / "d.pycauset")
+    hits = lambda: pc._native._derived_cache_stats()[0]  # noqa: E731
+    same = pc.load(tmp_path / "d.pycauset")
+    before = hits()
+    assert pc.determinant(same) == pytest.approx(6.0)
+    assert hits() == before + 1  # served from the file
+    monkeypatch.setattr(P, "_engine_stamp", lambda native: "another build")
+    other = pc.load(tmp_path / "d.pycauset")
+    before = hits()
+    assert pc.determinant(other) == pytest.approx(6.0)
+    assert hits() == before  # recomputed
