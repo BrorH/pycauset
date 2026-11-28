@@ -19,6 +19,19 @@ jobs:
       - run: python -m pip install ruff
       - run: ruff check --select F python tests benchmarks
 
+  docs:
+    # The site builds with every link resolved (--strict): a renamed or removed page breaks a
+    # PR here instead of the deployed site (docs.yml deploys from main only).
+    name: docs (mkdocs --strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements-docs.txt
+      - run: mkdocs build --strict
+
   test:
     name: ${{ matrix.os }} · py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
