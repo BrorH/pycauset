@@ -80,6 +80,10 @@ elseif(UNIX)
     set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
     set(CMAKE_INSTALL_RPATH "$ORIGIN")
     set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+    # Build-tree RUNPATHs relative to the library ($ORIGIN), not build/cpp's absolute path: the
+    # extension copied into python/pycauset then loads the core copied beside it (it loaded
+    # build/cpp's, even half-linked during a rebuild; review 3.4 C-14).
+    set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
 endif()
 
 # --- Dependencies ---
@@ -504,6 +508,23 @@ target_include_directories(_pycauset PRIVATE include)
 # Note: pycauset_core links to Eigen privately, so we must re-link Eigen here 
 # if the bindings code includes Eigen headers (which it does).
 target_link_libraries(_pycauset PRIVATE pybind11::module pycauset_core Eigen3::Eigen)
+
+# Explicit RUNPATHs on Linux: $ORIGIN (the extension finds the core beside it) plus OpenBLAS's
+# directory when pkg-config found it outside the default paths. CMake's link-path RUNPATH had
+# empty entries, which the loader reads as the current directory: a library of a dependency's
+# name there was loaded (review 3.4 C-14).
+if(UNIX AND NOT APPLE)
+    set(_PYCAUSET_RPATH "$ORIGIN")
+    foreach(_dir ${PC_OPENBLAS_LIBRARY_DIRS})
+        if(_dir)
+            list(APPEND _PYCAUSET_RPATH "${_dir}")
+        endif()
+    endforeach()
+    set_target_properties(pycauset_core _pycauset PROPERTIES
+        BUILD_WITH_INSTALL_RPATH TRUE
+        INSTALL_RPATH "${_PYCAUSET_RPATH}"
+        INSTALL_RPATH_USE_LINK_PATH FALSE)
+endif()
 
 if(MSVC)
     target_compile_options(_pycauset PRIVATE /bigobj)
