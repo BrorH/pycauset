@@ -11,10 +11,8 @@ class Runtime:
         self,
         *,
         cleanup_storage: Callable[[Path], None],
-        env_var: str = "PYCAUSET_STORAGE_DIR",
     ) -> None:
         self._cleanup_storage = cleanup_storage
-        self._env_var = env_var
         self._storage_root_cache: Path | None = None
         self._storage_roots_seen: set[Path] = set()
 

@@ -99,7 +99,6 @@ complex128 = "complex_float64"
 # False). Every line is prefixed with ``[pycauset]``.
 debug_mode: bool = False
 
-import sys as _sys
 import time as _time
 
 
@@ -173,8 +172,6 @@ _debug_last_kernel_trace = _native._debug_last_kernel_trace
 _debug_clear_kernel_trace = _native._debug_clear_kernel_trace
 
 
-def _safe_get(name):
-    return _native_mod.safe_get(_native, name)
 
 # One class per structure; the dtype is an attribute (A.dtype). See review/RESTRUCTURE.md 3.1 item 4.
 DenseMatrix = _native.DenseMatrix

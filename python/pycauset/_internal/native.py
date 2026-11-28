@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import importlib.machinery
-import importlib.util
 import os
-import sys
 from importlib import import_module
 from pathlib import Path
 from typing import Any
@@ -63,78 +60,8 @@ def configure_windows_dll_search_paths(*, package_dir: str) -> None:
 
 
 def import_native_extension(*, package: str, module: str = "._pycauset") -> Any:
-    # Prefer loading the extension module that lives alongside this Python package.
-    # This avoids accidentally importing a different installed copy (e.g. from site-packages)
-    # when developing from a source checkout.
-    if module.startswith("."):
-        try:
-            pkg = import_module(package)
-            # Prefer the directory that actually owns the loaded package
-            # (``__file__`` of the regular package's __init__.py). ``pkg.__path__``
-            # can merge a source checkout with a stale installed wheel into a
-            # namespace package, and its entry ORDER is filesystem-dependent on
-            # Windows. Using ``next(iter(pkg.__path__))`` therefore picks a
-            # non-deterministic directory, which can silently load a stale
-            # ``_pycauset.pyd`` from site-packages instead of the freshly built
-            # one beside ``__init__.py`` (Heisenbug: fast SIMD path vs old
-            # blocked-eval path).
-            pkg_file = getattr(pkg, "__file__", None)
-            if pkg_file:
-                pkg_dir = os.path.dirname(os.path.abspath(pkg_file))
-            else:
-                pkg_dir = next(iter(getattr(pkg, "__path__", [])), None)
-        except ImportError:
-            pkg_dir = None
-
-        if pkg_dir:
-            mod_name = module.lstrip(".")
-            full_name = f"{package}.{mod_name}"
-
-            existing = sys.modules.get(full_name)
-            if existing is not None:
-                return existing
-
-            search_dirs: list[str] = []
-            try:
-                pkg_path = Path(pkg_dir).resolve()
-                repo_root = pkg_path.parents[1]
-                build_root = repo_root / "build"
-                for d in (
-                    build_root / "Release",
-                    build_root / "Debug",
-                    build_root / "RelWithDebInfo",
-                    build_root / "MinSizeRel",
-                    build_root,
-                    pkg_path,
-                ):
-                    if d.exists() and d.is_dir():
-                        search_dirs.append(str(d))
-            except (OSError, IndexError):  # unreadable, or no repository root above
-                search_dirs.append(pkg_dir)
-
-            # Prefer build outputs (when present) to keep the extension module and
-            # the shared core DLL in sync during source checkout development.
-            candidates: list[str] = []
-            for base in search_dirs:
-                for suffix in importlib.machinery.EXTENSION_SUFFIXES:
-                    candidate = os.path.join(base, mod_name + suffix)
-                    if os.path.exists(candidate):
-                        candidates.append(candidate)
-
-            if candidates:
-                # In practice, source checkouts can accumulate multiple build artifacts
-                # (e.g. an old multi-config build in build/Release alongside a fresh
-                # single-config Ninja build in build/). Prefer the newest file so
-                # developers and tests load what was just built.
-                best = max(candidates, key=lambda p: os.path.getmtime(p))
-                spec = importlib.util.spec_from_file_location(full_name, best)
-                if spec is not None and spec.loader is not None:
-                    mod = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(mod)
-                    return mod
-
+    """The extension beside this package's __init__.py (a regular package's only path entry).
+    It used to search build directories and load the newest `_pycauset*` by modification time, a
+    guess that decided which binary ran (review 3.8 C-22); developers copy the build output into
+    the package (CLAUDE.md), and its RUNPATH `$ORIGIN` loads the core library beside it."""
     return import_module(module, package=package)
-
-
-def safe_get(native: Any, name: str) -> Any:
-    return getattr(native, name, None)
