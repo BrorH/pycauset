@@ -9,8 +9,10 @@ Solves $A X = B$ for a triangular, diagonal or identity $A$: a
 as its transpose), a `DiagonalMatrix` or an `IdentityMatrix`. Any other matrix raises
 `ValueError`; use [[docs/functions/pycauset.solve.md|pycauset.solve]] for general systems.
 
-The answer is the same as `pycauset.solve(a, b)` (LU in NumPy's LAPACK dtype; a singular
-matrix, e.g. a strictly triangular one, raises).
+The answer is the same as `pycauset.solve(a, b)`, which recognises the structure: one
+triangular solve (`?trsm`, O(n²) per right-hand side) in NumPy's LAPACK dtype, not an LU. A zero
+on the diagonal, and so any strictly triangular matrix (no diagonal), raises
+`numpy.linalg.LinAlgError`.
 
 ## Examples
 
