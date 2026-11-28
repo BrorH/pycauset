@@ -1938,7 +1938,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-140 Area 3.7 (bindings): export after close segfaults, list keys read as (row, col), byte order ignored
 - **Status:** reviewed (session 9), 18 findings in `review/areas/3.7-bindings.md` (3 S1, 4 S2,
-  7 S3, 4 S4). C-1 to C-3, C-7 to C-10, C-13 fixed, C-4 to C-6 in part; the rest open. `ndim` added (it
+  7 S3, 4 S4). C-1 to C-3, C-7 to C-11, C-13 fixed, C-4 to C-6 in part; the rest open. `ndim` added (it
   was missing).
   - C-1 (S1, fixed): `np.asarray` / `pc.to_numpy` of a closed matrix or vector segfaulted; a
     closed object raises `ValueError` now.
@@ -1957,5 +1957,6 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-9 (fixed): `& | ^` take scalars, ndarrays and reflected operands; `v + 2-D` broadcasts;
     float64 `M + 2**64` computes.
   - C-10 (fixed): one under-promotion warning for every operand kind and order.
-  - S3 / S4: write amplification,
+  - C-11 (fixed): the first write into a scale view folds in place (it held 4x the matrix).
+  - S3 / S4:
     five NumPy import paths, internal names on the surface.

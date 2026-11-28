@@ -751,15 +751,16 @@ inline void fold_value_view_for_write(MatrixBase& mat) {
         if constexpr (std::is_same_v<E, bool>) {
             throw std::logic_error("bit matrix carries a scale factor");
         } else if constexpr (requires { typed.set(uint64_t{0}, uint64_t{0}, viewed_element(typed, 0, 0, s, conj)); }) {
-            using V = decltype(viewed_element(typed, 0, 0, s, conj));
-            std::vector<std::tuple<uint64_t, uint64_t, V>> values;
+            // In place, one pass: get / set read and write stored values, `stored` visits each
+            // storage cell once, and the factor is the captured `s`, so each cell is read before
+            // it is rewritten. (All values were collected first in a vector of tuples: 4x the
+            // matrix in RAM, 22 GB for a file-backed 30,000^2 float64 view; review 3.7 C-11.)
+            mat.set_scalar(1.0);
+            mat.set_conjugated(false);
             const uint64_t r = typed.rows(), c = typed.cols();
             for (uint64_t i = 0; i < r; ++i)
                 for (uint64_t j = 0; j < c; ++j)
-                    if (stored(i, j)) values.emplace_back(i, j, viewed_element(typed, i, j, s, conj));
-            mat.set_scalar(1.0);
-            mat.set_conjugated(false);
-            for (const auto& [i, j, v] : values) typed.set(i, j, v);
+                    if (stored(i, j)) typed.set(i, j, viewed_element(typed, i, j, s, conj));
         } else {
             throw py::type_error(describe(mat) + " cannot be written through a view");
         }

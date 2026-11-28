@@ -1868,3 +1868,38 @@ def test_3_7_C10_one_underpromotion_warning_for_every_operand_kind():
                 narrower_than_numpy = widths[str(r.dtype)] < widths[np.result_type(da, db).name]
                 count = sum(issubclass(m.category, pc.PyCausetDTypeWarning) for m in w)
                 assert count == (1 if narrower_than_numpy else 0), (type(x).__name__, op.__name__, da, db, r.dtype)
+
+
+def test_3_7_C11_first_write_into_a_scale_view_folds_in_place():
+    """The fold collected every element in a vector of tuples first: 4x the matrix in RAM."""
+    import subprocess
+    import sys
+
+    code = (
+        "import resource, pycauset as pc\n"
+        "B = pc.zeros((2000, 2000)) * 2\n"
+        "r0 = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss\n"
+        "B[0, 0] = 1\n"
+        "r1 = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss\n"
+        "assert B[0, 0] == 1 and B[1, 1] == 0 and B.scalar == 1\n"
+        "print((r1 - r0) / 1024)\n"
+    )
+    import os
+
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(sys.path))
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True)
+    assert float(out.stdout.strip()) < 1.5 * 31  # the matrix is 31 MB: its private copy, no more
+    for dt in ("int32", "complex128", "float32"):
+        A = pc.matrix(np.arange(1, 10).reshape(3, 3).astype(dt))
+        V = (A * 3).conj() if dt == "complex128" else A * 3
+        V[0, 0] = 7
+        ref = (np.arange(1, 10).reshape(3, 3).astype(dt) * 3)
+        ref = ref.conj() if dt == "complex128" else ref
+        ref[0, 0] = 7
+        np.testing.assert_array_equal(np.asarray(V), ref)
+    T = pc.TriangularMatrix(3, dtype="float64", has_diagonal=True)
+    T[0, 1] = 2.0
+    T[1, 1] = 4.0
+    W = T.T * 2
+    W[2, 0] = 1.0  # a transposed triangular view: the fold walks its stored (lower) part
+    np.testing.assert_array_equal(np.asarray(W)[:2, :2], np.array([[0.0, 0.0], [4.0, 8.0]]))
