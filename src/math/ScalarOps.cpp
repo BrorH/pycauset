@@ -664,8 +664,14 @@ std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, cons
         switch (op) {
             case ScalarOpKind::Mul:
                 return s.kind == ScalarArg::Kind::Complex ? a.multiply_scalar(c) : a.multiply_scalar(c.real());
-            case ScalarOpKind::TrueDiv:
-                return s.kind == ScalarArg::Kind::Complex ? a.multiply_scalar(1.0 / c) : a.multiply_scalar(1.0 / c.real());
+            case ScalarOpKind::TrueDiv: {
+                // A / s is the view A * (1/s) only when 1/s is finite: a subnormal s overflows
+                // the reciprocal ([1e-10, 0] / 1e-310 gave [inf, nan], NumPy [1e300, 0]; review
+                // 3.6 C-4). Otherwise divide element by element below.
+                const std::complex<double> r = s.kind == ScalarArg::Kind::Complex ? 1.0 / c : std::complex<double>(1.0 / c.real(), 0.0);
+                if (!std::isfinite(r.real()) || !std::isfinite(r.imag())) break;
+                return s.kind == ScalarArg::Kind::Complex ? a.multiply_scalar(r) : a.multiply_scalar(r.real());
+            }
             default:
                 break;  // + and - compute below, through the one typed path (F-086)
         }

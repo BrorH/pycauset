@@ -43,4 +43,12 @@ inline std::complex<double> view_value(const T& raw, std::complex<double> s, boo
     return conj ? std::conj(z) : z;
 }
 
+// Two view factors combined (A * s1 then * s2, the factors of a product's operands). Real
+// factors multiply in real arithmetic: as complex numbers, (1 + 0i) * (inf + 0i) is inf + nan i,
+// so `A * inf` of a real matrix got a complex factor (review 3.6 C-4).
+inline std::complex<double> compose_factors(std::complex<double> a, std::complex<double> b) {
+    if (a.imag() == 0.0 && b.imag() == 0.0) return {a.real() * b.real(), 0.0};
+    return a * b;
+}
+
 }  // namespace pycauset

@@ -111,6 +111,20 @@ double chunk_sum_real(const T* __restrict p, uint64_t len) {
     return (a0 + a1) + (a2 + a3);
 }
 
+// The same with each value times the view factor k first, as NumPy sums the scaled elements:
+// k * sum overflowed where the elements did not and hid an inf - inf (review 3.6 C-5).
+template <typename T>
+double chunk_sum_real_scaled(const T* __restrict p, uint64_t len, double k) {
+    double a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+    uint64_t i = 0;
+    for (; i + 4 <= len; i += 4) {
+        a0 += static_cast<double>(p[i]) * k; a1 += static_cast<double>(p[i + 1]) * k;
+        a2 += static_cast<double>(p[i + 2]) * k; a3 += static_cast<double>(p[i + 3]) * k;
+    }
+    for (; i < len; ++i) a0 += static_cast<double>(p[i]) * k;
+    return (a0 + a1) + (a2 + a3);
+}
+
 // Sum over every logical element of a dense / triangular / symmetric-family matrix of its
 // stored values (view factor not applied): flat over the storage of a full dense matrix
 // (element order is irrelevant to a sum: transposes too), else a tile of rows at a time through
@@ -264,7 +278,7 @@ static ReductionValue sum_compute(const MatrixBase& m) {
     }
 
     // Integer / bit: exact, typed reads.
-    if ((int_like && !m.is_conjugated() && scalar::is_exact_int_factor(f)) ||
+    if ((int_like && scalar::is_exact_int_factor(f)) ||  // conj of an integer is a no-op (3.6 C-6)
         (dt == DataType::BIT && f == std::complex<double>(1.0, 0.0))) {
         const int64_t k = int_like ? static_cast<int64_t>(f.real()) : 1;
         out.kind = ReductionValue::Kind::Int;
@@ -304,22 +318,25 @@ static ReductionValue sum_compute(const MatrixBase& m) {
                 throw std::logic_error("sum: float path on a non-float matrix");
             } else {
                 if (auto r = bulk_sum<double, T, M>(
-                        typed, m, [](const T* p, uint64_t len) { return chunk_sum_real<T>(p, len); },
+                        typed, m,
+                        [k](const T* p, uint64_t len) {
+                            return k == 1.0 ? chunk_sum_real<T>(p, len) : chunk_sum_real_scaled<T>(p, len, k);
+                        },
                         [](double a, double b) { return a + b; }))
-                    return k * *r;
+                    return *r;
                 const uint64_t cols = m.cols();
                 const bool contiguous = std::is_same_v<M, DenseMatrix<T>> && !m.is_transposed() &&
                                         !m.is_subview() && cols == m.base_cols();
-                return k * sum_rows<double>(m.rows(), [&](uint64_t i) {
+                return sum_rows<double>(m.rows(), [&](uint64_t i) {
                     double acc = 0.0;
                     if constexpr (std::is_same_v<M, DenseMatrix<T>>) {
                         if (contiguous) {
                             const T* row = typed.data() + i * cols;
-                            for (uint64_t j = 0; j < cols; ++j) acc += row[j];
+                            for (uint64_t j = 0; j < cols; ++j) acc += static_cast<double>(row[j]) * k;
                             return acc;
                         }
                     }
-                    for_row(m, i, [&](uint64_t j) { acc += typed.get(i, j); });
+                    for_row(m, i, [&](uint64_t j) { acc += static_cast<double>(typed.get(i, j)) * k; });
                     return acc;
                 }, 0.0);
             }
@@ -342,7 +359,7 @@ static ReductionValue trace_compute(const MatrixBase& m) {
     const std::complex<double> f = m.get_scalar();
     const bool int_like = dt != DataType::BIT && !is_float_dtype(dt) && !is_complex_dtype(dt);
     ReductionValue out;
-    if ((int_like && !m.is_conjugated() && scalar::is_exact_int_factor(f)) ||
+    if ((int_like && scalar::is_exact_int_factor(f)) ||  // conj of an integer is a no-op (3.6 C-6)
         (dt == DataType::BIT && f == std::complex<double>(1.0, 0.0))) {
         const int64_t k = int_like ? static_cast<int64_t>(f.real()) : 1;
         out.kind = ReductionValue::Kind::Int;

@@ -696,8 +696,8 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     if (sa == Structure::IDENTITY && sb == Structure::IDENTITY && a.cols() >= std::min(m, n)) {
         // An identity entry's value is conj?(1 * s) (math/ViewValue.hpp).
         auto res = ObjectFactory::create_matrix(m, n, r, Structure::IDENTITY, saveas);
-        res->set_scalar(view_value(1.0, a.get_scalar(), a.is_conjugated()) *
-                        view_value(1.0, b.get_scalar(), b.is_conjugated()));
+        res->set_scalar(compose_factors(view_value(1.0, a.get_scalar(), a.is_conjugated()),
+                                        view_value(1.0, b.get_scalar(), b.is_conjugated())));
         return res;
     }
     auto identity_times = [&](const MatrixBase& id, const MatrixBase& other) {

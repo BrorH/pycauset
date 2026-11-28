@@ -1096,3 +1096,42 @@ def test_F136_rectangular_identity_product():
     r = pc.IdentityMatrix(3, 2) @ pc.IdentityMatrix(2, 3)
     np.testing.assert_array_equal(to_np(r), np.eye(3, 2) @ np.eye(2, 3))
     np.testing.assert_array_equal(to_np(pc.IdentityMatrix(2, 3) @ pc.IdentityMatrix(3, 2)), np.eye(2))
+
+
+def test_F136_real_factors_stay_real():
+    """C-4: (1 + 0j) * (inf + 0j) is inf + nan j: `A * inf` of a real matrix got a complex
+    factor; sum returned a complex number and det raised."""
+    a = np.array([[1.0, 2.0], [3.0, 4.0]])
+    m = pc.matrix(a) * np.inf
+    assert m.dtype == "float64" and not isinstance(pc.sum(m), complex)
+    np.testing.assert_array_equal(to_np(m), a * np.inf)
+    s = pc.matrix(a) * 2.0 * np.inf
+    assert complex(s.scalar).imag == 0.0
+
+
+def test_F136_division_by_a_subnormal():
+    """C-4: A / s was A * (1/s); 1/1e-310 overflows: [1e-10, 0] / 1e-310 gave [inf, nan]."""
+    a = np.array([[1e-10, 0.0]])
+    with np.errstate(over="ignore"):
+        np.testing.assert_array_equal(to_np(pc.matrix(a) / 1e-310), a / 1e-310)
+    np.testing.assert_array_equal(to_np(pc.matrix(a) / 4.0), a / 4.0)  # still an O(1) view
+
+
+def test_F136_sum_of_a_scaled_view_scales_each_element():
+    """C-5: the factor was applied after summing: sum([1e308, -1e308] * 10) gave 0, NumPy nan."""
+    a = np.array([[1e308, -1e308]])
+    with np.errstate(over="ignore", invalid="ignore"):
+        want = np.sum(a * 10)
+    got = pc.sum(pc.matrix(a) * 10.0)
+    assert np.isnan(got) and np.isnan(want)
+    b = np.arange(12.0).reshape(3, 4)
+    assert pc.sum(pc.matrix(b) * 0.5) == pytest.approx(np.sum(b * 0.5))
+
+
+def test_3_6_C6_integer_conj_sums_exactly():
+    """Review 3.6 C-6: integer .conj() / .H views summed and traced in float."""
+    a = np.array([[2**60 + 1, 1], [3, 2**60 + 1]], np.int64)
+    A = pc.matrix(a)
+    for v in (A.conj(), A.H):
+        assert pc.sum(v) == int(a.sum()) and isinstance(pc.sum(v), int)
+        assert pc.trace(v) == int(np.trace(a))

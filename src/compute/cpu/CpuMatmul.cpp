@@ -270,7 +270,7 @@ namespace {
                         if (!t_b) gemv(true, K, N, b_data, ldb, a_data, incx, c_data, 1);
                         else gemv(false, N, K, b_data, ldb, a_data, incx, c_data, 1);
                     }
-                    c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
+                    c_dense->set_scalar(compose_factors(a_dense->get_scalar(), b_dense->get_scalar()));
                     return true;
                 }
 
@@ -316,7 +316,7 @@ namespace {
                     );
                 }
 
-                c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
+                c_dense->set_scalar(compose_factors(a_dense->get_scalar(), b_dense->get_scalar()));
                 return true;
             }
         }
@@ -405,7 +405,7 @@ namespace {
                 }
             });
 
-            c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
+            c_dense->set_scalar(compose_factors(a_dense->get_scalar(), b_dense->get_scalar()));
             return;
         }
 
@@ -442,7 +442,7 @@ namespace {
                         0.0f,
                         c_data, ldc_i);
                 }
-                c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
+                c_dense->set_scalar(compose_factors(a_dense->get_scalar(), b_dense->get_scalar()));
                 return;
             }
         }
@@ -461,7 +461,7 @@ namespace {
                                 &one, a_data, static_cast<int>(lda), b_data, static_cast<int>(ldb), &zero, c_data,
                                 static_cast<int>(ldc));
                 }
-                c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
+                c_dense->set_scalar(compose_factors(a_dense->get_scalar(), b_dense->get_scalar()));
                 return;
             }
         }
@@ -492,7 +492,7 @@ namespace {
             }
         });
         
-        c_dense->set_scalar(a_dense->get_scalar() * b_dense->get_scalar());
+        c_dense->set_scalar(compose_factors(a_dense->get_scalar(), b_dense->get_scalar()));
     }
 
     // Specializations for Double/Float are now handled by the template above
@@ -631,7 +631,7 @@ bool triangular_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
             c_row[j - c0] = static_cast<T>(acc[j]);
         }
     });
-    C->set_scalar(A->get_scalar() * B->get_scalar());
+    C->set_scalar(compose_factors(A->get_scalar(), B->get_scalar()));
     return true;
 }
 
@@ -680,7 +680,7 @@ bool bit_x_dense_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
             c_data[i * ldc + j] = static_cast<T>(acc[j]);
         }
     });
-    C->set_scalar(A->get_scalar() * B->get_scalar());
+    C->set_scalar(compose_factors(A->get_scalar(), B->get_scalar()));
     return true;
 }
 
@@ -704,7 +704,7 @@ bool bit_x_bit_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& resu
     std::unique_ptr<DenseMatrix<bool>> ha = A->is_transposed() ? plain(*A) : nullptr;
     std::unique_ptr<DenseMatrix<bool>> hb = B->is_transposed() ? plain(*B) : nullptr;
     bit_popcount_matmul(ha ? *ha : *A, hb ? *hb : *B, *C);
-    C->set_scalar(A->get_scalar() * B->get_scalar());
+    C->set_scalar(compose_factors(A->get_scalar(), B->get_scalar()));
     return true;
 }
 }  // namespace

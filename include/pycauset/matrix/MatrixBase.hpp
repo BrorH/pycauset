@@ -1,4 +1,5 @@
 #pragma once
+#include "pycauset/math/ViewValue.hpp"
 
 #include "pycauset/core/AccessCounter.hpp"
 
@@ -115,7 +116,7 @@ public:
     // instead of hand-built copies, which dropped the conjugation flag (A.conj() * 0.5).
     std::unique_ptr<MatrixBase> scaled_clone(double f) const {
         auto out = std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(clone().release()));
-        out->set_scalar(get_scalar() * f);
+        out->set_scalar(compose_factors(get_scalar(), f));
         return out;
     }
     // O(1) views sharing this object's storage, with its whole view state (window, offsets,
@@ -124,7 +125,7 @@ public:
     // windows, F-097).
     std::unique_ptr<MatrixBase> scaled_clone(std::complex<double> f) const {
         auto out = std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(clone().release()));
-        out->set_scalar(get_scalar() * (is_conjugated() ? std::conj(f) : f));
+        out->set_scalar(compose_factors(get_scalar(), is_conjugated() ? std::conj(f) : f));
         return out;
     }
     std::unique_ptr<MatrixBase> transposed_clone() const {

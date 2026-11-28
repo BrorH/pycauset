@@ -1830,9 +1830,16 @@ the entry (the history is useful). New findings go at the bottom with the next f
   check; documented in Out of Core), C-7 (no read-ahead hints from kernels; documented).
 
 ### F-136 Area 3.6 (math entry): silent integer wrap, NaN rejected by LAPACK, identity product
-- **Status:** C-1, C-2, C-3 fixed (session 9); the rest open in `review/areas/3.6-math-entry.md`
-  (C-4 / C-5 scale views in complex / double arithmetic, `A / s` as `A * (1/s)` with subnormal
-  divisors; C-9 three dot implementations; C-10 `eigvals_skew` on non-skew input; smaller items).
+- **Status:** C-1, C-2, C-3, C-4 fixed, C-5 partly (session 9); the rest open in
+  `review/areas/3.6-math-entry.md` (C-5's float32 last-ulp and fold-overflow cases, documented;
+  C-9 three dot implementations; C-10 `eigvals_skew` on non-skew input; smaller items).
+  - C-4: real view factors compose in real arithmetic (`compose_factors`, ViewValue.hpp):
+    `A * inf` had factor `inf + nan j`, so `sum` turned complex and `det` raised. `A / s`
+    whose reciprocal is not finite (a subnormal `s`) computes eagerly as a division.
+  - C-5 (part): `sum` of a scaled float view applies the factor to each element, as NumPy
+    sums the scaled values (`sum([1e308, -1e308] * 10)` was 0, NumPy nan). The float32
+    one-ulp differences and overflow hidden by folding chained factors stay; the Lazy
+    Evaluation guide says so and points to `pc.materialize`.
   - C-1: integer matmul multiplied in unchecked int64 (`[[2**31]] @ [[2**32]]` gave -2**63;
     C++ undefined behaviour), read uint64 values >= 2**63 as negative (raised although the
     result fits), and the diagonal rule range-checked through double. The dense, triangular

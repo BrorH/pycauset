@@ -21,10 +21,16 @@ bits directly, so iterative eigensolvers (`eigvals_arnoldi`) never build the ful
 
 * **Same values and type as computing immediately.** Integer results are exact and wrap like
   NumPy's (`int8`: `100 * 3 == 44`).
-* **Floating point:** combined lazy steps may round differently from step-by-step evaluation
-  in the **last digits** (folding `2.1 * (3.3 * A)` into `6.93 * A` rounds once instead of
-  twice, usually more accurately). Results are deterministic: the same program gives the same
-  bits on every run and machine.
+* **Floating point:** a lazy factor is applied in double precision and chains fold into one
+  factor, so results can differ from NumPy's step-by-step evaluation:
+  * in the **last digit** (one ulp) for float16 / float32 / complex64 data: `A * 0.1` scales
+    by the double 0.1 and rounds once, NumPy rounds 0.1 to float32 first (about a fifth of
+    the elements differ by one ulp);
+  * where an intermediate step would overflow or underflow: `(A * 1e10) * 1e-20` is
+    `A * 1e-10`, so 1e300 gives 1e290 where NumPy's first step gives inf.
+
+  Results are deterministic: the same program gives the same bits on every run and machine.
+  For NumPy's exact steps, `pc.materialize` the intermediate result.
 * **No aliasing.** Writing into `A` never changes an earlier `B = 2 * A` or `A.T` (unlike
   NumPy, where `a.T` shares memory with `a`). Writing into a lazy result is allowed; it is
   stored at that point.
