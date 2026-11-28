@@ -1465,6 +1465,32 @@ def test_3_8_C4_causal_matrix_of_data_is_packed_in_the_engine():
         pc.causal_matrix(np.zeros((2, 3)))
 
 
+def test_3_6_C16_one_normaliser():
+    """Review 3.6 C-16: materialize / write_out / cast_to / to_dense were four bodies of one
+    conversion (now `convert(a, dt, Keep)` + `write_out`). The behaviours they had stay."""
+    s = pc.symmetric(np.array([[1, 2], [2, 3]], dtype=np.int16)) * 2
+    m = pc.materialize(s)  # keeps the structure, folds the factor
+    assert isinstance(m, pc.SymmetricMatrix) and m.dtype == "int16" and m.scalar == 1
+    np.testing.assert_array_equal(np.asarray(m), [[2, 4], [4, 6]])
+    t = pc._native._cast(pc.matrix(np.array([[1, 2], [3, 4]], dtype=np.int8)).T, "float16")  # half: dense
+    np.testing.assert_array_equal(np.asarray(t), np.array([[1, 3], [2, 4]], dtype=np.float16))
+    with pytest.raises(ValueError, match="no cast to bool"):
+        pc._native._cast(pc.matrix(np.ones((2, 2))), "bool")
+    b = np.array([True, False, True])
+    np.testing.assert_array_equal(np.asarray(pc.outer(b, b)), np.outer(b, b))  # bool rows stay bits
+
+
+def test_3_6_C16_closure_values_use_the_view_rule():
+    """BitClosureMatrix had a private copy of the integer view rule (value())."""
+    c = pc.causal_matrix(np.triu(np.ones((4, 4), dtype=bool), 1))
+    k = c - c.T
+    ref = np.triu(np.ones((4, 4), np.int32), 1)
+    ref = ref - ref.T
+    for got, want in ((k, ref), (-k, -ref), (k.T, ref.T), (c + c.T, np.abs(ref))):
+        np.testing.assert_array_equal(np.asarray(got), want)
+        assert got[0, 1] == want[0, 1] and got[1, 0] == want[1, 0]
+
+
 def test_3_4_C6_blas_threads_follow_the_budget():
     """Review 3.4 C-6: every float64 GEMM raised OpenBLAS to all hardware threads, even with
     OPENBLAS_NUM_THREADS=1, and set_num_threads did not reach BLAS."""

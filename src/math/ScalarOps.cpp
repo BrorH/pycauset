@@ -228,7 +228,7 @@ PYCAUSET_FORCE_INLINE R apply(ScalarOpKind op, R x, R s) {
             case ScalarOpKind::Sub: return x - s;
             case ScalarOpKind::RSub: return s - x;
             // x * 1 is x. Not computed: complex (inf + 0j) * (1 + 0j) is inf + nan j, and
-            // to_dense / dtype conversions are "multiply by 1" (F-113).
+            // convert / dtype conversions are "multiply by 1" (F-113).
             case ScalarOpKind::Mul: return s == R(1) ? x : scalar::multiply(x, s);
             case ScalarOpKind::TrueDiv: return scalar::true_divide(x, s);
             case ScalarOpKind::RTrueDiv: return scalar::true_divide(s, x);
@@ -712,15 +712,9 @@ std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, cons
     // scalars' sums and products) and round once.
     if (out == DataType::FLOAT16 || out == DataType::COMPLEX_FLOAT16) {
         const DataType wide = out == DataType::FLOAT16 ? DataType::FLOAT64 : DataType::COMPLEX_FLOAT64;
-        return cast_to(*run_exact(a, wide, op, s), out);
+        return convert(*run_exact(a, wide, op, s), out, Keep::Structure);
     }
     return run_exact(a, out, op, s);
-}
-
-std::unique_ptr<MatrixBase> materialize(const MatrixBase& a) {
-    // Values through the exact view-aware reader into fresh storage (factor 1). Times one,
-    // not plus zero: -0.0 + 0 is +0.0 (review 3.6 C-11).
-    return run_exact(a, a.get_data_type(), ScalarOpKind::Mul, ScalarArg::from_int64(1));
 }
 
 std::unique_ptr<MatrixBase> negate(const MatrixBase& a) {
@@ -745,11 +739,15 @@ bool is_plain(const MatrixBase& a) {
            !(a.is_conjugated() && is_complex_dtype(a.get_data_type()));
 }
 
-std::unique_ptr<MatrixBase> write_out(const MatrixBase& a) {
-    debug_trace::set_last("write_out");
-    const DataType dt = a.get_data_type();
+// The one conversion (review 3.6 C-16: materialize, write_out, cast_to and to_dense were four
+// bodies of this). Multiplying by one in the target type is exact; half-precision targets go
+// through float64 / complex128 and round once (always dense); a bool target only from bool.
+std::unique_ptr<MatrixBase> convert(const MatrixBase& a, DataType dt, Keep keep) {
     const uint64_t rows = a.rows(), cols = a.cols();
     if (dt == DataType::BIT) {
+        if (a.get_data_type() != DataType::BIT)
+            throw std::invalid_argument("convert: no conversion to bool (compare with != 0 instead)");
+        if (keep == Keep::Structure) return run_exact(a, dt, ScalarOpKind::Mul, ScalarArg::from_int64(1));
         // Packed bits from the typed row reader (a block of rows at a time); the virtual
         // accessor only where the reader cannot read (structured windows, closures).
         auto out = std::make_unique<DenseMatrix<bool>>(rows, cols, std::string());
@@ -774,12 +772,6 @@ std::unique_ptr<MatrixBase> write_out(const MatrixBase& a) {
         }
         return out;
     }
-    if (dt == DataType::FLOAT16 || dt == DataType::COMPLEX_FLOAT16) return cast_to(a, dt);  // dense
-    return run_exact(a, dt, ScalarOpKind::Mul, ScalarArg::from_int64(1), /*keep_structure=*/false);
-}
-
-std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt) {
-    const uint64_t rows = a.rows(), cols = a.cols();
     // Half-precision targets: the typed float64 / complex128 conversion (exact for every
     // source the old per-element path read exactly), then one rounding to half precision.
     if (dt == DataType::FLOAT16) {
@@ -832,8 +824,14 @@ std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt) {
         return out;
     }
     // Multiplying by one in the target type is an exact conversion (ints, floats, complex).
-    return run_exact(a, dt, ScalarOpKind::Mul, ScalarArg::from_int64(1));
+    return run_exact(a, dt, ScalarOpKind::Mul, ScalarArg::from_int64(1), keep == Keep::Structure);
 }
+
+std::unique_ptr<MatrixBase> write_out(const MatrixBase& a) {
+    debug_trace::set_last("write_out");
+    return convert(a, a.get_data_type(), Keep::Dense);
+}
+
 
 namespace {
 
@@ -1088,11 +1086,6 @@ std::unique_ptr<MatrixBase> diagonal_from_vector(const VectorBase& v) {
     return out;
 }
 
-std::unique_ptr<MatrixBase> to_dense(const MatrixBase& a, DataType dt) {
-    if (dt == DataType::FLOAT16 || dt == DataType::COMPLEX_FLOAT16) return cast_to(a, dt);  // dense
-    if (dt == DataType::BIT) throw std::invalid_argument("to_dense: bit target");
-    return run_exact(a, dt, ScalarOpKind::Mul, ScalarArg::from_int64(1), /*keep_structure=*/false);
-}
 
 }  // namespace pycauset
 

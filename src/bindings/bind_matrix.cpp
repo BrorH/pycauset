@@ -206,7 +206,7 @@ inline py::object open_storage(pycauset::Structure s, DataType dt, uint64_t rows
 // ---------------------------------------------------------------------------
 // NumPy export (to_numpy, np.asarray, __array__), one path for every class, dtype and view:
 // the logical values as plain dense storage of the matrix's dtype (the shared typed reader:
-// to_dense / write_out; no copy for plain dense storage), then one copy into the array.
+// convert / write_out; no copy for plain dense storage), then one copy into the array.
 // bool: packed bits unpacked to bytes; float16: the uint16 bits viewed as float16;
 // complex_float16: complex64 (NumPy has no complex32). Replaces three exporters (dense-only
 // typed, generic per-element, and __array__ with a float64 default for unknown classes).
@@ -224,7 +224,7 @@ py::object export_numpy(const MatrixBase& mat) {
     const std::shared_ptr<MemoryMapper> keep = mat.shared_mapper();
     if (!plain) {
         py::gil_scoped_release release;
-        h = dt == DataType::BIT ? pycauset::write_out(mat) : pycauset::to_dense(mat, dt);
+        h = dt == DataType::BIT ? pycauset::write_out(mat) : pycauset::convert(mat, dt);
     }
     const MatrixBase& src = h ? *h : mat;
     const std::vector<py::ssize_t> shape{static_cast<py::ssize_t>(rows), static_cast<py::ssize_t>(cols)};
@@ -276,7 +276,7 @@ inline std::shared_ptr<VectorBase> matvec(const MatrixBase& a, const VectorBase&
                                     v.get_data_type());
     maybe_warn_bit_promotes_to_int32("matmul", promotion::BinaryOp::MatrixVectorMultiply, a.get_data_type(),
                                      v.get_data_type());
-    return std::shared_ptr<VectorBase>(without_gil({&a, &v}, [&] { return pycauset::matrix_vector_multiply(a, v, ""); }).release());
+    return std::shared_ptr<VectorBase>(without_gil({&a, &v}, [&] { return pycauset::matrix_vector_multiply(a, v); }).release());
 }
 
 inline py::object matrix_arith(const MatrixBase& a, const py::object& other_in, Arith op, bool reflected) {
@@ -441,7 +441,7 @@ void bind_matrix_classes(py::module_& m) {
             [](const MatrixBase& a, const py::array& b) -> py::object {
                 if (b.ndim() == 1) {
                     // 1-D, as NumPy
-                    return py::cast(std::shared_ptr<VectorBase>(pycauset::vector_matrix_multiply(*vector_from_numpy(b), a, "").release()));
+                    return py::cast(std::shared_ptr<VectorBase>(pycauset::vector_matrix_multiply(*vector_from_numpy(b), a).release()));
                 }
                 if (b.ndim() == 2) return py::cast(matmul_mm(*matrix_from_numpy(b), a));
                 throw py::value_error("Unsupported array rank for matmul");
@@ -694,7 +694,7 @@ void bind_matrix_classes(py::module_& m) {
             return std::shared_ptr<MatrixBase>(c->materialized_copy().release());
         }
         if (mat->get_scalar() != std::complex<double>(1.0, 0.0) || mat->is_transposed() || mat->is_conjugated()) {
-            return std::shared_ptr<MatrixBase>(pycauset::materialize(*mat).release());
+            return std::shared_ptr<MatrixBase>(pycauset::convert(*mat, mat->get_data_type(), pycauset::Keep::Structure).release());
         }
         return mat;
     }, py::arg("matrix"), "The matrix with its elements stored (views and closures evaluated).");

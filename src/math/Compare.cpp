@@ -2,7 +2,7 @@
 //
 //   entry:      compare(a, b, op)
 //   result:     a dense bool matrix of the broadcast shape
-//   normaliser: each operand read in its kind's wide dtype (to_dense, the shared typed reader;
+//   normaliser: each operand read in its kind's wide dtype (convert, the shared typed reader;
 //               no copy for a plain dense operand already in it): bool / signed / unsigned up to
 //               32 bits -> int64, uint64 -> uint64, real floats -> float64, complex -> complex128
 //   kernel:     one templated loop over the (row-broadcast) result, comparing exactly
@@ -37,7 +37,7 @@ std::unique_ptr<MatrixBase> read_as(const MatrixBase& m, DataType dt, const Matr
         out = &m;
         return nullptr;
     }
-    auto h = to_dense(m, dt);
+    auto h = convert(m, dt);
     out = h.get();
     return h;
 }

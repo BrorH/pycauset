@@ -68,8 +68,8 @@ std::unique_ptr<VectorBase> as_vector(std::unique_ptr<MatrixBase> m, bool transp
     const bool unit_view = m->get_scalar() == std::complex<double>(1.0, 0.0) && !m->is_conjugated();
     const bool plain = row && (unit_view || float_like);
     if (!plain) {
-        std::unique_ptr<MatrixBase> row = cast_to(*m, m->get_data_type());  // dense, factor 1
-        if (row->rows() != 1) row = cast_to(*row->transpose(), row->get_data_type());
+        std::unique_ptr<MatrixBase> row = convert(*m, m->get_data_type(), Keep::Structure);  // dense, factor 1
+        if (row->rows() != 1) row = convert(*row->transpose(), row->get_data_type(), Keep::Structure);
         m = std::move(row);
     }
     std::unique_ptr<VectorBase> out = visit_dtype(m->get_data_type(), [&](auto tag) -> std::unique_ptr<VectorBase> {

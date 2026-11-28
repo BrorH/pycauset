@@ -28,7 +28,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
 // diagonal and triangular input. Raises std::runtime_error when singular.
 std::unique_ptr<MatrixBase> inverse(const MatrixBase& a);
 std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& result_file = "");
-std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a, const std::string& result_file = "");
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a);
 // NumPy's qr: reduced (Q m x k, R k x n) or complete (Q m x m, R m x n).
 std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> qr(const MatrixBase& a, bool complete = false);
 // NumPy's svd: any dtype/structure/view; U (m, m|k), S (k,) real, VT (n|k, n). Without
@@ -45,10 +45,10 @@ std::unique_ptr<MatrixBase> pinv(const MatrixBase& a);
 std::unique_ptr<VectorBase> eigvals_arnoldi(const MatrixBase& a, int k, int m, double tol, const std::string& result_file = "");
 std::unique_ptr<VectorBase> eigvals_skew(const MatrixBase& a, int k, const std::string& result_file = "");
 std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig_skew(const MatrixBase& a, int k, const std::string& result_file = "");
-std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in, const std::string& result_file = "");
-std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string& result_file = "");
-std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in, const std::string& result_file = "");
-std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string& result_file = "");
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in);
+std::unique_ptr<VectorBase> eigvals(const MatrixBase& in);
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in);
+std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in);
 
 
 // --- Vector Operations ---
@@ -63,15 +63,15 @@ double norm(const MatrixBase& m);
 double matrix_norm(const MatrixBase& a, const std::string& ord);
 double vector_norm(const VectorBase& v, double p);
 int64_t matrix_rank(const MatrixBase& a, double tol = -1.0);
-std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b, const std::string& result_file = "");
+std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b);
 
 // Scalar operations on vectors
 
 // --- Matrix-Vector Operations ---
 
 std::unique_ptr<MatrixBase> outer_product(const VectorBase& a, const VectorBase& b, const std::string& result_file = "");
-std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, const std::string& result_file = "");
-std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, const std::string& result_file = "");
+std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const VectorBase& v);
+std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const MatrixBase& m);
 
 }
 

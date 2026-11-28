@@ -860,3 +860,6 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   the engine (`has_structure`, `causal_input_check`, row-wise `pack_as`, `diagonal_from_vector`);
   no NumPy export of PyCauset input; `causal_matrix(1500^2)` 154 -> 7.5 ms, `diagonal(4000)`
   92 -> 0.06 ms. Gates 6,068 / 6,062 / 45 / 4.
+- 3.6 C-16 finished: one normaliser `convert(a, dt, Keep)` + `write_out` (materialize /
+  cast_to / to_dense deleted), BitClosureMatrix on `view_value`, eight ignored `result_file`
+  parameters deleted. Gates 6,070 / 6,064 / 45 / 4.

@@ -58,28 +58,25 @@ DataType scalar_result_dtype(DataType a, ScalarOpKind op, const ScalarArg& s);
 
 std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s);
 
-// Plain copy of a view's values (factor applied exactly); used before consumers that read
-// raw storage. Integer and float dtypes supported by the exact scalar kernels.
-std::unique_ptr<MatrixBase> materialize(const MatrixBase& a);
-
 // -A. Raises std::invalid_argument for bit/bool (NumPy forbids boolean negation).
 std::unique_ptr<MatrixBase> negate(const MatrixBase& a);
 
-// A converted to a dense matrix of dtype `dt` (exact where the target can represent the
-// values). Used to promote operands of mixed-dtype ops to the resolved result dtype.
-std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt);
+// The one normaliser (review 3.6 C-16): a's logical values (factor, conjugation, transpose and
+// window applied) in fresh storage of dtype dt, exact where dt can represent them. Keep::Dense
+// gives a plain dense matrix (any structure, any view in); Keep::Structure keeps a's structure
+// class where the dtype offers it (promoting operands to a result dtype; pc.materialize).
+// Half-precision targets are always dense. A bool target only from bool input (raises otherwise).
+enum class Keep { Dense, Structure };
+std::unique_ptr<MatrixBase> convert(const MatrixBase& a, DataType dt, Keep keep = Keep::Dense);
 
 // No view metadata a kernel could ignore: not transposed, not a window, factor 1, and not a
 // conjugated complex matrix. (Structure may be anything.)
 bool is_plain(const MatrixBase& a);
 
-// Dense copy of a's logical values in a's dtype (factor, conjugation, transpose and window
-// applied; bit stays bit). For kernels that read storage directly (F-061, F-062).
+// convert(a, a's dtype, Keep::Dense): same dtype (bit stays bit), view folded into storage. For
+// kernels that read storage directly (F-061, F-062).
 std::unique_ptr<MatrixBase> write_out(const MatrixBase& a);
 
-// Dense, plain copy of a's logical values converted to dt (any structure, any view). For
-// kernels that need one storage layout and dtype (solve's LAPACK path).
-std::unique_ptr<MatrixBase> to_dense(const MatrixBase& a, DataType dt);
 
 // a's stored region (view applied) as a new matrix of structure s in a's dtype; entries
 // outside the region are not read. Exact for every dtype. Raises for pairs not offered.

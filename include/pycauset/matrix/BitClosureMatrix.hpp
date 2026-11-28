@@ -18,6 +18,7 @@
 #include <string>
 
 #include "pycauset/core/ScalarUtils.hpp"
+#include "pycauset/math/ViewValue.hpp"
 #include "pycauset/matrix/SymmetricMatrix.hpp"
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
 
@@ -52,22 +53,18 @@ public:
         return base_get(i, j);
     }
 
-    // Logical element (view factor applied with NumPy's integer wrapping).
-    int32_t value(uint64_t i, uint64_t j) const {
-        const int32_t v = get(i, j);
-        if (scalar_ == 1.0) return v;
-        return scalar::wrap_scale(v, static_cast<int64_t>(scalar_.real()));
-    }
+    // Logical element: the one view rule (ViewValue.hpp; an integer factor wraps as NumPy's).
+    std::complex<double> logical(uint64_t i, uint64_t j) const { return view_value(get(i, j), scalar_, false); }
+    // As int32, the closure's dtype (its factors are integers: multiply_scalar materialises).
+    int32_t value(uint64_t i, uint64_t j) const { return static_cast<int32_t>(logical(i, j).real()); }
 
     void set(uint64_t i, uint64_t j, int32_t value) {
         materialize_in_place();
         materialized_->set(i, j, value);
     }
 
-    double element_as_double(uint64_t i, uint64_t j) const override { return static_cast<double>(value(i, j)); }
-    std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override {
-        return {static_cast<double>(value(i, j)), 0.0};
-    }
+    double element_as_double(uint64_t i, uint64_t j) const override { return logical(i, j).real(); }
+    std::complex<double> element_as_complex(uint64_t i, uint64_t j) const override { return logical(i, j); }
     void set_element_double(uint64_t i, uint64_t j, double value) override {
         set(i, j, static_cast<int32_t>(value));
     }

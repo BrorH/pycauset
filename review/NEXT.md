@@ -61,7 +61,7 @@ PYTHONPATH=python python3 -m pytest tests/atlas -q -p no:cacheprovider          
 ruff check --select F python tests benchmarks tools
 NO_MKDOCS_2_WARNING=1 mkdocs build --strict -q
 ```
-Counts at the last commit: 6,068 / 6,062 / 45 / 4. A drop in a count is a failure to explain.
+Counts at the last commit: 6,070 / 6,064 / 45 / 4. A drop in a count is a failure to explain.
 
 ## 5. Working rules learned the hard way
 - Build with `-j1`. Never edit C++ while a build runs (make keeps the stale object). Never run
@@ -95,10 +95,8 @@ Counts at the last commit: 6,068 / 6,062 / 45 / 4. A drop in a count is a failur
 
 ## 7. Work queue, in this order
 1. ~~3.8 C-4, the rest~~ (done, session 10).
-2. **3.6 C-16, the rest** (`review/areas/3.6-math-entry.md`): one name for the four
-   normaliser helpers (`materialize`, `write_out`, `cast_to`, `to_dense`),
-   `BitClosureMatrix::value` (a private copy of the view rule: use `ViewValue.hpp`), the
-   ignored `result_file` parameters (delete them).
+2. ~~3.6 C-16, the rest~~ (done, session 10; one open note on float symmetric `materialize`
+   in the area file).
 3. **3.4 C-16, the rest** (`review/areas/3.4-dispatch-kernels.md`), then 3.4's other "Open:"
    lines (GIL for element-wise ops, BLAS dimension checks for gemv / gemm, include blocks).
 4. **3.2 C-10:** the antisymmetric `-A` diagonal sign (`review/areas/3.2-object-model.md`).

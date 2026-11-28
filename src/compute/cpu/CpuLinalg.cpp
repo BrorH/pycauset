@@ -2,7 +2,7 @@
 // family for float, double, complex<float>, complex<double>.
 //
 // Kernel contract: the input is a plain DenseMatrix<T> (the entry functions in
-// math/LinearAlgebra.cpp normalise every dtype, structure and view with to_dense in NumPy's
+// math/LinearAlgebra.cpp normalise every dtype, structure and view with convert in NumPy's
 // LAPACK dtype); outputs are DenseMatrix / DenseVector of the documented element types.
 // Anything else is a contract violation and throws. Replaces per-dtype hand-written kernels
 // (float64/float32 only; no complex eigh or Cholesky), behind which the Python layer fell back

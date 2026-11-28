@@ -79,7 +79,7 @@ The entry function does not cache, does not call NumPy, and has no
 - Kernels read storage through typed pointers or the shared readers (§4), never through
   `get_element_as_double/complex` in a loop (the atlas counts those calls as ○ generic).
 - Linear algebra (factorisations, eigen problems, det): the entry normalises with
-  `to_dense(a, lapack_dtype(...))`; the kernel is one LAPACK template over float, double,
+  `convert(a, lapack_dtype(...))`; the kernel is one LAPACK template over float, double,
   complex<float>, complex<double> whose contract is "plain dense in the LAPACK dtype"
   (`compute/cpu/CpuLinalg.cpp` is the pattern: `?syevd`/`?heevd`, `?geev`, `?potrf`,
   `?geqrf`, `?getrf`). Single precision stays single precision, as in NumPy.
@@ -135,13 +135,13 @@ never from a flag or assertion (the old `properties` store is removed, F-092).
 | Need | Tool | Where |
 |---|---|---|
 | The value of an element through its view | `view_value(raw, factor, conj)` | `include/pycauset/math/ViewValue.hpp` |
-| An operand as plain dense of dtype T (every class, every view, typed) | `to_dense(a, dtype)` | `math/ScalarOps.hpp` (uses `read_wide`, `math/ViewRead.hpp`) |
-| Same dtype, view folded into storage | `write_out(a)` | `math/ScalarOps.hpp` |
+| An operand as plain dense of dtype T (every class, every view, typed) | `convert(a, dtype)` (the one normaliser; `Keep::Dense` is the default) | `math/ScalarOps.hpp` (uses `read_wide`, `math/ViewRead.hpp`) |
+| Same dtype, view folded into storage (bit stays bit) | `write_out(a)` (= `convert(a, a's dtype)`) | `math/ScalarOps.hpp` |
 | Logical rows / the diagonal, typed, O(rows) memory (reductions, element-wise, streaming) | `read_rows(a, i0, i1, out)` / `read_diagonal(a, out)` (int64, double or complex128 buffers) | `math/ViewRead.hpp` |
 | Stored values of rows in bulk, the class's own element type (no view applied; for kernels that apply the factor themselves) | `raw_rows<T>(typed, i0, i1, out)` | `math/RawRows.hpp` |
 | A structured matrix from another matrix's stored region (same dtype, exact) | `pack_as(a, structure)` | `math/ScalarOps.hpp` |
 | NumPy's LAPACK dtype (linalg entries) | `lapack_dtype(a, b)` | `math/LinearAlgebra.hpp` |
-| Dtype conversion keeping structure | `cast_to(a, dtype)` | `math/ScalarOps.hpp` |
+| Dtype conversion keeping structure | `convert(a, dtype, Keep::Structure)` | `math/ScalarOps.hpp` |
 | Does the operand carry any view? | `is_plain(a)` | `math/ScalarOps.hpp` |
 | Typed traversal of any class (one dispatch, then typed `get`) | `visit_matrix(m, f)` / `visit_vector` | `core/DTypeDispatch.hpp` |
 | A vector as a 1 × n matrix (one implementation for both) | `as_row_matrix(v)` | `math/VectorOps.hpp` |

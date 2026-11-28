@@ -437,7 +437,7 @@ void bind_vector_classes(py::module_& m) {
                     promotion::BinaryOp::VectorMatrixMultiply,
                     a.get_data_type(),
                     mtx->get_data_type());
-                auto out = pycauset::vector_matrix_multiply(a, *mtx, "");
+                auto out = pycauset::vector_matrix_multiply(a, *mtx);
                 return std::shared_ptr<VectorBase>(out.release());
             },
             py::arg("other"), py::is_operator())
@@ -450,7 +450,7 @@ void bind_vector_classes(py::module_& m) {
                 if (b.ndim() == 2) {
                     auto m = matrix_from_numpy(b);
                     return py::cast(std::shared_ptr<VectorBase>(
-                        pycauset::vector_matrix_multiply(a, *m, "").release()));
+                        pycauset::vector_matrix_multiply(a, *m).release()));
                 }
                 throw py::value_error("matmul: a NumPy operand must be 1-D or 2-D");
             },
@@ -462,7 +462,7 @@ void bind_vector_classes(py::module_& m) {
                 if (b.ndim() == 2) {
                     auto m = matrix_from_numpy(b);
                     return py::cast(std::shared_ptr<VectorBase>(
-                        pycauset::matrix_vector_multiply(*m, a, "").release()));
+                        pycauset::matrix_vector_multiply(*m, a).release()));
                 }
                 throw py::value_error("matmul: a NumPy operand must be 1-D or 2-D");
             },

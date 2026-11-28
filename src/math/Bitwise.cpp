@@ -3,7 +3,7 @@
 //   entry:      bitwise(a, b, op), bitwise_not(a)
 //   result:     bool op bool -> bool; integers: NumPy's promotion (promotion::resolve Add)
 //   normaliser: bool result -> plain DenseMatrix<bool> operands (write_out otherwise);
-//               integer result -> DenseMatrix<r> operands (to_dense, the shared typed reader)
+//               integer result -> DenseMatrix<r> operands (convert, the shared typed reader)
 //   kernels:    words of packed bits (64 elements per operation); one flat loop per integer T
 // Before: only dense bool matrices had & | ^ (every integer dtype and every structure raised),
 // and ~ went through per-class methods.
@@ -88,8 +88,8 @@ std::unique_ptr<MatrixBase> int_bitwise(const MatrixBase& a, const MatrixBase& b
     // time; the rest (other element types, views) written out once as before.
     const bool pa = plain_dense<T>(a), pb = plain_dense<T>(b);
     const bool ta = !pa && bulk_readable<T>(a), tb = !pb && bulk_readable<T>(b);
-    std::unique_ptr<MatrixBase> ha = (pa || ta) ? nullptr : to_dense(a, r);
-    std::unique_ptr<MatrixBase> hb = (pb || tb) ? nullptr : to_dense(b, r);
+    std::unique_ptr<MatrixBase> ha = (pa || ta) ? nullptr : convert(a, r);
+    std::unique_ptr<MatrixBase> hb = (pb || tb) ? nullptr : convert(b, r);
     const T* x = ta ? nullptr : static_cast<const DenseMatrix<T>&>(ha ? *ha : a).data();
     const T* y = tb ? nullptr : static_cast<const DenseMatrix<T>&>(hb ? *hb : b).data();
     std::unique_ptr<DenseMatrix<T>> out;
@@ -129,7 +129,7 @@ std::unique_ptr<MatrixBase> int_bitwise(const MatrixBase& a, const MatrixBase& b
 // m repeated to rows x cols along its length-1 axes (NumPy broadcasting), dense, m's dtype.
 std::unique_ptr<MatrixBase> broadcast_copy(const MatrixBase& m, uint64_t rows, uint64_t cols) {
     const DataType dt = m.get_data_type();
-    const auto h = dt == DataType::BIT ? write_out(m) : to_dense(m, dt);
+    const auto h = dt == DataType::BIT ? write_out(m) : convert(m, dt);
     return visit_dtype(dt, [&](auto tag) -> std::unique_ptr<MatrixBase> {
         using T = typename decltype(tag)::type;
         if constexpr (std::is_integral_v<T>) {
@@ -218,7 +218,7 @@ std::unique_ptr<MatrixBase> bitwise_not(const MatrixBase& a) {
         using T = typename decltype(tag)::type;
         if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
             const bool p = plain_dense<T>(a), tiled = !p && bulk_readable<T>(a);
-            std::unique_ptr<MatrixBase> h = (p || tiled) ? nullptr : to_dense(a, d);
+            std::unique_ptr<MatrixBase> h = (p || tiled) ? nullptr : convert(a, d);
             const T* x = tiled ? nullptr : static_cast<const DenseMatrix<T>&>(h ? *h : a).data();
             std::unique_ptr<DenseMatrix<T>> out;
             {

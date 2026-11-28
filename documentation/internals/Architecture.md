@@ -50,7 +50,7 @@ transposition and conjugation combine with a stored element). Every reader uses 
 `ViewRead` reads whole blocks of a view into a typed buffer. Underneath, `math/RawRows.hpp`
 copies rows of stored values out of dense (windows, transposes), triangular,
 symmetric-family and diagonal storage in bulk (no per-element `get`); the view rule is then
-applied per element. Whole-matrix kernels (to_dense, element-wise row loads, sums) read
+applied per element. Whole-matrix kernels (`convert`, element-wise row loads, sums) read
 through it.
 
 ## Evaluation: eager results, lazy where it pays

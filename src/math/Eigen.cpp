@@ -18,7 +18,7 @@ namespace pycauset {
 //   diagonal, triangular: the diagonal is the pivots (no factorisation), O(n) typed reads; a
 //                        strict triangle (no stored diagonal) is singular
 //   otherwise:           ?getrf in NumPy's LAPACK dtype (float16/float32 in single precision),
-//                        after to_dense (the shared typed reader) for any other dtype, view or
+//                        after convert (the shared typed reader) for any other dtype, view or
 //                        structure.
 // Replaces a kernel that read every element through the virtual accessor into a float64 /
 // complex128 buffer (every input was a generic, double-precision path).
@@ -41,7 +41,7 @@ static LuPivots pivots_of(const MatrixBase& a) {
     }
     const DataType dt = lapack_dtype(a.get_data_type(), a.get_data_type());
     const bool ready = st == Structure::DENSE && a.get_data_type() == dt && is_plain(a);
-    std::unique_ptr<MatrixBase> h = ready ? nullptr : to_dense(a, dt);
+    std::unique_ptr<MatrixBase> h = ready ? nullptr : convert(a, dt);
     return ComputeContext::instance().get_device()->lu_pivots(h ? *h : a);
 }
 

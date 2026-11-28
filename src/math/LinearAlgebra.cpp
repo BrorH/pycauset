@@ -364,13 +364,13 @@ double norm(const MatrixBase& m) {
 // Cross product of two 3-vectors, NumPy's cross: NumPy's multiply dtype (bool raises, as
 // NumPy's subtract does); integers wrap. float16 / complex32: each product is rounded to the
 // dtype, then the difference (NumPy computes every step in the dtype).
-std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b, const std::string&) {
+std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b) {
     if (a.size() != 3 || b.size() != 3) throw std::invalid_argument("cross: vectors must have 3 elements");
     const DataType r = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, a.get_data_type(), b.get_data_type()).result_dtype;
     if (r == DataType::BIT) throw dtype_error("cross: not defined for bool vectors (NumPy's subtract rejects bool)");
     const DataType c = r == DataType::FLOAT16 ? DataType::FLOAT32 : r == DataType::COMPLEX_FLOAT16 ? DataType::COMPLEX_FLOAT32 : r;
-    auto ra = to_dense(*as_row_matrix(a), c);
-    auto rb = to_dense(*as_row_matrix(b), c);
+    auto ra = convert(*as_row_matrix(a), c);
+    auto rb = convert(*as_row_matrix(b), c);
     auto out = ObjectFactory::create_matrix(1, 3, c, Structure::DENSE, "");
     debug_trace::set_last("cpu.cross");
     visit_dtype(c, [&](auto tag) {
@@ -409,7 +409,7 @@ std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase&
             throw std::logic_error(std::string("cross: no kernel for ") + dtype_name(c));
         }
     });
-    std::unique_ptr<MatrixBase> res = c != r ? cast_to(*out, r) : std::move(out);
+    std::unique_ptr<MatrixBase> res = c != r ? convert(*out, r, Keep::Structure) : std::move(out);
     return as_vector(std::move(res), false);
 }
 
@@ -417,7 +417,7 @@ std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase&
 
 // Outer product, NumPy's outer: out[i, j] = a[i] * b[j] for vectors of any lengths n and m, in
 // NumPy's multiply dtype (integers wrap; bool is logical and). Normaliser: each vector as a
-// dense 1 x len row in the computation dtype (as_row_matrix + to_dense: every dtype and view).
+// dense 1 x len row in the computation dtype (as_row_matrix + convert: every dtype and view).
 // Kernel: one loop per element type; bool copies b's packed row into each row where a[i] is
 // set. float16 / complex32 are computed in float32 / complex64 (a product of two float16 is
 // exact there) and rounded once. Replaces a square-only, per-dtype, virtual-call kernel that
@@ -426,8 +426,8 @@ std::unique_ptr<MatrixBase> outer_product(const VectorBase& a, const VectorBase&
     const uint64_t n = a.size(), m = b.size();
     const DataType r = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, a.get_data_type(), b.get_data_type()).result_dtype;
     const DataType c = r == DataType::FLOAT16 ? DataType::FLOAT32 : r == DataType::COMPLEX_FLOAT16 ? DataType::COMPLEX_FLOAT32 : r;
-    // bool result: both operands are bool; write_out keeps packed bits (to_dense has no bit target).
-    auto row = [c](const VectorBase& v) { return c == DataType::BIT ? write_out(*as_row_matrix(v)) : to_dense(*as_row_matrix(v), c); };
+    // A bool result has bool operands: convert keeps their packed bits.
+    auto row = [c](const VectorBase& v) { return convert(*as_row_matrix(v), c); };
     auto ra = row(a);
     auto rb = row(b);
     auto out = ObjectFactory::create_matrix(n, m, c, Structure::DENSE, c == r ? result_file : std::string());
@@ -463,7 +463,7 @@ std::unique_ptr<MatrixBase> outer_product(const VectorBase& a, const VectorBase&
         }
         throw std::logic_error(std::string("outer: no kernel for ") + dtype_name(c));
     });
-    if (c != r) return cast_to(*out, r);
+    if (c != r) return convert(*out, r, Keep::Structure);
     return out;
 }
 
@@ -495,7 +495,7 @@ std::unique_ptr<VectorBase> bit_matvec_rule(const MatrixBase& m, const VectorBas
 // closure C +- C^T over causal bits keeps its two-pass bit kernel (no materialisation) when
 // the result is float64. Replaces ~900 lines of hand-written per-dtype matvec / vecmat kernels
 // whose structured and complex paths read every element through the virtual accessor.
-std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, const std::string&) {
+std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const VectorBase& v) {
     if (m.cols() != v.size()) throw std::invalid_argument("Matrix columns must match vector size");
     if (auto* cl = dynamic_cast<const BitClosureMatrix*>(&m); cl && !cl->is_materialized()) {
         const DataType vt = v.get_data_type();
@@ -531,13 +531,13 @@ std::unique_ptr<VectorBase> matrix_vector_multiply(const MatrixBase& m, const Ve
     return as_vector(dispatch_matmul(m, *col), /*transposed=*/false);
 }
 
-std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const MatrixBase& m, const std::string&) {
+std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const MatrixBase& m) {
     if (v.size() != m.rows()) throw std::invalid_argument("Vector size must match matrix rows");
     // A closure C +- C^T is its own transpose up to sign (M^T = M, or -M for C - C^T, whatever
     // its view flags): v @ M = +-(M v), the closure's bit kernel. It was written out as an
     // n x n float64 matrix (review 3.6 C-17).
     if (auto* cl = dynamic_cast<const BitClosureMatrix*>(&m); cl && !cl->is_materialized()) {
-        std::unique_ptr<VectorBase> out = matrix_vector_multiply(m, v, "");
+        std::unique_ptr<VectorBase> out = matrix_vector_multiply(m, v);
         if (m.get_structure() == Structure::ANTISYMMETRIC) out = negate(*out);
         out->set_transposed(v.is_transposed());
         return out;
@@ -554,7 +554,7 @@ std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const Ma
         if (st != Structure::DENSE && st != Structure::IDENTITY && m.rows() > 0 &&
             (rd == DataType::FLOAT64 || rd == DataType::COMPLEX_FLOAT64) &&
             dynamic_cast<const BitClosureMatrix*>(&m) == nullptr) {
-            auto out = matrix_vector_multiply(*m.transpose(), v, "");
+            auto out = matrix_vector_multiply(*m.transpose(), v);
             out->set_transposed(v.is_transposed());
             return out;
         }
@@ -697,7 +697,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
         const ScalarArg arg = int_factor ? ScalarArg::from_int64(static_cast<int64_t>(s.real()))
                             : s.imag() == 0.0 ? ScalarArg::from_double(s.real()) : ScalarArg::from_complex(s);
         auto out = scalar_op(other, ScalarOpKind::Mul, arg);  // integer-safe (F-001), promotes
-        if (out->get_data_type() != r) out = cast_to(*out, r);
+        if (out->get_data_type() != r) out = convert(*out, r, Keep::Structure);
         return out;
     };
     if (sa == Structure::IDENTITY && a.rows() == a.cols()) return identity_times(a, b);
@@ -732,8 +732,8 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     // a lower or windowed triangular operand is not upper triangular and goes dense.
     if (sa == Structure::TRIANGULAR && sb == Structure::TRIANGULAR && mm_has_triangular_kernel(r) &&
         !a.is_transposed() && !b.is_transposed() && !a.is_subview() && !b.is_subview()) {
-        std::unique_ptr<MatrixBase> ha = mm_triangular_ready(a, r) ? nullptr : cast_to(a, r);
-        std::unique_ptr<MatrixBase> hb = mm_triangular_ready(b, r) ? nullptr : cast_to(b, r);
+        std::unique_ptr<MatrixBase> ha = mm_triangular_ready(a, r) ? nullptr : convert(a, r, Keep::Structure);
+        std::unique_ptr<MatrixBase> hb = mm_triangular_ready(b, r) ? nullptr : convert(b, r, Keep::Structure);
         const MatrixBase& A = ha ? *ha : a;
         const MatrixBase& B = hb ? *hb : b;
         if (mm_triangular_ready(A, r) && mm_triangular_ready(B, r)) {
@@ -804,11 +804,11 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     const DataType c = r == DataType::FLOAT16 ? DataType::FLOAT32
                      : r == DataType::COMPLEX_FLOAT16 ? DataType::COMPLEX_FLOAT32
                      : r;
-    std::unique_ptr<MatrixBase> ha = mm_dense_ready(a, c) ? nullptr : to_dense(a, c);
-    std::unique_ptr<MatrixBase> hb = mm_dense_ready(b, c) ? nullptr : to_dense(b, c);
+    std::unique_ptr<MatrixBase> ha = mm_dense_ready(a, c) ? nullptr : convert(a, c);
+    std::unique_ptr<MatrixBase> hb = mm_dense_ready(b, c) ? nullptr : convert(b, c);
     auto res = ObjectFactory::create_matrix(m, n, c, Structure::DENSE, c == r ? saveas : std::string());
     device->matmul(ha ? *ha : a, hb ? *hb : b, *res);
-    if (c != r) return cast_to(*res, r);
+    if (c != r) return convert(*res, r, Keep::Structure);
     return res;
 }
 
@@ -829,7 +829,7 @@ DataType lapack_dtype(DataType a, DataType b) {
 static std::unique_ptr<MatrixBase> lapack_input(const MatrixBase& a, DataType& dt) {
     dt = lapack_dtype(a.get_data_type(), a.get_data_type());
     if (a.get_structure() == Structure::DENSE && a.get_data_type() == dt && is_plain(a)) return nullptr;
-    return to_dense(a, dt);
+    return convert(a, dt);
 }
 
 static DataType real_dtype(DataType d) {
@@ -857,7 +857,7 @@ std::unique_ptr<MatrixBase> cholesky(const MatrixBase& a, const std::string& res
 
 // LU with partial pivoting, SciPy's lu (NumPy has none): A = P L U with P (m, m) real,
 // L (m, k) unit lower, U (k, n); any dtype, structure and view in the LAPACK dtype.
-std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a, const std::string&)
+std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>, std::unique_ptr<MatrixBase>> lu(const MatrixBase& a)
 {
     DataType dt;
     auto h = lapack_input(a, dt);
@@ -891,7 +891,7 @@ std::tuple<std::unique_ptr<MatrixBase>, std::unique_ptr<VectorBase>, std::unique
         const DataType in = a.get_data_type();
         const DataType want = lapack_dtype(in, in);
         if (a.get_structure() != Structure::DENSE || in != want || !is_plain(a)) {
-            return svd(*to_dense(a, want), full_matrices, compute_uv);
+            return svd(*convert(a, want), full_matrices, compute_uv);
         }
     }
     const uint64_t m = a.rows(), n = a.cols(), k = std::min(m, n);
@@ -922,8 +922,8 @@ std::unique_ptr<MatrixBase> solve(const MatrixBase& a, const MatrixBase& b, cons
     auto ready = [dt](const MatrixBase& m) {
         return m.get_structure() == Structure::DENSE && m.get_data_type() == dt && is_plain(m);
     };
-    std::unique_ptr<MatrixBase> pa = ready(a) ? nullptr : to_dense(a, dt);
-    std::unique_ptr<MatrixBase> pb = ready(b) ? nullptr : to_dense(b, dt);
+    std::unique_ptr<MatrixBase> pa = ready(a) ? nullptr : convert(a, dt);
+    std::unique_ptr<MatrixBase> pb = ready(b) ? nullptr : convert(b, dt);
     const MatrixBase& A = pa ? *pa : a;
     const MatrixBase& B = pb ? *pb : b;
 
@@ -953,8 +953,8 @@ std::unique_ptr<MatrixBase> lstsq(const MatrixBase& a, const MatrixBase& b)
     auto ready = [dt](const MatrixBase& m) {
         return m.get_structure() == Structure::DENSE && m.get_data_type() == dt && is_plain(m);
     };
-    std::unique_ptr<MatrixBase> pa = ready(a) ? nullptr : to_dense(a, dt);
-    std::unique_ptr<MatrixBase> pb = ready(b) ? nullptr : to_dense(b, dt);
+    std::unique_ptr<MatrixBase> pa = ready(a) ? nullptr : convert(a, dt);
+    std::unique_ptr<MatrixBase> pb = ready(b) ? nullptr : convert(b, dt);
     const MatrixBase& A = pa ? *pa : a;
     const MatrixBase& B = pb ? *pb : b;
     auto x = ObjectFactory::create_matrix(A.cols(), B.cols(), dt, Structure::DENSE, "");
@@ -1140,11 +1140,11 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig_skew(
 }
 
 // |x| of every element of a (any dtype, structure, view) as a dense row-major float64 buffer,
-// through the shared typed reader (to_dense in float64 or complex128).
+// through the shared typed reader (convert in float64 or complex128).
 static std::vector<double> abs_values(const MatrixBase& a) {
     const DataType dt = a.get_data_type();
     const bool cplx = is_complex_dtype(dt);
-    auto d = to_dense(a, cplx ? DataType::COMPLEX_FLOAT64 : DataType::FLOAT64);
+    auto d = convert(a, cplx ? DataType::COMPLEX_FLOAT64 : DataType::FLOAT64);
     const uint64_t total = a.rows() * a.cols();
     std::vector<double> out(total);
     if (cplx) {
@@ -1240,7 +1240,7 @@ int64_t matrix_rank(const MatrixBase& a, double tol) {
 // in the LAPACK dtype (float16 and float32 in single precision, as NumPy). eig: complex
 // eigenvalues and right eigenvectors (?geev); eigh: real ascending eigenvalues of the lower
 // triangle (?syevd / ?heevd) and eigenvectors in the input's LAPACK dtype.
-std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in, const std::string&) {
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig(const MatrixBase& in) {
     require_square(in, "eig");
     DataType dt;
     auto h = lapack_input(in, dt);
@@ -1260,11 +1260,11 @@ static std::unique_ptr<VectorBase> eigvals_compute(const MatrixBase& in) {
     return w;
 }
 
-std::unique_ptr<VectorBase> eigvals(const MatrixBase& in, const std::string&) {
+std::unique_ptr<VectorBase> eigvals(const MatrixBase& in) {
     return cached_vector(in, "eigvals", [&] { return eigvals_compute(in); });
 }
 
-std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in, const std::string&) {
+std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eigh(const MatrixBase& in) {
     require_square(in, "eigh");
     DataType dt;
     auto h = lapack_input(in, dt);
@@ -1284,7 +1284,7 @@ static std::unique_ptr<VectorBase> eigvalsh_compute(const MatrixBase& in) {
     return w;
 }
 
-std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in, const std::string&) {
+std::unique_ptr<VectorBase> eigvalsh(const MatrixBase& in) {
     return cached_vector(in, "eigvalsh", [&] { return eigvalsh_compute(in); });
 }
 

@@ -77,7 +77,7 @@ void bind_core_classes(py::module_& m) {
     m.def("_cast", [](const pycauset::MatrixBase& a, const std::string& dtype) {
         const auto dt = dtype_arg(py::str(dtype));  // the one dtype parser (review 3.7 C-12)
         if (dt == pycauset::DataType::BIT) throw std::invalid_argument("_cast: no cast to bool");
-        return std::shared_ptr<pycauset::MatrixBase>(pycauset::cast_to(a, dt).release());
+        return std::shared_ptr<pycauset::MatrixBase>(pycauset::convert(a, dt, pycauset::Keep::Structure).release());
     }, py::arg("a"), py::arg("dtype"));
 
     m.def(
