@@ -125,7 +125,7 @@ risk: storage and object model first, since everything rests on them.
 
 | # | area | files (see INVENTORY) | approx lines |
 |---|---|---|---|
-| 3.1 | Storage core: PersistentObject, MemoryMapper, MemoryGovernor, IOAccelerator, StorageUtils, SystemUtils **(reviewed; fixed F-120..F-125, C-12 open)** | `src/core`, `include/pycauset/core` | 2,300 |
+| 3.1 | Storage core: PersistentObject, MemoryMapper, MemoryGovernor, IOAccelerator, StorageUtils, SystemUtils **(reviewed; fixed F-120..F-125; C-12 kept by decision)** | `src/core`, `include/pycauset/core` | 2,300 |
 | 3.2 | Object model: MatrixBase/VectorBase and every concrete type; view metadata; CoW **(reviewed; fixed F-117..F-119, F-126; C-10, C-14 open)** | `include/pycauset/{matrix,vector}`, `src/{matrix,vector}` | 3,600 |
 | 3.3 | Factory & promotion: ObjectFactory, Promotion/Structure/MatrixType resolvers | `src/core` | 1,100 |
 | 3.4 | Dispatch & CPU kernels: ComputeContext, AutoSolver, CpuDevice, **CpuSolver**, ParallelUtils, SIMD | `src/compute` | 7,800 |
