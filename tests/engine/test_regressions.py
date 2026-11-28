@@ -908,3 +908,17 @@ def test_F130_lists_with_numpy_scalars_infer_like_numpy(values):
 
 def test_F130_empty_vector_is_float64():
     assert pc.vector([]).dtype == "float64"
+
+
+@pytest.mark.parametrize("token, want", [("i8", "int64"), ("u8", "uint64"), ("f4", "float32"), ("f", "float32"),
+                                         ("<f8", "float64"), ("F", "complex_float32"), ("int", "int32"),
+                                         ("bit", "bool"), ("single", "float32"), ("INT16", "int16")])
+def test_F133_dtype_tokens_mean_what_numpy_says(token, want):
+    """3.3 C-9: "i8" gave int8 (NumPy: int64), "u8" uint8; NumPy codes like "f4" raised."""
+    assert pc.zeros((1, 1), dtype=token).dtype == want
+
+
+@pytest.mark.parametrize("token", [np.longdouble, np.clongdouble, "f16", "float_"])
+def test_F133_unstored_dtypes_raise(token):
+    with pytest.raises((TypeError, ValueError)):
+        pc.zeros((1, 1), dtype=token)

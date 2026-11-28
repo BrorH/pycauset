@@ -1757,3 +1757,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
   array (`mmap_mode="r"`) instead of reading all of it first (RSS 2x the file). Open (C-10,
   Windows): snapshots are opened without `FILE_SHARE_DELETE`, so saving over a loaded file
   fails there.
+
+### F-133 Dtype tokens contradicted NumPy's type codes
+- **Status:** fixed for the Python parser (session 9; found while acting on area 3.3 C-9).
+  `normalize_dtype` had its own short forms: `"i8"` gave int8 and `"u8"` uint8 (NumPy: int64,
+  uint64, the item size in bytes), `"f16"` float16 (NumPy: a 16-byte float), while NumPy codes
+  like `"f4"` / `"i4"` raised; `np.longdouble` was narrowed to float64 silently. PyCauset's
+  names and aliases are listed in one table now; everything else goes to `np.dtype`, and
+  types PyCauset does not store raise. Open (C-9): the native constructors
+  (`pc.DenseMatrix(2, dtype="bit")`) still parse with their own table. `test_F133_*`.

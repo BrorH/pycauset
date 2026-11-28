@@ -38,37 +38,22 @@ def normalize_dtype(dtype: Any, *, np_module: Any | None) -> str | None:
 
     if isinstance(dtype, str):
         s = dtype.strip().lower()
-        if s in ("int8", "i8"):
-            return "int8"
-        if s in ("int16", "i16"):
-            return "int16"
-        if s in ("int32", "i32", "int"):
-            return "int32"
-        if s in ("int64", "i64"):
-            return "int64"
-        if s in ("uint8", "u8"):
-            return "uint8"
-        if s in ("uint16", "u16"):
-            return "uint16"
-        if s in ("uint32", "u32", "uint"):
-            return "uint32"
-        if s in ("uint64", "u64"):
-            return "uint64"
-        if s in ("float16", "f16", "half"):
-            return "float16"
-        if s in ("float32", "f32", "single"):
-            return "float32"
-        if s in ("float", "float64", "f64", "double"):
-            return "float64"
-        if s in ("bool", "bool_", "bit"):
-            return "bool"
-        if s in ("complex_float16", "complex16"):
-            return "complex_float16"
-        if s in ("complex_float32", "complex64"):
-            return "complex_float32"
-        if s in ("complex_float64", "complex128", "complex"):
-            return "complex_float64"
-        return None
+        # PyCauset's own names and aliases. NumPy's type codes ("i8" is int64, "f4" float32,
+        # "<u2" ...) go to np.dtype below: short forms here like "i8" -> int8 contradicted
+        # them (review 3.3 C-9).
+        named = {
+            "int": "int32", "uint": "uint32",  # PyCauset's default integer (F-103)
+            "float": "float64", "half": "float16", "single": "float32", "double": "float64",
+            "bool": "bool", "bool_": "bool", "bit": "bool",
+            "complex": "complex_float64", "complex16": "complex_float16",
+            "complex_float16": "complex_float16", "complex_float32": "complex_float32",
+            "complex_float64": "complex_float64",
+        }
+        if s in named:
+            return named[s]
+        if s in _NUMPY_NAMES.values():
+            return s
+        dtype = dtype.strip()  # NumPy codes are case-sensitive ("f" vs "F")
 
     # Abstract NumPy scalar types have no dtype of their own: np.dtype() rejects them.
     abstract = {
@@ -83,11 +68,9 @@ def normalize_dtype(dtype: Any, *, np_module: Any | None) -> str | None:
         np_dtype = np_module.dtype(dtype)
     except TypeError:
         return None  # not a dtype token
-    name = _NUMPY_NAMES.get(np_dtype.name)
-    if name is not None:
-        return name
-    # Wider kinds than PyCauset stores (longdouble, clongdouble): the widest float / complex.
-    return {"f": "float64", "c": "complex_float64"}.get(np_dtype.kind)
+    # None for what PyCauset does not store (longdouble, clongdouble, strings, objects): the
+    # caller raises. longdouble was narrowed to float64 silently.
+    return _NUMPY_NAMES.get(np_dtype.name)
 
 
 

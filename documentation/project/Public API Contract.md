@@ -75,14 +75,16 @@ Exported sentinels (examples):
 Rule:
 - Sentinel names follow NumPy conventions (including `_` suffix for built-in names like `bool_`).
 
-- Float tokens: `"float16"`, `"float32"`, `"float64"` (aliases may exist: `"float"`, `"float_"`).
-- Int tokens: `"int8"`, `"int16"`, `"int32"`, `"int64"` (aliases may exist: `"int"`, `"int_"`).
-- Unsigned tokens: `"uint8"`, `"uint16"`, `"uint32"`, `"uint64"` (alias: `"uint"`).
-- Bit/boolean tokens: `"bit"`, `"bool"`, `"bool_"`.
-- Complex float tokens: `"complex_float16"`, `"complex_float32"`, `"complex_float64"` (aliases: `"complex"`, `"complex64"`, `"complex128"`).
-
-Rule:
-- Tokens are lower-case, consistent with NumPy naming, and treated as part of the public surface.
+- Names: `"int8"` ... `"int64"`, `"uint8"` ... `"uint64"`, `"float16"`, `"float32"`,
+  `"float64"`, `"bool"`, `"complex_float16"`, `"complex_float32"`, `"complex_float64"`
+  (any case).
+- PyCauset aliases: `"int"` (int32, PyCauset's default integer), `"uint"` (uint32), `"float"`,
+  `"double"` (float64), `"single"` (float32), `"half"` (float16), `"bit"` / `"bool_"` (bool),
+  `"complex"` (complex_float64), `"complex16"` (complex_float16).
+- Everything NumPy accepts as a dtype: NumPy dtypes and scalar types (`np.float32`), names
+  (`"complex64"`, `"complex128"`) and type codes, which mean what they mean in NumPy
+  (`"i8"` is int64, `"f4"` float32, `"<u2"` uint16).
+- Types PyCauset does not store (`np.longdouble`, `np.clongdouble`, strings, objects) raise.
 
 ### Exceptions and warnings
 
