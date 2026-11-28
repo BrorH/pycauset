@@ -1638,6 +1638,19 @@ def test_3_7_C14_public_surface():
     assert "set_storage_root" not in pc.__all__ and not hasattr(pc._native, "set_storage_root")
     with pytest.raises(AttributeError):
         A.shpae = (9, 9)
+    # Duplicates of the module functions are gone (NumPy's ndarray has none of them either).
+    for name in ("eig", "eigh", "eigvals", "eigvalsh", "matmul", "determinant", "slogdet"):
+        assert not hasattr(pc.MatrixBase, name)
+    # Every native signature names its arguments and Python types (C++ names leaked into them).
+    bad = []
+    for k in dir(pc._native):
+        o = getattr(pc._native, k)
+        members = [(k, o)] + ([(f"{k}.{m}", getattr(o, m, None)) for m in dir(o)] if isinstance(o, type) else [])
+        for name, member in members:
+            doc = getattr(member, "__doc__", None) or ""
+            if "arg0" in doc or "pycauset::" in doc or "std::" in doc:
+                bad.append(name)
+    assert not bad, bad[:10]
 
 
 def test_3_8_C16_setters_validate_before_changing_anything():

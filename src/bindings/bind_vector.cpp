@@ -290,7 +290,7 @@ inline py::object vector_compare(const VectorBase& v, const py::object& other, p
 } // namespace
 
 void bind_vector_classes(py::module_& m) {
-    py::class_<VectorBase, std::shared_ptr<VectorBase>>(m, "VectorBase")
+    py::reinterpret_borrow<py::class_<VectorBase, std::shared_ptr<VectorBase>>>(m.attr("VectorBase"))
         .def_property_readonly("backing_file", &VectorBase::get_backing_file)
         .def("get_backing_file", &VectorBase::get_backing_file)
         .def_property_readonly("is_temporary", &VectorBase::is_temporary)
@@ -305,12 +305,12 @@ void bind_vector_classes(py::module_& m) {
             }
             return vector_element_get(v, 0).cast<bool>();
         })
-        .def("__eq__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Eq); }, py::is_operator())
-        .def("__ne__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Ne); }, py::is_operator())
-        .def("__lt__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Lt); }, py::is_operator())
-        .def("__le__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Le); }, py::is_operator())
-        .def("__gt__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Gt); }, py::is_operator())
-        .def("__ge__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Ge); }, py::is_operator())
+        .def("__eq__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Eq); }, py::arg("other"), py::is_operator())
+        .def("__ne__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Ne); }, py::arg("other"), py::is_operator())
+        .def("__lt__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Lt); }, py::arg("other"), py::is_operator())
+        .def("__le__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Le); }, py::arg("other"), py::is_operator())
+        .def("__gt__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Gt); }, py::arg("other"), py::is_operator())
+        .def("__ge__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Ge); }, py::arg("other"), py::is_operator())
         .def_property_readonly("seed", &VectorBase::get_seed)
         // The view flags are read-only (review 3.7 C-8: set_scalar(0.5) on an int32 matrix gave five
         // readers five answers); persistence restores conjugation through `_restore_conjugated`
@@ -320,8 +320,8 @@ void bind_vector_classes(py::module_& m) {
         .def("is_conjugated", &VectorBase::is_conjugated)
         // Internal (persistence): the saved conjugation flag (`conj()` sets it on every dtype).
         .def("_restore_conjugated", [](VectorBase& o) { o.set_conjugated(true); })
-        .def("get_element_as_double", &VectorBase::get_element_as_double)
-        .def("get_element_as_complex", &VectorBase::get_element_as_complex)
+        .def("get_element_as_double", &VectorBase::get_element_as_double, py::arg("i"))
+        .def("get_element_as_complex", &VectorBase::get_element_as_complex, py::arg("i"))
         .def_property_readonly(
             "dtype",
             [](const VectorBase& v) { return std::string(pycauset::dtype_name(v.get_data_type())); },
@@ -329,8 +329,8 @@ void bind_vector_classes(py::module_& m) {
         .def("get", [](const VectorBase& v, uint64_t i) { return vector_element_get(v, i); }, py::arg("i"))
         .def("set", [](VectorBase& v, uint64_t i, const py::object& value) { vector_element_set(v, i, value); },
              py::arg("i"), py::arg("value"))
-        .def("__getitem__", &vector_getitem)
-        .def("__setitem__", &vector_setitem)
+        .def("__getitem__", &vector_getitem, py::arg("key"))
+        .def("__setitem__", &vector_setitem, py::arg("key"), py::arg("value"))
         .def("fill", [](VectorBase& v, const py::object& value) {
             for (uint64_t i = 0; i < v.size(); ++i) vector_element_set(v, i, value);
         }, py::arg("value"))
@@ -415,21 +415,21 @@ void bind_vector_classes(py::module_& m) {
             [](const VectorBase& a, const std::shared_ptr<VectorBase>& b) { return vector_dot(a, *b); },
             py::arg("other"))
         // Bitwise ops through the matrix machinery (1 x n bridge, math/Bitwise.cpp).
-        .def("__and__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::And); }, py::is_operator())
-        .def("__rand__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::And); }, py::is_operator())
-        .def("__or__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::is_operator())
-        .def("__ror__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::is_operator())
-        .def("__xor__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::is_operator())
-        .def("__rxor__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::is_operator())
+        .def("__and__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::And); }, py::arg("other"), py::is_operator())
+        .def("__rand__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::And); }, py::arg("other"), py::is_operator())
+        .def("__or__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::arg("other"), py::is_operator())
+        .def("__ror__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::arg("other"), py::is_operator())
+        .def("__xor__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::arg("other"), py::is_operator())
+        .def("__rxor__", [](const VectorBase& a, const py::object& o) { return vector_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::arg("other"), py::is_operator())
         .def("__invert__", [](const VectorBase& a) { return vector_bitwise(a, py::none(), pycauset::BitwiseOp::And); }, py::is_operator())
-        .def("__add__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Add, false); }, py::is_operator())
-        .def("__radd__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Add, true); }, py::is_operator())
-        .def("__sub__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Sub, false); }, py::is_operator())
-        .def("__rsub__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Sub, true); }, py::is_operator())
-        .def("__mul__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Mul, false); }, py::is_operator())
-        .def("__rmul__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Mul, true); }, py::is_operator())
-        .def("__truediv__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Div, false); }, py::is_operator())
-        .def("__rtruediv__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Div, true); }, py::is_operator())
+        .def("__add__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Add, false); }, py::arg("other"), py::is_operator())
+        .def("__radd__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Add, true); }, py::arg("other"), py::is_operator())
+        .def("__sub__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Sub, false); }, py::arg("other"), py::is_operator())
+        .def("__rsub__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Sub, true); }, py::arg("other"), py::is_operator())
+        .def("__mul__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Mul, false); }, py::arg("other"), py::is_operator())
+        .def("__rmul__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Mul, true); }, py::arg("other"), py::is_operator())
+        .def("__truediv__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Div, false); }, py::arg("other"), py::is_operator())
+        .def("__rtruediv__", [](const VectorBase& a, const py::object& b) { return vector_arith(a, b, Arith::Div, true); }, py::arg("other"), py::is_operator())
         .def("__neg__", [](const VectorBase& a) { return std::shared_ptr<VectorBase>(pycauset::negate(a).release()); })
         .def(
             "__matmul__",
@@ -441,7 +441,7 @@ void bind_vector_classes(py::module_& m) {
                 }
                 return vector_dot(a, *b);
             },
-            py::is_operator())
+            py::arg("other"), py::is_operator())
         .def(
             "__matmul__",
             [](const VectorBase& a, const std::shared_ptr<MatrixBase>& mtx) {
@@ -455,7 +455,7 @@ void bind_vector_classes(py::module_& m) {
                     return std::shared_ptr<VectorBase>(out.release());
                 });
             },
-            py::is_operator())
+            py::arg("other"), py::is_operator())
         // NumPy operands, as matrices take them (review 3.6 C-7): v @ arr and arr @ v (NumPy
         // defers to us, __array_ufunc__ = None). 1-D: the dot; 2-D: the vector-matrix product.
         .def(
@@ -469,7 +469,7 @@ void bind_vector_classes(py::module_& m) {
                 }
                 throw py::value_error("matmul: a NumPy operand must be 1-D or 2-D");
             },
-            py::is_operator())
+            py::arg("other"), py::is_operator())
         .def(
             "__rmatmul__",
             [](const VectorBase& a, const py::array& b) -> py::object {
@@ -481,7 +481,7 @@ void bind_vector_classes(py::module_& m) {
                 }
                 throw py::value_error("matmul: a NumPy operand must be 1-D or 2-D");
             },
-            py::is_operator());
+            py::arg("other"), py::is_operator());
 
     // One Python class per structure; dtype is an attribute (RESTRUCTURE 3.1 item 4).
     py::class_<pycauset::DenseVectorBase, VectorBase, std::shared_ptr<pycauset::DenseVectorBase>>(

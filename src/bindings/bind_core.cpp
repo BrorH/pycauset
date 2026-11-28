@@ -62,15 +62,7 @@ void bind_core_classes(py::module_& m) {
         py::arg("path"));
 
 
-    m.def(
-        "norm",
-        [](const pycauset::VectorBase& v) { return pycauset::norm(v); },
-        py::arg("x"));
-
-    m.def(
-        "norm",
-        [](const pycauset::MatrixBase& mat) { return pycauset::norm(mat); },
-        py::arg("x"));
+    // (norm is bound once, in bind_math.cpp; a second pair here was shadowed, review 3.7 C-14.)
 
     m.def("sum", [](const pycauset::VectorBase& v) { return pycauset_bindings::reduction_to_py(pycauset::sum(v)); },
           py::arg("x"));
@@ -140,7 +132,7 @@ void bind_core_classes(py::module_& m) {
             }
         }
         return out;
-    });
+    }, py::arg("mat"));
     m.def("_derived_cache_import", [](const pycauset::MatrixBase& mat, const py::list& entries) {
         const auto& mapper = mat.shared_mapper();
         if (!mapper) return;
@@ -174,10 +166,10 @@ void bind_core_classes(py::module_& m) {
     }, py::arg("mat"), py::arg("entries"));
     m.def("_storage_version", [](const pycauset::MatrixBase& mat) -> uint64_t {
         return mat.shared_mapper() ? mat.shared_mapper()->version() : 0;
-    });
+    }, py::arg("obj"));
     m.def("_storage_version", [](const pycauset::VectorBase& vec) -> uint64_t {
         return vec.shared_mapper() ? vec.shared_mapper()->version() : 0;
-    });
+    }, py::arg("obj"));
 
     // pc.save's payload: the storage's bytes written straight into the container at `offset`
     // (review 3.9 C-2: it was copied into a populated staging file first, then copied again in
@@ -205,10 +197,10 @@ void bind_core_classes(py::module_& m) {
     // Bytes of storage an object maps (load checks it against the file's payload length).
     m.def("_storage_bytes", [](const pycauset::MatrixBase& mat) -> uint64_t {
         return mat.shared_mapper() ? mat.require_mapper()->get_data_size() : 0;
-    });
+    }, py::arg("obj"));
     m.def("_storage_bytes", [](const pycauset::VectorBase& vec) -> uint64_t {
         return vec.shared_mapper() ? vec.require_mapper()->get_data_size() : 0;
-    });
+    }, py::arg("obj"));
     m.def("_write_payload", [write_payload](const pycauset::MatrixBase& mat, const std::string& path, uint64_t offset) {
         return write_payload(mat.shared_mapper(), path, offset);
     }, py::arg("obj"), py::arg("path"), py::arg("offset"));

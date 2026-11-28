@@ -111,8 +111,8 @@ def test_solve_with_vector_rhs():
     np.testing.assert_allclose(to_np(pc.solve(pc.matrix(a), pc.vector(np.ones(3)))), np.linalg.solve(a, np.ones(3)))
 
 
-def test_eigen_methods_on_matrices():
-    w, _ = pc.matrix(A).eig()
+def test_eig():
+    w, _ = pc.eig(pc.matrix(A))
     np.testing.assert_allclose(np.sort_complex(to_np(w)), np.sort_complex(np.linalg.eigvals(A)), atol=1e-10)
 
 
@@ -231,9 +231,9 @@ def test_paired_index_arrays_on_a_structured_matrix():
         s[np.array([0, 1]), np.array([2])] = 1.0
 
 
-def test_eigh_method():
+def test_eigh():
     h = A + A.T
-    w, _ = pc.matrix(h).eigh()
+    w, _ = pc.eigh(pc.matrix(h))
     np.testing.assert_allclose(to_np(w), np.linalg.eigvalsh(h), atol=1e-10)
 
 

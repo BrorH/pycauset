@@ -348,7 +348,7 @@ py::object export_matrix_numpy(const pycauset::MatrixBase& m) { return export_nu
 }  // namespace pycauset_bindings
 
 void bind_matrix_classes(py::module_& m) {
-    auto matrix_base_class = py::class_<MatrixBase, std::shared_ptr<MatrixBase>>(m, "MatrixBase");
+    auto matrix_base_class = py::reinterpret_borrow<py::class_<MatrixBase, std::shared_ptr<MatrixBase>>>(m.attr("MatrixBase"));
     matrix_base_class
         .def_property_readonly("__array_priority__", [](const MatrixBase&) { 
             return 1000.0; 
@@ -414,8 +414,8 @@ void bind_matrix_classes(py::module_& m) {
         .def_property_readonly("ndim", [](const MatrixBase&) { return 2; }, "Number of dimensions (2), as NumPy's ndarray.ndim.")
         .def("rows", &MatrixBase::rows)
         .def("cols", &MatrixBase::cols)
-        .def("get_element_as_double", &MatrixBase::get_element_as_double)
-        .def("get_element_as_complex", &MatrixBase::get_element_as_complex)
+        .def("get_element_as_double", &MatrixBase::get_element_as_double, py::arg("i"), py::arg("j"))
+        .def("get_element_as_complex", &MatrixBase::get_element_as_complex, py::arg("i"), py::arg("j"))
         .def("_to_numpy_fast", [](const MatrixBase& mat, bool allow_huge) -> py::object {
             if (!allow_huge) {
                 pycauset::bindings::ensure_numpy_export_allowed(mat);
@@ -423,14 +423,14 @@ void bind_matrix_classes(py::module_& m) {
             return export_numpy(mat);
         }, py::arg("allow_huge") = false)
         .def("trace", [](const MatrixBase& mat) { return pycauset_bindings::reduction_to_py(pycauset::trace(mat)); })
-        .def("determinant", [](const MatrixBase& mat) -> py::object {
+        .def("_determinant", [](const MatrixBase& mat) -> py::object {  // pc.det
             // NumPy kinds: complex for complex matrices, float otherwise (F-059).
             const std::complex<double> d = pycauset::determinant(mat);
             const DataType dt = mat.get_data_type();
             const bool cplx = is_complex_dtype(dt) || mat.get_scalar().imag() != 0.0;
             return cplx ? py::cast(d) : py::cast(d.real());
         })
-        .def("slogdet", [](const MatrixBase& mat) -> py::tuple {
+        .def("_slogdet", [](const MatrixBase& mat) -> py::tuple {  // pc.slogdet
             const auto [sign, logabs] = pycauset::slogdet(mat);
             const DataType dt = mat.get_data_type();
             const bool cplx = is_complex_dtype(dt) || mat.get_scalar().imag() != 0.0;
@@ -439,11 +439,11 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__matmul__",
             [](const MatrixBase& a, const std::shared_ptr<MatrixBase>& b) { return matmul_mm(a, *b); },
-            py::is_operator())
+            py::arg("other"), py::is_operator())
         .def(
             "__matmul__",
             [](const MatrixBase& a, const std::shared_ptr<VectorBase>& v) { return matvec(a, *v); },
-            py::is_operator())
+            py::arg("other"), py::is_operator())
         .def(
             "__matmul__",
             [](const MatrixBase& a, const py::array& b) -> py::object {
@@ -451,7 +451,7 @@ void bind_matrix_classes(py::module_& m) {
                 if (b.ndim() == 2) return py::cast(matmul_mm(a, *matrix_from_numpy(b)));
                 throw py::value_error("Unsupported array rank for matmul");
             },
-            py::is_operator())
+            py::arg("other"), py::is_operator())
         .def(
             "__rmatmul__",
             // ndarray @ matrix: NumPy defers (`__array_ufunc__ = None`). A 1-D array is a row
@@ -466,7 +466,7 @@ void bind_matrix_classes(py::module_& m) {
                 if (b.ndim() == 2) return py::cast(matmul_mm(*matrix_from_numpy(b), a));
                 throw py::value_error("Unsupported array rank for matmul");
             },
-            py::is_operator())
+            py::arg("other"), py::is_operator())
         .def(
             "__matmul__",
             [](const MatrixBase&, const py::object&) -> py::object {
@@ -474,15 +474,15 @@ void bind_matrix_classes(py::module_& m) {
                 // handle the operation via their __rmatmul__.
                 return py::reinterpret_borrow<py::object>(Py_NotImplemented);
             },
-            py::is_operator())
-        .def("__add__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Add, false); }, py::is_operator())
-        .def("__radd__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Add, true); }, py::is_operator())
-        .def("__sub__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Sub, false); }, py::is_operator())
-        .def("__rsub__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Sub, true); }, py::is_operator())
-        .def("__mul__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Mul, false); }, py::is_operator())
-        .def("__rmul__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Mul, true); }, py::is_operator())
-        .def("__truediv__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Div, false); }, py::is_operator())
-        .def("__rtruediv__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Div, true); }, py::is_operator())
+            py::arg("other"), py::is_operator())
+        .def("__add__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Add, false); }, py::arg("other"), py::is_operator())
+        .def("__radd__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Add, true); }, py::arg("other"), py::is_operator())
+        .def("__sub__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Sub, false); }, py::arg("other"), py::is_operator())
+        .def("__rsub__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Sub, true); }, py::arg("other"), py::is_operator())
+        .def("__mul__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Mul, false); }, py::arg("other"), py::is_operator())
+        .def("__rmul__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Mul, true); }, py::arg("other"), py::is_operator())
+        .def("__truediv__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Div, false); }, py::arg("other"), py::is_operator())
+        .def("__rtruediv__", [](const MatrixBase& a, const py::object& b) { return matrix_arith(a, b, Arith::Div, true); }, py::arg("other"), py::is_operator())
         .def(
             "__neg__",
             [](const MatrixBase& a) {
@@ -532,10 +532,10 @@ void bind_matrix_classes(py::module_& m) {
              py::arg("i"), py::arg("j"), py::arg("value"))
         .def("__getitem__", [](const MatrixBase& mat, const py::object& key) -> py::object {
             return matrixbase_getitem_dispatch(mat, key);
-        })
+        }, py::arg("key"))
         .def("__setitem__", [](MatrixBase& mat, const py::object& key, const py::object& value) {
             matrixbase_setitem_dispatch(mat, key, value);
-        })
+        }, py::arg("key"), py::arg("value"))
         .def("fill", [](MatrixBase& mat, const py::object& value) {
             pycauset::visit_matrix(mat, [&](auto& typed) {
                 using M = std::remove_reference_t<decltype(typed)>;
@@ -556,38 +556,29 @@ void bind_matrix_classes(py::module_& m) {
             }
             return element_get(a, 0, 0).cast<bool>();
         })
-        .def("__eq__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Eq); }, py::is_operator())
-        .def("__ne__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Ne); }, py::is_operator())
-        .def("__lt__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Lt); }, py::is_operator())
-        .def("__le__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Le); }, py::is_operator())
-        .def("__gt__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Gt); }, py::is_operator())
-        .def("__ge__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Ge); }, py::is_operator())
+        .def("__eq__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Eq); }, py::arg("other"), py::is_operator())
+        .def("__ne__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Ne); }, py::arg("other"), py::is_operator())
+        .def("__lt__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Lt); }, py::arg("other"), py::is_operator())
+        .def("__le__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Le); }, py::arg("other"), py::is_operator())
+        .def("__gt__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Gt); }, py::arg("other"), py::is_operator())
+        .def("__ge__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Ge); }, py::arg("other"), py::is_operator())
         .def("__invert__", [](const MatrixBase& a) { return bitwise_call([&] { return pycauset::bitwise_not(a); }); },
              py::is_operator())
         // & | ^ are commutative, so the reflected forms are the same call.
-        .def("__and__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::And); }, py::is_operator())
-        .def("__rand__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::And); }, py::is_operator())
-        .def("__or__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::is_operator())
-        .def("__ror__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::is_operator())
-        .def("__xor__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::is_operator())
-        .def("__rxor__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::is_operator())
+        .def("__and__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::And); }, py::arg("other"), py::is_operator())
+        .def("__rand__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::And); }, py::arg("other"), py::is_operator())
+        .def("__or__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::arg("other"), py::is_operator())
+        .def("__ror__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Or); }, py::arg("other"), py::is_operator())
+        .def("__xor__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::arg("other"), py::is_operator())
+        .def("__rxor__", [](const MatrixBase& a, const py::object& o) { return matrix_bitwise(a, o, pycauset::BitwiseOp::Xor); }, py::arg("other"), py::is_operator())
         .def_property_readonly("is_lazy", [](const MatrixBase& mat) {
             if (auto* c = dynamic_cast<const pycauset::BitClosureMatrix*>(&mat)) {
                 if (!c->is_materialized()) return true;
             }
             return mat.get_scalar() != std::complex<double>(1.0, 0.0) || mat.is_transposed() || mat.is_conjugated();
-        }, "True when the elements are computed on read (a view or closure) rather than stored.")
-        .def("matmul", [](const MatrixBase& a, const MatrixBase& b) { return matmul_mm(a, b); }, py::arg("other"))
-        .def("eig", [](const MatrixBase& mat) {
-            auto r = pycauset::eig(mat);
-            return py::make_tuple(std::shared_ptr<VectorBase>(r.first.release()), std::shared_ptr<MatrixBase>(r.second.release()));
-        })
-        .def("eigvals", [](const MatrixBase& mat) { return std::shared_ptr<VectorBase>(pycauset::eigvals(mat).release()); })
-        .def("eigh", [](const MatrixBase& mat) {
-            auto r = pycauset::eigh(mat);
-            return py::make_tuple(std::shared_ptr<VectorBase>(r.first.release()), std::shared_ptr<MatrixBase>(r.second.release()));
-        })
-        .def("eigvalsh", [](const MatrixBase& mat) { return std::shared_ptr<VectorBase>(pycauset::eigvalsh(mat).release()); });
+        }, "True when the elements are computed on read (a view or closure) rather than stored.");
+        // (matmul / eig / eigvals / eigh / eigvalsh methods duplicated the module functions: gone,
+        // review 3.7 C-14.)
 
     // --- DenseMatrix ---------------------------------------------------------------------
     py::class_<pycauset::DenseMatrixBase, MatrixBase, std::shared_ptr<pycauset::DenseMatrixBase>>(
@@ -775,7 +766,7 @@ void bind_matrix_classes(py::module_& m) {
         if (array.ndim() == 1) return py::cast(vector_from_numpy(array));
         if (array.ndim() == 2) return py::cast(matrix_from_numpy(array));
         throw py::value_error("asarray only supports 1D or 2D arrays");
-    });
+    }, py::arg("array"));
 
 
     m.def(

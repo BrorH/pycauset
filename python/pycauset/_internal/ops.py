@@ -188,7 +188,7 @@ def lstsq(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 def slogdet(a: Any, *, deps: OpsDeps) -> tuple[Any, float]:
     """(sign, log|det|) from the engine's LU pivots, as NumPy: no overflow for large n, a
     complex unit sign for complex matrices, (0, -inf) when singular (F-070)."""
-    return a.slogdet()
+    return a._slogdet()
 
 
 @_traced("cond")
@@ -319,7 +319,7 @@ def trace(a: Any, *, deps: OpsDeps) -> Any:
 @_traced("determinant")
 def determinant(a: Any, *, deps: OpsDeps) -> Any:
     """Determinant of a square matrix: complex for complex matrices, else float (F-059)."""
-    return _engine_matrix(a, deps=deps).determinant()
+    return _engine_matrix(a, deps=deps)._determinant()
 
 
 def _ord_name(ord: Any) -> str:

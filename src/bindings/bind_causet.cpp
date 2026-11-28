@@ -64,7 +64,7 @@ void bind_causet_classes(py::module_& m) {
             if (!spacetime) {
                 throw std::invalid_argument("spacetime must not be None");
             }
-            return sprinkle_to_tbm(*spacetime, n, seed);
+            return std::shared_ptr<pycauset::MatrixBase>(sprinkle_to_tbm(*spacetime, n, seed));  // a TriangularMatrix
         },
         py::arg("spacetime"),
         py::arg("n"),

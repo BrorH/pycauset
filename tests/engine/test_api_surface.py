@@ -302,6 +302,22 @@ def test_stub_declares_every_public_name():
     assert not missing, f"public names missing from __init__.pyi: {missing}"
 
 
+def test_stub_declares_only_what_exists():
+    """The stub listed methods that were removed (MatrixBase.eig / matmul / determinant /
+    multiply, the `properties` layer): a type checker accepted calls that raise."""
+    import ast
+    from pathlib import Path
+
+    tree = ast.parse((Path(pc.__file__).parent / "__init__.pyi").read_text())
+    stale = []
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and hasattr(pc, node.name):
+            cls = getattr(pc, node.name)
+            stale += [f"{node.name}.{f.name}" for f in node.body
+                      if isinstance(f, ast.FunctionDef) and f.name != "__getattr__" and not hasattr(cls, f.name)]
+    assert not stale, f"declared in __init__.pyi but missing: {stale}"
+
+
 def test_type_stub_signatures_match_the_functions():
     """__init__.pyi's module-level functions name the same parameters as the real ones
     (13 were `(*args, **kwargs)`, F-007)."""

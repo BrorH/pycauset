@@ -15,4 +15,4 @@ A tuple `(sign, logabsdet)` where:
 - `logabsdet` is `log(abs(det(a)))` (`-inf` when the matrix is singular)
 
 As NumPy's `linalg.slogdet`: computed from the LU pivots, so it does not overflow where
-`det` would. Also `a.slogdet()`.
+`det` would.

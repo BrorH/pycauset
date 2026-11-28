@@ -17,15 +17,16 @@ Base class of every matrix. Not constructed directly; its methods are available 
   dtype raises `OverflowError`; a float assigned to an integer dtype is truncated; writing
   outside the stored part of a structure (e.g. below the diagonal of a
   `TriangularMatrix`) raises `ValueError`.
-* Slices and index arrays work for reading dense matrices and for assignment on all
-  structures: `A[0:2, 1:3] = 0`, `A[[0, 1], [2, 3]] = [5, 6]`.
+* NumPy's indexing for every structure: `A[0]` (a row), slices, index arrays and boolean
+  masks (`A[A > 5]`), for reading and assignment: `A[0:2, 1:3] = 0`,
+  `A[[0, 1], [2, 3]] = [5, 6]`. Dense slices with step 1 are views, everything else a copy
+  ([[guides/Matrix Guide|Matrix Guide]]).
 * `A.fill(v)`: set every stored element (dense matrices).
 
 ## Linear algebra
 
-`A @ B`, `A.matmul(B)`, `A.eig()`, `A.eigvals()`, `A.eigh()`,
-`A.eigvalsh()`, `A.trace()`, `A.determinant()`. The same operations exist as functions
-(`pycauset.matmul`, `pycauset.eigh`, ...).
+`A @ B` and `A.trace()`, as on a NumPy array. The rest are functions, as in NumPy:
+`pycauset.matmul`, `pycauset.eig`, `pycauset.eigh`, `pycauset.det`, `pycauset.slogdet`, ...
 
 ## Example
 

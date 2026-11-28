@@ -2,6 +2,8 @@
 
 #include "pycauset/core/Errors.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
+#include "pycauset/matrix/MatrixBase.hpp"
+#include "pycauset/vector/VectorBase.hpp"
 
 PYBIND11_MODULE(_pycauset, m) {
     m.doc() = "PyCauset: High-performance Causal Set Theory library";
@@ -26,6 +28,12 @@ PYBIND11_MODULE(_pycauset, m) {
 
     pycauset::init_thread_budget();  // the OpenBLAS default (core/ParallelUtils.hpp)
 
+    // The base class shells first, so every signature names them: functions bound before a class
+    // showed its C++ name (`-> pycauset::VectorBase`, review 3.7 C-14). The bind_* files add
+    // the methods to these.
+    py::class_<pycauset::MatrixBase, std::shared_ptr<pycauset::MatrixBase>>(m, "MatrixBase");
+    py::class_<pycauset::VectorBase, std::shared_ptr<pycauset::VectorBase>>(m, "VectorBase");
+
     bind_core_classes(m);
     bind_matrix_classes(m);
     bind_vector_classes(m);
@@ -38,6 +46,6 @@ PYBIND11_MODULE(_pycauset, m) {
         .def("get_total_system_ram", &pycauset::core::MemoryGovernor::get_total_system_ram)
         .def("get_available_system_ram", &pycauset::core::MemoryGovernor::get_available_system_ram)
         .def("get_safety_margin", &pycauset::core::MemoryGovernor::get_safety_margin)
-        .def("set_safety_margin", &pycauset::core::MemoryGovernor::set_safety_margin)
-        .def("can_fit_in_ram", &pycauset::core::MemoryGovernor::can_fit_in_ram);
+        .def("set_safety_margin", &pycauset::core::MemoryGovernor::set_safety_margin, py::arg("bytes"))
+        .def("can_fit_in_ram", &pycauset::core::MemoryGovernor::can_fit_in_ram, py::arg("bytes"));
 }
