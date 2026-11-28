@@ -234,6 +234,13 @@ void bind_core_classes(py::module_& m) {
         }
         return size;
     };
+    // Bytes of storage an object maps (load checks it against the file's payload length).
+    m.def("_storage_bytes", [](const pycauset::MatrixBase& mat) -> uint64_t {
+        return mat.shared_mapper() ? mat.shared_mapper()->get_data_size() : 0;
+    });
+    m.def("_storage_bytes", [](const pycauset::VectorBase& vec) -> uint64_t {
+        return vec.shared_mapper() ? vec.shared_mapper()->get_data_size() : 0;
+    });
     m.def("_write_payload", [write_payload](const pycauset::MatrixBase& mat, const std::string& path, uint64_t offset) {
         return write_payload(mat.shared_mapper(), path, offset);
     }, py::arg("obj"), py::arg("path"), py::arg("offset"));

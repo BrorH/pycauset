@@ -565,7 +565,10 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
     if not _is_new_container(path):
         raise ValueError("unsupported file format (expected new .pycauset container)")
 
-    metadata, data_offset = _read_new_container_metadata_and_offset(path)
+    active_slot, _, metadata = _read_active_slot_and_typed_metadata(path)
+    if not isinstance(metadata, dict):
+        raise ValueError("invalid file: metadata top-level is not a map")
+    data_offset = int(active_slot["payload_offset"])
 
     matrix_type = metadata.get("matrix_type")
 
@@ -613,6 +616,15 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         structure, dtype, storage_rows, storage_cols, str(path), data_offset, seed, scalar, is_transposed,
         bool(metadata.get("has_diagonal", False)),
     )
+
+    # The payload must be exactly the storage the metadata describes: a shape larger than the
+    # payload read the metadata block as values (review 3.9 C-7).
+    # (Identity matrices and unit vectors store nothing: their payload is empty.)
+    if structure not in ("identity", "unit_vector") and deps.native._storage_bytes(obj) != int(active_slot["payload_length"]):
+        raise ValueError(
+            f"invalid file: the payload is {active_slot['payload_length']} bytes, but a {structure} "
+            f"{dtype} matrix of shape {(rows, cols)} needs {deps.native._storage_bytes(obj)}"
+        )
 
     if is_conjugated:  # _open_storage applies the transpose (and factor) itself
         obj.set_conjugated(True)

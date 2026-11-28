@@ -1729,8 +1729,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
     do not have, so a write to a leaf went unnoticed and the stale product was served and
     saved. It pins the storage version now, and storage versions come from one process-wide
     counter (a copy-on-write copy never reuses its source's number).
-  - `test_F129_*`. The rest of the 3.9 list (C-5, C-7, C-8, the payload copied twice) is in
-    `review/areas/3.9-persistence.md`.
+  - C-7: load requires the payload length in the file to equal the storage the metadata
+    describes (`_storage_bytes`); a 9 x 9 label over an 8 x 8 payload loaded, reading the
+    metadata block as values.
+  - `test_F129_*`. Open from the 3.9 list: C-5 (block-matrix view blocks copied element by
+    element; complex_float16 blocks come back complex_float32), C-10 Windows share mode,
+    a payload checksum (C-3).
 
 ### F-130 Area 3.3 (factory and promotion): wrong values from structure rules, identity matmul, list input
 - **Status:** C-1, C-2, C-4, C-5, C-9 (Python parser, F-133), C-10 fixed (session 9); C-14 in

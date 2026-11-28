@@ -181,3 +181,44 @@ def test_F129_saved_derived_values_need_the_same_engine(tmp_path, monkeypatch):
     before = hits()
     assert pc.determinant(other) == pytest.approx(6.0)
     assert hits() == before  # recomputed
+
+
+def test_F129_payload_shorter_than_the_shape_raises(tmp_path):
+    """3.9 C-7: a valid file whose metadata says 9 x 9 over an 8 x 8 payload loaded, reading
+    the metadata block as values."""
+    from pathlib import Path
+
+    src = tmp_path / "s.pycauset"
+    pc.save(pc.matrix(np.arange(64.0).reshape(8, 8)), src)
+    active, _, meta = P._read_active_slot_and_typed_metadata(Path(src))
+    m = dict(meta)
+    m.update(rows=9, cols=9)
+    payload = P._encode_metadata_top_map(m)
+    block = (P._METADATA_BLOCK_MAGIC + struct.pack("<III", 1, 1, 0)
+             + struct.pack("<QII", len(payload), P._crc32(payload), 0) + payload)
+    with open(src, "r+b") as f:  # a newer slot pointing at the rewritten metadata
+        f.seek(0, 2)
+        off = P._align_up(f.tell(), 16)
+        f.write(b"\0" * (off - f.tell()) + block)
+        f.seek(P._SLOT_B_OFFSET)
+        f.write(P._pack_slot(generation=5, payload_offset=4096, payload_length=active["payload_length"],
+                             metadata_offset=off, metadata_length=len(block), hot_offset=0, hot_length=0))
+    with pytest.raises(ValueError, match="payload is 512 bytes"):
+        pc.load(src)
+
+
+@pytest.mark.parametrize("make", [
+    lambda: pc.matrix(np.arange(12.0).reshape(3, 4)),
+    lambda: pc.TriangularMatrix(5, dtype="bool", has_diagonal=True),
+    lambda: pc.TriangularMatrix(5, dtype="int16"),
+    lambda: pc.symmetric(np.eye(4)),
+    lambda: pc.diagonal(np.arange(4.0)),
+    lambda: pc.IdentityMatrix(3),
+    lambda: pc.vector(np.arange(5.0)),
+    lambda: pc.matrix(np.ones((3, 70), dtype=bool)),
+    lambda: pc.matrix(np.ones((3, 3)) * (1 + 1j)).T,
+])
+def test_round_trip_passes_the_payload_length_check(tmp_path, make):
+    m = make()
+    pc.save(m, tmp_path / "m.pycauset")
+    np.testing.assert_array_equal(to_np(pc.load(tmp_path / "m.pycauset")), to_np(m))
