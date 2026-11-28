@@ -33,7 +33,7 @@ moves, keeping the Review/Notes columns. Snapshot: commit `046c5ab`, 2026-11-24.
 | `benchmarks/` | 3 benchmark scripts (after review 3.15); `parity.py` is the CI one | consolidate |
 | `demos/` | 7 short conference demos + README | live, not run in CI |
 | `tools/` | audits (`audit_public_surface`, `check_native_exports`, `check_support_matrix`), PowerShell build/release/CUDA install, one-off diagnostics | mixed |
-| `scripts/make_r1_gallery.py` | regenerates README gallery images | move to tools |
+| `scripts/make_r1_gallery.py` | regenerates README gallery images | now `tools/make_gallery.py` |
 | `mockups/` | one HTML mockup ("Spacetime Studio") | delete |
 | `documentation/` | MkDocs site source (see below) | ~20 broken snippets (F-008) |
 | `overrides/` | MkDocs theme overrides | live |

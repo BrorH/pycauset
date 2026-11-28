@@ -32,7 +32,7 @@ Ground rules (from the maintainer, 2026-11-24):
 | now | proposal |
 |---|---|
 | `mockups/spacetime_studio_mockup.html` | delete (an idea, not code; note it on the roadmap if wanted) |
-| `scripts/make_r1_gallery.py` | move to `tools/make_gallery.py` |
+| `scripts/make_r1_gallery.py` | moved: `tools/make_gallery.py` (review 3.12 C-5) |
 | `tools/` (mix of ps1 build scripts, audits, diagnostics) | keep `tools/`, split into `tools/dev/` (audits, checks) and `tools/release/`; delete one-off diagnostics (`macos_hang_diagnose.py`) once its bug is closed |
 | `demos/` | keep (user-facing), and run it in CI as a smoke test |
 | `benchmarks/` (11 scripts, overlapping; 3 kept after review 3.15) | consolidate into one harness plus scenarios; delete `benchmark_numpy_parity.py`, `benchmark_io_smoke.py`, `bench_coverage.py` if superseded (verify first) |
