@@ -66,7 +66,9 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
 
 - [~] **1.1 Test harness:** single `tests/conftest.py`; remove the 15 `sys.path`
       hacks (done: no sys.path edits left); run against an editable install (`pip install -e . --no-build-isolation`);
-      stop copying `.so` files into `python/pycauset/` in CI (F-023).
+      stop copying `.so` files into `python/pycauset/` in CI (F-023). Session 9: CI and ASan run `pytest -o pythonpath=`
+      against the installed package; the copy steps are gone (simulated here with the package
+      outside the tree: same results; first GitHub run to watch).
 - [x] **1.2 C++ tests in CI:** all 9 gtests wired; `cpp-tests` job in `ci.yml` (session 2;
       first GitHub run still to be observed).
 - [x] **1.3 Sanitizers on PRs:** `asan.yml` now runs ASan+UBSan (fatal) on pushes and PRs,

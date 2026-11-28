@@ -55,23 +55,17 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install ".[test]"
 
-      - name: Deploy native extension into source tree
-        # The test suite adds the repo's python/ dir to sys.path and imports the
-        # package from there, but pip installs the compiled _pycauset extension and
-        # its DLLs into site-packages. Copy the native artifacts next to the source
-        # so the tests find them.
-        run: python -c "import pycauset, pathlib, shutil; sp = pathlib.Path(pycauset.__file__).parent; dst = pathlib.Path('python/pycauset'); [shutil.copy2(str(f), str(dst / f.name)) for pat in ('*.pyd','*.so','*.dylib','*.dll') for f in sp.glob(pat)]; libs = sp / 'libs'; shutil.copytree(str(libs), str(dst / 'libs'), dirs_exist_ok=True) if libs.exists() else None"
-
       - name: Run tests
         timeout-minutes: 10
-        # testpaths in pyproject: the engine suite (tests/engine) and the block-matrix feature
-        # (tests/blockmatrix). Physics is parked in experimental/physics for R1.
-        run: python -m pytest -q --tb=short -rfEs
+        # Against the installed package (`-o pythonpath=` drops pyproject's `python/`, which is
+        # for source-tree development): CI tests what pip built, without copying the extension
+        # into the source tree (F-023). testpaths: tests/engine and tests/blockmatrix.
+        run: python -m pytest -o pythonpath= -q --tb=short -rfEs
 
       - name: Engine suite with lazy results disabled (lazy == eager oracle, LAZY.md section 10)
         env:
           PYCAUSET_LAZY: "0"
-        run: python -m pytest -q --tb=short -rfEs tests/engine
+        run: python -m pytest -o pythonpath= -q --tb=short -rfEs tests/engine
 
       - name: Benchmark (parity vs NumPy, report-only)
         # Visibility: this reports the numpy_time/pycauset_time
