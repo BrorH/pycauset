@@ -36,6 +36,15 @@ jobs:
           # Python versions follow requires-python (3.10+)
           # Skip 32-bit builds (Linux i686 is skipped by pattern, Windows 32-bit by ARCHS config)
           CIBW_SKIP: "cp36-* cp37-* pp* *i686* *-musllinux*"
+
+          # Smoke-test every built wheel in a clean environment before it can be uploaded: a
+          # wheel missing its bundled BLAS / OpenMP libraries fails here, not on a user's machine.
+          CIBW_TEST_COMMAND: >-
+            python -c "import numpy as np, pycauset as pc;
+            a = pc.matrix(np.arange(9.0).reshape(3, 3));
+            assert np.allclose(np.asarray(a @ a), np.arange(9.0).reshape(3, 3) @ np.arange(9.0).reshape(3, 3));
+            assert abs(pc.determinant(pc.matrix(np.eye(3) * 2)) - 8) < 1e-12;
+            print('pycauset', pc.__version__, 'ok')"
           
           # Pass specific hints to CMake via environment variables to help FindPython
           # scikit-build-core usually handles this, but explicit hints prevent "found 3.8 but wanted 3.11" errors
