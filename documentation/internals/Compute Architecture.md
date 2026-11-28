@@ -36,9 +36,17 @@ flowchart LR
 | `CpuMatmul.cpp` | dense GEMM (BLAS), structured and bit matmul (`popcount`) |
 | `CpuElementwise.cpp` | `+ - * /`, bitwise ops, packed structured element-wise |
 | `CpuLinalg.cpp` | LAPACK factorizations and eigensolvers (`eigh`, `eig`, `cholesky`, `lu`, `qr`) |
-| `CpuSolver.cpp` | dot, norms, matrix-vector, `compute_k`, `svd`, `solve` |
-| `CpuIterative.cpp` | Arnoldi, skew eigensolvers, batched matrix-vector |
+| `CpuSolver.cpp` | dot, norms, matrix-vector (dense: BLAS gemv; structured: over the packed storage, see below), `compute_k`, `svd`, `solve` |
+| `CpuIterative.cpp` | Arnoldi, skew eigensolvers |
 | `CpuKernelsCommon.hpp` | shared helpers |
+
+Kernels that need a structured, transposed, windowed or bit operand as rows read it through
+the bulk reader (`math/RawRows.hpp`: stored values a tile of rows at a time, transposes
+gathered in blocks) and apply the view rule themselves; plain dense operands are read in
+place. Matrix-vector products of structured matrices run over the packed storage: diagonal
+directly, triangular as gathers (scatters when transposed), and the symmetric family as one
+pass that gathers each stored row and scatters its mirror (real: four rows at a time, partial
+buffers per thread).
 
 ## Out-of-core execution
 
