@@ -104,7 +104,7 @@ storage or a pending scale. `pc.to_numpy(M, dtype=...)` converts the copy.
 Converting a massive out-of-core matrix to NumPy is dangerous-it forces the entire dataset into RAM, which can crash your process. PyCauset guards against this.
 
 - **Snapshot-backed** (`.pycauset`) and **RAM-backed** (`:memory:`) objects: `np.array(obj)` is allowed and returns a copy.
-- **Size guard**: `np.array(obj)` raises when the array would not fit in free RAM, or exceeds the ceiling set with [[docs/functions/pycauset.set_export_max_bytes.md|pc.set_export_max_bytes(bytes)]]. RAM- and file-backed objects are treated alike (spilling to a file is automatic, so it is no reason to refuse). Opt out with `pc.to_numpy(obj, allow_huge=True)`.
+- **Size guard**: `np.array(obj)` raises when the array would not fit in free RAM, or exceeds the ceiling set with [[docs/functions/pycauset.set_export_max_bytes.md|pc.set_export_max_bytes(bytes)]]. RAM- and file-backed objects are treated alike (file backing is automatic, so it is no reason to refuse). Opt out with `pc.to_numpy(obj, allow_huge=True)`.
 
 If you see an export error, either downsize, keep the data in PyCauset ops, or opt in with `allow_huge=True` intentionally.
 

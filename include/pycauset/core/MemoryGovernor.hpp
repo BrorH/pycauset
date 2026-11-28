@@ -17,10 +17,10 @@ namespace core {
 /**
  * @brief The MemoryGovernor manages the global RAM budget for the application.
  * 
- * It implements a "Tiered Storage" architecture where objects are kept in RAM
- * as long as possible, and evicted to disk only when memory pressure is high.
- * 
- * It uses an LRU (Least Recently Used) policy to decide which objects to evict.
+ * Tiered storage: a new object is placed in RAM when it fits the budget (free RAM minus a
+ * safety margin), otherwise in a memory-mapped file. Objects are never moved to disk later:
+ * kernels hold raw pointers into their operands' storage (F-120). The registry of RAM
+ * objects tracks the RAM PyCauset holds.
  */
 class MemoryGovernor {
 public:
@@ -45,19 +45,10 @@ public:
     void unregister_object(PersistentObject* obj);
 
     /**
-     * @brief Notifies the governor that an object has been accessed.
-     * This updates its position in the priority queue (LRU).
-     * @param obj The object that was accessed.
-     */
-    void touch(PersistentObject* obj);
-
-    /**
      * @brief Requests permission to allocate memory in RAM.
      * 
-     * If sufficient RAM is available, it returns true.
-     * If RAM is full, it attempts to evict lower-priority objects to make space.
-     * If eviction frees too little, it returns false (caller must use disk); if writing an
-     * evicted object to disk fails, that error propagates.
+     * True when the request fits the budget; false otherwise (the caller uses a file).
+     * Nothing already allocated is moved to make room.
      * 
      * @param size_bytes The amount of memory requested.
      * @return true if allocation is allowed in RAM, false otherwise.
@@ -175,8 +166,6 @@ private:
     // Internal helper to poll OS memory
     void refresh_system_stats() const;
 
-    // Internal helper to evict objects until `needed_bytes` are free
-    bool evict_until_fits(size_t needed_bytes);
 
     // State
     mutable std::recursive_mutex mutex_;

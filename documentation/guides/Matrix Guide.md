@@ -1,6 +1,6 @@
 Matrices are the backbone of PyCauset. The engine follows NumPy conventions, so it feels familiar.
 
-`pycauset` behaves like NumPy at small scales (storing data in RAM), but converts to a memory-efficient beast at high scales (automatically spilling to disk).
+`pycauset` behaves like NumPy at small scales (storing data in RAM), but keeps large matrices in memory-mapped files on disk (automatically, above a size threshold or when RAM is short).
 
 # Creating a Matrix
 
@@ -273,7 +273,7 @@ By default, `pycauset` manages backing files automatically. Files are stored in 
 
 Temporary file types you may see in the backing directory:
 
-*   `.tmp`: session-only backing files holding payload bytes (including spill/eviction).
+*   `.tmp`: session-only backing files holding payload bytes of file-backed objects.
 *   `.raw_tmp`: staging files created while `save()` is writing a snapshot.
 
 ### Saving a Matrix

@@ -269,16 +269,6 @@ void MemoryGovernor::unregister_object(PersistentObject* obj) {
     }
 }
 
-void MemoryGovernor::touch(PersistentObject* obj) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    
-    auto it = lru_map_.find(obj);
-    if (it != lru_map_.end()) {
-        // Move to back (Most Recent)
-        lru_list_.splice(lru_list_.end(), lru_list_, it->second);
-    }
-}
-
 void MemoryGovernor::update_size(PersistentObject* obj, size_t new_size_bytes) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     
@@ -300,54 +290,10 @@ bool MemoryGovernor::request_ram(size_t size_bytes) {
         return true;
     }
 
-    // 2. Not enough space. Try to evict.
-    return evict_until_fits(size_bytes);
-}
-
-bool MemoryGovernor::evict_until_fits(size_t needed_bytes) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    
-    // We need to free up enough bytes so that:
-    // (Available + Freed) > (Needed + Margin)
-    // => Freed > (Needed + Margin) - Available
-    
-    refresh_system_stats();
-    uint64_t available = cached_available_ram_;
-    uint64_t margin = safety_margin_;
-    
-    if (available > (needed_bytes + margin)) return true; // Race condition check
-
-    uint64_t target_to_free = (needed_bytes + margin) - available;
-    uint64_t freed_so_far = 0;
-
-    // Iterate from Front (Least Recent)
-    auto it = lru_list_.begin();
-    while (it != lru_list_.end() && freed_so_far < target_to_free) {
-        PersistentObject* victim = *it;
-        size_t victim_size = object_sizes_[victim];
-        
-        // Save next iterator because 'it' might be invalidated by spill_to_disk -> unregister_object
-        auto next_it = std::next(it);
-
-        // Attempt to spill to disk
-        if (victim->spill_to_disk()) {
-            freed_so_far += victim_size;
-            
-            // Since victim was removed from lru_list_, 'it' is invalid.
-            // 'next_it' is still valid (unless victim was the last element, then next_it is end()).
-            // However, since we modified the list, let's just restart from begin() to be safe and simple.
-            // The next LRU object is now at begin().
-            it = lru_list_.begin();
-        } else {
-            // Failed to spill (maybe pinned or error), skip it
-            it = next_it;
-        }
-    }
-    
-    if (freed_so_far >= target_to_free) {
-        return true;
-    }
-
+    // 2. Not enough space: the caller puts the new object in a file. Existing objects are not
+    // moved to disk to make room: a running kernel holds raw pointers into their storage
+    // (spilling one mid-operation freed the block under it: a crash in bit matmul, review 3.1
+    // C-2, F-120), and views of one storage were spilled one copy each.
     return false;
 }
 

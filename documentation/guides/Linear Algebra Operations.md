@@ -121,7 +121,7 @@ Dense matrices support NumPy-style indexing: basic slices are views; advanced (i
 
 ## Persistence
 
-- Matrices may spill to disk automatically; views share storage until written (copy-on-write).
+- Large matrices are file-backed automatically; views share storage until written (copy-on-write).
 - Save/load with [[docs/functions/pycauset.save.md|pycauset.save]] and [[docs/functions/pycauset.load.md|pycauset.load]]; saving a window stores just the window.
 
 ## Size limits

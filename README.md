@@ -64,7 +64,7 @@ pip install .
 ### Debug mode
 
 Set `pycauset.debug_mode = True` (default `False`) to print diagnostics to stderr:
-matrix shape/dtype and whether each is in RAM or spilled to disk, operation timings
+matrix shape/dtype and whether each is in RAM or in a file, operation timings
 (`matmul`, `@`, `invert`, `solve`, …), storage configuration changes, and file I/O. Every line is prefixed `[pycauset]`.
 
 ```python

@@ -29,7 +29,7 @@ flowchart LR
 
 - **[[guides/Saving and Loading Data|Saving and Loading Data]]** — save, load, and convert `.pycauset` / `.npy` / `.npz`.
 - **[[guides/Numpy Integration|NumPy Integration]]** — moving data between PyCauset and NumPy.
-- **[[guides/Storage and Memory|Storage and Memory]]** — how large objects spill to disk and how to control it.
+- **[[guides/Storage and Memory|Storage and Memory]]** — when objects live in RAM or in files, and how to control it.
 
 ## The matrix engine
 

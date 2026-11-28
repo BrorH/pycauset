@@ -1575,3 +1575,39 @@ the entry (the history is useful). New findings go at the bottom with the next f
   and `B[[0, 1], [2, 3]]` was A's elements; `A.conj()[...]` lost the conjugation. The copies
   keep the source's factor and conjugation now. `test_F119_*` (float, transposed, integer
   view, conj, scaled conjugate transpose).
+
+### F-120 The memory governor spilled live operands to disk mid-operation
+- **Status:** fixed (session 9; area 3.1 review, C-2). When a RAM request did not fit, the
+  governor moved the oldest registered RAM objects to `.tmp` files (`evict_until_fits` →
+  `PersistentObject::spill_to_disk`), which replaced their storage. Kernels hold raw pointers
+  into their operands' and results' storage for the whole operation, so a result allocated
+  mid-operation (or on another thread) could free the bytes a kernel was reading: a crash or
+  wrong values, under memory pressure only. Views of one storage each spilled their own full
+  copy and counted it as freed (C-6). `touch()` had no callers, so "least recently used" was
+  "oldest".
+- Fix: no eviction. An object's placement (RAM or file) is decided when it is made:
+  `request_ram` answers whether the request fits and the caller uses a file when it does not.
+  Removed `evict_until_fits`, `touch`, both `spill_to_disk` (the `MatrixBase` one was a dead
+  second copy), and their gtests. Big temporaries were file-backed by the memory threshold
+  already; the RAM cost is that objects made while RAM was free stay in RAM.
+  `test_F120_no_object_moves_to_disk_after_creation`.
+
+### F-121 Processes sharing a storage directory overwrote and deleted each other's files
+- **Status:** fixed (session 9; area 3.1 review, C-1). Temp names were `<prefix>_<n>.tmp`
+  with a per-process counter, created without O_EXCL: two processes (two notebooks, a
+  `multiprocessing` pool) using one backing directory gave their first matrices the same
+  file, the second truncating the first's data. And each process's exit sweep deleted every
+  `.tmp` in the directory, including the live files of the others.
+- Fix: names carry the pid (`<prefix>_<pid>_<n>.tmp`), and the sweep skips files whose pid
+  is a live other process (POSIX; on Windows open files cannot be deleted anyway).
+  `test_F121_*`.
+
+### F-122 msync and madvise never ran: flushes, saves and hints did nothing
+- **Status:** fixed (session 9; area 3.1 review, C-5). The data pointer is 64 bytes
+  past the start of the mapping (the header), not page-aligned, so every `msync` failed with
+  EINVAL and the result was ignored: `pc.save` and file-backed objects were not synced. The
+  range is aligned down to the page now and a failure raises; heap (RAM) storage skips the
+  flush. IOAccelerator's `madvise` hints were no-ops for the same reason: prefetch covers
+  the range now and discard drops only whole pages inside it, never a copy-on-write snapshot's
+  (its writes exist only in memory). `MADV_HUGEPAGE` removed. Helper: `PageRange.hpp`.
+  `test_F122_*`.

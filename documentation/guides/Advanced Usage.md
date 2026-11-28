@@ -14,7 +14,7 @@ cutoff is the native memory threshold, 1 GB by default.
 ```python
 import pycauset as pc
 
-pc.set_memory_threshold(100 * 1024 * 1024)   # spill above 100 MB
+pc.set_memory_threshold(100 * 1024 * 1024)   # file-backed above 100 MB
 print(pc.get_memory_threshold())             # read it back
 pc.set_memory_threshold(None)                # reset to the default
 ```

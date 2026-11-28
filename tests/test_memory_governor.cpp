@@ -10,7 +10,7 @@ class MockObject : public PersistentObject {
 public:
     MockObject() : PersistentObject() {}
     
-    // Helper to inject a real mapper for testing spill
+    // Helper to inject a real mapper
     void set_mapper(std::shared_ptr<MemoryMapper> m) {
         mapper_ = std::move(m);
         // Manually register if it's RAM
@@ -93,70 +93,6 @@ TEST_F(MemoryGovernorTest, RequestRam) {
     // Note: This assumes the system doesn't have exabytes of RAM
     uint64_t impossible = gov.get_total_system_ram() + 1024ULL * 1024 * 1024 * 1024; 
     EXPECT_FALSE(gov.request_ram(impossible));
-}
-
-TEST_F(MemoryGovernorTest, EvictionLogic) {
-    MemoryGovernor& gov = MemoryGovernor::instance();
-    
-    // 1. Create an object in RAM (1MB)
-    MockObject obj1;
-    auto mapper1 = std::make_unique<MemoryMapper>(":memory:", 1024 * 1024, 0, true);
-    obj1.set_mapper(std::move(mapper1));
-    
-    EXPECT_EQ(gov.get_tracked_ram_usage(), 1024 * 1024);
-    EXPECT_EQ(obj1.get_storage_state(), StorageState::RAM_ONLY);
-
-    // 2. Force eviction by setting safety margin to (Available - 500KB)
-    // This means we only have 500KB "usable" RAM.
-    uint64_t avail = gov.get_available_system_ram();
-    if (avail > 1024 * 1024 * 2) { // Ensure we have enough RAM to play with
-        gov.set_safety_margin(avail - 512 * 1024); 
-        
-        // 3. Request 1MB. This requires 1MB + Margin > Available.
-        // Since Margin is almost Available, this will definitely fail unless we evict.
-        // obj1 (1MB) is in the way.
-        
-        // Note: request_ram calls evict_until_fits.
-        // evict_until_fits will try to spill obj1.
-        
-        bool success = gov.request_ram(1024 * 1024);
-        
-        // Check if obj1 was spilled
-        if (obj1.get_storage_state() == StorageState::DISK_BACKED) {
-            // Eviction happened!
-            EXPECT_EQ(gov.get_tracked_ram_usage(), 0); // obj1 is no longer tracked
-            EXPECT_TRUE(success);
-        } else {
-            // Eviction failed (maybe OS reported more RAM suddenly or spill failed)
-            // This test is flaky depending on OS memory dynamics.
-            // But we can check if spill_to_disk works manually.
-        }
-    }
-}
-
-TEST_F(MemoryGovernorTest, ManualSpill) {
-    MemoryGovernor& gov = MemoryGovernor::instance();
-    
-    // Set a small safety margin to ensure request_ram succeeds
-    // unless the system is critically low on memory.
-    uint64_t old_margin = gov.get_safety_margin();
-    gov.set_safety_margin(0);
-
-    MockObject obj;
-    auto mapper = std::make_unique<MemoryMapper>(":memory:", 1024, 0, true);
-    obj.set_mapper(std::move(mapper));
-
-    EXPECT_EQ(obj.get_storage_state(), StorageState::RAM_ONLY);
-    EXPECT_EQ(gov.get_tracked_ram_usage(), 1024);
-
-    // Spill
-    EXPECT_TRUE(obj.spill_to_disk());
-    EXPECT_EQ(obj.get_storage_state(), StorageState::DISK_BACKED);
-    EXPECT_EQ(gov.get_tracked_ram_usage(), 0);
-    EXPECT_NE(obj.get_backing_file(), ":memory:");
-
-    // Restore margin
-    gov.set_safety_margin(old_margin);
 }
 
 TEST_F(MemoryGovernorTest, PinnedMemoryBudget) {

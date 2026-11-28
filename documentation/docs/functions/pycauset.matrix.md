@@ -36,7 +36,7 @@ Rules:
 
 *   **source** (*sequence or numpy.ndarray*): 1D nested data (e.g. list) / 1D NumPy array, or 2D nested data (e.g. list-of-lists) / 2D NumPy array.
 *   **dtype** (*str or type, optional*): Coerce storage dtype (e.g. `"float64"`, `"int32"`, `float`, `int`). Without it, a NumPy array keeps its dtype, and Python integers become **int32** (NumPy: int64), as do `int` and `"int"`; see [[internals/DType System|DType System]] §3.2.
-*   **storage** (*str, optional*): Backing policy for 2D NumPy-array input. `"ram"` (default) keeps the matrix in anonymous memory until the memory threshold forces a spill; `"disk"` forces a disk-backed (mmap) matrix regardless of size. Requires NumPy-array input; any other value raises `ValueError`. For explicit persistence use [[pycauset.save]], and for automatic spill control use [[pycauset.set_memory_threshold]].
+*   **storage** (*str, optional*): Backing policy for 2D NumPy-array input. `"ram"` (default) keeps the matrix in RAM unless it is above the memory threshold or does not fit (then file-backed); `"disk"` forces a disk-backed (mmap) matrix regardless of size. Requires NumPy-array input; any other value raises `ValueError`. For explicit persistence use [[pycauset.save]], and for the RAM / file threshold use [[pycauset.set_memory_threshold]].
 *   **kwargs**: Passed through to the backend constructor.
 
 ## Returns

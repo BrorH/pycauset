@@ -50,12 +50,9 @@ PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
 }
 
 PersistentObject::~PersistentObject() {
-    // Derived matrix types do not call close() from their destructors, so the
-    // MemoryGovernor's LRU would otherwise accumulate dangling PersistentObject*
-    // entries and evict_until_fits() would dereference them (use-after-free).
-    // Unregister here so the governor only ever holds live objects. Safe if
-    // already unregistered (close()/spill_to_disk() ran first): unregister is a
-    // no-op when the pointer is absent.
+    // Derived matrix types do not call close() from their destructors: unregister here so
+    // the governor's registry only ever holds live objects. Safe if already unregistered
+    // (close() ran first): unregister is a no-op when the pointer is absent.
     if (storage_state_ == pycauset::core::StorageState::RAM_ONLY) {
         pycauset::core::MemoryGovernor::instance().unregister_object(this);
     }
@@ -138,51 +135,6 @@ void PersistentObject::copy_storage_now() {
         } else {
             storage_state_ = pycauset::core::StorageState::RAM_ONLY;
         }
-    }
-}
-
-void PersistentObject::touch() {
-    if (storage_state_ == pycauset::core::StorageState::RAM_ONLY) {
-        pycauset::core::MemoryGovernor::instance().touch(this);
-    }
-}
-
-bool PersistentObject::spill_to_disk() {
-    if (storage_state_ != pycauset::core::StorageState::RAM_ONLY || !mapper_) {
-        return false;
-    }
-
-    // 1. Create temp file path
-    std::string temp_path = pycauset::make_unique_storage_file("spill");
-    size_t size = mapper_->get_data_size();
-
-    try {
-        storage_state_ = pycauset::core::StorageState::TRANSITIONING;
-
-        // 2. Create new file-backed mapper
-        auto new_mapper = std::make_unique<MemoryMapper>(temp_path, size, 0, true);
-
-        // 3. Copy data
-        std::memcpy(new_mapper->get_data(), mapper_->get_data(), size);
-        new_mapper->flush();
-
-        // 4. Swap mappers
-        mapper_ = std::move(new_mapper);
-        accelerator_.reset();
-
-        // 5. Update state
-        storage_state_ = pycauset::core::StorageState::DISK_BACKED;
-        is_temporary_ = true; // Spilled files are always temporary
-
-        // 6. Unregister from Governor (RAM usage is now 0)
-        pycauset::core::MemoryGovernor::instance().unregister_object(this);
-
-        return true;
-    } catch (...) {
-        // The data is still in RAM; the error (disk full, unwritable backing directory) is the
-        // caller's answer, not a message on stderr.
-        storage_state_ = pycauset::core::StorageState::RAM_ONLY;
-        throw;
     }
 }
 

@@ -195,3 +195,6 @@ Other rarely used features: tech lead proposes per feature in Phase 3.
 - [x] `MemoryGovernor::should_use_direct_path` (was `can_fit_in_ram` under another name);
       its third caller, a RAM check on NumPy import, refused arrays that would have been
       file-backed anyway (F-114).
+- [x] Memory eviction (F-120): `MemoryGovernor::evict_until_fits` and `touch`,
+      `PersistentObject::spill_to_disk` and `touch`, `MatrixBase::spill_to_disk(filename)`,
+      the EvictionLogic / ManualSpill gtests.

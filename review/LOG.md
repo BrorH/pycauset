@@ -728,3 +728,8 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   copy-on-write), F-119 (indexing copies lost the view; the F-112 vector path too). The 3.1
   list (two serious: temp-file name collisions between processes, spill of live operands under
   memory pressure) is next.
+- Area 3.1 fixes (storage core): temp names carry the pid and the exit sweep spares live
+  other processes' files (F-121, C-1); no eviction: placement is fixed when an object is made,
+  `request_ram` only answers (F-120, C-2; spill/touch code and its gtests removed); msync is
+  page-aligned and checked, and RAM storage skips it (F-122, C-5; madvise too: discard skips copy-on-write snapshots). Docs (guides,
+  internals, README) describe the no-spill model. Gates: 4,320 main, 4,266 lazy-off, gtests 5/5.

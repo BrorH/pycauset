@@ -13,8 +13,9 @@ in one of two places:
 - **Disk** — a memory-mapped file, either a temporary session file (`.tmp`) or a
   persisted `.pycauset` snapshot.
 
-Objects start in RAM and spill to disk when the `MemoryGovernor` decides there is
-no room, or when you ask for disk directly (`storage="disk"` on `matrix()`).
+Each object is placed once, at creation: in RAM when it is below the memory threshold and
+the `MemoryGovernor` has room, otherwise in a file (or when you ask, `storage="disk"`). It
+is never moved later: kernels hold raw pointers into their operands (F-120).
 
 ## PersistentObject
 
@@ -37,15 +38,15 @@ See [[guides/Storage and Memory]] for the user-facing policy.
 
 ## The Memory Governor
 
-`MemoryGovernor` is the singleton that decides what fits and what spills.
+`MemoryGovernor` is the singleton that decides what fits in RAM.
 
 - **Budget.** It polls the OS for actually-available RAM (using `free + inactive`
   pages on macOS, `MemAvailable` on Linux) and keeps a safety margin (10% of RAM
   or 2 GB, whichever is smaller).
-- **Tracking.** It keeps every `PersistentObject` in an LRU list. Touching an
-  object moves it to the front.
-- **Eviction.** `request_ram(size)` returns true when `available > size + margin`.
-  Otherwise it spills the least-recently-used objects to disk until there is room.
+- **Tracking.** It keeps a registry of the RAM-backed objects and their sizes.
+- **Placement.** `request_ram(size)` returns true when `available > size + margin`;
+  otherwise the new object is file-backed. Nothing already allocated is spilled: a running
+  kernel holds raw pointers into its operands, and spilling one under it crashed (F-120).
 
 ```cpp
 // In PersistentObject::initialize_storage
@@ -75,7 +76,13 @@ the I/O). Otherwise matmul and element-wise operations stream tile by tile
   `MAP_POPULATE` (Linux) pulls pages into the page cache before the CPU faults on
   them.
 - **Discard:** `OfferVirtualMemory` (Windows) / `MADV_DONTNEED` (Linux) lets the
-  OS drop pages that will not be reused.
+  OS drop pages that will not be reused. Only shared file pages, which read back from the
+  file: RAM storage and copy-on-write snapshots (written pages exist only in memory) are
+  skipped, and only whole pages inside the range are dropped.
+
+POSIX wants page-aligned addresses for `madvise` and `msync`, and the data starts 64 bytes
+into the mapping (the header): `PageRange.hpp` widens a range to the pages it touches (sync,
+read-ahead) or narrows it to the pages inside it (discard). A failed `msync` raises.
 
 The workflow is: create (reserve space) -> prefetch -> compute -> discard.
 
@@ -89,7 +96,7 @@ A large object converted naively to a NumPy array would blow up RAM. The export 
 (`src/bindings/numpy_export_guard.hpp`, and `_internal/export_guard.py` for the Python-level
 block matrices) is by size only: an export that would not fit in free RAM, or that exceeds
 the `set_export_max_bytes` ceiling, raises unless `allow_huge=True`. Whether the object is
-in RAM or in a file does not matter: spilling is automatic, so it is no reason to refuse
+in RAM or in a file does not matter: file backing is automatic, so it is no reason to refuse
 (F-016). See [[docs/functions/pycauset.to_numpy.md|pycauset.to_numpy]].
 
 ## File formats
@@ -111,7 +118,8 @@ words for bit matrices). Metadata updates never shift the payload.
 
 ### `.tmp` (session backing file)
 
-Temporary storage for spilled objects and large intermediates. Managed by
+Temporary storage for objects placed in files (large ones, or those that did not fit RAM).
+Named `<prefix>_<pid>_<n>.tmp`, so processes sharing a backing directory never collide (F-121). Managed by
 `src/core/MemoryMapper.cpp`.
 
 - A 64-byte header (magic + version + reserved).

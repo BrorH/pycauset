@@ -141,3 +141,101 @@ def test_storage_sweep_helpers(tmp_path):
     assert inside.exists()  # clearing the tracker never deletes
     _storage.cleanup_storage(tmp_path)
     assert not inside.exists()
+
+
+# --- area 3.1 review: several processes, one storage directory (F-121) ---------------------
+
+_CHILD = r"""
+import sys, time
+import numpy as np
+import pycauset as pc
+pc.set_backing_dir(sys.argv[1])
+m = pc.matrix(np.full((32, 32), float(sys.argv[2])), storage="disk")
+print(m.get_backing_file(), flush=True)
+sys.stdin.readline()  # hold the file until the parent says go
+print(float(np.asarray(m)[0, 0]), flush=True)
+"""
+
+
+def _child(backing_dir, value):
+    import os
+    import subprocess
+    import sys
+
+    env = dict(os.environ, PYTHONPATH=str(Path(pc.__file__).resolve().parents[1]))
+    p = subprocess.Popen([sys.executable, "-W", "ignore", "-c", _CHILD, str(backing_dir), str(value)],
+                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
+    return p, p.stdout.readline().strip()
+
+
+def test_F121_temp_names_carry_the_pid(backing_dir):
+    import os
+
+    m = pc.matrix(np.ones((4, 4)), storage="disk")
+    assert f"_{os.getpid()}_" in Path(m.get_backing_file()).name
+
+
+@pytest.mark.skipif(__import__("os").name == "nt", reason="liveness check is POSIX (Windows locks open files)")
+def test_F121_two_processes_one_directory(backing_dir):
+    """Two processes used to name their first file dense_float_0.tmp alike: the second
+    truncated the first's data. And one process's sweep deleted the other's live files."""
+    from pycauset import _storage
+
+    a, path_a = _child(backing_dir, 7.0)
+    b, path_b = _child(backing_dir, 3.0)
+    try:
+        assert path_a != path_b
+        _storage.cleanup_storage(backing_dir)  # our sweep spares their live files
+        assert Path(path_a).exists() and Path(path_b).exists()
+        for p, want in ((a, 7.0), (b, 3.0)):
+            out, _ = p.communicate("\n", timeout=60)
+            assert float(out.strip()) == want
+    finally:
+        for p in (a, b):
+            if p.poll() is None:
+                p.kill()
+    # A dead process's leftovers are swept.
+    stale = backing_dir / "dense_float_999999999_0.tmp"
+    stale.write_bytes(b"x")
+    _storage.cleanup_storage(backing_dir)
+    assert not stale.exists()
+
+
+def test_F122_save_of_a_written_disk_object(backing_dir, tmp_path):
+    """msync used an unaligned start (EINVAL, ignored), so flushes did nothing. It is aligned
+    and checked now (a failure raises); save flushes the source first."""
+    disk = pc.matrix(np.arange(400.0).reshape(20, 20), storage="disk")
+    disk[3, 4] = -1.0
+    pc.save(disk, tmp_path / "d.pycauset")
+    back = pc.load(tmp_path / "d.pycauset")
+    assert float(np.asarray(back)[3, 4]) == -1.0
+
+
+def test_F120_no_object_moves_to_disk_after_creation(backing_dir):
+    """The governor used to spill live RAM objects to files to make room, while kernels held
+    pointers into them. An object's placement is now fixed when it is made."""
+    previous = pc.get_memory_threshold()
+    try:
+        small = [pc.matrix(np.full((16, 16), float(i)), storage="ram") for i in range(8)]
+        pc.set_memory_threshold(1)  # new objects go to files; existing ones stay put
+        big = pc.zeros((64, 64))
+        assert big.get_backing_file() != ":memory:"
+        assert all(m.get_backing_file() == ":memory:" for m in small)
+        assert [float(np.asarray(m)[0, 0]) for m in small] == [float(i) for i in range(8)]
+    finally:
+        pc.set_memory_threshold(previous)
+
+
+def test_F122_prefetch_and_discard_keep_values(backing_dir, tmp_path):
+    """The madvise hints were EINVAL no-ops (unaligned start). Now they run, so discard must
+    only drop pages that read back: shared file pages, never a loaded snapshot's writes."""
+    m = pc.matrix(np.arange(512 * 512, dtype=np.float64).reshape(512, 512), storage="disk")
+    acc = m.get_accelerator()
+    acc.prefetch(0, 512 * 512 * 8)
+    acc.discard(0, 512 * 512 * 8)
+    np.testing.assert_array_equal(np.asarray(m), np.arange(512 * 512.0).reshape(512, 512))
+    pc.save(m, tmp_path / "s.pycauset")
+    s = pc.load(tmp_path / "s.pycauset")
+    s[0, 0] = -5.0
+    s.get_accelerator().discard(0, 512 * 512 * 8)
+    assert float(np.asarray(s)[0, 0]) == -5.0

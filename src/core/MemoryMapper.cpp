@@ -4,6 +4,7 @@
 #define _GNU_SOURCE
 #endif
 #include "pycauset/core/MemoryMapper.hpp"
+#include "pycauset/core/PageRange.hpp"
 
 namespace {
 thread_local int g_uninitialized_depth = 0;
@@ -552,7 +553,19 @@ void MemoryMapper::close_file() {
 }
 #endif
 
+#ifndef _WIN32
+// msync needs a page-aligned start; the data pointer is the mapping plus the 64-byte header,
+// so every call failed with EINVAL and nothing was flushed (review 3.1 C-5, F-122).
+static void msync_range(void* ptr, size_t size) {
+    const auto r = pycauset::core::pages_covering(ptr, size);
+    if (msync(r.addr, r.len, MS_SYNC) != 0) {
+        throw std::runtime_error(std::string("msync failed: ") + std::strerror(errno));
+    }
+}
+#endif
+
 void MemoryMapper::flush() {
+    if (heap_) return;  // RAM storage from the C heap: nothing to write back
     if (mapped_ptr_) {
 #ifdef _WIN32
         if (hMapping_ != NULL) {
@@ -562,12 +575,13 @@ void MemoryMapper::flush() {
             FlushFileBuffers(hFile_);
         }
 #else
-        msync(mapped_ptr_, data_size_, MS_SYNC);
+        msync_range(mapped_ptr_, data_size_);
 #endif
     }
 }
 
 void MemoryMapper::flush(void* ptr, size_t size) {
+    if (heap_) return;
     if (ptr && size > 0) {
 #ifdef _WIN32
         if (hMapping_ != NULL) {
@@ -578,7 +592,7 @@ void MemoryMapper::flush(void* ptr, size_t size) {
             FlushFileBuffers(hFile_);
         }
 #else
-        msync(ptr, size, MS_SYNC);
+        msync_range(ptr, size);
 #endif
     }
 }

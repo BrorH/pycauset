@@ -1,6 +1,5 @@
 #include "pycauset/core/IOAccelerator.hpp"
 #include "pycauset/core/DebugTrace.hpp"
-#include <iostream>
 #include <algorithm>
 
 #ifdef _WIN32
@@ -10,7 +9,7 @@
 // Link with kernel32.lib
 #else
 #include <sys/mman.h>
-#include <unistd.h>
+#include "pycauset/core/PageRange.hpp"
 #endif
 
 namespace pycauset {
@@ -42,6 +41,9 @@ void IOAccelerator::discard(size_t offset, size_t size) {
     // storage the OS calls below free the pages and the data reads back as zeros
     // (MADV_DONTNEED on anonymous memory; OfferVirtualMemory on VirtualAlloc memory).
     if (mapper_->get_filename() == ":memory:") return;
+    // A loaded snapshot is mapped copy-on-write: its written pages exist only in memory, and
+    // dropping them would throw the writes away.
+    if (mapper_->is_private()) return;
 
     uint8_t* base = static_cast<uint8_t*>(mapper_->get_data());
     if (!base) return;
@@ -182,29 +184,19 @@ void IOAccelerator::discard_impl(void* addr, size_t len) {
 #else
 
 void IOAccelerator::prefetch_impl(void* addr, size_t len) {
-    // Linux: madvise with MADV_WILLNEED
-    madvise(addr, len, MADV_WILLNEED);
-    
-    // Huge Pages Investigation (Phase 2)
-    // If the region is large enough (> 2MB), advise the kernel to use huge pages.
-    // This reduces TLB pressure for large matrices.
-    if (len >= 2 * 1024 * 1024) {
-#ifdef MADV_HUGEPAGE
-        madvise(addr, len, MADV_HUGEPAGE);
-#endif
-    }
+    const auto r = pages_covering(addr, len);
+    madvise(r.addr, r.len, MADV_WILLNEED);  // a hint: a failure only means no read-ahead
 }
 
 void IOAccelerator::prefetch_ranges_impl(const std::vector<std::pair<void*, size_t>>& ranges) {
-    for (const auto& r : ranges) {
-        madvise(r.first, r.second, MADV_WILLNEED);
-    }
+    for (const auto& [addr, len] : ranges) prefetch_impl(addr, len);
 }
 
 void IOAccelerator::discard_impl(void* addr, size_t len) {
-    // Linux: madvise with MADV_DONTNEED
-    // This tells the kernel we are done with these pages and they can be reclaimed immediately.
-    madvise(addr, len, MADV_DONTNEED);
+    // Shared file pages only (discard() checks): they read back from the file. Whole pages
+    // inside the range only, so a neighbouring object's or the header's pages stay.
+    const auto r = pages_inside(addr, len);
+    if (r.len) madvise(r.addr, r.len, MADV_DONTNEED);
 }
 
 #endif

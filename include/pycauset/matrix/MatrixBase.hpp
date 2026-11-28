@@ -104,7 +104,6 @@ public:
 
     // Phase 4.3: Spill Mechanism
     // Moves data from RAM (Anonymous) to a file-backed mapping.
-    virtual void spill_to_disk(const std::string& filename);
 
     virtual std::unique_ptr<MatrixBase> multiply_scalar(double scalar, const std::string& result_file = "") const = 0;
     virtual std::unique_ptr<MatrixBase> multiply_scalar(int64_t scalar, const std::string& result_file = "") const = 0;

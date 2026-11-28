@@ -2,6 +2,12 @@
 
 #include <mutex>
 
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
+
 #include <utility>
 
 namespace pycauset {
@@ -40,9 +46,18 @@ namespace pycauset {
         g_storage_root_set = true;
     }
 
+    // <prefix>_<pid>_<counter>.tmp: unique across processes sharing a storage directory (two
+    // notebooks in one folder overwrote each other's matrices with a per-process counter alone),
+    // and across fork (the child has its own pid). The startup / exit sweep reads the pid to
+    // leave live processes' files alone (python/pycauset/_storage.py).
     std::string make_unique_storage_file(const std::string& prefix) {
         const uint64_t id = g_storage_counter.fetch_add(1);
-        const auto filename = prefix + "_" + std::to_string(id) + ".tmp";
+#ifdef _WIN32
+        const unsigned long pid = static_cast<unsigned long>(_getpid());
+#else
+        const unsigned long pid = static_cast<unsigned long>(getpid());
+#endif
+        const auto filename = prefix + "_" + std::to_string(pid) + "_" + std::to_string(id) + ".tmp";
         return (get_storage_root() / filename).string();
     }
 }

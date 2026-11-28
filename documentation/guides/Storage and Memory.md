@@ -106,23 +106,22 @@ If you want to keep them around for debugging:
 pc.keep_temp_files = True # Files will not be deleted on program exit
 ```
 
-## Spill (“switch to file-backed mapping”)
+## RAM or file: decided when an object is made
 
-When a matrix starts out in RAM, PyCauset may later **spill** it to disk to free RAM.
+Each new matrix or vector is placed once, when it is created: in RAM if it is below the
+memory threshold and fits the free RAM (minus a safety margin), otherwise in a temporary
+memory-mapped `.tmp` file under the backing directory. It stays where it was placed: PyCauset
+does not move existing objects to disk to make room (an operation in progress reads their
+memory directly), so under memory pressure it is the new results that go to files.
 
-In concrete terms, **spill** means that the live object switches from a *RAM-only* mapper to a **file-backed (memory-mapped) mapper**.
-
-Important details:
-
-- Spilling writes the **payload bytes only** to a temporary `.tmp` backing file under the current backing dir.
-- The live Python object keeps its **metadata** in memory.
-- Spilling does **not** create a `.pycauset` snapshot container. If you want the object to remain on your disk, you must explicitly call `save()`.
+- A `.tmp` file holds the **payload bytes only**; the live Python object keeps its metadata.
+- It is not a `.pycauset` snapshot: to keep the data, call `save()`.
 
 ## `.tmp` vs `.raw_tmp` vs `.pycauset`
 
 You may see these extensions in your backing directory:
 
-- `.tmp`: temporary backing files that hold **payload bytes** during a session (including spill/eviction and large auto-allocations).
+- `.tmp`: temporary backing files that hold **payload bytes** during a session (objects placed in a file at creation). Their names carry the process id, so several processes can share one backing directory.
 - `.raw_tmp`: a staging file used while writing a snapshot via `save()`. It is only renamed/committed to `.pycauset` when the write completes.
 - `.pycauset`: a **snapshot container** you created explicitly via `save()`.
 
@@ -134,7 +133,7 @@ PyCauset protects you from accidental full materialization when converting to Nu
 - **RAM-backed objects** (`:memory:`): `np.asarray(obj)` is allowed and stays in-memory.
 - **Size guard**: `np.asarray(obj)` raises when the array would not fit in free RAM, or exceeds the ceiling set with `pc.set_export_max_bytes(bytes)`; RAM- and file-backed objects are treated alike. `pc.to_numpy(obj, allow_huge=True)` opts out.
 
-Takeaway: if something is spill-backed and large, you must opt-in to materialize; snapshots and in-RAM objects remain convertible without the opt-in.
+Takeaway: only the size decides; a conversion that would not fit needs the explicit opt-in, wherever the object lives.
 
 ## Out-of-core execution and IO traces
 
@@ -317,5 +316,5 @@ See [[guides/Numpy Integration.md|Numpy Integration]] for details.
 PyCauset employs several mechanisms to minimize data loss in the event of a power failure or crash:
 
 1.  **Atomic Metadata Updates**: .pycauset files use double-buffered metadata slots. Updates are written to a new slot, flushed to disk, and then the "Active Slot" pointer is updated atomically.
-2.  **Explicit Flushes**: Critical write operations (like save() or internal spills) call FlushFileBuffers (Windows) or msync (Linux) to ensure data reaches physical media.
+2.  **Explicit Flushes**: Critical write operations (like `save()`) call FlushFileBuffers (Windows) or msync (Linux) to ensure data reaches physical media.
 3.  **Header Protection**: All backing files include a versioned header to prevent partial or corrupt files from being misinterpreted as valid data.

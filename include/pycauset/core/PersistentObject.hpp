@@ -62,13 +62,11 @@ public:
      * @brief Notifies the MemoryGovernor that this object is being accessed.
      * Should be called by Solvers before heavy operations.
      */
-    void touch();
 
     /**
      * @brief Moves the object from RAM to Disk to free up memory.
      * @return true if successful, false if already on disk or failed.
      */
-    bool spill_to_disk();
 
     /**
      * @brief Returns the current storage state.
