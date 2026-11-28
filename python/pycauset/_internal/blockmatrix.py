@@ -538,9 +538,10 @@ def block_matmul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
                         acc = acc + prod
                         _try_io_discard(old_acc)
 
-                    _try_io_discard(prod)
-                    _try_io_discard(a)
-                    _try_io_discard(b)
+                    if prod is not acc:  # on the first term the accumulator is the product
+                        _try_io_discard(prod)
+                    # The inputs are not discarded: every other output block of this row /
+                    # column reads them again (review 3.10 C-11).
                 if acc is None:
                     raise RuntimeError("internal error: empty inner dimension")
                 return acc
@@ -598,10 +599,7 @@ def block_add(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
                 _try_io_prefetch(a0)
                 _try_io_prefetch(b0)
                 out = _leaf_elementwise(a0, b0, "add", rdtype)
-                _try_io_discard(a0)
-                _try_io_discard(b0)
-                _try_io_discard(out)
-                return out
+                return out  # inputs and the fresh result stay resident (3.10 C-11)
 
             out_row.append(
                 ThunkBlock(
@@ -656,10 +654,7 @@ def block_sub(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
                 _try_io_prefetch(a0)
                 _try_io_prefetch(b0)
                 out = _leaf_elementwise(a0, b0, "sub", rdtype)
-                _try_io_discard(a0)
-                _try_io_discard(b0)
-                _try_io_discard(out)
-                return out
+                return out  # inputs and the fresh result stay resident (3.10 C-11)
 
             out_row.append(
                 ThunkBlock(
@@ -710,10 +705,7 @@ def block_mul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
                 _try_io_prefetch(a0)
                 _try_io_prefetch(b0)
                 out = _leaf_elementwise(a0, b0, "mul", rdtype)
-                _try_io_discard(a0)
-                _try_io_discard(b0)
-                _try_io_discard(out)
-                return out
+                return out  # inputs and the fresh result stay resident (3.10 C-11)
 
             out_row.append(
                 ThunkBlock(
@@ -764,10 +756,7 @@ def block_div(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
                 _try_io_prefetch(a0)
                 _try_io_prefetch(b0)
                 out = _leaf_elementwise(a0, b0, "div", rdtype)
-                _try_io_discard(a0)
-                _try_io_discard(b0)
-                _try_io_discard(out)
-                return out
+                return out  # inputs and the fresh result stay resident (3.10 C-11)
 
             out_row.append(
                 ThunkBlock(
