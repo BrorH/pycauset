@@ -29,6 +29,25 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   give the written values; `from_triangular` reads its argument's view (and rejects a lower
   triangle); `random(..., p)` rejects p outside [0, 1]; writing 0 below a float triangle
   is accepted, as for the bit triangle.
+- `m.size` and `v.size` are attributes (the element count), as NumPy's `ndarray.size`; they
+  were methods.
+- Dtype strings: NumPy's type codes mean what they mean in NumPy (`"i8"` is int64, `"u8"`
+  uint64, `"f4"` float32); `"i8"` used to give int8. `np.longdouble` raises instead of
+  narrowing to float64 silently.
+- `pc.matrix` / `pc.vector` from lists containing NumPy scalars take NumPy's dtype
+  (`[np.complex64(1j), 2]` lost its imaginary part); `pc.vector([])` is float64.
+- `np.float64` / `np.complex128` scalars count as NumPy scalars, as in NumPy
+  (`float32 matrix + np.float64(1)` is float64); Python floats stay weak.
+- Fixed: element-wise ops of a structured matrix with a 1x1 operand (`Diagonal(3) +
+  Diagonal(1)`) dropped broadcast values; `I @ X` rounded int64 / uint64 values above 2**53.
+- `to_numpy(x, copy=False)` raises (every export is a copy); `np.asarray(block_matrix)` works;
+  `to_numpy(..., dtype=...)` counts the converted array in the size guard. Linear algebra on a
+  BlockMatrix raises `TypeError` (convert explicitly).
+- `pc.save`: staging files are unique (two concurrent saves could swap payloads), the saved
+  file is fsynced, and saved derived values are only brought back by the same build.
+  `load_npy` memory-maps the file.
+- `pc.TriangularMatrix(4.0)` and other float sizes raise (as NumPy); `debug_mode` no longer
+  logs allocations.
 - Faster on structured, transposed, windowed and bool matrices (no API change): whole-matrix
   reads go through a bulk reader of the packed storage, so structured `& | ^ ~ /`, scalar
   ops, sums and norms are 2-10x faster (most at or past NumPy); dot with a unit vector and
