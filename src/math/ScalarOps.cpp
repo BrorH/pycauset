@@ -484,7 +484,8 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
     // slower than NumPy.
     // (Bit sources for every result type: unpacking is the whole cost, and bit arithmetic
     // counts in int32, so R is never bool's own type.)
-    if constexpr (has_raw_rows_v<In, Src> && (fast_pair || std::is_same_v<In, bool>)) {
+    if constexpr (has_raw_rows_v<In, Src> &&
+                  (fast_pair || std::is_same_v<In, bool> || std::is_same_v<Src, ComplexFloat16Matrix>)) {
         // At least 32 tiles when there are rows for it: ParallelFor runs fewer items inline.
         const uint64_t TILE = std::clamp<uint64_t>(rows / 32, 1, 32);
         const uint64_t tiles = (rows + TILE - 1) / TILE;
@@ -600,6 +601,10 @@ std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op,
         // Complex inputs (complex results only): typed and contiguous instead of a full copy
         // through the wide reader (c + 1j was 5 ms for 1024 x 1024).
         PYCAUSET_TRY_DENSE(std::complex<float>) PYCAUSET_TRY_DENSE(std::complex<double>)
+        // complex_float16 storage (two float16 planes), read as complex128 in bulk.
+        if (auto* m = dynamic_cast<const ComplexFloat16Matrix*>(&a); m && sc == std::complex<double>(1.0, 0.0) &&
+                                                                      !a.is_conjugated())
+            return run<R, std::complex<double>>(*m, a, op, s, false, false, keep_structure);
         // Structured complex inputs: the typed bulk-tile path (they went through a full
         // complex128 copy and a per-element operator switch: 0.25x NumPy).
         PYCAUSET_TRY_TRI(std::complex<float>) PYCAUSET_TRY_TRI(std::complex<double>)
@@ -773,6 +778,31 @@ std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt) {
         return out;
     }
     if (dt == DataType::COMPLEX_FLOAT16) {
+        // A plain dense complex64 / complex128 source (the usual one: a complex32 operation
+        // computes in complex64) converts straight into the two planes, without the
+        // complex128 copy.
+        auto direct = [&](auto tag) -> std::unique_ptr<MatrixBase> {
+            using C = typename decltype(tag)::type;
+            const auto* d = dynamic_cast<const DenseMatrix<C>*>(&a);
+            if (!d || !is_plain(a) || a.is_subview() || a.cols() != a.base_cols()) return nullptr;
+            const C* src = d->data();
+            std::unique_ptr<ComplexFloat16Matrix> out;
+            {
+                UninitializedStorage u;  // both planes are written below
+                out = std::make_unique<ComplexFloat16Matrix>(rows, cols, std::string());
+            }
+            pycauset::float16_t* re = out->real_data();
+            pycauset::float16_t* im = out->imag_data();
+            ParallelForRange(0, rows * cols, [&](size_t k0, size_t k1) {
+                for (size_t k = k0; k < k1; ++k) {
+                    re[k] = pycauset::float16_t(static_cast<double>(src[k].real()));
+                    im[k] = pycauset::float16_t(static_cast<double>(src[k].imag()));
+                }
+            });
+            return out;
+        };
+        if (auto r = direct(type_tag<std::complex<float>>{})) return r;
+        if (auto r = direct(type_tag<std::complex<double>>{})) return r;
         auto wide = run_exact(a, DataType::COMPLEX_FLOAT64, ScalarOpKind::Mul, ScalarArg::from_int64(1), false);
         const std::complex<double>* src = static_cast<const DenseMatrix<std::complex<double>>&>(*wide).data();
         auto out = std::make_unique<ComplexFloat16Matrix>(rows, cols, std::string());

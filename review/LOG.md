@@ -711,3 +711,7 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   (reassociation), partial scatter buffers one per thread (claimed by tasks) instead of 64,
   one thread below 2^19 elements. float64: n = 1024 190 -> 100 us (NumPy dense gemv 45-60),
   2048 parity, 4096 1.2 ms vs NumPy 1.5 ms, 512 31 vs 39 us. Atlas 0 wrong.
+- complex_float16: a bulk reader for its two float16 planes; scalar ops read it through the
+  typed tile path and write a complex32 result straight from the complex64 computation (no
+  complex128 copy): 1024 c16 + (1+1j) 12 -> 3.6 ms (NumPy has no complex32; complex64 0.7 ms,
+  the float16 conversions are the floor without F16C). Atlas 0 wrong.
