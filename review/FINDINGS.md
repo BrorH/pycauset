@@ -1972,7 +1972,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-141 Areas 3.12 / 3.15 (visualization, benchmarks, demos, tools): invented coordinates, full exports behind subsampled plots, misleading benchmarks
 - **Status:** reviewed (session 9), 20 findings in `review/areas/3.12-3.15-vis-benchmarks.md`
-  (0 S1, 2 S2, 11 S3, 6 S4, 1 decision). Fixes in progress.
+  (0 S1, 2 S2, 11 S3, 6 S4, 1 decision). Fixed (session 9): all 20 (the benchmark gaps they
+  exposed are PLAN 6.5 / 6.6).
   - C-1 (S2): a causet built from a matrix is plotted at coordinates regenerated from a random
     seed and the default diamond; half of the related pairs are spacelike there.
   - C-2 (S2): every subsampled plot exports the whole causal matrix first (the heatmap as

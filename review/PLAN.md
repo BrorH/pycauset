@@ -430,6 +430,12 @@ are engine-owned metadata on the storage).
 - [x] 6.3 Out-of-core paths for eigh/svd/rank (F-011) or document them as in-RAM only
       (documented, session 9)
 - [ ] 6.4 Large-N out-of-core benchmark on a real disk (README's headline claim)
+- [ ] 6.5 Causal-matrix kernels against NumPy's float32 BLAS route (benchmarks/scenario_benchmarks.py,
+      review 3.15 C-15): at n = 256 the bit matvec `C @ ones(int32)` is 0.26 ms vs 0.004 ms
+      (65x behind), `C @ C` 0.39 vs 0.14 ms, `(C @ C) @ C` 3.0 vs 0.3 ms (the int32 product of a
+      bit matrix takes the generic path). At n = 2000, `C @ C` is 72 vs 25 ms; `B @ C` already wins
+      (1.9x).
+- [ ] 6.6 I/O rows of parity.py: `pc.matrix(ndarray)` 0.80x, `pc.save` 0.85x (both fsync'd).
 
 ---
 

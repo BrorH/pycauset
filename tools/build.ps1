@@ -19,6 +19,11 @@
 
 .EXAMPLE
   ./build.ps1 -Action wheel -CMakeArg "-DCMAKE_BUILD_TYPE=Release"
+
+.EXAMPLE
+  ./build.ps1 -Clean
+  Removes what pip / scikit-build leave (dist/, _skbuild/, build/cp*) first. Never build/cpp or
+  .pycauset/. Runs in the repository root, wherever it is started from.
 #>
 
 [CmdletBinding()]
@@ -74,20 +79,20 @@ function Resolve-PythonExecutable {
     return $cmd.Source
 }
 
+# What pip / scikit-build-core leave in the repository: never build/cpp (the in-tree CMake
+# build, slow to redo) or .pycauset (the storage root other sessions may be using). The paths
+# are the repository's: the script runs there (Push-Location below), whatever the current
+# directory (review 3.15 C-16: -Clean deleted build/ and .pycauset/ wherever it was started).
 function Remove-LocalBuildArtifacts {
-    $paths = @(
-        'build',
-        'dist',
-        '.pycauset',
-        '_skbuild',
-        '.pytest_cache'
-    )
+    $paths = @('dist', '_skbuild') + @(Get-ChildItem -Directory -Path 'build' -Filter 'cp*' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
     foreach ($p in $paths) {
         if (Test-Path $p) {
             Remove-Item -Recurse -Force $p
         }
     }
 }
+
+Push-Location (Join-Path $PSScriptRoot '..')
 
 $python = Resolve-PythonExecutable -PythonVersion $PythonVersion -PythonExe $PythonExe
 Write-Host "Using Python: $python" -ForegroundColor Yellow
@@ -138,6 +143,7 @@ try {
     }
 } finally {
     $env:CMAKE_ARGS = $oldCmakeArgs
+    Pop-Location
 }
 
 Write-Host "Done." -ForegroundColor Green

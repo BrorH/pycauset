@@ -80,6 +80,10 @@ We may keep convenience scripts like `tools/build.ps1`, but **they must remain w
 - Editable install (default): `./tools/build.ps1`
 - Non-editable install: `./tools/build.ps1 -Action install`
 - Build a wheel into `dist/`: `./tools/build.ps1 -Action wheel`
+- Remove what pip / scikit-build left first: `./tools/build.ps1 -Clean` (`dist/`, `_skbuild/`,
+  `build/cp*`; never `build/cpp` or `.pycauset/`).
+
+The script runs in the repository root, wherever it is started from.
 
 ### Choosing a Python
 

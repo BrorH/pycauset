@@ -9,11 +9,12 @@ numbers are the honest state, not a goal.
 |---|---|
 | `python benchmarks/parity.py` | headline dense float64 ops at N = 1024 (CI runs it, report-only) |
 | `python -m tests.atlas.timing [op ...]` | every op x dtype x structure x view against NumPy; writes `review/atlas/TIMING.md` |
-| `python benchmarks/bench.py [--large]` + `python benchmarks/plot.py` | time against size, with graphs |
-| `python benchmarks/benchmark_numpy_parity.py` | NumPy import / export throughput |
-| `python benchmarks/benchmark_io_smoke.py` | save / load wall time |
-| `python benchmarks/bench_ram.py` | a matrix larger than the RAM budget, file-backed |
-| `python benchmarks/scenario_benchmarks.py`, `large_n_check.py` | causal-set workloads |
+| `python benchmarks/parity.py` I/O rows | import from / export to NumPy, `save`, `load` + a full read |
+| `python benchmarks/bench_ram.py` | a matrix larger than the RAM budget, file-backed (measures anonymous and file memory) |
+| `python benchmarks/scenario_benchmarks.py [--n N]` | causal-set workloads against NumPy's int64 and float32-BLAS routes |
+
+Every script imports pycauset before NumPy and refuses to run otherwise (NumPy's own timings are
+otherwise skewed by its spinning BLAS threads, Performance Guide).
 
 Ratios are `numpy_time / pycauset_time`: above 1 means PyCauset is faster. Compare runs on
 the same machine only; BLAS timings differ a lot between machines and OpenBLAS builds.
@@ -22,16 +23,20 @@ the same machine only; BLAS timings differ a lot between machines and OpenBLAS b
 
 4-vCPU Linux container, system OpenBLAS 0.3.26 (NumPy 2.x with its bundled OpenBLAS
 0.3.34), float64, N = 1024 (n = 512 for `eig`), best of 4, 2026-11-27, PyCauset imported
-first. `benchmarks/parity.py`: 9/9 operations at or above 0.90x.
+first. `benchmarks/parity.py` (2026-11-28 run: 9 of its 12 rows at or above 0.90x; below:
+`dot` 0.36x, `import` 0.80x, `save` 0.85x, PLAN 6.6).
 
 | op | NumPy | PyCauset | ratio |
 |---|---|---|---|
 | `A @ B` | 7.5 ms | 8.1 ms | 0.90-0.93x |
 | `A + B`, `A * B` | 1.3 ms | 0.45 ms | 2.7-3.2x |
-| `dot`, export to NumPy | | | 0.95-1.0x |
+| `dot` (10^6 float64) | 0.05-0.1 ms | 0.2 ms | 0.36-0.5x (fixed-block sums: thread-count independent) |
+| export to NumPy | 0.6 ms | 0.7 ms | 0.96x |
+| import from NumPy (`pc.matrix(ndarray)`) | 0.6 ms | 0.8 ms | 0.80x |
+| `save` (both fsync'd) / `load` + a full read | 8.4 / 1.4 ms | 9.9 / 0.3 ms | 0.85x / 4.4x |
 | `solve` (matrix right-hand side) | 16 ms | 9.4 ms | 1.7x |
 | `solve` (vector) | 17 ms | 11 ms | 1.6x |
-| `invert` | 40 ms | 25 ms | 1.6x |
+| `inv` | 40 ms | 25 ms | 1.6x |
 | `determinant` / `slogdet` | 15-17 ms | 8.5-9.6 ms | 1.8x |
 | `cholesky` | 26 ms | 11 ms | 2.4x |
 | `eigh` / `eigvalsh` | 110 / 49 ms | 115 / 47 ms | 0.96-1.05x |

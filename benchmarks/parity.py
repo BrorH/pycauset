@@ -6,8 +6,10 @@ Reproduces with::
 
 For each op, reports the ratio ``numpy_time / pycauset_time``. A ratio >= 1.0
 means PyCauset is faster; >= 0.90 means "at parity". Sizes are
-chosen large enough that Python-dispatch overhead is amortized. This is the single
-canonical gate, it supersedes the older ad-hoc benchmark scripts.
+chosen large enough that Python-dispatch overhead is amortized. Report-only (CI prints it).
+The I/O rows (import, export, save, load + read) replace the former
+benchmark_numpy_parity.py / benchmark_io_smoke.py; per-operation timing over every dtype and
+structure is `python -m tests.atlas.timing`.
 """
 
 from __future__ import annotations
@@ -18,6 +20,9 @@ import time
 # OpenBLAS loads. Otherwise NumPy's BLAS threads spin ~0.1 s after each NumPy call and slow the
 # pycauset call timed next 3x (FINDINGS F-012; docs "Performance and threads").
 import pycauset as pc  # noqa: I001
+
+if pc._numpy_imported_first:  # (NumPy's timings would be the spinning threads, review 3.15 C-8)
+    raise SystemExit("parity.py: NumPy was imported before pycauset; run it as a script")
 
 # Time the computation, not the derived-value cache (a repeated det / sum / norm of the same
 # object is served from it).
@@ -72,37 +77,39 @@ def main() -> None:
         rows.append((name, ratio, verdict))
         print(f"{name:<14} {np_t:>12.4f} {pc_t:>12.4f} {ratio:>8.2f}x  {verdict}")
 
-    # invert() and determinant() memoize their results (a real PyCauset feature:
-    # the inverse lives in `_cached_inverse`, the determinant in the derived-
-    # property store). NumPy recomputes every call, so a warm-cache comparison
-    # would measure a cache hit against a fresh factorization, not parity. Clear
-    # the derived caches before each timed call so both sides recompute.
-    def _clear_derived_caches(m):
-        try:
-            from pycauset._internal.properties import _invalidate_cached_derived
+    # (The derived-value cache is off above, so det / inv recompute every call, as NumPy's.)
+    import tempfile
+    from pathlib import Path
 
-            _invalidate_cached_derived(m)
-        except Exception:
-            if hasattr(m, "_cached_inverse"):
-                del m._cached_inverse
-
-    def _pc_inv():
-        _clear_derived_caches(spd)
-        return pc.inv(spd)
-
-    def _pc_determinant():
-        _clear_derived_caches(spd)
-        return pc.determinant(spd)
+    tmp = Path(tempfile.mkdtemp(prefix="pycauset-parity-"))
+    np_file, pc_file = tmp / "a.npy", tmp / "a.pycauset"
 
     run("matmul", lambda: A_np @ B_np, lambda: pc.matmul(A, B))
     run("solve", lambda: np.linalg.solve(spd_np, b_np), lambda: pc.solve(spd, b))
-    run("inv", lambda: np.linalg.inv(spd_np), _pc_inv)
+    run("inv", lambda: np.linalg.inv(spd_np), lambda: pc.inv(spd))
     run("dot", lambda: np.dot(v_np, v_np), lambda: pc.dot(v, v))
     run("add", lambda: A_np + B_np, lambda: A + B)
     run("multiply", lambda: A_np * B_np, lambda: A * B)
-    run("determinant", lambda: np.linalg.det(spd_np), _pc_determinant)
+    run("determinant", lambda: np.linalg.det(spd_np), lambda: pc.det(spd))
     run("eigh", lambda: np.linalg.eigh(spd_np), lambda: pc.eigh(spd))
     run("export", lambda: A_np.copy(), lambda: np.asarray(A))  # to NumPy (a copy) vs ndarray.copy
+    run("import", lambda: A_np.copy(), lambda: pc.matrix(A_np))  # from NumPy (a copy)
+    # Saves without fsync on both sides would differ in what reaches the disk: pc.save fsyncs
+    # (durable), so NumPy's side syncs too.
+    def np_save():
+        with open(np_file, "wb") as f:
+            np.save(f, A_np)
+            f.flush()
+            import os
+
+            os.fsync(f.fileno())
+
+    run("save", np_save, lambda: pc.save(A, pc_file))
+    # load + read every value (a load alone maps the file lazily: it measured the open).
+    run("load+sum", lambda: np.load(np_file).sum(), lambda: pc.sum(pc.load(pc_file)))
+    import shutil
+
+    shutil.rmtree(tmp, ignore_errors=True)
 
     print("-" * 62)
     fails = [r for r in rows if r[2] == "FAIL"]

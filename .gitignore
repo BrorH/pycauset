@@ -81,19 +81,10 @@ out/
 *~
 
 # --- Project Specific ---
+# benchmarks/: the scripts and the README are tracked; anything else there is local output.
 benchmarks/*
 !benchmarks/*.py
-# Scratch/exploration benchmark scripts superseded by the canonical suite
-# (bench.py, bench_coverage.py, bench_structures.py, bench_ram.py, plot.py).
-# Kept on disk but not tracked.
-benchmarks/benchmark_*.py
-benchmarks/comprehensive_benchmark.py
-benchmarks/debug_matmul.py
-benchmarks/inspect_temp.py
-benchmarks/stress_test_memory_system.py
-# Explicitly tracked harnesses referenced by documentation/dev/Testing & Benchmarks.md.
-!benchmarks/benchmark_numpy_parity.py
-!benchmarks/benchmark_io_smoke.py
+!benchmarks/README.md
 .pycauset/
 *.pycauset
 storage/

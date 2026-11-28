@@ -35,7 +35,7 @@ Ground rules (from the maintainer, 2026-11-24):
 | `scripts/make_r1_gallery.py` | move to `tools/make_gallery.py` |
 | `tools/` (mix of ps1 build scripts, audits, diagnostics) | keep `tools/`, split into `tools/dev/` (audits, checks) and `tools/release/`; delete one-off diagnostics (`macos_hang_diagnose.py`) once its bug is closed |
 | `demos/` | keep (user-facing), and run it in CI as a smoke test |
-| `benchmarks/` (11 scripts, overlapping) | consolidate into one harness plus scenarios; delete `benchmark_numpy_parity.py`, `benchmark_io_smoke.py`, `bench_coverage.py` if superseded (verify first) |
+| `benchmarks/` (11 scripts, overlapping; 3 kept after review 3.15) | consolidate into one harness plus scenarios; delete `benchmark_numpy_parity.py`, `benchmark_io_smoke.py`, `bench_coverage.py` if superseded (verify first) |
 | `BENCHMARKS.md`, `CHANGELOG.md`, `THIRD_PARTY_NOTICES.md` | keep at root |
 | `review/` | this workspace (see §5) |
 

@@ -4,8 +4,10 @@ Shows the key difference between NumPy and PyCauset on large matrices:
 
 - NumPy must hold the whole array in RAM, so the maximum square float64 matrix on a
   16 GB machine is about 45000 x 45000 (16.2 GB). Beyond that, NumPy raises MemoryError.
-- PyCauset memory-maps to disk beyond a RAM budget (`set_memory_threshold`), so its RAM
-  usage is bounded by your budget and the matrix can be far larger than RAM.
+- PyCauset memory-maps to disk beyond a RAM budget (`set_memory_threshold`): the matrix's pages
+  are file pages, which the OS can drop and re-read, not anonymous memory. The demonstration
+  measures both (RssAnon / RssFile); a "used memory" meter counts the file pages too, but they
+  are reclaimable page cache.
 
 Usage: python benchmarks/bench_ram.py
 """
@@ -21,6 +23,22 @@ def _ram_gb() -> float:
         return psutil.virtual_memory().available / (1024 ** 3)
     except Exception:
         return float("nan")
+
+
+def _rss_mb() -> tuple[float, float]:
+    """(anonymous, file-backed) resident memory in MiB: /proc on Linux, else psutil's USS as the
+    anonymous part (nan without either)."""
+    try:
+        fields = dict(line.split(":", 1) for line in open("/proc/self/status"))
+        kb = lambda k: float(fields[k].split()[0]) / 1024  # noqa: E731
+        return kb("RssAnon"), kb("RssFile")
+    except (OSError, KeyError):
+        try:
+            import psutil
+
+            return psutil.Process().memory_full_info().uss / 2**20, float("nan")
+        except Exception:
+            return float("nan"), float("nan")
 
 
 def main() -> None:
@@ -46,6 +64,7 @@ def main() -> None:
     pc.set_memory_threshold(budget_mb * 1024 * 1024)
 
     print(f"Creating a {n} x {n} float64 matrix ({size_gb:.2f} GB) with a {budget_mb} MB RAM budget...")
+    anon0, file0 = _rss_mb()
     m = pc.ones((n, n))
     bf = m.get_backing_file()
     on_disk = bf != ":memory:" and bf is not None
@@ -53,11 +72,14 @@ def main() -> None:
 
     # A NumPy array of the same size would require the full amount in RAM.
     np_ram = size_gb
-    print(f"  NumPy would need {np_ram:.2f} GB in RAM for the same array.")
-    print(f"  PyCauset RAM budget: {budget_mb / 1024:.2f} GB (the rest on disk).")
+    print(f"  NumPy would need {np_ram:.2f} GB of anonymous memory for the same array.")
 
-    # Verify operations still work on the disk-backed matrix.
+    # Verify operations still work on the disk-backed matrix (sum reads every page).
     print(f"  trace(ones) = {pc.trace(m)} (expect {n}), sum = {pc.sum(m)} (expect {n * n})")
+    anon1, file1 = _rss_mb()
+    print(f"  measured: anonymous memory +{anon1 - anon0:.0f} MiB; file pages resident +{file1 - file0:.0f} MiB")
+    print("  (the file pages are page cache of the backing file: the OS drops them under pressure")
+    print("   and reads them back, so the matrix is not bounded by RAM; anonymous memory stays small)")
 
     pc.set_memory_threshold(orig)
 
