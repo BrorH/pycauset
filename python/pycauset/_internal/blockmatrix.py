@@ -346,10 +346,7 @@ class BlockMatrix:
         get_fn = getattr(blk, "get", None)
         if callable(get_fn):
             return get_fn(ii, jj)
-        try:
-            return blk[ii, jj]
-        except Exception as e:
-            raise TypeError("block does not support element indexing") from e
+        return blk[ii, jj]
 
     def __getitem__(self, key: Any) -> Any:
         if not (isinstance(key, tuple) and len(key) == 2):
@@ -393,15 +390,19 @@ class BlockMatrix:
 
         return "\n".join(parts)
 
-    # --- numpy interop (debug / fallback) ---
+    # --- numpy interop (explicit conversion) ---
 
-    def __array__(self, dtype: Any = None) -> Any:
-        try:
-            from . import export_guard
+    def __array__(self, dtype: Any = None, copy: Any = None) -> Any:
+        """The assembled matrix, block by block, under the export size guard. (It recursed
+        through the export guard into itself and always failed; a catch-all reported that
+        as "cannot be converted".)"""
+        import numpy as np
 
-            return export_guard.export_to_numpy(self, allow_huge=False, dtype=dtype)
-        except Exception as e:
-            raise TypeError("BlockMatrix cannot be converted to a NumPy array") from e
+        from . import export_guard
+
+        export_guard.ensure_export_allowed(self, allow_huge=False, ceiling_bytes=export_guard.get_max_bytes())
+        arr = np.block([[np.asarray(b) for b in row] for row in self._blocks])
+        return arr if dtype is None else arr.astype(dtype, copy=False)
 
 
 def block_matmul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:

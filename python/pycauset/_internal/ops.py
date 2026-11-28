@@ -215,9 +215,18 @@ def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
 
 
 def _engine_matrix(a: Any, *, deps: OpsDeps) -> Any:
-    """A PyCauset matrix as is; anything else (NumPy array, nested lists) as a dense one."""
+    """A PyCauset matrix as is; anything else (NumPy array, nested lists) as a dense one.
+    A BlockMatrix is not converted behind the caller's back (it may be far larger than RAM):
+    the caller converts it explicitly."""
     if isinstance(a, deps.native.MatrixBase):
         return a
+    from .blockmatrix import BlockMatrix
+
+    if isinstance(a, BlockMatrix):
+        raise TypeError(
+            "this operation does not take a BlockMatrix; convert it explicitly with "
+            "pc.matrix(np.asarray(block_matrix)) if it fits in memory"
+        )
     return deps.Matrix(deps.np_module.asarray(a))
 
 

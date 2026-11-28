@@ -139,14 +139,10 @@ def _debug_time(label: str):
 def _matrix_desc(matrix: Any) -> str:
     """A compact ``name shape dtype storage`` summary of a matrix/vector."""
     name = type(matrix).__name__
-    try:
-        rows = matrix.rows()
-    except Exception:
-        rows = None
-    try:
-        cols = matrix.cols()
-    except Exception:
-        cols = None
+    # A debug-log line: objects without these accessors (vectors have no cols) just
+    # print less.
+    rows = matrix.rows() if hasattr(matrix, "rows") else None
+    cols = matrix.cols() if hasattr(matrix, "cols") else None
 
     shape = ""
     if rows is not None and cols is not None:
@@ -154,18 +150,11 @@ def _matrix_desc(matrix: Any) -> str:
     elif rows is not None:
         shape = f"{rows}"
 
-    dtype = ""
-    try:
-        dtype = str(matrix.get_data_type())
-    except Exception:
-        pass
+    dtype = str(matrix.get_data_type()) if hasattr(matrix, "get_data_type") else ""
 
     backing = ""
-    try:
-        bf = matrix.get_backing_file()
-    except Exception:
-        bf = None
-    if bf is not None:
+    bf = matrix.get_backing_file() if hasattr(matrix, "get_backing_file") else None
+    if bf:
         backing = "RAM" if bf == ":memory:" else f"disk ({bf})"
 
     return " ".join(part for part in (name, shape, dtype, backing) if part)
@@ -260,7 +249,7 @@ def set_backing_dir(path: str | Path) -> Path:
 
     try:
         old_root = _runtime.storage_root().resolve()
-    except Exception:
+    except OSError:  # the old root cannot be created or resolved: nothing lives there
         old_root = None
 
     # Native code allocates backing files; configure it directly.
@@ -543,10 +532,7 @@ def convert_file(
     finally:
         close = getattr(obj, "close", None)
         if callable(close):
-            try:
-                close()
-            except Exception:
-                pass
+            close()  # drops the storage; cannot fail
 
     return dst
 

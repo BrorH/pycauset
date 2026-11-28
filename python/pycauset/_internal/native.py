@@ -29,7 +29,7 @@ def configure_windows_dll_search_paths(*, package_dir: str) -> None:
         pkg = Path(package_dir).resolve()
         dirs.append(str(pkg / "libs"))
         dirs.append(str(pkg))
-    except Exception:
+    except OSError:
         dirs.append(package_dir)
 
     # In a source checkout, native builds often live in ./build/<config>/.
@@ -48,8 +48,7 @@ def configure_windows_dll_search_paths(*, package_dir: str) -> None:
         ):
             if candidate.exists() and candidate.is_dir():
                 dirs.append(str(candidate))
-    except Exception:
-        # Best-effort only.
+    except OSError:  # an unreadable parent directory: no extra search path
         pass
 
     seen: set[str] = set()
@@ -84,7 +83,7 @@ def import_native_extension(*, package: str, module: str = "._pycauset") -> Any:
                 pkg_dir = os.path.dirname(os.path.abspath(pkg_file))
             else:
                 pkg_dir = next(iter(getattr(pkg, "__path__", [])), None)
-        except Exception:
+        except ImportError:
             pkg_dir = None
 
         if pkg_dir:
@@ -110,7 +109,7 @@ def import_native_extension(*, package: str, module: str = "._pycauset") -> Any:
                 ):
                     if d.exists() and d.is_dir():
                         search_dirs.append(str(d))
-            except Exception:
+            except (OSError, IndexError):  # unreadable, or no repository root above
                 search_dirs.append(pkg_dir)
 
             # Prefer build outputs (when present) to keep the extension module and

@@ -1686,3 +1686,16 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-12: writing zero outside a float triangle raised (the bit triangle and DiagonalMatrix
     accept it); accepted now.
   - `test_F126_*`.
+
+### F-127 `np.asarray(BlockMatrix)` always failed, hidden by catch-alls
+- **Status:** fixed (session 9; silent-exception sweep). `BlockMatrix.__array__` called the
+  export guard, which called `np.asarray(self)`, which called `__array__` again: infinite
+  recursion, which a catch-all turned into "BlockMatrix cannot be converted to a NumPy
+  array". The only test of it wrapped the conversion in `except Exception: pass`, and
+  `pc.eigh(bm)` was "rejected" only by the same recursion. Now `__array__` assembles the
+  blocks under the export size guard, the test is strict, and linear algebra on a
+  BlockMatrix raises a TypeError that says how to convert explicitly.
+- The rest of the sweep: Python `except Exception` in setup, debug and cleanup paths
+  narrowed to the errors that occur (`OSError`, `ImportError`, `ValueError`), or removed
+  where nothing can be raised (`close()`). C++: only the dormant GPU fallbacks (F-116)
+  catch and continue; `persistence.py` is left to the area 3.9 review.

@@ -54,18 +54,16 @@ class TestBlockMatrixPhaseB(unittest.TestCase):
             self.assertIn("row_partitions", s)
             self.assertIn("col_partitions", s)
 
-            # Best-effort NumPy conversion for debug/interop.
-            try:
-                import numpy as np
+            # Explicit NumPy conversion assembles the blocks (it used to recurse and fail,
+            # hidden by a catch-all here).
+            import numpy as np
 
-                arr = np.asarray(bm)
-                self.assertEqual(arr.shape, (3, 3))
-                self.assertEqual(float(arr[0, 0]), 1.0)
-                self.assertEqual(float(arr[0, 2]), 2.0)
-                self.assertEqual(float(arr[2, 0]), 3.0)
-                self.assertEqual(float(arr[2, 2]), 4.0)
-            except Exception:
-                pass
+            arr = np.asarray(bm)
+            self.assertEqual(arr.shape, (3, 3))
+            self.assertEqual(float(arr[0, 0]), 1.0)
+            self.assertEqual(float(arr[0, 2]), 2.0)
+            self.assertEqual(float(arr[2, 0]), 3.0)
+            self.assertEqual(float(arr[2, 2]), 4.0)
 
         finally:
             for obj in (a, b, c, d):

@@ -746,3 +746,6 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   (Hermitian kinds, complex, conj of real); triangular bounds; element accessors through
   `view_value`; random `p` checked and the seed kept; zero outside a triangle accepted.
   C-10 and C-14 stay open (reasons in FINDINGS).
+- Silent-exception sweep (Phase 4): Python catch-alls narrowed or removed; it exposed
+  F-127 (`np.asarray(BlockMatrix)` recursed forever, hidden by a catch-all and a test that
+  passed on any exception). C++ is clean apart from the dormant GPU fallbacks (F-116).

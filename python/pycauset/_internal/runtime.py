@@ -77,16 +77,15 @@ class Runtime:
         for matrix in list(self._live_matrices):
             close = getattr(matrix, "close", None)
             if callable(close):
-                try:
-                    close()
-                except Exception:
-                    pass
+                close()  # drops the storage (its temp file goes with the last owner); cannot fail
 
     def register_cleanup(self) -> None:
         def _finalize() -> None:
+            # At exit there is no one to report to: a directory that cannot be read or a
+            # file that cannot be deleted stays (the next import sweeps again).
             try:
                 self.cleanup_all_roots()
-            except Exception:
+            except OSError:
                 pass
 
         atexit.register(_finalize)
@@ -99,16 +98,9 @@ class Runtime:
         self.release_tracked_matrices()
 
         roots = set(self._storage_roots_seen)
-        try:
-            roots.add(self.storage_root())
-        except Exception:
-            pass
-
+        roots.add(self.storage_root())
         for root in roots:
-            try:
-                self._cleanup_storage(root)
-            except Exception:
-                pass
+            self._cleanup_storage(root)  # best effort per file (OSError handled inside)
 
     def mark_temporary_if_auto(self, matrix: Any) -> None:
         if not hasattr(matrix, "get_backing_file"):

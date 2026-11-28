@@ -34,7 +34,7 @@ def configure_openblas_threads() -> None:
             try:
                 dll = ctypes.CDLL(name)
                 break
-            except Exception:
+            except OSError:  # not under this name on this platform
                 continue
         if dll is None:
             try:
@@ -43,12 +43,14 @@ def configure_openblas_threads() -> None:
                 found = _ctypes_util.find_library("openblas")
                 if found:
                     dll = ctypes.CDLL(found)
-            except Exception:
+            except OSError:
                 dll = None
 
         if dll is not None:
             setter = getattr(dll, "openblas_set_num_threads", None)
             if setter is not None:
                 setter(threads)
-    except Exception:
+    except ValueError:
+        # OPENBLAS_NUM_THREADS is not an integer: OpenBLAS reads it itself and keeps its
+        # own default, so leave the thread count alone.
         pass

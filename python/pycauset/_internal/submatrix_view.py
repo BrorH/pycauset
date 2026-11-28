@@ -11,10 +11,7 @@ def _safe_get(obj: Any, i: int, j: int) -> Any:
     get_fn = getattr(obj, "get", None)
     if callable(get_fn):
         return get_fn(i, j)
-    try:
-        return obj[i, j]
-    except Exception as e:
-        raise TypeError("source does not support element access via get(i,j) or [i,j]") from e
+    return obj[i, j]
 
 
 def _dense_from_get(obj: Any) -> DensePythonMatrix:
