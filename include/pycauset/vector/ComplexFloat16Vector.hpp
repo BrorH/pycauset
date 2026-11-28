@@ -103,7 +103,6 @@ public:
             out->set_scalar(scalar_);
             out->set_seed(seed_);
             out->set_conjugated(is_conjugated());
-            out->set_temporary(is_temporary());
             return out;
         }
 

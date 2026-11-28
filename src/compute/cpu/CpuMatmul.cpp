@@ -165,7 +165,6 @@ namespace {
         const uint64_t last_mask = (rem_bits == 0u) ? ~0ull : ((1ull << rem_bits) - 1ull);
 
         auto b_transposed_mat = std::make_unique<DenseBitMatrix>(n, k, "");
-        b_transposed_mat->set_temporary(true);
         uint64_t* b_transposed_data = b_transposed_mat->data();
 
         for (uint64_t i = 0; i < k; ++i) {

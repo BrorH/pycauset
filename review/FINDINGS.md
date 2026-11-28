@@ -1611,3 +1611,29 @@ the entry (the history is useful). New findings go at the bottom with the next f
   the range now and discard drops only whole pages inside it, never a copy-on-write snapshot's
   (its writes exist only in memory). `MADV_HUGEPAGE` removed. Helper: `PageRange.hpp`.
   `test_F122_*`.
+
+### F-123 Temp files of dead objects stayed until exit; one fd per object; leaked mappings
+- **Status:** fixed (session 9; area 3.1 review, C-3, C-4, C-6, C-8, C-9, C-10, C-13, C-14).
+  - **C-3:** a temporary file was deleted only by `close()`, which ran at exit: a loop
+    over file-backed results filled the disk. The storage (`MemoryMapper`) owns its file
+    now and deletes it when its last owner goes; views share it, so they keep it. A named
+    file and a loaded snapshot are never deleted. Temp-ness is the storage's
+    (`is_temporary` / `set_temporary` forward to it), so the per-object flag, its
+    constructor parameter and its five copy sites are gone. `pc.keep_temp_files` is
+    removed: it could only keep files of objects alive at exit.
+  - **C-4:** each file-backed object kept its fd open (no O_CLOEXEC): about 1,020 objects
+    exhausted the default limit (256 on macOS). POSIX closes the fd once mapped.
+  - **C-8 / C-9:** `TriangularMatrix<bool>::fill_random` mapped 64 MB windows and never
+    unmapped them on POSIX; on Windows the remap was wrong. It writes through the plain
+    mapping now (same RNG sequence: seeded outputs are unchanged). The region API
+    (`unmap`, `map_all`, `map_region`, `unmap_region`), `pin_region` / `unpin_region`,
+    `is_pinned_` and the unreachable Windows VirtualAlloc branch are removed.
+  - **C-6:** the governor's registry of RAM objects (each view registered the full
+    storage) is gone; nothing read it (the OS's available RAM already counts PyCauset's
+    memory). `request_ram` merged into `can_fit_in_ram`.
+  - **C-10:** a new file is sized once (fallocate, ftruncate as fallback) and pre-faulted
+    only if it fits in RAM.
+  - **C-13 / C-14:** a copy-on-write copy is placed like a new object (threshold, then
+    RAM), not in a never-deleted file because the source was a snapshot; `memcpy` of
+    empty storage is skipped.
+  - `test_F123_*`.

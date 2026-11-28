@@ -91,9 +91,8 @@ public:
                 uint64_t seed,
                 std::complex<double> scalar,
                 bool is_transposed,
-                bool is_conjugated,
-                bool is_temporary)
-        : DenseMatrixBase(base_rows, base_cols, std::move(mapper), pycauset::Structure::DENSE, MatrixTraits<T>::data_type, seed, scalar, is_transposed, is_temporary) {
+                bool is_conjugated)
+        : DenseMatrixBase(base_rows, base_cols, std::move(mapper), pycauset::Structure::DENSE, MatrixTraits<T>::data_type, seed, scalar, is_transposed) {
         set_view(view_rows, view_cols, row_offset, col_offset);
         set_conjugated(is_conjugated);
     }

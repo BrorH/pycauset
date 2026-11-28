@@ -93,18 +93,16 @@ import pycauset as pc
 pc.set_backing_dir(r"D:\\pycauset_tmp")
 ```
 
-PyCauset cleans up temporary backing files (extensions like `.tmp` / `.raw_tmp`) in two places:
+A temporary backing file (`.tmp`) belongs to its storage: it is deleted when the last
+object using it goes (a matrix and its views share one). `del` a big intermediate and its
+disk space comes back at once. PyCauset also sweeps the directory for leftovers (`.tmp` /
+`.raw_tmp`):
 
-- **On import** (startup): removes potential leftovers from previous runs.
-- **On interpreter exit**: removes temporary files from the current run.
+- **On import** (and on `set_backing_dir`): files of earlier runs that crashed.
+- **On interpreter exit**: anything still there from this run.
 
-Note: `pc.keep_temp_files = True` prevents the exit-time cleanup. Startup cleanup still runs so you don't accidentally reuse stale temp files.
-
-If you want to keep them around for debugging:
-
-```python
-pc.keep_temp_files = True # Files will not be deleted on program exit
-```
+Files of other processes that are still running are left alone (the pid is in the name).
+To keep a matrix, save it (`pc.save`).
 
 ## RAM or file: decided when an object is made
 

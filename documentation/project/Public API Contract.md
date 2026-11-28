@@ -93,7 +93,6 @@ See also: [[internals/Warnings & Exceptions|Warnings & Exceptions]].
 
 Some public configuration is intentionally exposed as module-level parameters.
 
-- `pycauset.keep_temp_files` (documented under `documentation/docs/parameters/`)
 - `pycauset.debug_mode` (documented under `documentation/docs/parameters/`)
 
 ---

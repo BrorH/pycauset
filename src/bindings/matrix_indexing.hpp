@@ -256,8 +256,7 @@ inline std::shared_ptr<DenseMatrix<T>> slice_dense_matrix(const DenseMatrix<T>& 
                                                          mat.get_seed(),
                                                          mat.get_scalar(),
                                                          mat.is_transposed(),
-                                                         mat.is_conjugated(),
-                                                         mat.is_temporary());
+                                                         mat.is_conjugated());
             return view;
         }
     }

@@ -82,21 +82,21 @@ class Runtime:
                 except Exception:
                     pass
 
-    def register_cleanup(self, *, keep_temp_files_getter: Callable[[], bool]) -> None:
+    def register_cleanup(self) -> None:
         def _finalize() -> None:
             try:
-                self.cleanup_all_roots(keep_temp_files=keep_temp_files_getter())
+                self.cleanup_all_roots()
             except Exception:
                 pass
 
         atexit.register(_finalize)
 
-    def cleanup_all_roots(self, *, keep_temp_files: bool) -> None:
-        """Release live matrices and clean all known storage roots."""
+    def cleanup_all_roots(self) -> None:
+        """Release live matrices (their temporary files go with them) and sweep every known
+        storage root for leftovers (files of crashed runs, files another process could not
+        delete)."""
 
         self.release_tracked_matrices()
-        if keep_temp_files:
-            return
 
         roots = set(self._storage_roots_seen)
         try:

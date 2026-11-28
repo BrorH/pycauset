@@ -92,7 +92,6 @@ public:
         out->set_seed(seed_);
         out->set_transposed(!is_transposed());
         out->set_conjugated(is_conjugated());
-        out->set_temporary(is_temporary());
         return out;
     }
 };

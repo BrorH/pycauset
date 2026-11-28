@@ -232,7 +232,6 @@ _runtime = _runtime_mod.Runtime(
     set_temporary_file=set_temporary_file,
 )
 
-keep_temp_files: bool = False
 _EXPORT_MAX_BYTES: int | None = None
 _DEFAULT_MEMORY_THRESHOLD = _native.get_memory_threshold()
 _IO_OBS = _io_observability.IOObservability(_native)
@@ -318,7 +317,7 @@ def _track_matrix(instance: Any) -> None:
 
 
 def _register_cleanup() -> None:
-    _runtime.register_cleanup(keep_temp_files_getter=lambda: keep_temp_files)
+    _runtime.register_cleanup()
 
 
 _register_cleanup()
@@ -1349,7 +1348,6 @@ _extra_exports = [
     "set_memory_threshold",
     "last_io_trace",
     "clear_io_traces",
-    "keep_temp_files",
     "bool",
     "matrix",
     "vector",

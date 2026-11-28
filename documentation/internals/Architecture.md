@@ -86,7 +86,8 @@ The procedure for adding or changing an operation is
 Objects up to the memory threshold (default 1 GiB) live in RAM, larger ones in temporary
 files in the backing directory; a new object also goes to a file when it would not fit the
 `MemoryGovernor`'s RAM budget. Objects are never moved to disk after they are made (kernels
-hold raw pointers into their storage, F-120). `pc.save` writes a single-file `.pycauset` container
+hold raw pointers into their storage, F-120). A temporary file goes with its storage's last
+owner (views share the storage). `pc.save` writes a single-file `.pycauset` container
 (header slots, payload, typed metadata: [[internals/PyCauset Container Format|Container Format]]);
 `pc.load` memory-maps the payload copy-on-write, so the file is never modified.
 

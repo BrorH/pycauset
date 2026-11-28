@@ -9,23 +9,6 @@
 #include "pycauset/core/MemoryHints.hpp"
 #include "pycauset/core/IOAccelerator.hpp"
 
-// class MemoryMapper; // Already included in IOAccelerator.hpp? No, IOAccelerator.hpp includes MemoryMapper.hpp.
-// But PersistentObject.hpp uses MemoryMapper* in constructor.
-
-namespace pycauset {
-namespace core {
-
-// class IOAccelerator; // Forward declaration removed
-
-enum class StorageState {
-    RAM_ONLY,       // Data is in anonymous memory (RAM)
-    DISK_BACKED,    // Data is memory-mapped from a file
-    TRANSITIONING   // Currently moving between states
-};
-
-} // namespace core
-} // namespace pycauset
-
 class PersistentObject {
 public:
     // Constructor for loading/creating with explicit metadata
@@ -36,8 +19,7 @@ public:
                      uint64_t cols,
                      uint64_t seed = 0,
                      std::complex<double> scalar = 1.0,
-                     bool is_transposed = false,
-                     bool is_temporary = false);
+                     bool is_transposed = false);
 
     virtual ~PersistentObject();
 
@@ -54,25 +36,6 @@ public:
      */
     void ensure_unique();
 
-    // Ensures the storage is a mapping of its own that can be remapped (a copy when shared or
-    // when it is a copy-on-write snapshot mapping). For code that unmaps and remaps regions.
-    void ensure_own_mapping();
-
-    /**
-     * @brief Notifies the MemoryGovernor that this object is being accessed.
-     * Should be called by Solvers before heavy operations.
-     */
-
-    /**
-     * @brief Moves the object from RAM to Disk to free up memory.
-     * @return true if successful, false if already on disk or failed.
-     */
-
-    /**
-     * @brief Returns the current storage state.
-     */
-    pycauset::core::StorageState get_storage_state() const { return storage_state_; }
-
     // The storage itself (shared, copy-on-write). Lets another object view the same bytes
     // with a different shape, e.g. a dense vector as a 1 x n matrix (math/VectorOps.hpp).
     const std::shared_ptr<MemoryMapper>& shared_mapper() const { return mapper_; }
@@ -85,7 +48,9 @@ public:
     uint64_t get_seed() const { return seed_; }
     void set_seed(uint64_t seed);
 
-    bool is_temporary() const { return is_temporary_; }
+    // Whether the storage is deleted with its last owner (auto-named files, copies, RAM). It
+    // belongs to the storage, so every view of it agrees (MemoryMapper::is_temporary).
+    bool is_temporary() const;
     void set_temporary(bool temp);
 
     bool is_transposed() const { return is_transposed_; }
@@ -147,12 +112,6 @@ protected:
     std::complex<double> scalar_ = 1.0;
     bool is_transposed_ = false;
     bool is_conjugated_ = false;
-    bool is_temporary_ = false;
-
-    // Property flags mirror (Phase 3: fast traits)
-
-    // Tiered Storage State
-    pycauset::core::StorageState storage_state_ = pycauset::core::StorageState::DISK_BACKED; // Default for legacy compatibility
 
     // IO Accelerator
     mutable std::unique_ptr<pycauset::core::IOAccelerator> accelerator_;

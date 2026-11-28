@@ -110,9 +110,8 @@ def test_runtime_cleanup_closes_tracked_objects_and_sweeps_tmp_files(tmp_path):
     rt.track_matrix(obj)
     assert rt.has_live_matrices()
 
-    rt.cleanup_all_roots(keep_temp_files=True)  # closes, keeps files
-    assert obj.closed and tmp.exists()
-    rt.cleanup_all_roots(keep_temp_files=False)  # sweeps *.tmp only
+    rt.cleanup_all_roots()  # closes live objects, sweeps *.tmp only
+    assert obj.closed
     assert not tmp.exists() and (tmp_path / "keep.pycauset").exists()
 
 
@@ -239,3 +238,95 @@ def test_F122_prefetch_and_discard_keep_values(backing_dir, tmp_path):
     s[0, 0] = -5.0
     s.get_accelerator().discard(0, 512 * 512 * 8)
     assert float(np.asarray(s)[0, 0]) == -5.0
+
+
+# --- area 3.1 review: the storage owns its file (F-123) ------------------------------------
+
+@pytest.fixture
+def file_backed(backing_dir):
+    previous = pc.get_memory_threshold()
+    pc.set_memory_threshold(1)  # every new object is file-backed
+    yield backing_dir
+    pc.set_memory_threshold(previous)
+
+
+def _tmp_files(d):
+    return sorted(p.name for p in Path(d).glob("*.tmp"))
+
+
+def test_F123_a_temp_file_goes_with_its_last_owner(file_backed):
+    import gc
+
+    a = pc.matrix(np.ones((32, 32)))
+    b = a + a
+    v = b.T  # a view: shares b's storage and file
+    assert len(_tmp_files(file_backed)) == 2
+    del a, b
+    gc.collect()
+    assert len(_tmp_files(file_backed)) == 1  # a's is gone; b's lives on in v
+    np.testing.assert_array_equal(np.asarray(v), np.full((32, 32), 2.0))
+    del v
+    gc.collect()
+    assert _tmp_files(file_backed) == []
+
+
+def test_F123_named_files_and_snapshots_stay(file_backed, tmp_path):
+    import gc
+
+    pc.save(pc.matrix(np.eye(4)), tmp_path / "s.pycauset")
+    s = pc.load(tmp_path / "s.pycauset")
+    s[0, 0] = 9.0  # a private copy; the snapshot file is untouched
+    del s
+    gc.collect()
+    assert (tmp_path / "s.pycauset").exists()
+    np.testing.assert_array_equal(np.asarray(pc.load(tmp_path / "s.pycauset")), np.eye(4))
+
+
+@pytest.mark.skipif(not Path("/proc/self/fd").exists(), reason="needs /proc")
+def test_F123_file_backed_objects_hold_no_descriptor(file_backed):
+    """One open fd per file-backed object: about 1,020 objects hit the default limit."""
+    import os
+
+    before = len(os.listdir("/proc/self/fd"))
+    keep = [pc.zeros((4, 4)) for _ in range(200)]
+    assert all(m.get_backing_file() != ":memory:" for m in keep)
+    assert len(os.listdir("/proc/self/fd")) - before < 10
+
+
+@pytest.mark.skipif(not Path("/proc/self/maps").exists(), reason="needs /proc")
+def test_F123_random_causal_matrix_leaks_no_mapping(file_backed):
+    """fill_random mapped 64 MB windows and never unmapped them on POSIX."""
+    import gc
+
+    for _ in range(3):
+        m = pc.TriangularMatrix.random(2000, p=0.5, seed=1)
+        del m
+    gc.collect()
+    maps = Path("/proc/self/maps").read_text()
+    assert str(file_backed) not in maps
+
+
+def test_F123_random_causal_matrix_same_in_ram_and_file(backing_dir):
+    previous = pc.get_memory_threshold()
+    try:
+        for p in (0.5, 0.3):
+            ram = np.asarray(pc.TriangularMatrix.random(300, p=p, seed=7))
+            pc.set_memory_threshold(1)
+            disk_m = pc.TriangularMatrix.random(300, p=p, seed=7)
+            assert disk_m.get_backing_file() != ":memory:"
+            np.testing.assert_array_equal(np.asarray(disk_m), ram)
+            pc.set_memory_threshold(previous)
+            assert abs(ram[np.triu_indices(300, 1)].mean() - p) < 0.02
+    finally:
+        pc.set_memory_threshold(previous)
+
+
+def test_F123_copy_of_a_small_loaded_matrix_goes_to_ram(backing_dir, tmp_path):
+    """Writing to a loaded snapshot that a view shares copied it into a file (never deleted),
+    however small. Copies are placed like new objects now."""
+    pc.save(pc.matrix(np.eye(4)), tmp_path / "a.pycauset")
+    m = pc.load(tmp_path / "a.pycauset")
+    v = m.T
+    m[0, 0] = 5.0
+    assert m.get_backing_file() == ":memory:"
+    assert float(np.asarray(v)[0, 0]) == 1.0 and float(np.asarray(m)[0, 0]) == 5.0

@@ -1,26 +1,19 @@
 #pragma once
 
 #include <cstdint>
-#include <list>
-#include <unordered_map>
-#include <mutex>
 #include <atomic>
-#include <memory>
-#include <string>
-
-// Forward declaration
-class PersistentObject;
 
 namespace pycauset {
 namespace core {
 
 /**
- * @brief The MemoryGovernor manages the global RAM budget for the application.
- * 
- * Tiered storage: a new object is placed in RAM when it fits the budget (free RAM minus a
- * safety margin), otherwise in a memory-mapped file. Objects are never moved to disk later:
- * kernels hold raw pointers into their operands' storage (F-120). The registry of RAM
- * objects tracks the RAM PyCauset holds.
+ * @brief The RAM budget: whether a new object fits in RAM (available RAM minus a safety
+ * margin), and the pinned-memory budget of the (dormant) GPU path.
+ *
+ * A new object is placed in RAM when it is under the memory threshold and fits, otherwise
+ * in a memory-mapped file. Objects are never moved to disk later: kernels hold raw pointers
+ * into their operands' storage (F-120). No registry: the OS's available-RAM figure already
+ * counts what PyCauset holds.
  */
 class MemoryGovernor {
 public:
@@ -32,40 +25,9 @@ public:
     MemoryGovernor& operator=(const MemoryGovernor&) = delete;
 
     /**
-     * @brief Registers a new object with the governor.
-     * @param obj The object to track.
-     * @param size_bytes The size of the object in RAM.
-     */
-    void register_object(PersistentObject* obj, size_t size_bytes);
-
-    /**
-     * @brief Unregisters an object (e.g., on destruction).
-     * @param obj The object to stop tracking.
-     */
-    void unregister_object(PersistentObject* obj);
-
-    /**
-     * @brief Requests permission to allocate memory in RAM.
-     * 
-     * True when the request fits the budget; false otherwise (the caller uses a file).
-     * Nothing already allocated is moved to make room.
-     * 
-     * @param size_bytes The amount of memory requested.
-     * @return true if allocation is allowed in RAM, false otherwise.
-     */
-    bool request_ram(size_t size_bytes);
-
-    /**
-     * @brief Explicitly updates the size of a tracked object (e.g. resize).
-     */
-    void update_size(PersistentObject* obj, size_t new_size_bytes);
-
-    /**
-     * @brief Checks if the requested amount of memory fits in RAM without eviction.
-     * This is a lightweight check for optimization purposes.
-     * 
-     * @param size_bytes The amount of memory to check.
-     * @return true if available RAM > size_bytes + safety_margin.
+     * @brief Whether size_bytes fits in RAM: available RAM (from the OS, which already counts
+     * PyCauset's own allocations) minus the safety margin. Placement of a new object and the
+     * direct-path checks of kernels ask this; nothing is reserved and nothing is moved.
      */
     bool can_fit_in_ram(size_t size_bytes) const;
 
@@ -139,11 +101,6 @@ public:
     uint64_t get_available_system_ram() const;
 
     /**
-     * @brief Returns the amount of RAM currently used by tracked objects.
-     */
-    uint64_t get_tracked_ram_usage() const;
-
-    /**
      * @brief Returns the configured safety margin (bytes to leave free for OS).
      */
     uint64_t get_safety_margin() const;
@@ -167,19 +124,6 @@ private:
     void refresh_system_stats() const;
 
 
-    // State
-    mutable std::recursive_mutex mutex_;
-    
-    // LRU Cache Structure
-    // List contains objects ordered by usage (Back = Most Recent, Front = Least Recent)
-    std::list<PersistentObject*> lru_list_;
-    // Map for O(1) access to list iterators
-    std::unordered_map<PersistentObject*, std::list<PersistentObject*>::iterator> lru_map_;
-    // Map to track object sizes
-    std::unordered_map<PersistentObject*, size_t> object_sizes_;
-
-    // Stats
-    std::atomic<uint64_t> tracked_ram_usage_{0};
     std::atomic<uint64_t> safety_margin_{0}; // Default will be set in constructor
 
     // Pinned Memory Stats

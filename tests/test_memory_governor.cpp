@@ -1,29 +1,5 @@
 #include <gtest/gtest.h>
 #include "pycauset/core/MemoryGovernor.hpp"
-#include "pycauset/core/PersistentObject.hpp"
-#include "pycauset/core/MemoryMapper.hpp"
-#include <memory>
-
-// Mock PersistentObject since we don't want to link the whole world
-// We just need a valid pointer address.
-class MockObject : public PersistentObject {
-public:
-    MockObject() : PersistentObject() {}
-    
-    // Helper to inject a real mapper
-    void set_mapper(std::shared_ptr<MemoryMapper> m) {
-        mapper_ = std::move(m);
-        // Manually register if it's RAM
-        if (mapper_->get_filename() == ":memory:") {
-            storage_state_ = pycauset::core::StorageState::RAM_ONLY;
-            pycauset::core::MemoryGovernor::instance().register_object(this, mapper_->get_data_size());
-        }
-    }
-
-    std::unique_ptr<PersistentObject> clone() const override {
-        return std::make_unique<MockObject>();
-    }
-};
 
 using namespace pycauset::core;
 
@@ -44,35 +20,6 @@ TEST_F(MemoryGovernorTest, SingletonInstance) {
     EXPECT_EQ(&gov1, &gov2);
 }
 
-TEST_F(MemoryGovernorTest, RegisterAndUnregister) {
-    MemoryGovernor& gov = MemoryGovernor::instance();
-    MockObject obj1;
-    MockObject obj2;
-
-    gov.register_object(&obj1, 1000);
-    EXPECT_EQ(gov.get_tracked_ram_usage(), 1000);
-
-    gov.register_object(&obj2, 2000);
-    EXPECT_EQ(gov.get_tracked_ram_usage(), 3000);
-
-    gov.unregister_object(&obj1);
-    EXPECT_EQ(gov.get_tracked_ram_usage(), 2000);
-
-    gov.unregister_object(&obj2);
-    EXPECT_EQ(gov.get_tracked_ram_usage(), 0);
-}
-
-TEST_F(MemoryGovernorTest, UpdateSize) {
-    MemoryGovernor& gov = MemoryGovernor::instance();
-    MockObject obj1;
-
-    gov.register_object(&obj1, 1000);
-    EXPECT_EQ(gov.get_tracked_ram_usage(), 1000);
-
-    gov.update_size(&obj1, 5000);
-    EXPECT_EQ(gov.get_tracked_ram_usage(), 5000);
-}
-
 TEST_F(MemoryGovernorTest, SystemStats) {
     MemoryGovernor& gov = MemoryGovernor::instance();
     uint64_t total = gov.get_total_system_ram();
@@ -83,16 +30,16 @@ TEST_F(MemoryGovernorTest, SystemStats) {
     EXPECT_LE(avail, total);
 }
 
-TEST_F(MemoryGovernorTest, RequestRam) {
+TEST_F(MemoryGovernorTest, CanFitInRam) {
     MemoryGovernor& gov = MemoryGovernor::instance();
     
     // Request a small amount, should succeed
-    EXPECT_TRUE(gov.request_ram(1024));
+    EXPECT_TRUE(gov.can_fit_in_ram(1024));
 
     // Request an impossible amount (Total RAM + 1TB), should fail
     // Note: This assumes the system doesn't have exabytes of RAM
     uint64_t impossible = gov.get_total_system_ram() + 1024ULL * 1024 * 1024 * 1024; 
-    EXPECT_FALSE(gov.request_ram(impossible));
+    EXPECT_FALSE(gov.can_fit_in_ram(impossible));
 }
 
 TEST_F(MemoryGovernorTest, PinnedMemoryBudget) {

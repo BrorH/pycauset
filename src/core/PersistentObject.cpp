@@ -1,24 +1,14 @@
 #include "pycauset/core/PersistentObject.hpp"
-#include "pycauset/core/SystemUtils.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/IOAccelerator.hpp"
 
 #include <stdexcept>
 #include <cstring>
-#include <filesystem>
-#include <fstream>
-#include <algorithm>
 
 #include "pycauset/core/StorageUtils.hpp"
 
-PersistentObject::PersistentObject() 
-    : mapper_(nullptr), 
-      structure_(pycauset::Structure::UNKNOWN), 
-      data_type_(pycauset::DataType::UNKNOWN), 
-      rows_(0), cols_(0), seed_(0), scalar_(1.0), 
-    is_transposed_(false), is_conjugated_(false), is_temporary_(false),
-      storage_state_(pycauset::core::StorageState::DISK_BACKED) {}
+PersistentObject::PersistentObject() = default;
 
 PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
                                    pycauset::Structure structure,
@@ -27,8 +17,7 @@ PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
                                    uint64_t cols,
                                    uint64_t seed,
                                    std::complex<double> scalar,
-                                   bool is_transposed,
-                                   bool is_temporary)
+                                   bool is_transposed)
     : mapper_(std::move(mapper)),
       structure_(structure),
       data_type_(data_type),
@@ -36,27 +25,9 @@ PersistentObject::PersistentObject(std::shared_ptr<MemoryMapper> mapper,
       cols_(cols),
       seed_(seed),
       scalar_(scalar),
-      is_transposed_(is_transposed),
-    is_conjugated_(false),
-      is_temporary_(is_temporary)
-{
-    // Determine initial state
-    if (mapper_ && mapper_->get_filename() == ":memory:") {
-        storage_state_ = pycauset::core::StorageState::RAM_ONLY;
-        pycauset::core::MemoryGovernor::instance().register_object(this, mapper_->get_data_size());
-    } else {
-        storage_state_ = pycauset::core::StorageState::DISK_BACKED;
-    }
-}
+      is_transposed_(is_transposed) {}
 
-PersistentObject::~PersistentObject() {
-    // Derived matrix types do not call close() from their destructors: unregister here so
-    // the governor's registry only ever holds live objects. Safe if already unregistered
-    // (close() ran first): unregister is a no-op when the pointer is absent.
-    if (storage_state_ == pycauset::core::StorageState::RAM_ONLY) {
-        pycauset::core::MemoryGovernor::instance().unregister_object(this);
-    }
-}
+PersistentObject::~PersistentObject() = default;
 
 std::string PersistentObject::get_backing_file() const {
     if (mapper_) {
@@ -66,31 +37,10 @@ std::string PersistentObject::get_backing_file() const {
 }
 
 void PersistentObject::close() {
-    if (mapper_) {
-        // Unregister from Governor if we were in RAM
-        if (storage_state_ == pycauset::core::StorageState::RAM_ONLY) {
-            pycauset::core::MemoryGovernor::instance().unregister_object(this);
-        }
-
-        bool temp = is_temporary_;
-        std::string path = mapper_->get_filename();
-        const long use_count = mapper_.use_count();
-        mapper_.reset(); // Close file mapping
-
-        // Only delete temporary files when this object is the last owner of the mapping.
-        // Many operations return metadata-only views that share storage (CoW semantics).
-        if (temp && use_count == 1 && !path.empty() && path != ":memory:") {
-            // close() runs from destructors and cannot throw: a temporary file that cannot be
-            // deleted (another process holds it) stays in the backing directory.
-            std::error_code ec;
-            std::filesystem::remove(std::filesystem::path(reinterpret_cast<const char8_t*>(path.c_str())), ec);
-        }
-    }
-}
-
-void PersistentObject::ensure_own_mapping() {
-    if (mapper_ && mapper_->is_private()) copy_storage_now();
-    ensure_unique();
+    // The storage (and its temporary file, if any) goes with its last owner: other views of
+    // it keep it alive.
+    mapper_.reset();
+    accelerator_.reset();
 }
 
 void PersistentObject::ensure_unique() {
@@ -102,40 +52,22 @@ void PersistentObject::ensure_unique() {
     mapper_->bump_version();
 }
 
+// Placement of a new storage: RAM when under the memory threshold and it fits, otherwise
+// an auto-named temporary file. One rule for new objects and copies (review 3.1 C-13: a
+// copy of a loaded snapshot went to a file that was never deleted, however small).
+static bool place_in_ram(uint64_t bytes) {
+    return bytes <= pycauset::get_memory_threshold() && pycauset::core::MemoryGovernor::instance().can_fit_in_ram(bytes);
+}
+
 void PersistentObject::copy_storage_now() {
-    {
-        size_t size = mapper_->get_data_size();
-        std::string new_path;
-        bool use_ram = (storage_state_ == pycauset::core::StorageState::RAM_ONLY);
-        
-        if (use_ram) {
-             if (!pycauset::core::MemoryGovernor::instance().request_ram(size)) {
-                 use_ram = false;
-             }
-        }
-        
-        if (use_ram) {
-            new_path = ":memory:";
-        } else {
-            new_path = pycauset::make_unique_storage_file("cow_copy");
-        }
-        
-        auto new_mapper = std::make_unique<MemoryMapper>(new_path, size, 0, true);
-        std::memcpy(new_mapper->get_data(), mapper_->get_data(), size);
-        
-        if (!use_ram) {
-            new_mapper->flush();
-        }
-        
-        mapper_ = std::move(new_mapper);
-        accelerator_.reset();
-        
-        if (!use_ram) {
-            storage_state_ = pycauset::core::StorageState::DISK_BACKED;
-        } else {
-            storage_state_ = pycauset::core::StorageState::RAM_ONLY;
-        }
-    }
+    const size_t size = mapper_->get_data_size();
+    const bool use_ram = place_in_ram(size);
+    auto copy = std::make_shared<MemoryMapper>(use_ram ? std::string(":memory:") : pycauset::make_unique_storage_file("cow_copy"),
+                                               size, 0, true);
+    if (!use_ram) copy->set_temporary(true);
+    if (size > 0) std::memcpy(copy->get_data(), mapper_->get_data(), size);  // empty: null pointers
+    mapper_ = std::move(copy);
+    accelerator_.reset();
 }
 
 void PersistentObject::initialize_storage(uint64_t size_in_bytes,
@@ -155,32 +87,24 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     
     std::string path;
     bool use_ram = false;
-
     if (backing_file.empty() || backing_file == ":memory:") {
-        // Honor explicit RAM threshold first, then ask MemoryGovernor.
-        // This provides deterministic behavior for tests and user control.
-        bool eligible_for_ram = (final_size <= pycauset::get_memory_threshold());
-        if (eligible_for_ram && pycauset::core::MemoryGovernor::instance().request_ram(final_size)) {
-            use_ram = true;
-            path = ":memory:";
-        } else {
-            // Above the memory threshold (or no RAM left): file-backed, by design.
-            path = resolve_backing_file("", fallback_prefix);
-        }
+        use_ram = place_in_ram(final_size);
+        path = use_ram ? std::string(":memory:") : resolve_backing_file("", fallback_prefix);
     } else {
         path = resolve_backing_file(backing_file, fallback_prefix);
     }
-    
+
     // Create new file, no header space needed
     // An existing file is a saved snapshot: map it copy-on-write, so writes never reach it (F-093).
     mapper_ = std::make_unique<MemoryMapper>(path, final_size, offset, create_new, /*private_writes=*/!create_new);
     accelerator_.reset();
+    // Auto-named files and explicit `.tmp` names are deleted with the storage.
+    if (create_new && !use_ram && (backing_file.empty() || backing_file.ends_with(".tmp"))) mapper_->set_temporary(true);
 
 #ifdef _WIN32
-    // Optimization: On Windows, prefetch the newly created file to populate page tables.
-    // This reduces page faults during the subsequent write (Import Gap).
-    // On Linux, MAP_POPULATE in MemoryMapper already handles this.
-    if (create_new && !use_ram) {
+    // Prefetch a new file that fits in RAM to populate page tables before it is written
+    // (Linux: MAP_POPULATE in MemoryMapper, same condition).
+    if (create_new && !use_ram && pycauset::core::MemoryGovernor::instance().can_fit_in_ram(final_size)) {
         get_accelerator()->prefetch(0, final_size);
     }
 #endif
@@ -191,67 +115,26 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     rows_ = rows;
     cols_ = cols;
     scalar_ = 1.0;
-    is_temporary_ = (backing_file.empty() || path == ":memory:" || backing_file.ends_with(".tmp"));
     is_transposed_ = false;
     seed_ = 0;
-
-    if (use_ram) {
-        storage_state_ = pycauset::core::StorageState::RAM_ONLY;
-        pycauset::core::MemoryGovernor::instance().register_object(this, final_size);
-    } else {
-        storage_state_ = pycauset::core::StorageState::DISK_BACKED;
-    }
 }
 
 
 std::string PersistentObject::copy_storage(const std::string& result_file_hint) const {
-    std::string source_path = get_backing_file();
-    
-    if (mapper_) {
-        mapper_->flush();
-    }
-
+    const MemoryMapper* src = require_mapper();
     std::string dest_path = resolve_backing_file(result_file_hint, "copy");
-    
-    // Always use manual copy if we have a mapper.
-    // This ensures we copy exactly what is in memory, avoiding issues with
-    // filesystem cache synchronization or file locking on Windows.
-    bool manual_copy = (mapper_ != nullptr);
-
-    if (manual_copy) {
-        // For RAM-backed objects or objects inside a container (offset > 0),
-        // we must write the memory buffer to disk manually to extract just the data.
-        // We use MemoryMapper to create the file to ensure the correct header is written.
-        try {
-            size_t size = mapper_->get_data_size();
-            // create_new=true writes the header
-            MemoryMapper dest_mapper(dest_path, size, 0, true);
-            
-            const char* src_data = static_cast<const char*>(mapper_->get_data());
-            char* dst_data = static_cast<char*>(dest_mapper.get_data());
-            
-            // Explicitly flush source if needed (assumed coherent)
-            if (size > 0) {  // empty objects have null data pointers (F-025)
-                std::memcpy(dst_data, src_data, size);
-            }
-            dest_mapper.flush();
-        } catch (const std::exception& e) {
-             throw std::runtime_error("Failed to copy storage to " + dest_path + ": " + e.what());
+    // Copies the bytes in memory into a new file (with its header): RAM objects and payloads
+    // inside a container (offset > 0) have no file of their own to copy.
+    try {
+        const size_t size = src->get_data_size();
+        MemoryMapper dest(dest_path, size, 0, true);
+        if (size > 0) {  // empty objects have null data pointers (F-025)
+            std::memcpy(dest.get_data(), src->get_data(), size);
         }
-    } else {
-        if (source_path.empty()) {
-            throw std::runtime_error("Cannot copy object without backing file");
-        }
-        // Use filesystem copy
-        try {
-            std::filesystem::path src(reinterpret_cast<const char8_t*>(source_path.c_str()));
-            std::filesystem::path dst(reinterpret_cast<const char8_t*>(dest_path.c_str()));
-            std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing);
-        } catch (const std::filesystem::filesystem_error& e) {
-            throw std::runtime_error("Failed to copy backing file: " + std::string(e.what()));
-        }
+        dest.flush();
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Failed to copy storage to " + dest_path + ": " + e.what());
     }
-    
     return dest_path;
 }
 
@@ -263,8 +146,12 @@ void PersistentObject::set_seed(uint64_t seed) {
     seed_ = seed;
 }
 
+bool PersistentObject::is_temporary() const {
+    return mapper_ && mapper_->is_temporary();
+}
+
 void PersistentObject::set_temporary(bool temp) {
-    is_temporary_ = temp;
+    if (mapper_) mapper_->set_temporary(temp);
 }
 
 void PersistentObject::set_transposed(bool transposed) {

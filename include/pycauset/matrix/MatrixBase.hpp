@@ -35,8 +35,7 @@ public:
                pycauset::DataType data_type,
                uint64_t seed = 0,
                std::complex<double> scalar = 1.0,
-               bool is_transposed = false,
-               bool is_temporary = false);
+               bool is_transposed = false);
 
     // Constructor for loading/wrapping existing storage (rectangular)
     MatrixBase(uint64_t rows,
@@ -46,8 +45,7 @@ public:
                pycauset::DataType data_type,
                uint64_t seed = 0,
                std::complex<double> scalar = 1.0,
-               bool is_transposed = false,
-               bool is_temporary = false);
+               bool is_transposed = false);
 
     virtual ~MatrixBase() {
     }
@@ -121,19 +119,17 @@ public:
         return out;
     }
     // O(1) views sharing this object's storage, with its whole view state (window, offsets,
-    // transposition, conjugation, factor, temporary flag) kept: one implementation for every
+    // transposition, conjugation, factor) kept: one implementation for every
     // class (hand-built copies passed the transposed shape as the storage shape and dropped
     // windows, F-097).
     std::unique_ptr<MatrixBase> scaled_clone(std::complex<double> f) const {
         auto out = std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(clone().release()));
         out->set_scalar(get_scalar() * (is_conjugated() ? std::conj(f) : f));
-        out->set_temporary(is_temporary());
         return out;
     }
     std::unique_ptr<MatrixBase> transposed_clone() const {
         auto out = std::unique_ptr<MatrixBase>(static_cast<MatrixBase*>(clone().release()));
         out->set_transposed(!is_transposed());
-        out->set_temporary(is_temporary());
         return out;
     }
 

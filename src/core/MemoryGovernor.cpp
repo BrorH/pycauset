@@ -1,8 +1,6 @@
 #include <atomic>
 #include <chrono>
 #include "pycauset/core/MemoryGovernor.hpp"
-#include "pycauset/core/PersistentObject.hpp" // We will need this later for eviction
-#include <iostream>
 #include <algorithm>
 #include <fstream>
 
@@ -23,11 +21,8 @@ namespace pycauset {
 namespace core {
 
 MemoryGovernor& MemoryGovernor::instance() {
-    // Intentionally leaked: PersistentObject destructors and close() call back
-    // into the governor during interpreter finalization, where the static
-    // destruction order of a Meyers singleton is undefined. A heap singleton that
-    // is never destroyed removes that entire class of teardown hang/crash (the
-    // destructor is empty anyway; the OS reclaims the few bytes at process exit).
+    // Intentionally leaked: objects made or freed during interpreter finalization may still
+    // ask it, and the destruction order of a Meyers singleton is undefined then.
     static MemoryGovernor* instance = new MemoryGovernor();
     return *instance;
 }
@@ -141,10 +136,6 @@ uint64_t MemoryGovernor::get_available_system_ram() const {
     return cached_available_ram_;
 }
 
-uint64_t MemoryGovernor::get_tracked_ram_usage() const {
-    return tracked_ram_usage_;
-}
-
 uint64_t MemoryGovernor::get_safety_margin() const {
     return safety_margin_;
 }
@@ -154,14 +145,9 @@ void MemoryGovernor::set_safety_margin(uint64_t bytes) {
 }
 
 void MemoryGovernor::reset_for_testing() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    lru_list_.clear();
-    lru_map_.clear();
-    object_sizes_.clear();
-    tracked_ram_usage_ = 0;
     pinned_memory_usage_ = 0;
     pinning_budget_override_ = false;
-    // Don't reset safety margin or cached stats as they are system dependent
+    // Not the safety margin or the cached stats: they are system dependent.
 }
 
 bool MemoryGovernor::can_fit_in_ram(size_t size_bytes) const {
@@ -237,64 +223,6 @@ uint64_t MemoryGovernor::compute_dynamic_pinning_budget() const {
 void MemoryGovernor::apply_dynamic_pinning_budget() {
     if (pinning_budget_override_.load()) return;
     max_pinned_memory_ = compute_dynamic_pinning_budget();
-}
-
-void MemoryGovernor::register_object(PersistentObject* obj, size_t size_bytes) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    
-    if (lru_map_.find(obj) != lru_map_.end()) {
-        // Already registered, just update size
-        tracked_ram_usage_ -= object_sizes_[obj];
-        object_sizes_[obj] = size_bytes;
-        tracked_ram_usage_ += size_bytes;
-        return;
-    }
-
-    // Add to LRU (Back is Most Recent)
-    lru_list_.push_back(obj);
-    lru_map_[obj] = --lru_list_.end();
-    object_sizes_[obj] = size_bytes;
-    tracked_ram_usage_ += size_bytes;
-}
-
-void MemoryGovernor::unregister_object(PersistentObject* obj) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    
-    auto it = lru_map_.find(obj);
-    if (it != lru_map_.end()) {
-        lru_list_.erase(it->second);
-        lru_map_.erase(it);
-        tracked_ram_usage_ -= object_sizes_[obj];
-        object_sizes_.erase(obj);
-    }
-}
-
-void MemoryGovernor::update_size(PersistentObject* obj, size_t new_size_bytes) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    
-    if (object_sizes_.find(obj) != object_sizes_.end()) {
-        tracked_ram_usage_ -= object_sizes_[obj];
-        object_sizes_[obj] = new_size_bytes;
-        tracked_ram_usage_ += new_size_bytes;
-    }
-}
-
-bool MemoryGovernor::request_ram(size_t size_bytes) {
-    // 1. Check if we have enough RAM right now
-    refresh_system_stats();
-    uint64_t available = cached_available_ram_;
-    uint64_t margin = safety_margin_;
-
-    // If we have plenty of space (available > requested + margin)
-    if (available > (size_bytes + margin)) {
-        return true;
-    }
-
-    // 2. Not enough space: the caller puts the new object in a file. Existing objects are not
-    // moved to disk to make room: a running kernel holds raw pointers into their storage
-    // (spilling one mid-operation freed the block under it: a crash in bit matmul, review 3.1
-    // C-2, F-120), and views of one storage were spilled one copy each.
-    return false;
 }
 
 } // namespace core

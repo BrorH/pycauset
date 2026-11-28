@@ -19,12 +19,16 @@ is never moved later: kernels hold raw pointers into their operands (F-120).
 
 ## PersistentObject
 
-Every matrix and vector inherits from `PersistentObject`. It owns a `MemoryMapper`
-(which does the low-level map/unmap calls) and remembers whether the object is
-RAM-backed or disk-backed.
+Every matrix and vector inherits from `PersistentObject`. It holds a shared
+`MemoryMapper` (the storage: heap memory or a mapped file; views and copy-on-write
+siblings share one) and the view metadata.
 
-- On creation it decides RAM vs disk, creates the backing store, and maps it.
-- On destruction it unmaps, and if the backing was a temporary file, deletes it.
+- On creation it decides RAM vs file (below) and creates the storage.
+- The storage goes with its last owner: the mapper's destructor frees the memory or
+  unmaps the file, and deletes the file if it is temporary (auto-named, a copy, or an
+  explicit `.tmp` name). A file the user named and a loaded snapshot are never deleted.
+- On POSIX a mapped file keeps no open file descriptor (the mapping keeps the file
+  alive), so the number of file-backed objects is not limited by the fd limit.
 
 ### Snapshot immutability
 
@@ -43,18 +47,16 @@ See [[guides/Storage and Memory]] for the user-facing policy.
 - **Budget.** It polls the OS for actually-available RAM (using `free + inactive`
   pages on macOS, `MemAvailable` on Linux) and keeps a safety margin (10% of RAM
   or 2 GB, whichever is smaller).
-- **Tracking.** It keeps a registry of the RAM-backed objects and their sizes.
-- **Placement.** `request_ram(size)` returns true when `available > size + margin`;
-  otherwise the new object is file-backed. Nothing already allocated is spilled: a running
-  kernel holds raw pointers into its operands, and spilling one under it crashed (F-120).
+- **Placement.** A new object (or a copy-on-write copy) goes to RAM when it is below the
+  memory threshold and `can_fit_in_ram(size)` (`available > size + margin`), otherwise
+  to a temporary file. There is no registry: the OS's figure already counts PyCauset's
+  own memory. Nothing already allocated is spilled: a running kernel holds raw pointers
+  into its operands, and spilling one under it crashed (F-120).
 
 ```cpp
-// In PersistentObject::initialize_storage
-if (MemoryGovernor::instance().request_ram(size_bytes)) {
-    use_ram_buffer();
-    MemoryGovernor::instance().register_object(this, size_bytes);
-} else {
-    use_disk_file();
+// PersistentObject.cpp
+static bool place_in_ram(uint64_t bytes) {
+    return bytes <= get_memory_threshold() && MemoryGovernor::instance().can_fit_in_ram(bytes);
 }
 ```
 
@@ -120,7 +122,7 @@ words for bit matrices). Metadata updates never shift the payload.
 
 Temporary storage for objects placed in files (large ones, or those that did not fit RAM).
 Named `<prefix>_<pid>_<n>.tmp`, so processes sharing a backing directory never collide (F-121). Managed by
-`src/core/MemoryMapper.cpp`.
+`src/core/MemoryMapper.cpp`, which deletes the file when the storage's last owner goes.
 
 - A 64-byte header (magic + version + reserved).
 - The raw payload.

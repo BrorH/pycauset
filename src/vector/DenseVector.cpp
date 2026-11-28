@@ -78,7 +78,6 @@ std::unique_ptr<VectorBase> DenseVector<bool>::transpose(const std::string& save
     out->set_seed(this->seed_);
     out->set_transposed(!this->is_transposed());
     out->set_conjugated(this->is_conjugated());
-    out->set_temporary(this->is_temporary());
     return out;
 }
 

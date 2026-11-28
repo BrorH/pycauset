@@ -35,9 +35,8 @@ MatrixBase::MatrixBase(uint64_t n,
                        pycauset::DataType data_type,
                        uint64_t seed,
                        std::complex<double> scalar,
-                       bool is_transposed,
-                       bool is_temporary)
-    : MatrixBase(n, n, std::move(mapper), structure, data_type, seed, scalar, is_transposed, is_temporary) {}
+                       bool is_transposed)
+    : MatrixBase(n, n, std::move(mapper), structure, data_type, seed, scalar, is_transposed) {}
 
 MatrixBase::MatrixBase(uint64_t rows,
                        uint64_t cols,
@@ -46,9 +45,8 @@ MatrixBase::MatrixBase(uint64_t rows,
                        pycauset::DataType data_type,
                        uint64_t seed,
                        std::complex<double> scalar,
-                       bool is_transposed,
-                       bool is_temporary)
-    : PersistentObject(std::move(mapper), structure, data_type, rows, cols, seed, scalar, is_transposed, is_temporary) {
+                       bool is_transposed)
+    : PersistentObject(std::move(mapper), structure, data_type, rows, cols, seed, scalar, is_transposed) {
     logical_rows_ = rows;
     logical_cols_ = cols;
     row_offset_ = 0;

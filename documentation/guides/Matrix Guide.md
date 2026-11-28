@@ -267,9 +267,8 @@ In pycauset, large matrices are automatically stored on your device's storage di
 By default, `pycauset` manages backing files automatically. Files are stored in a `.pycauset` directory in the current working directory.
 
 *   **Configuration**: Call `pycauset.set_backing_dir("...")` once after import (and before allocating large matrices).
-*   **Automatic Cleanup**: Temporary files are deleted on import (leftovers from previous runs) and again when the Python interpreter exits.
-*   **Persistence**: Set `pycauset.keep_temp_files = True` to prevent deletion (useful for debugging).
-*   **Manual Cleanup**: Call `matrix.close()` to release the memory-mapped handle immediately.
+*   **Automatic Cleanup**: A temporary file is deleted when the last object using it goes (views share it). Leftovers of a crashed run are deleted at the next import, and the directory is swept again at exit.
+*   **Manual Cleanup**: Call `matrix.close()` to release the storage now (its file goes once no other view uses it).
 
 Temporary file types you may see in the backing directory:
 
@@ -277,7 +276,7 @@ Temporary file types you may see in the backing directory:
 *   `.raw_tmp`: staging files created while `save()` is writing a snapshot.
 
 ### Saving a Matrix
-Matrices are backed by temporary files that are deleted when the program exits, unless [[pycauset.keep_temp_files]] is set to `True`. To permanently save a specific matrix, use [[pycauset.save]]. 
+A matrix's backing file is temporary: it goes with the matrix. To permanently save a specific matrix, use [[pycauset.save]].
 
 
 ```python
@@ -299,8 +298,7 @@ print(type(matrix))
 
 ### Temporary Files
 By default, `pycauset` manages backing files automatically. Files are stored in a `.pycauset` directory.
-- **Automatic Cleanup**: Temporary files are deleted on import (leftovers) and on exit.
-- **Persistence**: Set `pycauset.keep_temp_files = True` to prevent deletion of temporary files (useful for debugging).
+- **Automatic Cleanup**: A temporary file goes with the last object using it; leftovers are deleted on import and at exit.
 - **Explicit Saving**: Use [[pycauset.save]] to keep specific matrices.
 
 # Caching and Persistence

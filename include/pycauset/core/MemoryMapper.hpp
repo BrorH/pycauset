@@ -43,16 +43,14 @@ public:
     void flush();
     void flush(void* ptr, size_t size);
 
-    // Advanced mapping control for large files
-    void unmap();
-    void map_all();
-    void* map_region(size_t offset, size_t size);
-    void unmap_region(void* ptr);
-    static size_t get_granularity();
-
-    // Pinning support (VirtualLock/mlock)
-    bool pin_region(void* ptr, size_t size) const;
-    void unpin_region(void* ptr, size_t size) const;
+    // A temporary file (auto-named storage, copy-on-write copies) is deleted when the mapper
+    // is destroyed, i.e. when the last object viewing the storage goes (review 3.1 C-3: they
+    // stayed until the process exited). A file the user named, and a loaded snapshot, stay.
+    // RAM storage counts as temporary (it is gone with the mapper anyway).
+    bool is_temporary() const { return heap_ || unlink_on_close_; }
+    void set_temporary(bool temporary) {
+        if (!heap_ && !private_ && filename_ != ":memory:") unlink_on_close_ = temporary;
+    }
 
     // Storage version and derived-value cache (review/features/DERIVED_CACHE.md). The storage
     // is the owner: every view of the same payload shares it. `bump_version` runs before any
@@ -110,11 +108,11 @@ private:
 #ifdef _WIN32
     void* hFile_;
     void* hMapping_;
-#else
-    int fd_;
 #endif
-    bool is_pinned_ = false;
+    // POSIX keeps no file descriptor: the mapping keeps the file alive (review 3.1 C-4: one
+    // open fd per object hit the 1,024 limit).
     bool private_ = false;
+    bool unlink_on_close_ = false;
     bool heap_ = false;  // :memory: storage from the C heap (no mapping)
 
     void open_file(bool create_new);

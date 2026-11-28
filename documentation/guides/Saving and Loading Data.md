@@ -56,8 +56,9 @@ pc.set_backing_dir(Path.cwd() / "pycauset_storage")
 
 Two kinds of files live there:
 
-- `.tmp` — session backing files that hold working payloads. They are deleted on
-  exit unless you set `pc.keep_temp_files = True` (useful for debugging).
+- `.tmp` — backing files of file-backed objects. Each is deleted when the last object
+  using it goes (`del`, or the end of its scope); leftovers of a crashed run are swept at
+  the next import.
 - `.pycauset` — snapshots you write explicitly with `save()`.
 
 ## The materialization guard

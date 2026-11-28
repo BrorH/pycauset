@@ -198,3 +198,9 @@ Other rarely used features: tech lead proposes per feature in Phase 3.
 - [x] Memory eviction (F-120): `MemoryGovernor::evict_until_fits` and `touch`,
       `PersistentObject::spill_to_disk` and `touch`, `MatrixBase::spill_to_disk(filename)`,
       the EvictionLogic / ManualSpill gtests.
+- [x] Storage ownership (F-123): `MemoryMapper::unmap/map_all/map_region/unmap_region`,
+      `pin_region/unpin_region`, `is_pinned_`, the Windows VirtualAlloc/VirtualFree branches;
+      `MemoryGovernor::register_object/unregister_object/update_size/request_ram/
+      get_tracked_ram_usage` and the LRU structures; `PersistentObject::ensure_own_mapping`,
+      `StorageState`, `is_temporary_` and the constructor parameter; `copy_storage`'s
+      filesystem branch; `pc.keep_temp_files` and its doc page.
