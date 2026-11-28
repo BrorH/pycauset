@@ -50,7 +50,12 @@ Rules:
    the integer operand's dtype: bit/int8/uint8 → at least float16, int16/uint16 → at
    least float32, 32/64-bit integers → float64. Otherwise values silently overflow or
    lose precision (e.g. int32 100000 + float16 would be inf).
-5) Integer ÷ integer gives at least float32, and float64 for 32/64-bit integers.
+5) Integer ÷ integer gives at least float32, and float64 when an operand is a 32/64-bit
+   integer (`int16 / uint16` is float32, which holds both exactly; `int8 / uint64` is float64,
+   as in NumPy: a quotient is a float anyway, so the signed / uint64 error of §7 does not
+   apply).
+6) `bool + bool`, `bool - bool` and `bool @ bool` count in int32 (bit counting); `bool * bool`
+   stays bool (a product of 0/1 values), as in NumPy.
 
 Examples:
 
@@ -167,6 +172,9 @@ to be resolved exactly with value bounds, review Phase F1). Bitwise operations r
 
 Which (structure, dtype) pairs exist is decided by one catalogue
 (`include/pycauset/core/DTypeDispatch.hpp`, see the Adding Types protocol). What every
+`tests/engine/test_dtype_rules.py` checks the result dtype of every pair of real dtypes for
+`+ - * / @` against these rules (NumPy, with the differences above written out), independently
+of the promotion resolver. What every
 operation does on every pair, view and storage mode is enumerated against NumPy by the
 operation atlas (`tests/atlas/`, report in `review/atlas/ATLAS.md`); its CI test fails on any
 wrong result or regression. (The hand-maintained support matrix it replaced is removed.)
