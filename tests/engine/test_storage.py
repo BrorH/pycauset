@@ -142,7 +142,6 @@ def test_export_size_estimate_for_objects_without_a_native_exporter():
     assert export_guard.estimate_materialized_bytes(Fake((3, 4), "float64")) == 96
     assert export_guard.estimate_materialized_bytes(Fake((5,), "int16")) == 10  # 1-D: n x 1
     assert export_guard.estimate_materialized_bytes(Fake((2, 2), "complex_float16")) == 32  # exported as complex64
-    assert export_guard.estimate_materialized_bytes(Fake((2, 2), "BoolMatrix")) == 4  # class-style tokens
     assert export_guard.estimate_materialized_bytes(Fake((2, 2), "unknown")) is None
 
 

@@ -66,9 +66,9 @@ It also exports **dtype sentinel variables** on the top-level module for conveni
 
 Exported sentinels (examples):
 
-- Integers: `pycauset.int8`, `pycauset.int16`, `pycauset.int32`, `pycauset.int64` (alias: `pycauset.int_`)
-- Unsigned: `pycauset.uint8`, `pycauset.uint16`, `pycauset.uint32`, `pycauset.uint64` (alias: `pycauset.uint`)
-- Floats: `pycauset.float16`, `pycauset.float32`, `pycauset.float64` (alias: `pycauset.float_`)
+- Integers: `pycauset.int8`, `pycauset.int16`, `pycauset.int32`, `pycauset.int64` (`pycauset.int_` is NumPy's, int64)
+- Unsigned: `pycauset.uint8`, `pycauset.uint16`, `pycauset.uint32`, `pycauset.uint64`
+- Floats: `pycauset.float16`, `pycauset.float32`, `pycauset.float64`
 - Bit/boolean: `pycauset.bit`, `pycauset.bool_`
 - Complex floats: `pycauset.complex_float16`, `pycauset.complex_float32`, `pycauset.complex_float64` (aliases: `pycauset.complex64`, `pycauset.complex128`)
 

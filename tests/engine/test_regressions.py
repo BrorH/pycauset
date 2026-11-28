@@ -2103,3 +2103,21 @@ def test_3_8_C20_C21_debug_lines_errors_and_warnings(capsys):
         pc.causal_matrix(np.array([[0, 2], [1, 0]]))
     assert {m.category for m in w} == {pc.PyCausetDTypeWarning, pc.PyCausetWarning}
     assert all(m.filename == __file__ for m in w)
+
+
+def test_3_8_C17_dtype_compares_with_numpy_and_every_token():
+    """A.dtype was a bare str: `A.dtype == np.float64` was False; pc.int_ / pc.uint meant
+    something else than NumPy's; to_numpy(dtype="int") disagreed with zeros(dtype="int")."""
+    import pickle
+
+    A, C = pc.zeros((2, 2)), pc.zeros(2, dtype="complex64")
+    assert A.dtype == np.float64 and A.dtype == "float64" and A.dtype == pc.float64 and A.dtype == np.dtype("float64")
+    assert A.dtype != np.float32 and not (A.dtype == "nonsense")
+    assert C.dtype == "complex_float32" and C.dtype == "complex64" and C.dtype == np.complex64 and C.dtype == pc.complex64
+    assert {A.dtype: 1}["float64"] == 1 and repr(A.dtype) == "'float64'" and pickle.loads(pickle.dumps(A.dtype)) == "float64"
+    assert pc.TriangularMatrix(2).dtype == np.float64 and pc.vector([1, 2]).dtype == np.int32
+    assert pc.int_ == "int64" and pc.zeros(1, dtype=pc.int_).dtype == np.int_
+    assert not hasattr(pc, "float_") and "uint" not in pc.__all__
+    for token in ("int", "float", "complex16", "complex64", np.int16, np.float32, "bool", "f4"):
+        assert pc.to_numpy(pc.zeros(2), dtype=token).dtype == np.dtype(
+            pc._internal.dtypes.NUMPY_EXPORT[pc.zeros(2, dtype=token).dtype])

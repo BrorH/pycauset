@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import export_guard
+from . import dtypes as _dtypes
 from .dtypes import infer_sequence_dtype as _infer_sequence_dtype
 from .dtypes import normalize_dtype as _normalize_dtype
 from .formatting import MatrixMixin
@@ -20,23 +21,8 @@ from .native_threshold import temporary_native_memory_threshold
 _np: Any | None = None
 _native: Any | None = None
 
-# Internal dtype name -> NumPy dtype name (complex_float16 has no NumPy equivalent).
-_NUMPY_DTYPE = {
-    "bool": "bool",
-    "int8": "int8",
-    "int16": "int16",
-    "int32": "int32",
-    "int64": "int64",
-    "uint8": "uint8",
-    "uint16": "uint16",
-    "uint32": "uint32",
-    "uint64": "uint64",
-    "float16": "float16",
-    "float32": "float32",
-    "float64": "float64",
-    "complex_float32": "complex64",
-    "complex_float64": "complex128",
-}
+# PyCauset dtype name -> NumPy dtype name (the one map, dtypes.py).
+_NUMPY_DTYPE = _dtypes.NUMPY_EXPORT
 
 
 def configure(*, np_module: Any | None, native: Any) -> None:

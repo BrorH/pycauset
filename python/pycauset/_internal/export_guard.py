@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from . import dtypes as _dtypes
 from .coercion import safe_rows_cols
 
 _EXPORT_MAX_BYTES: int | None = None
@@ -28,73 +29,6 @@ def _safe_shape(obj: Any) -> tuple[int, int] | None:
     return None
 
 
-_DTYPE_SIZE_BYTES = {
-    # NumPy materializes bit matrices as bool arrays.
-    "bit": 1,
-    "bool": 1,
-    "int8": 1,
-    "uint8": 1,
-    "int16": 2,
-    "uint16": 2,
-    "int32": 4,
-    "uint32": 4,
-    "int64": 8,
-    "uint64": 8,
-    "float16": 2,
-    "float32": 4,
-    "float64": 8,
-    # NumPy lacks a true complex16; we promote to complex64 (8 bytes).
-    "complex_float16": 8,
-    "complex_float32": 8,
-    "complex_float64": 16,
-}
-
-
-def _normalize_dtype_token(token: Any) -> str | None:
-    if token is None:
-        return None
-    s = str(token).lower()
-    for suffix in ("matrix", "vector"):
-        if s.endswith(suffix):
-            s = s[: -len(suffix)]
-            break
-    alias = {
-        "bool_": "bool",
-        "complex64": "complex_float32",
-        "complex128": "complex_float64",
-        "float_": "float64",
-        "float": "float64",
-        "int_": "int32",
-        "int": "int32",
-        "uint": "uint32",
-        "complexfloat16": "complex_float16",
-        "complexfloat32": "complex_float32",
-        "complexfloat64": "complex_float64",
-    }
-    return alias.get(s, s)
-
-
-def _resolve_numpy_dtype(token: Any, np_module: Any) -> Any:
-    if token is None:
-        return None
-
-    mapping = {
-        "bit": "bool",
-        "bool": "bool",
-        "bool_": "bool",
-        "integer": "int32",
-        # NumPy lacks a true complex16; promote to complex64 for safety.
-        "complex_float16": "complex64",
-        "complexfloat16": "complex64",
-        "complex_float32": "complex64",
-        "complexfloat32": "complex64",
-        "complex_float64": "complex128",
-        "complexfloat64": "complex128",
-    }
-
-    return np_module.dtype(mapping.get(token, token))
-
-
 def estimate_materialized_bytes(obj: Any) -> int | None:
     blocks = getattr(obj, "_blocks", None)
     if isinstance(blocks, list) and getattr(obj, "dtype", "mixed") == "mixed":
@@ -105,9 +39,13 @@ def estimate_materialized_bytes(obj: Any) -> int | None:
     if shape is None:
         return None
 
-    dtype = _normalize_dtype_token(getattr(obj, "dtype", None))
+    import numpy as np
 
-    size_per = _DTYPE_SIZE_BYTES.get(dtype)
+    try:
+        dtype = _dtypes.normalize_dtype(getattr(obj, "dtype", None), np_module=np)  # (the one parser)
+    except Exception:
+        return None
+    size_per = _dtypes.itemsize(dtype)
     if size_per is None:
         return None
 
@@ -175,7 +113,14 @@ def export_to_numpy(obj: Any, *, allow_huge: bool, dtype: Any = None, copy: bool
         # As np.asarray(..., copy=False): every export is a new array (review 3.9 C-6; it
         # returned a writable copy silently, or NumPy's error with dtype=).
         raise ValueError("a PyCauset object cannot be exported without a copy; use copy=True")
-    target = _resolve_numpy_dtype(dtype, np) if dtype is not None else None
+    target = None
+    if dtype is not None:
+        # The constructors' parser, then the export map: to_numpy(dtype="int") was int64 while
+        # zeros(dtype="int") is int32, and "complex16" raised (review 3.8 C-17).
+        name = _dtypes.normalize_dtype(dtype, np_module=np)
+        if name is None:
+            raise TypeError(f"unsupported dtype: {dtype!r}")
+        target = np.dtype(_dtypes.NUMPY_EXPORT[name])
     if target is not None and not allow_huge:
         # The converted array exists next to the exported one: both count (only the export did).
         shape = _safe_shape(obj)

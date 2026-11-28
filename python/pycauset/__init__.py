@@ -65,22 +65,22 @@ from ._internal.warnings import (
 
 import numpy as _np  # a dependency (pyproject); the native module needs it too
 
-# Public dtype tokens (NumPy-like). These are simple sentinels accepted by
-# Matrix/Vector factories and native interop.
+# Public dtype tokens (NumPy's names): the constructors take them, and a matrix's `.dtype`
+# compares equal to them (and to NumPy's own dtypes). `int_` is NumPy's (int64; PyCauset's
+# default for Python ints is int32, F-103); `uint` and `float_` meant something else than
+# NumPy's (`float_` is gone from NumPy 2) and are gone (review 3.8 C-17).
 int8 = "int8"
 int16 = "int16"
 int32 = "int32"
 int64 = "int64"
-int_ = "int32"
+int_ = "int64"
 uint8 = "uint8"
 uint16 = "uint16"
 uint32 = "uint32"
 uint64 = "uint64"
-uint = "uint32"
 float16 = "float16"
 float32 = "float32"
 float64 = "float64"
-float_ = "float64"
 bool_ = "bool"
 bit = "bit"
 
@@ -359,6 +359,17 @@ def _reduce(self: Any) -> Any:
 for _cls in (_MatrixBaseType, _VectorBaseType, *_MATRIX_CLASSES, *_VECTOR_CLASSES):
     _install_array_export_hook(_cls)
     _cls.__reduce__ = _reduce
+
+
+# `.dtype` is a DType: the PyCauset name, equal to NumPy's dtype too (dtypes.DType). The bases
+# define the native property; the structure classes inherit the wrapped one.
+def _wrap_dtype(cls: Any) -> None:
+    native = cls.__dict__["dtype"]
+    cls.dtype = property(lambda self: _dtypes.DType(native.__get__(self)), doc=native.__doc__)
+
+
+for _cls in (_MatrixBaseType, _VectorBaseType):
+    _wrap_dtype(_cls)
 
 
 def set_export_max_bytes(limit: int | None) -> None:

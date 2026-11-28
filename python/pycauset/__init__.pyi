@@ -10,7 +10,6 @@ int_: str
 float16: str
 float32: str
 float64: str
-float_: str
 bool: str
 bool_: str
 bit: str

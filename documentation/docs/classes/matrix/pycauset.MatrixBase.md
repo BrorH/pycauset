@@ -5,7 +5,9 @@ Base class of every matrix. Not constructed directly; its methods are available 
 
 ## Attributes
 
-* **dtype** (*str*): element type, e.g. `"float64"`, `"int32"`, `"bool"`.
+* **dtype** (*str*): element type, e.g. `"float64"`, `"int32"`, `"bool"`,
+  `"complex_float32"`. It also compares equal to NumPy's dtypes and to every dtype token the
+  constructors accept: `A.dtype == np.float64`, `C.dtype == "complex64"`, `== pc.float64`.
 * **shape** (*tuple*): `(rows, cols)`; **size** (*int*): `rows * cols` (attributes, as in NumPy). Also `rows()`, `cols()`.
 * **T**, **H**: transpose and conjugate transpose. O(1): they share storage.
 * **backing_file** (*str*): `":memory:"` or the path of the file holding the data.

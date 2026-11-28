@@ -11,6 +11,51 @@ _NUMPY_NAMES = {
 }
 
 
+# PyCauset dtype name -> the NumPy dtype its values export as (complex_float16 has none: its
+# values export as complex64). The one map: matrix_api, export_guard and the block layer read it.
+NUMPY_EXPORT = {
+    "bool": "bool", "int8": "int8", "int16": "int16", "int32": "int32", "int64": "int64",
+    "uint8": "uint8", "uint16": "uint16", "uint32": "uint32", "uint64": "uint64",
+    "float16": "float16", "float32": "float32", "float64": "float64",
+    "complex_float16": "complex64", "complex_float32": "complex64", "complex_float64": "complex128",
+}
+
+
+def itemsize(name: str | None) -> int | None:
+    """Bytes per element of an exported array of PyCauset dtype `name` (None: unknown)."""
+    import numpy as np
+
+    return np.dtype(NUMPY_EXPORT[name]).itemsize if name in NUMPY_EXPORT else None
+
+
+class DType(str):
+    """A matrix's or vector's dtype: its PyCauset name ("float64", "complex_float32", ...), a
+    `str`, that also compares equal to the NumPy dtype it holds and to every token the
+    constructors accept: `A.dtype == np.float64`, `== "complex64"`, `== pc.complex64`. It was a
+    bare string, so `if A.dtype == np.float64:` was never taken (review 3.8 C-17).
+
+    (`np.dtype("complex64") == A.dtype` asks NumPy first, which knows only NumPy names.)"""
+
+    __slots__ = ()
+    __hash__ = str.__hash__
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, str) and str.__eq__(self, other):
+            return True
+        if isinstance(other, DType):
+            return False
+        import numpy as np
+
+        try:
+            name = normalize_dtype(other, np_module=np)
+        except Exception:
+            return False
+        return name is not None and str.__eq__(self, name)
+
+    def __ne__(self, other: Any) -> bool:
+        return not self.__eq__(other)
+
+
 def normalize_dtype(dtype: Any, *, np_module: Any | None) -> str | None:
     """Normalize user-provided dtype tokens into internal strings.
 
