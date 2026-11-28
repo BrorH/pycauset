@@ -49,8 +49,10 @@ counts). The one setting caps PyCauset's own threads and the BLAS / LAPACK calls
 
 ### Using PyCauset from several Python threads
 
-Different objects can be used from different threads. One object can be read by several threads
-at once. Do not close or write an object while another thread computes with it. Closing it
+Matrix products, matrix-vector products and the LAPACK operations (`solve`, `inv`, `det`,
+`eig*`, `svd`, `qr`, `lu`, `cholesky`, `lstsq`, `pinv`) release the GIL while they compute, so
+other Python threads run meanwhile and several of them can compute at once. Different objects can
+be used from different threads. One object can be read by several threads at once. Do not close or write an object while another thread computes with it. Closing it
 mid-export or mid-save is memory-safe, because the operation keeps the storage alive and finishes
 on the old values; but the result is undefined, as for a NumPy array resized under a running
 computation.

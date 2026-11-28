@@ -268,7 +268,7 @@ inline std::shared_ptr<MatrixBase> matmul_mm(const MatrixBase& a, const MatrixBa
     maybe_warn_float_underpromotion("matmul", promotion::BinaryOp::Matmul, a, b);
     maybe_warn_bit_promotes_to_int32("matmul", promotion::BinaryOp::Matmul, a.get_data_type(), b.get_data_type());
     maybe_warn_integer_matmul_overflow_risk_preflight(a, b);
-    return std::shared_ptr<MatrixBase>(pycauset::dispatch_matmul(a, b, "").release());
+    return std::shared_ptr<MatrixBase>(without_gil({&a, &b}, [&] { return pycauset::dispatch_matmul(a, b, ""); }).release());
 }
 
 inline std::shared_ptr<VectorBase> matvec(const MatrixBase& a, const VectorBase& v) {
@@ -276,7 +276,7 @@ inline std::shared_ptr<VectorBase> matvec(const MatrixBase& a, const VectorBase&
                                     v.get_data_type());
     maybe_warn_bit_promotes_to_int32("matmul", promotion::BinaryOp::MatrixVectorMultiply, a.get_data_type(),
                                      v.get_data_type());
-    return std::shared_ptr<VectorBase>(pycauset::matrix_vector_multiply(a, v, "").release());
+    return std::shared_ptr<VectorBase>(without_gil({&a, &v}, [&] { return pycauset::matrix_vector_multiply(a, v, ""); }).release());
 }
 
 inline py::object matrix_arith(const MatrixBase& a, const py::object& other_in, Arith op, bool reflected) {
@@ -407,13 +407,13 @@ void bind_matrix_classes(py::module_& m) {
         .def("trace", [](const MatrixBase& mat) { return pycauset_bindings::reduction_to_py(pycauset::trace(mat)); })
         .def("_determinant", [](const MatrixBase& mat) -> py::object {  // pc.det
             // NumPy kinds: complex for complex matrices, float otherwise (F-059).
-            const std::complex<double> d = pycauset::determinant(mat);
+            const std::complex<double> d = without_gil({&mat}, [&] { return pycauset::determinant(mat); });
             const DataType dt = mat.get_data_type();
             const bool cplx = is_complex_dtype(dt) || mat.get_scalar().imag() != 0.0;
             return cplx ? py::cast(d) : py::cast(d.real());
         })
         .def("_slogdet", [](const MatrixBase& mat) -> py::tuple {  // pc.slogdet
-            const auto [sign, logabs] = pycauset::slogdet(mat);
+            const auto [sign, logabs] = without_gil({&mat}, [&] { return pycauset::slogdet(mat); });
             const DataType dt = mat.get_data_type();
             const bool cplx = is_complex_dtype(dt) || mat.get_scalar().imag() != 0.0;
             return py::make_tuple(cplx ? py::cast(sign) : py::cast(sign.real()), logabs);
@@ -759,7 +759,7 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "cholesky",
         [](std::shared_ptr<MatrixBase> a) {
-            auto out = pycauset::cholesky(*a);
+            auto out = without_gil({a.get()}, [&] { return pycauset::cholesky(*a); });
             return std::shared_ptr<MatrixBase>(out.release());
         },
         py::arg("a"));
@@ -767,7 +767,7 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "eig",
         [](std::shared_ptr<MatrixBase> a) {
-            auto out = pycauset::eig(*a);
+            auto out = without_gil({a.get()}, [&] { return pycauset::eig(*a); });
             return std::make_pair(
                 std::shared_ptr<VectorBase>(out.first.release()),
                 std::shared_ptr<MatrixBase>(out.second.release())
@@ -778,7 +778,7 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "eigvals",
         [](std::shared_ptr<MatrixBase> a) {
-            auto out = pycauset::eigvals(*a);
+            auto out = without_gil({a.get()}, [&] { return pycauset::eigvals(*a); });
             return std::shared_ptr<VectorBase>(out.release());
         },
         py::arg("a"));
@@ -786,7 +786,7 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "eigh",
         [](std::shared_ptr<MatrixBase> a) {
-            auto out = pycauset::eigh(*a);
+            auto out = without_gil({a.get()}, [&] { return pycauset::eigh(*a); });
             return std::make_pair(
                 std::shared_ptr<VectorBase>(out.first.release()),
                 std::shared_ptr<MatrixBase>(out.second.release())
@@ -797,7 +797,7 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "eigvalsh",
         [](std::shared_ptr<MatrixBase> a) {
-            auto out = pycauset::eigvalsh(*a);
+            auto out = without_gil({a.get()}, [&] { return pycauset::eigvalsh(*a); });
             return std::shared_ptr<VectorBase>(out.release());
         },
         py::arg("a"));
@@ -805,7 +805,7 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "eigvals_arnoldi",
         [](std::shared_ptr<MatrixBase> a, int k, int m, double tol) {
-            auto out = pycauset::eigvals_arnoldi(*a, k, m, tol);
+            auto out = without_gil({a.get()}, [&] { return pycauset::eigvals_arnoldi(*a, k, m, tol); });
             return std::shared_ptr<VectorBase>(out.release());
         },
         py::arg("a"),
@@ -816,7 +816,7 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "eigvals_skew",
         [](std::shared_ptr<MatrixBase> a, int k) {
-            auto out = pycauset::eigvals_skew(*a, k);
+            auto out = without_gil({a.get()}, [&] { return pycauset::eigvals_skew(*a, k); });
             return std::shared_ptr<VectorBase>(out.release());
         },
         py::arg("a"),
@@ -825,7 +825,7 @@ void bind_matrix_classes(py::module_& m) {
     m.def(
         "eig_skew",
         [](std::shared_ptr<MatrixBase> a, int k) {
-            auto out = pycauset::eig_skew(*a, k);
+            auto out = without_gil({a.get()}, [&] { return pycauset::eig_skew(*a, k); });
             return std::make_pair(
                 std::shared_ptr<VectorBase>(out.first.release()),
                 std::shared_ptr<MatrixBase>(out.second.release())
@@ -836,7 +836,7 @@ void bind_matrix_classes(py::module_& m) {
 
     // The matrix inverse (pycauset.inv). NumPy's `invert` is bitwise NOT, so there is no
     // .invert() / .inverse() method (review 3.8 C-7).
-    m.def("_inv", [](const MatrixBase& mat) { return std::shared_ptr<MatrixBase>(pycauset::inverse(mat).release()); },
+    m.def("_inv", [](const MatrixBase& mat) { return std::shared_ptr<MatrixBase>(without_gil({&mat}, [&] { return pycauset::inverse(mat); }).release()); },
           py::arg("a"));  // one entry (LinearAlgebra.cpp)
 
     m.def(

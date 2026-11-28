@@ -2195,3 +2195,50 @@ def test_3_2_C14_division_by_a_scalar_is_numpys():
             np.testing.assert_array_equal(np.asarray(X / s), x / s)
     assert (pc.matrix(a) / 2.0).is_lazy and not (pc.matrix(a) / 3.0).is_lazy
     assert np.asarray(pc.matrix([[49.0, 10.0]]) / 49.0)[0, 0] == 1.0
+
+
+def test_3_4_C5_kernels_release_the_gil_and_threads_agree():
+    """Kernels held the GIL: a long matmul froze every other Python thread. Matmul, matvec and
+    the LAPACK entries release it (operands pinned); concurrent calls on shared inputs give the
+    serial results."""
+    import threading
+
+    rng = np.random.default_rng(0)
+    a = rng.random((120, 120)) + 120 * np.eye(120)
+    A = pc.matrix(a)
+    v = pc.vector(rng.random(120))
+    jobs = {
+        "matmul": lambda: np.asarray(A @ A), "matvec": lambda: np.asarray(A @ v), "inv": lambda: np.asarray(pc.inv(A)),
+        "solve": lambda: np.asarray(pc.solve(A, v)), "det": lambda: pc.slogdet(A)[1], "eigvalsh": lambda: np.asarray(pc.eigvalsh(A + A.T)),
+        "svd": lambda: np.asarray(pc.svd(A)[1]), "qr": lambda: np.asarray(pc.qr(A)[1]), "cholesky": lambda: np.asarray(pc.cholesky(A @ A.T)),
+    }
+    serial = {k: f() for k, f in jobs.items()}
+    results: dict = {}
+    errors: list = []
+
+    def run(k):
+        try:
+            for _ in range(5):
+                results.setdefault(k, []).append(jobs[k]())
+        except Exception as e:  # pragma: no cover - reported below
+            errors.append((k, e))
+
+    threads = [threading.Thread(target=run, args=(k,)) for k in jobs for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(60)
+    assert not errors and not any(t.is_alive() for t in threads)
+    for k, outs in results.items():
+        for r in outs:
+            np.testing.assert_allclose(r, serial[k], rtol=1e-10, atol=1e-10, err_msg=k)
+
+    # Another Python thread runs while a long product computes.
+    B = pc.matrix(rng.random((1500, 1500)))
+    done, ticks = threading.Event(), [0]
+    t = threading.Thread(target=lambda: (B @ B, done.set()))
+    t.start()
+    while not done.is_set():
+        ticks[0] += 1
+    t.join()
+    assert ticks[0] > 1000

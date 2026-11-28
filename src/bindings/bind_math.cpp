@@ -30,14 +30,14 @@ void bind_math_ops(py::module_& m) {
     }, py::arg("x"), "Compute the L2 norm of a vector");
 
     m.def("qr", [](const pycauset::MatrixBase& a, bool complete) {
-        auto [q, r] = pycauset::qr(a, complete);
+        auto [q, r] = without_gil({&a}, [&] { return pycauset::qr(a, complete); });
         return py::make_tuple(
             std::shared_ptr<pycauset::MatrixBase>(q.release()),
             std::shared_ptr<pycauset::MatrixBase>(r.release()));
     }, py::arg("a"), py::arg("complete") = false, "QR (NumPy reduced/complete shapes; any dtype, structure, view)");
 
     m.def("pinv", [](const pycauset::MatrixBase& a) {
-        return std::shared_ptr<pycauset::MatrixBase>(pycauset::pinv(a).release());
+        return std::shared_ptr<pycauset::MatrixBase>(without_gil({&a}, [&] { return pycauset::pinv(a); }).release());
     }, py::arg("a"), "Moore-Penrose pseudoinverse (NumPy's default cutoff)");
 
     m.def("_matrix_norm", &pycauset::matrix_norm, py::arg("a"), py::arg("ord"), "NumPy matrix norm of order ord");
@@ -53,7 +53,7 @@ void bind_math_ops(py::module_& m) {
     }, py::arg("a"), py::arg("b"), "Cross product of two 3-vectors (NumPy's multiply dtype)");
 
     m.def("lu", [](const pycauset::MatrixBase& a) {
-        auto [p, l, u] = pycauset::lu(a);
+        auto [p, l, u] = without_gil({&a}, [&] { return pycauset::lu(a); });
         return py::make_tuple(
             std::shared_ptr<pycauset::MatrixBase>(p.release()),
             std::shared_ptr<pycauset::MatrixBase>(l.release()),
@@ -61,7 +61,7 @@ void bind_math_ops(py::module_& m) {
     }, py::arg("a"), "Compute LU decomposition");
 
     m.def("svd", [](const pycauset::MatrixBase& a, bool full_matrices, bool compute_uv) {
-        auto [u, s, vt] = pycauset::svd(a, full_matrices, compute_uv);
+        auto [u, s, vt] = without_gil({&a}, [&] { return pycauset::svd(a, full_matrices, compute_uv); });
         return py::make_tuple(
             std::shared_ptr<pycauset::MatrixBase>(u.release()),
             std::shared_ptr<pycauset::VectorBase>(s.release()),
@@ -70,7 +70,7 @@ void bind_math_ops(py::module_& m) {
        "SVD (NumPy shapes; any dtype, structure, view); compute_uv=False: S only");
 
     m.def("solve", [](const pycauset::MatrixBase& a, const pycauset::MatrixBase& b) {
-        auto out = pycauset::solve(a, b);
+        auto out = without_gil({&a, &b}, [&] { return pycauset::solve(a, b); });
         return std::shared_ptr<pycauset::MatrixBase>(out.release());
     }, py::arg("a"), py::arg("b"), "Solve linear system AX=B");
     // b a vector: solved as an n x 1 column over the vector's storage, returned as a vector.
@@ -78,15 +78,15 @@ void bind_math_ops(py::module_& m) {
         auto col = pycauset::as_row_matrix(b);
         col->set_transposed(true);
         return std::shared_ptr<pycauset::VectorBase>(
-            pycauset::as_vector(pycauset::solve(a, *col), /*transposed=*/false).release());
+            pycauset::as_vector(without_gil({&a, &b}, [&] { return pycauset::solve(a, *col); }), /*transposed=*/false).release());
     }, py::arg("a"), py::arg("b"), "Solve linear system Ax=b for a vector b");
     m.def("lstsq", [](const pycauset::MatrixBase& a, const pycauset::MatrixBase& b) {
-        return std::shared_ptr<pycauset::MatrixBase>(pycauset::lstsq(a, b).release());
+        return std::shared_ptr<pycauset::MatrixBase>(without_gil({&a, &b}, [&] { return pycauset::lstsq(a, b); }).release());
     }, py::arg("a"), py::arg("b"), "Least-squares solution of a x = b (NumPy's lstsq x, ?gelsd)");
     m.def("lstsq", [](const pycauset::MatrixBase& a, const pycauset::VectorBase& b) {
         auto col = pycauset::as_row_matrix(b);
         col->set_transposed(true);
         return std::shared_ptr<pycauset::VectorBase>(
-            pycauset::as_vector(pycauset::lstsq(a, *col), /*transposed=*/false).release());
+            pycauset::as_vector(without_gil({&a, &b}, [&] { return pycauset::lstsq(a, *col); }), /*transposed=*/false).release());
     }, py::arg("a"), py::arg("b"), "Least-squares solution of a x = b for a vector b");
 }

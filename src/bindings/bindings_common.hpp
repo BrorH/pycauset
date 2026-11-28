@@ -113,6 +113,20 @@ struct polymorphic_type_hook<itype, detail::enable_if_t<std::is_base_of<pycauset
         return storage_.call_once_and_store_result([]() -> py::object { return (expr); }).get_stored(); \
     }())
 
+// Runs an engine computation with the GIL released, so other Python threads run meanwhile
+// (review 3.4 C-5). The operands' storage is pinned first (shared_mapper() by value), so a
+// close() from another thread cannot free memory the kernel reads (3.7 C-4); the threading
+// rule still holds (do not close or write an object another thread computes with). Nothing in
+// `f` may touch Python: warnings are emitted before, exceptions propagate after the GIL is back.
+template <typename F>
+auto without_gil(std::initializer_list<const PersistentObject*> operands, F&& f) {
+    std::vector<std::shared_ptr<MemoryMapper>> pins;
+    pins.reserve(operands.size());
+    for (const auto* o : operands) pins.push_back(o->shared_mapper());
+    py::gil_scoped_release release;
+    return f();
+}
+
 // A dimension argument: NumPy's ValueError for a negative one (uint64_t parameters gave pybind's
 // "incompatible function arguments" TypeError, review 3.7 C-6).
 inline uint64_t dim_arg(int64_t n) {
