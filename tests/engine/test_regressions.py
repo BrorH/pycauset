@@ -1739,3 +1739,68 @@ def test_3_7_C8_view_flags_are_read_only():
         with pytest.raises(AttributeError):
             obj.seed = 5  # the seed is the generator's, set at construction
     np.testing.assert_array_equal(np.asarray(m * 3), np.arange(4).reshape(2, 2) * 3)
+
+
+def test_3_7_C13_indexing_as_numpy():
+    """Single-axis keys, masks, 0-d indices, vector keys and structured slices (they raised)."""
+    a = np.arange(12.0).reshape(3, 4)
+    A = pc.matrix(a)
+    for key in (0, -1, np.int64(2), slice(1, None), [0, 2], a > 5, (np.array(1), 2), (np.array([0, 2]), np.array([1, 3]))):
+        np.testing.assert_array_equal(np.asarray(A[key]), a[key])
+    np.testing.assert_array_equal(np.asarray(A[A > 5]), a[a > 5])  # a pycauset bool matrix as mask
+    assert [np.asarray(r).tolist() for r in A] == a.tolist()
+    for key in (1.5, None, (0, 0, 0)):
+        with pytest.raises(IndexError):
+            A[key]
+    with pytest.raises(IndexError):
+        A[np.ones((2, 2), bool)]  # a mask of the wrong shape
+
+    vn = np.array([1.0, -2.0, 3.0, 4.0, 5.0])
+    for v, ref in ((pc.vector(vn), vn), (pc.vector(vn) * 2, vn * 2)):
+        for key in (1, -1, slice(1, 3), slice(None, None, -2), [0, 2], ..., ref > 2, (1,)):
+            np.testing.assert_array_equal(np.asarray(v[key]), ref[key])
+        np.testing.assert_array_equal(np.asarray(v[v > 2]), ref[ref > 2])
+    with pytest.raises(IndexError):
+        pc.vector(vn)[1, 2]
+    c = np.array([1 + 2j, 3 - 1j, 2j])
+    np.testing.assert_array_equal(np.asarray(pc.vector(c).conj()[0:2]), c.conj()[0:2])
+    x, xn = pc.vector(vn), vn.copy()
+    x[1:3] = [9, 8]; xn[1:3] = [9, 8]
+    x[x > 8] = 0; xn[xn > 8] = 0
+    x[::2] = -1; xn[::2] = -1
+    np.testing.assert_array_equal(np.asarray(x), xn)
+
+    # Structured and complex_float16 slices are dense copies of the source dtype, view folded in.
+    dn = np.diag([1.0, 2.0, 3.0, 4.0])
+    D = pc.DiagonalMatrix(4)
+    for i in range(4):
+        D[i, i] = i + 1
+    for key in ((slice(0, 2), slice(0, 2)), 1, ([0, 3], [0, 3]), dn > 1):
+        np.testing.assert_array_equal(np.asarray(D[key]), dn[key])
+        np.testing.assert_array_equal(np.asarray((D * 3)[key]), (dn * 3)[key])
+    Di = pc.DiagonalMatrix(3, dtype="int32")
+    for i in range(3):
+        Di[i, i] = i + 5
+    s = (Di * -2)[0:2, 0:3]
+    assert s.dtype == "int32"
+    np.testing.assert_array_equal(np.asarray(s), (np.diag([5, 6, 7]) * -2)[0:2, 0:3])
+    cn = np.array([[1 + 1j, 2], [3, 4j]])
+    C16 = pc.matrix(cn, dtype="complex_float16")
+    assert C16[0:1, 0:2].dtype == "complex_float16"
+    np.testing.assert_array_equal(np.asarray(C16.conj()[0]), cn.conj()[0])
+    D[D > 1] = 7
+    np.testing.assert_array_equal(np.asarray(D), np.diag([1.0, 7, 7, 7]))
+    B, b = pc.matrix(a), a.copy()
+    B[B > 2] = np.arange(9.0); b[b > 2] = np.arange(9.0)
+    B[1] = 5; b[1] = 5
+    np.testing.assert_array_equal(np.asarray(B), b)
+
+
+def test_3_7_C13_write_into_a_view_of_structured_complex_float16_keeps_imaginary_parts():
+    """viewed_element read complex_half (structured complex_float16) as real: the fold lost every imaginary part."""
+    T = pc.TriangularMatrix(3, dtype="complex_float16", has_diagonal=True)
+    T[0, 1] = 1 + 2j
+    T[1, 1] = 3j
+    V = T.conj()
+    V[2, 2] = 1
+    assert V[0, 1] == 1 - 2j and V[1, 1] == -3j and V[2, 2] == 1

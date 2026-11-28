@@ -1936,7 +1936,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-140 Area 3.7 (bindings): export after close segfaults, list keys read as (row, col), byte order ignored
 - **Status:** reviewed (session 9), 18 findings in `review/areas/3.7-bindings.md` (3 S1, 4 S2,
-  7 S3, 4 S4). C-1 to C-3, C-7, C-8 fixed, C-4 to C-6 in part; the rest open. `ndim` added (it
+  7 S3, 4 S4). C-1 to C-3, C-7, C-8, C-13 fixed, C-4 to C-6 in part; the rest open. `ndim` added (it
   was missing).
   - C-1 (S1, fixed): `np.asarray` / `pc.to_numpy` of a closed matrix or vector segfaulted; a
     closed object raises `ValueError` now.
@@ -1950,5 +1950,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-7: element access of a scaled integer view's row fails.
   - C-8 (fixed): the view-flag, seed and temporary setters are gone; `scalar` and `seed` are
     read-only.
+  - C-13 (fixed): `A[0]`, masks (`A[A > 5]`), vector slices and structured slices work as in
+    NumPy; a fold into a structured complex_float16 view lost its imaginary parts.
   - S3 / S4: vector operands, warning parity, write amplification,
-    five NumPy import paths, indexing gaps, internal names on the surface.
+    five NumPy import paths, internal names on the surface.

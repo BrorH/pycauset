@@ -116,6 +116,14 @@ inline SliceInfo slice_from_object(const py::handle& obj, uint64_t dim) {
         if (idx == -1 && PyErr_Occurred()) throw py::error_already_set();
         return make_scalar_index(idx, dim);
     }
+    // A 0-d integer array is an int (A[np.array(1), 2], review 3.7 C-13).
+    if (py::isinstance<py::array>(obj) && py::array::ensure(obj).ndim() == 0) {
+        const char kind = py::array::ensure(obj).dtype().kind();
+        if (kind != 'i' && kind != 'u') throw py::index_error("arrays used as indices must be of integer (or boolean) type");
+        const py::ssize_t idx = PyNumber_AsSsize_t(obj.ptr(), PyExc_IndexError);
+        if (idx == -1 && PyErr_Occurred()) throw py::error_already_set();
+        return make_scalar_index(idx, dim);
+    }
     // A Python list is an index array, as in NumPy (m[[0, 2], :]); [] is an empty integer one.
     if (py::isinstance<py::list>(obj)) {
         if (py::len(obj) == 0) return SliceInfo{false, true, 0, 0, 1, 0, {}};
@@ -133,7 +141,7 @@ inline SliceInfo slice_from_object(const py::handle& obj, uint64_t dim) {
         return make_full_slice(dim);
     }
     if (obj.is_none()) {
-        throw py::value_error("newaxis/None would create >2D result; not supported (matrices/vectors only)");
+        throw py::index_error("newaxis (None) would add a dimension: matrices are 2-D and vectors 1-D");
     }
     if (py::isinstance<py::array>(obj)) {
         if (py::isinstance<py::array_t<bool>>(obj)) {
@@ -187,7 +195,7 @@ inline SliceInfo slice_from_object(const py::handle& obj, uint64_t dim) {
         }
         return SliceInfo{false, true, 0, 0, 1, static_cast<uint64_t>(indices.size()), std::move(indices)};
     }
-    throw py::type_error("Matrix indices must be integers or slices");
+    throw py::index_error("only integers, slices (`:`), ellipsis (`...`) and integer or boolean arrays are valid indices");
 }
 
 inline ParsedIndex parse_matrix_subscript(const py::handle& key, uint64_t rows, uint64_t cols) {
@@ -224,11 +232,11 @@ inline ParsedIndex parse_matrix_subscript(const py::handle& key, uint64_t rows, 
         } else {
             throw py::index_error("too many indices for a matrix: it is 2-dimensional");
         }
-    } else if (py::isinstance<py::list>(key) || py::isinstance<py::slice>(key) || py::isinstance<py::array>(key)) {
-        first = py::reinterpret_borrow<py::object>(key);  // rows, every column (A[[0, 2]], A[1:3])
-        second = full();
     } else {
-        throw py::type_error("Matrix indices must be provided as [row, col] (a row is A[i, :])");
+        // Any other key indexes the rows, every column (A[0], A[[0, 2]], A[1:3]), as in NumPy
+        // (A[0] raised, review 3.7 C-13).
+        first = py::reinterpret_borrow<py::object>(key);
+        second = full();
     }
     SliceInfo r = slice_from_object(first, rows);
     SliceInfo c = slice_from_object(second, cols);
@@ -694,7 +702,10 @@ auto viewed_element(const M& typed, uint64_t i, uint64_t j, std::complex<double>
         return pycauset::view_value(typed.get(i, j), s, conj);  // its get / set speak complex128
     } else if constexpr (std::is_integral_v<E> && !std::is_same_v<E, bool>) {
         return pycauset::scalar::wrap_scale(typed.get(i, j), static_cast<int64_t>(s.real()));
-    } else if constexpr (std::is_same_v<E, std::complex<double>> || std::is_same_v<E, std::complex<float>>) {
+    } else if constexpr (std::is_same_v<E, std::complex<double>> || std::is_same_v<E, std::complex<float>> ||
+                         std::is_same_v<E, pycauset::complex_half>) {
+        // (complex_half, the structured complex_float16 element, fell to the real branch below:
+        // a write into a view of one dropped every imaginary part.)
         return static_cast<E>(pycauset::view_value(typed.get(i, j), s, conj));
     } else {
         return static_cast<E>(pycauset::view_value(typed.get(i, j), s, false).real());
@@ -806,38 +817,155 @@ inline void setitem_elementwise(MatrixBase& mat, const ParsedIndex& parsed, cons
     }
 }
 
-inline py::object matrixbase_getitem_dispatch(const MatrixBase& mat, const py::object& key) {
+// A 2-D boolean mask of the matrix's shape (a NumPy array, or a pycauset bool matrix such as
+// `A > 5`) selects its True positions in row-major order, as NumPy's A[mask]: it becomes the
+// pair of index arrays of those positions (review 3.7 C-13). Any other key is returned as is.
+inline py::object normalize_mask_key(const py::object& key, uint64_t rows, uint64_t cols) {
+    py::array mask;
+    if (py::isinstance<MatrixBase>(key)) {
+        if (key.cast<const MatrixBase&>().get_data_type() != DataType::BIT)
+            throw py::index_error("a matrix used as an index must be boolean (a mask)");
+        mask = py::array::ensure(key);
+    } else if (py::isinstance<py::array>(key) && py::array::ensure(key).ndim() == 2 &&
+               py::array::ensure(key).dtype().kind() == 'b') {
+        mask = py::array::ensure(key);
+    } else {
+        return key;
+    }
+    if (static_cast<uint64_t>(mask.shape(0)) != rows || static_cast<uint64_t>(mask.shape(1)) != cols) {
+        throw py::index_error("boolean index of shape (" + std::to_string(mask.shape(0)) + ", " + std::to_string(mask.shape(1)) +
+                              ") does not match the matrix's (" + std::to_string(rows) + ", " + std::to_string(cols) + ")");
+    }
+    auto m = py::array_t<bool, py::array::c_style | py::array::forcecast>::ensure(mask);
+    const bool* p = m.data();
+    std::vector<int64_t> ri, ci;
+    for (uint64_t i = 0; i < rows; ++i)
+        for (uint64_t j = 0; j < cols; ++j)
+            if (p[i * cols + j]) { ri.push_back(static_cast<int64_t>(i)); ci.push_back(static_cast<int64_t>(j)); }
+    py::array_t<int64_t> ra(static_cast<py::ssize_t>(ri.size())), ca(static_cast<py::ssize_t>(ci.size()));
+    std::copy(ri.begin(), ri.end(), ra.mutable_data());
+    std::copy(ci.begin(), ci.end(), ca.mutable_data());
+    return py::make_tuple(ra, ca);
+}
+
+// The selected positions of a parsed key: paired index arrays pick elements (1-D); otherwise
+// rows x columns, 1-D when an axis is an integer (NumPy's shapes).
+struct Selection {
+    std::vector<uint64_t> rows, cols;
+    bool paired = false;
+    bool one_d = false;
+    uint64_t count() const { return paired ? std::max(rows.size(), cols.size()) : rows.size() * cols.size(); }
+    uint64_t out_cols() const { return paired ? count() : cols.size(); }
+    std::pair<uint64_t, uint64_t> at(uint64_t k) const {
+        if (paired) return {rows[rows.size() == 1 ? 0 : k], cols[cols.size() == 1 ? 0 : k]};
+        return {rows[k / cols.size()], cols[k % cols.size()]};
+    }
+};
+
+inline Selection select(const ParsedIndex& parsed) {
+    Selection sel;
+    sel.rows = slice_positions(parsed.rows);
+    sel.cols = slice_positions(parsed.cols);
+    sel.paired = parsed.rows.is_array && parsed.cols.is_array;
+    if (sel.paired && sel.rows.size() != sel.cols.size() && sel.rows.size() != 1 && sel.cols.size() != 1) {
+        throw py::index_error("shape mismatch: index arrays of lengths " + std::to_string(sel.rows.size()) + " and " +
+                              std::to_string(sel.cols.size()) + " could not be broadcast together");
+    }
+    if (sel.paired && (sel.rows.empty() || sel.cols.empty())) sel.rows.clear(), sel.cols.clear();
+    sel.one_d = sel.paired || parsed.rows.is_scalar || parsed.cols.is_scalar;
+    return sel;
+}
+
+// Exact values in a chunk: integers and bits as int64 bit patterns, the rest as complex128
+// (which holds every float16 / float32 / float64 / complex value exactly).
+struct ValueChunk {
+    std::vector<int64_t> ints;
+    std::vector<std::complex<double>> values;
+};
+
+template <typename E>
+E chunk_value(const ValueChunk& c, size_t t) {
+    if constexpr (std::is_same_v<E, bool>) return c.ints[t] != 0;
+    else if constexpr (std::is_integral_v<E>) return static_cast<E>(c.ints[t]);
+    else if constexpr (std::is_same_v<E, std::complex<double>> || std::is_same_v<E, std::complex<float>>) return static_cast<E>(c.values[t]);
+    else return static_cast<E>(c.values[t].real());
+}
+
+// Reads positions [k0, k1) of `sel` from any matrix through its view (the one view rule).
+inline void read_chunk(const MatrixBase& mat, const Selection& sel, uint64_t k0, uint64_t k1, ValueChunk& out) {
+    out.ints.clear();
+    out.values.clear();
+    const std::complex<double> s = mat.get_scalar();
+    const bool conj = mat.is_conjugated() && is_complex_dtype(mat.get_data_type());
+    pycauset::visit_matrix(mat, [&](const auto& typed) {
+        using M = std::decay_t<decltype(typed)>;
+        using E = element_of_t<M>;
+        for (uint64_t k = k0; k < k1; ++k) {
+            const auto [i, j] = sel.at(k);
+            if constexpr (std::is_same_v<E, bool>) {
+                out.ints.push_back(typed.get(i, j) ? 1 : 0);  // bit matrices carry no factor
+            } else {
+                const auto v = viewed_element(typed, i, j, s, conj);
+                using V = std::decay_t<decltype(v)>;
+                if constexpr (std::is_integral_v<V>) out.ints.push_back(static_cast<int64_t>(v));
+                else if constexpr (std::is_same_v<V, std::complex<double>> || std::is_same_v<V, std::complex<float>> ||
+                                   std::is_same_v<V, pycauset::complex_half>)
+                    out.values.emplace_back(static_cast<std::complex<double>>(v));
+                else out.values.emplace_back(static_cast<double>(v), 0.0);
+            }
+        }
+    });
+}
+
+// The elements `sel` picks, in a new dense matrix or vector of the source dtype, view folded
+// in. For every class without a view-returning slice (structured, complex_float16): it reads
+// only the selected elements (a row of a causal matrix is O(n), a window O(window)), in chunks.
+inline py::object gather(const MatrixBase& mat, const Selection& sel) {
+    const DataType dt = mat.get_data_type();
+    const uint64_t n = sel.count();
+    std::shared_ptr<MatrixBase> out_m;
+    std::shared_ptr<VectorBase> out_v;
+    if (sel.one_d) out_v = pycauset::ObjectFactory::create_vector(n, dt, pycauset::Structure::VECTOR);
+    else out_m = pycauset::ObjectFactory::create_matrix(sel.rows.size(), sel.cols.size(), dt, pycauset::Structure::DENSE);
+    constexpr uint64_t kChunk = uint64_t{1} << 16;
+    ValueChunk chunk;
+    for (uint64_t k0 = 0; k0 < n; k0 += kChunk) {
+        const uint64_t k1 = std::min(n, k0 + kChunk);
+        read_chunk(mat, sel, k0, k1, chunk);
+        pycauset::visit_dtype(dt, [&](auto tag) {
+            using T = typename decltype(tag)::type;
+            if (out_v) {
+                auto& o = dynamic_cast<typename pycauset::DenseVectorOf<T>::type&>(*out_v);
+                using E = std::decay_t<decltype(o.get(uint64_t{0}))>;
+                for (uint64_t k = k0; k < k1; ++k) o.set(k, chunk_value<E>(chunk, k - k0));
+            } else {
+                auto& o = dynamic_cast<typename pycauset::DenseMatrixOf<T>::type&>(*out_m);
+                using E = element_of_t<std::decay_t<decltype(o)>>;
+                const uint64_t c = sel.cols.size();
+                for (uint64_t k = k0; k < k1; ++k) o.set(k / c, k % c, chunk_value<E>(chunk, k - k0));
+            }
+        });
+    }
+    return out_v ? py::cast(out_v) : py::cast(out_m);
+}
+
+inline py::object matrixbase_getitem_dispatch(const MatrixBase& mat, const py::object& key_in) {
+    const py::object key = normalize_mask_key(key_in, mat.rows(), mat.cols());
     auto parsed = parse_matrix_subscript(key, mat.rows(), mat.cols());
     if (parsed.rows.is_scalar && parsed.cols.is_scalar) {
         return element_get(mat, parsed.rows.index, parsed.cols.index);
     }
     return pycauset::visit_matrix(mat, [&](const auto& typed) -> py::object {
         if constexpr (requires { dense_getitem(typed, key); }) {
-            return dense_getitem(typed, key);
+            return dense_getitem(typed, key);  // windows of dense matrices are views
         } else {
-            // A row or column (an integer index on one axis, a slice on the other) of any
-            // structure: a vector of those elements, as NumPy gives (e.g. the past of an
-            // element is a column of the causal matrix: O(n), not an O(n^2) export). Read
-            // with the element accessor, so every view rule applies.
-            const SliceInfo& r = parsed.rows;
-            const SliceInfo& c = parsed.cols;
-            if ((r.is_scalar != c.is_scalar) && !r.is_array && !c.is_array) {
-                const SliceInfo& s = r.is_scalar ? c : r;
-                py::list items;
-                for (uint64_t k = 0; k < s.length; ++k) {
-                    const uint64_t t = static_cast<uint64_t>(s.start + static_cast<py::ssize_t>(k) * s.step);
-                    items.append(r.is_scalar ? element_get(mat, r.index, t) : element_get(mat, t, c.index));
-                }
-                return py::module_::import("pycauset").attr("vector")(
-                    items, py::arg("dtype") = pycauset::dtype_name(mat.get_data_type()));
-            }
-            PyErr_SetString(PyExc_NotImplementedError, ("slicing is not supported for " + describe(mat)).c_str());
-            throw py::error_already_set();
+            return gather(mat, select(parsed));  // a copy (structured storage has no window view)
         }
     });
 }
 
-inline void matrixbase_setitem_dispatch(MatrixBase& mat, const py::object& key, const py::object& value) {
+inline void matrixbase_setitem_dispatch(MatrixBase& mat, const py::object& key_in, const py::object& value) {
+    const py::object key = normalize_mask_key(key_in, mat.rows(), mat.cols());
     auto parsed = parse_matrix_subscript(key, mat.rows(), mat.cols());
     if (parsed.rows.is_scalar && parsed.cols.is_scalar) {
         element_set(mat, parsed.rows.index, parsed.cols.index, value);

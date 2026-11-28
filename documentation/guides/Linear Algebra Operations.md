@@ -117,7 +117,7 @@ val, logabsdet = pc.slogdet(A)
 
 ## Indexing/slicing recap
 
-Dense matrices support NumPy-style indexing: basic slices are views; advanced (int/bool arrays) are copies; assignments broadcast and warn on dtype/overflow casts. Structured/triangular types reject slicing. See [[guides/Matrix Guide.md|Matrix Guide]] and [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]].
+Dense matrices support NumPy-style indexing: basic slices are views; advanced (int/bool arrays) are copies; assignments broadcast and warn on dtype/overflow casts. Slices of structured types are dense copies. See [[guides/Matrix Guide.md|Matrix Guide]] and [[docs/classes/matrix/pycauset.MatrixBase.md|pycauset.MatrixBase]].
 
 ## Persistence
 

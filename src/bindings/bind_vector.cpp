@@ -144,11 +144,80 @@ inline void vector_element_set(VectorBase& v, uint64_t i, const py::object& valu
     });
 }
 
-inline uint64_t vector_index(const VectorBase& v, py::ssize_t i) {
-    const auto n = static_cast<py::ssize_t>(v.size());
-    if (i < 0) i += n;
-    if (i < 0 || i >= n) throw py::index_error("vector index out of range");
-    return static_cast<uint64_t>(i);
+// v[key] for any NumPy 1-D key: an int (or NumPy integer, 0-d integer array) reads one
+// element; a slice, `...`, an index list / array or a boolean mask (a NumPy array or a pycauset
+// bool vector, as `v[v > 2]`) gives a new vector of those elements, view folded in (review 3.7
+// C-13: only ints were accepted).
+inline pycauset_bindings::indexing::SliceInfo vector_key(const VectorBase& v, py::object key) {
+    using namespace pycauset_bindings::indexing;
+    if (py::isinstance<py::tuple>(key)) {
+        auto t = key.cast<py::tuple>();
+        if (t.size() != 1) throw py::index_error("too many indices for a vector: it is 1-dimensional");
+        key = t[0];
+    }
+    if (py::isinstance<VectorBase>(key)) {
+        if (key.cast<const VectorBase&>().get_data_type() != DataType::BIT)
+            throw py::index_error("a vector used as an index must be boolean (a mask)");
+        key = py::array::ensure(key);
+    }
+    return slice_from_object(key, v.size());
+}
+
+inline py::object vector_getitem(const VectorBase& v, const py::object& key) {
+    using namespace pycauset_bindings::indexing;
+    const SliceInfo s = vector_key(v, key);
+    if (s.is_scalar) return vector_element_get(v, s.index);
+    const std::vector<uint64_t> pos = slice_positions(s);
+    const DataType dt = v.get_data_type();
+    std::shared_ptr<VectorBase> out = pycauset::ObjectFactory::create_vector(pos.size(), dt, pycauset::Structure::VECTOR);
+    const std::complex<double> f = v.get_scalar();
+    const bool conj = v.is_conjugated() && is_complex_dtype(dt);
+    pycauset::visit_vector(v, [&](const auto& typed) {
+        using V = std::decay_t<decltype(typed)>;
+        if constexpr (std::is_same_v<V, UnitVector>) {
+            for (size_t k = 0; k < pos.size(); ++k) vector_element_set(*out, k, vector_element_get(v, pos[k]));
+        } else {
+            using E = vec_element_t<V>;
+            auto& o = dynamic_cast<V&>(*out);
+            for (size_t k = 0; k < pos.size(); ++k) {
+                if constexpr (std::is_integral_v<E>) {
+                    o.set(k, typed.get(pos[k]));  // integer and bit vectors carry no factor
+                } else {
+                    const std::complex<double> x = pycauset::view_value(typed.get(pos[k]), f, conj);  // the one view rule
+                    if constexpr (std::is_same_v<E, std::complex<double>> || std::is_same_v<E, std::complex<float>>) o.set(k, static_cast<E>(x));
+                    else if constexpr (std::is_same_v<V, ComplexFloat16Vector>) o.set(k, x);
+                    else o.set(k, static_cast<E>(x.real()));
+                }
+            }
+        }
+    });
+    return py::cast(out);
+}
+
+// v[key] = value: a scalar, or an array-like with one entry per selected element (or one).
+inline void vector_setitem(VectorBase& v, const py::object& key, const py::object& value) {
+    using namespace pycauset_bindings::indexing;
+    const SliceInfo s = vector_key(v, key);
+    if (s.is_scalar) {
+        vector_element_set(v, s.index, value);
+        return;
+    }
+    const std::vector<uint64_t> pos = slice_positions(s);
+    py::list flat;
+    if (py::isinstance<py::list>(value) || py::isinstance<py::tuple>(value) || py::isinstance<py::array>(value) ||
+        py::isinstance<MatrixBase>(value) || py::isinstance<VectorBase>(value)) {
+        py::array arr = py::module_::import("numpy").attr("asarray")(value);
+        if (arr.ndim() > 1) throw py::value_error("could not broadcast a " + std::to_string(arr.ndim()) + "-D value into a vector selection");
+        flat = arr.attr("ravel")().attr("tolist")();
+    } else {
+        flat.append(value);
+    }
+    const size_t nv = py::len(flat);
+    if (nv != 1 && nv != pos.size()) {
+        throw py::value_error("could not broadcast input array from shape (" + std::to_string(nv) + ",) into shape (" +
+                              std::to_string(pos.size()) + ",)");
+    }
+    for (size_t k = 0; k < pos.size(); ++k) vector_element_set(v, pos[k], flat[nv == 1 ? 0 : k]);
 }
 
 // Vector arithmetic: `a op other` (or `other op a` when reflected) for another vector, a 1-D
@@ -250,10 +319,8 @@ void bind_vector_classes(py::module_& m) {
         .def("get", [](const VectorBase& v, uint64_t i) { return vector_element_get(v, i); }, py::arg("i"))
         .def("set", [](VectorBase& v, uint64_t i, const py::object& value) { vector_element_set(v, i, value); },
              py::arg("i"), py::arg("value"))
-        .def("__getitem__", [](const VectorBase& v, py::ssize_t i) { return vector_element_get(v, vector_index(v, i)); })
-        .def("__setitem__", [](VectorBase& v, py::ssize_t i, const py::object& value) {
-            vector_element_set(v, vector_index(v, i), value);
-        })
+        .def("__getitem__", &vector_getitem)
+        .def("__setitem__", &vector_setitem)
         .def("fill", [](VectorBase& v, const py::object& value) {
             for (uint64_t i = 0; i < v.size(); ++i) vector_element_set(v, i, value);
         }, py::arg("value"))

@@ -145,7 +145,16 @@ M64 = pc.empty((5000, 5000), dtype="float64")
 
 ## Indexing, slicing, and assignment (NumPy-style)
 
-PyCauset implements NumPy-like 2D indexing for dense matrices. Block matrices support element access and block-aware slicing via tiled `SubmatrixView` (no densify); structured/triangular matrices still reject slicing.
+PyCauset implements NumPy's indexing for matrices and vectors. A key indexes the rows when it is
+not a tuple (`M[0]` is row 0, `M[1:]`, `M[[0, 2]]`), and iterating a matrix gives its rows.
+Dense slices with step 1 are views (below). Every other selection is a copy:
+- slices of structured matrices (triangular, diagonal, symmetric, causal, ...) are dense copies
+  in the source dtype, and read only the selected elements;
+- `complex_float16` slices;
+- vector slices.
+
+Block matrices support element access and block-aware slicing via tiled `SubmatrixView` (no
+densify).
 
 ### Basic indexing → views (shared until written)
 
@@ -166,9 +175,13 @@ assert M[0, 1] == 2 and sub[0, 0] == 20
 
 ### Advanced indexing → copies
 
-* Supported per axis: 1D integer arrays (negative wrap) and 1D boolean masks; a list on its
-  own (`M[[0, 2]]`) selects rows, as in NumPy. Float index arrays and bool scalars raise
-  `IndexError`.
+* Supported per axis: 1D integer arrays (negative wrap), 0-d integer arrays (an integer) and
+  1D boolean masks; a list on its own (`M[[0, 2]]`) selects rows, as in NumPy. Float index
+  arrays, bool scalars and `None` raise `IndexError`.
+* A 2-D boolean mask of the matrix's shape (a NumPy array, or a pycauset bool matrix such as
+  `M > 5`) picks its `True` elements in row-major order: `M[M > 5]` is a vector, and
+  `M[M > 5] = 0` writes them.
+* Vectors take the same keys: `v[1:3]`, `v[::-1]`, `v[[0, 2]]`, `v[v > 2]`, `v[...]`.
 * Any use of arrays (alone or mixed with basic) returns a copy with NumPy shape rules; two array axes must have equal length or length-1.
 
 ```python
