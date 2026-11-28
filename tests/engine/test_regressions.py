@@ -2182,3 +2182,16 @@ def test_3_9_C3_saved_derived_values_are_checked_against_the_payload(tmp_path):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         assert pc.det(B) == pytest.approx(np.linalg.det(a))
+
+
+def test_3_2_C14_division_by_a_scalar_is_numpys():
+    """A / s was the view A * (1/s): 49 / 49 was 0.9999999999999999, A / 3 an ulp off in a third of the elements."""
+    a = np.random.default_rng(0).random((40, 40))
+    for x in (a, a.astype(np.float32), a + 1j * a[::-1]):
+        X = pc.matrix(x)
+        for s in (3.0, 7.0, 0.1, 49.0, 2.0, 0.25, -4.0, 1 + 2j):
+            if np.isrealobj(x) and isinstance(s, complex):
+                continue
+            np.testing.assert_array_equal(np.asarray(X / s), x / s)
+    assert (pc.matrix(a) / 2.0).is_lazy and not (pc.matrix(a) / 3.0).is_lazy
+    assert np.asarray(pc.matrix([[49.0, 10.0]]) / 49.0)[0, 0] == 1.0

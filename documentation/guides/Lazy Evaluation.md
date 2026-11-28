@@ -9,7 +9,7 @@ laziness only changes speed and memory.
 
 | expression | cost | stored |
 |---|---|---|
-| `k * A`, `A / k`, `-A` (float, complex, and integer dense/triangular/symmetric matrices) | O(1) | the factor `k`; `A`'s storage is shared |
+| `k * A`, `-A` (float, complex, and integer dense/triangular/symmetric matrices), `A / k` for `k` a power of two | O(1) | the factor `k`; `A`'s storage is shared |
 | `A.T`, `A.H`, `A.conj()`, slices `A[i:j, k:l]` | O(1) | a view of `A`'s storage |
 | `C + C.T`, `C - C.T` for a causal matrix `C` | O(1) | nothing: computed from `C`'s bits |
 | `A + A.T`, `A - A.T` (any matrix) | one pass | the packed symmetric / antisymmetric result (half the memory) |
@@ -17,6 +17,9 @@ laziness only changes speed and memory.
 `A.is_lazy` says whether elements are computed when read: a factor, a transpose, conjugation, or
 a closure such as `C + C.T`. A dense slice with step 1 shares `A`'s storage (O(1)), but its
 elements are the stored ones, read in place, so `A[0:2, 0:2].is_lazy` is False.
+
+`A / k` for other `k` is computed element by element: `A * (1/k)` is not the rounded quotient
+(`49 / 49` would be `0.9999999999999999`), and division must give NumPy's values.
 
 Chains fold: `2 * (3 * A)` stores one factor, 6. Matrix-vector products on `C - C.T` read the
 bits directly, so iterative eigensolvers (`eigvals_arnoldi`) never build the full matrix.
