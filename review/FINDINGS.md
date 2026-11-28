@@ -1797,8 +1797,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
   uint64, the item size in bytes), `"f16"` float16 (NumPy: a 16-byte float), while NumPy codes
   like `"f4"` / `"i4"` raised; `np.longdouble` was narrowed to float64 silently. PyCauset's
   names and aliases are listed in one table now; everything else goes to `np.dtype`, and
-  types PyCauset does not store raise. Open (C-9): the native constructors
-  (`pc.DenseMatrix(2, dtype="bit")`) still parse with their own table. `test_F133_*`.
+  types PyCauset does not store raise. The native class constructors (`pc.DenseMatrix(2,
+  dtype="bit")` raised) call the same parser now (`dtype_arg`). `test_F133_*`.
 
 ### F-134 Persistence docs described an update path that does not exist (area 3.9 C-9)
 - **Status:** fixed (session 9). Container Format and Storage Semantics described appending

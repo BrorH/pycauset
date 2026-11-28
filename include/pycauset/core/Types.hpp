@@ -9,7 +9,7 @@ namespace pycauset {
 enum class Structure : uint32_t {
     UNKNOWN = 0,
     DENSE = 1,
-    TRIANGULAR = 2,      // strictly upper triangular storage (transposed views read as lower)
+    TRIANGULAR = 2,      // packed upper triangle, with or without the diagonal (has_diagonal); transposed views read as lower
     DIAGONAL = 3,
     IDENTITY = 4,
     SYMMETRIC = 5,       // packed upper triangle, A == A^T
@@ -31,8 +31,7 @@ enum class DataType : uint32_t {
     COMPLEX_FLOAT16 = 7,
     COMPLEX_FLOAT32 = 8,
     COMPLEX_FLOAT64 = 9,
-    // Phase 2: additional integer widths + unsigned
-    // NOTE: numeric values are part of on-disk metadata; do not renumber existing entries.
+    // (Files store dtype names, not these numbers.)
     INT8 = 10,
     INT64 = 11,
     UINT8 = 12,

@@ -990,3 +990,18 @@ def test_F129_thunk_blocks_notice_writes_to_native_leaves():
     v[0, 1] = 3.0
     with pytest.raises(StaleThunkError):
         t2.materialize()
+
+
+@pytest.mark.parametrize("cls, args", [(pc.DenseMatrix, (2,)), (pc.TriangularMatrix, (3,)), (pc.DiagonalMatrix, (2,)),
+                                       (pc.SymmetricMatrix, (2,)), (pc.IdentityMatrix, (2,)), (pc.DenseVector, (3,))])
+@pytest.mark.parametrize("token, want", [("bit", "bool"), (np.float32, "float32"), ("i8", "int64"),
+                                         (np.dtype("int16"), "int16"), ("single", "float32"), (int, "int32")])
+def test_F133_class_constructors_take_every_dtype_token(cls, args, token, want):
+    """3.3 C-9: the native constructors parsed dtype names with their own table:
+    pc.DenseMatrix(2, dtype="bit") raised while pc.zeros accepted it."""
+    assert str(cls(*args, dtype=token).dtype) == want
+
+
+def test_F133_class_constructors_reject_unstored_dtypes():
+    with pytest.raises(TypeError, match="unsupported dtype"):
+        pc.DenseMatrix(2, dtype=np.longdouble)

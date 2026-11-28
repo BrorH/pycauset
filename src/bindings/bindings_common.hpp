@@ -34,6 +34,7 @@ void bind_causet_classes(py::module_& m);
 #include "pycauset/matrix/SymmetricMatrix.hpp"
 #include "pycauset/vector/VectorBase.hpp"
 #include "pycauset/vector/UnitVector.hpp"
+#include "pycauset/core/DTypeDispatch.hpp"
 
 namespace pycauset_bindings {
 
@@ -100,3 +101,15 @@ struct polymorphic_type_hook<itype, detail::enable_if_t<std::is_base_of<pycauset
 };
 
 }  // namespace pybind11
+
+// A user's dtype argument (a name, a NumPy code, np.float32, np.dtype(...), int, ...) through
+// the one parser, pycauset._internal.dtypes.normalize_dtype (review 3.3 C-9: the native
+// constructors had their own table: pc.DenseMatrix(2, dtype="bit") raised, pc.zeros accepted
+// it). Leaked statics: no Python object is destroyed after the interpreter finalizes.
+inline pycauset::DataType dtype_arg(const py::handle& dtype) {
+    static py::object* normalize = new py::object(py::module_::import("pycauset._internal.dtypes").attr("normalize_dtype"));
+    static py::object* np = new py::object(py::module_::import("numpy"));
+    py::object name = (*normalize)(dtype, py::arg("np_module") = *np);
+    if (name.is_none()) throw py::type_error("unsupported dtype: " + py::repr(dtype).cast<std::string>());
+    return pycauset::parse_dtype_name(name.cast<std::string>());
+}

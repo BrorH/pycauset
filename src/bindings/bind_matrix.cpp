@@ -159,8 +159,8 @@ inline std::shared_ptr<MatrixBase> matrix_inverse(const MatrixBase& mat) {
 
 // Construct a structure of a dtype given by name, through the one factory.
 template <typename StructureBase>
-std::shared_ptr<StructureBase> make_structure(uint64_t rows, uint64_t cols, pycauset::Structure s, const std::string& dtype) {
-    auto obj = pycauset::ObjectFactory::create_matrix(rows, cols, pycauset::parse_dtype_name(dtype), s, "");
+std::shared_ptr<StructureBase> make_structure(uint64_t rows, uint64_t cols, pycauset::Structure s, const py::object& dtype) {
+    auto obj = pycauset::ObjectFactory::create_matrix(rows, cols, dtype_arg(dtype), s, "");
     auto* typed = dynamic_cast<StructureBase*>(obj.get());
     if (typed == nullptr) throw std::logic_error("factory returned the wrong structure");
     obj.release();
@@ -585,7 +585,7 @@ void bind_matrix_classes(py::module_& m) {
     // --- DenseMatrix ---------------------------------------------------------------------
     py::class_<pycauset::DenseMatrixBase, MatrixBase, std::shared_ptr<pycauset::DenseMatrixBase>>(
         m, "DenseMatrix", "Dense matrix of any dtype. Prefer pycauset.matrix / zeros / empty to construct.")
-        .def(py::init([](uint64_t rows, std::optional<uint64_t> cols, const std::string& dtype) {
+        .def(py::init([](uint64_t rows, std::optional<uint64_t> cols, const py::object& dtype) {
                  return make_structure<pycauset::DenseMatrixBase>(
                      rows, cols.value_or(rows), pycauset::Structure::DENSE, dtype);
              }),
@@ -611,10 +611,10 @@ void bind_matrix_classes(py::module_& m) {
     // --- TriangularMatrix (strictly upper; a causal matrix is TriangularMatrix of dtype 'bool') ---
     py::class_<TriangularMatrixBase, MatrixBase, std::shared_ptr<TriangularMatrixBase>>(
         m, "TriangularMatrix", "Upper-triangular matrix (strict unless has_diagonal). Causal matrices have dtype 'bool'.")
-        .def(py::init([](uint64_t n, const std::string& dtype, bool has_diagonal) {
+        .def(py::init([](uint64_t n, const py::object& dtype, bool has_diagonal) {
                  pycauset::MatrixOptions opts;
                  opts.has_diagonal = has_diagonal;
-                 auto m = pycauset::make_matrix(pycauset::Structure::TRIANGULAR, pycauset::parse_dtype_name(dtype), n, n, "", opts);
+                 auto m = pycauset::make_matrix(pycauset::Structure::TRIANGULAR, dtype_arg(dtype), n, n, "", opts);
                  return std::shared_ptr<TriangularMatrixBase>(static_cast<TriangularMatrixBase*>(m.release()));
              }),
              py::arg("n"), py::arg("dtype") = "float64", py::arg("has_diagonal") = false)
@@ -631,7 +631,7 @@ void bind_matrix_classes(py::module_& m) {
     // --- DiagonalMatrix / IdentityMatrix ---------------------------------------------------
     py::class_<pycauset::DiagonalMatrixBase, MatrixBase, std::shared_ptr<pycauset::DiagonalMatrixBase>>(
         m, "DiagonalMatrix", "Diagonal matrix (stores n elements).")
-        .def(py::init([](uint64_t n, const std::string& dtype) {
+        .def(py::init([](uint64_t n, const py::object& dtype) {
                  return make_structure<pycauset::DiagonalMatrixBase>(n, n, pycauset::Structure::DIAGONAL, dtype);
              }),
              py::arg("n"), py::arg("dtype") = "float64")
@@ -642,7 +642,7 @@ void bind_matrix_classes(py::module_& m) {
 
     py::class_<pycauset::IdentityMatrixBase, MatrixBase, std::shared_ptr<pycauset::IdentityMatrixBase>>(
         m, "IdentityMatrix", "Identity matrix (no element storage; read-only).")
-        .def(py::init([](uint64_t rows, std::optional<uint64_t> cols, const std::string& dtype) {
+        .def(py::init([](uint64_t rows, std::optional<uint64_t> cols, const py::object& dtype) {
                  return make_structure<pycauset::IdentityMatrixBase>(
                      rows, cols.value_or(rows), pycauset::Structure::IDENTITY, dtype);
              }),
@@ -656,7 +656,7 @@ void bind_matrix_classes(py::module_& m) {
                                    const char* from_doc) {
         using B = typename decltype(marker)::type;
         py::class_<B, MatrixBase, std::shared_ptr<B>>(m, name, doc)
-            .def(py::init([kind](uint64_t n, const std::string& dtype) {
+            .def(py::init([kind](uint64_t n, const py::object& dtype) {
                      return make_structure<B>(n, n, kind, dtype);
                  }),
                  py::arg("n"), py::arg("dtype") = "float64")
