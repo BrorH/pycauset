@@ -1005,3 +1005,19 @@ def test_F133_class_constructors_take_every_dtype_token(cls, args, token, want):
 def test_F133_class_constructors_reject_unstored_dtypes():
     with pytest.raises(TypeError, match="unsupported dtype"):
         pc.DenseMatrix(2, dtype=np.longdouble)
+
+
+@pytest.mark.parametrize("dtype", ["bool", "int8", "uint64", "float16", "float64", "complex_float16", "complex128"])
+@pytest.mark.parametrize("storage", ["ram", "file"])
+def test_zeros_needs_no_fill(dtype, storage):
+    """pc.zeros relies on new storage being zero (it filled every byte again: 18 ms for
+    4000 x 4000, NumPy 0). RAM is calloc'd; a new file is sized, not written."""
+    previous = pc.get_memory_threshold()
+    if storage == "file":
+        pc.set_memory_threshold(1)
+    try:
+        for shape in ((70, 3), (5,)):
+            z = pc.zeros(shape, dtype=dtype)
+            assert not np.any(to_np(z))
+    finally:
+        pc.set_memory_threshold(previous)

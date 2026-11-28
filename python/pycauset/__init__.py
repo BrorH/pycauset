@@ -749,9 +749,7 @@ def _allocate_like(shape: Any, kind: str, dtype: Any, kwargs: dict[str, Any]) ->
             native=_native,
             kwargs=kwargs,
         )
-        if kind == "zeros":
-            vec.fill(0)
-        elif kind == "ones":
+        if kind == "ones":
             vec.fill(1)
         return vec
 
@@ -766,12 +764,10 @@ def _allocate_like(shape: Any, kind: str, dtype: Any, kwargs: dict[str, Any]) ->
         mat = _allocate_dense_matrix_by_shape(rows, cols, dtype=dtype, kwargs=kwargs)
     else:
         mat = _matrix_api.Matrix(rows, dtype=dtype, **kwargs)
-    if kind == "zeros":
-        if hasattr(mat, "fill"):
-            mat.fill(0)
-    elif kind == "ones":
-        if hasattr(mat, "fill"):
-            mat.fill(1)
+    # New storage is zero (calloc'd RAM, or a freshly sized file): "zeros" needs no fill (it
+    # wrote every byte again: 18 ms for 4000 x 4000, NumPy 0).
+    if kind == "ones":
+        mat.fill(1)
     return mat
 
 
