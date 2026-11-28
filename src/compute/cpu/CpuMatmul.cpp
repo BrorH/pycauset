@@ -1,6 +1,4 @@
 // CpuSolver: matmul kernels and gemm (split from CpuSolver.cpp, review 4.2).
-#include <Spectra/SymEigsSolver.h>
-#include <Spectra/GenEigsSolver.h>
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/math/ViewRead.hpp"
@@ -57,7 +55,6 @@
 #include "pycauset/math/VectorOps.hpp"
 #include "pycauset/math/ViewValue.hpp"
 #include "pycauset/core/Nvtx.hpp"
-#include <Eigen/Dense>
 #include <stdexcept>
 #include <algorithm>
 #include <cmath>

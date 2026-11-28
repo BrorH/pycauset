@@ -1,7 +1,5 @@
 // CpuSolver: vector ops, norms, compute_k, svd and solve. Matmul, element-wise and the
 // iterative eigen solvers live in CpuMatmul.cpp, CpuElementwise.cpp and CpuIterative.cpp.
-#include <Spectra/SymEigsSolver.h>
-#include <Spectra/GenEigsSolver.h>
 #include "pycauset/core/Errors.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
@@ -61,7 +59,6 @@
 #include "pycauset/math/VectorOps.hpp"
 #include "pycauset/math/ViewValue.hpp"
 #include "pycauset/core/Nvtx.hpp"
-#include <Eigen/Dense>
 #include <stdexcept>
 #include <algorithm>
 #include <cmath>
