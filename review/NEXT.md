@@ -1,4 +1,4 @@
-# NEXT: start here (handoff, 2026-11-28, end of session 9)
+# NEXT: start here (handoff, kept current during session 10)
 
 You are continuing the PyCauset review and overhaul. This file is the complete handoff: read
 it fully before doing anything, then the files it names. Nothing important lives only in a
@@ -36,6 +36,22 @@ cp build/cpp/_pycauset*.so build/cpp/libpycauset_core.so python/pycauset/
 If `pip install -e` tries to build the extension itself, skip it and install the test
 dependencies directly; the tests run from `PYTHONPATH=python` against the copied `.so`.
 
+If the container cannot download from GitHub (CMake's FetchContent fails with 403, as in
+session 10), use system packages instead:
+```
+apt-get update && apt-get install -y --no-install-recommends libopenblas-dev liblapacke-dev libspectra-dev libgtest-dev
+pip install pybind11==2.12.0 pytest psutil plotly ruff   # pybind11 3.x fails in bind_vector.cpp
+cmake -S . -B build/cpp -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON \
+  -Dpybind11_DIR=$(python3 -m pybind11 --cmakedir) \
+  -DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=/usr/src/googletest \
+  -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--no-as-needed -llapacke" \
+  -DCMAKE_MODULE_LINKER_FLAGS="-Wl,--no-as-needed -llapacke" \
+  -DCMAKE_EXE_LINKER_FLAGS="-Wl,--no-as-needed -llapacke"
+cmake --build build/cpp -j1        # all targets: ctest needs the gtest binaries
+```
+(Ubuntu's OpenBLAS is the pthreads build without LAPACKE, hence the flag. Timings with it
+may differ from the source-built OpenBLAS of earlier sessions.)
+
 ## 4. The gates (all must pass before every commit)
 ```
 PYTHONPATH=python python3 -m pytest -q -p no:cacheprovider                       # ~6,063 passed
@@ -45,7 +61,7 @@ PYTHONPATH=python python3 -m pytest tests/atlas -q -p no:cacheprovider          
 ruff check --select F python tests benchmarks tools
 NO_MKDOCS_2_WARNING=1 mkdocs build --strict -q
 ```
-Counts at the last commit: 6,063 / 6,057 / 45 / 4. A drop in a count is a failure to explain.
+Counts at the last commit: 6,068 / 6,062 / 45 / 4. A drop in a count is a failure to explain.
 
 ## 5. Working rules learned the hard way
 - Build with `-j1`. Never edit C++ while a build runs (make keeps the stale object). Never run
@@ -78,12 +94,7 @@ Counts at the last commit: 6,063 / 6,057 / 45 / 4. A drop in a count is a failur
   (PLAN 6.2 records why).
 
 ## 7. Work queue, in this order
-1. **3.8 C-4, the rest:** structured constructors and `causal_matrix(data)` validated and
-   packed in the engine, `diagonal(1-D)` without an n x n array, `pack_as` row-wise. The
-   full design (engine functions, bindings, Python) is written in
-   `review/areas/3.8-python-facade.md` under "Plan for the rest". Regression tests: no NumPy
-   export for PyCauset input (`export_count` unchanged), `diagonal(np.arange(4000.))` peak
-   below 1 MiB, `causal_matrix(1500 x 1500)` fast, the same warnings as today.
+1. ~~3.8 C-4, the rest~~ (done, session 10).
 2. **3.6 C-16, the rest** (`review/areas/3.6-math-entry.md`): one name for the four
    normaliser helpers (`materialize`, `write_out`, `cast_to`, `to_dense`),
    `BitClosureMatrix::value` (a private copy of the view rule: use `ViewValue.hpp`), the

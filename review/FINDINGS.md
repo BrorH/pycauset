@@ -1901,7 +1901,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-138 Area 3.8 (Python facade): the temp sweep deleted users' files, double-scaled printing
 - **Status:** reviewed (session 9), 23 findings in `review/areas/3.8-python-facade.md`
-  (1 S1, 6 S2, 12 S3, 4 S4). C-1 to C-3, C-5 to C-8, C-10 to C-17, C-19 to C-21, C-23 fixed, C-4,
+  (1 S1, 6 S2, 12 S3, 4 S4). C-1 to C-8, C-10 to C-17, C-19 to C-21, C-23 fixed (C-4 completed in session 10),
   C-9 and C-22 partly; the rest open. C-10 (fixed): one array-like rule (`ops._import_operand`) for the
   public functions; `sum`, `norm`, `materialize`, `slogdet`, `compute_k` raised for ndarrays.
   - C-1 (S1, fixed): the storage sweep deleted every `*.tmp` / `*.raw_tmp` file below the
@@ -1912,9 +1912,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-3 (fixed): `vector` / `zeros` / `ones` / `empty` ignored a bad dtype and unknown
     keywords; one construction path for `matrix` and `vector` now (`matrix_api.allocate` /
     `from_array`).
-  - C-4 (part): NumPy computed behind `pc.divide` / `pc.bitwise_*` (ndarray input): the
-    function forms import their operands now, and `add` / `subtract` / `multiply` exist. Open:
-    the structured constructors export PyCauset input to NumPy for validation.
+  - C-4 (fixed): NumPy computed behind `pc.divide` / `pc.bitwise_*` (ndarray input): the
+    function forms import their operands now, and `add` / `subtract` / `multiply` exist.
+    Fixed (session 10): the structured constructors and `causal_matrix(data)` exported PyCauset
+    input to NumPy for validation; the engine checks (`has_structure`, `causal_input_check`) and
+    packs whole rows (`pack_as`) now, `diagonal(1-D)` writes the vector onto the diagonal
+    (`diagonal_from_vector`; 4000 entries 92 -> 0.06 ms), `causal_matrix(1500^2)` 154 -> 7.5 ms.
   - C-5 (fixed): per-call `storage="disk"` changed the process-wide threshold; it is a
     per-thread override in the engine now.
   - C-6 (fixed): import created `./.pycauset` in the working directory (and failed where it

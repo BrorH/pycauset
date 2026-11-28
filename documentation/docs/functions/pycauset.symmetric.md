@@ -16,8 +16,9 @@ see [[docs/functions/pycauset.hermitian.md|pycauset.hermitian]]).
 
 ## Validation
 
-Always: integer/bool input exactly, float and complex input with `numpy.allclose(..., rtol, atol)`
-(the input is an array-like; only the stored triangle is kept; Python ints are int32, as in
+Always, in the engine: integer/bool input exactly, float and complex input element by element
+with NumPy's `isclose(rtol, atol)` rules (the input is a PyCauset matrix, read in place, or an
+array-like; only the stored triangle is kept; Python ints are int32, as in
 `pycauset.matrix`). Non-square or non-conforming input raises `ValueError`; a 0 x 0 input is an
 empty matrix.
 

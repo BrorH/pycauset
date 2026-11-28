@@ -12,7 +12,8 @@ complex_float64; for a real packed type use `pycauset.symmetric`).
 ## Parameters
 
 *   **data** (array-like): a 2D square array.
-*   **rtol**, **atol** (float, optional): tolerances of the check `numpy.allclose(A, A.conj().T)`
+*   **rtol**, **atol** (float, optional): tolerances of the engine's check that A is close to A.conj().T
+    element by element (NumPy's `isclose` rules)
     (defaults `1e-5`, `1e-8`).
 
 ## Raises

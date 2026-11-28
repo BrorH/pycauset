@@ -787,6 +787,8 @@ def causal_matrix(source: Any, populate: bool = True, **kwargs: Any) -> Any:
         populate=populate,
         np_module=_np,
         TriangularMatrix=TriangularMatrix,
+        native=_native,
+        square_source=_square_source,
         kwargs=kwargs,
     )
 
@@ -1155,41 +1157,45 @@ def _input_array(data: Any) -> Any:
     return _np.asarray(data)
 
 
-def _as_square_array(data: Any, *, name: str) -> Any:
-    arr = _input_array(data)
-    if arr.ndim != 2:
-        raise ValueError(f"{name}() expects a 2D array, got {arr.ndim}D")
-    if arr.shape[0] != arr.shape[1]:
-        raise ValueError(f"{name}() requires a square matrix, got shape {arr.shape}")
-    return arr
+def _square_source(data: Any, *, name: str) -> Any:
+    """The input of a structured constructor as an engine matrix: a PyCauset matrix as it is
+    (no NumPy export, review 3.8 C-4), array-likes imported once (Python ints are int32)."""
+    if isinstance(data, _native.MatrixBase):
+        m = data
+    elif isinstance(data, _native.VectorBase):
+        raise ValueError(f"{name}() expects a 2D array, got 1D")
+    else:
+        if _ops._is_block(data):
+            raise TypeError(f"{name}() takes a matrix, not a BlockMatrix (it is not densified implicitly)")
+        arr = _input_array(data)
+        if arr.ndim != 2:
+            raise ValueError(f"{name}() expects a 2D array, got {arr.ndim}D")
+        m = matrix(arr)
+    if m.rows() != m.cols():
+        raise ValueError(f"{name}() requires a square matrix, got shape {m.shape}")
+    return m
 
 
-def _is_inexact_dtype(arr: Any) -> bool:
-    return bool(_np.issubdtype(arr.dtype, _np.inexact))
-
-
-def _packed(arr: Any, structure: str) -> Any:
-    """`arr` (validated by the caller) as a native `structure` matrix of its exact dtype."""
-    return _native._pack_as(matrix(arr), structure)
-
-
-def _check_close(ok_exact: bool, ok_close: Any, arr: Any, what: str) -> None:
-    if not (ok_close() if _is_inexact_dtype(arr) else ok_exact):
-        raise ValueError(f"{what} ({'within tolerance' if _is_inexact_dtype(arr) else 'exactly'})")
+def _validated(m: Any, structure: str, rtol: float | None, atol: float | None, what: str) -> Any:
+    """`m` packed as `structure` after the engine's check (exact for integer and bool, NumPy's
+    `isclose(rtol, atol)` for float and complex)."""
+    r, a = (1e-5 if rtol is None else rtol), (1e-8 if atol is None else atol)
+    if not _native._has_structure(m, structure, r, a):
+        inexact = str(m.dtype).startswith(("float", "complex"))
+        raise ValueError(f"{what} ({'within tolerance' if inexact else 'exactly'})")
+    return _native._pack_as(m, structure)
 
 
 def symmetric(data: Any, *, rtol: float | None = None, atol: float | None = None) -> Any:
     """A `SymmetricMatrix` (A == A.T, packed upper triangle) of the input's dtype.
 
-    The input is validated: exactly for integer/bool, with `allclose(rtol, atol)` for float and
-    complex input (only the upper triangle is stored). A complex symmetric matrix is not
-    Hermitian; use `hermitian` for A == A.conj().T.
+    The input is validated in the engine: exactly for integer/bool, with NumPy's
+    `isclose(rtol, atol)` element by element for float and complex input (only the upper
+    triangle is stored). A complex symmetric matrix is not Hermitian; use `hermitian` for
+    A == A.conj().T.
     """
-    arr = _as_square_array(data, name="symmetric")
-    r, a = (1e-5 if rtol is None else rtol), (1e-8 if atol is None else atol)
-    _check_close(_np.array_equal(arr, arr.T), lambda: _np.allclose(arr, arr.T, rtol=r, atol=a), arr,
-                 "symmetric() input is not symmetric: A != A.T")
-    return _packed(arr, "symmetric")
+    return _validated(_square_source(data, name="symmetric"), "symmetric", rtol, atol,
+                      "symmetric() input is not symmetric: A != A.T")
 
 
 def antisymmetric(data: Any, *, rtol: float | None = None, atol: float | None = None) -> Any:
@@ -1198,12 +1204,8 @@ def antisymmetric(data: Any, *, rtol: float | None = None, atol: float | None = 
     Signed integer, float and complex dtypes (unsigned and bool cannot negate: ValueError).
     Validated like `symmetric`; the diagonal must be zero.
     """
-    arr = _as_square_array(data, name="antisymmetric")
-    r, a = (1e-5 if rtol is None else rtol), (1e-8 if atol is None else atol)
-    _check_close(_np.array_equal(arr, -arr.T) and not _np.any(_np.diag(arr)),
-                 lambda: _np.allclose(arr, -arr.T, rtol=r, atol=a) and _np.allclose(_np.diag(arr), 0, rtol=r, atol=a),
-                 arr, "antisymmetric() input is not anti-symmetric: A != -A.T or a non-zero diagonal")
-    return _packed(arr, "antisymmetric")
+    return _validated(_square_source(data, name="antisymmetric"), "antisymmetric", rtol, atol,
+                      "antisymmetric() input is not anti-symmetric: A != -A.T or a non-zero diagonal")
 
 
 def hermitian(data: Any, *, rtol: float | None = None, atol: float | None = None) -> Any:
@@ -1212,26 +1214,35 @@ def hermitian(data: Any, *, rtol: float | None = None, atol: float | None = None
     Real input is promoted to the complex dtype of its precision (float16 / float32 to
     complex_float32, others to complex_float64, as NumPy's `astype(complex)` would not narrow);
     a real symmetric matrix is Hermitian, and `symmetric` gives a real packed type. Validated
-    like `symmetric`; the diagonal must be real.
+    like `symmetric` (always within tolerance); the diagonal must be real.
     """
-    arr = _as_square_array(data, name="hermitian")
-    if not _np.iscomplexobj(arr):
-        arr = arr.astype(_np.complex64 if arr.dtype in (_np.float16, _np.float32) else _np.complex128)
+    m = _square_source(data, name="hermitian")
+    dt = str(m.dtype)
+    if not dt.startswith("complex"):
+        m = _native._cast(m, "complex_float32" if dt in ("float16", "float32") else "complex_float64")
     r, a = (1e-5 if rtol is None else rtol), (1e-8 if atol is None else atol)
-    if not _np.allclose(arr, arr.conj().T, rtol=r, atol=a):
+    if not _native._has_structure(m, "hermitian", r, a):
         raise ValueError("hermitian() input is not Hermitian: A != A.conj().T (within tolerance)")
-    return _packed(arr, "hermitian")
+    return _native._pack_as(m, "hermitian")
 
 
 def diagonal(data: Any) -> Any:
     """A `DiagonalMatrix` of the input's dtype from a 1-D vector of entries or the diagonal of
     a square 2-D matrix (off-diagonal values are ignored)."""
-    arr = _input_array(data)
-    if arr.ndim == 1:
-        arr = _np.diag(arr)
-    elif arr.ndim != 2 or arr.shape[0] != arr.shape[1]:
-        raise ValueError("diagonal() expects a 1D vector or a 2D square matrix")
-    return _packed(arr, "diagonal")
+    if isinstance(data, _native.VectorBase):
+        return _native._diagonal_from_vector(data)
+    if not isinstance(data, _native.MatrixBase) and not _ops._is_block(data):
+        arr = _input_array(data)
+        if arr.ndim == 1:
+            return _native._diagonal_from_vector(_native._asarray(arr))
+        if arr.ndim != 2:
+            raise ValueError("diagonal() expects a 1D vector or a 2D square matrix")
+        data = arr
+    try:
+        m = _square_source(data, name="diagonal")
+    except ValueError:
+        raise ValueError("diagonal() expects a 1D vector or a 2D square matrix") from None
+    return _native._pack_as(m, "diagonal")
 
 
 # Alias for IdentityMatrix

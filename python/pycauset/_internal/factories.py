@@ -51,6 +51,8 @@ def causal_matrix_factory(
     populate: bool,
     np_module: Any | None,
     TriangularMatrix: Any,
+    native: Any,
+    square_source: Any,
     kwargs: dict[str, Any],
 ) -> Any:
     source_obj: Any = source
@@ -65,32 +67,28 @@ def causal_matrix_factory(
             return TriangularMatrix.random(n, p=0.5, **kwargs)
         return TriangularMatrix(n, dtype="bool", **kwargs)
 
-    # 2-D data (NumPy arrays, nested lists, PyCauset matrices): its strict upper triangle.
-    source_obj = np_module.asarray(source_obj)
-    if source_obj.ndim != 2 or source_obj.shape[0] != source_obj.shape[1]:
-        raise ValueError("causal_matrix: data must be a square 2-D array")
-    if source_obj.dtype != bool:  # type: ignore[attr-defined]
-        if not np_module.all(np_module.isin(source_obj, [0, 1])):
-            warnings.warn(
-                "Input data contains non-binary values. They will be converted to boolean (True/False).",
-                PyCausetDTypeWarning,
-                stacklevel=3,  # the caller of pc.causal_matrix (review 3.8 C-20)
-            )
-
-    if np_module.any(np_module.tril(source_obj) != 0):
+    # 2-D data (NumPy arrays, nested lists, PyCauset matrices): its strict upper triangle,
+    # checked and packed in the engine (no NumPy export of PyCauset input, review 3.8 C-4).
+    if kwargs:
+        raise TypeError(f"causal_matrix(data): unexpected keyword arguments {sorted(kwargs)} (they apply to a size)")
+    try:
+        m = square_source(source_obj, name="causal_matrix")
+    except ValueError:
+        raise ValueError("causal_matrix: data must be a square 2-D array") from None
+    nonbinary, lower = native._causal_input_check(m)
+    if nonbinary and m.dtype != "bool":
+        warnings.warn(
+            "Input data contains non-binary values. They will be converted to boolean (True/False).",
+            PyCausetDTypeWarning,
+            stacklevel=3,  # the caller of pc.causal_matrix (review 3.8 C-20)
+        )
+    if lower:
         warnings.warn(
             "Input data contains non-zero values in the lower triangle or diagonal. "
             "A causal matrix is strictly upper triangular; these values will be ignored.",
             PyCausetWarning,
             stacklevel=3,
         )
-
-    if source_obj.dtype != bool:  # type: ignore[attr-defined]
-        source_obj = source_obj.astype(bool)  # type: ignore[attr-defined]
-    size = int(source_obj.shape[0])
-    matrix = TriangularMatrix(size, dtype="bool", **kwargs)
-    rows_idx, cols_idx = np_module.nonzero(np_module.triu(source_obj, 1))
-    for i, j in zip(rows_idx.tolist(), cols_idx.tolist()):
-        matrix.set(i, j, True)
-    return matrix
+    bits = m if m.dtype == "bool" else (m != 0)
+    return native._pack_as(bits, "triangular", False)
 

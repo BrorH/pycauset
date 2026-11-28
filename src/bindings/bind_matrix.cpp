@@ -741,6 +741,16 @@ void bind_matrix_classes(py::module_& m) {
             pycauset::pack_as(mat, pycauset::parse_structure(structure), has_diagonal).release());
     }, py::arg("matrix"), py::arg("structure"), py::arg("has_diagonal") = false,
        "Internal: the stored region of `matrix` as a new matrix of `structure` (same dtype).");
+    m.def("_has_structure", [](const MatrixBase& mat, const std::string& structure, double rtol, double atol) {
+        return pycauset::has_structure(mat, pycauset::parse_structure(structure), rtol, atol);
+    }, py::arg("matrix"), py::arg("structure"), py::arg("rtol"), py::arg("atol"),
+       "Internal: whether `matrix` is symmetric / antisymmetric / hermitian (exact for integer and "
+       "bool, NumPy's isclose for float and complex).");
+    m.def("_causal_input_check", [](const MatrixBase& mat) { return pycauset::causal_input_check(mat); },
+          py::arg("matrix"), "Internal: (a value other than 0 / 1, a non-zero value on or below the diagonal).");
+    m.def("_diagonal_from_vector", [](const pycauset::VectorBase& v) {
+        return std::shared_ptr<MatrixBase>(pycauset::diagonal_from_vector(v).release());
+    }, py::arg("vector"), "Internal: a DiagonalMatrix with `vector` on its diagonal (same dtype).");
     m.def("_structure_of", [](const py::object& obj) -> std::string {
         if (py::isinstance<MatrixBase>(obj)) return pycauset::structure_name(obj.cast<const MatrixBase&>().get_structure());
         if (py::isinstance<VectorBase>(obj)) return pycauset::structure_name(obj.cast<const VectorBase&>().get_structure());

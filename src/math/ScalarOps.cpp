@@ -28,6 +28,10 @@
 #include "pycauset/matrix/SymmetricMatrix.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
 #include "pycauset/math/ViewRead.hpp"
+#include "pycauset/math/VectorOps.hpp"
+#include "pycauset/vector/VectorBase.hpp"
+#include <cstring>
+#include <utility>
 
 namespace pycauset {
 
@@ -831,19 +835,171 @@ std::unique_ptr<MatrixBase> cast_to(const MatrixBase& a, DataType dt) {
     return run_exact(a, dt, ScalarOpKind::Mul, ScalarArg::from_int64(1));
 }
 
+namespace {
+
+// Logical rows of a, a block at a time: f(i0, i1, const W* rows) with rows [i0, i1) row-major
+// (a.cols() wide), typed and view-applied (read_rows). Where the typed reader cannot read
+// (windows of structured classes, closures) the values are written out once into a plain
+// dense copy, which it can.
+template <typename W, typename F>
+bool for_row_blocks(const MatrixBase& a, F&& f) {
+    const uint64_t rows = a.rows(), cols = std::max<uint64_t>(a.cols(), 1);
+    const uint64_t block = std::max<uint64_t>(1, (uint64_t{1} << 17) / cols);
+    std::vector<W> buf(std::min(block, std::max<uint64_t>(rows, 1)) * cols);
+    if (rows > 0 && !read_rows(a, 0, std::min(block, rows), buf.data())) {
+        auto d = write_out(a);
+        return for_row_blocks<W>(*d, std::forward<F>(f));
+    }
+    for (uint64_t i0 = 0; i0 < rows; i0 += block) {
+        const uint64_t i1 = std::min(rows, i0 + block);
+        if (i0 > 0 && !read_rows(a, i0, i1, buf.data())) throw std::runtime_error("row reader failed mid-matrix");
+        if (!f(i0, i1, static_cast<const W*>(buf.data()))) return false;
+    }
+    return true;
+}
+
+// The same blocks of a and of a's transpose side by side: f(i0, i1, rows, cols_of_a).
+template <typename W, typename F>
+bool for_row_and_column_blocks(const MatrixBase& a, F&& f) {
+    const uint64_t n = a.rows();
+    const uint64_t block = std::max<uint64_t>(1, (uint64_t{1} << 17) / std::max<uint64_t>(n, 1));
+    std::vector<W> r(std::min(block, std::max<uint64_t>(n, 1)) * n), c(r.size());
+    auto t = a.transposed_clone();
+    if (n > 0 && !(read_rows(a, 0, 1, r.data()) && read_rows(*t, 0, 1, c.data()))) {
+        auto d = write_out(a);
+        return for_row_and_column_blocks<W>(*d, std::forward<F>(f));
+    }
+    for (uint64_t i0 = 0; i0 < n; i0 += block) {
+        const uint64_t i1 = std::min(n, i0 + block);
+        if (!read_rows(a, i0, i1, r.data()) || !read_rows(*t, i0, i1, c.data()))
+            throw std::runtime_error("row reader failed mid-matrix");
+        if (!f(i0, i1, static_cast<const W*>(r.data()), static_cast<const W*>(c.data()))) return false;
+    }
+    return true;
+}
+
+// NumPy's isclose(x, y, rtol, atol) (equal_nan=False): |x - y| <= atol + rtol * |y| for
+// finite operands, x == y otherwise (inf matches the same inf; NaN matches nothing).
+template <typename W>
+bool numpy_isclose(const W& x, const W& y, double rtol, double atol) {
+    auto finite = [](const W& v) {
+        if constexpr (std::is_same_v<W, std::complex<double>>) return std::isfinite(v.real()) && std::isfinite(v.imag());
+        else return std::isfinite(v);
+    };
+    if (!finite(x) || !finite(y)) return x == y;
+    return std::abs(x - y) <= atol + rtol * std::abs(y);
+}
+
+int int_width(DataType dt) {
+    switch (dt) {
+        case DataType::INT8: case DataType::UINT8: return 8;
+        case DataType::INT16: case DataType::UINT16: return 16;
+        case DataType::INT32: case DataType::UINT32: return 32;
+        default: return 64;
+    }
+}
+
+}  // namespace
+
+bool has_structure(const MatrixBase& a, Structure s, double rtol, double atol) {
+    if (s != Structure::SYMMETRIC && s != Structure::ANTISYMMETRIC && s != Structure::HERMITIAN)
+        throw std::invalid_argument("has_structure: symmetric, antisymmetric or hermitian");
+    const DataType dt = a.get_data_type();
+    if (s == Structure::ANTISYMMETRIC && (dt == DataType::BIT || is_unsigned_int_dtype(dt)))
+        throw std::invalid_argument(std::string("antisymmetric matrices need a signed dtype (got ") + dtype_name(dt) + ")");
+    detail::require_square(s, a.rows(), a.cols());
+    debug_trace::set_last("has_structure");
+    const uint64_t n = a.rows();
+    std::atomic<bool> ok{true};
+    if (is_integer_or_bit(dt)) {
+        // Exact, in the dtype's own wrapping arithmetic (NumPy's -A of int8 -128 is -128).
+        const uint64_t mask = int_width(dt) == 64 ? ~uint64_t{0} : (uint64_t{1} << int_width(dt)) - 1;
+        const bool anti = s == Structure::ANTISYMMETRIC;
+        return for_row_and_column_blocks<int64_t>(a, [&](uint64_t i0, uint64_t i1, const int64_t* r, const int64_t* c) {
+            ParallelFor(i0, i1, [&](size_t i) {
+                const int64_t* x = r + (i - i0) * n;
+                const int64_t* y = c + (i - i0) * n;  // y[j] = a(j, i)
+                for (uint64_t j = 0; j < n && ok.load(std::memory_order_relaxed); ++j) {
+                    const bool good = anti ? ((static_cast<uint64_t>(x[j]) + static_cast<uint64_t>(y[j])) & mask) == 0 &&
+                                                 (j != i || x[j] == 0)
+                                           : x[j] == y[j];
+                    if (!good) ok.store(false, std::memory_order_relaxed);
+                }
+            });
+            return ok.load();
+        });
+    }
+    auto run = [&](auto tag) {
+        using W = typename decltype(tag)::type;
+        return for_row_and_column_blocks<W>(a, [&](uint64_t i0, uint64_t i1, const W* r, const W* c) {
+            ParallelFor(i0, i1, [&](size_t i) {
+                const W* x = r + (i - i0) * n;
+                const W* y = c + (i - i0) * n;
+                for (uint64_t j = 0; j < n && ok.load(std::memory_order_relaxed); ++j) {
+                    bool good;
+                    if (s == Structure::SYMMETRIC) {
+                        good = numpy_isclose(x[j], y[j], rtol, atol);
+                    } else if (s == Structure::ANTISYMMETRIC) {
+                        good = numpy_isclose(x[j], W(-y[j]), rtol, atol) &&
+                               (j != i || numpy_isclose(x[j], W(0), rtol, atol));
+                    } else {
+                        if constexpr (std::is_same_v<W, std::complex<double>>) good = numpy_isclose(x[j], std::conj(y[j]), rtol, atol);
+                        else good = numpy_isclose(x[j], y[j], rtol, atol);
+                    }
+                    if (!good) ok.store(false, std::memory_order_relaxed);
+                }
+            });
+            return ok.load();
+        });
+    };
+    return is_complex_dtype(dt) ? run(type_tag<std::complex<double>>{}) : run(type_tag<double>{});
+}
+
+std::pair<bool, bool> causal_input_check(const MatrixBase& a) {
+    const DataType dt = a.get_data_type();
+    const uint64_t cols = a.cols();
+    std::atomic<bool> nonbinary{false}, lower{false};
+    debug_trace::set_last("causal_input_check");
+    auto scan = [&](auto tag) {
+        using W = typename decltype(tag)::type;
+        for_row_blocks<W>(a, [&](uint64_t i0, uint64_t i1, const W* rows) {
+            ParallelFor(i0, i1, [&](size_t i) {
+                const W* v = rows + (i - i0) * cols;
+                bool nb = false, lo = false;
+                for (uint64_t j = 0; j < cols; ++j) {
+                    const bool zero = v[j] == W(0);
+                    if (!zero && !(v[j] == W(1))) nb = true;
+                    if (!zero && j <= i) lo = true;
+                }
+                if (nb) nonbinary.store(true, std::memory_order_relaxed);
+                if (lo) lower.store(true, std::memory_order_relaxed);
+            });
+            return true;
+        });
+    };
+    if (is_integer_or_bit(dt)) scan(type_tag<int64_t>{});
+    else if (is_complex_dtype(dt)) scan(type_tag<std::complex<double>>{});
+    else scan(type_tag<double>{});
+    return {nonbinary.load(), lower.load()};
+}
+
 // The stored region of a (view applied) copied into a new matrix of structure s in a's dtype.
-// Exact for every dtype: one typed read of a plain dense copy, one typed write per stored
-// entry. Entries outside the stored region are not read (the caller vouches for them, e.g.
-// pc.symmetric validates its input first).
+// Exact for every dtype: one typed read into a plain dense copy (none when a is plain dense
+// already), then whole stored rows copied (memcpy; bit rows shifted into place). Entries outside
+// the stored region are not read (the caller vouches for them, e.g. pc.symmetric validates its
+// input first). The symmetric family's diagonal goes through `set` for its checks.
 std::unique_ptr<MatrixBase> pack_as(const MatrixBase& a, Structure s, bool has_diagonal) {
     MatrixOptions opts;
     opts.has_diagonal = has_diagonal;
     const DataType dt = a.get_data_type();
-    const uint64_t n = a.rows();
+    const uint64_t n = a.rows(), cols = a.cols();
     if (s != Structure::DENSE) detail::require_square(s, a.rows(), a.cols());
     auto out = make_matrix(s, dt, a.rows(), a.cols(), "", opts);
     if (s == Structure::IDENTITY) return out;
-    auto d = write_out(a);
+    std::unique_ptr<MatrixBase> copy;
+    const bool plain_dense = is_plain(a) && a.get_structure() == Structure::DENSE;
+    if (!plain_dense) copy = write_out(a);
+    const MatrixBase& d = plain_dense ? a : *copy;
     const bool diag = s == Structure::TRIANGULAR && opts.has_diagonal;
     auto stored = [&](uint64_t i, uint64_t j) {
         switch (s) {
@@ -857,20 +1013,77 @@ std::unique_ptr<MatrixBase> pack_as(const MatrixBase& a, Structure s, bool has_d
     debug_trace::set_last("pack_as");
     visit_dtype(dt, [&](auto tag) {
         using T = typename decltype(tag)::type;
-        const auto& src = static_cast<const typename DenseMatrixOf<T>::type&>(*d);
+        const auto* srcp = dynamic_cast<const typename DenseMatrixOf<T>::type*>(&d);
+        std::unique_ptr<MatrixBase> fallback;
+        if (!srcp) {  // a dense class outside the catalogue's (should not happen): write it out
+            fallback = write_out(d);
+            srcp = &static_cast<const typename DenseMatrixOf<T>::type&>(*fallback);
+        }
+        const auto& src = *srcp;
         visit_structure(s, [&](auto st) {
             constexpr Structure S = decltype(st)::value;
             if constexpr (offered<S, T>()) {
                 auto& dst = static_cast<typename ClassOf<S, T>::type&>(*out);
                 using E = structured_element_t<T>;
-                for (uint64_t i = 0; i < n; ++i)
-                    for (uint64_t j = 0; j < a.cols(); ++j)
-                        if (stored(i, j)) {
-                            if constexpr (S == Structure::DIAGONAL) dst.set_diagonal(i, E(src.get(i, j)));
-                            else dst.set(i, j, E(src.get(i, j)));
+                constexpr bool packed_rows = S == Structure::TRIANGULAR || S == Structure::SYMMETRIC ||
+                                             S == Structure::ANTISYMMETRIC || S == Structure::HERMITIAN ||
+                                             S == Structure::SKEW_HERMITIAN;
+                if constexpr (S == Structure::DIAGONAL) {
+                    for (uint64_t i = 0; i < n; ++i) dst.set_diagonal(i, E(src.get(i, i)));
+                } else if constexpr (S == Structure::TRIANGULAR && std::is_same_v<T, bool>) {
+                    // Bit rows: row i of the triangle holds columns first_col(i).. from bit 0.
+                    const uint64_t* sw = src.data();
+                    const uint64_t sstride = src.stride_bytes() / 8;
+                    const uint64_t src_words = (cols + 63) / 64;
+                    uint64_t* dw = dst.data();
+                    ParallelFor(0, n, [&](size_t i) {
+                        const uint64_t first = dst.first_col(i), bits = dst.row_bits(i);
+                        const uint64_t* row = sw + i * sstride;
+                        uint64_t* out_row = dw + dst.get_row_offset(i) / 8;
+                        for (uint64_t w = 0; w * 64 < bits; ++w) {
+                            const uint64_t b = first + w * 64, k = b / 64, sh = b % 64;
+                            uint64_t v = row[k] >> sh;
+                            if (sh && k + 1 < src_words) v |= row[k + 1] << (64 - sh);
+                            const uint64_t left = bits - w * 64;
+                            if (left < 64) v &= (uint64_t{1} << left) - 1;
+                            out_row[w] = v;
                         }
+                    });
+                } else if constexpr (packed_rows && !std::is_same_v<T, bool> &&
+                                     !std::is_same_v<T, complex_float16_marker>) {
+                    const T* sp = src.data();
+                    char* base = reinterpret_cast<char*>(dst.data());
+                    ParallelFor(0, n, [&](size_t i) {
+                        const uint64_t first = (S == Structure::TRIANGULAR && !diag) ? i + 1 : i;
+                        if (first >= cols) return;
+                        std::memcpy(base + dst.get_row_offset(i), sp + i * cols + first, (cols - first) * sizeof(T));
+                    });
+                    if constexpr (S != Structure::TRIANGULAR) {
+                        for (uint64_t i = 0; i < n; ++i) dst.set(i, i, src.get(i, i));  // the diagonal checks
+                    }
+                } else {
+                    for (uint64_t i = 0; i < n; ++i)
+                        for (uint64_t j = 0; j < cols; ++j)
+                            if (stored(i, j)) dst.set(i, j, E(src.get(i, j)));
+                }
             }
         });
+    });
+    return out;
+}
+
+std::unique_ptr<MatrixBase> diagonal_from_vector(const VectorBase& v) {
+    auto row = write_out(*as_row_matrix(v));
+    const uint64_t n = row->cols();
+    const DataType dt = row->get_data_type();
+    auto out = make_matrix(Structure::DIAGONAL, dt, n, n, "", MatrixOptions{});
+    debug_trace::set_last("diagonal_from_vector");
+    visit_dtype(dt, [&](auto tag) {
+        using T = typename decltype(tag)::type;
+        const auto& src = static_cast<const typename DenseMatrixOf<T>::type&>(*row);
+        auto& dst = static_cast<typename ClassOf<Structure::DIAGONAL, T>::type&>(*out);
+        using E = structured_element_t<T>;
+        for (uint64_t i = 0; i < n; ++i) dst.set_diagonal(i, E(src.get(0, i)));
     });
     return out;
 }

@@ -6,7 +6,8 @@ pycauset.diagonal(data)
 
 Creates a [[docs/classes/matrix/pycauset.DiagonalMatrix.md|pycauset.DiagonalMatrix]] in the
 input's dtype (every dtype) from a 1D vector of diagonal entries or the diagonal of a 2D square
-matrix (off-diagonal values are ignored).
+matrix (off-diagonal values are ignored). A vector is written straight onto the diagonal (no
+n x n array is built); a PyCauset matrix is read in place.
 
 ## Examples
 

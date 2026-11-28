@@ -1355,6 +1355,116 @@ def test_3_8_C4_bitwise_forms_compute_in_the_engine():
     assert isinstance(pc.invert(b), pc.MatrixBase)
 
 
+def _exports():
+    from pycauset._internal import export_guard
+
+    return export_guard.export_count
+
+
+def test_3_8_C4_structured_constructors_do_not_export_pycauset_input():
+    """Review 3.8 C-4: pc.symmetric / antisymmetric / hermitian / diagonal / causal_matrix of a
+    PyCauset matrix exported it to NumPy (one export each; above set_export_max_bytes they raised)."""
+    s = np.array([[1.0, 2.0, 3.0], [2.0, 5.0, 6.0], [3.0, 6.0, 9.0]])
+    k = np.array([[0.0, 2.0, -1.0], [-2.0, 0.0, 4.0], [1.0, -4.0, 0.0]])
+    h = np.array([[1.0, 2 + 1j], [2 - 1j, 3.0]])
+    c = np.triu(np.ones((4, 4), dtype=bool), 1)
+    cases = [
+        (pc.symmetric, s), (pc.antisymmetric, k), (pc.hermitian, h), (pc.hermitian, s),
+        (pc.diagonal, s), (pc.causal_matrix, c), (pc.causal_matrix, c.astype(np.int32)),
+    ]
+    inputs = [(f, pc.matrix(x), x) for f, x in cases] + [(pc.diagonal, pc.vector(np.arange(1.0, 5.0)), np.arange(1.0, 5.0))]
+    for f, x, ref in inputs:
+        before = _exports()
+        got = f(x)
+        assert _exports() == before, f.__name__
+        want = f(ref)  # the same values from NumPy input
+        assert type(got) is type(want) and got.dtype == want.dtype
+        np.testing.assert_array_equal(np.asarray(got), np.asarray(want))
+
+
+def test_3_8_C4_structured_constructors_validate_in_the_engine():
+    m = pc.matrix(np.array([[1.0, 2.0], [2.0 + 1e-6, 1.0]]))
+    assert isinstance(pc.symmetric(m), pc.SymmetricMatrix)  # within NumPy's default tolerance
+    with pytest.raises(ValueError, match="within tolerance"):
+        pc.symmetric(m, rtol=0, atol=0)
+    with pytest.raises(ValueError, match="exactly"):
+        pc.symmetric(pc.matrix(np.array([[1, 2], [3, 1]], dtype=np.int16)))
+    with pytest.raises(ValueError, match="non-zero diagonal"):
+        pc.antisymmetric(np.array([[1, 2], [-2, 0]], dtype=np.int8))
+    # int8 wraps as NumPy's -A: -(-128) is -128
+    a = pc.antisymmetric(np.array([[0, -128], [-128, 0]], dtype=np.int8))
+    np.testing.assert_array_equal(np.asarray(a), np.array([[0, -128], [-128, 0]], dtype=np.int8))
+    for dt in (np.uint8, np.bool_):
+        with pytest.raises(ValueError, match="signed dtype"):
+            pc.antisymmetric(np.zeros((2, 2), dtype=dt))
+    with pytest.raises(ValueError, match="not Hermitian"):
+        pc.hermitian(np.array([[1.0, 2j], [2j, 1.0]]))
+    with pytest.raises(ValueError, match="not symmetric"):
+        pc.symmetric(np.array([[1.0, np.nan], [np.nan, 1.0]]))  # NaN is not close to NaN
+    np.testing.assert_array_equal(np.asarray(pc.symmetric(np.array([[1.0, np.inf], [np.inf, 1.0]]))),
+                                  np.array([[1.0, np.inf], [np.inf, 1.0]]))
+    # views: the transpose of a non-symmetric matrix, a scaled view
+    t = pc.matrix(np.array([[1.0, 2.0], [2.0, 3.0]])) * 2
+    np.testing.assert_array_equal(np.asarray(pc.symmetric(t)), [[2.0, 4.0], [4.0, 6.0]])
+    with pytest.raises(ValueError, match="square"):
+        pc.symmetric(pc.matrix(np.ones((2, 3))))
+
+
+def test_3_8_C4_pack_as_rows_match_the_elements():
+    """pack_as copies whole stored rows (memcpy, bit rows shifted); same values as before."""
+    rng = np.random.default_rng(4)
+    for n in (1, 2, 63, 64, 65, 130):
+        b = np.triu(rng.random((n, n)) < 0.5, 1)
+        c = pc.causal_matrix(b) if n > 1 else pc.causal_matrix(np.zeros((1, 1), dtype=bool))
+        np.testing.assert_array_equal(np.asarray(c), np.triu(b, 1) if n > 1 else np.zeros((1, 1), bool))
+        x = rng.standard_normal((n, n)).astype(np.float32)
+        for structure, ref in (("triangular", np.triu(x, 1)), ("symmetric", np.triu(x) + np.triu(x, 1).T)):
+            got = pc._native._pack_as(pc.matrix(x), structure)
+            np.testing.assert_array_equal(np.asarray(got), ref)
+        got = pc._native._pack_as(pc.matrix(x), "triangular", True)
+        np.testing.assert_array_equal(np.asarray(got), np.triu(x))
+        got = pc._native._pack_as(pc.matrix(x).T, "triangular", True)  # a view: written out first
+        np.testing.assert_array_equal(np.asarray(got), np.triu(x.T))
+
+
+def test_3_8_C4_diagonal_of_a_vector_builds_no_square_array():
+    """Review 3.8 C-4: pc.diagonal(1-D) built an n x n NumPy array (122 MiB for n = 4000)."""
+    import tracemalloc
+
+    v = np.arange(1.0, 4001.0)
+    tracemalloc.start()
+    d = pc.diagonal(v)
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert peak < 1 << 20
+    assert isinstance(d, pc.DiagonalMatrix) and d.shape == (4000, 4000)
+    assert d[3999, 3999] == 4000.0 and d[0, 1] == 0.0
+    assert pc.diagonal([1, 2, 3]).dtype == "int32"  # Python ints are int32 (F-103)
+    assert pc.diagonal(pc.vector([1 + 2j, 3j])).dtype == "complex_float64"
+
+
+def test_3_8_C4_causal_matrix_of_data_is_packed_in_the_engine():
+    """Review 3.8 C-4: pc.causal_matrix(1500 x 1500) set each bit from Python (154 ms)."""
+    import time
+
+    rng = np.random.default_rng(0)
+    b = np.triu(rng.random((1500, 1500)) < 0.5, 1)
+    t = time.perf_counter()
+    c = pc.causal_matrix(b)
+    elapsed = time.perf_counter() - t
+    np.testing.assert_array_equal(np.asarray(c), np.triu(b, 1))
+    assert elapsed < 0.05, elapsed
+    with pytest.raises(TypeError, match="keyword"):
+        pc.causal_matrix(b, storage="disk")
+    with pytest.warns(pc.PyCausetDTypeWarning, match="non-binary"):
+        c2 = pc.causal_matrix(np.array([[0, 2], [0, 0]]))
+    assert c2[0, 1]
+    with pytest.warns(pc.PyCausetWarning, match="lower triangle"):
+        pc.causal_matrix(np.array([[1.0, 0.0], [0.0, 0.0]]))
+    with pytest.raises(ValueError, match="square 2-D"):
+        pc.causal_matrix(np.zeros((2, 3)))
+
+
 def test_3_4_C6_blas_threads_follow_the_budget():
     """Review 3.4 C-6: every float64 GEMM raised OpenBLAS to all hardware threads, even with
     OPENBLAS_NUM_THREADS=1, and set_num_threads did not reach BLAS."""

@@ -849,3 +849,14 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   - 3.8 C-4 rest designed (area file), not implemented.
   - Handoff written: `review/NEXT.md` (branch, setup, gates, rules, state, ordered queue);
     session 9 decisions recorded in RESTRUCTURE §3.1 item 12.
+
+## Session 10 (2026-11-28, from `review/NEXT.md`)
+- Setup in a container without GitHub downloads (CMake's FetchContent of OpenBLAS, pybind11,
+  Spectra and googletest returns 403): apt `libopenblas-dev liblapacke-dev libspectra-dev
+  libgtest-dev`, pip `pybind11==2.12.0` (3.x fails in `bind_vector.cpp`: typed tuples), LAPACKE
+  linked by flag (NEXT.md §3). Baseline gates on the handoff commit: 6,063 / 6,057 / 45 / 4,
+  ruff and mkdocs clean.
+- 3.8 C-4 finished: structured constructors and `causal_matrix(data)` checked and packed in
+  the engine (`has_structure`, `causal_input_check`, row-wise `pack_as`, `diagonal_from_vector`);
+  no NumPy export of PyCauset input; `causal_matrix(1500^2)` 154 -> 7.5 ms, `diagonal(4000)`
+  92 -> 0.06 ms. Gates 6,068 / 6,062 / 45 / 4.

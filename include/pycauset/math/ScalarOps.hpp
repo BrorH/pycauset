@@ -18,12 +18,14 @@
 #include <complex>
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 #include "pycauset/core/Types.hpp"
 
 namespace pycauset {
 
 class MatrixBase;
+class VectorBase;
 
 enum class ScalarOpKind { Add, Sub, RSub, Mul, TrueDiv, RTrueDiv };
 
@@ -82,5 +84,19 @@ std::unique_ptr<MatrixBase> to_dense(const MatrixBase& a, DataType dt);
 // a's stored region (view applied) as a new matrix of structure s in a's dtype; entries
 // outside the region are not read. Exact for every dtype. Raises for pairs not offered.
 std::unique_ptr<MatrixBase> pack_as(const MatrixBase& a, Structure s, bool has_diagonal = false);
+
+// Whether a (view applied) has structure s (SYMMETRIC: A == A.T, ANTISYMMETRIC: A == -A.T with a
+// zero diagonal, HERMITIAN: A == conj(A).T), read a block of rows and columns at a time. Exact for
+// integer and bool dtypes (in the dtype's wrapping arithmetic, as NumPy's -A); NumPy's
+// isclose(rtol, atol) element by element for float and complex. Raises for a non-square matrix
+// and for antisymmetric with an unsigned or bool dtype.
+bool has_structure(const MatrixBase& a, Structure s, double rtol, double atol);
+
+// For pc.causal_matrix(data): (some value is neither 0 nor 1, some non-zero value is on or below
+// the diagonal), read a block of rows at a time.
+std::pair<bool, bool> causal_input_check(const MatrixBase& a);
+
+// A DiagonalMatrix of v's dtype with v (view applied) on its diagonal.
+std::unique_ptr<MatrixBase> diagonal_from_vector(const VectorBase& v);
 
 }  // namespace pycauset

@@ -134,7 +134,7 @@ risk: storage and object model first, since everything rests on them.
 | 3.5 | Streaming / out-of-core **(reviewed: yes, mmap-only; the StreamingManager removed, F-135)** | | 1,000 |
 | 3.6 | Math entry & expressions: LinearAlgebra.cpp, Eigen.cpp, expression templates, LazyMatrix **(reviewed, F-136; most fixed; open: C-16 rest, C-5 rest, C-14)** | `src/math`, `matrix/expression` | 1,900 |
 | 3.7 | Bindings **(reviewed, F-140; fixed, session 9)** | `src/bindings*` | 7,300 |
-| 3.8 | Python facade & glue: `__init__`, patching, properties, ops, factories, dtypes, lazy_allocation **(reviewed, F-138; fixed except C-4 rest (designed) and C-9 stub generation)** | `python/pycauset` | 6,500 |
+| 3.8 | Python facade & glue: `__init__`, patching, properties, ops, factories, dtypes, lazy_allocation **(reviewed, F-138; fixed except C-9 stub generation)** | `python/pycauset` | 6,500 |
 | 3.9 | Persistence & caches **(reviewed; F-129, F-131, F-132, F-134)** | | 2,300 |
 | 3.10 | Block matrices: blockmatrix, submatrix_view, thunks, dense_python **(reviewed, F-139; fixed except C-11 prefetch and C-3 rest)** | | 1,200 |
 | 3.11 | Physics: causet, spacetime, field, synthetic, Sprinkler.cpp, Spacetime.hpp **(post-R1; smoke tests only before)** | | 2,300 |
