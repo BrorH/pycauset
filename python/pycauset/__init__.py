@@ -95,10 +95,11 @@ complex128 = "complex_float64"
 # ---------------------------------------------------------------------------
 # Debug mode
 # ---------------------------------------------------------------------------
-# When True, pycauset prints diagnostic information to stderr: matrix sizes and
-# storage placement (RAM vs disk), operation timings, sprinkling details, and
-# file I/O. Toggle it at runtime with ``pycauset.debug_mode = True`` (default
-# False). Every line is prefixed with ``[pycauset]``.
+# When True, pycauset prints one line to stderr per matmul, inverse, solve, save and load
+# (the operands: class, shape, dtype, RAM or file; and the wall-clock time), and per change of
+# the memory threshold or backing directory (debug_mode.md). Toggle it at runtime
+# with ``pycauset.debug_mode = True`` (default False). Every line is prefixed with
+# ``[pycauset]``.
 debug_mode: bool = False
 
 import time as _time
@@ -131,18 +132,10 @@ def _debug_time(label: str):
 def _matrix_desc(matrix: Any) -> str:
     """A compact ``name shape dtype storage`` summary of a matrix/vector."""
     name = type(matrix).__name__
-    # A debug-log line: objects without these accessors (vectors have no cols) just
-    # print less.
-    rows = matrix.rows() if hasattr(matrix, "rows") else None
-    cols = matrix.cols() if hasattr(matrix, "cols") else None
-
-    shape = ""
-    if rows is not None and cols is not None:
-        shape = f"{rows}x{cols}"
-    elif rows is not None:
-        shape = f"{rows}"
-
-    dtype = str(matrix.get_data_type()) if hasattr(matrix, "get_data_type") else ""
+    # (It called a get_data_type that does not exist, so no line had a dtype, and vectors
+    # had no shape; review 3.8 C-21.)
+    shape = "x".join(str(d) for d in getattr(matrix, "shape", ()) or ())
+    dtype = str(getattr(matrix, "dtype", "") or "")
 
     backing = ""
     bf = matrix.get_backing_file() if hasattr(matrix, "get_backing_file") else None
@@ -813,10 +806,9 @@ _OPS_DEPS = _ops.OpsDeps(
 
 def matmul(a: Any, b: Any) -> Any:
     """Matrix product ``a @ b`` (NumPy's ``matmul``); the engine picks the kernel by structure and dtype."""
-    if debug_mode:
-        _debug(f"matmul {_matrix_desc(a)} @ {_matrix_desc(b)}")
-    with _debug_time("matmul"):
-        return _ops.matmul(a, b, deps=_OPS_DEPS)
+    # (No debug line here: the engine call goes through `a @ b`, whose wrapper logs it; both
+    # logged, review 3.8 C-21.)
+    return _ops.matmul(a, b, deps=_OPS_DEPS)
 
 
 def dot(a: Any, b: Any) -> Any:
@@ -1264,7 +1256,11 @@ def show(causet):
 def __getattr__(name):
     if name == "bool":
         return "bool"
-    return getattr(_native, name)
+    try:
+        return getattr(_native, name)
+    except AttributeError:
+        # (The message named the private module, pycauset._pycauset; review 3.8 C-21.)
+        raise AttributeError(f"module 'pycauset' has no attribute {name!r}") from None
 
 
 # Native symbols that are internal machinery, not public API. They stay reachable

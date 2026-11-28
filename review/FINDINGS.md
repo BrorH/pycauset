@@ -1898,8 +1898,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-138 Area 3.8 (Python facade): the temp sweep deleted users' files, double-scaled printing
 - **Status:** reviewed (session 9), 23 findings in `review/areas/3.8-python-facade.md`
-  (1 S1, 6 S2, 12 S3, 4 S4). C-1 to C-3, C-5 to C-8, C-10 to C-16, C-19 fixed, C-20 but the
-  warning category, C-4 and C-9 partly; the rest open. C-10 (fixed): one array-like rule (`ops._import_operand`) for the
+  (1 S1, 6 S2, 12 S3, 4 S4). C-1 to C-3, C-5 to C-8, C-10 to C-16, C-19 to C-21 fixed, C-4 and
+  C-9 partly; the rest open. C-10 (fixed): one array-like rule (`ops._import_operand`) for the
   public functions; `sum`, `norm`, `materialize`, `slogdet`, `compute_k` raised for ndarrays.
   - C-1 (S1, fixed): the storage sweep deleted every `*.tmp` / `*.raw_tmp` file below the
     backing directory, recursively, whoever made it (at import, `set_backing_dir` and exit).

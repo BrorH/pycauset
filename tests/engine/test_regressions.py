@@ -2081,3 +2081,25 @@ def test_3_8_C19_C20_constructors_and_len_as_numpy():
     assert pc.symmetric(np.zeros((0, 0))).shape == pc.diagonal([]).shape == (0, 0)
     assert pc.hermitian(np.eye(2, dtype=np.float32)).dtype == "complex_float32"
     assert pc.hermitian(np.eye(2)).dtype == "complex_float64"
+
+
+def test_3_8_C20_C21_debug_lines_errors_and_warnings(capsys):
+    """debug_mode lines had no dtype (a missing accessor), vectors no shape, pc.matmul logged
+    twice; pc.foo named the private module; causal_matrix warned UserWarning at the factory."""
+    import warnings
+
+    A, v = pc.matrix(np.eye(2)), pc.vector([1.0, 2.0])
+    pc.debug_mode = True
+    try:
+        pc.matmul(A, v)
+    finally:
+        pc.debug_mode = False
+    lines = [line for line in capsys.readouterr().err.splitlines() if line.startswith("[pycauset] matmul D")]
+    assert lines == ["[pycauset] matmul DenseMatrix 2x2 float64 RAM @ DenseVector 2 float64 RAM"]
+    with pytest.raises(AttributeError, match="module 'pycauset' has no attribute 'foo'"):
+        pc.foo
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        pc.causal_matrix(np.array([[0, 2], [1, 0]]))
+    assert {m.category for m in w} == {pc.PyCausetDTypeWarning, pc.PyCausetWarning}
+    assert all(m.filename == __file__ for m in w)

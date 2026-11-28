@@ -5,6 +5,7 @@ import operator
 from typing import Any
 
 from .dtypes import infer_sequence_dtype as _infer_sequence_dtype
+from .warnings import PyCausetDTypeWarning, PyCausetWarning
 
 
 def vector_factory(
@@ -72,16 +73,16 @@ def causal_matrix_factory(
         if not np_module.all(np_module.isin(source_obj, [0, 1])):
             warnings.warn(
                 "Input data contains non-binary values. They will be converted to boolean (True/False).",
-                UserWarning,
-                stacklevel=2,
+                PyCausetDTypeWarning,
+                stacklevel=3,  # the caller of pc.causal_matrix (review 3.8 C-20)
             )
 
     if np_module.any(np_module.tril(source_obj) != 0):
         warnings.warn(
             "Input data contains non-zero values in the lower triangle or diagonal. "
             "A causal matrix is strictly upper triangular; these values will be ignored.",
-            UserWarning,
-            stacklevel=2,
+            PyCausetWarning,
+            stacklevel=3,
         )
 
     if source_obj.dtype != bool:  # type: ignore[attr-defined]
