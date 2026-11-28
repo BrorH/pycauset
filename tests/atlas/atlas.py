@@ -298,6 +298,10 @@ OPS: list[Op] = [
     Op("or", "bitwise", lambda x, y: x | y, lambda a, b: a | b, 2, ints_ok=False),
     Op("xor", "bitwise", lambda x, y: x ^ y, lambda a, b: a ^ b, 2, ints_ok=False),
     Op("invert", "bitwise", lambda x, y: ~x, lambda a, b: ~a, ints_ok=False),
+    # comparisons (review F-128): a bool result for every dtype, structure and view
+    Op("eq", "compare", lambda x, y: x == y, lambda a, b: a == b, 2, vector=True),
+    Op("lt", "compare", lambda x, y: x < y, lambda a, b: a < b, 2, vector=True),
+    Op("ge_scalar", "compare", lambda x, y: x >= 1, lambda a, b: a >= 1, vector=True),
     # reductions
     Op("sum", "reduction", lambda x, y: pc.sum(x), lambda a, b: np.sum(a), vector=True),
     Op("trace", "reduction", lambda x, y: pc.trace(x), lambda a, b: np.trace(a)),
@@ -640,6 +644,10 @@ def _check(op: Op, cell: Cell, got, a, b, arith: str, xdt: str, ydt: str) -> boo
         return _close(np.asarray(ld), np.asarray(rld), tol_dt, True) and _close(np.asarray(s), np.asarray(rs), tol_dt, True)
     if op.compare == "first":
         got = got[0] if isinstance(got, tuple) else got
+    if op.group == "compare":  # on the operands' own values (the bool result is not the arithmetic dtype)
+        with np.errstate(all="ignore"):
+            ref = np.asarray(op.ref(a, b))
+        return _close(got, ref, "bool", False)
     inputs = _arith_inputs([a] if op.arity == 1 or b is None else [a, b], arith if not op.linalg else xdt, op.linalg)
     if op.name in ("matvec", "vecmat"):
         inputs = [inputs[0]]

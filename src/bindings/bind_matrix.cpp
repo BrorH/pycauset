@@ -22,6 +22,7 @@
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/core/Float16.hpp"
 #include "pycauset/matrix/DiagonalMatrix.hpp"
+#include "pycauset/math/Compare.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/ComplexFloat16Matrix.hpp"
@@ -139,6 +140,13 @@ inline void maybe_warn_integer_matmul_overflow_risk_preflight(const MatrixBase& 
 
 
 using namespace pycauset_bindings::indexing;  // matrix_indexing.hpp
+
+// a <op> other for a matrix: NotImplemented for operands that are not matrix-like.
+inline py::object matrix_compare(const MatrixBase& a, const py::object& other, pycauset::CompareOp op) {
+    const auto b = compare_operand(other);
+    if (!b) return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+    return py::cast(std::shared_ptr<MatrixBase>(translate_invalid_argument([&] { return pycauset::compare(a, *b, op); }).release()));
+}
 
 // Bitwise ops (math/Bitwise.cpp): a float/complex operand is a TypeError (pycauset::dtype_error,
 // translated globally), as in NumPy.
@@ -542,6 +550,22 @@ void bind_matrix_classes(py::module_& m) {
                 }
             });
         }, py::arg("value"))
+        // Comparisons: element-wise, a bool matrix (review F-128: `M == M2` was Python's identity
+        // test). Defining __eq__ makes the class unhashable, as NumPy's arrays.
+        // NumPy's truth value: one element is its value; more (or none) is ambiguous. It was
+        // always True, so `if A == B:` passed for unequal matrices.
+        .def("__bool__", [](const MatrixBase& a) {
+            if (a.rows() * a.cols() != 1) {
+                throw py::value_error("The truth value of a matrix with more than one element is ambiguous. Use pc.sum(A == B) == A.size, or compare np.asarray(...) with .all() / .any()");
+            }
+            return element_get(a, 0, 0).cast<bool>();
+        })
+        .def("__eq__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Eq); }, py::is_operator())
+        .def("__ne__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Ne); }, py::is_operator())
+        .def("__lt__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Lt); }, py::is_operator())
+        .def("__le__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Le); }, py::is_operator())
+        .def("__gt__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Gt); }, py::is_operator())
+        .def("__ge__", [](const MatrixBase& a, const py::object& o) { return matrix_compare(a, o, pycauset::CompareOp::Ge); }, py::is_operator())
         .def("__invert__", [](const MatrixBase& a) { return bitwise_call([&] { return pycauset::bitwise_not(a); }); },
              py::is_operator())
         .def("__and__", [](const MatrixBase& a, const MatrixBase& b) {

@@ -429,6 +429,7 @@ set(PYCAUSET_SOURCES
     src/math/ScalarOps.cpp
     src/math/ViewRead.cpp
     src/math/Bitwise.cpp
+    src/math/Compare.cpp
     src/math/VectorOps.cpp
     src/math/Reductions.cpp
     src/math/CausalMatrix.cpp

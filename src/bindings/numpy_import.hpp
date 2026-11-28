@@ -8,6 +8,7 @@
 #include "element_conversion.hpp"
 #include "binding_warnings.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/math/VectorOps.hpp"
 #include "pycauset/core/Float16.hpp"
 #include "pycauset/core/PromotionResolver.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
@@ -548,6 +549,27 @@ inline auto translate_invalid_argument(Fn&& fn) {
     } catch (const std::invalid_argument& e) {
         throw py::value_error(e.what());
     }
+}
+
+// The other operand of a comparison as an engine matrix (nullptr: not an operand, so the
+// operator returns NotImplemented): a matrix as is, a vector as its 1 x n row, an ndarray
+// through the one normalised import (1-D: a row, as in arithmetic), a Python or NumPy scalar as a
+// 1 x 1 matrix of its NumPy dtype.
+inline std::shared_ptr<MatrixBase> compare_operand(const py::object& other) {
+    if (py::isinstance<MatrixBase>(other)) return other.cast<std::shared_ptr<MatrixBase>>();
+    if (py::isinstance<VectorBase>(other)) {
+        return std::shared_ptr<MatrixBase>(pycauset::as_row_matrix(other.cast<const VectorBase&>()).release());
+    }
+    if (py::isinstance<py::array>(other)) return elementwise_operand_matrix_from_numpy(other.cast<py::array>());
+    PyObject* p = other.ptr();
+    py::module_ np = py::module_::import("numpy");
+    if (PyBool_Check(p) || PyLong_Check(p) || PyFloat_Check(p) || PyComplex_Check(p) ||
+        py::isinstance(other, np.attr("generic"))) {
+        py::array arr = np.attr("asarray")(other).attr("reshape")(1, 1);
+        if (arr.dtype().kind() == 'O') return nullptr;  // a Python int beyond 64 bits
+        return matrix_from_numpy(arr);
+    }
+    return nullptr;
 }
 
 }  // namespace pycauset_bindings::numpy_import

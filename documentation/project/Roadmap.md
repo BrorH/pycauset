@@ -13,7 +13,7 @@ with NumPy as the reference for every value and dtype.
 In scope:
 
 - Every operation for every dtype, structure and view, checked against NumPy (the operation
-  atlas: about 88,000 combinations, 0 wrong).
+  atlas: about 96,000 combinations, 0 wrong).
 - Linear algebra through LAPACK with NumPy's conventions.
 - Storage in RAM or memory-mapped files (decided when an object is made, by size and free
   RAM), and `.pycauset` snapshots.

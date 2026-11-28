@@ -166,7 +166,9 @@ assert M[0, 1] == 2 and sub[0, 0] == 20
 
 ### Advanced indexing → copies
 
-* Supported per axis: 1D integer arrays (negative wrap) and 1D boolean masks.
+* Supported per axis: 1D integer arrays (negative wrap) and 1D boolean masks; a list on its
+  own (`M[[0, 2]]`) selects rows, as in NumPy. Float index arrays and bool scalars raise
+  `IndexError`.
 * Any use of arrays (alone or mixed with basic) returns a copy with NumPy shape rules; two array axes must have equal length or length-1.
 
 ```python
@@ -178,8 +180,11 @@ row = M[0, :]            # 1-D (an integer index drops its axis)
 
 ### Assignment with broadcasting
 
-* RHS may be a scalar, NumPy 0/1/2-D array, or another dense matrix.
-* NumPy 2D broadcast rules apply; shape mismatch raises `ValueError`.
+* RHS may be a scalar, a list or tuple, a NumPy 0/1/2-D array, or a pycauset matrix or vector.
+* NumPy broadcast rules apply: an integer index drops its axis, so `M[:, 0] = [1, 2]` fills a
+  column; a shape mismatch raises `ValueError` and nothing is written.
+* Python values convert as single-element assignment does (`int8 M[0, :] = 300` raises
+  `OverflowError`); arrays cast as NumPy's `astype`.
 * Casting RHS arrays triggers `PyCausetDTypeWarning`; narrowing or float→int casts also trigger `PyCausetOverflowRiskWarning`.
 
 ```python
@@ -187,6 +192,22 @@ rhs = np.arange(6).reshape(2, 3)
 M[:2, :3] = rhs          # broadcasts OK
 
 M[:, :2] = np.array([1.5, 2.5], dtype=np.float32)  # warns: cast float32 → float64
+```
+
+### Comparisons
+
+`== != < <= > >=` are element-wise, as in NumPy: the result is a dense bool matrix (or vector)
+of the broadcast shape, for any dtypes, structures and views, against another matrix, a NumPy
+array, or a scalar. Integers compare exactly (signed with unsigned too), an integer with a float
+in float64, complex numbers lexicographically, NaN unequal to everything. As with NumPy arrays,
+matrices are unhashable, and `bool(M)` is the value of a one-element matrix and a `ValueError`
+otherwise, so `if A == B:` cannot pass silently. To test equality of whole matrices use
+`pc.sum(A == B) == A.size`.
+
+```python
+A = pc.matrix([[1, 2], [3, 4]])
+mask = A > 2             # [[False, False], [True, True]], dtype bool
+assert pc.sum(mask) == 2
 ```
 
 ### Unsupported (current build)

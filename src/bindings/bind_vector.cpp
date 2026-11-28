@@ -1,4 +1,5 @@
-﻿#include "bindings_common.hpp"
+﻿#include "pycauset/math/Compare.hpp"
+#include "bindings_common.hpp"
 #include "element_conversion.hpp"
 #include "scalar_args.hpp"
 #include "pycauset/math/VectorOps.hpp"
@@ -328,6 +329,18 @@ inline py::object vector_arith(const VectorBase& a, const py::object& other, Ari
     return py::cast(std::shared_ptr<VectorBase>(pycauset::scalar_op(a, scalar_kind(op, reflected), s).release()));
 }
 
+// v <op> other for a vector: element-wise, a bool vector (a bool matrix when broadcasting
+// against a matrix makes more than one row). NotImplemented for operands that are not
+// matrix-like.
+inline py::object vector_compare(const VectorBase& v, const py::object& other, pycauset::CompareOp op) {
+    const auto b = compare_operand(other);
+    if (!b) return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+    auto row = pycauset::as_row_matrix(v);
+    auto out = translate_invalid_argument([&] { return pycauset::compare(*row, *b, op); });
+    if (out->rows() != 1) return py::cast(std::shared_ptr<MatrixBase>(out.release()));
+    return py::cast(std::shared_ptr<VectorBase>(pycauset::as_vector(std::move(out), v.is_transposed()).release()));
+}
+
 } // namespace
 
 void bind_vector_classes(py::module_& m) {
@@ -341,6 +354,18 @@ void bind_vector_classes(py::module_& m) {
         .def_property_readonly("ndim", [](const VectorBase& v) { return v.is_transposed() ? 2 : 1; },
                                "Number of dimensions (len(shape): 1, or 2 for a transposed (1, n) vector).")
         .def("__len__", &VectorBase::size)
+        .def("__bool__", [](const VectorBase& v) {  // NumPy's truth value (see MatrixBase)
+            if (v.size() != 1) {
+                throw py::value_error("The truth value of a vector with more than one element is ambiguous");
+            }
+            return vector_element_get(v, 0).cast<bool>();
+        })
+        .def("__eq__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Eq); }, py::is_operator())
+        .def("__ne__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Ne); }, py::is_operator())
+        .def("__lt__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Lt); }, py::is_operator())
+        .def("__le__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Le); }, py::is_operator())
+        .def("__gt__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Gt); }, py::is_operator())
+        .def("__ge__", [](const VectorBase& v, const py::object& o) { return vector_compare(v, o, pycauset::CompareOp::Ge); }, py::is_operator())
         .def_property("seed", &VectorBase::get_seed, &VectorBase::set_seed)
         .def_property("scalar", &VectorBase::get_scalar, &VectorBase::set_scalar)
         .def("get_scalar", &VectorBase::get_scalar)
