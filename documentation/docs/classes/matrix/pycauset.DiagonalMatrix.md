@@ -13,6 +13,9 @@ every dtype. See also
 Everything in [[docs/classes/matrix/pycauset.MatrixBase.md|MatrixBase]], plus
 `get_diagonal(i)` and `set_diagonal(i, value)`. `A.T` is `A`.
 
+`D * X` (element-wise) is a `DiagonalMatrix`: the off-diagonal zeros stay 0 even where `X`
+holds `inf` or `nan` (NumPy gives `nan` for `0 * inf`), as for structured matmul.
+
 ## Example
 
 ```python

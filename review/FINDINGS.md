@@ -1759,6 +1759,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-14 (in part): `tests/engine/test_dtype_rules.py` checks every dtype pair (real and
     complex) of `+ - * / @` against NumPy with the documented differences as data (1,125
     cells, all pass), not against the resolver. The scalar forms wait for C-3.
+  - C-8: structured element-wise products keep structural zeros where the other operand
+    holds inf / nan (NumPy: nan); documented on the class pages and in the User Guide, as it
+    was for matmul.
   - C-7: the complex rule is documented (DType System §4.3: the real rules on the
     precision) and in that test.
 

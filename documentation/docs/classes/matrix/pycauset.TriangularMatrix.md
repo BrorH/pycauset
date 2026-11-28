@@ -37,7 +37,8 @@ dense result: 0/0 is NaN):
 | `U * X` (`X` anything but a lower triangle) | `TriangularMatrix`, with a diagonal only if both can be non-zero there |
 | `U + U.T` (upper + lower) | dense (`SymmetricMatrix` when it is `A + A.T` of one matrix) |
 
-Values and dtypes are NumPy's; only the storage is smaller.
+Values and dtypes are NumPy's; only the storage is smaller. One exception, as for structured matmul: a product with a structural zero is 0 even where the
+other operand holds `inf` or `nan` (NumPy gives `nan` for `0 * inf`).
 
 ## Example
 

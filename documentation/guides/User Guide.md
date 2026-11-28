@@ -63,7 +63,8 @@ T = pc.TriangularMatrix(3, dtype="float64", has_diagonal=True)
 type(T * pc.matrix(np.ones((3, 3)))).__name__        # 'TriangularMatrix'
 ```
 
-Values and dtypes are NumPy's either way; only the storage and the work shrink.
+Values and dtypes are NumPy's either way; only the storage and the work shrink. One exception, as for structured matmul: a product with a structural zero is 0 even where the
+other operand holds `inf` or `nan` (NumPy gives `nan` for `0 * inf`).
 
 ## Views
 

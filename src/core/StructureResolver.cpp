@@ -117,7 +117,8 @@ ResultStructure resolve_result_structure(promotion::BinaryOp op, const MatrixBas
         return {};
     }
     if (op == BinaryOp::ElementwiseMultiply) {
-        // Non-zero pattern is the intersection.
+        // Non-zero pattern is the intersection. A structural zero times inf / nan is 0 here
+        // (NumPy: nan); documented on the class pages and in the User Guide (review 3.3 C-8).
         if (is_diagonal_like(a) || is_diagonal_like(b)) return of(Structure::DIAGONAL, dt);
         // Upper * (anything but lower) is upper; the diagonal survives where both can be
         // non-zero on it.
