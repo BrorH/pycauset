@@ -33,7 +33,7 @@ def test_float_underpromotion_warns_every_call_and_returns_float32():
     b = pc.matrix(np.diag([2.0, 3.0]))
     (c1, c2), w = _caught(lambda: (a @ b, a @ b))
     # Python's warnings filter owns deduplication: under "always" every call warns.
-    assert len(_of(w, pc.PyCausetDTypeWarning, "underpromotes to float32")) == 2
+    assert len(_of(w, pc.PyCausetDTypeWarning, "float32 with float64 gives float32")) == 2
     for c in (c1, c2):
         assert c.dtype == "float32"  # F-034: within-float under-promotion
         np.testing.assert_array_equal(np.asarray(c), np.diag([2.0, 3.0]).astype(np.float32))
@@ -104,3 +104,19 @@ def test_the_engine_never_prints():
         if re.search(r"std::(cout|cerr)|\bprintf\(", line) and not line.lstrip().startswith("//")
     ]
     assert not offenders, offenders
+
+
+@pytest.mark.parametrize("da, db", [("float16", "float32"), ("float16", "float64"),
+                                    ("complex64", "complex128"), ("complex64", "float64")])
+def test_every_narrower_float_result_warns(da, db):
+    """3.3 C-6: only float32 with float64 warned; float16 and complex mixes were silent."""
+    a, b = pc.matrix(np.ones((2, 2), dtype=da)), pc.matrix(np.ones((2, 2), dtype=db))
+    for op in (lambda: a + b, lambda: a @ b):
+        _, w = _caught(op)
+        assert _of(w, pc.PyCausetDTypeWarning, "NumPy would widen")
+
+
+def test_same_width_and_widening_results_do_not_warn():
+    a, b = pc.matrix(np.ones((2, 2), dtype="float32")), pc.matrix(np.ones((2, 2), dtype="complex64"))
+    _, w = _caught(lambda: a + b)
+    assert not _of(w, pc.PyCausetDTypeWarning, "NumPy would widen")

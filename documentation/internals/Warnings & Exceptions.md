@@ -14,8 +14,9 @@ This page defines the project-wide conventions for **user-facing warnings** and 
 
 Warnings are for cases where execution can continue correctly, but the user should be informed.
 
-- **Policy surprises**: a result dtype that differs from NumPy's (float32/float64
-  underpromotion, bit + bit → int32). Internal details that don't change the result
+- **Policy surprises**: a result dtype that differs from NumPy's in a way that loses
+  precision (a float or complex result narrower than an operand) or range (bit + bit →
+  int32 where NumPy keeps bool). Internal details that don't change the result
   (e.g. which accumulator a reduction uses) are not warned about.
 - **Lossy assignments** (e.g., narrowing or float→int casts)
 - **Advisory risk estimates** (e.g., the int32 matmul overflow estimate from sampled entries)
@@ -128,7 +129,10 @@ Policy notes:
 ## Current implemented warnings
 
 - bit + bit / bit @ bit promote to int32 (`PyCausetDTypeWarning`; NumPy keeps bool)
-- mixed `float32/float64` underpromotion notification (`PyCausetDTypeWarning`)
+- a float or complex result narrower than one of its float / complex operands (`float32` with
+  `float64`, `float16` with either, `complex64` with `complex128` or `float64`):
+  `PyCausetDTypeWarning`, from the matrix operators and `matmul`. Integer division's float32
+  (NumPy: float64) follows the documented rule and is not warned.
 - narrowing / float→int cast on assignment (`PyCausetOverflowRiskWarning`)
 - int32 @ int32 overflow estimate from sampled entries (`PyCausetOverflowRiskWarning`,
   advisory). Overflow itself is detected exactly (int64 accumulator, `OverflowError`

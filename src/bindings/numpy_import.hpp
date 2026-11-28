@@ -32,28 +32,29 @@ inline bool is_numpy_float16(const py::array& array) {
     return dt.kind() == 'f' && dt.itemsize() == 2;
 }
 
+// Bits of float precision of a float / complex dtype (0 for the others).
+inline int float_precision_bits(DataType dt) {
+    switch (dt) {
+        case DataType::FLOAT16: case DataType::COMPLEX_FLOAT16: return 16;
+        case DataType::FLOAT32: case DataType::COMPLEX_FLOAT32: return 32;
+        case DataType::FLOAT64: case DataType::COMPLEX_FLOAT64: return 64;
+        default: return 0;
+    }
+}
+
+// A float or complex result narrower than one of its float / complex operands differs from
+// NumPy (which widens): say so once per call site. It fired for float32 with float64 only;
+// float16 and complex mixes were silent (review 3.3 C-6).
 inline void maybe_warn_float_underpromotion(const char* op_name, promotion::BinaryOp op, const MatrixBase& a, const MatrixBase& b) {
-    DataType da = a.get_data_type();
-    DataType db = b.get_data_type();
+    const DataType da = a.get_data_type(), db = b.get_data_type();
+    const int pa = float_precision_bits(da), pb = float_precision_bits(db);
+    if (pa == 0 || pb == 0 || pa == pb) return;  // only a mix of float / complex widths
+    const DataType r = promotion::resolve(op, da, db).result_dtype;
+    if (float_precision_bits(r) >= std::max(pa, pb)) return;
 
-    bool mixed = (da == DataType::FLOAT32 && db == DataType::FLOAT64) ||
-                 (da == DataType::FLOAT64 && db == DataType::FLOAT32);
-    if (!mixed) {
-        return;
-    }
-
-    const auto decision = promotion::resolve(op, da, db);
-    if (!decision.float_underpromotion) {
-        return;
-    }
-
-    std::string message;
-    message.reserve(256);
-    message += "pycauset ";
-    message += op_name;
-    message += ": mixed float32/float64 underpromotes to float32 (compute and storage in float32). ";
-    message += "Cast both inputs to float64 to compute in float64.";
-
+    std::string message = std::string("pycauset ") + op_name + ": " + pycauset::dtype_name(da) + " with " + pycauset::dtype_name(db) +
+                          " gives " + pycauset::dtype_name(r) + " (computed and stored in it; NumPy would widen). " +
+                          "Cast the narrower operand first to compute in the wider dtype.";
     bindings_warn::warn_with_category(message, "PyCausetDTypeWarning", /*stacklevel=*/3);
 }
 

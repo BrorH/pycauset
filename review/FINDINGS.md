@@ -1738,12 +1738,15 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-130 Area 3.3 (factory and promotion): wrong values from structure rules, identity matmul, list input
 - **Status:** C-1, C-2, C-4, C-5, C-9 (Python parser, F-133), C-10 fixed (session 9); C-14 in
-  part. Open in `review/areas/3.3-factory-promotion.md`: C-3 (two promotion tables; three
-  questions for the maintainer), C-6 (the dtype warning covers one case), C-7 (the complex
-  rule is undocumented), C-8, C-11..C-13.
+  part, C-6 for the matrix operators. Open in `review/areas/3.3-factory-promotion.md`: C-3 (two
+  promotion tables; three questions for the maintainer), C-6 for vectors and scalars, C-7
+  (the complex rule is undocumented), C-8, C-11..C-13.
   - C-4: `np.float64` / `np.complex128` (subclasses of Python float / complex) were taken as
     weak Python scalars; NumPy scalars are recognised first now.
   - C-10: the signed / uint64 error names both dtypes and what to do.
+  - C-6: the dtype warning fires for every float / complex result narrower than an operand
+    (float16 and complex mixes were silent), with both dtypes in the message; the Warnings
+    page lists exactly what warns.
   - C-1: element-wise structure rules checked that each operand is square, not that the
     shapes are equal: `Diagonal(3) + Diagonal(1)` (a 1x1 operand broadcasts) came back
     diagonal without the off-diagonal values.
