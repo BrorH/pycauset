@@ -219,3 +219,6 @@ review); StreamingManager is no longer in the list. What is left, by kind:
   `__radd__` / `__rmul__` / `__or__`): test gaps, not dead code.
 - complex_float16 classes and Float16 conversions: partly untested paths of a supported dtype.
 No new removals from this pass; the clearly dead code went in earlier passes (Tier A, F-120, F-123).
+- [x] StreamingManager, ComputeWorker, CpuComputeWorker, `CpuSolver::gemm`, the
+      CpuWorkerContract gtest, `streaming.*` labels and the trace's `streamed` (F-135); Windows
+      `EnablePrivilege` / `SetFileValidData`; matmul's no-op RAM check.

@@ -42,7 +42,7 @@ w = pc.eigvalsh(A + A.T)                    # LAPACK, NumPy's dtypes and convent
 - **It speaks NumPy.** Same shapes, dtypes, operators and broadcasting; mix PyCauset matrices with NumPy arrays freely. Every operation, in every dtype, structure and view, is checked against NumPy (the operation atlas, about 88,000 combinations). Two dtype rules differ on purpose: Python integers default to int32, and float32 mixed with float64 stays float32 (with a warning); see [DType System](documentation/internals/DType%20System.md).
 - **Bit-packed causal matrices.** One bit per relation (8x less than bytes); products, sums and closures run on the packed words.
 - **Structure-aware.** Triangular, symmetric, antisymmetric, Hermitian, diagonal and identity matrices store only what they need, and operations keep the structure when the result has it.
-- **Bigger than RAM.** Matrices above a memory threshold live in memory-mapped files; operations that do not fit run tile by tile.
+- **Bigger than RAM.** Matrices above a memory threshold live in memory-mapped files; operations run on the mapped files (the OS pages); results that do not fit in RAM go to files too.
 - **Fast.** The same OpenBLAS/LAPACK as NumPy; the target is at least 0.9x NumPy's speed in memory (`review/atlas/TIMING.md`), and the structured classes are often faster.
 
 - **Causal sets.** Sprinkle into the Minkowski diamond in any dimension, read links, chains, layers and intervals off the order, estimate the dimension, or build synthetic orders. Fields, plots and the wider spacetime library are parked in `experimental/physics` while R1 completes the engine.

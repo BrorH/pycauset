@@ -20,4 +20,4 @@ order so lookahead and prefetch can be scheduled accordingly.
 ## See also
 
 *   [[docs/classes/core/pycauset.MemoryHint.md|pycauset.MemoryHint]]
-*   [[internals/Streaming Manager.md|Streaming Manager]]
+*   [[internals/Out of Core.md|Out of Core]]

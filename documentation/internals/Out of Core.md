@@ -1,61 +1,40 @@
-# Streaming Manager
+# Out of Core
 
-The StreamingManager (`src/compute/StreamingManager.cpp`) runs an operation tile by tile when
-its operands and result do not fit in RAM. It is part of the engine; there is no Python
-routing layer (review F-100 removed one that guessed a route the engine never read).
+How PyCauset works with matrices larger than RAM: the storage is memory-mapped and the
+kernels run on it; the operating system pages data in and out.
 
-This page is for contributors who extend out-of-core execution or debug it.
+## Placement
 
-## When the engine streams
+Each object is placed once, when it is made ([[internals/Memory and Data|Memory and Data]]): in
+RAM when it is below the memory threshold and fits the free RAM (minus a safety margin; the
+container's or batch job's cgroup limit counts), otherwise in a memory-mapped temporary file.
+Nothing is moved later.
 
-`CpuDevice` (`src/compute/cpu/CpuDevice.cpp`) decides per call:
+## Execution
 
-1. It estimates the bytes the call touches (operands + result).
-2. It asks the MemoryGovernor whether that fits the RAM budget (free RAM minus a safety
-   margin: `can_fit_in_ram`).
-3. If it does not fit **and** the operands qualify, it runs the StreamingManager; otherwise the
-   direct kernel, which still works on file-backed (memory-mapped) storage through paging.
+Every kernel reads its operands' storage and writes its result's in place, mapped or not.
+For file-backed objects the OS reads pages on first touch and drops clean ones under memory
+pressure; nothing in the engine copies tiles or reads files explicitly. Results of a call
+that does not fit in RAM are placed in files, so element-wise operations, reductions,
+matrix-vector products, `eigvals_arnoldi`, matmul and the causal-matrix products work on
+data larger than RAM (as fast as the disk and the access pattern allow).
 
-Operands qualify when all three matrices are plain dense views of one dtype: no
-transposition, window, scale factor or conjugation (the tiles are copied from raw row-major
-storage, F-040).
+Exception, today: the LAPACK operations (`solve`, `invert`, `determinant`, `cholesky`, `qr`,
+`lu`, `svd`, `lstsq`, `eigh`, `eig`) copy the whole operand into a heap work buffer, which is
+not checked against free RAM (review 3.5 C-4). On data larger than RAM they need that much
+memory.
 
-| Operation | Streamed dtypes | Kernel label |
-|---|---|---|
-| `matmul` | float32, float64 | `streaming.matmul` |
-| `+ - *` and `/` of same-dtype operands | float32, float64, int32, int64 | `streaming.elementwise` |
+(Until session 9 a tiled `StreamingManager` ran dense same-dtype matmul and `+ - * /` when
+operands and result did not fit in RAM. It was slower than paging in every case measured
+and allocated about 1.6x the free RAM, so it is gone; review 3.5.)
 
-Every other operation runs its direct kernel. LAPACK-based decompositions (`eigh`, `eig`,
-`svd`, `qr`, `cholesky`, `lu`, `solve`, `inv`, `det`) need the whole matrix and do not stream.
-`eigvals_arnoldi` reads the matrix only through matrix-vector products, so it works on
-file-backed matrices without materialising them.
+## Hints
 
-## Tiles
+Callers can declare an access pattern (`pycauset.MemoryHint`, `matrix.hint(h)`); the
+block-matrix layer prefetches and drops leaves. The engine's kernels issue no hints.
 
-`StreamingManager::calculate_block_size` sizes square tiles so that three of them (A, B and C)
-use at most 80% of the RAM the MemoryGovernor reports as available. A tile is at least
-4096 × 4096 elements (or the whole matrix, if smaller), rounded down to a multiple of 8.
+## Observing it
 
-## Seeing what happened
-
-- `pc.last_io_trace(op)` lists the kernels the engine ran for the last traced call and sets
-  `streamed` when one of them was a `streaming.*` kernel
-  ([[docs/functions/pycauset.last_io_trace.md|pycauset.last_io_trace]]).
-- `pc._native._debug_last_kernel_trace()` is the label of the last kernel that ran.
-- Tests force the streaming path with a huge RAM safety margin, so that nothing "fits":
-  `pc._native._set_ram_safety_margin(1 << 62)` (see `tests/engine/test_streaming.py`).
-
-## Where this lives in code
-
-- Decision: `src/compute/cpu/CpuDevice.cpp` (`can_stream_*`, the MemoryGovernor checks)
-- Tiling: `include/pycauset/compute/StreamingManager.hpp`, `src/compute/StreamingManager.cpp`
-- Tile kernels: `src/compute/cpu/CpuComputeWorker.cpp` (same contract as the dense kernels:
-  same dtype, plain dense)
-- Budget: `src/core/MemoryGovernor.cpp`
-
-## See also
-
-- [[project/protocols/Adding Operations.md|Adding Operations protocol]] (§7 Streaming)
-- [[internals/Compute Architecture.md|Compute Architecture]]
-- [[guides/Storage and Memory|Storage and Memory]]
-- [[docs/functions/pycauset.set_memory_threshold.md|pycauset.set_memory_threshold]]
+`pc.last_io_trace(op)` lists each operand's storage (`"memory"`, `"file"`, `"temp"`) and the
+kernels that ran. To exercise the out-of-core placement in tests, a huge safety margin makes
+the governor see no free RAM (`tests/engine/test_out_of_core.py`).

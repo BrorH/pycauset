@@ -134,7 +134,7 @@ void bind_core_classes(py::module_& m) {
         py::arg("b_dtype"));
 
     // Test-only: the governor's RAM safety margin. A huge margin makes every operation
-    // "not fit in RAM", forcing the out-of-core StreamingManager path (F-026).
+    // "not fit in RAM": every new object is file-backed (tests/engine/test_out_of_core.py).
     m.def("_get_ram_safety_margin", []() { return pycauset::core::MemoryGovernor::instance().get_safety_margin(); });
     // Lazy results on/off (LAZY.md section 10: the lazy == eager test oracle).
     m.def("_set_lazy", [](bool on) { pycauset::lazy_enabled().store(on); }, py::arg("on"));

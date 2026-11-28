@@ -220,19 +220,10 @@ namespace {
         NVTX_RANGE("CpuSolver::attempt_direct_path");
         // Only supported for Float/Double where we have BLAS
         if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
-            const uint64_t a_elems = a_dense->base_rows() * a_dense->base_cols();
-            const uint64_t b_elems = b_dense->base_rows() * b_dense->base_cols();
-            const uint64_t c_elems = c_dense->base_rows() * c_dense->base_cols();
-            const size_t total_bytes = static_cast<size_t>(a_elems + b_elems + c_elems) * sizeof(T);
-
-            auto& governor = pycauset::core::MemoryGovernor::instance();
-
-            // Check: does the operation fit in RAM? (Anti-Nanny Logic). When it
-            // does, call BLAS directly. We intentionally do NOT pin the operands
-            // (VirtualLock): pinning is a GPU-DMA optimization and is pure
-            // overhead for CPU dgemm, it added ~1-2ms per call at n=1024 and was
-            // the dominant residual in the matmul parity gap.
-            if (governor.can_fit_in_ram(total_bytes)) {
+            // BLAS on the operands' storage, mapped or not (out of core the OS pages; a RAM
+            // check here chose between this and the same dgemm further down, review 3.5 C-6).
+            // No pinning (VirtualLock): it cost ~1-2 ms per call at n = 1024 for nothing on CPU.
+            {
                 const T* a_data = a_dense->data() + (a_dense->row_offset() * a_dense->base_cols() + a_dense->col_offset());
                 const T* b_data = b_dense->data() + (b_dense->row_offset() * b_dense->base_cols() + b_dense->col_offset());
                 T* c_data = c_dense->data() + (c_dense->row_offset() * c_dense->base_cols() + c_dense->col_offset());
@@ -766,84 +757,5 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
                                 " (dispatch_matmul normalises operands to a kernel contract)");
 }
 
-void CpuSolver::gemm(const MatrixBase& a, const MatrixBase& b, MatrixBase& c, double alpha, double beta) {
-    // 1. Double Precision
-    auto* a_dense = dynamic_cast<const DenseMatrix<double>*>(&a);
-    auto* b_dense = dynamic_cast<const DenseMatrix<double>*>(&b);
-    auto* c_dense = dynamic_cast<DenseMatrix<double>*>(&c);
-
-    if (a_dense && b_dense && c_dense) {
-        // Basic shape validation (worker usually guarantees this, but safety first)
-        if (a_dense->rows() != c_dense->rows() || b_dense->cols() != c_dense->cols() || a_dense->cols() != b_dense->rows()) {
-            throw std::invalid_argument("CpuSolver::gemm dimension mismatch");
-        }
-
-        const double* a_data = a_dense->data() + (a_dense->row_offset() * a_dense->base_cols() + a_dense->col_offset());
-        const double* b_data = b_dense->data() + (b_dense->row_offset() * b_dense->base_cols() + b_dense->col_offset());
-        double* c_data = c_dense->data() + (c_dense->row_offset() * c_dense->base_cols() + c_dense->col_offset());
-
-        bool t_a = a_dense->is_transposed();
-        bool t_b = b_dense->is_transposed();
-
-        int M = static_cast<int>(a_dense->rows());
-        int N = static_cast<int>(b_dense->cols());
-        int K = static_cast<int>(a_dense->cols());
-
-        // For submatrices/views, base_cols() is stride
-        int lda = static_cast<int>(a_dense->base_cols());
-        int ldb = static_cast<int>(b_dense->base_cols());
-        int ldc = static_cast<int>(c_dense->base_cols());
-
-        cblas_dgemm(
-            CblasRowMajor,
-            t_a ? CblasTrans : CblasNoTrans,
-            t_b ? CblasTrans : CblasNoTrans,
-            M, N, K,
-            alpha, a_data, lda,
-            b_data, ldb,
-            beta, c_data, ldc
-        );
-        return;
-    }
-
-    // 2. Single Precision
-    auto* a_f32 = dynamic_cast<const DenseMatrix<float>*>(&a);
-    auto* b_f32 = dynamic_cast<const DenseMatrix<float>*>(&b);
-    auto* c_f32 = dynamic_cast<DenseMatrix<float>*>(&c);
-
-    if (a_f32 && b_f32 && c_f32) {
-        if (a_f32->rows() != c_f32->rows() || b_f32->cols() != c_f32->cols() || a_f32->cols() != b_f32->rows()) {
-            throw std::invalid_argument("CpuSolver::gemm dimension mismatch");
-        }
-
-        const float* a_data = a_f32->data() + (a_f32->row_offset() * a_f32->base_cols() + a_f32->col_offset());
-        const float* b_data = b_f32->data() + (b_f32->row_offset() * b_f32->base_cols() + b_f32->col_offset());
-        float* c_data = c_f32->data() + (c_f32->row_offset() * c_f32->base_cols() + c_f32->col_offset());
-
-        bool t_a = a_f32->is_transposed();
-        bool t_b = b_f32->is_transposed();
-
-        int M = static_cast<int>(a_f32->rows());
-        int N = static_cast<int>(b_f32->cols());
-        int K = static_cast<int>(a_f32->cols());
-
-        int lda = static_cast<int>(a_f32->base_cols());
-        int ldb = static_cast<int>(b_f32->base_cols());
-        int ldc = static_cast<int>(c_f32->base_cols());
-
-        cblas_sgemm(
-            CblasRowMajor,
-            t_a ? CblasTrans : CblasNoTrans,
-            t_b ? CblasTrans : CblasNoTrans,
-            M, N, K,
-            static_cast<float>(alpha), a_data, lda,
-            b_data, ldb,
-            static_cast<float>(beta), c_data, ldc
-        );
-        return;
-    }
-
-    throw std::runtime_error("CpuSolver::gemm fallback not implemented for these dtypes");
-}
 
 } // namespace pycauset

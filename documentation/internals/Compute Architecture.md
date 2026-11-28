@@ -12,10 +12,7 @@ flowchart LR
     Entry --> Ctx["ComputeContext::get_device()"]
     Ctx --> Auto["AutoSolver"]
     Auto --> Cpu["CpuDevice"]
-    Cpu -->|"fits in RAM"| Solver["CpuSolver kernels"]
-    Cpu -->|"out of core"| SM["StreamingManager"]
-    SM --> Worker["CpuComputeWorker<br/>(tile kernels)"]
-    Worker --> Solver
+    Cpu --> Solver["CpuSolver kernels<br/>(on RAM or mapped storage)"]
 ```
 
 - **Entry function.** Each operation has one: it applies the structure rules (which class
@@ -50,11 +47,8 @@ buffers per thread).
 
 ## Out-of-core execution
 
-`StreamingManager` (`src/compute/StreamingManager.cpp`) tiles a matmul or element-wise
-operation to fit the `MemoryGovernor` budget and hands each tile to a `ComputeWorker`
-(`include/pycauset/compute/ComputeWorker.hpp`: `matmul_tile`, `elementwise_tile`). The only
-worker is `CpuComputeWorker`, which calls the in-memory kernels on the tile. Details:
-[[internals/Streaming Manager|Streaming Manager]].
+The kernels run on mapped storage; the OS pages. (The tiled StreamingManager is gone,
+review 3.5.) Details: [[internals/Out of Core|Out of Core]].
 
 ## LAPACK
 
@@ -95,13 +89,13 @@ file-backed matrices that do not fit in RAM.
 
 ## Seeing what ran
 
-- `pc.last_io_trace(op)`: the kernels an operation ran, its operands and whether it
-  streamed ([[internals/Streaming Manager|Streaming Manager]]).
+- `pc.last_io_trace(op)`: the kernels an operation ran and its operands' storage
+  ([[internals/Out of Core|Out of Core]]).
 - `pc._debug_last_kernel_trace()` / `pc._debug_clear_kernel_trace()`: the engine's kernel
   log (thread-local), used by the tests and the operation atlas.
 
 ## See also
 
-- [[internals/Streaming Manager|Streaming Manager]]
+- [[internals/Out of Core|Out of Core]]
 - [[internals/Memory and Data|Memory and Data]]
 - [[internals/Algorithms|Algorithms]]

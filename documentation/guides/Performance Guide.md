@@ -70,9 +70,9 @@ pc.set_backing_dir("./storage")                # where file-backed matrices go
 pc.set_memory_threshold(256 * 1024**2)         # bytes; larger matrices use files
 ```
 
-Operations that do not fit the RAM budget run tile by tile (the engine decides; see
-[[internals/Streaming Manager.md|Streaming Manager]]). `pc.last_io_trace(op)["streamed"]` says
-whether a call did.
+Out of core, operations run on the mapped files and the OS pages
+([[internals/Out of Core.md|Out of Core]]); `pc.last_io_trace(op)` shows each operand's
+storage.
 
 ## Things to avoid
 
@@ -86,4 +86,4 @@ whether a call did.
 - [[docs/functions/pycauset.set_backing_dir.md|pycauset.set_backing_dir]]
 - [[docs/functions/pycauset.set_memory_threshold.md|pycauset.set_memory_threshold]]
 - [[guides/Lazy Evaluation|Lazy Evaluation]]
-- [[internals/Streaming Manager.md|Streaming Manager]]
+- [[internals/Out of Core.md|Out of Core]]

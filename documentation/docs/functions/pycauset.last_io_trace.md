@@ -16,7 +16,6 @@ A trace holds facts only:
 | `op` | the operation name |
 | `operands` | one dict per input: `shape`, `dtype`, `storage` (`"memory"`, `"file"` or `"temp"`), `backing_file` |
 | `kernels` | every kernel the engine ran for the call, in order (engine labels such as `"cpu.matmul.f64"`) |
-| `streamed` | `True` when the engine ran any part of the call out of core (a `streaming.*` kernel) |
 | `timestamp` | `time.time()` at the start of the call |
 
 Whether an operation streams is the engine's decision: it streams when the operation does not

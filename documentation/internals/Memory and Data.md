@@ -8,8 +8,8 @@ object lives in RAM or on disk.
 PyCauset can handle matrices larger than RAM. It does that by keeping each object
 in one of two places:
 
-- **RAM** — anonymous memory (`VirtualAlloc` on Windows, `mmap` with a shared-memory
-  fd on macOS/Linux). The fast path.
+- **RAM** — the C heap (`calloc`, or `malloc` for results every byte of which is written:
+  `UninitializedStorage`). The fast path.
 - **Disk** — a memory-mapped file, either a temporary session file (`.tmp`) or a
   persisted `.pycauset` snapshot.
 
@@ -60,20 +60,19 @@ static bool place_in_ram(uint64_t bytes) {
 }
 ```
 
-### Direct path (the "anti-nanny" rule)
+### Execution on mapped storage
 
-For operations that fit in RAM, streaming them through the tiled/out-of-core path
-is slower than just letting the OS page them. When the operation's operands and result fit
-in available RAM (`MemoryGovernor::can_fit_in_ram`, with the safety margin), the kernels run directly on the storage (BLAS on the mapped pages, the OS pager does
-the I/O). Otherwise matmul and element-wise operations stream tile by tile
-([[internals/Streaming Manager|Streaming Manager]]).
+Kernels run directly on the storage, RAM or mapped file (BLAS on the mapped pages; the OS
+pager does the I/O). There is no tiled path ([[internals/Out of Core|Out of Core]]).
 
 ## IO Accelerator
 
 `IOAccelerator` makes the disk-backed path fast by telling the OS what is coming.
 
-- **Write:** `SetFileValidData` (Windows) / `fallocate` (Linux) reserves file space
-  without zero-filling it, which removes the "import gap".
+- **Create:** a new file is sized once (`fallocate`, `ftruncate` as fallback; Windows
+  `SetEndOfFile`) and reads as zeros. (Windows' `SetFileValidData`, which skipped the zeroing,
+  exposed stale disk contents and is gone, review 3.5 C-9.) A new file that fits in RAM is
+  pre-faulted (`MAP_POPULATE` / a prefetch).
 - **Read:** `PrefetchVirtualMemory` (Windows) / `madvise(MADV_WILLNEED)` or
   `MAP_POPULATE` (Linux) pulls pages into the page cache before the CPU faults on
   them.

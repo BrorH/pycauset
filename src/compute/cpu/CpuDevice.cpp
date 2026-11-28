@@ -1,6 +1,4 @@
 #include "pycauset/compute/cpu/CpuDevice.hpp"
-#include "pycauset/compute/cpu/CpuComputeWorker.hpp"
-#include "pycauset/compute/StreamingManager.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
@@ -12,48 +10,13 @@
 
 namespace pycauset {
 
-namespace {
-// The StreamingManager copies tiles straight from raw row-major storage of dense
-// same-dtype operands, so it is only correct and supported for plain views: no transpose,
-// slice offset, lazy scalar or conjugation (F-040). Everything else falls back to the
-// direct kernels, which honour view metadata and still work out of core through mmap
-// paging (slower), instead of producing wrong values or throwing mid-operation.
-bool plain_view(const MatrixBase& m) {
-    return !m.is_transposed() && !m.is_subview() && !m.is_conjugated() &&
-           m.get_scalar() == std::complex<double>(1.0, 0.0) &&
-           m.get_structure() == Structure::DENSE;
-}
-bool same_dtype_plain(const MatrixBase& a, const MatrixBase& b, const MatrixBase& c) {
-    return plain_view(a) && plain_view(b) && plain_view(c) && a.get_data_type() == b.get_data_type() &&
-           b.get_data_type() == c.get_data_type();
-}
-bool can_stream_matmul(const MatrixBase& a, const MatrixBase& b, const MatrixBase& c) {
-    const DataType dt = c.get_data_type();
-    return same_dtype_plain(a, b, c) && (dt == DataType::FLOAT64 || dt == DataType::FLOAT32);
-}
-bool can_stream_elementwise(const MatrixBase& a, const MatrixBase& b, const MatrixBase& c) {
-    const DataType dt = c.get_data_type();
-    return same_dtype_plain(a, b, c) && (dt == DataType::FLOAT64 || dt == DataType::FLOAT32 ||
-                                         dt == DataType::INT32 || dt == DataType::INT64);
-}
-// Does the call exceed the RAM budget? Operands and result at their element size (only
-// float32/float64/int32/int64 stream, so 4 or 8 bytes).
-bool out_of_core(const MatrixBase& a, const MatrixBase& b, const MatrixBase& c) {
-    const DataType dt = c.get_data_type();
-    const size_t elem = (dt == DataType::FLOAT32 || dt == DataType::INT32) ? 4 : 8;
-    const size_t required = (a.size() + b.size() + c.size()) * elem;
-    auto& governor = core::MemoryGovernor::instance();
-    return !governor.can_fit_in_ram(required);
-}
-}  // namespace
+// Out of core is the mapped storage itself: every kernel runs on the operands' pages and the
+// OS pages them in and out. (A tiled StreamingManager ran when operands did not fit; it was
+// slower than paging in every case measured and allocated about 1.6x the free RAM, review 3.5
+// C-1, C-2; removed.)
 
 void CpuDevice::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    if (can_stream_matmul(a, b, result) && out_of_core(a, b, result)) {
-        CpuComputeWorker worker(solver_);
-        StreamingManager(worker).matmul(a, b, result);
-    } else {
-        solver_.matmul(a, b, result);
-    }
+    solver_.matmul(a, b, result);
 }
 
 void CpuDevice::cholesky(const MatrixBase& in, MatrixBase& out) {
@@ -65,39 +28,19 @@ void CpuDevice::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
 }
 
 void CpuDevice::add(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    if (can_stream_elementwise(a, b, result) && out_of_core(a, b, result)) {
-        CpuComputeWorker worker(solver_);
-        StreamingManager(worker).elementwise(a, b, result, ComputeWorker::ElementwiseOp::ADD);
-    } else {
-        solver_.add(a, b, result);
-    }
+    solver_.add(a, b, result);
 }
 
 void CpuDevice::subtract(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    if (can_stream_elementwise(a, b, result) && out_of_core(a, b, result)) {
-        CpuComputeWorker worker(solver_);
-        StreamingManager(worker).elementwise(a, b, result, ComputeWorker::ElementwiseOp::SUBTRACT);
-    } else {
-        solver_.subtract(a, b, result);
-    }
+    solver_.subtract(a, b, result);
 }
 
 void CpuDevice::elementwise_multiply(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    if (can_stream_elementwise(a, b, result) && out_of_core(a, b, result)) {
-        CpuComputeWorker worker(solver_);
-        StreamingManager(worker).elementwise(a, b, result, ComputeWorker::ElementwiseOp::MULTIPLY);
-    } else {
-        solver_.elementwise_multiply(a, b, result);
-    }
+    solver_.elementwise_multiply(a, b, result);
 }
 
 void CpuDevice::elementwise_divide(const MatrixBase& a, const MatrixBase& b, MatrixBase& result) {
-    if (can_stream_elementwise(a, b, result) && out_of_core(a, b, result)) {
-        CpuComputeWorker worker(solver_);
-        StreamingManager(worker).elementwise(a, b, result, ComputeWorker::ElementwiseOp::DIVIDE);
-    } else {
-        solver_.elementwise_divide(a, b, result);
-    }
+    solver_.elementwise_divide(a, b, result);
 }
 
 double CpuDevice::dot(const VectorBase& a, const VectorBase& b) {

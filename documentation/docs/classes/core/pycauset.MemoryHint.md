@@ -23,4 +23,4 @@ Build one with the static constructors `MemoryHint.sequential(start, len)` and
 ## See also
 
 *   [[docs/classes/core/pycauset.AccessPattern.md|pycauset.AccessPattern]]
-*   [[internals/Streaming Manager.md|Streaming Manager]]
+*   [[internals/Out of Core.md|Out of Core]]

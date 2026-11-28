@@ -420,14 +420,12 @@ set(PYCAUSET_SOURCES
     src/vector/DenseVector.cpp
     src/compute/ComputeContext.cpp
     src/compute/AutoSolver.cpp
-    src/compute/StreamingManager.cpp
     src/compute/cpu/CpuDevice.cpp
     src/compute/cpu/CpuSolver.cpp
     src/compute/cpu/CpuMatmul.cpp
     src/compute/cpu/CpuElementwise.cpp
     src/compute/cpu/CpuIterative.cpp
     src/compute/cpu/CpuLinalg.cpp
-    src/compute/cpu/CpuComputeWorker.cpp
     src/math/Eigen.cpp
     src/math/LinearAlgebra.cpp
     src/math/ScalarOps.cpp
@@ -572,10 +570,6 @@ if(BUILD_TESTS)
 
 
     # CPU compute-worker contract
-    add_executable(test_cpu_worker_contract tests/test_cpu_worker_contract.cpp)
-    target_include_directories(test_cpu_worker_contract PRIVATE include)
-    target_link_libraries(test_cpu_worker_contract PRIVATE GTest::gtest_main pycauset_core)
-    add_test(NAME CpuWorkerContractTests COMMAND test_cpu_worker_contract)
 
     # ThreadPool / ParallelFor (nesting, exceptions)
     add_executable(test_parallel_utils tests/test_parallel_utils.cpp)

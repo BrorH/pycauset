@@ -4,9 +4,8 @@ One trace is written around each traced ``pycauset.<op>(...)`` call. It holds fa
 
 - ``operands``: shape, dtype and storage (``"memory"``, ``"file"`` or ``"temp"``) of each input;
 - ``kernels``: every kernel the engine ran for the call, in order (the engine's kernel log);
-- ``streamed``: whether the engine ran any part of it out of core. That is the engine's own
-  decision (``CpuDevice`` -> ``StreamingManager``, from the MemoryGovernor's RAM budget); the
-  StreamingManager labels its tile loops ``streaming.*``.
+(Out of core, kernels run on the mapped files and the OS pages; the operands' ``storage``
+says which they were.)
 
 Nothing here plans, routes or tunes anything.
 """
@@ -61,7 +60,6 @@ class IOObservability:
             "op": name,
             "operands": [_snapshot(f) for f in facts],
             "kernels": list(kernels),
-            "streamed": any(k.startswith("streaming.") for k in kernels),
             "timestamp": stamp,
         }
 

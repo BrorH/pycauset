@@ -1808,3 +1808,23 @@ the entry (the history is useful). New findings go at the bottom with the next f
   pre-F-093 in-place design; `load.md` said a saved CausalSet loads as its causal matrix (it
   loads as a CausalSet); npz "first key" is the alphabetically first; two docstrings said
   file-backed exports always fail. All rewritten to the code.
+
+### F-135 The out-of-core StreamingManager hurt where it was meant to help (area 3.5)
+- **Status:** fixed by removal (session 9; area 3.5 review C-1, C-2, C-3, C-6, C-9).
+  Out of core was always the mapping: every kernel runs on mapped storage and the OS pages.
+  The tiled StreamingManager (dense same-dtype matmul and `+ - * /`, when operands and result
+  did not fit the RAM budget) was slower than the direct kernel on the same mapped data in
+  every case measured (2.2x for float64 4000² matmul, 4.8x for `a + b`, 15x for `v @ A`,
+  144x for an n x 4 product), allocated three tiles at 80% of free RAM plus three unused
+  zero-filled buffers (about 1.6x the free RAM: an OOM kill where paging would succeed), and
+  raised for broadcasting ops. Removed: `StreamingManager`, `ComputeWorker`,
+  `CpuComputeWorker`, `CpuSolver::gemm`, the `streaming.*` kernel labels and the trace's
+  `streamed` field, the CpuWorker gtest; `test_streaming.py` became `test_out_of_core.py`
+  (no RAM left: every result file-backed, values against NumPy, broadcasting included). The
+  RAM check in matmul's direct path, which chose between two identical dgemm calls, is gone.
+  Not done (needs an enforced cgroup limit, not available here): a timed run on data 2-3x RAM.
+- C-9 (Windows, from reading): `SetFileValidData` let new files show stale disk contents
+  instead of zeros in elevated processes (pc.zeros and partly written results read them,
+  and other files' deleted data leaked). Removed.
+- Open from 3.5: C-4 (LAPACK operations copy the whole operand into heap memory with no RAM
+  check; documented in Out of Core), C-7 (no read-ahead hints from kernels; documented).

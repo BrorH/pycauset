@@ -173,11 +173,13 @@ write a fifth.
 - Parallelise over flat blocks, not rows: a vector is one row.
 - Per-call overhead of the Python layers is measured in `TIMING.md` (per-call table).
 
-## 7. Streaming (out-of-core)
+## 7. Out of core
 
-Ops that can run tile by tile on file-backed data delegate to `StreamingManager`
-(`src/compute/StreamingManager.cpp`), whose tile kernels have the same contract as the dense
-kernels (same dtype, dense). See [[internals/Streaming Manager.md|Streaming Manager]].
+There is no separate out-of-core path: kernels run on the operands' storage, which may be a
+mapped file, and write a result placed like any new object (RAM or file). A kernel must not
+copy a whole operand into heap memory; if it needs a work buffer of operand size, allocate it
+as storage (a temporary matrix), so it is placed like one. See
+[[internals/Out of Core.md|Out of Core]].
 
 ## Definition of done
 

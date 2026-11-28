@@ -129,17 +129,17 @@ risk: storage and object model first, since everything rests on them.
 |---|---|---|---|
 | 3.1 | Storage core: PersistentObject, MemoryMapper, MemoryGovernor, IOAccelerator, StorageUtils, SystemUtils **(reviewed; fixed F-120..F-125; C-12 kept by decision)** | `src/core`, `include/pycauset/core` | 2,300 |
 | 3.2 | Object model: MatrixBase/VectorBase and every concrete type; view metadata; CoW **(reviewed; fixed F-117..F-119, F-126; C-10, C-14 open)** | `include/pycauset/{matrix,vector}`, `src/{matrix,vector}` | 3,600 |
-| 3.3 | Factory & promotion: ObjectFactory, Promotion/Structure/MatrixType resolvers | `src/core` | 1,100 |
+| 3.3 | Factory & promotion: ObjectFactory, Promotion/Structure/MatrixType resolvers **(reviewed; F-130, F-133)** | `src/core` | 1,100 |
 | 3.4 | Dispatch & CPU kernels: ComputeContext, AutoSolver, CpuDevice, **CpuSolver**, ParallelUtils, SIMD | `src/compute` | 7,800 |
-| 3.5 | Streaming / out-of-core: StreamingManager (C++ and Py), ComputeWorker, io_observability. **Priority: C++ StreamingManager is 0% executed; is out-of-core really mmap-only?** | | 1,000 |
+| 3.5 | Streaming / out-of-core **(reviewed: yes, mmap-only; the StreamingManager removed, F-135)** | | 1,000 |
 | 3.6 | Math entry & expressions: LinearAlgebra.cpp, Eigen.cpp, expression templates, LazyMatrix | `src/math`, `matrix/expression` | 1,900 |
 | 3.7 | Bindings | `src/bindings*` | 7,300 |
 | 3.8 | Python facade & glue: `__init__`, patching, properties, ops, factories, dtypes, lazy_allocation | `python/pycauset` | 6,500 |
-| 3.9 | Persistence & caches: persistence, big_blob_cache, linalg_cache, export_guard, container format | | 2,300 |
+| 3.9 | Persistence & caches **(reviewed; F-129, F-131, F-132, F-134)** | | 2,300 |
 | 3.10 | Block matrices: blockmatrix, submatrix_view, thunks, dense_python | | 1,200 |
 | 3.11 | Physics: causet, spacetime, field, synthetic, Sprinkler.cpp, Spacetime.hpp **(post-R1; smoke tests only before)** | | 2,300 |
 | 3.12 | Visualization: vis.py **(R1: lightweight plots only)** | | 435 |
-| 3.13 | Build, packaging, CI, release: CMakeLists, pyproject, workflows, tools/*.ps1 | | 1,000 |
+| 3.13 | Build, packaging, CI, release **(light pass, session 9)** | | 1,000 |
 | 3.14 | Old tests: superseded by TESTS.md migration (no line-by-line review of old tests) | `tests/` | 16,700 |
 | 3.15 | Benchmarks, demos, scripts, tools | | 2,200 |
 | 3.16 | CUDA: **inventory only**, no review while on hold | `experimental/cuda` (moved, session 4) | 4,300 |
@@ -332,7 +332,7 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
       (migration script: `review/scripts/migrate_class_names.py`).
 - [x] 4.6b Naming sweep: milestone names out of code and docs (session 9; the plan files
       under documentation/*/plans keep theirs, they are the milestones).
-- [x] 4.7 One StreamingManager (F-100: the Python planner is gone); one Minkowski implementation (native; F-105)
+- [x] 4.7 One StreamingManager (F-100: the Python planner is gone), then none (F-135: slower than paging and over-allocating; out of core is the mapping); one Minkowski implementation (native; F-105)
 - [x] 4.8 Silent-exception sweep (126 sites). Python first pass done (F-101); C++ sites done
       (session 9: the warning-category and NumPy-scalar fallbacks removed; the remaining
       catch sites rethrow; the parked CUDA hooks in AutoSolver are listed in experimental/cuda).

@@ -20,7 +20,7 @@ what happens under a call.
 *   **[[internals/DType System|DType System]]**: scalar kinds, promotion rules, complex representation, overflow.
 *   **[[internals/Memory and Data|Memory & Data]]**: tiered storage, the Memory Governor, the IO Accelerator, the object hierarchy.
 *   **[[internals/Storage Semantics|Storage Semantics]]** and **[[internals/PyCauset Container Format|Container Format]]**: copy-on-write storage and the `.pycauset` file.
-*   **[[internals/Streaming Manager|Streaming Manager]]**: out-of-core tiling.
+*   **[[internals/Out of Core|Out of Core]]**: out-of-core tiling.
 *   **[[internals/Algorithms|Algorithms]]**: the solvers and how they are called.
 *   **[[internals/Block Matrices|Block Matrices]]**: the Python-level block matrices.
 *   **[[internals/Python Internals|Python Internals]]** and **[[internals/Bindings & Dispatch|Bindings & Dispatch]]**: the Python layer and the pybind11 bindings.

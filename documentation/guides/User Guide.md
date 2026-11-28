@@ -18,7 +18,7 @@ with four things NumPy does not have:
 3. **Lazy results where they pay.** `C + C.T` of a causal matrix is a view over `C`'s bits
    until something needs its values ([[guides/Lazy Evaluation|Lazy Evaluation]]).
 4. **Storage that scales.** Small matrices live in RAM; matrices above a threshold live in
-   memory-mapped files, and operations that do not fit run tile by tile.
+   memory-mapped files, and operations run on them (the OS pages).
 
 NumPy is the reference: every operation is checked against it for every dtype, structure
 and view (the operation atlas). Where PyCauset deliberately differs, the

@@ -78,7 +78,7 @@ pc.save(A, "a.pycauset")
 B = pc.load("a.pycauset")                # memory-mapped: O(1) to open
 ```
 
-Operations that do not fit in RAM run tile by tile; see [[Storage and Memory]].
+Matrices that do not fit in RAM live in memory-mapped files and operations run on them; see [[Storage and Memory]].
 
 ## Where next
 

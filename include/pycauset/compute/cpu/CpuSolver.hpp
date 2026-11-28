@@ -19,12 +19,6 @@ public:
 
     // Core Operations
     void matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& result);
-    /**
-     * @brief Generalized Matrix Multiplication (C = alpha*A*B + beta*C)
-     * Exposed for use by CpuComputeWorker (tiled execution).
-     */
-    void gemm(const MatrixBase& a, const MatrixBase& b, MatrixBase& c, double alpha, double beta);
-
     void cholesky(const MatrixBase& in, MatrixBase& out);
 
     void matrix_vector_multiply(const MatrixBase& m, const VectorBase& v, VectorBase& result);

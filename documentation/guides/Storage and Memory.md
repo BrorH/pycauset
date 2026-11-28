@@ -135,14 +135,14 @@ Takeaway: only the size decides; a conversion that would not fit needs the expli
 
 ## Out-of-core execution and IO traces
 
-Operations whose operands and result do not fit the RAM budget run tile by tile through the
-engine's StreamingManager; others run directly on memory-mapped storage. The engine decides
-(see [[internals/Streaming Manager|Streaming Manager]]); there is no routing knob.
-Factorizations and eigen problems are the exception: they need the matrix in RAM
+Operations run directly on the storage: for file-backed matrices the operating system pages
+data in and out, and results that do not fit in RAM go to files
+([[internals/Out of Core|Out of Core]]). Factorizations and eigen problems are the
+exception: they copy the matrix into RAM
 ([[guides/Linear Algebra Operations|Linear Algebra Operations]], "Size limits").
 
 `pc.last_io_trace(op)` reports what a call read and how it ran: each operand's shape, dtype
-and storage (`"memory"`, `"file"`, `"temp"`), the kernels the engine ran, and `streamed`
+and storage (`"memory"`, `"file"`, `"temp"`) and the kernels the engine ran
 ([[docs/functions/pycauset.last_io_trace.md|pycauset.last_io_trace]]).
 
 ## Snapshots vs working copies

@@ -19,34 +19,6 @@ bool pycauset::UninitializedStorage::active() { return g_uninitialized_depth > 0
 
 #ifdef _WIN32
 #include <windows.h>
-// Helper to enable privileges (SE_MANAGE_VOLUME_NAME for SetFileValidData)
-static bool EnablePrivilege(LPCTSTR lpszPrivilege) {
-    HANDLE hToken;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
-        return false;
-
-    TOKEN_PRIVILEGES tp;
-    if (!LookupPrivilegeValue(NULL, lpszPrivilege, &tp.Privileges[0].Luid)) {
-        CloseHandle(hToken);
-        return false;
-    }
-
-    tp.PrivilegeCount = 1;
-    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-
-    if (!AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), (PTOKEN_PRIVILEGES)NULL, (PDWORD)NULL)) {
-        CloseHandle(hToken);
-        return false;
-    }
-
-    if (GetLastError() == ERROR_NOT_ALL_ASSIGNED) {
-        CloseHandle(hToken);
-        return false;
-    }
-
-    CloseHandle(hToken);
-    return true;
-}
 #else
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -209,14 +181,10 @@ void MemoryMapper::open_file(bool create_new) {
                 CloseHandle(hFile_);
                 throw std::runtime_error("Failed to set end of file");
             }
-
-            // Optimization: SetFileValidData to skip zero-filling
-            // This requires SE_MANAGE_VOLUME_NAME privilege.
-            // If it fails, we just proceed (OS will zero-fill on write/fault).
-            if (EnablePrivilege(SE_MANAGE_VOLUME_NAME)) {
-                // On failure Windows zero-fills on first write: slower, still correct.
-                (void)SetFileValidData(hFile_, liSize.QuadPart);
-            }
+            // No SetFileValidData: in an elevated process it marked the new file valid without
+            // zeroing it, so the file showed whatever was on the disk (other files' deleted
+            // data), and every reader of fresh storage (pc.zeros, results written in part) saw
+            // it (review 3.5 C-9). NTFS zero-fills on first touch.
         }
     } else {
         if (hFile_ == INVALID_HANDLE_VALUE) {

@@ -1,8 +1,7 @@
 """IO traces report facts about a call: its operands and the kernels the engine ran (F-100).
 
 The trace used to carry a Python guess (a "route", tile shape and queue depth planned from a
-threshold that the engine never read). Now `streamed` is true exactly when the engine's
-StreamingManager ran, which only the engine decides.
+threshold that the engine never read). Now it lists the kernels the engine ran.
 """
 from __future__ import annotations
 
@@ -31,7 +30,6 @@ def test_trace_records_operands_and_kernels():
     assert [o["dtype"] for o in trace["operands"]] == ["float64", "float64"]
     assert [o["storage"] for o in trace["operands"]] == ["memory", "memory"]
     assert trace["kernels"], "the engine logs at least one kernel for a matmul"
-    assert trace["streamed"] is False
 
 
 def test_trace_kernels_are_the_engines_log():
@@ -57,22 +55,6 @@ def test_nested_traced_ops_record_only_the_outer_call():
     pc.cond(a, 1)  # cond calls invert and norm, both traced on their own
     assert pc.last_io_trace()["op"] == "cond"
     assert pc.last_io_trace("invert") is None
-
-
-def test_streamed_is_what_the_engine_did():
-    x = pc.matrix(np.ones((64, 64)))
-    y = pc.matrix(np.ones((64, 64)))
-    pc.matmul(x, y)
-    assert pc.last_io_trace()["streamed"] is False
-    previous = native._get_ram_safety_margin()
-    native._set_ram_safety_margin(1 << 62)  # nothing "fits in RAM": the engine streams (F-026)
-    try:
-        pc.matmul(x, y)
-    finally:
-        native._set_ram_safety_margin(previous)
-    trace = pc.last_io_trace()
-    assert trace["streamed"] is True
-    assert "streaming.matmul" in trace["kernels"]
 
 
 def test_file_backed_operand_is_reported(tmp_path):

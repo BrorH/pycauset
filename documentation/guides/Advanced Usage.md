@@ -49,7 +49,7 @@ the current thread setting to the OpenBLAS pool if the build uses it.
 ## 4. IO traces
 
 Each traced `pc.<op>(...)` call records its operands (shape, dtype, storage) and the kernels
-the engine ran, including whether it ran out of core (`streamed`).
+the engine ran, with each operand's storage (memory or file).
 
 ```python
 pc.last_io_trace()          # most recent trace, or None

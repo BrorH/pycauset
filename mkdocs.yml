@@ -242,7 +242,7 @@ nav:
     - Memory and Data: internals/Memory and Data.md
     - Storage Semantics: internals/Storage Semantics.md
     - Container Format: internals/PyCauset Container Format.md
-    - Streaming Manager: internals/Streaming Manager.md
+    - Out of Core: internals/Out of Core.md
     - Algorithms: internals/Algorithms.md
     - Block Matrices: internals/Block Matrices.md
     - Python Internals: internals/Python Internals.md

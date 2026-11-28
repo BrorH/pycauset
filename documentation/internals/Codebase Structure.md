@@ -39,7 +39,7 @@ Where things live and how a call flows through them.
 | `core/` | storage (`PersistentObject`, `MemoryMapper`, `MemoryGovernor`), `ObjectFactory`, `StructureResolver`, dtype dispatch, the kernel log (`DebugTrace`), `ParallelUtils` |
 | `matrix/`, `vector/` | the structure classes: dense, triangular (bit-packed for `bool`), symmetric / antisymmetric, Hermitian / skew-Hermitian, diagonal, identity; dense and unit vectors |
 | `math/` | entry functions of the operations (`LinearAlgebra`, `Eigen`, `Reductions`, `Bitwise`, `ScalarOps`, `VectorOps`, `CausalMatrix`: transitive reduction); `ViewRead` (typed reads of views), `RawRows.hpp` (bulk reads of stored values) and `ViewValue.hpp`, the one definition of view semantics |
-| `compute/` | `ComputeContext`, `AutoSolver`, `StreamingManager`; `cpu/` holds the kernels ([[internals/Compute Architecture]]) |
+| `compute/` | `ComputeContext`, `AutoSolver`; `cpu/` holds the kernels ([[internals/Compute Architecture]]) |
 | `causet/` | the sprinkler and the native Minkowski diamond |
 
 ## How a call flows: `C = A @ B`
@@ -49,8 +49,8 @@ Where things live and how a call flows through them.
 2. The engine entry function resolves the result's structure and dtype, normalises views
    (they are read in place, not copied) and allocates the result through `ObjectFactory`
    (RAM or file-backed by the memory threshold).
-3. `ComputeContext` hands the call to `CpuDevice`, which runs the kernel directly or, when
-   the operands do not fit in RAM, tile by tile through the `StreamingManager`.
+3. `ComputeContext` hands the call to `CpuDevice`, which runs the kernel on the operands'
+   storage (RAM or mapped file).
 4. The result returns as the Python object of its structure class.
 
 The procedure for adding or changing an operation is

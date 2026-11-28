@@ -6,7 +6,7 @@ The algorithms behind the operations, as they run in R1 (CPU only; see
 ## Matrix multiplication
 
 - **float32 / float64 / complex:** BLAS `?gemm` (OpenBLAS), called directly for in-memory
-  operands; out-of-core operands are tiled by the [[internals/Streaming Manager|Streaming Manager]].
+  operands; out-of-core operands are tiled by the [[internals/Out of Core|Out of Core]].
 - **Integers:** exact through float64 `dgemm` when the measured operand bounds guarantee
   every partial sum is an integer below 2^53 (F-055); otherwise integer loops parallelised
   with `ParallelFor`. Overflow of the result dtype raises.
