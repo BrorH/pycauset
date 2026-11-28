@@ -723,3 +723,8 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Build: `PYCAUSET_WERROR` (CMake option, -Wall -Wextra -Wno-unused-parameter -Werror on the
   core library) builds clean here (GCC 13, Release); the Linux CI job turns it on. The
   bindings are not under it yet.
+- Phase 3 started: area reviews 3.1 (storage core) and 3.2 (object model) by review agents,
+  notes in `review/areas/`. Fixed at once from 3.2: F-117 (closure cache), F-118 (bool vector
+  copy-on-write), F-119 (indexing copies lost the view; the F-112 vector path too). The 3.1
+  list (two serious: temp-file name collisions between processes, spill of live operands under
+  memory pressure) is next.

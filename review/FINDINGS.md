@@ -1554,3 +1554,24 @@ the entry (the history is useful). New findings go at the bottom with the next f
 - Removed meanwhile (session 9): `batch_gemv` from the device interface, AutoSolver,
   CpuDevice and CpuSolver (a per-element loop no core code called; the experimental
   ArnoldiDriver calls `CudaDevice::batch_gemv` directly, which stays).
+
+### F-117 A written closure answered from the shared derived-value cache
+- **Status:** fixed (session 9; found by the area 3.2 review, C-1). Writing into `C + C.T`
+  materializes the closure but keeps C's bit storage as its mapper, which C's other closures
+  share, and the write never passes `ensure_unique`. The derived-value cache (keyed on that
+  storage and the view) then returned the pre-write `sum` / `det`, and a fresh `C + C.T` got
+  the written closure's. Fix: no cache entries for materialized closures (`DerivedCache.hpp`).
+  `test_F117_*`.
+
+### F-118 `DenseVector<bool>::set` skipped copy-on-write
+- **Status:** fixed (session 9; area 3.2 review, C-2). `w = v.T; w[0] = False` changed `v`
+  (they share storage until a write), and `pc.sum(v)` stayed stale. `ensure_unique()` added.
+  `test_F118_*`.
+
+### F-119 Indexing copies dropped the view (factor, conjugation)
+- **Status:** fixed (session 9; area 3.2 review, C-3, plus the F-112 vector path). Step
+  slices, index arrays and the 1-D rows / columns that F-112 introduced copied stored values
+  into a new object with factor 1 and no conjugation: for `B = A * 2`, `B[0, :]` was `A[0, :]`
+  and `B[[0, 1], [2, 3]]` was A's elements; `A.conj()[...]` lost the conjugation. The copies
+  keep the source's factor and conjugation now. `test_F119_*` (float, transposed, integer
+  view, conj, scaled conjugate transpose).

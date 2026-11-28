@@ -714,3 +714,43 @@ def test_complex32_bulk_reads_match_numpy():
         np.testing.assert_allclose(np.asarray(got * 2), want * 2, rtol=1e-3)
         assert complex(pc.sum(got)) == pytest.approx(complex(want.sum()), rel=1e-3)
         np.testing.assert_allclose(np.asarray(got + got), want + want, rtol=1e-3)
+
+
+def test_F117_written_closure_is_not_answered_from_shared_cache():
+    """A write to C + C.T materializes the closure, but its storage is still C's bits (shared
+    by C's other closures): the derived-value cache must not answer for it (it returned the
+    pre-write sum, and another closure of C then got the written one's)."""
+    c = np.triu(np.ones((4, 4), dtype=bool), 1)
+    cm = pc.causal_matrix(c)
+    s = cm + cm.T
+    assert pc.sum(s) == 12
+    s[0, 1] = 7
+    assert pc.sum(s) == int(np.asarray(s).sum()) == 24
+    assert pc.sum(cm + cm.T) == 12
+
+
+def test_F118_bool_vector_write_copies_on_write():
+    v = pc.vector(np.array([True, True, False]))
+    assert pc.sum(v) == 2
+    w = v.T
+    w[0] = False
+    np.testing.assert_array_equal(np.asarray(v), [True, True, False])
+    assert pc.sum(v) == 2 and pc.sum(w) == 1
+
+
+@pytest.mark.parametrize("view", ["scaled", "T", "int_scaled", "conj", "H_scaled"])
+def test_F119_indexing_copies_keep_the_view(view):
+    """Step slices, index arrays and the 1-D rows / columns of F-112 copied stored values and
+    dropped the factor and conjugation (B = A * 2: B[0, :] was A[0, :])."""
+    a = np.arange(16.0).reshape(4, 4)
+    z = a + 1j * a.T
+    m, r = {
+        "scaled": (pc.matrix(a) * 2.0, a * 2),
+        "T": (pc.matrix(a).T, a.T),
+        "int_scaled": (pc.matrix((a * 10).astype(np.int8)) * 3, (a * 10).astype(np.int8) * np.int8(3)),
+        "conj": (pc.matrix(z).conj(), z.conj()),
+        "H_scaled": (pc.matrix(z).conj().T * 2.0, z.conj().T * 2),
+    }[view]
+    for key in [(0, slice(None)), (slice(None), 1), ([0, 1], [2, 3]), (slice(None, None, 2), slice(None, None, 2)),
+                ([0, 2], slice(None))]:
+        np.testing.assert_array_equal(np.asarray(m[key]), r[key])

@@ -17,6 +17,7 @@
 #include <string>
 
 #include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/matrix/BitClosureMatrix.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
 #include "pycauset/vector/VectorBase.hpp"
@@ -49,7 +50,11 @@ inline std::string view_key(const MatrixBase& m, const char* quantity, const std
 template <typename V, typename F>
 V cached(const MatrixBase& m, const char* quantity, const std::string& params, F&& compute) {
     if (!derived_cache::enabled().load(std::memory_order_relaxed) || m.is_subview()) return compute();
-    const auto& mapper = m.shared_mapper();  // a reference: a copy would raise use_count (shared)
+    // A written lazy closure holds its own values (materialized) but keeps C's bit storage as
+    // its mapper, shared with C's other closures: no entry, or a write to one closure would
+    // answer for every other (review 3.2 C-1).
+    if (const auto* cl = dynamic_cast<const BitClosureMatrix*>(&m); cl && cl->is_materialized()) return compute();
+    const auto mapper = m.shared_mapper();
     if (!mapper) return compute();
     const std::string key = derived_cache::view_key(m, quantity, params);
     std::any hit;

@@ -225,6 +225,13 @@ inline std::pair<uint64_t, uint64_t> slice_shape(const SliceInfo& r, const Slice
 template <typename T>
 inline std::shared_ptr<DenseMatrix<T>> slice_dense_matrix(const DenseMatrix<T>& mat, const SliceInfo& r, const SliceInfo& c) {
     const bool has_array = r.is_array || c.is_array;
+    // The copies below hold stored values (get() applies the transposition and window); they
+    // keep the source's factor and conjugation, or B[[0, 1], [2, 3]] of B = A * 2 read A's values.
+    auto keep_view = [&](std::shared_ptr<DenseMatrix<T>> out) {
+        out->set_scalar(mat.get_scalar());
+        out->set_conjugated(mat.is_conjugated());
+        return out;
+    };
 
     // DenseMatrix<bool> (DenseBitMatrix) does not support the mapper/view-offset constructor.
     // Guard the view path at compile time so the bool instantiation still compiles.
@@ -275,7 +282,7 @@ inline std::shared_ptr<DenseMatrix<T>> slice_dense_matrix(const DenseMatrix<T>& 
             const uint64_t src_c = c.indices[len_c == 1 ? 0 : k];
             result->set(0, k, mat.get(src_r, src_c));
         }
-        return result;
+        return keep_view(result);
     }
 
     if (r.is_array) {
@@ -289,7 +296,7 @@ inline std::shared_ptr<DenseMatrix<T>> slice_dense_matrix(const DenseMatrix<T>& 
                 result->set(rr, cc, mat.get(src_r, src_c));
             }
         }
-        return result;
+        return keep_view(result);
     }
 
     if (c.is_array) {
@@ -303,7 +310,7 @@ inline std::shared_ptr<DenseMatrix<T>> slice_dense_matrix(const DenseMatrix<T>& 
                 result->set(rr, cc, mat.get(src_r, src_c));
             }
         }
-        return result;
+        return keep_view(result);
     }
 
     auto [out_r, out_c] = slice_shape(r, c);
@@ -315,7 +322,7 @@ inline std::shared_ptr<DenseMatrix<T>> slice_dense_matrix(const DenseMatrix<T>& 
             result->set(rr, cc, mat.get(src_r, src_c));
         }
     }
-    return result;
+    return keep_view(result);
 }
 
 template <typename T>
@@ -538,6 +545,9 @@ inline py::object dense_getitem(const DenseMatrix<T>& mat, const py::object& key
         const uint64_t n = along_cols ? sliced->cols() : sliced->rows();
         auto v = std::make_shared<DenseVector<T>>(n);
         for (uint64_t k = 0; k < n; ++k) v->set(k, along_cols ? sliced->get(0, k) : sliced->get(k, 0));
+        // get() reads stored values: the vector keeps the view (B = A * 2: B[0, :] is 2 A[0, :]).
+        v->set_scalar(sliced->get_scalar());
+        v->set_conjugated(sliced->is_conjugated());
         return py::cast(v);
     }
     return py::cast(sliced);

@@ -44,6 +44,7 @@ DenseVector<bool>::DenseVector(uint64_t n, std::shared_ptr<MemoryMapper> mapper)
 
 void DenseVector<bool>::set(uint64_t i, bool value) {
     if (i >= n_) throw std::out_of_range("Index out of bounds");
+    ensure_unique();  // copy-on-write (and the derived-value cache's invalidation gate)
 
     uint64_t word_index = i / 64;
     uint64_t bit_index = i % 64;
