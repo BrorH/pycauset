@@ -1958,5 +1958,4 @@ the entry (the history is useful). New findings go at the bottom with the next f
     float64 `M + 2**64` computes.
   - C-10 (fixed): one under-promotion warning for every operand kind and order.
   - C-11 (fixed): the first write into a scale view folds in place (it held 4x the matrix).
-  - S3 / S4:
-    five NumPy import paths, internal names on the surface.
+  - S3 / S4 open: five NumPy import paths (C-12), internal names on the surface (C-14).
