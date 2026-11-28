@@ -43,8 +43,17 @@ pc.set_num_threads(4)        # cap parallel work at 4 threads
 print(pc.get_num_threads())
 ```
 
-The default is the machine's CPU count. `pc.configure_openblas_threads()` reapplies
-the current thread setting to the OpenBLAS pool if the build uses it.
+The default comes from `OPENBLAS_NUM_THREADS` or `OMP_NUM_THREADS` when set, otherwise the
+number of CPUs this process may run on (its affinity mask, so a container's or `taskset`'s limit
+counts). The one setting caps PyCauset's own threads and the BLAS / LAPACK calls alike.
+
+### Using PyCauset from several Python threads
+
+Different objects can be used from different threads. One object can be read by several threads
+at once. Do not close or write an object while another thread computes with it. Closing it
+mid-export or mid-save is memory-safe, because the operation keeps the storage alive and finishes
+on the old values; but the result is undefined, as for a NumPy array resized under a running
+computation.
 
 ## 4. IO traces
 
