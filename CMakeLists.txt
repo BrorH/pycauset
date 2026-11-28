@@ -460,6 +460,12 @@ endif()
 if(PC_LAPACKE_FOUND)
     target_link_libraries(pycauset_core PUBLIC ${PC_LAPACKE_LINK_LIBRARIES})
 endif()
+# Warnings as errors for the engine's own sources (review PLAN 1.8): clean under GCC 13 with
+# -Wall -Wextra (unused parameters aside). Off by default; the Linux CI job turns it on.
+option(PYCAUSET_WERROR "Compile the engine core with -Wall -Wextra -Werror" OFF)
+if(PYCAUSET_WERROR AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
+    target_compile_options(pycauset_core PRIVATE -Wall -Wextra -Wno-unused-parameter -Werror)
+endif()
 set_property(TARGET pycauset_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_target_properties(pycauset_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 

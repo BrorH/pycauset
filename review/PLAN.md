@@ -92,8 +92,10 @@ Rationale: the suite passes while F-001 (int scalar multiply is a no-op) exists,
 - [~] **1.8 Warnings as errors** for our own code (`-Wall -Wextra -Werror` on
       `src/`, not `_deps`), after fixing F-020. Ruff in CI with the current baseline
       frozen (no new findings). Session 9: ruff pyflakes (F) is clean and gated in CI (`lint`
-      job); E/I/UP have a backlog (193 long lines, 46 import orders) and are not gated. The
-      C++ -Werror part is open.
+      job); E/I/UP have a backlog (193 long lines, 46 import orders) and are not gated. C++:
+      the core library builds clean under -Wall -Wextra (GCC 13); option `PYCAUSET_WERROR`
+      (-Wall -Wextra -Wno-unused-parameter -Werror on pycauset_core) is on in the Linux CI
+      job. Bindings not yet under it.
 - [x] **1.9 Coverage measurement:** Python (`pytest-cov`) and C++ (`gcovr`) once,
       to find untested files and functions (session 9: both runs, results and triage in
       DEADCODE.md; Python 84% lines).
