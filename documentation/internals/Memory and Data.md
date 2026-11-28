@@ -159,42 +159,51 @@ The class hierarchy separates storage management from math:
 classDiagram
     class PersistentObject {
         +shared_ptr~MemoryMapper~ mapper_
-        +bool is_transposed_
-        +uint64_t rows_
-        +uint64_t cols_
+        +view: scalar_, is_transposed_, is_conjugated_
         +initialize_storage()
-        +copy_storage()
         +ensure_unique()
     }
     class MatrixBase {
         <<abstract>>
-        +rows() +cols()
-        +base_rows() +base_cols()
-        +get_element_as_double(i, j)
+        +rows() +cols() +size
+        +get_element_as_complex(i, j)
         +transpose()
     }
     class VectorBase {
         <<abstract>>
-        +size()
-        +get_element_as_double(i)
-        +transpose()
+        +size
+        +get_element_as_complex(i)
     }
-    class DenseMatrix~T~ { +data() +read(i,j) +write(i,j,v) }
-    class TriangularMatrix~T~ { +row_offsets_ +read(i,j) +write(i,j,v) }
-    class DiagonalMatrix~T~ { +read(i,j) +write(i,j,v) }
-    class IdentityMatrix~T~ { +get_element_as_double(i,j) }
-    class DenseVector~T~ { +data() +read(i) +write(i,v) }
-    class UnitVector { +active_index_ +read(i) }
-
     PersistentObject <|-- MatrixBase
     PersistentObject <|-- VectorBase
-    MatrixBase <|-- DenseMatrix
-    MatrixBase <|-- TriangularMatrix
-    MatrixBase <|-- DiagonalMatrix
-    DiagonalMatrix <|-- IdentityMatrix
-    VectorBase <|-- DenseVector
+    MatrixBase <|-- DenseMatrixBase
+    MatrixBase <|-- TriangularMatrixBase
+    MatrixBase <|-- DiagonalMatrixBase
+    MatrixBase <|-- IdentityMatrixBase
+    DenseMatrixBase <|-- DenseMatrix~T~
+    DenseMatrixBase <|-- ComplexFloat16Matrix
+    TriangularMatrixBase <|-- TriangularMatrix~T~
+    TriangularMatrixBase <|-- SymmetricMatrixBase
+    SymmetricMatrixBase <|-- AntiSymmetricMatrixBase
+    AntiSymmetricMatrixBase <|-- HermitianMatrixBase
+    AntiSymmetricMatrixBase <|-- BitClosureMatrix
+    HermitianMatrixBase <|-- SkewHermitianMatrixBase
+    SkewHermitianMatrixBase <|-- SymmetricMatrix~T~
+    DiagonalMatrixBase <|-- DiagonalMatrix~T~
+    IdentityMatrixBase <|-- IdentityMatrix~T~
+    VectorBase <|-- DenseVectorBase
+    DenseVectorBase <|-- DenseVector~T~
+    DenseVectorBase <|-- ComplexFloat16Vector
     VectorBase <|-- UnitVector
 ```
+
+The `...Base` classes are the Python classes (one per structure, `.dtype` an attribute); the
+templates are the per-dtype storage. `SymmetricMatrix<T>` is one class for the four packed
+kinds (symmetric, antisymmetric, Hermitian, skew-Hermitian; its `kind_`), and derives from
+every kind's base so that each Python class accepts it. `DenseMatrix<bool>` and
+`TriangularMatrix<bool>` are bit-packed specialisations. Elements are read with `get(i, j)`
+(stored values) and `get_element_as_complex` / `element_as_double` (through the view,
+`math/ViewValue.hpp`); `set(i, j, v)` writes stored values after `ensure_unique()`.
 
 ### Lazy metadata
 
