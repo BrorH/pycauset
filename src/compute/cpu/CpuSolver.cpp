@@ -690,9 +690,6 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
 
 
 namespace {
-template <typename T> struct real_of { using type = T; };
-template <typename T> struct real_of<std::complex<T>> { using type = T; };
-template <typename T> using real_of_t = typename real_of<T>::type;
 
 // SVD of dense row-major storage with LAPACK ?gesdd (divide and conquer, NumPy's routine),
 // without LAPACKE's row-major transposes (F-108): a row-major m x n buffer is the

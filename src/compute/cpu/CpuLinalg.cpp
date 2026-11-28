@@ -30,6 +30,8 @@
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/vector/DenseVector.hpp"
 
+#include "CpuKernelsCommon.hpp"
+
 namespace pycauset {
 namespace {
 
@@ -42,11 +44,8 @@ namespace {
     return true;
 }();
 
-template <typename T> struct real_of { using type = T; };
-template <typename V> struct real_of<std::complex<V>> { using type = V; };
-template <typename T> using real_t = typename real_of<T>::type;
-template <typename T> constexpr bool is_complex_v = !std::is_same_v<T, real_t<T>>;
-template <typename T> constexpr bool is_cplx_v = !std::is_same_v<T, real_t<T>>;
+using cpu_detail::real_of_t;  // the kernels' element traits (CpuKernelsCommon.hpp)
+template <typename T> constexpr bool is_complex_v = cpu_detail::is_std_complex_v<T>;
 
 [[noreturn]] void contract(const char* op) {
     throw std::invalid_argument(std::string("CpuSolver::") + op +
@@ -86,7 +85,7 @@ DenseVector<T>& out_vector(VectorBase& v, const char* op) {
 // (NumPy's UPLO='L'), which is the upper triangle of the column-major A^T. A^T is A (real
 // symmetric) or conj(A) (Hermitian): the same eigenvalues, and eigenvectors conj(v).
 template <typename T>
-lapack_int heevd(char jobz, lapack_int n, T* a, real_t<T>* w) {
+lapack_int heevd(char jobz, lapack_int n, T* a, real_of_t<T>* w) {
     if constexpr (std::is_same_v<T, float>) return LAPACKE_ssyevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, std::max<lapack_int>(1, n), w);
     else if constexpr (std::is_same_v<T, double>) return LAPACKE_dsyevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, std::max<lapack_int>(1, n), w);
     else if constexpr (std::is_same_v<T, std::complex<float>>) return LAPACKE_cheevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, std::max<lapack_int>(1, n), w);
@@ -116,7 +115,7 @@ bool eigh_t(const MatrixBase& in, VectorBase& w, MatrixBase* v) {
     std::vector<T> a;
     if (!copy_input<T>(in, a)) return false;
     const lapack_int n = static_cast<lapack_int>(in.rows());
-    auto& wv = out_vector<real_t<T>>(w, "eigh");
+    auto& wv = out_vector<real_of_t<T>>(w, "eigh");
     debug_trace::set_last(v ? "cpu.eigh.heevd" : "cpu.eigvalsh.heevd");
     const lapack_int info = heevd<T>(v ? 'V' : 'N', n, a.data(), wv.data());
     if (info > 0) throw std::runtime_error("eigh: eigenvalues did not converge");
@@ -131,7 +130,7 @@ bool eigh_t(const MatrixBase& in, VectorBase& w, MatrixBase* v) {
 // --- General eigen decomposition (?geev), right eigenvectors.
 template <typename T>
 bool eig_t(const MatrixBase& in, VectorBase& w, MatrixBase* v) {
-    using C = std::complex<real_t<T>>;
+    using C = std::complex<real_of_t<T>>;
     std::vector<T> a;
     if (!copy_input<T>(in, a)) return false;
     const lapack_int n = static_cast<lapack_int>(in.rows());
@@ -142,7 +141,7 @@ bool eig_t(const MatrixBase& in, VectorBase& w, MatrixBase* v) {
     lapack_int info = 0;
     require_finite(a.data(), a.size(), "Array must not contain infs or NaNs");  // NumPy's eig message
     debug_trace::set_last(v ? "cpu.eig.geev" : "cpu.eigvals.geev");
-    if constexpr (is_cplx_v<T>) {
+    if constexpr (is_complex_v<T>) {
         if constexpr (std::is_same_v<T, std::complex<float>>)
             info = LAPACKE_cgeev(LAPACK_ROW_MAJOR, 'N', jobvr, n, a.data(), n, wv.data(), nullptr, 1, vr.data(), ldvr);
         else
@@ -273,7 +272,7 @@ bool lu_t(const MatrixBase& in, MatrixBase& pm, MatrixBase& lm, MatrixBase& um) 
     T* l = out_matrix<T>(lm, "lu").data();
     for (lapack_int i = 0; i < m; ++i)
         for (lapack_int j = 0; j < k; ++j) l[i * k + j] = j < i ? a[i * n + j] : (j == i ? T(1) : T(0));
-    using R = real_t<T>;
+    using R = real_of_t<T>;
     R* p = out_matrix<R>(pm, "lu").data();
     std::fill(p, p + static_cast<size_t>(m) * m, R(0));
     std::vector<lapack_int> perm(m);

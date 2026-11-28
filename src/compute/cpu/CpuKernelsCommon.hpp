@@ -2,6 +2,7 @@
 // Internal to src/compute/cpu: include after the solver headers, not part of the public API.
 #pragma once
 
+#include <complex>
 #include <cstdint>
 #include <initializer_list>
 #include <limits>
@@ -69,6 +70,12 @@ namespace pycauset::cpu_detail {
     inline bool cpu_has_avx2() { return false; }
     inline bool cpu_has_avx512_vpopcntdq() { return false; }
 #endif
+
+    // The element traits of the kernels (one definition: CpuLinalg and CpuSolver had their own,
+    // review 3.4 C-15).
+    template <typename T> struct real_of { using type = T; };
+    template <typename T> struct real_of<std::complex<T>> { using type = T; };
+    template <typename T> using real_of_t = typename real_of<T>::type;
 
     template <typename T>
     constexpr bool is_std_complex_v = false;
