@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import operator
 from bisect import bisect_right
 from typing import Any, Iterable
 
@@ -24,27 +25,44 @@ def _leaf_operand(x: Any) -> Any:
 
     - A thunk (the result of an earlier block operation) is evaluated: `(L @ R) @ R` raised
       TypeError, ThunkBlock has no operators (review 3.10 C-1).
-    - A cut tile (`SubmatrixView`) of an engine leaf is an engine window: zero-copy for a dense
-      leaf; a structured leaf is written out dense in the engine first (a split by structure is
-      open). The tile went through NumPy (export ceiling, two RAM copies), and raised for
-      structured leaves and for every element-wise op but `view + engine` (3.10 C-2, C-3).
-      Tiles of other sources (nested grids) stay views.
+    - A cut tile (`SubmatrixView`) of an engine leaf is the engine's slice: a zero-copy window of
+      a dense leaf, a dense copy of just the tile of a structured one (3.7 C-13; the whole leaf
+      was written out first). The tile went through NumPy (export ceiling, two RAM copies), and
+      raised for structured leaves and for every element-wise op but `view + engine` (3.10
+      C-2, C-3). A tile of a nested grid is its sub-grid (`BlockMatrix[r0:r1, c0:c1]`).
+    - A tile of anything else (a duck-typed matrix-like) has no engine form: TypeError. (It was
+      copied element by element into a Python list-of-lists matrix, review 3.10 C-12.)
     """
     if isinstance(x, ThunkBlock):
         return x.materialize()
     if isinstance(x, SubmatrixView):
         src = _leaf_operand(x.source)
         pc = _get_pycauset()
-        if isinstance(src, pc.MatrixBase):
-            if pc._structure_of(src) != "dense":
-                src = pc._pack_as(src, "dense")
-            r0, c0 = x.row_offset, x.col_offset
+        r0, c0 = x.row_offset, x.col_offset
+        if isinstance(src, (pc.MatrixBase, BlockMatrix)):
             return src[r0 : r0 + x.rows(), c0 : c0 + x.cols()]
+        raise TypeError(f"a cut tile of a {type(src).__name__} leaf cannot be computed: block leaves that "
+                        "operations cut must be PyCauset matrices (or block matrices)")
     return x
 
 
 _DTYPES = {"bool", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "float16",
            "float32", "float64", "complex_float16", "complex_float32", "complex_float64"}
+
+
+def _np() -> Any:
+    import numpy
+
+    return numpy
+
+
+def _is_scalar(x: Any) -> bool:
+    np = _np()
+    return (isinstance(x, (bool, int, float, complex, np.generic))
+            or (isinstance(x, np.ndarray) and x.ndim == 0))
+
+
+_SCALAR_OPS = {"add": operator.add, "sub": operator.sub, "mul": operator.mul, "div": operator.truediv}
 
 
 def _promote(op: str, a: str | None, b: str | None) -> str | None:
@@ -72,7 +90,7 @@ def _leaf_matmul(a: Any, b: Any, dtype: str | None = None) -> Any:
     type, not by trying one path and swallowing its error."""
     a, b = _cast_leaf(_leaf_operand(a), dtype), _cast_leaf(_leaf_operand(b), dtype)
     pc = _get_pycauset()
-    engine = (pc.MatrixBase, pc.VectorBase, SubmatrixView)
+    engine = (pc.MatrixBase, SubmatrixView)
     if isinstance(a, engine) and isinstance(b, engine):
         return pc.matmul(a, b)
     return a @ b  # block operands recurse; other matrix-likes use their own operator
@@ -142,13 +160,12 @@ def _extend_staleness_sources(out: list[Any], blk: Any) -> None:
 
 
 class BlockMatrix:
-    """A structural matrix container (Phase B).
+    """A matrix as a 2-D grid of child matrices (leaves), never densified as a whole.
 
-    This is an internal type used to represent a 2D grid of child matrices without
-    densifying. Phase B guarantees construction validation, element indexing, and
-    structure-only printing.
-
-    It intentionally does NOT implement full compute semantics yet.
+    One dtype for the grid (the promotion over its leaves). Operations (`@`, `+ - * /` with
+    a matrix or a scalar, `-`, `.T` / `.conj()` / `.H`) return block matrices of lazy
+    `ThunkBlock`s; `bm[i, j]` reads an element and `bm[r0:r1, c0:c1]` is a sub-grid.
+    Printing shows the structure only (internals/Block Matrices.md).
     """
 
     # NumPy defers to the block operators (`ndarray @ bm` exported the grid and computed in
@@ -237,7 +254,7 @@ class BlockMatrix:
                 out = d if out is None else (out if out == d else _promote("add", out, d))
         return out or "float64"
 
-    # --- integration helpers (Phase F) ---
+    # --- operators ---
 
     @staticmethod
     def _as_blockmatrix(obj: Any) -> BlockMatrix:
@@ -248,35 +265,69 @@ class BlockMatrix:
             obj = pc.matrix(obj)  # an ndarray or nested list: imported, not a NumPy leaf
         return BlockMatrix([[obj]])
 
+    def _operand(self, other: Any) -> BlockMatrix:
+        pc = _get_pycauset()
+        if isinstance(other, pc.VectorBase) or (isinstance(other, _np().ndarray) and other.ndim == 1):
+            raise TypeError("BlockMatrix does not take vector operands; use an n x 1 matrix")
+        return BlockMatrix._as_blockmatrix(other)
+
+    def _binary(self, other: Any, op: str, reflected: bool) -> BlockMatrix:
+        if _is_scalar(other):  # mapped over the leaves, in the grid's dtype (review 3.10 C-8)
+            f = _SCALAR_OPS[op]
+            fn = (lambda x: f(other, x)) if reflected else (lambda x: f(x, other))
+            return _block_map(self, fn, _scalar_dtype(self.dtype, fn))
+        o = self._operand(other)
+        return _block_elementwise(op, o, self) if reflected else _block_elementwise(op, self, o)
+
     def __matmul__(self, other: Any) -> BlockMatrix:
-        return block_matmul(self, BlockMatrix._as_blockmatrix(other))
+        return block_matmul(self, self._operand(other))
 
     def __rmatmul__(self, other: Any) -> BlockMatrix:
-        return block_matmul(BlockMatrix._as_blockmatrix(other), self)
+        return block_matmul(self._operand(other), self)
 
     def __add__(self, other: Any) -> BlockMatrix:
-        return block_add(self, BlockMatrix._as_blockmatrix(other))
+        return self._binary(other, "add", False)
 
     def __radd__(self, other: Any) -> BlockMatrix:
-        return block_add(BlockMatrix._as_blockmatrix(other), self)
+        return self._binary(other, "add", True)
 
     def __sub__(self, other: Any) -> BlockMatrix:
-        return block_sub(self, BlockMatrix._as_blockmatrix(other))
+        return self._binary(other, "sub", False)
 
     def __rsub__(self, other: Any) -> BlockMatrix:
-        return block_sub(BlockMatrix._as_blockmatrix(other), self)
+        return self._binary(other, "sub", True)
 
     def __mul__(self, other: Any) -> BlockMatrix:
-        return block_mul(self, BlockMatrix._as_blockmatrix(other))
+        return self._binary(other, "mul", False)
 
     def __rmul__(self, other: Any) -> BlockMatrix:
-        return block_mul(BlockMatrix._as_blockmatrix(other), self)
+        return self._binary(other, "mul", True)
 
     def __truediv__(self, other: Any) -> BlockMatrix:
-        return block_div(self, BlockMatrix._as_blockmatrix(other))
+        return self._binary(other, "div", False)
 
     def __rtruediv__(self, other: Any) -> BlockMatrix:
-        return block_div(BlockMatrix._as_blockmatrix(other), self)
+        return self._binary(other, "div", True)
+
+    def __neg__(self) -> BlockMatrix:
+        fn = lambda x: -x  # noqa: E731
+        return _block_map(self, fn, _scalar_dtype(self.dtype, fn))
+
+    # --- transposes: the grid transposed, each leaf an engine view (review 3.10 C-8) ---
+
+    @property
+    def T(self) -> BlockMatrix:
+        return _block_map(self, lambda x: x.T, self.dtype if self.dtype in _DTYPES else None, transpose=True)
+
+    def transpose(self) -> BlockMatrix:
+        return self.T
+
+    def conj(self) -> BlockMatrix:
+        return _block_map(self, lambda x: x.conj(), self.dtype if self.dtype in _DTYPES else None)
+
+    @property
+    def H(self) -> BlockMatrix:
+        return _block_map(self, lambda x: x.conj().T, self.dtype if self.dtype in _DTYPES else None, transpose=True)
 
     # --- block introspection ---
 
@@ -322,7 +373,7 @@ class BlockMatrix:
         self._blocks[r][c] = block
         self._version += 1
 
-    # --- partition refinement (Phase C) ---
+    # --- partition refinement ---
 
     def refine_partitions(
         self,
@@ -382,8 +433,12 @@ class BlockMatrix:
     ) -> list[int]:
         if target is None:
             return list(current)
-        if not isinstance(target, list) or not all(isinstance(x, int) for x in target):
-            raise TypeError(f"{axis}_partitions must be a list[int]")
+        if not isinstance(target, (list, tuple)) or any(isinstance(x, bool) for x in target):
+            raise TypeError(f"{axis}_partitions must be a list of integers")
+        try:
+            target = [operator.index(x) for x in target]  # NumPy integers too (review 3.10 C-8)
+        except TypeError:
+            raise TypeError(f"{axis}_partitions must be a list of integers") from None
         if len(target) < 2:
             raise ValueError(f"{axis}_partitions must have at least [0, {total}]")
         if target[0] != 0 or target[-1] != total:
@@ -402,8 +457,15 @@ class BlockMatrix:
     # --- element indexing ---
 
     def _find_block_index(self, i: int, j: int) -> tuple[int, int, int, int]:
-        if not (isinstance(i, int) and isinstance(j, int)):
-            raise TypeError("indices must be integers")
+        # NumPy's integers (operator.index: np.int64 works, a float does not) and negative
+        # indices from the end (review 3.10 C-8).
+        if isinstance(i, bool) or isinstance(j, bool):
+            raise IndexError("boolean scalar indices are not supported")
+        i, j = operator.index(i), operator.index(j)
+        if i < 0:
+            i += self.rows()
+        if j < 0:
+            j += self.cols()
         if i < 0 or j < 0 or i >= self.rows() or j >= self.cols():
             raise IndexError("index out of range")
 
@@ -422,10 +484,30 @@ class BlockMatrix:
         return blk[ii, jj]
 
     def __getitem__(self, key: Any) -> Any:
+        """`bm[i, j]` an element; `bm[r0:r1, c0:c1]` (step 1) the sub-grid, its leaves the tiles
+        of a refinement at the slice bounds (no copy; review 3.10 C-8). Other keys raise."""
         if not (isinstance(key, tuple) and len(key) == 2):
-            raise TypeError("matrix indices must be provided as [row, col]")
+            raise TypeError("BlockMatrix indices are [row, col] or [r0:r1, c0:c1]")
         i, j = key
-        return self.get(int(i), int(j))
+        if isinstance(i, slice) and isinstance(j, slice):
+            return self._subgrid(i, j)
+        if isinstance(i, slice) or isinstance(j, slice):
+            raise TypeError("BlockMatrix slicing takes a slice on both axes (bm[r0:r1, c0:c1])")
+        return self.get(i, j)
+
+    def _subgrid(self, rs: slice, cs: slice) -> BlockMatrix:
+        r0, r1, rstep = rs.indices(self.rows())
+        c0, c1, cstep = cs.indices(self.cols())
+        if rstep != 1 or cstep != 1:
+            raise TypeError("BlockMatrix slicing takes steps of 1")
+        if r1 <= r0 or c1 <= c0:
+            raise ValueError("BlockMatrix slice is empty")
+        rows = sorted(set(self._row_partitions) | {r0, r1})
+        cols = sorted(set(self._col_partitions) | {c0, c1})
+        g = self.refine_partitions(row_partitions=rows, col_partitions=cols)
+        bi = range(rows.index(r0), rows.index(r1))
+        bj = range(cols.index(c0), cols.index(c1))
+        return BlockMatrix([[g.get_block(i, j) for j in bj] for i in bi])
 
     # --- printing ---
 
@@ -491,7 +573,7 @@ class BlockMatrix:
 
 
 def block_matmul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
-    """Internal block-matrix matmul orchestration (Phase D).
+    """`left @ right` for two block matrices.
 
     Returns a BlockMatrix whose output blocks are lazy ThunkBlocks. Each output
     block sums over k in deterministic left-to-right order.
@@ -563,213 +645,82 @@ def block_matmul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
     return BlockMatrix(out_blocks)
 
 
-def block_add(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
-    """Internal block-matrix elementwise addition orchestration (Phase D).
-
-    Returns a BlockMatrix whose output blocks are lazy ThunkBlocks.
-    Partitions are aligned by refinement to the union of row/col boundaries.
-    """
-
+def _block_elementwise(op: str, left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
+    """`left op right` element-wise ("add", "sub", "mul", "div"): a BlockMatrix of
+    lazy ThunkBlocks over the union of both grids' boundaries (each tile a leaf pair). One
+    orchestrator for the four operations (they were four copies, review 3.10 C-12)."""
     if left.shape != right.shape:
-        raise ValueError(
-            f"add dimension mismatch: {left.rows()}x{left.cols()} + {right.rows()}x{right.cols()}"
-        )
-
-    rdtype = _promote("add", left.dtype, right.dtype)
+        raise ValueError(f"{op} dimension mismatch: {left.rows()}x{left.cols()} and {right.rows()}x{right.cols()}")
+    rdtype = _promote(op, left.dtype, right.dtype)
     rows_u = sorted(set(left.row_partitions) | set(right.row_partitions))
     cols_u = sorted(set(left.col_partitions) | set(right.col_partitions))
-
-    l = left.refine_partitions(row_partitions=rows_u, col_partitions=cols_u)
-    r = right.refine_partitions(row_partitions=rows_u, col_partitions=cols_u)
+    lg = left.refine_partitions(row_partitions=rows_u, col_partitions=cols_u)
+    rg = right.refine_partitions(row_partitions=rows_u, col_partitions=cols_u)
 
     out_blocks: list[list[Any]] = []
-    for i in range(l.block_rows):
+    for i in range(lg.block_rows):
         out_row: list[Any] = []
-        for j in range(l.block_cols):
-            r0, r1 = l.row_partitions[i], l.row_partitions[i + 1]
-            c0, c1 = l.col_partitions[j], l.col_partitions[j + 1]
-            out_rows = r1 - r0
-            out_cols = c1 - c0
-
-            a0 = l.get_block(i, j)
-            b0 = r.get_block(i, j)
-            staleness_sources: list[Any] = [left, right]
-            _extend_staleness_sources(staleness_sources, a0)
-            _extend_staleness_sources(staleness_sources, b0)
+        for j in range(lg.block_cols):
+            a0, b0 = lg.get_block(i, j), rg.get_block(i, j)
+            sources: list[Any] = [left, right]
+            _extend_staleness_sources(sources, a0)
+            _extend_staleness_sources(sources, b0)
 
             def _compute(a0: Any = a0, b0: Any = b0) -> Any:
                 _try_io_prefetch(a0)
                 _try_io_prefetch(b0)
-                out = _leaf_elementwise(a0, b0, "add", rdtype)
-                return out  # inputs and the fresh result stay resident (3.10 C-11)
+                return _leaf_elementwise(a0, b0, op, rdtype)  # inputs and the result stay resident (C-11)
 
-            out_row.append(
-                ThunkBlock(
-                    rows=out_rows,
-                    cols=out_cols,
-                    compute=_compute,
-                    sources_for_staleness=staleness_sources,
-                    label="thunk",
-                    dtype=rdtype,
-                )
-            )
+            out_row.append(ThunkBlock(rows=rows_u[i + 1] - rows_u[i], cols=cols_u[j + 1] - cols_u[j], compute=_compute,
+                                      sources_for_staleness=sources, label="thunk", dtype=rdtype))
         out_blocks.append(out_row)
-
     return BlockMatrix(out_blocks)
+
+
+def _block_map(grid: BlockMatrix, fn: Any, dtype: str | None, *, transpose: bool = False) -> BlockMatrix:
+    """A BlockMatrix of lazy ThunkBlocks `fn(leaf)` over every leaf (as an engine operand of the
+    grid's dtype), the grid transposed when `transpose`. Scalars, negation and transposes of a
+    grid (review 3.10 C-8: they raised)."""
+    out_blocks: list[list[Any]] = []
+    rows = [[grid.get_block(i, j) for j in range(grid.block_cols)] for i in range(grid.block_rows)]
+    if transpose:
+        rows = [list(col) for col in zip(*rows)]
+    gdtype = grid.dtype if grid.dtype in _DTYPES else None
+    for row in rows:
+        out_row: list[Any] = []
+        for blk in row:
+            r, c = _safe_rows_cols(blk)
+            sources: list[Any] = [grid]
+            _extend_staleness_sources(sources, blk)
+
+            def _compute(blk: Any = blk) -> Any:
+                return fn(_leaf_operand(_cast_leaf(blk, gdtype)))
+
+            out_row.append(ThunkBlock(rows=c if transpose else r, cols=r if transpose else c, compute=_compute,
+                                      sources_for_staleness=sources, label="thunk", dtype=dtype))
+        out_blocks.append(out_row)
+    return BlockMatrix(out_blocks)
+
+
+def _scalar_dtype(grid_dtype: str | None, fn: Any) -> str | None:
+    """The dtype `fn` gives for a leaf of the grid's dtype (the engine decides, on a 1 x 1 probe)."""
+    if grid_dtype not in _DTYPES:
+        return None
+    pc = _get_pycauset()
+    return str(fn(pc.zeros((1, 1), dtype=grid_dtype)).dtype)
+
+
+def block_add(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
+    return _block_elementwise("add", left, right)
 
 
 def block_sub(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
-    """Internal block-matrix elementwise subtraction orchestration (Phase F).
-
-    Returns a BlockMatrix whose output blocks are lazy ThunkBlocks.
-    Partitions are aligned by refinement to the union of row/col boundaries.
-    """
-
-    if left.shape != right.shape:
-        raise ValueError(
-            f"subtract dimension mismatch: {left.rows()}x{left.cols()} - {right.rows()}x{right.cols()}"
-        )
-
-    rdtype = _promote("sub", left.dtype, right.dtype)
-    rows_u = sorted(set(left.row_partitions) | set(right.row_partitions))
-    cols_u = sorted(set(left.col_partitions) | set(right.col_partitions))
-
-    l = left.refine_partitions(row_partitions=rows_u, col_partitions=cols_u)
-    r = right.refine_partitions(row_partitions=rows_u, col_partitions=cols_u)
-
-    out_blocks: list[list[Any]] = []
-    for i in range(l.block_rows):
-        out_row: list[Any] = []
-        for j in range(l.block_cols):
-            r0, r1 = l.row_partitions[i], l.row_partitions[i + 1]
-            c0, c1 = l.col_partitions[j], l.col_partitions[j + 1]
-            out_rows = r1 - r0
-            out_cols = c1 - c0
-
-            a0 = l.get_block(i, j)
-            b0 = r.get_block(i, j)
-            staleness_sources: list[Any] = [left, right]
-            _extend_staleness_sources(staleness_sources, a0)
-            _extend_staleness_sources(staleness_sources, b0)
-
-            def _compute(a0: Any = a0, b0: Any = b0) -> Any:
-                _try_io_prefetch(a0)
-                _try_io_prefetch(b0)
-                out = _leaf_elementwise(a0, b0, "sub", rdtype)
-                return out  # inputs and the fresh result stay resident (3.10 C-11)
-
-            out_row.append(
-                ThunkBlock(
-                    rows=out_rows,
-                    cols=out_cols,
-                    compute=_compute,
-                    sources_for_staleness=staleness_sources,
-                    label="thunk",
-                    dtype=rdtype,
-                )
-            )
-        out_blocks.append(out_row)
-
-    return BlockMatrix(out_blocks)
+    return _block_elementwise("sub", left, right)
 
 
 def block_mul(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
-    """Internal block-matrix elementwise multiply orchestration (Phase F)."""
-
-    if left.shape != right.shape:
-        raise ValueError(
-            f"multiply dimension mismatch: {left.rows()}x{left.cols()} * {right.rows()}x{right.cols()}"
-        )
-
-    rdtype = _promote("mul", left.dtype, right.dtype)
-    rows_u = sorted(set(left.row_partitions) | set(right.row_partitions))
-    cols_u = sorted(set(left.col_partitions) | set(right.col_partitions))
-
-    l = left.refine_partitions(row_partitions=rows_u, col_partitions=cols_u)
-    r = right.refine_partitions(row_partitions=rows_u, col_partitions=cols_u)
-
-    out_blocks: list[list[Any]] = []
-    for i in range(l.block_rows):
-        out_row: list[Any] = []
-        for j in range(l.block_cols):
-            r0, r1 = l.row_partitions[i], l.row_partitions[i + 1]
-            c0, c1 = l.col_partitions[j], l.col_partitions[j + 1]
-            out_rows = r1 - r0
-            out_cols = c1 - c0
-
-            a0 = l.get_block(i, j)
-            b0 = r.get_block(i, j)
-            staleness_sources: list[Any] = [left, right]
-            _extend_staleness_sources(staleness_sources, a0)
-            _extend_staleness_sources(staleness_sources, b0)
-
-            def _compute(a0: Any = a0, b0: Any = b0) -> Any:
-                _try_io_prefetch(a0)
-                _try_io_prefetch(b0)
-                out = _leaf_elementwise(a0, b0, "mul", rdtype)
-                return out  # inputs and the fresh result stay resident (3.10 C-11)
-
-            out_row.append(
-                ThunkBlock(
-                    rows=out_rows,
-                    cols=out_cols,
-                    compute=_compute,
-                    sources_for_staleness=staleness_sources,
-                    label="thunk",
-                    dtype=rdtype,
-                )
-            )
-        out_blocks.append(out_row)
-
-    return BlockMatrix(out_blocks)
+    return _block_elementwise("mul", left, right)
 
 
 def block_div(left: BlockMatrix, right: BlockMatrix) -> BlockMatrix:
-    """Internal block-matrix elementwise divide orchestration (Phase F)."""
-
-    if left.shape != right.shape:
-        raise ValueError(
-            f"divide dimension mismatch: {left.rows()}x{left.cols()} / {right.rows()}x{right.cols()}"
-        )
-
-    rdtype = _promote("div", left.dtype, right.dtype)
-    rows_u = sorted(set(left.row_partitions) | set(right.row_partitions))
-    cols_u = sorted(set(left.col_partitions) | set(right.col_partitions))
-
-    l = left.refine_partitions(row_partitions=rows_u, col_partitions=cols_u)
-    r = right.refine_partitions(row_partitions=rows_u, col_partitions=cols_u)
-
-    out_blocks: list[list[Any]] = []
-    for i in range(l.block_rows):
-        out_row: list[Any] = []
-        for j in range(l.block_cols):
-            r0, r1 = l.row_partitions[i], l.row_partitions[i + 1]
-            c0, c1 = l.col_partitions[j], l.col_partitions[j + 1]
-            out_rows = r1 - r0
-            out_cols = c1 - c0
-
-            a0 = l.get_block(i, j)
-            b0 = r.get_block(i, j)
-            staleness_sources: list[Any] = [left, right]
-            _extend_staleness_sources(staleness_sources, a0)
-            _extend_staleness_sources(staleness_sources, b0)
-
-            def _compute(a0: Any = a0, b0: Any = b0) -> Any:
-                _try_io_prefetch(a0)
-                _try_io_prefetch(b0)
-                out = _leaf_elementwise(a0, b0, "div", rdtype)
-                return out  # inputs and the fresh result stay resident (3.10 C-11)
-
-            out_row.append(
-                ThunkBlock(
-                    rows=out_rows,
-                    cols=out_cols,
-                    compute=_compute,
-                    sources_for_staleness=staleness_sources,
-                    label="thunk",
-                    dtype=rdtype,
-                )
-            )
-        out_blocks.append(out_row)
-
-    return BlockMatrix(out_blocks)
+    return _block_elementwise("div", left, right)

@@ -33,19 +33,6 @@ class ToyMatrix:
         return ToyMatrix(out, counters=self._counters)
 
 
-class VersionedToyMatrix(ToyMatrix):
-    def __init__(self, data, *, counters=None, version: int = 0):
-        super().__init__(data, counters=counters)
-        self._version = int(version)
-
-    @property
-    def version(self) -> int:
-        return int(self._version)
-
-    def bump(self) -> None:
-        self._version += 1
-
-
 def test_block_add_creates_thunks_and_is_lazy_on_repr():
     counters = {"add": 0}
 
@@ -79,11 +66,12 @@ def test_block_add_evaluates_on_element_access():
 
 
 def test_block_add_aligns_partitions_by_refinement_union():
-    counters = {"add": 0}
+    import pycauset as pc
 
-    # Same overall 2x2, but left is refined into 1x1 tiles while right is 1 block.
-    A = ToyMatrix([[1, 2], [3, 4]], counters=counters)
-    B = ToyMatrix([[10, 20], [30, 40]], counters=counters)
+    # Same overall 2x2, but left is refined into 1x1 tiles while right is 1 block. (Cut tiles
+    # are engine slices: the leaves are PyCauset matrices; review 3.10 C-12.)
+    A = pc.matrix([[1, 2], [3, 4]])
+    B = pc.matrix([[10, 20], [30, 40]])
 
     left = BlockMatrix([[A]]).refine_partitions(row_partitions=[0, 1, 2], col_partitions=[0, 1, 2])
     right = BlockMatrix([[B]])
@@ -116,10 +104,10 @@ def test_block_add_stale_thunk_raises_after_input_version_changes():
 
 
 def test_block_add_stale_thunk_raises_when_leaf_version_changes_even_if_parent_does_not():
-    counters = {"add": 0}
+    import pycauset as pc
 
-    A = VersionedToyMatrix([[1, 2], [3, 4]], counters=counters)
-    B = ToyMatrix([[10, 20], [30, 40]], counters=counters)
+    A = pc.matrix([[1, 2], [3, 4]])  # engine leaves are pinned by their storage version
+    B = pc.matrix([[10, 20], [30, 40]])
 
     left = BlockMatrix([[A]]).refine_partitions(row_partitions=[0, 1, 2], col_partitions=[0, 1, 2])
     right = BlockMatrix([[B]])
@@ -128,6 +116,6 @@ def test_block_add_stale_thunk_raises_when_leaf_version_changes_even_if_parent_d
     assert out.get(0, 0) == 11
 
     # Mutate leaf in-place; no BlockMatrix.set_block() call.
-    A.bump()
+    A[1, 1] = 9
     with pytest.raises(StaleThunkError):
         out.get(0, 0)

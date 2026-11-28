@@ -30,7 +30,7 @@ Rules:
 - If all elements are matrix-like: return a `BlockMatrix`.
 	- `dtype` and `**kwargs` are rejected for block-grid input.
 	- Block-grid validation requires each block-row to share height and each block-col to share width; shape mismatches raise deterministically.
-	- Block matrices support element access and block-aware slicing; slices tile with `SubmatrixView` blocks (no silent densify) and may error if a view cannot be represented.
+	- Block matrices support element access and `bm[r0:r1, c0:c1]` sub-grids (step 1, no copy).
 
 ## Parameters
 

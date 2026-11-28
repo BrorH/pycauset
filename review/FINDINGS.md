@@ -1921,7 +1921,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-139 Area 3.10 (block matrices): block results cannot be reused, mismatched partitions fail
 - **Status:** reviewed (session 9), 12 findings in `review/areas/3.10-block-matrices.md`
-  (0 S1, 4 S2, 6 S3, 2 S4). C-1, C-2, C-4, C-6, C-7 fixed, C-3 mostly; the rest open. 3.9 C-4 (stale thunk cache) is
+  (0 S1, 4 S2, 6 S3, 2 S4). C-1, C-2, C-4, C-6 to C-8, C-10, C-12 fixed, C-3 mostly; the rest open. 3.9 C-4 (stale thunk cache) is
   fixed: engine leaves are pinned by storage version.
   - C-1 (fixed): a block result (`ThunkBlock`) had no operators: `(L @ R) @ R` raised.
   - C-2 (fixed): element-wise ops on grids with different partitions failed in 7 of 8 cases.
@@ -1934,8 +1934,10 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-7 (fixed): `ndarray @ bm` computed in NumPy (no `__array_ufunc__ = None`).
   - C-6 (fixed): block exports go through the one export guard (`allow_huge`, `copy=False`,
     thunk tiles counted).
-  - C-8 to C-12: missing scalar ops / transpose / slicing, persistence
-    leftovers, stale docs, IO hints, dead `DensePythonMatrix`.
+  - C-8 (fixed): scalars, negation, transposes, sub-grid slicing, NumPy indices.
+  - C-10, C-12 (fixed): the docs; dead code (`DensePythonMatrix`) and the four copies.
+  - Open: C-5 (pinning of thunk / nested leaves, the cache exception), C-9 (persistence
+    leftovers), C-11 rest (tile-sized prefetch, in-place accumulation).
 
 ### F-140 Area 3.7 (bindings): export after close segfaults, list keys read as (row, col), byte order ignored
 - **Status:** reviewed (session 9), 18 findings in `review/areas/3.7-bindings.md` (3 S1, 4 S2,

@@ -49,7 +49,14 @@ The container exposes:
 - `repr/str` are structure-only.
 - A view-of-a-view composes deterministically into a single view.
 
-In block orchestration, `SubmatrixView` is used to tile operands when block boundaries do not align. Block-aware slicing returns tiled `SubmatrixView` blocks (no densify); unsupported view shapes error deterministically.
+In block orchestration, `SubmatrixView` is used to tile operands when block boundaries do not
+align. When a tile is computed, it is the engine's slice of its leaf: a zero-copy window of a
+dense leaf, a dense copy of just the tile of a structured one, a sub-grid of a nested block
+matrix. A tile of a duck-typed matrix-like leaf raises `TypeError`: leaves that operations cut
+must be PyCauset matrices.
+
+Slicing a block matrix, `bm[r0:r1, c0:c1]` (step 1), refines at the slice bounds and returns
+the sub-grid of those tiles (no copy). Other slices raise `TypeError`.
 
 ### `ThunkBlock`
 
@@ -63,7 +70,9 @@ Staleness (snapshot-at-creation, R1):
 
 - `ThunkBlock` pins `version` on captured sources; evaluation/cache hits check versions and **raise** on mismatch (no auto-recompute).
 - `BlockMatrix` increments its own `version` on `set_block`, invalidating cached/thunked blocks owned by the container.
-- Leaf mutations are expected to bump their `version`; stale access is an error.
+- Engine leaves are pinned by their storage version, so writing a leaf (`A[0, 0] = 1`) makes
+  every thunk that read it stale; nothing has to be bumped by hand. A duck-typed leaf takes part
+  through its own `version` attribute, if it has one.
 
 ## Orchestration semantics
 
@@ -72,9 +81,13 @@ Staleness (snapshot-at-creation, R1):
 If either operand is a `BlockMatrix`, operations preserve block-ness by returning a `BlockMatrix` result (typically thunked):
 
 - Matmul: `A @ B` or `pycauset.matmul(A, B)`
-- Elementwise: `+`, `-`, `*`, `/`
+- Elementwise: `+`, `-`, `*`, `/`, with another matrix or a scalar (a scalar maps over the
+  leaves, in the grid's dtype), and `-A`
+- Transposes: `A.T`, `A.conj()`, `A.H` (the grid transposed, each leaf an engine view)
 
-Mixed operands are handled by wrapping the non-block operand as a `1×1` `BlockMatrix`, then refining partitions to align.
+A matrix operand that is not a block matrix is wrapped as a `1×1` `BlockMatrix`, then the
+partitions are refined to align. Vectors are not block operands (`TypeError`; use an n × 1
+matrix).
 
 ### Partition refinement
 
@@ -85,9 +98,9 @@ The refinement step creates `SubmatrixView` tiles when necessary.
 
 ### Leaf compute boundary
 
-A "leaf × leaf" matmul of two engine operands (matrices, vectors, submatrix views) goes
-through `pycauset.matmul`, so the engine's structure rules and its out-of-core decision apply
-to each leaf product. Other operands (nested block matrices, other matrix-likes) use their own
+A "leaf × leaf" matmul of two engine operands (matrices, cut tiles) goes through
+`pycauset.matmul`, so the engine's structure rules and its out-of-core decision apply to each
+leaf product. Other operands (nested block matrices, other matrix-likes) use their own
 `@`. The choice is by type (`_leaf_matmul`), never by trying one path and catching its error.
 Each leaf product is an ordinary engine operation
 ([[internals/Compute Architecture.md|Compute Architecture]]).
@@ -108,7 +121,8 @@ tiles keep their own operations.
 - Non-triggers: `repr/str`, shape/partition metadata, and `get_block`.
 - Cached results are reused until a version mismatch is detected; stale hits raise.
 
-Concurrency: each `ThunkBlock` uses single-eval locking (e.g., `once_flag`/`mutex`) so concurrent requests compute once and reuse the cached block.
+Concurrency: each `ThunkBlock` evaluates once under a `threading.Lock`, so concurrent requests
+compute once and reuse the cached block.
 
 ### Deterministic accumulation per output block
 
@@ -120,8 +134,9 @@ Concurrency: each `ThunkBlock` uses single-eval locking (e.g., `once_flag`/`mute
 
 Orchestrated evaluation performs best-effort IO hints:
 
-- Prefetch before using a backing file: `obj._io_prefetch()` (and `obj._io_discard()` after use)
-- Discard after a temporary is no longer needed: `discard(0, size)`
+- Prefetch the leaves before a product: `obj._io_prefetch()`
+- Discard only temporaries: the previous accumulator, and a product that is not the
+  accumulator. Inputs and fresh results stay resident (the caller reads them next).
 
 These hooks are intentionally best-effort and should never be required for correctness.
 
@@ -155,7 +170,8 @@ Save policies (Release 1):
 
 View blocks on save:
 
-- Persisting `SubmatrixView` blocks materializes the view **block-locally** into a small NumPy array, then converts via `native.asarray`.
+- Persisting a `SubmatrixView` block of a dense leaf writes it from an engine window; other
+  view blocks are copied block-locally (no global densification).
 - This avoids global densification while still producing stable on-disk storage.
 
 ## Debugging and traceability

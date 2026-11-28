@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import operator
 from dataclasses import dataclass
 from typing import Any
 
-from .dense_python import DensePythonMatrix
 from .coercion import safe_rows_cols as _safe_rows_cols
 
 
@@ -12,17 +12,6 @@ def _safe_get(obj: Any, i: int, j: int) -> Any:
     if callable(get_fn):
         return get_fn(i, j)
     return obj[i, j]
-
-
-def _dense_from_get(obj: Any) -> DensePythonMatrix:
-    shape = _safe_rows_cols(obj)
-    if shape is None:
-        raise TypeError("expected a matrix-like object")
-    r, c = shape
-    data: list[list[Any]] = []
-    for i in range(r):
-        data.append([_safe_get(obj, i, j) for j in range(c)])
-    return DensePythonMatrix(data)
 
 
 @dataclass(frozen=True)
@@ -36,13 +25,11 @@ class _Rect:
 class SubmatrixView:
     """A no-copy rectangular view into a matrix-like source.
 
-    Phase C scope:
-    - Construction validation (bounds, shape)
-    - Element access by delegating into the source
-    - View composition: a view-of-a-view collapses into a single view
-    - Structure-only printing (repr/str must not access elements)
-
-    This is internal and intentionally minimal.
+    - Construction validates the bounds.
+    - Elements are read from the source; operations read the tile as an engine slice of its
+      leaf (`blockmatrix._leaf_operand`).
+    - A view of a view collapses into a single view.
+    - Printing shows the structure only (repr/str must not access elements).
     """
 
     def __init__(self, source: Any, row0: int, col0: int, rows: int, cols: int):
@@ -119,8 +106,7 @@ class SubmatrixView:
         return getattr(self._source, "dtype", None)
 
     def get(self, i: int, j: int) -> Any:
-        if not (isinstance(i, int) and isinstance(j, int)):
-            raise TypeError("indices must be integers")
+        i, j = operator.index(i), operator.index(j)
         if i < 0 or j < 0 or i >= self.rows() or j >= self.cols():
             raise IndexError("index out of range")
         return _safe_get(self._source, self.row_offset + i, self.col_offset + j)
@@ -131,15 +117,9 @@ class SubmatrixView:
         i, j = key
         return self.get(int(i), int(j))
 
-    # --- ops (Phase D fallback) ---
-
-    def __add__(self, other: Any) -> Any:
-        # Block-local materialization only; no global densification.
-        return _dense_from_get(self) + other
-
-    def __matmul__(self, other: Any) -> Any:
-        # Block-local materialization only; no global densification.
-        return _dense_from_get(self) @ other
+    # (Operators: a view tile is an operand of the block layer, which reads it as an engine
+    # window, `blockmatrix._leaf_operand`. The element-by-element Python fallbacks are gone,
+    # review 3.10 C-12.)
 
     # --- printing (structure-only; must not access elements) ---
 

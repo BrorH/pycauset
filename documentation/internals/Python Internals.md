@@ -27,7 +27,7 @@ Nothing in `_internal/` should be treated as a public API.
 | `export_guard.py`, `native_threshold.py` | export to NumPy and its size guard; scoped memory-threshold changes |
 | `persistence.py` | the `.pycauset` container: save, load, metadata |
 | `io_observability.py` | IO traces (`last_io_trace`) |
-| `blockmatrix.py`, `submatrix_view.py`, `thunks.py`, `dense_python.py` | block matrices: blocks, windows into them, lazy block products |
+| `blockmatrix.py`, `submatrix_view.py`, `thunks.py` | block matrices: blocks, windows into them, lazy block products |
 | `warnings.py` | the warning categories |
 
 If you’re unsure where a new helper belongs, prefer `_internal/` first.

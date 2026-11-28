@@ -33,10 +33,10 @@ class _VersionPin:
 class ThunkBlock:
     """Lazy block that evaluates to a concrete matrix-like object.
 
-    Phase D scope:
-    - Known shape at construction time
-    - Cached evaluation
-    - Staleness check based on pinned `version` attributes on captured sources
+    - Its shape (and dtype) is known at construction.
+    - It evaluates once (under a lock) and keeps the result.
+    - Staleness: the versions of its sources (engine storage versions, a grid's set_block count)
+      are pinned at construction; a changed one raises StaleThunkError.
 
     Evaluation triggers:
     - element access (`get` / `__getitem__`)

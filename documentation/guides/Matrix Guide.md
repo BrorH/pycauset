@@ -104,16 +104,22 @@ Block-grid input rejects `dtype` and `**kwargs`.
 
 ### Operations, laziness, and slicing
 
-- “Once block, always block”: `@`, `+`, `-`, `*`, `/` preserve block structure and return a block matrix result.
+- “Once block, always block”: `@`, `+`, `-`, `*`, `/` (with a matrix or a scalar), `-A`, `A.T`,
+  `A.conj()` and `A.H` preserve block structure and return a block matrix result.
 - Results are thunked per output block and evaluate only on triggers:
     - element access (`C[i, j]`),
     - dense conversion (`np.asarray(C)`),
     - persistence (`pc.save(C, ...)`),
-    - crossing the compute boundary (e.g., feeding a thunk block into another op).
+    - another block operation reading a result block (`(L @ R) @ R` evaluates `L @ R`'s blocks
+      as its leaves).
 - Non-triggers: `repr/str`, shape/partition metadata, and `get_block`.
-- Block-aware slicing is supported: slicing a block matrix returns tiled `SubmatrixView` blocks without densifying; it raises deterministically if a required view cannot be represented.
-- Partition mismatches during ops or slicing are handled by refinement (union of boundaries) with `SubmatrixView` tiling-no silent densify.
-- Staleness: thunks pin input `version` metadata; `set_block` or child mutation bumps versions. Stale thunks/caches raise on access (no auto-recompute).
+- Slicing: `A[r0:r1, c0:c1]` (step 1) returns the sub-grid without copying (the grid is refined
+  at the slice bounds); `A[i, j]` reads one element (negative indices from the end).
+- Partition mismatches during ops or slicing are handled by refinement (union of boundaries)
+  with `SubmatrixView` tiles, computed as engine slices of their leaves (no silent densify).
+- Staleness: thunks pin their inputs (a leaf's storage version, a grid's `set_block` count);
+  writing a leaf or calling `set_block` makes them stale. Stale thunks raise on access (no
+  auto-recompute).
 
 ### Saving and loading
 
@@ -153,8 +159,8 @@ Dense slices with step 1 are views (below). Every other selection is a copy:
 - `complex_float16` slices;
 - vector slices.
 
-Block matrices support element access and block-aware slicing via tiled `SubmatrixView` (no
-densify).
+Block matrices support element access and `bm[r0:r1, c0:c1]` sub-grids (no copy); see
+"Block matrices" below.
 
 ### Basic indexing → views (shared until written)
 

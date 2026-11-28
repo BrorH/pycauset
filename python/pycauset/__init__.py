@@ -719,8 +719,6 @@ def matrix(source: Any, dtype: Any = None, **kwargs: Any) -> Any:
             if all_matrix and any_matrix:  # (vacuously all for [[]], which is a 1 x 0 matrix)
                 if dtype is not None or kwargs:
                     raise TypeError("matrix(block_grid) does not accept dtype/kwargs")
-                if BlockMatrix is None:
-                    raise ImportError("BlockMatrix support is unavailable")
                 return BlockMatrix(source)
 
             if dtype is None:

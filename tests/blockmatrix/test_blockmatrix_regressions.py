@@ -142,3 +142,26 @@ def test_3_10_C6_block_exports_go_through_the_one_guard():
         with pytest.raises(ValueError, match="copy"):
             np.asarray(obj, copy=False)
     np.testing.assert_array_equal(np.asarray(grid, dtype=np.float32), np.hstack([np.ones((4, 4)), np.full((4, 4), 2.0)]))
+
+
+def test_3_10_C8_scalars_negation_transposes_slices_and_indices():
+    """bm * 2, -bm, bm.T, bm[0:2, 0:2], bm[-1, -1] and np.int64 indices raised."""
+    a = np.arange(16.0).reshape(4, 4)
+    bm = BlockMatrix([[pc.matrix(a[:2, :2]), pc.matrix(a[:2, 2:])], [pc.matrix(a[2:, :2]), pc.matrix(a[2:, 2:])]])
+    for got, ref in ((bm * 2, a * 2), (2 * bm, 2 * a), (bm + 1, a + 1), (1 - bm, 1 - a), (bm / 2, a / 2),
+                     (-bm, -a), (bm.T, a.T), (bm.H, a.T), (bm.conj(), a), (bm[1:3, 0:3], a[1:3, 0:3]),
+                     ((bm * 2) @ bm.T, (a * 2) @ a.T)):
+        assert isinstance(got, BlockMatrix) and got.shape == ref.shape
+        np.testing.assert_allclose(np.asarray(got), ref)
+    assert bm[-1, -1] == a[-1, -1] and bm.get(np.int64(1), 0) == a[1, 0]
+    assert bm.refine_partitions(row_partitions=[0, np.int64(1), 2, 4]).row_partitions == [0, 1, 2, 4]
+    i8 = BlockMatrix([[pc.matrix(np.arange(4, dtype=np.int8).reshape(2, 2))]])
+    assert (i8 * 2).dtype == "int8" and (i8 + 1.5).dtype == "float64"  # the engine's scalar rules
+    with pytest.raises(TypeError, match="vector"):
+        bm @ pc.vector([1.0, 2.0, 3.0, 4.0])
+    with pytest.raises(TypeError):
+        bm[0:4:2, 0:4]
+    # A cut tile of a structured leaf is the engine's slice of just the tile.
+    D = pc.diagonal([1.0, 2.0, 3.0, 4.0])
+    g = BlockMatrix([[D]]).refine_partitions(row_partitions=[0, 1, 4], col_partitions=[0, 3, 4])
+    np.testing.assert_allclose(np.asarray(g + g), 2 * np.diag([1.0, 2.0, 3.0, 4.0]))
