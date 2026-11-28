@@ -6,7 +6,7 @@ PyCauset works with NumPy: convert a matrix to a NumPy array and back. PyCauset 
 
 You can convert NumPy arrays into `pycauset` objects using [[docs/functions/pycauset.matrix.md|pycauset.matrix]] and [[docs/functions/pycauset.vector.md|pycauset.vector]]. These constructors automatically detect the data type of the NumPy array and create the corresponding optimized object.
 
-Note: PyCauset does **not** expose a `pycauset.asarray` API. In PyCauset, “arrays” are not a first-class concept; matrices and vectors are.
+[[docs/functions/pycauset.asarray.md|pycauset.asarray]] is NumPy's `asarray`: a PyCauset object passes through unchanged, anything array-like is imported as a matrix (2-D) or vector (1-D).
 
 Rectangular 2D arrays are supported for dense numeric matrices (int/uint/float/complex). Boolean 2D arrays are bit-packed (`DenseMatrix` (dtype `bool`)) and also support rectangular `(rows, cols)` shapes.
 

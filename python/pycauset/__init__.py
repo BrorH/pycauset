@@ -244,7 +244,7 @@ def set_backing_dir(path: str | Path) -> Path:
         old_root = None
 
     # Native code allocates backing files; configure it directly.
-    _native.set_storage_root(str(new_root))
+    _native._set_storage_root(str(new_root))
 
     if old_root is not None and new_root != old_root and _runtime.has_own_temp_files(old_root):
         warnings.warn(
@@ -289,7 +289,7 @@ def clear_io_traces() -> None:
 # working directory at its first file-backed object, so after os.chdir the two disagreed).
 # Not created until a file-backed object needs it. Leftovers of crashed runs are swept if it
 # exists.
-_native.set_storage_root(str(_runtime.storage_root()))
+_native._set_storage_root(str(_runtime.storage_root()))
 _runtime.initial_cleanup()
 def _register_cleanup() -> None:
     _runtime.register_cleanup()
@@ -835,6 +835,18 @@ def dot(a: Any, b: Any) -> Any:
     return _ops.matmul(a, b, deps=_OPS_DEPS)  # vector @ matrix is 1-D, as np.dot
 
 
+def asarray(a: Any, dtype: Any = None) -> Any:
+    """A pycauset vector (1-D) or matrix (2-D) of an array-like, as NumPy's `asarray`: a pycauset
+    object is returned as it is (no copy) when no other dtype is asked for; NumPy arrays, lists and
+    tuples are imported (one import path with `matrix` / `vector`)."""
+    if isinstance(a, (_native.MatrixBase, _native.VectorBase)) and (dtype is None or _matrix_api.dtype_or_raise(dtype) == a.dtype):
+        return a
+    arr = _np.asarray(a)
+    if arr.ndim not in (1, 2):
+        raise ValueError(f"asarray: expected 1-D or 2-D input, got {arr.ndim}-D")
+    return _matrix_api.from_array(arr, _matrix_api.dtype_or_raise(dtype))
+
+
 def add(a: Any, b: Any) -> Any:
     """Element-wise `a + b` with NumPy's broadcasting; array-like operands are imported."""
     return _ops.elementwise(lambda x, y: x + y, a, b, "add", deps=_OPS_DEPS)
@@ -1286,6 +1298,7 @@ _extra_exports = [
     "UnitVector",
     "matmul",
     "dot",
+    "asarray",
     "add",
     "subtract",
     "multiply",

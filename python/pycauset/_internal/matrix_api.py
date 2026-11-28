@@ -109,7 +109,7 @@ def from_array(data: Any, target: str | None, *, storage: Any = None,
         data = data.astype(_NUMPY_DTYPE[target])
     data = np.ascontiguousarray(data)
     with _placement(storage, max_in_ram_bytes, int(data.nbytes)):
-        return _native.asarray(data)
+        return _native._asarray(data)
 
 
 def Matrix(size_or_data: Any, dtype: Any = None, **kwargs: Any) -> Any:

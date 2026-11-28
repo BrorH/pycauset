@@ -351,7 +351,7 @@ py::object export_matrix_numpy(const pycauset::MatrixBase& m) { return export_nu
 }  // namespace pycauset_bindings
 
 void bind_matrix_classes(py::module_& m) {
-    auto matrix_base_class = py::class_<MatrixBase, std::shared_ptr<MatrixBase>>(m, "MatrixBase", py::dynamic_attr());
+    auto matrix_base_class = py::class_<MatrixBase, std::shared_ptr<MatrixBase>>(m, "MatrixBase");
     matrix_base_class
         .def_property_readonly("__array_priority__", [](const MatrixBase&) { 
             return 1000.0; 
@@ -774,7 +774,9 @@ void bind_matrix_classes(py::module_& m) {
         throw py::type_error("not a pycauset matrix or vector");
     }, py::arg("obj"), "Internal: the storage structure name ('dense', 'triangular', ...).");
 
-    m.def("asarray", [](const py::array& array_in) -> py::object {
+    // The native NumPy importer (internal: pycauset.asarray is the facade, which also takes lists
+    // and pycauset objects, review 3.7 C-14).
+    m.def("_asarray", [](const py::array& array_in) -> py::object {
         const py::array array = normalize_numpy(array_in);  // byte order, strides (3.7 C-3)
         auto buf = array.request();
         if (buf.ndim == 1) {

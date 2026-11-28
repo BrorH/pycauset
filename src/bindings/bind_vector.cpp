@@ -211,7 +211,7 @@ inline py::object vector_compare(const VectorBase& v, const py::object& other, p
 } // namespace
 
 void bind_vector_classes(py::module_& m) {
-    py::class_<VectorBase, std::shared_ptr<VectorBase>>(m, "VectorBase", py::dynamic_attr())
+    py::class_<VectorBase, std::shared_ptr<VectorBase>>(m, "VectorBase")
         .def_property_readonly("backing_file", &VectorBase::get_backing_file)
         .def("get_backing_file", &VectorBase::get_backing_file)
         .def_property_readonly("is_temporary", &VectorBase::is_temporary)

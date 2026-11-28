@@ -1623,3 +1623,18 @@ def test_3_6_C9_dot_is_the_1d_matmul():
         want = pc.matmul(pc.matrix(a.reshape(1, -1)), pc.matrix(b.reshape(-1, 1)))[0, 0]
         assert pc.dot(A, B) == want and A @ B == want
     np.testing.assert_allclose(pc.dot(pc.vector([1 + 1j, 2]).conj(), pc.vector([1j, 1])), np.dot(np.conj([1 + 1j, 2]), [1j, 1]))
+
+
+def test_3_7_C14_public_surface():
+    """Review 3.7 C-14: pc.asarray was the native ndarray-only importer; pc.set_storage_root
+    bypassed the Python runtime; any attribute could be set on a matrix."""
+    A = pc.matrix(np.eye(2))
+    assert pc.asarray(A) is A
+    np.testing.assert_array_equal(np.asarray(pc.asarray([[1, 2], [3, 4]])), [[1, 2], [3, 4]])
+    assert pc.asarray([1.0, 2.0]).shape == (2,)
+    assert pc.asarray(A, dtype="float32").dtype == "float32"
+    with pytest.raises(ValueError):
+        pc.asarray(np.zeros((2, 2, 2)))
+    assert "set_storage_root" not in pc.__all__ and not hasattr(pc._native, "set_storage_root")
+    with pytest.raises(AttributeError):
+        A.shpae = (9, 9)

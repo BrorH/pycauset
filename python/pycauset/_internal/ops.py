@@ -8,7 +8,7 @@ from .coercion import safe_rows_cols as _safe_rows_cols
 
 
 def _as_pycauset_array(obj: Any, *, deps: OpsDeps) -> Any:
-    return deps.native.asarray(obj)
+    return deps.native._asarray(obj)
 
 
 class OpsDeps:
@@ -89,7 +89,7 @@ def _import_operand(x: Any, *, deps: OpsDeps) -> Any:
         return x
     arr = deps.np_module.asarray(x)
     if arr.ndim == 1:
-        return deps.native.asarray(arr)
+        return deps.native._asarray(arr)
     return deps.Matrix(arr)
 
 

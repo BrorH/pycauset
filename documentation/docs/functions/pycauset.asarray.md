@@ -1,23 +1,19 @@
 # pycauset.asarray
 
 ```python
-pycauset.asarray(a)
+pycauset.asarray(a, dtype=None)
 ```
 
-Convert a NumPy array into a native PyCauset matrix or vector.
-
-This is the low-level NumPy-to-PyCauset conversion entry point. It maps the input
-array's shape and dtype to the matching native class, so the result participates in
-the full PyCauset storage model (memory-mapped backing files, bit-packed booleans).
-
-For most workflows, prefer the data constructors [[docs/functions/pycauset.matrix.md|pycauset.matrix]] and
-[[docs/functions/pycauset.vector.md|pycauset.vector]], which accept both NumPy arrays and nested
-sequences. Use `pycauset.asarray` when you already hold a NumPy array and want the
-native object directly.
+A PyCauset vector (1-D input) or matrix (2-D input), as NumPy's `asarray`: a PyCauset object is
+returned as it is (no copy) unless another `dtype` is asked for; NumPy arrays, lists and tuples
+are imported, with the same rules as [[docs/functions/pycauset.matrix.md|pycauset.matrix]] and
+[[docs/functions/pycauset.vector.md|pycauset.vector]] (one import path; byte order and strides of
+any NumPy array are normalised).
 
 ## Parameters
 
-*   **a** (*numpy.ndarray*): The input array. Must be 1D or 2D.
+*   **a** (*array-like*): a PyCauset object, a NumPy array, or nested lists / tuples; 1-D or 2-D.
+*   **dtype** (*optional*): the dtype of the result (default: the input's).
 
 ## Returns
 
@@ -40,8 +36,8 @@ Other NumPy dtypes map to the corresponding native class (e.g. `float32` →
 
 ## Exceptions
 
-*   **TypeError**: Raised when the input is not a `numpy.ndarray` (e.g. a plain list),
-    or when the array has more than two dimensions.
+*   **ValueError**: the input is not 1-D or 2-D.
+*   **TypeError**: a dtype PyCauset does not store.
 
 ## Examples
 

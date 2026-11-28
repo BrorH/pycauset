@@ -665,7 +665,7 @@ def _save_blockmatrix(
 
     def _materialize_view_block(view_obj: Any) -> Any:
         # Materialize to a small numpy array (block-local) and convert to a native matrix.
-        asarray = deps.native.asarray
+        asarray = deps.native._asarray
         import numpy as np
 
         src = getattr(view_obj, "source", None)

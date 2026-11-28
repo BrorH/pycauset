@@ -97,7 +97,7 @@ void bind_core_classes(py::module_& m) {
     // Storage root for auto-created backing files (.pycauset-tmp). Public API lives in Python:
     // pycauset.set_backing_dir(...)
     m.def(
-        "set_storage_root",
+        "_set_storage_root",  // internal: pycauset.set_backing_dir keeps Python and the engine in step
         [](const std::string& path) { pycauset::set_storage_root(std::filesystem::path(path)); },
         py::arg("path"));
 
