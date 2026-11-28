@@ -1748,3 +1748,12 @@ the entry (the history is useful). New findings go at the bottom with the next f
   `SubmatrixView` and `ThunkBlock` exported as 0-d object arrays; they have `__array__` now.
   A BlockMatrix is estimated as the sum of its leaves and checked once (it was checked leaf
   by leaf, ignoring `allow_huge`). `test_F131_*`.
+
+### F-132 Block saves fell back silently; `.npy` import read the file into RAM (area 3.9 C-10, C-12)
+- **Status:** fixed (session 9). `_save_blockmatrix`'s directory commit fell back to deleting
+  the old tree and a non-atomic move when a rename failed, swallowing the error; it renames
+  or raises now. Its container used the fixed name `<name>.tmp` (same race as F-129) and was
+  not fsynced; both as `save` now. `load_npy` / `convert_file(.npy -> ...)` memory-map the
+  array (`mmap_mode="r"`) instead of reading all of it first (RSS 2x the file). Open (C-10,
+  Windows): snapshots are opened without `FILE_SHARE_DELETE`, so saving over a loaded file
+  fails there.

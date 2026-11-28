@@ -433,7 +433,9 @@ def _array_to_pycauset(arr: Any) -> Any:
 
 
 def load_npy(path: str | Path) -> Any:
-    arr = _np.load(path)
+    # Memory-mapped: the import reads from the page cache and goes to a file when the array
+    # does not fit (it read the whole file into RAM first, then copied it, review 3.9 C-12).
+    arr = _np.load(path, mmap_mode="r")
     return _array_to_pycauset(arr)
 
 

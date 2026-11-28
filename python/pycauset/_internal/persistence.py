@@ -748,26 +748,13 @@ def _save_blockmatrix(
         if not src.exists():
             return
 
+        # Renames only; a failure raises (it fell back to deleting the old tree and a
+        # non-atomic move, review 3.9 C-10). Only removing the replaced tree is best effort.
         old = None
         if dst.exists():
             old = dst.with_name(dst.name + f".old_{staging_tag}")
-            try:
-                if old.exists():
-                    _safe_rmtree(old)
-                os.replace(str(dst), str(old))
-            except OSError:
-                # Fall back to removing dst if rename fails.
-                _safe_rmtree(dst)
-                old = None
-
-        try:
-            os.replace(str(src), str(dst))
-        except OSError:
-            # Last resort: attempt a non-atomic move.
-            if dst.exists():
-                _safe_rmtree(dst)
-            shutil.move(str(src), str(dst))
-
+            os.replace(str(dst), str(old))
+        os.replace(str(src), str(dst))
         if old is not None:
             _safe_rmtree(old)
 
@@ -877,12 +864,7 @@ def _save_blockmatrix(
     # Write file (single-file container) atomically via temp + replace.
     payload_offset = _HEADER_BYTES
     payload_length = 0
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    if tmp_path.exists():
-        try:
-            tmp_path.unlink()
-        except OSError:
-            pass
+    tmp_path = _staging_file(path.parent, f".{path.name}.", ".part")  # unique (C-1)
 
     with tmp_path.open("wb") as out_f:
         out_f.write(b"\x00" * _HEADER_BYTES)
@@ -936,8 +918,11 @@ def _save_blockmatrix(
         out_f.write(slot_a)
         out_f.seek(_SLOT_B_OFFSET)
         out_f.write(slot_b)
+        out_f.flush()
+        os.fsync(out_f.fileno())
 
     os.replace(str(tmp_path), str(path))
+    _fsync_dir(path.parent)
 
 
 def _load_blockmatrix(path: Path, metadata: dict[str, Any], *, deps: PersistenceDeps, BlockMatrix: Any) -> Any:
