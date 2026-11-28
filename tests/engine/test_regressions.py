@@ -683,3 +683,22 @@ def test_unit_vector_pairs_dot_exactly():
         assert u.dot(w) == 0
     assert type(pc.UnitVector(n, 1, dtype="int32").dot(pc.UnitVector(n, 1, dtype="int32"))) is int
     assert (pc.UnitVector(n, 1, dtype="int32") * 3).dot(pc.UnitVector(n, 1, dtype="int32") * -2) == -6
+
+
+def test_float_and_complex_vector_views_stay_views(tmp_path):
+    """-v, 2.5 * v and v.conj() of float / complex vectors are O(1) views (they were written
+    out: complex -v took 12 ms for 1M elements); reads, writes, save / load see the view."""
+    z = np.array([1 + 2j, -0.0 + 0j, 3 - 1j])
+    v = pc.vector(z)
+    neg = -v
+    np.testing.assert_array_equal(np.asarray(neg), -z)
+    np.testing.assert_array_equal(np.asarray(v * 2.5), z * 2.5)
+    np.testing.assert_array_equal(np.asarray(v.conj()), z.conj())
+    assert neg.dot(v) == pytest.approx(np.dot(-z, z))
+    pc.save(neg, tmp_path / "n.pycauset")
+    np.testing.assert_array_equal(np.asarray(pc.load(tmp_path / "n.pycauset")), -z)
+    neg[0] = 5.0  # a write folds the view into the writer's own copy
+    np.testing.assert_array_equal(np.asarray(neg), np.array([5.0, *(-z[1:])]))
+    np.testing.assert_array_equal(np.asarray(v), z)
+    f = pc.vector(np.array([0.0, -0.0, 1.5]))
+    np.testing.assert_array_equal(np.signbit(np.asarray(-f)), np.signbit(-np.array([0.0, -0.0, 1.5])))

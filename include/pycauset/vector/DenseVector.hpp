@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pycauset/math/ViewValue.hpp"
 #include "pycauset/vector/VectorBase.hpp"
 #include "pycauset/core/MatrixTraits.hpp"
 #include "pycauset/core/StorageUtils.hpp"
@@ -71,20 +72,11 @@ public:
         if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>) {
             throw std::runtime_error("Complex vector does not support get_element_as_double; use get_element_as_complex");
         }
-        const std::complex<double> v = pycauset::scalar::to_complex_double(get(i));
-        if (scalar_ == 1.0) {
-            return v.real();
-        }
-        return (v * scalar_).real();
+        return view_value(get(i), scalar_, is_conjugated()).real();  // the one view rule (ViewValue.hpp)
     }
 
     std::complex<double> element_as_complex(uint64_t i) const override {
-        const std::complex<double> v = pycauset::scalar::to_complex_double(get(i));
-        std::complex<double> z = (scalar_ == 1.0) ? v : (v * scalar_);
-        if (is_conjugated()) {
-            z = std::conj(z);
-        }
-        return z;
+        return view_value(get(i), scalar_, is_conjugated());  // the one view rule (ViewValue.hpp)
     }
 
     T* data() { return static_cast<T*>(require_mapper()->get_data()); }

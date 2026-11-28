@@ -58,10 +58,15 @@ std::unique_ptr<MatrixBase> as_row_matrix(const VectorBase& v) {
 std::unique_ptr<VectorBase> as_vector(std::unique_ptr<MatrixBase> m, bool transposed) {
     const uint64_t n = m->rows() * m->cols();
     if (m->rows() != 1 && m->cols() != 1) throw std::logic_error("as_vector: result is not 1 x n");
-    // Only plain row storage maps onto a vector; anything else is written out first.
-    const bool plain = m->get_structure() == Structure::DENSE && m->rows() == 1 && !m->is_transposed() &&
-                       !m->is_conjugated() && !m->is_subview() &&
-                       m->get_scalar() == std::complex<double>(1.0, 0.0);
+    // Row storage maps onto a vector. A float / complex view (factor, conjugation: -v, 2.5 * v,
+    // v.conj()) stays a view, as for matrices; an integer view is written out (vectors read
+    // integer views per element in double, without NumPy's wrap).
+    const DataType dt = m->get_data_type();
+    const bool float_like = dt == DataType::FLOAT16 || dt == DataType::FLOAT32 || dt == DataType::FLOAT64 ||
+                            dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64;
+    const bool row = m->get_structure() == Structure::DENSE && m->rows() == 1 && !m->is_transposed() && !m->is_subview();
+    const bool unit_view = m->get_scalar() == std::complex<double>(1.0, 0.0) && !m->is_conjugated();
+    const bool plain = row && (unit_view || float_like);
     if (!plain) {
         std::unique_ptr<MatrixBase> row = cast_to(*m, m->get_data_type());  // dense, factor 1
         if (row->rows() != 1) row = cast_to(*row->transpose(), row->get_data_type());
@@ -71,6 +76,8 @@ std::unique_ptr<VectorBase> as_vector(std::unique_ptr<MatrixBase> m, bool transp
         using T = typename decltype(tag)::type;
         return std::make_unique<typename DenseVectorOf<T>::type>(n, m->shared_mapper());
     });
+    out->set_scalar(m->get_scalar());
+    out->set_conjugated(m->is_conjugated());
     out->set_transposed(transposed);
     return out;
 }

@@ -701,3 +701,8 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   bulk-tile path, and the complex128 wide path applies the operator through apply_span (it
   had a per-element switch): complex128 1024 tri + (1+2j) 5.6 -> 0.9 ms (NumPy 1.3). Atlas
   0 wrong.
+- Vectors: a float / complex view (-v, s * v, v.conj()) stays an O(1) view instead of being
+  written out (complex -v 1M: 12 ms -> 0.8 us); `DenseVector` element access uses the one
+  view rule (`view_value`; it re-derived it as `v * scalar_`, a complex multiply that loses
+  signed zeros). Integer vector views are still written out (they need NumPy's wrap). Atlas
+  0 wrong; test `test_float_and_complex_vector_views_stay_views`.
