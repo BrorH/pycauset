@@ -68,9 +68,10 @@ products and eigensolvers use the bits directly, anything else writes the result
 1. **Binding** (`bind_matrix.cpp`): one matmul helper for every spelling (`A @ B`,
    `pc.matmul`, NumPy operands, vectors); NumPy arrays are imported first
    (`numpy_import.hpp`).
-2. **Entry function** (`src/math`): resolves the result dtype (`PromotionResolver`) and
-   structure (`StructureResolver`), normalises the operands (views read in place), and
-   allocates the result through `ObjectFactory` (RAM or file by the memory threshold).
+2. **Entry function** (`src/math`): resolves the result dtype (`promotion::resolve`; a scalar
+   operand takes part as an operand of one dtype, DType System §9) and structure
+   (`StructureResolver`), normalises the operands (views read in place), and allocates the
+   result through `ObjectFactory` (RAM or file: `PersistentObject::initialize_storage`).
 3. **Device:** `ComputeContext` -> `AutoSolver` -> `CpuDevice`, which runs the kernel
    directly or tiles it through the `StreamingManager` when the operands do not fit in RAM.
 4. **Kernel** (`src/compute/cpu`): BLAS for float / complex, exact integer paths, popcount

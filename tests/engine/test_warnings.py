@@ -120,3 +120,12 @@ def test_same_width_and_widening_results_do_not_warn():
     a, b = pc.matrix(np.ones((2, 2), dtype="float32")), pc.matrix(np.ones((2, 2), dtype="complex64"))
     _, w = _caught(lambda: a + b)
     assert not _of(w, pc.PyCausetDTypeWarning, "NumPy would widen")
+
+
+def test_a_wider_numpy_scalar_warns():
+    """DType System §9: a NumPy scalar never widens a float matrix; say so."""
+    m = pc.matrix(np.ones((2, 2), dtype=np.float32))
+    out, w = _caught(lambda: m + np.float64(1))
+    assert out.dtype == "float32" and _of(w, pc.PyCausetDTypeWarning, "NumPy would widen")
+    _, w = _caught(lambda: m + 1.0)  # Python floats are weak: nothing to say
+    assert not _of(w, pc.PyCausetDTypeWarning, "NumPy would widen")

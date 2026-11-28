@@ -1744,6 +1744,14 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-4: `np.float64` / `np.complex128` (subclasses of Python float / complex) were taken as
     weak Python scalars; NumPy scalars are recognised first now.
   - C-10: the signed / uint64 error names both dtypes and what to do.
+  - C-3 (decided, session 9; the maintainer leaves technical calls to the reviewer): one
+    promotion rule. A scalar is an operand of one dtype (a NumPy scalar its own, a Python
+    scalar the matrix's within its kind) and `promotion::resolve` decides, as for two
+    matrices. So strong NumPy scalars under-promote within float (a scalar never widens a
+    matrix: float16 M + np.float32(1) is float16; warned), signed with np.uint64 raises
+    (F-035b), and int8 M / 1 is float32. ScalarOps' own table (`promote_ints`,
+    `float_for_int`, `max_float`) is gone. DType System §9; `test_scalar_ops` checks every
+    dtype against the rule and the values against NumPy.
   - C-6: the dtype warning fires for every float / complex result narrower than an operand
     (float16 and complex mixes were silent), with both dtypes in the message; the Warnings
     page lists exactly what warns.

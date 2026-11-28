@@ -2,8 +2,8 @@
 
 Covers every dtype PyCauset exposes for dense matrices, the causal (triangular bit)
 matrix, and triangular int32, against Python int/float/complex/bool scalars and
-NumPy scalars. Documented divergence: bit/bool arithmetic counts into int32
-(PyCauset policy, F-013), where NumPy would give int64.
+NumPy scalars. Result dtypes follow DType System §9 (the matrix rules with the scalar as an
+operand); values are NumPy's.
 """
 from __future__ import annotations
 
@@ -42,28 +42,56 @@ def _operand(dtype: str) -> np.ndarray:
     return (base % 2).astype(bool) if dtype == "bool" else base.astype(dtype)
 
 
-def _expected(op, a, s):
-    with np.errstate(all="ignore"):
-        if a.dtype == bool and not isinstance(s, (float, complex, np.floating, np.complexfloating)):
-            # PyCauset: bit arithmetic counts into int32 (F-013).
-            return op(a.astype(np.int32), s if not isinstance(s, np.integer) else s)
-        return op(a, s)
+_PC_NAME = {"complex64": "complex_float32", "complex128": "complex_float64"}
+_NP_NAME = {"complex_float32": "complex64", "complex_float64": "complex128"}
+
+
+def _scalar_dtype(matrix_dtype: str, s) -> str:
+    """The dtype a scalar takes part as (DType System §9): a NumPy scalar its own; a Python
+    scalar the matrix's within its kind (a float with an integer matrix: float64; a complex
+    with a real matrix: the complex of its precision); a Python int with bool: int32."""
+    if isinstance(s, np.generic) and not isinstance(s, np.bool_):
+        return _PC_NAME.get(s.dtype.name, s.dtype.name)
+    m = _PC_NAME.get(matrix_dtype, matrix_dtype)
+    ints = ("bool", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64")
+    if isinstance(s, (bool, int, np.bool_)):
+        return "int32" if m == "bool" else m
+    if isinstance(s, float):
+        return "float64" if m in ints else {"complex_float32": "float32", "complex_float64": "float64"}.get(m, m)
+    return m if m.startswith("complex") else "complex_float64" if m in ints else {"float32": "complex_float32", "float64": "complex_float64", "float16": "complex_float16"}[m]
+
+
+def _expected_dtype(opname: str, matrix_dtype: str, s) -> str | None:
+    from tests.engine.test_dtype_rules import _expected
+
+    op = {"+": "+", "-": "-", "*": "*", "/": "/"}[opname[1] if opname[0] == "A" else opname[1]]
+    m = _PC_NAME.get(matrix_dtype, matrix_dtype)
+    sd = _scalar_dtype(matrix_dtype, s)
+    if m == "bool" and sd == "bool" and op == "*":
+        return "bool"
+    want = _expected(op, m, sd) if opname[0] == "A" else _expected(op, sd, m)
+    return want
 
 
 @pytest.mark.parametrize("sname", list(SCALARS))
 @pytest.mark.parametrize("opname", list(OPS))
 @pytest.mark.parametrize("dtype", DTYPES)
 def test_scalar_op_matches_numpy(dtype, opname, sname):
+    """Values are NumPy's (computed in the result dtype); the result dtype is the documented
+    rule (the matrix rules with the scalar as an operand, DType System §9)."""
     a, s, op = _operand(dtype), SCALARS[sname], OPS[opname]
-    try:
-        expected = np.asarray(_expected(op, a, s))
-    except Exception:
-        with pytest.raises(Exception):  # NumPy rejects it: no silent answer either
+    want = _expected_dtype(opname, dtype, s)
+    if want is None:
+        with pytest.raises((TypeError, ValueError)):
             op(pc.matrix(a), s)
         return
+    with np.errstate(all="ignore"):
+        wide = a.astype(np.int64) if dtype == "bool" and want != "bool" else a  # bit counting
+        expected = np.asarray(op(wide.astype(np.complex128) if want.startswith("complex") else wide, s))
     got = to_np(op(pc.matrix(a), s))
-    np.testing.assert_allclose(got.astype(np.complex128), expected.astype(np.complex128), rtol=1e-6, atol=1e-6)
-    assert got.dtype == expected.dtype, f"dtype {got.dtype} != NumPy {expected.dtype}"
+    assert str(got.dtype) == _NP_NAME.get(want, want), f"dtype {got.dtype}, documented {want}"
+    tol = 2e-3 if want in ("float16", "complex_float16") else 1e-6
+    np.testing.assert_allclose(got.astype(np.complex128), expected.astype(np.complex128), rtol=tol, atol=tol)
 
 
 @pytest.mark.parametrize("dtype", [d for d in DTYPES if d != "bool"])

@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/core/PromotionResolver.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
@@ -102,25 +103,6 @@ int int_bits(DataType d) {
         default: return 0;
     }
 }
-DataType int_dtype(bool is_signed, int bits) {
-    switch (bits) {
-        case 8: return is_signed ? DataType::INT8 : DataType::UINT8;
-        case 16: return is_signed ? DataType::INT16 : DataType::UINT16;
-        case 32: return is_signed ? DataType::INT32 : DataType::UINT32;
-        default: return is_signed ? DataType::INT64 : DataType::UINT64;
-    }
-}
-// Strong (NumPy-scalar) integer promotion of two integer dtypes, NumPy rules.
-DataType promote_ints(DataType a, DataType b) {
-    const bool sa = is_signed_int(a), sb = is_signed_int(b);
-    const int ba = int_bits(a), bb = int_bits(b);
-    if (sa == sb) return int_dtype(sa, std::max(ba, bb));
-    const int b_signed = sa ? ba : bb, b_unsigned = sa ? bb : ba;
-    if (b_signed > b_unsigned) return int_dtype(true, b_signed);
-    if (b_unsigned < 64) return int_dtype(true, b_unsigned * 2);
-    return DataType::FLOAT64;  // int64 with uint64 -> float64 (NumPy)
-}
-
 bool int_fits(const ScalarArg& s, DataType d) {
     if (d == DataType::BIT) d = DataType::INT32;  // bit arithmetic counts in int32
     const int bits = int_bits(d);
@@ -138,58 +120,46 @@ bool int_fits(const ScalarArg& s, DataType d) {
 
 bool is_integer_or_bit(DataType dt) { return dt == DataType::BIT || is_int(dt); }
 
-// Smallest real float that can hold every value of an integer/bit dtype (NumPy rule).
-static DataType float_for_int(DataType d) {
-    if (d == DataType::BIT) return DataType::FLOAT16;
-    const int bits = int_bits(d);
-    return bits <= 8 ? DataType::FLOAT16 : bits <= 16 ? DataType::FLOAT32 : DataType::FLOAT64;
-}
-static int float_rank(DataType d) {
-    return d == DataType::FLOAT16 ? 0 : d == DataType::FLOAT32 ? 1 : 2;
-}
-static DataType max_float(DataType x, DataType y) { return float_rank(x) >= float_rank(y) ? x : y; }
 static DataType real_of(DataType c) {
     return c == DataType::COMPLEX_FLOAT16 ? DataType::FLOAT16
          : c == DataType::COMPLEX_FLOAT32 ? DataType::FLOAT32 : DataType::FLOAT64;
 }
 
-DataType scalar_result_dtype(DataType a, ScalarOpKind op, const ScalarArg& s) {
-    const bool division = op == ScalarOpKind::TrueDiv || op == ScalarOpKind::RTrueDiv;
-    const bool strong_float = s.strong && is_real_float(s.strong_dtype);
-    const bool strong_int = s.strong && is_int(s.strong_dtype);
-
-    if (is_integer_or_bit(a)) {
-        if (s.kind == ScalarArg::Kind::Complex) {
-            // Strong complex64 with a small int stays complex64; otherwise complex128.
-            if (s.strong && s.strong_dtype == DataType::COMPLEX_FLOAT32 && float_rank(float_for_int(a)) <= 1) {
-                return DataType::COMPLEX_FLOAT32;
-            }
-            return DataType::COMPLEX_FLOAT64;
-        }
-        if (strong_float) return max_float(float_for_int(a), s.strong_dtype);
-        if (s.kind == ScalarArg::Kind::Float || division) {
-            // Weak Python float (or true division): float64, NumPy's default float.
-            if (division && strong_int) {
-                const DataType base = a == DataType::BIT ? DataType::INT32 : a;
-                return max_float(DataType::FLOAT64, float_for_int(promote_ints(base, s.strong_dtype)));
-            }
-            return DataType::FLOAT64;
-        }
-        const DataType base = a == DataType::BIT ? DataType::INT32 : a;
-        if (strong_int) {
-            // bit with a strong int scalar: NumPy gives the scalar's dtype.
-            return a == DataType::BIT ? s.strong_dtype : promote_ints(base, s.strong_dtype);
-        }
-        return base;
+// The dtype a scalar takes part as (review 3.3 C-3: one promotion rule for matrix (+) matrix
+// and matrix (+) scalar). A NumPy scalar is an operand of its own dtype (NumPy 2, NEP 50:
+// "strong"). A Python scalar is weak: it takes the matrix's dtype within its kind; a Python
+// float with an integer matrix is float64 and a Python complex with a real matrix is the
+// complex of its precision (complex128 for integers), as in NumPy. A Python int with a bool
+// matrix is int32, PyCauset's default integer (F-103).
+static DataType scalar_operand_dtype(DataType a, const ScalarArg& s) {
+    if (s.strong) return s.strong_dtype;
+    switch (s.kind) {
+        case ScalarArg::Kind::Int:
+            return a == DataType::BIT ? DataType::INT32 : a;
+        case ScalarArg::Kind::Float:
+            return is_integer_or_bit(a) ? DataType::FLOAT64 : is_complex(a) ? real_of(a) : a;
+        case ScalarArg::Kind::Complex:
+            return is_complex(a) ? a : is_real_float(a) ? complex_of(a) : DataType::COMPLEX_FLOAT64;
     }
+    return a;
+}
 
-    // Float or complex matrix.
-    DataType real = is_complex(a) ? real_of(a) : a;
-    if (strong_float) real = max_float(real, s.strong_dtype);
-    if (strong_int) real = max_float(real, float_for_int(s.strong_dtype));
-    const bool complex_result = is_complex(a) || s.kind == ScalarArg::Kind::Complex;
-    if (complex_result && s.strong && is_complex(s.strong_dtype)) real = max_float(real, real_of(s.strong_dtype));
-    return complex_result ? complex_of(real) : real;
+DataType scalar_result_dtype(DataType a, ScalarOpKind op, const ScalarArg& s) {
+    // The matrix rules (promotion::resolve) with the scalar as an operand: within-float
+    // under-promotion applies to NumPy scalars too (a scalar never widens a matrix:
+    // float16 M + np.float32(1) is float16), signed (+) uint64 raises (F-035b), and integer
+    // division gives float32 for 8/16-bit operands (int8 M / 1 was float64).
+    const DataType b = scalar_operand_dtype(a, s);
+    using promotion::BinaryOp;
+    BinaryOp bop = BinaryOp::Add;
+    switch (op) {
+        case ScalarOpKind::Add: bop = BinaryOp::Add; break;
+        case ScalarOpKind::Sub: case ScalarOpKind::RSub: bop = BinaryOp::Subtract; break;
+        case ScalarOpKind::Mul: bop = BinaryOp::ElementwiseMultiply; break;
+        case ScalarOpKind::TrueDiv: case ScalarOpKind::RTrueDiv: bop = BinaryOp::Divide; break;
+    }
+    if (a == DataType::BIT && b == DataType::BIT && bop == BinaryOp::ElementwiseMultiply) return DataType::BIT;
+    return promotion::resolve(bop, a, b).result_dtype;
 }
 
 // ----------------------------------------------------------------- kernels

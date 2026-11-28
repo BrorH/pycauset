@@ -953,11 +953,14 @@ def test_F130_identity_matmul_is_exact_for_wide_integers(dtype, big):
 def test_F130_numpy_float64_scalars_are_numpy_scalars():
     """C-4: np.float64 / np.complex128 are subclasses of Python float / complex and were taken
     as weak Python scalars."""
-    a = np.ones((2, 2), dtype=np.float32)
-    m = pc.matrix(a)
-    for s in (np.float64(1), np.float32(1), 1.0):
-        assert np.dtype(str((m + s).dtype)) == (a + s).dtype  # Python floats stay weak
-    assert str((m * np.complex128(1j)).dtype) == "complex_float64"
+    m = pc.matrix(np.ones((2, 2), dtype=np.float32))
+    i = pc.matrix(np.ones((2, 2), dtype=np.int8))
+    # A NumPy scalar is an operand of its dtype (DType System §9): under the matrix rules a
+    # scalar never widens a float matrix, and np.float64 with int8 is float64.
+    assert str((m + np.float64(1)).dtype) == "float32"
+    assert str((m * np.complex128(1j)).dtype) == "complex_float32"
+    assert str((i + np.float64(1)).dtype) == "float64"
+    assert str((i + np.float32(1)).dtype) == "float32"
 
 
 def test_F130_signed_uint64_error_names_the_dtypes():

@@ -298,7 +298,18 @@ inline py::object matrix_arith(const MatrixBase& a, const py::object& other, Ari
     if (py::isinstance<MatrixBase>(other)) {
         b = other.cast<std::shared_ptr<MatrixBase>>();
     } else if (pycauset::ScalarArg s; to_scalar_arg(other, s)) {
-        return py::cast(std::shared_ptr<MatrixBase>(pycauset::scalar_op(a, scalar_kind(op, reflected), s).release()));
+        auto out = pycauset::scalar_op(a, scalar_kind(op, reflected), s);
+        // A NumPy scalar wider than the result (float32 M + np.float64(1) is float32): the same
+        // notice as for two matrices (DType System §9).
+        if (s.strong && float_precision_bits(s.strong_dtype) > float_precision_bits(out->get_data_type()) &&
+            float_precision_bits(out->get_data_type()) > 0) {
+            bindings_warn::warn_with_category(
+                std::string("pycauset: a ") + pycauset::dtype_name(s.strong_dtype) + " scalar with a " +
+                    pycauset::dtype_name(a.get_data_type()) + " matrix gives " + pycauset::dtype_name(out->get_data_type()) +
+                    " (computed and stored in it; NumPy would widen). Cast the matrix first to compute in the wider dtype.",
+                "PyCausetDTypeWarning", /*stacklevel=*/2);
+        }
+        return py::cast(std::shared_ptr<MatrixBase>(out.release()));
     } else if (py::isinstance<py::array>(other)) {
         b = elementwise_operand_matrix_from_numpy(other.cast<py::array>());
     } else if (py::isinstance<VectorBase>(other)) {

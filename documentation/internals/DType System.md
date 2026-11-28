@@ -182,6 +182,26 @@ gives `float64`, which silently rounds above 2^53, so PyCauset raises instead (d
 to be resolved exactly with value bounds, review Phase F1). Bitwise operations raise
 `TypeError` there, as NumPy does.
 
+## 9) Matrix with scalar
+
+A scalar takes part in an operation as an operand of one dtype, and the matrix rules above
+decide the result (`scalar_result_dtype` in `math/ScalarOps.cpp` calls `promotion::resolve`):
+
+- A **NumPy scalar** (`np.float32(1)`, `np.int64(3)`) is an operand of its own dtype (NumPy's
+  "strong" scalars). Within-float under-promotion applies to it too: a scalar never widens a
+  float matrix (`float16 M + np.float32(1)` is float16, `float64 M * np.float32(2)` float32);
+  NumPy would widen.
+- A **Python scalar** is weak: an `int` takes the matrix's dtype (int32 with a bool matrix,
+  the default integer), a `float` the matrix's float dtype (float64 with an integer matrix), a
+  `complex` the complex of the matrix's precision (complex128 with an integer matrix).
+- Hence `int8 M / 1` is float32 (§2.5; NumPy: float64), and an integer matrix with a NumPy
+  scalar whose type no integer holds together with it (`int8 M + np.uint64(1)`) raises (§7).
+- A Python int that does not fit the matrix's integer dtype raises `OverflowError`, as in
+  NumPy.
+
+`tests/engine/test_scalar_ops.py` checks every dtype against these rules, and the values
+against NumPy.
+
 ## 8) Coverage and enforcement
 
 Which (structure, dtype) pairs exist is decided by one catalogue

@@ -36,8 +36,11 @@ Pre-alpha: these changes are breaking and come without compatibility shims.
   narrowing to float64 silently.
 - `pc.matrix` / `pc.vector` from lists containing NumPy scalars take NumPy's dtype
   (`[np.complex64(1j), 2]` lost its imaginary part); `pc.vector([])` is float64.
-- `np.float64` / `np.complex128` scalars count as NumPy scalars, as in NumPy
-  (`float32 matrix + np.float64(1)` is float64); Python floats stay weak.
+- Matrix with scalar follows the matrix rules, with the scalar as an operand of its dtype (a
+  NumPy scalar its own; a Python scalar the matrix's): a NumPy scalar never widens a float
+  matrix (`float16 M + np.float32(1)` is float16, warned; NumPy widens), `int8 M + np.uint64(1)`
+  raises as for two matrices, `int8 M / 1` is float32. `np.float64` / `np.complex128` count as
+  NumPy scalars.
 - Fixed: element-wise ops of a structured matrix with a 1x1 operand (`Diagonal(3) +
   Diagonal(1)`) dropped broadcast values; `I @ X` rounded int64 / uint64 values above 2**53.
 - `to_numpy(x, copy=False)` raises (every export is a copy); `np.asarray(block_matrix)` works;
