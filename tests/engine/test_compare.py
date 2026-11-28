@@ -89,3 +89,15 @@ def test_truth_value_as_numpy():
     with pytest.raises(ValueError, match="ambiguous"):
         bool(pc.vector([1.0, 2.0]))
     assert bool(pc.vector([3.0]))
+
+
+@pytest.mark.parametrize("op", [operator.and_, operator.or_, operator.xor])
+def test_F128_bitwise_broadcasts(op):
+    """F-128: & | ^ needed equal shapes; NumPy broadcasts."""
+    for a, b in ((np.array([[True, False, True], [False, True, True]]), np.array([[True, True, False]])),
+                 (np.arange(6, dtype=np.int16).reshape(2, 3), np.array([[1], [6]], np.int16)),
+                 (np.arange(6, dtype=np.uint8).reshape(2, 3), np.array([[3, 5, 7]], np.int32))):
+        np.testing.assert_array_equal(np.asarray(op(pc.matrix(a), pc.matrix(b))), op(a, b))
+        np.testing.assert_array_equal(np.asarray(op(pc.matrix(b), pc.matrix(a))), op(b, a))
+    with pytest.raises(ValueError, match="broadcast"):
+        op(pc.matrix(np.ones((2, 3), bool)), pc.matrix(np.ones((3, 2), bool)))

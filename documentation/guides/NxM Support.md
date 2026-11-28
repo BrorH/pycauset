@@ -56,7 +56,7 @@ Rectangular dense matrices are supported for:
 - Element-wise arithmetic (`+ - * /`) broadcasts as NumPy does: equal shapes, a `(1, n)` or
   `(m, 1)` matrix, or a 1-D vector (a row). Other shape pairs raise `ValueError`.
 - Comparisons (`== != < <= > >=`) broadcast as arithmetic does and give a bool matrix.
-- Bitwise `& | ^` need equal shapes (NumPy would broadcast; F-128).
+- Bitwise `& | ^` broadcast the same way.
 
 ## Restricted / square-only
 

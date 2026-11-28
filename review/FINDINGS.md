@@ -1703,11 +1703,13 @@ the entry (the history is useful). New findings go at the bottom with the next f
   catch and continue; `persistence.py` is left to the area 3.9 review.
 
 ### F-128 Bitwise ops do not broadcast; comparisons are missing
-- **Status:** comparisons fixed (session 9): `compare(a, b, op)` (math/Compare.cpp), the six
+- **Status:** fixed (session 9). Comparisons: `compare(a, b, op)` (math/Compare.cpp), the six
   operators on matrices and vectors (matrix, ndarray and scalar operands, NumPy broadcasting,
   exact integer comparison, complex lexicographic), `__bool__` as NumPy's, matrices unhashable
   as ndarrays; three atlas ops (`eq`, `lt`, `ge_scalar`, 0 wrong); `tests/engine/test_compare.py`.
-  Bitwise broadcasting is still open. (Found in session 9, checking the NxM guide.) `A & B` raises
+  Bitwise `& | ^` broadcast too (the operand with a length-1 axis is repeated in the engine,
+  then the equal-shape kernels run; `test_F128_bitwise_broadcasts`). Fixed. (Found in session
+  9, checking the NxM guide.) `A & B` raises
   "bitwise ops need equal shapes" for `(2, 3) & (1, 3)`, which NumPy broadcasts, while `+ - * /`
   broadcast. `A < B` (and the other comparisons) are not defined at all (`TypeError`); NumPy
   returns a bool array. Both belong to the element-wise family: one broadcast rule

@@ -126,15 +126,45 @@ std::unique_ptr<MatrixBase> int_bitwise(const MatrixBase& a, const MatrixBase& b
     return out;
 }
 
+// m repeated to rows x cols along its length-1 axes (NumPy broadcasting), dense, m's dtype.
+std::unique_ptr<MatrixBase> broadcast_copy(const MatrixBase& m, uint64_t rows, uint64_t cols) {
+    const DataType dt = m.get_data_type();
+    const auto h = dt == DataType::BIT ? write_out(m) : to_dense(m, dt);
+    return visit_dtype(dt, [&](auto tag) -> std::unique_ptr<MatrixBase> {
+        using T = typename decltype(tag)::type;
+        if constexpr (std::is_integral_v<T>) {
+            const auto& s = static_cast<const DenseMatrix<T>&>(*h);
+            auto out = std::make_unique<DenseMatrix<T>>(rows, cols, std::string());
+            const bool r1 = m.rows() == 1, c1 = m.cols() == 1;
+            for (uint64_t i = 0; i < rows; ++i)
+                for (uint64_t j = 0; j < cols; ++j) out->set(i, j, s.get(r1 ? 0 : i, c1 ? 0 : j));
+            return out;
+        } else {
+            throw std::logic_error("bitwise broadcast: not an integer dtype");
+        }
+    });
+}
+
 }  // namespace
 
 std::unique_ptr<MatrixBase> bitwise(const MatrixBase& a, const MatrixBase& b, BitwiseOp op) {
-    if (a.rows() != b.rows() || a.cols() != b.cols()) {
-        throw std::invalid_argument("operands could not be broadcast together (bitwise ops need equal shapes)");
-    }
     const DataType da = a.get_data_type(), db = b.get_data_type();
     require_bitwise_dtype(da, "bitwise &, |, ^");
     require_bitwise_dtype(db, "bitwise &, |, ^");
+    if (a.rows() != b.rows() || a.cols() != b.cols()) {
+        // NumPy's broadcasting, as + - * / and the comparisons (review F-128): the operand with a
+        // length-1 axis is repeated, then the equal-shape kernels run.
+        auto dim = [](uint64_t x, uint64_t y) -> uint64_t {
+            if (x == y || y == 1) return x;
+            if (x == 1) return y;
+            throw std::invalid_argument("operands could not be broadcast together (bitwise ops: shapes " +
+                                        std::to_string(x) + " vs " + std::to_string(y) + ")");
+        };
+        const uint64_t rows = dim(a.rows(), b.rows()), cols = dim(a.cols(), b.cols());
+        const auto ea = (a.rows() == rows && a.cols() == cols) ? nullptr : broadcast_copy(a, rows, cols);
+        const auto eb = (b.rows() == rows && b.cols() == cols) ? nullptr : broadcast_copy(b, rows, cols);
+        return bitwise(ea ? *ea : a, eb ? *eb : b, op);
+    }
 
     if (da == DataType::BIT && db == DataType::BIT) {
         std::unique_ptr<MatrixBase> ha = plain_bits(a) ? nullptr : write_out(a);
