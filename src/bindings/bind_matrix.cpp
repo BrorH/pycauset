@@ -293,6 +293,8 @@ inline std::shared_ptr<MatrixBase> matmul_mm(const MatrixBase& a, const MatrixBa
 
 inline std::shared_ptr<VectorBase> matvec(const MatrixBase& a, const VectorBase& v) {
     return translate_invalid_argument([&]() {
+        maybe_warn_float_underpromotion("matmul", promotion::BinaryOp::MatrixVectorMultiply, a.get_data_type(),
+                                        v.get_data_type());
         maybe_warn_bit_promotes_to_int32("matmul", promotion::BinaryOp::MatrixVectorMultiply, a.get_data_type(),
                                          v.get_data_type());
         return std::shared_ptr<VectorBase>(pycauset::matrix_vector_multiply(a, v, "").release());
@@ -308,17 +310,11 @@ inline py::object matrix_arith(const MatrixBase& a, const py::object& other_in, 
     if (py::isinstance<MatrixBase>(other)) {
         b = other.cast<std::shared_ptr<MatrixBase>>();
     } else if (pycauset::ScalarArg s; to_scalar_arg(other, s)) {
+        // A NumPy scalar of another float width (float64 M * np.float32(0.5) is float32): the same
+        // notice as for two matrices (DType System §9). It fired only for a scalar wider than the
+        // matrix (review 3.7 C-10).
+        if (s.strong) maybe_warn_float_underpromotion(arith_name(op), arith_binary_op(op), a.get_data_type(), s.strong_dtype);
         auto out = pycauset::scalar_op(a, scalar_kind(op, reflected), s);
-        // A NumPy scalar wider than the result (float32 M + np.float64(1) is float32): the same
-        // notice as for two matrices (DType System §9).
-        if (s.strong && float_precision_bits(s.strong_dtype) > float_precision_bits(out->get_data_type()) &&
-            float_precision_bits(out->get_data_type()) > 0) {
-            bindings_warn::warn_with_category(
-                std::string("pycauset: a ") + pycauset::dtype_name(s.strong_dtype) + " scalar with a " +
-                    pycauset::dtype_name(a.get_data_type()) + " matrix gives " + pycauset::dtype_name(out->get_data_type()) +
-                    " (computed and stored in it; NumPy would widen). Cast the matrix first to compute in the wider dtype.",
-                "PyCausetDTypeWarning", /*stacklevel=*/2);
-        }
         return py::cast(std::shared_ptr<MatrixBase>(out.release()));
     } else if (py::isinstance<py::array>(other)) {
         b = elementwise_operand_matrix_from_numpy(other.cast<py::array>());
@@ -330,24 +326,21 @@ inline py::object matrix_arith(const MatrixBase& a, const py::object& other_in, 
     }
     const MatrixBase& x = reflected ? *b : a;
     const MatrixBase& y = reflected ? a : *b;
+    maybe_warn_float_underpromotion(arith_name(op), arith_binary_op(op), x, y);
     std::unique_ptr<MatrixBase> out;
     switch (op) {
         case Arith::Add:
-            maybe_warn_float_underpromotion("add", promotion::BinaryOp::Add, x, y);
             maybe_warn_bit_promotes_to_int32("add", promotion::BinaryOp::Add, x.get_data_type(), y.get_data_type());
             out = pycauset::add(x, y, "");
             break;
         case Arith::Sub:
-            maybe_warn_float_underpromotion("subtract", promotion::BinaryOp::Subtract, x, y);
             maybe_warn_bit_promotes_to_int32("subtract", promotion::BinaryOp::Subtract, x.get_data_type(), y.get_data_type());
             out = pycauset::subtract(x, y, "");
             break;
         case Arith::Mul:
-            maybe_warn_float_underpromotion("elementwise_multiply", promotion::BinaryOp::ElementwiseMultiply, x, y);
             out = pycauset::elementwise_multiply(x, y, "");
             break;
         case Arith::Div:
-            maybe_warn_float_underpromotion("elementwise_divide", promotion::BinaryOp::Divide, x, y);
             out = pycauset::elementwise_divide(x, y, "");
             break;
     }

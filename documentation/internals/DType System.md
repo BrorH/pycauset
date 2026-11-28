@@ -190,11 +190,14 @@ decide the result (`scalar_result_dtype` in `math/ScalarOps.cpp` calls `promotio
 - A **NumPy scalar** (`np.float32(1)`, `np.int64(3)`) is an operand of its own dtype (NumPy's
   "strong" scalars). Within-float under-promotion applies to it too: a scalar never widens a
   float matrix (`float16 M + np.float32(1)` is float16, `float64 M * np.float32(2)` float32);
-  NumPy would widen.
+  NumPy would widen. Whenever a result is narrower than NumPy's, one `PyCausetDTypeWarning`
+  says so. This holds for every operand kind (matrices, vectors, NumPy scalars, matrix-vector
+  products) in either order.
 - A **bool** (`True`, `np.True_`) is a bool operand: `B * True` is bool (as `B * B`), `B + True`
   counts in int32 (as `B + B`), `int8 M * True` is int8, as in NumPy.
 - A **Python scalar** is weak: an `int` takes the matrix's dtype (int32 with a bool matrix,
-  the default integer), a `float` the matrix's float dtype (float64 with an integer matrix), a
+  the default integer; one beyond 64 bits is a float, so `float64 M + 2**64` computes and an
+  integer matrix raises `OverflowError`, as NumPy 2), a `float` the matrix's float dtype (float64 with an integer matrix), a
   `complex` the complex of the matrix's precision (complex128 with an integer matrix).
 - Hence `int8 M / 1` is float32 (§2.5; NumPy: float64), and an integer matrix with a NumPy
   scalar whose type no integer holds together with it (`int8 M + np.uint64(1)`) raises (§7).

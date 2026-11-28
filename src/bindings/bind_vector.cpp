@@ -258,6 +258,7 @@ inline py::object vector_arith(const VectorBase& a, const py::object& other, Ari
     if (b) {
         const VectorBase& x = reflected ? *b : a;
         const VectorBase& y = reflected ? a : *b;
+        maybe_warn_float_underpromotion(arith_name(op), arith_binary_op(op), x.get_data_type(), y.get_data_type());
         if (op == Arith::Add || op == Arith::Sub) {
             maybe_warn_bit_promotes_to_int32(op == Arith::Add ? "add" : "subtract",
                                              op == Arith::Add ? promotion::BinaryOp::Add : promotion::BinaryOp::Subtract,
@@ -270,6 +271,7 @@ inline py::object vector_arith(const VectorBase& a, const py::object& other, Ari
     }
     ScalarArg s;
     if (!to_scalar_arg(other, s)) return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+    if (s.strong) maybe_warn_float_underpromotion(arith_name(op), arith_binary_op(op), a.get_data_type(), s.strong_dtype);
     return py::cast(std::shared_ptr<VectorBase>(pycauset::scalar_op(a, scalar_kind(op, reflected), s).release()));
 }
 

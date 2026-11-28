@@ -66,9 +66,10 @@ inline int float_precision_bits(DataType dt) {
 
 // A float or complex result narrower than one of its float / complex operands differs from
 // NumPy (which widens): say so once per call site. It fired for float32 with float64 only;
-// float16 and complex mixes were silent (review 3.3 C-6).
-inline void maybe_warn_float_underpromotion(const char* op_name, promotion::BinaryOp op, const MatrixBase& a, const MatrixBase& b) {
-    const DataType da = a.get_data_type(), db = b.get_data_type();
+// float16 and complex mixes were silent (review 3.3 C-6). Every operand kind comes here
+// (matrices, vectors, NumPy scalars, matrix-vector products), either order: the warning
+// depended on the binding and on operand order (review 3.7 C-10).
+inline void maybe_warn_float_underpromotion(const char* op_name, promotion::BinaryOp op, DataType da, DataType db) {
     const int pa = float_precision_bits(da), pb = float_precision_bits(db);
     if (pa == 0 || pb == 0 || pa == pb) return;  // only a mix of float / complex widths
     const DataType r = promotion::resolve(op, da, db).result_dtype;
@@ -78,6 +79,10 @@ inline void maybe_warn_float_underpromotion(const char* op_name, promotion::Bina
                           " gives " + pycauset::dtype_name(r) + " (computed and stored in it; NumPy would widen). " +
                           "Cast the narrower operand first to compute in the wider dtype.";
     bindings_warn::warn_with_category(message, "PyCausetDTypeWarning", /*stacklevel=*/3);
+}
+
+inline void maybe_warn_float_underpromotion(const char* op_name, promotion::BinaryOp op, const MatrixBase& a, const MatrixBase& b) {
+    maybe_warn_float_underpromotion(op_name, op, a.get_data_type(), b.get_data_type());
 }
 
 inline void maybe_warn_bit_promotes_to_int32(const char* op_name, promotion::BinaryOp op, DataType da, DataType db) {

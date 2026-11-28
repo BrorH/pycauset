@@ -1838,3 +1838,33 @@ def test_3_7_C9_operand_coverage_as_numpy():
     for m in (pc.matrix(i), pc.matrix(b)):
         with pytest.raises(OverflowError):
             m + 2**64
+
+
+def test_3_7_C10_one_underpromotion_warning_for_every_operand_kind():
+    """float64 M * np.float32(0.5), vector mixes and matvec gave a narrower dtype silently."""
+    import itertools
+    import operator as o
+    import warnings
+
+    widths = {"float16": 16, "float32": 32, "float64": 64, "complex64": 32, "complex128": 64,
+              "complex_float16": 16, "complex_float32": 32, "complex_float64": 64}
+    dts = ["float16", "float32", "float64", "complex64", "complex128"]
+    for da, db in itertools.product(dts, dts):
+        if da == db:
+            continue
+        A, B = pc.matrix(np.ones((2, 2), dtype=da)), pc.matrix(np.ones((2, 2), dtype=db))
+        va, vb = pc.vector(np.ones(2, dtype=da)), pc.vector(np.ones(2, dtype=db))
+        s = np.dtype(db).type(1)
+        narrower_than_numpy = None
+        for x, y, ops in (
+            (A, B, (o.add, o.sub, o.mul, o.truediv, o.matmul)), (A, s, (o.add, o.sub, o.mul, o.truediv)),
+            (s, A, (o.add, o.sub, o.mul, o.truediv)), (va, vb, (o.add, o.sub, o.mul, o.truediv)),
+            (va, s, (o.add, o.mul)), (s, va, (o.sub, o.truediv)), (A, vb, (o.matmul,)),
+        ):
+            for op in ops:
+                with warnings.catch_warnings(record=True) as w:
+                    warnings.simplefilter("always")
+                    r = op(x, y)
+                narrower_than_numpy = widths[str(r.dtype)] < widths[np.result_type(da, db).name]
+                count = sum(issubclass(m.category, pc.PyCausetDTypeWarning) for m in w)
+                assert count == (1 if narrower_than_numpy else 0), (type(x).__name__, op.__name__, da, db, r.dtype)

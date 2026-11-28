@@ -9,6 +9,7 @@
 
 #include "bindings_common.hpp"
 #include "pycauset/math/ScalarOps.hpp"
+#include "pycauset/core/PromotionResolver.hpp"
 
 namespace {
 
@@ -107,6 +108,28 @@ inline pycauset::ScalarOpKind scalar_kind(Arith op, bool reflected) {
         case Arith::Div: return reflected ? pycauset::ScalarOpKind::RTrueDiv : pycauset::ScalarOpKind::TrueDiv;
     }
     return pycauset::ScalarOpKind::Add;
+}
+
+// The promotion operator and name of an arithmetic operator (for the dtype warnings).
+inline pycauset::promotion::BinaryOp arith_binary_op(Arith op) {
+    namespace promotion = pycauset::promotion;
+    switch (op) {
+        case Arith::Add: return promotion::BinaryOp::Add;
+        case Arith::Sub: return promotion::BinaryOp::Subtract;
+        case Arith::Mul: return promotion::BinaryOp::ElementwiseMultiply;
+        case Arith::Div: return promotion::BinaryOp::Divide;
+    }
+    return promotion::BinaryOp::Add;
+}
+
+inline const char* arith_name(Arith op) {
+    switch (op) {
+        case Arith::Add: return "add";
+        case Arith::Sub: return "subtract";
+        case Arith::Mul: return "elementwise_multiply";
+        case Arith::Div: return "elementwise_divide";
+    }
+    return "";
 }
 
 }  // namespace
