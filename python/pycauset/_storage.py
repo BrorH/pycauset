@@ -7,31 +7,34 @@ def _normalize(path: Path) -> Path:
     return Path(path).expanduser().resolve()
 
 
-def _is_temporary_name(name: str) -> bool:
-    return name.endswith(".tmp") or name.endswith(".raw_tmp")
+# The engine names its temporary backing files <prefix>_<pid>_<n>.pycauset-tmp
+# (StorageUtils.cpp). The sweep deletes only names of exactly that form, directly in the storage
+# root: it used to delete every *.tmp / *.raw_tmp file below the root, recursively, whoever made
+# it (review 3.8 C-1).
+TEMP_SUFFIX = ".pycauset-tmp"
+_TEMP_NAME = re.compile(r"^[A-Za-z0-9_]*?_(\d+)_\d+" + re.escape(TEMP_SUFFIX) + "$")
 
 
 def is_temporary_file(path: Path) -> bool:
-    """Check if a file is temporary based on extension."""
-    return _is_temporary_name(path.name)
+    """Whether `path` is a temporary backing file of the engine (by its name)."""
+    return _TEMP_NAME.match(Path(path).name) is not None
 
 
 def _iter_temp_files(storage_root: Path) -> Iterable[Path]:
-    for dirpath, _dirnames, filenames in os.walk(storage_root):
-        for name in filenames:
-            path = Path(dirpath) / name
-            if is_temporary_file(path):
-                yield path
-
-
-_PID_IN_NAME = re.compile(r"_(\d+)_\d+\.(?:raw_)?tmp$")
+    try:
+        entries = list(os.scandir(storage_root))
+    except OSError:
+        return
+    for entry in entries:
+        if _TEMP_NAME.match(entry.name) is not None and entry.is_file(follow_symlinks=False):
+            yield Path(entry.path)
 
 
 def _owned_by_live_other_process(path: Path) -> bool:
-    """Temp files are named <prefix>_<pid>_<n>.tmp (StorageUtils.cpp). A file of another
-    process that is still running is not ours to delete (several processes may share one
-    storage directory). On Windows a file in use cannot be deleted anyway."""
-    m = _PID_IN_NAME.search(path.name)
+    """A temp file of another process that is still running is not ours to delete (several
+    processes may share one storage directory). On Windows a file in use cannot be deleted
+    anyway."""
+    m = _TEMP_NAME.match(path.name)
     if m is None or os.name == "nt":
         return False
     pid = int(m.group(1))
@@ -49,7 +52,8 @@ def _owned_by_live_other_process(path: Path) -> bool:
 
 
 def cleanup_storage(storage_root: Path) -> None:
-    """Scan storage directory and delete temporary files (.tmp/.raw_tmp)."""
+    """Delete the engine's temporary files directly in `storage_root` whose process is gone,
+    and this process's own. Nothing else is touched."""
     if not storage_root.exists():
         return
 
@@ -60,5 +64,5 @@ def cleanup_storage(storage_root: Path) -> None:
         try:
             temp_path.unlink()
         except OSError:
-            # Best effort: ignore paths that cannot be removed (e.g., locked).
+            # Best effort: a file in use (Windows) or already gone stays for the next sweep.
             pass

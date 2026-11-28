@@ -1,6 +1,7 @@
 // Matrix ⊕ scalar operations with NumPy result-dtype semantics. See ScalarOps.hpp.
 #include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/math/ScalarOps.hpp"
+#include "pycauset/math/Bitwise.hpp"
 #include "pycauset/math/RawRows.hpp"
 
 #include <algorithm>
@@ -74,19 +75,6 @@ std::complex<double> ScalarArg::as_complex() const {
 // ------------------------------------------------------------ dtype helpers
 namespace {
 
-bool is_signed_int(DataType d) {
-    return d == DataType::INT8 || d == DataType::INT16 || d == DataType::INT32 || d == DataType::INT64;
-}
-bool is_unsigned_int(DataType d) {
-    return d == DataType::UINT8 || d == DataType::UINT16 || d == DataType::UINT32 || d == DataType::UINT64;
-}
-bool is_int(DataType d) { return is_signed_int(d) || is_unsigned_int(d); }
-bool is_complex(DataType d) {
-    return d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 || d == DataType::COMPLEX_FLOAT64;
-}
-bool is_real_float(DataType d) {
-    return d == DataType::FLOAT16 || d == DataType::FLOAT32 || d == DataType::FLOAT64;
-}
 DataType complex_of(DataType real_float) {
     switch (real_float) {
         case DataType::FLOAT16: return DataType::COMPLEX_FLOAT16;
@@ -106,7 +94,7 @@ int int_bits(DataType d) {
 bool int_fits(const ScalarArg& s, DataType d) {
     if (d == DataType::BIT) d = DataType::INT32;  // bit arithmetic counts in int32
     const int bits = int_bits(d);
-    if (is_signed_int(d)) {
+    if (is_signed_int_dtype(d)) {
         const int64_t lo = bits == 64 ? std::numeric_limits<int64_t>::min() : -(int64_t(1) << (bits - 1));
         const int64_t hi = bits == 64 ? std::numeric_limits<int64_t>::max() : (int64_t(1) << (bits - 1)) - 1;
         if (s.negative) return s.i >= lo;
@@ -118,7 +106,6 @@ bool int_fits(const ScalarArg& s, DataType d) {
 
 }  // namespace
 
-bool is_integer_or_bit(DataType dt) { return dt == DataType::BIT || is_int(dt); }
 
 static DataType real_of(DataType c) {
     return c == DataType::COMPLEX_FLOAT16 ? DataType::FLOAT16
@@ -137,9 +124,9 @@ static DataType scalar_operand_dtype(DataType a, const ScalarArg& s) {
         case ScalarArg::Kind::Int:
             return a == DataType::BIT ? DataType::INT32 : a;
         case ScalarArg::Kind::Float:
-            return is_integer_or_bit(a) ? DataType::FLOAT64 : is_complex(a) ? real_of(a) : a;
+            return is_integer_or_bit(a) ? DataType::FLOAT64 : is_complex_dtype(a) ? real_of(a) : a;
         case ScalarArg::Kind::Complex:
-            return is_complex(a) ? a : is_real_float(a) ? complex_of(a) : DataType::COMPLEX_FLOAT64;
+            return is_complex_dtype(a) ? a : is_real_float_dtype(a) ? complex_of(a) : DataType::COMPLEX_FLOAT64;
     }
     return a;
 }
@@ -293,7 +280,7 @@ void for_each_span(uint64_t total, F&& f) {
 
 // Integer factor of an integer view (1 for plain matrices and for non-integer dtypes).
 inline int64_t int_view_factor(const MatrixBase& a) {
-    if (is_int(a.get_data_type()) && scalar::is_exact_int_factor(a.get_scalar())) {
+    if (is_int_dtype(a.get_data_type()) && scalar::is_exact_int_factor(a.get_scalar())) {
         return static_cast<int64_t>(a.get_scalar().real());
     }
     return 1;
@@ -370,7 +357,7 @@ std::unique_ptr<MatrixBase> run(const Src& src, const MatrixBase& a, ScalarOpKin
                                 bool triangular_in, bool has_diag, bool keep_structure) {
     const uint64_t rows = a.rows(), cols = a.cols();
     const R sv = scalar_as<R>(s);
-    TypedReader<In, Src> read{src, int_view_factor(a), is_real_float(a.get_data_type()) ? a.get_scalar().real() : 1.0};
+    TypedReader<In, Src> read{src, int_view_factor(a), is_real_float_dtype(a.get_data_type()) ? a.get_scalar().real() : 1.0};
 
     // Triangular results for every real element type (each has a Python class since the
     // structure classes, F-032); complex results become dense.
@@ -554,9 +541,9 @@ std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op,
     // views (complex factors, bit with a factor) use the generic accessor.
     const std::complex<double> sc = a.get_scalar();
     const DataType dt = a.get_data_type();
-    const bool plain = sc == std::complex<double>(1.0, 0.0) ? (!a.is_conjugated() || !is_complex(dt))
-                     : is_int(dt) ? (!a.is_conjugated() && scalar::is_exact_int_factor(sc))
-                     : (is_real_float(dt) && sc.imag() == 0.0);
+    const bool plain = sc == std::complex<double>(1.0, 0.0) ? (!a.is_conjugated() || !is_complex_dtype(dt))
+                     : is_int_dtype(dt) ? (!a.is_conjugated() && scalar::is_exact_int_factor(sc))
+                     : (is_real_float_dtype(dt) && sc.imag() == 0.0);
 #define PYCAUSET_TRY_DENSE(T)                                                              \
     if (auto* m = dynamic_cast<const DenseMatrix<T>*>(&a); m && plain)                    \
         return run<R, T>(*m, a, op, s, false, false, keep_structure);
@@ -588,7 +575,7 @@ std::unique_ptr<MatrixBase> run_for_result(const MatrixBase& a, ScalarOpKind op,
     PYCAUSET_TRY_TRI(uint8_t) PYCAUSET_TRY_TRI(uint16_t) PYCAUSET_TRY_TRI(uint32_t) PYCAUSET_TRY_TRI(uint64_t)
     PYCAUSET_TRY_TRI(float) PYCAUSET_TRY_TRI(double)
 #define PYCAUSET_TRY_SYM(T)                                                                \
-    if (auto* m = dynamic_cast<const SymmetricMatrix<T>*>(&a); m && plain && is_int(a.get_data_type())) \
+    if (auto* m = dynamic_cast<const SymmetricMatrix<T>*>(&a); m && plain && is_int_dtype(a.get_data_type())) \
         return run<R, T>(*m, a, op, s, false, false, keep_structure);
     PYCAUSET_TRY_SYM(int8_t) PYCAUSET_TRY_SYM(int16_t) PYCAUSET_TRY_SYM(int32_t) PYCAUSET_TRY_SYM(int64_t)
     PYCAUSET_TRY_SYM(uint8_t) PYCAUSET_TRY_SYM(uint16_t) PYCAUSET_TRY_SYM(uint32_t) PYCAUSET_TRY_SYM(uint64_t)
@@ -639,15 +626,21 @@ std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, cons
     const DataType in = a.get_data_type();
     const DataType out = scalar_result_dtype(in, op, s);
 
-    if (is_integer_or_bit(in) && s.kind == ScalarArg::Kind::Int && is_int(out) && !int_fits(s, out)) {
+    if (is_integer_or_bit(in) && s.kind == ScalarArg::Kind::Int && is_int_dtype(out) && !int_fits(s, out)) {
         throw std::overflow_error("Python integer out of bounds for " + std::string(dtype_name(out)) +
                                   " (scalar does not fit the matrix dtype)");
+    }
+
+    // bool * bool scalar (the only bool result): a copy of the bits or all False.
+    if (out == DataType::BIT) {
+        if (s.as_complex() != std::complex<double>(0.0, 0.0)) return bitwise(a, a, BitwiseOp::And);
+        return ObjectFactory::create_matrix(a.rows(), a.cols(), DataType::BIT, Structure::DENSE, "");
     }
 
     // Integer input, integer factor, dtype kept: an O(1) view sharing storage (LAZY.md L1,
     // F-042). Dense and triangular only (their readers apply integer factors); the folded
     // factor must stay exact, otherwise compute eagerly.
-    if (op == ScalarOpKind::Mul && is_int(in) && out == in && s.kind == ScalarArg::Kind::Int) {
+    if (op == ScalarOpKind::Mul && is_int_dtype(in) && out == in && s.kind == ScalarArg::Kind::Int) {
         const int64_t k = s.negative ? s.i : static_cast<int64_t>(s.u);  // mod 2^64 is exact here
         if (auto view = int_scale_view(a, k)) return view;
     }
@@ -686,20 +679,21 @@ std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, cons
 }
 
 std::unique_ptr<MatrixBase> materialize(const MatrixBase& a) {
-    // Values through the exact view-aware reader into fresh storage (factor 1).
-    return run_exact(a, a.get_data_type(), ScalarOpKind::Add, ScalarArg::from_int64(0));
+    // Values through the exact view-aware reader into fresh storage (factor 1). Times one,
+    // not plus zero: -0.0 + 0 is +0.0 (review 3.6 C-11).
+    return run_exact(a, a.get_data_type(), ScalarOpKind::Mul, ScalarArg::from_int64(1));
 }
 
 std::unique_ptr<MatrixBase> negate(const MatrixBase& a) {
     if (a.get_data_type() == DataType::BIT) {
         throw std::invalid_argument("negation of a bit/bool matrix is not supported (as in NumPy); use bitwise_not");
     }
-    if (is_int(a.get_data_type())) {
+    if (is_int_dtype(a.get_data_type())) {
         // -A is the view factor -1 (unsigned negation wraps like NumPy: same arithmetic).
         if (auto view = int_scale_view(a, -1)) return view;
         // Unsigned negation wraps (NumPy): multiply by -1 in the unsigned type.
         ScalarArg minus_one = ScalarArg::from_int64(-1);
-        if (is_unsigned_int(a.get_data_type())) {
+        if (is_unsigned_int_dtype(a.get_data_type())) {
             return run_exact(a, a.get_data_type(), ScalarOpKind::RSub, ScalarArg::from_int64(0));
         }
         return run_exact(a, a.get_data_type(), ScalarOpKind::Mul, minus_one);
@@ -709,7 +703,7 @@ std::unique_ptr<MatrixBase> negate(const MatrixBase& a) {
 
 bool is_plain(const MatrixBase& a) {
     return !a.is_transposed() && !a.is_subview() && a.get_scalar() == std::complex<double>(1.0, 0.0) &&
-           !(a.is_conjugated() && is_complex(a.get_data_type()));
+           !(a.is_conjugated() && is_complex_dtype(a.get_data_type()));
 }
 
 std::unique_ptr<MatrixBase> write_out(const MatrixBase& a) {

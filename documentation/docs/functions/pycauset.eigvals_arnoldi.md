@@ -25,7 +25,8 @@ The `k` eigenvalues of largest magnitude, computed with a restarted Krylov metho
 
 * `RuntimeError` if the iteration does not converge to `tol`. Increase `m` (or `tol`).
   The function never returns unconverged values.
-* `ValueError` / `RuntimeError` for a non-square matrix or `k` larger than its size.
+* `ValueError` for a non-square matrix or `k` / `m` below 1; `TypeError` for a complex
+  matrix (real dtypes only).
 
 ## Notes
 

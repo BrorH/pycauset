@@ -715,8 +715,7 @@ void CpuSolver::matmul(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
     }
     auto viewed = [](const MatrixBase& m) {
         const DataType d = m.get_data_type();
-        const bool cplx = d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 ||
-                          d == DataType::COMPLEX_FLOAT64;
+        const bool cplx = is_complex_dtype(d);
         return m.is_subview() || (m.is_conjugated() && cplx);
     };
     if (viewed(a) || viewed(b) || result.is_subview()) {

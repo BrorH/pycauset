@@ -103,7 +103,7 @@ def test_runtime_cleanup_sweeps_tmp_files_only(tmp_path):
     rt = Runtime(cleanup_storage=_storage.cleanup_storage)
     rt.set_storage_root(tmp_path)
     (tmp_path / "keep.pycauset").write_bytes(b"x")
-    tmp = tmp_path / "dense_float_999999999_0.tmp"  # a dead process's file
+    tmp = tmp_path / "dense_float_999999999_0.pycauset-tmp"  # a dead process's file
     tmp.write_bytes(b"x")
     rt.cleanup_all_roots()
     assert not tmp.exists() and (tmp_path / "keep.pycauset").exists()
@@ -150,10 +150,44 @@ def test_storage_sweep_helpers(tmp_path):
     from pycauset import _storage
 
     _storage.cleanup_storage(tmp_path / "missing")  # a missing root is a no-op
-    inside = tmp_path / "a.tmp"
-    inside.write_bytes(b"x")
+    ours = tmp_path / "dense_float_999999999_3.pycauset-tmp"
+    ours.write_bytes(b"x")
     _storage.cleanup_storage(tmp_path)
-    assert not inside.exists()
+    assert not ours.exists()
+
+
+def test_3_8_C1_the_sweep_leaves_other_files_alone(tmp_path):
+    """Review 3.8 C-1: the sweep deleted every *.tmp / *.raw_tmp file below the backing
+    directory, recursively (a user's notes.tmp, a build's obj_1234_5.tmp)."""
+    import subprocess
+    import sys
+
+    from pycauset import _storage
+
+    (tmp_path / "sub").mkdir()
+    keep = [tmp_path / "notes.tmp", tmp_path / "obj_1234_5.tmp", tmp_path / "a.raw_tmp",
+            tmp_path / "sub" / "dense_float_999999999_0.pycauset-tmp", tmp_path / "x_1_2.pycauset-tmp.bak"]
+    for p in keep:
+        p.write_bytes(b"x")
+    stale = tmp_path / "dense_float_999999999_0.pycauset-tmp"
+    stale.write_bytes(b"x")
+    old = pc._storage_root()
+    import warnings as w
+    try:
+        with w.catch_warnings():
+            w.simplefilter("ignore", pc.PyCausetStorageWarning)
+            pc.set_backing_dir(tmp_path)
+    finally:
+        with w.catch_warnings():
+            w.simplefilter("ignore", pc.PyCausetStorageWarning)
+            pc.set_backing_dir(old)
+    _storage.cleanup_storage(tmp_path)
+    # A fresh interpreter: import-time and exit sweeps.
+    code = f"import pycauset as pc; pc.set_backing_dir({str(tmp_path)!r})"
+    subprocess.run([sys.executable, "-c", code], check=True, cwd=tmp_path,
+                   env={**__import__("os").environ, "PYTHONPATH": str(Path(pc.__file__).parent.parent)})
+    assert all(p.exists() for p in keep)
+    assert not stale.exists()
 
 
 # --- area 3.1 review: several processes, one storage directory (F-121) ---------------------
@@ -208,7 +242,7 @@ def test_F121_two_processes_one_directory(backing_dir):
             if p.poll() is None:
                 p.kill()
     # A dead process's leftovers are swept.
-    stale = backing_dir / "dense_float_999999999_0.tmp"
+    stale = backing_dir / "dense_float_999999999_0.pycauset-tmp"
     stale.write_bytes(b"x")
     _storage.cleanup_storage(backing_dir)
     assert not stale.exists()
@@ -264,7 +298,7 @@ def file_backed(backing_dir):
 
 
 def _tmp_files(d):
-    return sorted(p.name for p in Path(d).glob("*.tmp"))
+    return sorted(p.name for p in Path(d).glob("*.pycauset-tmp"))
 
 
 def test_F123_a_temp_file_goes_with_its_last_owner(file_backed):

@@ -188,7 +188,7 @@ def test_cross(dtype):
 
 
 def test_cross_bool_raises():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):  # NumPy: TypeError (boolean subtract)
         pc.cross(pc.vector(np.ones(3, dtype=bool)), pc.vector(np.ones(3, dtype=bool)))
 
 

@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "pycauset/core/Errors.hpp"
 #include "pycauset/compute/ComputeDevice.hpp"
 #include "pycauset/compute/cpu/CpuSolver.hpp"
 #include "pycauset/core/DebugTrace.hpp"
@@ -196,7 +197,7 @@ bool cholesky_t(const MatrixBase& in, MatrixBase& out) {
     else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), std::max<lapack_int>(1, n));
     else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), std::max<lapack_int>(1, n));
     else info = LAPACKE_zpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), std::max<lapack_int>(1, n));
-    if (info > 0) throw std::domain_error("cholesky: matrix is not positive definite");
+    if (info > 0) throw pycauset::linalg_error("cholesky: matrix is not positive definite");
     if (info < 0) throw std::runtime_error("cholesky: illegal argument to ?potrf");
     auto& o = out_matrix<T>(out, "cholesky");
     T* dst = o.data();

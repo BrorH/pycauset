@@ -59,7 +59,7 @@ pc.clear_io_traces()        # reset the log
 
 ## 5. Temporary files
 
-A file-backed object's `.tmp` file is deleted when the last object using it goes (views
+A file-backed object's `.pycauset-tmp` file is deleted when the last object using it goes (views
 share it). To keep a matrix, save it with `pc.save`.
 
 See [[docs/index|API Reference]] for exact signatures.

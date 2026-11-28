@@ -834,12 +834,7 @@ _OPS_DEPS = _ops.OpsDeps(
 )
 
 def matmul(a: Any, b: Any) -> Any:
-    """
-    Perform matrix multiplication.
-    
-    If both inputs are TriangularBitMatrices, uses the optimized C++ implementation.
-    Otherwise, performs generic multiplication (slow).
-    """
+    """Matrix product ``a @ b`` (NumPy's ``matmul``); the engine picks the kernel by structure and dtype."""
     if debug_mode:
         _debug(f"matmul {_matrix_desc(a)} @ {_matrix_desc(b)}")
     with _debug_time("matmul"):

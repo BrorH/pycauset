@@ -78,10 +78,10 @@ def test_F016_export_guard_is_by_size_only(tmp_path):
     cannot predict it); a size ceiling, when set, applies to RAM and file storage alike."""
     previous, old_dir = pc.get_memory_threshold(), pc._storage_root()
     pc.set_backing_dir(tmp_path)
-    pc.set_memory_threshold(1)  # every new matrix is file-backed (a .tmp file)
+    pc.set_memory_threshold(1)  # every new matrix is file-backed (a .pycauset-tmp file)
     try:
         m = pc.matrix(np.ones((8, 8)))
-        assert m.get_backing_file().endswith(".tmp")
+        assert m.get_backing_file().endswith(".pycauset-tmp")
         np.testing.assert_array_equal(np.asarray(m), np.ones((8, 8)))
         pc.set_export_max_bytes(100)  # 8 x 8 float64 = 512 bytes
         with pytest.raises(RuntimeError, match="ceiling"):

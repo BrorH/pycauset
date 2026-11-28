@@ -10,7 +10,7 @@ enum class BitwiseOp { And, Or, Xor };
 
 // Element-wise a & b, a | b, a ^ b for bool and integer matrices of any structure and view, as
 // NumPy computes them: bool op bool is bool; otherwise NumPy's integer promotion (bool counts
-// as the smallest integer). Equal shapes. Float/complex operands: std::domain_error (the
+// as the smallest integer). Equal shapes. Float/complex operands: pycauset::dtype_error (the
 // binding raises TypeError, as NumPy does). The result is dense.
 std::unique_ptr<MatrixBase> bitwise(const MatrixBase& a, const MatrixBase& b, BitwiseOp op);
 

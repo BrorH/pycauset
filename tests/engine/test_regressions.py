@@ -1135,3 +1135,65 @@ def test_3_6_C6_integer_conj_sums_exactly():
     for v in (A.conj(), A.H):
         assert pc.sum(v) == int(a.sum()) and isinstance(pc.sum(v), int)
         assert pc.trace(v) == int(np.trace(a))
+
+
+def test_3_6_C10_skew_eigen_entries_check_their_input():
+    """Review 3.6 C-10: eigvals_skew read one triangle of any input (a symmetric matrix gave
+    imaginary eigenvalues), complex input was dropped or failed inside, 0 x 0 raised."""
+    rng = np.random.default_rng(0)
+    s = rng.standard_normal((6, 6))
+    sym = pc.matrix(s + s.T)
+    with pytest.raises(ValueError, match="skew-symmetric"):
+        pc.eigvals_skew(sym, 3)
+    with pytest.raises(ValueError, match="skew-symmetric"):
+        pc.eig_skew(sym, 2)
+    k = s - s.T
+    with pytest.raises(TypeError, match="real matrices only"):
+        pc.eigvals_skew(pc.matrix(1j * k), 3)
+    with pytest.raises(TypeError, match="real matrices only"):
+        pc.eigvals_arnoldi(pc.matrix(1j * k), 2, 4)
+    w = np.asarray(pc.eigvals_skew(pc.matrix(k), 6))
+    want = np.linalg.eigvals(k)
+    assert np.allclose(np.sort(np.abs(w.imag)), np.sort(np.abs(want.imag)))
+    assert np.asarray(pc.eigvals_skew(pc.matrix(np.zeros((0, 0))), 1)).shape == (0,)
+    w0, v0 = pc.eig_skew(pc.matrix(np.zeros((0, 0))), 1)
+    assert np.asarray(w0).shape == (0,) and np.asarray(v0).shape == (0, 0)
+
+
+def test_3_6_C11_materialize_keeps_signed_zeros():
+    """Review 3.6 C-11: materialize added 0, and -0.0 + 0 is +0.0."""
+    a = np.array([[-0.0, 1.0], [0.0, -2.0]])
+    got = np.asarray(pc.materialize(-pc.matrix(a)))
+    assert np.array_equal(np.signbit(got), np.signbit(-a))
+
+
+def test_3_6_C13_bool_scalar_is_a_bool_operand():
+    """Review 3.6 C-13: a Python bool / np.bool_ was an int, so B * True was int32 (NumPy bool)."""
+    b = np.array([[True, False], [False, True]])
+    B = pc.matrix(b)
+    for s in (True, False, np.True_, np.False_):
+        got = B * s
+        assert got.dtype == "bool"
+        assert np.array_equal(np.asarray(got), b * s)
+        assert np.array_equal(np.asarray(s * B), b * s)
+    assert np.array_equal(np.asarray(B.T * True), b.T)
+    # Integer and float matrices keep their dtype, as in NumPy.
+    i = pc.matrix(np.array([[1, 2]], np.int8))
+    assert (i * True).dtype == "int8" and (i + np.True_).dtype == "int8"
+    f = pc.matrix(np.array([[1.5]], np.float32))
+    assert (f * True).dtype == "float32"
+
+
+def test_singular_matrix_is_a_value_error():
+    """NumPy raises LinAlgError (a ValueError) for a singular matrix; PyCauset raised RuntimeError."""
+    z = pc.matrix(np.zeros((2, 2)))
+    for f in (pc.invert, lambda m: pc.matrix_power(m, -1), lambda m: pc.solve(m, pc.matrix(np.ones((2, 1))))):
+        with pytest.raises(ValueError, match="singular"):
+            f(z)
+    d = pc.DiagonalMatrix(2, dtype="float64")  # zero diagonal: the structure rule
+    with pytest.raises(ValueError, match="singular"):
+        pc.invert(d)
+    with pytest.raises(np.linalg.LinAlgError):  # NumPy's own class
+        pc.invert(z)
+    with pytest.raises(np.linalg.LinAlgError, match="positive definite"):
+        pc.cholesky(pc.matrix(-np.eye(2)))

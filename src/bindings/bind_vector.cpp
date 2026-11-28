@@ -187,10 +187,7 @@ inline py::object exact_int_dot(const VectorBase& a, const VectorBase& b) {
 // Inner product of two vectors (orientation ignored, no conjugation, like np.dot).
 inline py::object vector_dot(const VectorBase& a, const VectorBase& b) {
     if (py::object exact = exact_int_dot(a, b)) return exact;
-    const auto is_complex = [](DataType dt) {
-        return dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64;
-    };
-    if (is_complex(a.get_data_type()) || is_complex(b.get_data_type())) {
+    if (pycauset::is_complex_dtype(a.get_data_type()) || pycauset::is_complex_dtype(b.get_data_type())) {
         return py::cast(pycauset::dot_product_complex(a, b));
     }
     return py::float_(pycauset::dot_product(a, b));
@@ -210,10 +207,10 @@ using vec_element_t = typename vec_element<V>::type;
 
 inline py::object vector_element_get(const VectorBase& v, uint64_t i) {
     const DataType dt = v.get_data_type();
-    if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
+    if (is_complex_dtype(dt)) {
         return py::cast(v.get_element_as_complex(i));
     }
-    if (dt == DataType::FLOAT16 || dt == DataType::FLOAT32 || dt == DataType::FLOAT64) {
+    if (is_real_float_dtype(dt)) {
         return py::float_(v.get_element_as_double(i));
     }
     if (v.get_scalar() != std::complex<double>(1.0, 0.0)) {
@@ -238,8 +235,7 @@ inline py::object vector_element_get(const VectorBase& v, uint64_t i) {
 inline void vector_fold_value_view(VectorBase& v) {
     const std::complex<double> s = v.get_scalar();
     const DataType dt = v.get_data_type();
-    const bool conj = v.is_conjugated() && (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 ||
-                                            dt == DataType::COMPLEX_FLOAT64);
+    const bool conj = v.is_conjugated() && is_complex_dtype(dt);
     if (s == std::complex<double>(1.0, 0.0) && !conj) {
         v.set_conjugated(false);  // conj of real values is a no-op flag (review 3.2 C-13)
         return;
@@ -302,11 +298,9 @@ inline std::shared_ptr<VectorBase> vector_bitwise(const VectorBase& a, const Vec
             out = pycauset::bitwise(*ra, *rb, op);
         }
         return std::shared_ptr<VectorBase>(pycauset::as_vector(std::move(out), a.is_transposed()).release());
-    } catch (const std::domain_error& e) {
-        throw py::type_error(e.what());
     } catch (const std::invalid_argument& e) {
         throw py::value_error(e.what());
-    }
+    }  // pycauset::dtype_error is a TypeError (translated globally)
 }
 
 inline py::object vector_arith(const VectorBase& a, const py::object& other, Arith op, bool reflected) {

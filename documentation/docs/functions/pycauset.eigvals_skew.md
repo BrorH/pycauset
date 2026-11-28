@@ -21,14 +21,18 @@ dimension is odd.
   `min(k, n)`. Each entry has a negligible real part (machine precision) and an
   imaginary part of the form $\pm\lambda$.
 
+## Raises
+
+* `TypeError` for a complex matrix (real dtypes only: bool, integer, float).
+* `ValueError` if `a` is not square, `k < 1`, or `a` is not exactly skew-symmetric (every
+  `A[i, j] == -A[j, i]` and a zero diagonal, checked element by element; the message names the
+  first pair that differs).
+
 ## Notes
 
-* Uses the native backend when available, otherwise falls back to NumPy's general
-  eigensolver.
-* Requesting `k > n` returns at most `n` eigenvalues.
-* A dedicated Paige–Van Loan tridiagonalization (the asymptotically faster
-  $O(n^2)$-ish algorithm for skew matrices) is planned but not yet implemented;
-  the current native path uses the general LAPACK `dgeev` solver.
+* `iA` is Hermitian, so the eigenvalues come from LAPACK's Hermitian solver (`zheevd`) on
+  `iA`: exact `+-` pairs, in real-arithmetic accuracy. Within a pair, `+i` comes first.
+* Requesting `k > n` returns at most `n` eigenvalues; a 0 x 0 matrix gives an empty vector.
 
 ## Example
 

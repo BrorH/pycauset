@@ -93,10 +93,10 @@ import pycauset as pc
 pc.set_backing_dir(r"D:\\pycauset_tmp")
 ```
 
-A temporary backing file (`.tmp`) belongs to its storage: it is deleted when the last
+A temporary backing file (`<prefix>_<pid>_<n>.pycauset-tmp`) belongs to its storage: it is deleted when the last
 object using it goes (a matrix and its views share one). `del` a big intermediate and its
-disk space comes back at once. PyCauset also sweeps the directory for leftover `.tmp`
-files:
+disk space comes back at once. PyCauset also sweeps the directory (not its subdirectories)
+for leftover files with exactly that name form; no other file is touched:
 
 - **On import** (and on `set_backing_dir`): files of earlier runs that crashed.
 - **On interpreter exit**: anything still there from this run.
@@ -108,18 +108,18 @@ To keep a matrix, save it (`pc.save`).
 
 Each new matrix or vector is placed once, when it is created: in RAM if it is below the
 memory threshold and fits the free RAM (minus a safety margin), otherwise in a temporary
-memory-mapped `.tmp` file under the backing directory. It stays where it was placed: PyCauset
+memory-mapped `.pycauset-tmp` file in the backing directory. It stays where it was placed: PyCauset
 does not move existing objects to disk to make room (an operation in progress reads their
 memory directly), so under memory pressure it is the new results that go to files.
 
-- A `.tmp` file holds the **payload bytes only**; the live Python object keeps its metadata.
+- A `.pycauset-tmp` file holds the **payload bytes only**; the live Python object keeps its metadata.
 - It is not a `.pycauset` snapshot: to keep the data, call `save()`.
 
-## `.tmp` vs `.raw_tmp` vs `.pycauset`
+## `.pycauset-tmp` vs `.raw_tmp` vs `.pycauset`
 
 You may see these extensions in your backing directory:
 
-- `.tmp`: temporary backing files that hold **payload bytes** during a session (objects placed in a file at creation). Their names carry the process id, so several processes can share one backing directory.
+- `.pycauset-tmp`: temporary backing files that hold **payload bytes** during a session (objects placed in a file at creation). Their names carry the process id, so several processes can share one backing directory.
 - `.<name>.XXXX.raw_tmp` / `.part` (hidden, next to the file being saved, not in the backing directory): staging files of a `save()` in progress. The finished container replaces the target in one rename; a save that was killed can leave them behind, and they can be deleted.
 - `.pycauset`: a **snapshot container** you created explicitly via `save()`.
 

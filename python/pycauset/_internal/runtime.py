@@ -43,10 +43,10 @@ class Runtime:
 
     def has_own_temp_files(self, root: Path) -> bool:
         """Whether objects of this process are file-backed in `root` (temp names carry the
-        pid: `<prefix>_<pid>_<n>.tmp`)."""
+        pid: `<prefix>_<pid>_<n>.pycauset-tmp`)."""
         marker = f"_{os.getpid()}_"
         try:
-            return any(marker in p.name for p in root.glob("*.tmp"))
+            return any(marker in p.name for p in root.glob("*.pycauset-tmp"))
         except OSError:
             return False
 

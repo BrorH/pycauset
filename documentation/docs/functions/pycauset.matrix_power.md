@@ -17,12 +17,12 @@ A matrix equal to `A^n`.
 
 ## Notes
 
-Structural shortcuts:
-
-*   `n == 0` returns an identity matrix.
-*   `n == 1` returns `a` unchanged.
-*   `is_identity` returns `a` for any `n`.
-*   `is_zero` returns `a` for `n > 0`, and raises `ValueError` for `n < 0`.
+*   `n == 0` returns an identity matrix of `a`'s shape and dtype.
+*   `n == 1` returns `a` itself, as NumPy does.
+*   `n < 0` inverts first; a singular `a` raises `ValueError` (NumPy raises `LinAlgError`, a
+    `ValueError`).
+*   There are no value shortcuts: an identity or zero matrix is powered by matmul like any
+    other (identity x identity is already O(1)).
 
 ## Examples
 

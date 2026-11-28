@@ -1830,9 +1830,21 @@ the entry (the history is useful). New findings go at the bottom with the next f
   check; documented in Out of Core), C-7 (no read-ahead hints from kernels; documented).
 
 ### F-136 Area 3.6 (math entry): silent integer wrap, NaN rejected by LAPACK, identity product
-- **Status:** C-1, C-2, C-3, C-4 fixed, C-5 partly (session 9); the rest open in
-  `review/areas/3.6-math-entry.md` (C-5's float32 last-ulp and fold-overflow cases, documented;
-  C-9 three dot implementations; C-10 `eigvals_skew` on non-skew input; smaller items).
+- **Status:** C-1 to C-4, C-6, C-10, C-11, C-13, C-15 fixed, C-5 partly (session 9); the rest
+  open in `review/areas/3.6-math-entry.md` (C-5's float32 last-ulp and fold-overflow cases,
+  documented; C-7 broadcasting gaps and `M == M2`; C-8 `v @ M` shape; C-9 three dot
+  implementations; C-12, C-14, C-16, C-17).
+  - C-6: integer `.conj()` / `.H` sums and traces are exact (conj of an integer is a no-op).
+  - C-10: `eigvals_skew` / `eig_skew` check their input exactly (non-skew: `ValueError`;
+    complex, also for `eigvals_arnoldi`: `TypeError`); 0 x 0 gives empty results. A symmetric
+    input returned imaginary eigenvalues.
+  - C-11: `materialize` keeps signed zeros. C-13: a bool scalar is a bool operand
+    (`B * True` is bool). C-15: stale docs (matrix_power, matmul, DType System, the skew and
+    Arnoldi pages, which still promised a NumPy fallback).
+  - Errors: `pycauset::dtype_error` (TypeError) and `pycauset::linalg_error` (NumPy's own
+    `np.linalg.LinAlgError`, a ValueError) in `core/Errors.hpp`, translated once in
+    `bindings.cpp`. Singular `inv` / `solve` raised `RuntimeError`; `cross` of bools raised
+    `ValueError` (NumPy: TypeError).
   - C-4: real view factors compose in real arithmetic (`compose_factors`, ViewValue.hpp):
     `A * inf` had factor `inf + nan j`, so `sum` turned complex and `det` raised. `A / s`
     whose reciprocal is not finite (a subnormal `s`) computes eagerly as a division.
@@ -1855,3 +1867,31 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - `test_F136_*`.
   - Note for Windows: the exact paths use `__int128` (as Reductions already does); MSVC has
     none, so a Windows build needs clang-cl or a fallback.
+
+### F-137 Area 3.4 (dispatch and CPU kernels): bit dot counts padding, fork hang, thread limits
+- **Status:** reviewed (session 9), 19 findings in `review/areas/3.4-dispatch-kernels.md`
+  (1 S1, 5 S2, 9 S3, 4 S4). Open.
+  - C-1 (S1): the bit-vector dot counted the padding bits of the last word (`pc.dot(~u, ~u)`
+    = 64 for n = 5).
+  - C-2: after `fork()` the first parallel kernel in the child hangs (ThreadPool, libgomp).
+  - C-3: `eig_skew` uses `?geev`: eigenvectors of repeated eigenvalues are not orthonormal.
+  - C-4: `compute_k(C.T)` ignores the transpose; `a = 0` returns inf / nan.
+  - C-5: no kernel releases the GIL. C-6: thread limits are overridden around every dgemm.
+  - S3 / S4: norm factor after the sum (overflow), float32 dot in double, NaN in eig / svd /
+    lstsq, empty SVD, int-cast BLAS lengths, forwarding layers (AutoSolver, CpuDevice),
+    per-dtype if-ladders, dead integer divide kernels, RUNPATHs into `build/cpp`.
+
+### F-138 Area 3.8 (Python facade): the temp sweep deleted users' files, double-scaled printing
+- **Status:** reviewed (session 9), 23 findings in `review/areas/3.8-python-facade.md`
+  (1 S1, 6 S2, 12 S3, 4 S4). C-1 fixed; the rest open.
+  - C-1 (S1, fixed): the storage sweep deleted every `*.tmp` / `*.raw_tmp` file below the
+    backing directory, recursively, whoever made it (at import, `set_backing_dir` and exit).
+    Temp files are named `<prefix>_<pid>_<n>.pycauset-tmp` now and the sweep deletes only
+    that exact form, directly in the root (`test_3_8_C1_the_sweep_leaves_other_files_alone`).
+  - C-2: `print(A * 2)` applies the factor twice, as complex numbers.
+  - C-3: `vector` / `zeros` / `ones` / `empty` ignore a bad dtype and unknown kwargs.
+  - C-4: NumPy computes behind `pc.divide` / `pc.bitwise_*` (ndarray input) and the
+    structured constructors export PyCauset input to NumPy.
+  - C-5: per-call `storage="disk"` changes the process-wide threshold (thread-unsafe).
+  - C-6: import creates `./.pycauset` in the working directory. C-7: `pc.invert` is the
+    matrix inverse, NumPy's `invert` is bitwise NOT.

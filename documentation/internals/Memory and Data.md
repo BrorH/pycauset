@@ -10,7 +10,7 @@ in one of two places:
 
 - **RAM** — the C heap (`calloc`, or `malloc` for results every byte of which is written:
   `UninitializedStorage`). The fast path.
-- **Disk** — a memory-mapped file, either a temporary session file (`.tmp`) or a
+- **Disk** — a memory-mapped file, either a temporary session file (`.pycauset-tmp`) or a
   persisted `.pycauset` snapshot.
 
 Each object is placed once, at creation: in RAM when it is below the memory threshold and
@@ -26,7 +26,7 @@ siblings share one) and the view metadata.
 - On creation it decides RAM vs file (below) and creates the storage.
 - The storage goes with its last owner: the mapper's destructor frees the memory or
   unmaps the file, and deletes the file if it is temporary (auto-named, a copy, or an
-  explicit `.tmp` name). A file the user named and a loaded snapshot are never deleted.
+  explicit `.pycauset-tmp` name). A file the user named and a loaded snapshot are never deleted.
 - On POSIX a mapped file keeps no open file descriptor (the mapping keeps the file
   alive), so the number of file-backed objects is not limited by the fd limit.
 
@@ -118,10 +118,10 @@ Portable, persistent storage for matrices and causal sets. Managed by
 The payload is laid out exactly as it would be in memory (row-major dense, packed
 words for bit matrices). Metadata updates never shift the payload.
 
-### `.tmp` (session backing file)
+### `.pycauset-tmp` (session backing file)
 
 Temporary storage for objects placed in files (large ones, or those that did not fit RAM).
-Named `<prefix>_<pid>_<n>.tmp`, so processes sharing a backing directory never collide (F-121). Managed by
+Named `<prefix>_<pid>_<n>.pycauset-tmp`, so processes sharing a backing directory never collide (F-121), and the sweep can tell them from every other file (review 3.8 C-1). Managed by
 `src/core/MemoryMapper.cpp`, which deletes the file when the storage's last owner goes.
 
 - A 64-byte header (magic + version + reserved).

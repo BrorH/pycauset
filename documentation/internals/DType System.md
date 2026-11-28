@@ -140,7 +140,7 @@ Complex permutations of non-float dtypes are a non-goal by design.
 Overflow behavior depends on the operation class:
 
 - **Elementwise** (`add`, `sub`, `mul`, `div`, and their scalar variants): integer overflow **wraps silently** (C/NumPy two's-complement semantics). This is the documented, supported behavior: it is not an error and does not auto-promote.
-- **Reductions** (`matmul`): PyCauset uses a **wider internal accumulator** and **throws `OverflowError`** when the final result does not fit the output dtype. This keeps reductions free of silent wrap. (`dot` returns a Python `float` scalar, which is exact for results within float64 precision.)
+- **Reductions** (`matmul`): PyCauset uses a **wider internal accumulator** and **throws `OverflowError`** when the final result does not fit the output dtype. This keeps reductions free of silent wrap. (`dot` of two integer vectors returns an exact Python `int`, also beyond int64; NumPy wraps. Review 3.6 C-9 tracks making `dot` and the 1-D matmul case one rule.)
 
 For large int32 matmuls PyCauset may also emit an **advisory** `PyCausetOverflowRiskWarning`, estimated from a fixed sample of entries, before computing. It never affects the result.
 
@@ -191,6 +191,8 @@ decide the result (`scalar_result_dtype` in `math/ScalarOps.cpp` calls `promotio
   "strong" scalars). Within-float under-promotion applies to it too: a scalar never widens a
   float matrix (`float16 M + np.float32(1)` is float16, `float64 M * np.float32(2)` float32);
   NumPy would widen.
+- A **bool** (`True`, `np.True_`) is a bool operand: `B * True` is bool (as `B * B`), `B + True`
+  counts in int32 (as `B + B`), `int8 M * True` is int8, as in NumPy.
 - A **Python scalar** is weak: an `int` takes the matrix's dtype (int32 with a bool matrix,
   the default integer), a `float` the matrix's float dtype (float64 with an integer matrix), a
   `complex` the complex of the matrix's precision (complex128 with an integer matrix).

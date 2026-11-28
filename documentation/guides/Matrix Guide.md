@@ -272,7 +272,7 @@ By default, `pycauset` manages backing files automatically. Files are stored in 
 
 Temporary file types you may see in the backing directory:
 
-*   `.tmp`: session-only backing files holding payload bytes of file-backed objects.
+*   `.pycauset-tmp`: session-only backing files holding payload bytes of file-backed objects.
 *   `.raw_tmp` / `.part` (hidden, next to the saved file): staging files of a `save()` in progress.
 
 ### Saving a Matrix

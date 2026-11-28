@@ -15,8 +15,9 @@ upper triangular matrix is a `TriangularMatrix`, of a diagonal matrix a `Diagona
 ## Raises
 
 *   **ValueError**: the matrix is not square.
-*   **RuntimeError**: the matrix is singular (a zero pivot), including every strictly
-    upper triangular matrix such as a causal matrix.
+*   **ValueError**: the matrix is singular (a zero pivot), including every strictly
+    upper triangular matrix such as a causal matrix. NumPy raises `LinAlgError`, a
+    `ValueError`.
 
 ## Example
 

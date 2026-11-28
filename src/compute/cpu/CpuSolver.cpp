@@ -2,6 +2,7 @@
 // iterative eigen solvers live in CpuMatmul.cpp, CpuElementwise.cpp and CpuIterative.cpp.
 #include <Spectra/SymEigsSolver.h>
 #include <Spectra/GenEigsSolver.h>
+#include "pycauset/core/Errors.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/math/RawRows.hpp"
@@ -97,8 +98,8 @@ double CpuSolver::dot(const VectorBase& a, const VectorBase& b) {
 
     const auto dt_a = a.get_data_type();
     const auto dt_b = b.get_data_type();
-    if (dt_a == DataType::COMPLEX_FLOAT16 || dt_a == DataType::COMPLEX_FLOAT32 || dt_a == DataType::COMPLEX_FLOAT64 ||
-        dt_b == DataType::COMPLEX_FLOAT16 || dt_b == DataType::COMPLEX_FLOAT32 || dt_b == DataType::COMPLEX_FLOAT64) {
+    if (is_complex_dtype(dt_a) ||
+        is_complex_dtype(dt_b)) {
         throw std::runtime_error("CpuSolver::dot not implemented for complex vectors");
     }
 
@@ -858,7 +859,7 @@ bool solve_dense(const MatrixBase& a, const MatrixBase& b, MatrixBase& x) {
     std::copy(B->data(), B->data() + n * nrhs, xp);
     if (n == 0) return true;
     const lapack_int info = getrf_transposed<T>((lapack_int)n, wa.data(), ipiv.data());
-    if (info > 0) throw std::runtime_error("solve failed: matrix singular (zero pivot at " + std::to_string(info) + ")");
+    if (info > 0) throw pycauset::linalg_error("solve: matrix is singular (zero pivot at " + std::to_string(info) + ")");
     if (info < 0) throw std::runtime_error("solve: illegal argument to getrf");
     if (nrhs == 0) return true;
     trsm_right<T>(CblasUpper, CblasNonUnit, (int)nrhs, (int)n, wa.data(), xp);

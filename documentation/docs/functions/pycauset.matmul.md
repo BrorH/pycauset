@@ -6,7 +6,7 @@ pycauset.matmul(a, b)
 
 Perform matrix multiplication.
 
-For native objects, this routes through the standard compute boundary (AutoSolver / device routing) and dispatches to optimized C++ implementations.
+For native objects, the engine entry `pycauset::matmul` picks the kernel by structure and dtype (`dispatch_matmul`: bit-packed, triangular, diagonal, identity and dense BLAS kernels).
 
 For block matrices (constructed via `pycauset.matrix(block_grid)` where every element is matrix-like), `pycauset.matmul(a, b)` preserves “once block, always block” by returning a thunked block-matrix result with partition refinement (union of shared boundaries via `SubmatrixView` tiling).
 
@@ -62,7 +62,7 @@ Determinism:
 
 - Fixed `k` order for each output block’s accumulation.
 - Accumulator dtype is chosen from operand dtype metadata only (folding add-result dtype across terms) before evaluation.
-- Leaf matmul runs through the public compute boundary (AutoSolver) per block.
+- Each leaf product is an ordinary `pycauset.matmul`.
 
 See [[internals/Block Matrices.md|Block Matrices]] for details.
 

@@ -17,6 +17,7 @@
 #include <type_traits>
 
 #include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/core/Errors.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 #include "pycauset/core/PromotionResolver.hpp"
 #include "pycauset/core/DebugTrace.hpp"
@@ -28,11 +29,10 @@
 namespace pycauset {
 namespace {
 
-bool is_int_dtype(DataType d) { return is_integer_or_bit(d) && d != DataType::BIT; }
 
 void require_bitwise_dtype(DataType d, const char* what) {
     if (d != DataType::BIT && !is_int_dtype(d)) {
-        throw std::domain_error(std::string(what) + " is defined for bool and integer dtypes (got " + dtype_name(d) + ")");
+        throw dtype_error(std::string(what) + " is defined for bool and integer dtypes (got " + dtype_name(d) + ")");
     }
 }
 
@@ -162,7 +162,7 @@ std::unique_ptr<MatrixBase> bitwise(const MatrixBase& a, const MatrixBase& b, Bi
         return d == DataType::INT8 || d == DataType::INT16 || d == DataType::INT32 || d == DataType::INT64;
     };
     if ((da == DataType::UINT64 && is_signed(db)) || (db == DataType::UINT64 && is_signed(da))) {
-        throw std::domain_error(std::string("bitwise ops: no common integer dtype for ") + dtype_name(da) + " and " +
+        throw dtype_error(std::string("bitwise ops: no common integer dtype for ") + dtype_name(da) + " and " +
                                 dtype_name(db));
     }
     const DataType r = promotion::resolve(promotion::BinaryOp::Add, da, db).result_dtype;

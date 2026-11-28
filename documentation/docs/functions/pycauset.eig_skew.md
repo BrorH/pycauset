@@ -25,13 +25,17 @@ A tuple `(w, v)`:
 * **v**: Complex `n x min(k, n)` matrix whose columns are the matching right
   eigenvectors, in the same order. Each column satisfies $A v_j = w_j v_j$.
 
+## Raises
+
+* `TypeError` for a complex matrix (real dtypes only: bool, integer, float).
+* `ValueError` if `a` is not square, `k < 1`, or `a` is not exactly skew-symmetric (every
+  `A[i, j] == -A[j, i]` and a zero diagonal, checked element by element; the message names the
+  first pair that differs).
+
 ## Notes
 
-* Uses the native backend when available, otherwise falls back to NumPy's general
-  eigensolver.
-* Requesting `k > n` returns at most `n` eigenpairs.
-* The native path uses the general LAPACK `dgeev` solver. A dedicated skew
-  tridiagonalization is planned but not yet implemented.
+* The eigenpairs come from LAPACK's general solver (`dgeev`).
+* Requesting `k > n` returns at most `n` eigenpairs; a 0 x 0 matrix gives empty results.
 
 ## Example
 

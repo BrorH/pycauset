@@ -53,8 +53,7 @@ public:
     }
 
     double element_as_double(uint64_t i) const override {
-        if (data_type_ == DataType::COMPLEX_FLOAT16 || data_type_ == DataType::COMPLEX_FLOAT32 ||
-            data_type_ == DataType::COMPLEX_FLOAT64) {
+        if (is_complex_dtype(data_type_)) {
             throw std::runtime_error("Complex vector does not support get_element_as_double; use get_element_as_complex");
         }
         return element_as_complex(i).real();

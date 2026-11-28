@@ -1,19 +1,19 @@
 #pragma once
 
-// Matrix ⊕ scalar operations with NumPy result-dtype semantics (F-001, F-002).
+// Matrix (op) scalar operations: one entry point for `A + s`, `A - s`, `s - A`, `A * s`,
+// `A / s`, `s / A` and `-A`.
 //
-// One entry point for `A + s`, `A - s`, `s - A`, `A * s`, `A / s`, `s / A` and `-A`.
-// Rules (NumPy 2 / NEP 50, Python scalars are "weak"):
-//   integer A  op Python int   -> A's dtype, two's-complement wraparound; a Python int
-//                                 that does not fit A's dtype raises std::overflow_error
-//   integer A  op Python float -> float64          integer A / anything -> float64
-//   integer A  op complex      -> complex128
-//   bit A      op Python int   -> int32 (PyCauset counting policy, F-013)
-//   float/complex A op real    -> A's dtype (existing O(1) scalar-view paths)
-//   real float A op complex    -> complex of matching precision
-// Integer and bit inputs are computed exactly (typed element reads, no round trip
-// through double). Triangular inputs keep their structure when the op maps 0 -> 0.
-// Integer and bit matrices never receive a lazy `scalar_` (see FINDINGS F-001).
+// Result dtype (DType System §9, review 3.3 C-3): the scalar is an operand of one dtype and
+// promotion::resolve decides, as for two matrices. A NumPy scalar has its own dtype; a Python
+// bool is bool; a Python int takes the matrix's integer dtype (int32 with a bool matrix); a
+// Python float the matrix's float dtype (float64 with an integer or bool matrix); a Python
+// complex the matrix's complex precision. A Python int that does not fit the result dtype
+// raises std::overflow_error; integer arithmetic wraps, as in NumPy.
+//
+// Kernels: a float / complex result of the matrix's dtype is an O(1) scale view (`A * s`,
+// `A / s` when 1/s is finite); integer factors are O(1) integer views where the factor stays
+// exact; everything else computes through the typed kernels, which keep a triangular or
+// symmetric structure when the op maps 0 to 0.
 
 #include <complex>
 #include <cstdint>
@@ -48,18 +48,16 @@ struct ScalarArg {
     std::complex<double> as_complex() const;
 };
 
-// True for every integer dtype and for bit/bool.
-bool is_integer_or_bit(DataType dt);
-
 // The dtype NumPy would produce for `a <op> s` (with PyCauset's bit->int32 rule).
 DataType scalar_result_dtype(DataType a, ScalarOpKind op, const ScalarArg& s);
 
 std::unique_ptr<MatrixBase> scalar_op(const MatrixBase& a, ScalarOpKind op, const ScalarArg& s);
 
-// -A. Raises std::invalid_argument for bit/bool (NumPy forbids boolean negation).
 // Plain copy of a view's values (factor applied exactly); used before consumers that read
 // raw storage. Integer and float dtypes supported by the exact scalar kernels.
 std::unique_ptr<MatrixBase> materialize(const MatrixBase& a);
+
+// -A. Raises std::invalid_argument for bit/bool (NumPy forbids boolean negation).
 std::unique_ptr<MatrixBase> negate(const MatrixBase& a);
 
 // A converted to a dense matrix of dtype `dt` (exact where the target can represent the

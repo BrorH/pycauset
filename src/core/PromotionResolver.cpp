@@ -9,30 +9,6 @@ namespace pycauset::promotion {
 
 namespace {
 
-inline bool is_real_float(DataType dt) {
-    return dt == DataType::FLOAT16 || dt == DataType::FLOAT32 || dt == DataType::FLOAT64;
-}
-
-inline bool is_complex_float(DataType dt) {
-    return dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64;
-}
-
-inline bool is_signed_int(DataType dt) {
-    return dt == DataType::INT8 || dt == DataType::INT16 || dt == DataType::INT32 || dt == DataType::INT64;
-}
-
-inline bool is_unsigned_int(DataType dt) {
-    return dt == DataType::UINT8 || dt == DataType::UINT16 || dt == DataType::UINT32 || dt == DataType::UINT64;
-}
-
-inline bool is_int_like(DataType dt) {
-    return is_signed_int(dt) || is_unsigned_int(dt);
-}
-
-inline bool is_bit(DataType dt) {
-    return dt == DataType::BIT;
-}
-
 inline uint8_t int_rank_bits(DataType dt) {
     switch (dt) {
         case DataType::INT8:
@@ -175,7 +151,7 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
     // participating float precision; an int/bit operand raises the floor to the float that
     // holds it (F-034; DType System 4.3). (One branch: it was written twice, once per op group,
     // with an unreachable fallback.)
-    if (is_complex_float(a) || is_complex_float(b)) {
+    if (is_complex_dtype(a) || is_complex_dtype(b)) {
         const uint8_t ra = float_rank(a);
         const uint8_t rb = float_rank(b);
         const uint8_t r = (ra && rb) ? choose_rank(ra, rb)
@@ -184,9 +160,9 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
     }
 
     // Fundamental kind rule: float dominates.
-    if (is_real_float(a) || is_real_float(b)) {
+    if (is_real_float_dtype(a) || is_real_float_dtype(b)) {
         Decision d;
-        if (is_real_float(a) && is_real_float(b)) {
+        if (is_real_float_dtype(a) && is_real_float_dtype(b)) {
             d.result_dtype = smallest_float(a, b);
 
             // Underpromotion is only meaningful for mixed-float ops.
@@ -202,8 +178,8 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
 
         // Only one side is a real float: the result float must also be able to hold the
         // integer operand's values (F-034), otherwise e.g. int32 + float16 -> inf.
-        const DataType f = is_real_float(a) ? a : b;
-        const DataType other = is_real_float(a) ? b : a;
+        const DataType f = is_real_float_dtype(a) ? a : b;
+        const DataType other = is_real_float_dtype(a) ? b : a;
         const uint8_t r = std::max(float_rank(f), float_rank_for_int(other));
         d.result_dtype = real_float_from_rank(r);
         return d;
@@ -218,18 +194,18 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
     }
 
     // Fundamental kind rule: integer dominates bit for numeric ops.
-    if (is_int_like(a) || is_int_like(b)) {
+    if (is_int_dtype(a) || is_int_dtype(b)) {
         // NOTE: bit×bit reduction/count ops are handled in the bit×bit section below
         // and intentionally produce int32 for practical count semantics.
-        if (is_bit(a)) {
+        if ((a == DataType::BIT)) {
             return Decision{b, false, DataType::UNKNOWN};
         }
-        if (is_bit(b)) {
+        if ((b == DataType::BIT)) {
             return Decision{a, false, DataType::UNKNOWN};
         }
 
-        const bool a_signed = is_signed_int(a);
-        const bool b_signed = is_signed_int(b);
+        const bool a_signed = is_signed_int_dtype(a);
+        const bool b_signed = is_signed_int_dtype(b);
         const uint8_t a_bits = int_rank_bits(a);
         const uint8_t b_bits = int_rank_bits(b);
 
@@ -263,7 +239,7 @@ Decision resolve(BinaryOp op, DataType a, DataType b) {
     }
 
     // Both are bit.
-    if (is_bit(a) && is_bit(b)) {
+    if ((a == DataType::BIT) && (b == DataType::BIT)) {
         switch (op) {
             case BinaryOp::Add:
             case BinaryOp::Subtract:

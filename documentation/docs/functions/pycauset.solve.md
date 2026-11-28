@@ -24,7 +24,7 @@ $$
 NumPy's algorithm, `np.linalg.solve`: LU with partial pivoting (LAPACK `?getrf` and triangular
 solves) in the operands' common LAPACK dtype (integers in float64). Any structure, view and
 dtype; structured operands are written out first. `b` may be a matrix or a vector (the
-result has `b`'s kind). A singular `a` raises `RuntimeError`.
+result has `b`'s kind). A singular `a` raises `ValueError` (NumPy: `LinAlgError`, a `ValueError`).
 
 ## Examples
 

@@ -9,6 +9,7 @@
 #include "pycauset/matrix/BitClosureMatrix.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
+#include "pycauset/core/Errors.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/matrix/IdentityMatrix.hpp"
@@ -270,8 +271,8 @@ std::unique_ptr<MatrixBase> elementwise_divide(const MatrixBase& a, const Matrix
 double dot_product(const VectorBase& a, const VectorBase& b) {
     const auto dt_a = a.get_data_type();
     const auto dt_b = b.get_data_type();
-    if (dt_a == DataType::COMPLEX_FLOAT16 || dt_a == DataType::COMPLEX_FLOAT32 || dt_a == DataType::COMPLEX_FLOAT64 ||
-        dt_b == DataType::COMPLEX_FLOAT16 || dt_b == DataType::COMPLEX_FLOAT32 || dt_b == DataType::COMPLEX_FLOAT64) {
+    if (is_complex_dtype(dt_a) ||
+        is_complex_dtype(dt_b)) {
         throw std::invalid_argument("dot_product: complex vectors not supported yet");
     }
     if (a.size() != b.size()) throw std::invalid_argument("dot: vector sizes differ");
@@ -412,7 +413,7 @@ std::complex<double> dot_product_complex(const VectorBase& a, const VectorBase& 
 std::unique_ptr<VectorBase> cross_product(const VectorBase& a, const VectorBase& b, const std::string&) {
     if (a.size() != 3 || b.size() != 3) throw std::invalid_argument("cross: vectors must have 3 elements");
     const DataType r = promotion::resolve(promotion::BinaryOp::ElementwiseMultiply, a.get_data_type(), b.get_data_type()).result_dtype;
-    if (r == DataType::BIT) throw std::domain_error("cross: not defined for bool vectors (NumPy's subtract rejects bool)");
+    if (r == DataType::BIT) throw dtype_error("cross: not defined for bool vectors (NumPy's subtract rejects bool)");
     const DataType c = r == DataType::FLOAT16 ? DataType::FLOAT32 : r == DataType::COMPLEX_FLOAT16 ? DataType::COMPLEX_FLOAT32 : r;
     auto ra = to_dense(*as_row_matrix(a), c);
     auto rb = to_dense(*as_row_matrix(b), c);
@@ -575,9 +576,6 @@ std::unique_ptr<VectorBase> vector_matrix_multiply(const VectorBase& v, const Ma
 
 
 namespace {
-bool mm_complex(DataType d) {
-    return d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 || d == DataType::COMPLEX_FLOAT64;
-}
 bool mm_int(DataType d) { return is_integer_or_bit(d) && d != DataType::BIT; }
 
 // The kernels' own scalar handling: the factor of a float operand is folded into the result
@@ -586,7 +584,7 @@ bool mm_int(DataType d) { return is_integer_or_bit(d) && d != DataType::BIT; }
 bool mm_factor_ok(const MatrixBase& m) {
     const std::complex<double> s = m.get_scalar();
     const DataType d = m.get_data_type();
-    if (mm_complex(d)) return !m.is_conjugated();
+    if (is_complex_dtype(d)) return !m.is_conjugated();
     if (mm_int(d) || d == DataType::BIT) return s == std::complex<double>(1.0, 0.0);
     return s.imag() == 0.0;
 }
@@ -794,7 +792,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
                 write([&]<typename E>(uint64_t i) { return diag_elem_from_int<E>(p[i]); });
                 return res;
             }
-        } else if (mm_complex(r)) {
+        } else if (is_complex_dtype(r)) {
             std::vector<std::complex<double>> x(m), y(m);
             if (read_diagonal(a, x.data()) && read_diagonal(b, y.data())) {
                 debug_trace::set_last("cpu.matmul.diagonal");
@@ -826,15 +824,12 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
 // Result dtype of solve/svd (LAPACK dtypes), NumPy's rule: integers and bit solve in float64, float16/float32 in
 // float32, complex stays complex (complex64 only when nothing needs double precision).
 DataType lapack_dtype(DataType a, DataType b) {
-    auto cplx = [](DataType d) {
-        return d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 || d == DataType::COMPLEX_FLOAT64;
-    };
     auto single = [](DataType d) {
         return d == DataType::FLOAT16 || d == DataType::FLOAT32 || d == DataType::COMPLEX_FLOAT16 ||
                d == DataType::COMPLEX_FLOAT32;
     };
     const bool sp = single(a) && single(b);
-    if (cplx(a) || cplx(b)) return sp ? DataType::COMPLEX_FLOAT32 : DataType::COMPLEX_FLOAT64;
+    if (is_complex_dtype(a) || is_complex_dtype(b)) return sp ? DataType::COMPLEX_FLOAT32 : DataType::COMPLEX_FLOAT64;
     return sp ? DataType::FLOAT32 : DataType::FLOAT64;
 }
 
@@ -981,7 +976,7 @@ std::unique_ptr<MatrixBase> inverse(const MatrixBase& a) {
     const DataType in = a.get_data_type();
     const DataType dt = lapack_dtype(in, in);
     const Structure st = a.get_structure();
-    auto singular = []() -> std::unique_ptr<MatrixBase> { throw std::runtime_error("inverse: matrix is singular"); };
+    auto singular = []() -> std::unique_ptr<MatrixBase> { throw linalg_error("inverse: matrix is singular"); };
     auto set_complex = [](MatrixBase& m, uint64_t i, uint64_t j, std::complex<double> z) {
         visit_matrix(m, [&](auto& typed) {
             using E = std::decay_t<decltype(typed.get(0, 0))>;
@@ -1028,7 +1023,7 @@ std::unique_ptr<MatrixBase> inverse(const MatrixBase& a) {
 static bool is_exactly_symmetric(const MatrixBase& a) {
     if (a.rows() != a.cols()) return false;
     const DataType dt = a.get_data_type();
-    if (dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64) {
+    if (is_complex_dtype(dt)) {
         return false;
     }
     if (a.get_structure() == Structure::SYMMETRIC || a.get_structure() == Structure::IDENTITY ||
@@ -1044,6 +1039,35 @@ static bool is_exactly_symmetric(const MatrixBase& a) {
     return true;
 }
 
+// The iterative eigen entries take real input only: their kernels read stored values as
+// double (complex input lost its imaginary part or failed inside, review 3.6 C-10).
+static void require_real(const MatrixBase& a, const char* op) {
+    if (is_complex_dtype(a.get_data_type())) {
+        throw dtype_error(std::string(op) + ": real matrices only (bool, integer, float); got " +
+                                dtype_name(a.get_data_type()));
+    }
+}
+
+// Exact skew-symmetry test (A == -A^T, element by element: a guess may not decide which
+// algorithm's answer is returned). The skew kernels read one triangle, so a symmetric input
+// gave imaginary eigenvalues for a real spectrum.
+static void require_skew(const MatrixBase& a, const char* op) {
+    const uint64_t n = a.rows();
+    for (uint64_t i = 0; i < n; ++i) {
+        if (a.get_element_as_double(i, i) != 0.0) {
+            throw std::invalid_argument(std::string(op) + ": the matrix is not skew-symmetric (A[" +
+                                        std::to_string(i) + ", " + std::to_string(i) + "] != 0)");
+        }
+        for (uint64_t j = i + 1; j < n; ++j) {
+            if (a.get_element_as_double(i, j) != -a.get_element_as_double(j, i)) {
+                throw std::invalid_argument(std::string(op) + ": the matrix is not skew-symmetric (A[" +
+                                            std::to_string(i) + ", " + std::to_string(j) + "] != -A[" +
+                                            std::to_string(j) + ", " + std::to_string(i) + "])");
+            }
+        }
+    }
+}
+
 std::unique_ptr<VectorBase> eigvals_arnoldi(
     const MatrixBase& a,
     int k,
@@ -1057,6 +1081,7 @@ std::unique_ptr<VectorBase> eigvals_arnoldi(
     if (a.rows() != a.cols()) {
         throw std::invalid_argument("eigvals_arnoldi: matrix must be square");
     }
+    require_real(a, "eigvals_arnoldi");
 
     // Symmetric input -> real eigenvalues (Lanczos path, float64 output); otherwise
     // complex128. Symmetry is decided exactly (structure, then an element check).
@@ -1079,11 +1104,13 @@ std::unique_ptr<VectorBase> eigvals_skew(
     if (a.rows() != a.cols()) {
         throw std::invalid_argument("eigvals_skew: matrix must be square");
     }
+    require_real(a, "eigvals_skew");
+    require_skew(a, "eigvals_skew");
 
     const uint64_t n = a.rows();
-    const int kk = std::min(k, static_cast<int>(n));
+    const int kk = static_cast<int>(std::min<uint64_t>(static_cast<uint64_t>(k), n));
     auto out = ObjectFactory::create_vector(static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, Structure::VECTOR, result_file);
-    ComputeContext::instance().get_device()->eigvals_skew(a, *out, kk);
+    if (kk > 0) ComputeContext::instance().get_device()->eigvals_skew(a, *out, kk);  // 0 x 0: empty
     return out;
 }
 
@@ -1098,13 +1125,15 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig_skew(
     if (a.rows() != a.cols()) {
         throw std::invalid_argument("eig_skew: matrix must be square");
     }
+    require_real(a, "eig_skew");
+    require_skew(a, "eig_skew");
 
     const uint64_t n = a.rows();
-    const int kk = std::min(k, static_cast<int>(n));
+    const int kk = static_cast<int>(std::min<uint64_t>(static_cast<uint64_t>(k), n));
     auto w = ObjectFactory::create_vector(static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, Structure::VECTOR, result_file.empty() ? "" : result_file + "_vals");
     auto v = ObjectFactory::create_matrix(n, static_cast<uint64_t>(kk), DataType::COMPLEX_FLOAT64, Structure::DENSE, result_file.empty() ? "" : result_file + "_vecs");
 
-    ComputeContext::instance().get_device()->eig_skew(a, *w, *v, kk);
+    if (kk > 0) ComputeContext::instance().get_device()->eig_skew(a, *w, *v, kk);  // 0 x 0: empty
     return std::make_pair(std::move(w), std::move(v));
 }
 
@@ -1112,7 +1141,7 @@ std::pair<std::unique_ptr<VectorBase>, std::unique_ptr<MatrixBase>> eig_skew(
 // through the shared typed reader (to_dense in float64 or complex128).
 static std::vector<double> abs_values(const MatrixBase& a) {
     const DataType dt = a.get_data_type();
-    const bool cplx = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64;
+    const bool cplx = is_complex_dtype(dt);
     auto d = to_dense(a, cplx ? DataType::COMPLEX_FLOAT64 : DataType::FLOAT64);
     const uint64_t total = a.rows() * a.cols();
     std::vector<double> out(total);

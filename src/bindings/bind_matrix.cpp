@@ -141,16 +141,11 @@ inline void maybe_warn_integer_matmul_overflow_risk_preflight(const MatrixBase& 
 
 using namespace pycauset_bindings::indexing;  // matrix_indexing.hpp
 
-// Bitwise ops (math/Bitwise.cpp): a float/complex operand is a TypeError, as in NumPy.
+// Bitwise ops (math/Bitwise.cpp): a float/complex operand is a TypeError (pycauset::dtype_error,
+// translated globally), as in NumPy.
 template <typename F>
 inline std::shared_ptr<MatrixBase> bitwise_call(F&& f) {
-    try {
-        return std::shared_ptr<MatrixBase>(f().release());
-    } catch (const std::domain_error& e) {
-        throw py::type_error(e.what());
-    } catch (const std::invalid_argument& e) {
-        throw py::value_error(e.what());
-    }
+    return translate_invalid_argument([&] { return std::shared_ptr<MatrixBase>(f().release()); });
 }
 
 inline std::shared_ptr<MatrixBase> matrix_inverse(const MatrixBase& mat) {
@@ -205,12 +200,6 @@ inline py::object open_storage(pycauset::Structure s, DataType dt, uint64_t rows
     auto m = pycauset::open_matrix(s, dt, rows, cols, path, offset, seed, scalar, is_transposed, opts);
     return py::cast(std::shared_ptr<MatrixBase>(m.release()));
 }
-
-
-inline bool is_float_dtype(const DataType dt) {
-    return dt == DataType::FLOAT16 || dt == DataType::FLOAT32 || dt == DataType::FLOAT64;
-}
-
 
 
 // ---------------------------------------------------------------------------
@@ -429,15 +418,13 @@ void bind_matrix_classes(py::module_& m) {
             // NumPy kinds: complex for complex matrices, float otherwise (F-059).
             const std::complex<double> d = pycauset::determinant(mat);
             const DataType dt = mat.get_data_type();
-            const bool cplx = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 ||
-                              dt == DataType::COMPLEX_FLOAT64 || mat.get_scalar().imag() != 0.0;
+            const bool cplx = is_complex_dtype(dt) || mat.get_scalar().imag() != 0.0;
             return cplx ? py::cast(d) : py::cast(d.real());
         })
         .def("slogdet", [](const MatrixBase& mat) -> py::tuple {
             const auto [sign, logabs] = pycauset::slogdet(mat);
             const DataType dt = mat.get_data_type();
-            const bool cplx = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 ||
-                              dt == DataType::COMPLEX_FLOAT64 || mat.get_scalar().imag() != 0.0;
+            const bool cplx = is_complex_dtype(dt) || mat.get_scalar().imag() != 0.0;
             return py::make_tuple(cplx ? py::cast(sign) : py::cast(sign.real()), logabs);
         })
         .def(

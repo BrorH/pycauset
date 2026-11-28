@@ -142,8 +142,7 @@ template <> struct DenseVectorOf<complex_float16_marker> { using type = ComplexF
 [[noreturn]] inline void throw_unsupported(Structure s, DataType dt) {
     // Say why: the catalogue's reasons (see `offered` below).
     std::string why;
-    const bool cplx = dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 ||
-                      dt == DataType::COMPLEX_FLOAT64;
+    const bool cplx = is_complex_dtype(dt);
     if (s == Structure::HERMITIAN || s == Structure::SKEW_HERMITIAN) {
         if (!cplx) why = ": Hermitian matrices need a complex dtype (for real dtypes use SymmetricMatrix / AntiSymmetricMatrix)";
     } else if (s == Structure::ANTISYMMETRIC) {

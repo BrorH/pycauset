@@ -62,7 +62,7 @@ std::unique_ptr<VectorBase> as_vector(std::unique_ptr<MatrixBase> m, bool transp
     // v.conj()) stays a view, as for matrices; an integer view is written out (vectors read
     // integer views per element in double, without NumPy's wrap).
     const DataType dt = m->get_data_type();
-    const bool float_like = dt == DataType::FLOAT16 || dt == DataType::FLOAT32 || dt == DataType::FLOAT64 ||
+    const bool float_like = is_real_float_dtype(dt) ||
                             dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64;
     const bool row = m->get_structure() == Structure::DENSE && m->rows() == 1 && !m->is_transposed() && !m->is_subview();
     const bool unit_view = m->get_scalar() == std::complex<double>(1.0, 0.0) && !m->is_conjugated();

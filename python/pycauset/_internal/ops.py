@@ -182,7 +182,7 @@ def cond(a: Any, *, deps: OpsDeps, p: Any = None) -> float:
         return smax / smin if smin != 0 else float("inf")
     try:
         inv_a = invert(a, deps=deps)
-    except RuntimeError:  # singular: NumPy returns inf here too
+    except deps.np_module.linalg.LinAlgError:  # singular: NumPy returns inf here too
         return float("inf")
     return float(norm(a, p, deps=deps) * norm(inv_a, p, deps=deps))
 
@@ -251,14 +251,7 @@ def eigvals_skew(a: Any, k: int, *, deps: OpsDeps) -> Any:
     Engine only (LAPACK on the skew-symmetric tridiagonal form); no NumPy fallback.
     """
 
-    if k <= 0:
-        raise ValueError("eigvals_skew: k must be positive")
-    shape = _safe_rows_cols(a)
-    if shape is not None and shape[0] != shape[1]:
-        raise ValueError("eigvals_skew requires a square matrix")
-
-    result = deps.native.eigvals_skew(_engine_matrix(a, deps=deps), k)
-    return result
+    return deps.native.eigvals_skew(_engine_matrix(a, deps=deps), k)
 
 
 def eig_skew(a: Any, k: int, *, deps: OpsDeps) -> tuple[Any, Any]:
@@ -270,12 +263,6 @@ def eig_skew(a: Any, k: int, *, deps: OpsDeps) -> tuple[Any, Any]:
     eigenvectors, sorted the same way. This is the diagonalization the Sorkin-Johnston
     W = positive part of i*Delta needs.
     """
-
-    if k <= 0:
-        raise ValueError("eig_skew: k must be positive")
-    shape = _safe_rows_cols(a)
-    if shape is not None and shape[0] != shape[1]:
-        raise ValueError("eig_skew requires a square matrix")
 
     return tuple(deps.native.eig_skew(_engine_matrix(a, deps=deps), k))
 
@@ -355,10 +342,7 @@ def matrix_rank(a: Any, tol: Any = None, *, deps: OpsDeps) -> int:
 
 @_traced("matrix_power")
 def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
-    """Integer power of a square matrix (A^n) via binary exponentiation.
-
-    Structural shortcut: zero stays zero (n > 0).
-    """
+    """Integer power of a square matrix (A^n) via binary exponentiation; n < 0 inverts first."""
     shape = _safe_rows_cols(a)
     if shape is not None and shape[0] != shape[1]:
         raise ValueError("matrix_power requires a square matrix")

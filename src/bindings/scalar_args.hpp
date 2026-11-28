@@ -58,7 +58,14 @@ inline pycauset::DataType numpy_scalar_dtype(const py::handle& obj) {
 // True if `obj` is a Python bool/int/float/complex or a NumPy scalar; fills `out`.
 inline bool to_scalar_arg(const py::handle& obj, pycauset::ScalarArg& out) {
     PyObject* p = obj.ptr();
-    if (PyBool_Check(p)) { out = pycauset::ScalarArg::from_int64(p == Py_True ? 1 : 0); return true; }
+    // A bool is a bool operand (review 3.6 C-13): B * True is bool, as B * B; it was an int, so
+    // B * True was int32.
+    if (PyBool_Check(p)) {
+        out = pycauset::ScalarArg::from_int64(p == Py_True ? 1 : 0);
+        out.strong = true;
+        out.strong_dtype = pycauset::DataType::BIT;
+        return true;
+    }
     if (PyLong_Check(p)) { out = scalar_arg_from_pyint(obj); return true; }
     // NumPy scalars before Python float / complex: np.float64 and np.complex128 are subclasses
     // of those and were taken as weak Python scalars (float32 matrix + np.float64(1) stayed
@@ -75,10 +82,8 @@ inline bool to_scalar_arg(const py::handle& obj, pycauset::ScalarArg& out) {
         } else {
             out = pycauset::ScalarArg::from_int64(obj.cast<int64_t>());
         }
-        if (dt != pycauset::DataType::BIT) {
-            out.strong = true;
-            out.strong_dtype = dt;
-        }
+        out.strong = true;
+        out.strong_dtype = dt;
         return true;
     }
     if (PyFloat_Check(p)) { out = pycauset::ScalarArg::from_double(PyFloat_AsDouble(p)); return true; }

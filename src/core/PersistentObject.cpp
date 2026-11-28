@@ -99,7 +99,7 @@ void PersistentObject::initialize_storage(uint64_t size_in_bytes,
     mapper_ = std::make_unique<MemoryMapper>(path, final_size, offset, create_new, /*private_writes=*/!create_new);
     accelerator_.reset();
     // Auto-named files and explicit `.tmp` names are deleted with the storage.
-    if (create_new && !use_ram && (backing_file.empty() || backing_file.ends_with(".tmp"))) mapper_->set_temporary(true);
+    if (create_new && !use_ram && (backing_file.empty() || backing_file.ends_with(".pycauset-tmp"))) mapper_->set_temporary(true);
 
 #ifdef _WIN32
     // Prefetch a new file that fits in RAM to populate page tables before it is written

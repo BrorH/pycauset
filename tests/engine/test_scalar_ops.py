@@ -49,12 +49,15 @@ _NP_NAME = {"complex_float32": "complex64", "complex_float64": "complex128"}
 def _scalar_dtype(matrix_dtype: str, s) -> str:
     """The dtype a scalar takes part as (DType System §9): a NumPy scalar its own; a Python
     scalar the matrix's within its kind (a float with an integer matrix: float64; a complex
-    with a real matrix: the complex of its precision); a Python int with bool: int32."""
-    if isinstance(s, np.generic) and not isinstance(s, np.bool_):
+    with a real matrix: the complex of its precision); a Python int with bool: int32; a bool
+    (Python or NumPy) is bool (review 3.6 C-13)."""
+    if isinstance(s, (bool, np.bool_)):
+        return "bool"
+    if isinstance(s, np.generic):
         return _PC_NAME.get(s.dtype.name, s.dtype.name)
     m = _PC_NAME.get(matrix_dtype, matrix_dtype)
     ints = ("bool", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64")
-    if isinstance(s, (bool, int, np.bool_)):
+    if isinstance(s, int):
         return "int32" if m == "bool" else m
     if isinstance(s, float):
         return "float64" if m in ints else {"complex_float32": "float32", "complex_float64": "float64"}.get(m, m)

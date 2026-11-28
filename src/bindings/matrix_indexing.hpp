@@ -578,13 +578,8 @@ inline std::string describe(const MatrixBase& mat) {
            pycauset::dtype_name(mat.get_data_type());
 }
 
-inline bool is_complex_dtype(DataType dt) {
-    return dt == DataType::COMPLEX_FLOAT16 || dt == DataType::COMPLEX_FLOAT32 || dt == DataType::COMPLEX_FLOAT64;
-}
-
-inline bool is_real_float_dtype(DataType dt) {
-    return dt == DataType::FLOAT16 || dt == DataType::FLOAT32 || dt == DataType::FLOAT64;
-}
+using pycauset::is_complex_dtype;
+using pycauset::is_real_float_dtype;
 
 template <typename M>
 using element_of_t = std::decay_t<decltype(std::declval<const M&>().get(uint64_t{0}, uint64_t{0}))>;

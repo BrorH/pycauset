@@ -1,6 +1,6 @@
 ﻿# Vector Guide
 
-Vectors work with the matrix operations. Small ones live in RAM (like NumPy arrays); large ones live in a temporary memory-mapped file (`.tmp`).
+Vectors work with the matrix operations. Small ones live in RAM (like NumPy arrays); large ones live in a temporary memory-mapped file (`.pycauset-tmp`).
 
 ## Creating Vectors
 

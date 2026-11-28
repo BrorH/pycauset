@@ -24,12 +24,6 @@
 namespace pycauset {
 namespace {
 
-bool is_complex_dtype(DataType d) {
-    return d == DataType::COMPLEX_FLOAT16 || d == DataType::COMPLEX_FLOAT32 || d == DataType::COMPLEX_FLOAT64;
-}
-bool is_float_dtype(DataType d) {
-    return d == DataType::FLOAT16 || d == DataType::FLOAT32 || d == DataType::FLOAT64;
-}
 
 __int128 checked_add(__int128 a, __int128 b) {
     __int128 out;
@@ -243,7 +237,7 @@ ReductionValue sum_generic(const MatrixBase& m) {
 static ReductionValue sum_compute(const MatrixBase& m) {
     const DataType dt = m.get_data_type();
     const std::complex<double> f = m.get_scalar();
-    const bool int_like = dt != DataType::BIT && !is_float_dtype(dt) && !is_complex_dtype(dt);
+    const bool int_like = dt != DataType::BIT && !is_real_float_dtype(dt) && !is_complex_dtype(dt);
     ReductionValue out;
 
     if (m.rows() == 0 || m.cols() == 0) {
@@ -357,7 +351,7 @@ static ReductionValue trace_compute(const MatrixBase& m) {
     const uint64_t n = std::min(m.rows(), m.cols());
     const DataType dt = m.get_data_type();
     const std::complex<double> f = m.get_scalar();
-    const bool int_like = dt != DataType::BIT && !is_float_dtype(dt) && !is_complex_dtype(dt);
+    const bool int_like = dt != DataType::BIT && !is_real_float_dtype(dt) && !is_complex_dtype(dt);
     ReductionValue out;
     if ((int_like && scalar::is_exact_int_factor(f)) ||  // conj of an integer is a no-op (3.6 C-6)
         (dt == DataType::BIT && f == std::complex<double>(1.0, 0.0))) {
