@@ -1876,9 +1876,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-137 Area 3.4 (dispatch and CPU kernels): bit dot counts padding, fork hang, thread limits
 - **Status:** reviewed (session 9), 19 findings in `review/areas/3.4-dispatch-kernels.md`
-  (1 S1, 5 S2, 9 S3, 4 S4). C-1 to C-4, C-6, C-7, C-9 to C-11, C-13 fixed, C-12 and C-17
-  partly, C-14 fixed (RUNPATH); the rest open (C-5 GIL, C-8 float32 accumulation, C-15 ladders,
-  C-16, C-18, C-19).
+  (1 S1, 5 S2, 9 S3, 4 S4). C-1 to C-4, C-6 to C-14, C-18, C-19 fixed (C-8 decided and
+  documented, C-14 RUNPATH), C-15 and C-17 partly; open: C-5 (GIL release around kernels: the
+  storage pin first), C-15 rest (AVX2 copies, traits), C-16 (smaller waste).
   - C-1 (S1, fixed): the bit-vector dot counted the padding bits of the last word
     (`pc.dot(~u, ~u)` = 64 for n = 5); the last word is masked now.
   - C-2 (fixed): after `fork()` the first parallel kernel in the child hung (ThreadPool,
