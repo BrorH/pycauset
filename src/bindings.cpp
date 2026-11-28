@@ -13,6 +13,10 @@ PYBIND11_MODULE(_pycauset, m) {
             if (p) std::rethrow_exception(p);
         } catch (const pycauset::dtype_error& e) {
             PyErr_SetString(PyExc_TypeError, e.what());
+        } catch (const py::cast_error& e) {
+            // A value of the wrong type reached a pybind11 cast: TypeError, as NumPy raises
+            // (it surfaced as RuntimeError "Unable to cast", review 3.7 C-6).
+            PyErr_SetString(PyExc_TypeError, e.what());
         } catch (const pycauset::linalg_error& e) {
             // NumPy's own class, so `except np.linalg.LinAlgError` works as with NumPy.
             py::object cls = py::module_::import("numpy.linalg").attr("LinAlgError");

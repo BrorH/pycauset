@@ -1531,3 +1531,34 @@ def test_ndim_is_numpys():
     """Matrices and vectors had no `ndim` (NumPy's attribute; found writing the 3.7 C-1 test)."""
     assert pc.zeros((2, 3)).ndim == 2 and pc.zeros(4).ndim == 1 and pc.zeros(4).T.ndim == 2
     assert pc.causal_matrix(3).ndim == np.asarray(pc.causal_matrix(3)).ndim
+
+
+def test_3_7_C7_rows_of_integer_scale_views_read_elementwise():
+    """Review 3.7 C-7: B[0, :][1] of B = int_matrix * 3 raised "integer vector carries a scale
+    factor"."""
+    for dt in (np.int8, np.int64, np.uint64):
+        a = np.arange(6, dtype=dt).reshape(2, 3)
+        for k in (3, -1) if dt != np.uint64 else (3,):
+            B = pc.matrix(a) * k
+            with np.errstate(over="ignore"):
+                want = (a * dt(k) if dt != np.uint64 else a * np.uint64(k)).astype(dt)
+            row, col = B[0, :], B[:, 1]
+            assert [row[j] for j in range(3)] == want[0].tolist()
+            assert [col[i] for i in range(2)] == want[:, 1].tolist()
+
+
+def test_3_7_C6_exception_classes_as_numpy():
+    """Review 3.7 C-6: pybind11's cast failures and huge indices surfaced as RuntimeError."""
+    A = pc.zeros((2, 2))
+    with pytest.raises(ValueError):  # NumPy: could not convert string to float
+        A[0, 0] = "abc"
+    with pytest.raises(ValueError):
+        A[-1, 0] = "abc"
+    A[0, 1] = "1.5"  # NumPy converts numeric strings
+    assert A[0, 1] == 1.5
+    with pytest.raises(TypeError):
+        A[0, 0] = object()
+    with pytest.raises(IndexError):
+        A[2**70, 0]
+    with pytest.raises(IndexError):
+        A[0, 0, 0]

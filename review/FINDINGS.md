@@ -1929,7 +1929,8 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-140 Area 3.7 (bindings): export after close segfaults, list keys read as (row, col), byte order ignored
 - **Status:** reviewed (session 9), 18 findings in `review/areas/3.7-bindings.md` (3 S1, 4 S2,
-  7 S3, 4 S4). C-1 to C-3 fixed, C-4 in part; the rest open. `ndim` added (it was missing).
+  7 S3, 4 S4). C-1 to C-3, C-7 fixed, C-4 and C-6 in part; the rest open. `ndim` added (it
+  was missing).
   - C-1 (S1, fixed): `np.asarray` / `pc.to_numpy` of a closed matrix or vector segfaulted; a
     closed object raises `ValueError` now.
   - C-2 (S1, fixed): `A[[0, 2]]` was the element `A[0, 2]` (NumPy: rows 0 and 2); `A[True, 0]`

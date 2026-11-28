@@ -354,13 +354,7 @@ def _wrap_setitem_for_scalars(base_type: Any) -> None:
                 return set_method(self, int(key[0]), int(key[1]), coerced)
             if _is_int_key(key) and _VectorBaseType is not None and isinstance(self, _VectorBaseType):
                 return set_method(self, int(key), coerced)
-        try:
-            return _orig(self, key, coerced)
-        except RuntimeError as exc:
-            msg = str(exc)
-            if "Unable to cast" in msg:
-                raise TypeError(msg) from exc
-            raise
+        return _orig(self, key, coerced)  # a cast failure is a TypeError (native translator)
 
     base_type.__setitem__ = _wrapped  # type: ignore[attr-defined]
     setattr(base_type, "__pycauset_setitem_wrapped__", True)

@@ -7,6 +7,7 @@
 #include "pycauset/math/VectorOps.hpp"
 #include "pycauset/math/ViewValue.hpp"
 #include <tuple>
+#include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/core/DTypeDispatch.hpp"
 #include "pycauset/math/Bitwise.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
@@ -103,7 +104,11 @@ inline SliceInfo slice_from_object(const py::handle& obj, uint64_t dim) {
         throw py::index_error("boolean scalar indices are not supported (use a boolean array of the axis length)");
     }
     if (py::isinstance<py::int_>(obj)) {
-        return make_scalar_index(obj.cast<py::ssize_t>(), dim);
+        // An int beyond ssize_t is out of range: IndexError, as NumPy (it was pybind's cast
+        // RuntimeError, review 3.7 C-6).
+        const py::ssize_t idx = PyNumber_AsSsize_t(obj.ptr(), PyExc_IndexError);
+        if (idx == -1 && PyErr_Occurred()) throw py::error_already_set();
+        return make_scalar_index(idx, dim);
     }
     // NumPy integer scalars index like ints (they implement __index__; bool does not count).
     if (!PyBool_Check(obj.ptr()) && !py::isinstance<py::array>(obj) && PyIndex_Check(obj.ptr())) {
@@ -217,7 +222,7 @@ inline ParsedIndex parse_matrix_subscript(const py::handle& key, uint64_t rows, 
                 second = full();
             }
         } else {
-            throw py::type_error("Matrix indices must be 2D (row, col) for matrices/vectors");
+            throw py::index_error("too many indices for a matrix: it is 2-dimensional");
         }
     } else if (py::isinstance<py::list>(key) || py::isinstance<py::slice>(key) || py::isinstance<py::array>(key)) {
         first = py::reinterpret_borrow<py::object>(key);  // rows, every column (A[[0, 2]], A[1:3])
@@ -562,6 +567,18 @@ inline py::object dense_getitem(const DenseMatrix<T>& mat, const py::object& key
     if (along_cols || parsed.cols.is_scalar) {
         const uint64_t n = along_cols ? sliced->cols() : sliced->rows();
         auto v = std::make_shared<DenseVector<T>>(n);
+        if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+            // An integer factor is folded into the copy (wrapping, as the matrix reader does):
+            // the vector element readers do not take integer factors, so B[0, :][1] of
+            // B = int_matrix * 3 raised (review 3.7 C-7).
+            const std::complex<double> f = sliced->get_scalar();
+            if (f != std::complex<double>(1.0, 0.0) && pycauset::scalar::is_exact_int_factor(f)) {
+                const int64_t kf = static_cast<int64_t>(f.real());
+                for (uint64_t k = 0; k < n; ++k)
+                    v->set(k, pycauset::scalar::wrap_scale<T>(along_cols ? sliced->get(0, k) : sliced->get(k, 0), kf));
+                return py::cast(v);
+            }
+        }
         for (uint64_t k = 0; k < n; ++k) v->set(k, along_cols ? sliced->get(0, k) : sliced->get(k, 0));
         // get() reads stored values: the vector keeps the view (B = A * 2: B[0, :] is 2 A[0, :]).
         v->set_scalar(sliced->get_scalar());

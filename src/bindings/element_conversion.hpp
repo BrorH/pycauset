@@ -32,6 +32,17 @@ inline bool coerce_bit_value(const py::handle& value) {
     throw py::type_error("bit (dtype 'bool') matrices only accept 0/1/False/True");
 }
 
+// float(value), with Python's own errors: a string that is no number is a ValueError and a
+// non-number a TypeError, as NumPy's element assignment (pybind11's cast raised RuntimeError,
+// review 3.7 C-6). Numeric strings convert, as in NumPy.
+inline double py_float(const py::object& value) {
+    PyObject* f = PyNumber_Float(value.ptr());
+    if (f == nullptr) throw py::error_already_set();
+    const double d = PyFloat_AsDouble(f);
+    Py_DECREF(f);
+    return d;
+}
+
 template <typename E>
 E py_to_element(const py::object& value) {
     if constexpr (std::is_same_v<E, bool>) {
@@ -39,7 +50,7 @@ E py_to_element(const py::object& value) {
     } else if constexpr (std::is_integral_v<E>) {
         if (PyComplex_Check(value.ptr())) throw py::type_error("can't assign a complex value to an integer matrix");
         if (!PyIndex_Check(value.ptr())) {  // floats (Python or NumPy): truncate like NumPy
-            const double d = value.cast<double>();
+            const double d = py_float(value);
             if (!std::isfinite(d)) throw py::value_error("can't assign a non-finite value to an integer matrix");
             const long double t = std::trunc(static_cast<long double>(d));
             if (t < static_cast<long double>(std::numeric_limits<E>::min()) ||
@@ -69,10 +80,10 @@ E py_to_element(const py::object& value) {
         }
     } else if constexpr (std::is_same_v<E, pycauset::float16_t>) {
         if (PyComplex_Check(value.ptr())) throw py::type_error("can't assign a complex value to a real matrix");
-        return pycauset::float16_t(value.cast<double>());
+        return pycauset::float16_t(py_float(value));
     } else if constexpr (std::is_floating_point_v<E>) {
         if (PyComplex_Check(value.ptr())) throw py::type_error("can't assign a complex value to a real matrix");
-        return static_cast<E>(value.cast<double>());
+        return static_cast<E>(py_float(value));
     } else {
         return static_cast<E>(value.cast<std::complex<double>>());
     }
