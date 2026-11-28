@@ -168,3 +168,24 @@ def test_blockmatrix_save_load_roundtrip_with_view_blocks(tmp_path: Path):
     for i in range(2):
         for j in range(2):
             assert float(M2.get(i, j)) == float(base.get(i, j))
+
+
+def test_view_blocks_keep_their_dtype_and_values(tmp_path):
+    """3.9 C-5: view blocks were copied element by element into a NumPy array whose dtype came
+    from a hint table (complex_float16 came back complex_float32)."""
+    import numpy as np
+
+    import pycauset as pc
+    from pycauset._internal.blockmatrix import BlockMatrix
+    from pycauset._internal.submatrix_view import SubmatrixView
+
+    dense = pc.matrix(np.arange(36.0).reshape(6, 6))
+    c16 = pc.zeros((4, 4), dtype="complex_float16")
+    c16.set(1, 1, 2 + 1j)
+    for src, want in ((dense, "float64"), (c16, "complex_float16")):
+        bm = BlockMatrix([[SubmatrixView(src, 1, 1, 2, 2)]])
+        pc.save(bm, tmp_path / f"b_{want}.pycauset")
+        back = pc.load(tmp_path / f"b_{want}.pycauset")
+        leaf = back.get_block(0, 0) if hasattr(back, "get_block") else back._blocks[0][0]
+        assert str(leaf.dtype) == want
+        np.testing.assert_array_equal(np.asarray(leaf), np.asarray(src)[1:3, 1:3])

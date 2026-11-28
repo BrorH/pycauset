@@ -677,6 +677,12 @@ def _save_blockmatrix(
 
         rows = int(view_obj.rows())
         cols = int(view_obj.cols())
+        # A dense source has native windows: save writes the window out natively (a 600 x 600
+        # block took 0.19 s element by element in Python, review 3.9 C-5).
+        if (isinstance(src, deps.native.MatrixBase) and deps.native._structure_of(src) == "dense"
+                and src.dtype != "complex_float16"):
+            r0, c0 = int(view_obj.row_offset), int(view_obj.col_offset)
+            return src[r0 : r0 + rows, c0 : c0 + cols]
         arr = np.empty((rows, cols), dtype=dtype_hint)
         get_fn = getattr(view_obj, "get", None)
         if not callable(get_fn):
@@ -684,6 +690,12 @@ def _save_blockmatrix(
         for i in range(rows):
             for j in range(cols):
                 arr[i, j] = get_fn(i, j)
+        if getattr(src, "dtype", None) == "complex_float16":  # NumPy has no complex32: keep it
+            out = deps.native.DenseMatrix(rows, cols, dtype="complex_float16")
+            for (i, j), z in np.ndenumerate(arr):
+                if z != 0:
+                    out.set(i, j, complex(z))
+            return out
         return asarray(arr)
 
     blocks_dir = Path(str(path) + ".blocks")
