@@ -300,3 +300,28 @@ def test_stub_declares_every_public_name():
             declared.update(a.asname or a.name for a in node.names)
     missing = sorted(set(pc.__all__) - declared)
     assert not missing, f"public names missing from __init__.pyi: {missing}"
+
+
+def test_type_stub_signatures_match_the_functions():
+    """__init__.pyi's module-level functions name the same parameters as the real ones
+    (13 were `(*args, **kwargs)`, F-007)."""
+    import ast
+    import inspect
+    from pathlib import Path
+
+    stub = ast.parse((Path(pc.__file__).parent / "__init__.pyi").read_text())
+    checked = 0
+    for node in stub.body:
+        if not isinstance(node, ast.FunctionDef) or node.name.startswith("_"):
+            continue
+        fn = getattr(pc, node.name, None)
+        try:
+            sig = inspect.signature(fn)
+        except (TypeError, ValueError):
+            continue  # native builtins without a signature
+        a = node.args
+        stub_names = [x.arg for x in a.posonlyargs + a.args + a.kwonlyargs]
+        real = [q.name for q in sig.parameters.values() if q.kind not in (q.VAR_POSITIONAL, q.VAR_KEYWORD)]
+        assert stub_names == real, f"{node.name}: stub {stub_names}, real {real}"
+        checked += 1
+    assert checked > 50
