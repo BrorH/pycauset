@@ -204,3 +204,18 @@ Other rarely used features: tech lead proposes per feature in Phase 3.
       get_tracked_ram_usage` and the LRU structures; `PersistentObject::ensure_own_mapping`,
       `StorageState`, `is_temporary_` and the constructor parameter; `copy_storage`'s
       filesystem branch; `pc.keep_temp_files` and its doc page.
+
+## C++ coverage, session 9 (late)
+Full pytest suite + demos against a `--coverage -O0` build (`review/deadcode/cpp_never_executed.txt`,
+regenerated): **194 of 1,234 source functions never execute** (489 of 1,562 at the start of the
+review); StreamingManager is no longer in the list. What is left, by kind:
+- Dormant GPU (F-116): AutoSolver (27), ComputeContext (11), the pinned-memory budget in
+  MemoryGovernor (9), ComputeDevice's GPU hooks. Goes with the CUDA decision.
+- Reachable fallbacks a test does not hit: the scalar (non-AVX2) element-wise kernels, the
+  generic per-element scalar path (`run_virtual`, the atlas's "generic" class, 0 cells), the
+  integer true-divide instantiations of `binary_op_impl` (integer division promotes first).
+- Interface members (virtual `multiply_scalar(int64_t)` / `set_element_double` overrides) and
+  Python-reachable bindings no test calls (`inverse`, `matmul`, `eigvalsh` methods, vector
+  `__radd__` / `__rmul__` / `__or__`): test gaps, not dead code.
+- complex_float16 classes and Float16 conversions: partly untested paths of a supported dtype.
+No new removals from this pass; the clearly dead code went in earlier passes (Tier A, F-120, F-123).
