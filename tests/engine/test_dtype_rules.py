@@ -2,7 +2,7 @@
 with PyCauset's documented differences written out as data (documentation/internals/DType
 System.md). Independent of the promotion resolver: test_conformance checks that kernels follow
 the resolver, this checks that the resolver follows the rules (review 3.3 C-14).
-Complex pairs wait for the complex rule to be decided and documented (3.3 C-7)."""
+Complex pairs follow §4.3 (the same rules on the precision; review 3.3 C-7)."""
 from __future__ import annotations
 
 import operator
@@ -18,6 +18,9 @@ REAL = ["bool", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", 
 OPS = {"+": operator.add, "-": operator.sub, "*": operator.mul, "/": operator.truediv, "@": operator.matmul}
 _FLOAT_RANK = {"float16": 0, "float32": 1, "float64": 2}
 _FLOATS = ["float16", "float32", "float64"]
+COMPLEX = ["complex_float16", "complex_float32", "complex_float64"]
+_COMPLEX_OF = {"float16": "complex_float16", "float32": "complex_float32", "float64": "complex_float64"}
+_REAL_OF = {v: k for k, v in _COMPLEX_OF.items()}
 
 
 def _float_for_int(dt: str) -> str:
@@ -31,6 +34,9 @@ def _float_for_int(dt: str) -> str:
 
 def _expected(op: str, a: str, b: str) -> str | None:
     """The documented result dtype; None where PyCauset raises by design."""
+    if a in COMPLEX or b in COMPLEX:  # §4.3: the real rule on the precision, complex result
+        real = _expected("+", _REAL_OF.get(a, a), _REAL_OF.get(b, b))
+        return _COMPLEX_OF[real] if real in _COMPLEX_OF else None
     fa, fb = a in _FLOATS, b in _FLOATS
     if fa and fb:  # §3: underpromotion within float
         return a if _FLOAT_RANK[a] <= _FLOAT_RANK[b] else b
@@ -51,12 +57,16 @@ def _expected(op: str, a: str, b: str) -> str | None:
 
 
 def _operand(dt: str):
-    return pc.matrix(np.ones((2, 2), dtype=dt))
+    if dt == "complex_float16":  # no NumPy dtype: fill an engine matrix
+        m = pc.zeros((2, 2), dtype=dt)
+        m.fill(1 + 1j)
+        return m
+    return pc.matrix(np.ones((2, 2), dtype={"complex_float32": "complex64", "complex_float64": "complex128"}.get(dt, dt)))
 
 
 @pytest.mark.parametrize("op", list(OPS))
-@pytest.mark.parametrize("b", REAL)
-@pytest.mark.parametrize("a", REAL)
+@pytest.mark.parametrize("b", REAL + COMPLEX)
+@pytest.mark.parametrize("a", REAL + COMPLEX)
 def test_result_dtype_follows_the_documented_rules(op, a, b):
     want = _expected(op, a, b)
     with warnings.catch_warnings():

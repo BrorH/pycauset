@@ -112,6 +112,20 @@ Where applicable, BLAS-backed complex kernels are used.
 
 `complex_float16` is supported as a first-class dtype and is represented internally as a two-plane float16 storage model (real + imaginary).
 
+### 4.3 Promotion with complex operands
+
+The real rules of §2 and §3 apply to the precision, and a complex operand makes the result
+complex:
+
+- float / complex with float / complex: the narrower precision (`complex64 + float64 ->
+  complex64`, `complex128 + float32 -> complex64`, `complex_float16 + anything float ->
+  complex_float16`); NumPy widens (`complex128`). Warned (`PyCausetDTypeWarning`).
+- an integer or bool operand raises the floor to the float that holds it (§2.4):
+  `complex_float16 + int16 -> complex64`, `complex64 + int32 -> complex128`,
+  `complex128 + int8 -> complex128`.
+
+`tests/engine/test_dtype_rules.py` checks these for every pair.
+
 ### 4.2 Complex non-floats (including complex-bit)
 
 Complex permutations of non-float dtypes are a non-goal by design.

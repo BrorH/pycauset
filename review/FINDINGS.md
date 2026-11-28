@@ -1756,9 +1756,11 @@ the entry (the history is useful). New findings go at the bottom with the next f
     lost its imaginary part, `np.int64` values were rounded); one inference function now
     (`dtypes.infer_sequence_dtype`), NumPy's answer when a NumPy scalar is present.
     `test_F130_*`.
-  - C-14 (in part): `tests/engine/test_dtype_rules.py` checks every real dtype pair of
-    `+ - * / @` against NumPy with the documented differences as data (720 cells, all pass),
-    not against the resolver. Scalar and complex forms wait for C-3 / C-7.
+  - C-14 (in part): `tests/engine/test_dtype_rules.py` checks every dtype pair (real and
+    complex) of `+ - * / @` against NumPy with the documented differences as data (1,125
+    cells, all pass), not against the resolver. The scalar forms wait for C-3.
+  - C-7: the complex rule is documented (DType System §4.3: the real rules on the
+    precision) and in that test.
 
 ### F-131 Export guard gaps (area 3.9 C-6)
 - **Status:** fixed in part (session 9). `to_numpy(x, dtype=...)` counted only the export, not
