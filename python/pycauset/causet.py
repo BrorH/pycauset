@@ -45,36 +45,38 @@ def validate_causal_matrix(matrix, *, context: str = "causal matrix") -> None:
 
     Raises ``ValueError`` with an actionable message on the first violation.
     """
-    if _np is None:
-        raise ImportError("NumPy is required for causal-matrix validation.")
+    # In the engine: the matrix was exported to NumPy for the diagonal and antisymmetry tests
+    # (NumPy behind a PyCauset call, review 3.12). Only a violation's position is exported.
+    import warnings
 
-    A = _np.asarray(matrix, dtype=bool)
-    if A.ndim != 2 or A.shape[0] != A.shape[1]:
-        raise ValueError(
-            f"{context}: causal matrix must be square, got shape {A.shape}"
-        )
+    import pycauset as _pc
 
-    if A.diagonal().any():
+    M = matrix if isinstance(matrix, _native.MatrixBase) else _pc.matrix(_np.asarray(matrix, dtype=bool))
+    if M.dtype != "bool":
+        M = M != 0
+    if len(M.shape) != 2 or M.shape[0] != M.shape[1]:
+        raise ValueError(f"{context}: causal matrix must be square, got shape {M.shape}")
+
+    if _pc.trace(M) != 0:
         raise ValueError(
             f"{context}: causal matrix must be reflexive-free (zero diagonal)"
         )
 
-    if (A & A.T).any():
+    if _pc.sum(M & M.T) != 0:
         raise ValueError(
             f"{context}: causal matrix must be antisymmetric "
             "(never both i \u227a j and j \u227a i)"
         )
 
     # Transitivity: a length-2 path (i -> k -> j) requires the direct relation i -> j. The
-    # engine counts paths exactly (bit matrices multiply in int32); a uint8 NumPy product
-    # wrapped 256 paths to 0 and passed intransitive orders (F-107).
-    import pycauset as _pc
-
-    M = matrix if isinstance(matrix, _native.MatrixBase) else _pc.matrix(A)
-    path2 = _np.asarray(M @ M) > 0
-    bad = path2 & ~A
-    if bad.any():
-        i, j = _np.argwhere(bad)[0]
+    # engine counts paths exactly (bit matrices multiply in int32, the intended promotion: its
+    # notice is not for the caller); a uint8 NumPy product wrapped 256 paths to 0 and passed
+    # intransitive orders (F-107).
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", _pc.PyCausetDTypeWarning)
+        bad = ((M @ M) > 0) & ~M
+    if _pc.sum(bad) != 0:
+        i, j = _np.argwhere(_np.asarray(bad))[0]
         raise ValueError(
             f"{context}: causal matrix is not transitive "
             f"(a length-2 path {int(i)} \u2192 \u22ef \u2192 {int(j)} has no direct relation)"
@@ -114,11 +116,19 @@ class CausalSet:
             validate (bool): When True (default), a supplied `matrix` is validated as a
                 strict partial order (reflexive-free, antisymmetric, transitive).
         """
+        # An embedding (coordinates) exists for a sprinkled causet, or for an order given with
+        # the spacetime and seed it was sprinkled with (load passes them). A causet made from a
+        # matrix alone has none: its coordinates were regenerated from a random seed and the
+        # default diamond, unrelated to the order (review 3.12 C-1).
+        self._embedded = matrix is None or (spacetime is not None and seed is not None)
+
         # --- Spacetime Setup ---
         self._spacetime = _DefaultDiamond(2) if spacetime is None else spacetime
 
         # --- Seed Setup ---
-        if seed is None:
+        if seed is None and matrix is not None:
+            self._seed = 0  # nothing to seed (and the user's `random` stream stays untouched)
+        elif seed is None:
             self._seed = random.randint(0, 2**63 - 1)
         elif isinstance(seed, int):
             self._seed = seed
@@ -344,8 +354,14 @@ class CausalSet:
         Returns:
             numpy.ndarray: Array of shape (K, D) where K is number of indices.
         """
+        if not self._embedded:
+            raise ValueError(
+                "this causal set was built from a matrix: it has no coordinates (no sprinkling "
+                "to regenerate them from). Plot its matrix (plot_causal_matrix) instead."
+            )
         if indices is None and self.n > 100000 and not force:
-            raise UserWarning(
+            # (ValueError: it raised UserWarning, a Warning class, as an exception; 3.12 C-3.)
+            raise ValueError(
                 f"CausalSet has {self.n} elements. Retrieving all coordinates is expensive. "
                 "Use 'indices' to select a subset or set 'force=True' to proceed anyway."
             )

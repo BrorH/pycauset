@@ -1,16 +1,10 @@
 """CausalSet.plot_* methods, lazy top-level verbs, and the subset policy."""
 
-import sys
 import unittest
 import warnings
-from unittest.mock import MagicMock
+import pytest
 
-try:
-    import plotly  # noqa: F401
-except ImportError:
-    sys.modules.setdefault("plotly", MagicMock())
-    sys.modules.setdefault("plotly.graph_objects", MagicMock())
-    sys.modules.setdefault("plotly.express", MagicMock())
+pytest.importorskip("plotly")  # optional dependency: no mocks (review 3.12 C-7)
 
 import pycauset as pc
 from pycauset._internal.warnings import PyCausetPerformanceWarning
@@ -49,7 +43,15 @@ class TestCausalSetPlotMethods(unittest.TestCase):
         self.assertIsNotNone(pc.plot_causal_matrix(self.c))
 
     def test_show(self):
-        pc.show(self.c)  # must not raise
+        # Plotly's default renderer opens a browser tab (and can block on a page fetch): the
+        # figure's show is replaced (review 3.12 C-7).
+        from unittest.mock import patch
+
+        import plotly.basedatatypes
+
+        with patch.object(plotly.basedatatypes.BaseFigure, "show") as shown:
+            pc.show(self.c)  # must not raise
+        assert shown.called
 
 
 class TestSubsetPolicy(unittest.TestCase):

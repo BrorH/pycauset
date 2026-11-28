@@ -463,6 +463,7 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
             meta["n"] = int(causet_obj.n)
             meta["spacetime"] = {"type": "MinkowskiDiamond", "args": {"dimension": causet_obj.spacetime.dimension()}}
             meta["seed"] = int(causet_obj._seed)
+            meta["embedded"] = bool(causet_obj._embedded)  # coordinates exist (3.12 C-1)
 
         # Structure and dtype come straight from the object (one class per structure).
         structure = deps.native._structure_of(payload_obj)
@@ -657,8 +658,9 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
         if st.get("type") != "MinkowskiDiamond":
             raise ValueError(f"unsupported spacetime in file: {st.get('type')!r}")
         # Written by save(), which only saves valid orders: no O(n^3) validation on load.
+        embedded = bool(metadata.get("embedded", True))
         return deps.CausalSet(n=int(metadata["n"]), spacetime=MinkowskiDiamond(int(st["args"]["dimension"])),
-                              seed=int(metadata["seed"]), matrix=obj, validate=False)
+                              seed=int(metadata["seed"]) if embedded else None, matrix=obj, validate=False)
     return obj
 
 

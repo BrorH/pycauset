@@ -6,7 +6,9 @@ pycauset.vis.plot_embedding(
     max_points: int = 50000,
     force: bool = False,
     title: str = None,
-    marker_size: int = 2
+    marker_size: int = 2,
+    show_relations: bool = False,
+    max_relations: int = 20000
 ) -> plotly.graph_objects.Figure
 ```
 
@@ -19,6 +21,15 @@ Visualize the spacetime embedding of a causal set.
 *   **force** (*bool*, optional): Render every element, ignoring `max_points`. Defaults to `False`.
 *   **title** (*str*, optional): The title of the plot. If `None`, a default title is generated.
 *   **marker_size** (*int*, optional): The size of the scatter points. Defaults to 2.
+*   **show_relations** (*bool*, optional): Draw a faint line for every causal pair `a < b`
+    among the plotted points (the whole relation, not just the links). The pairs come from the
+    points' causal sub-matrix, selected in the engine; above 5,000 plotted points they are drawn
+    among a seeded random 5,000 of them, with a warning.
+*   **max_relations** (*int*, optional): Draw at most this many pairs (a seeded random subset
+    beyond, with a warning). Defaults to 20000.
+
+The causal set needs coordinates: a sprinkled one. A causal set built from a matrix has none
+(`ValueError`); plot its matrix with `plot_causal_matrix`.
 
 ## Returns
 

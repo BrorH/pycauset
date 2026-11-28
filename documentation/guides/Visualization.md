@@ -107,7 +107,13 @@ c.plot_hasse().show()
 *Only the links are drawn, so the skeleton of the partial order is visible. Lines run
 between immediate causal neighbours, placed at their spacetime coordinates.*
 
-The default cap is 500 points; above that it subsets with a warning.
+The default cap is 500 points; above that it subsets with a warning, and then its lines are
+the links of the sampled sub-order (two sampled elements with no sampled element between
+them), not all links of the causal set: the title and the warning say so.
+
+The embedding and Hasse plots need coordinates, so they work for sprinkled causal sets. A causal
+set built from a matrix (`CausalSet(n, matrix=M)`, `pc.synthetic`) has none and raises
+`ValueError`; `plot_causal_matrix` plots any causal set.
 
 ## Causal-matrix heatmaps
 

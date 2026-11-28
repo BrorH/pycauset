@@ -69,7 +69,12 @@ Validates that the order is a strict partial order (reflexive-free, antisymmetri
 def coordinates(self, indices=None, force=False) -> np.ndarray
 ```
 
-Returns the spacetime coordinates of the elements, `(n, d)`, regenerated from `(spacetime, seed)` (the sprinkle's RNG stream) and time-labelled like the matrix. Raises `UserWarning` above 100,000 elements unless `force=True`.
+Returns the spacetime coordinates of the elements, `(n, d)`, regenerated from `(spacetime, seed)` (the sprinkle's RNG stream) and time-labelled like the matrix. Raises `ValueError` above 100,000 elements unless `force=True`.
+
+A causal set built from a matrix (`CausalSet(n, matrix=M)`, `pc.synthetic`) has no coordinates:
+there is no sprinkling to regenerate them from, so this raises `ValueError` (and so do
+`plot_embedding` and `plot_hasse`; `plot_causal_matrix` works). A loaded causal set keeps what it
+had when saved.
 
 ### links
 
@@ -146,6 +151,17 @@ def load(path) -> CausalSet
 ```
 
 Save/load to/from the single-file `.pycauset` container.
+
+### plot_embedding, plot_hasse, plot_causal_matrix
+
+```python
+def plot_embedding(self, **kwargs)
+def plot_hasse(self, **kwargs)
+def plot_causal_matrix(self, **kwargs)
+```
+
+The plots of [[docs/pycauset.vis/index.md|pycauset.vis]] for this causal set (Plotly figures;
+`pip install "pycauset[plot]"`).
 
 ## Example
 

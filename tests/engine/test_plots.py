@@ -3,17 +3,11 @@ import numpy as np
 from pycauset import CausalSet
 from pycauset import spacetime
 
-# Mock plotly if not installed
-import sys
-from unittest.mock import MagicMock
+import pytest
 
-try:
-    import plotly  # noqa: F401  (availability check)
-except ImportError:
-    # Mock plotly for testing in CI/environments without it
-    sys.modules["plotly"] = MagicMock()
-    sys.modules["plotly.graph_objects"] = MagicMock()
-    sys.modules["plotly.express"] = MagicMock()
+# Plotly is optional: skip without it (a MagicMock in sys.modules made every test pass whatever
+# vis did, and leaked into the rest of the session; review 3.12 C-7).
+pytest.importorskip("plotly")
 
 from pycauset.vis import plot_embedding
 
@@ -44,7 +38,7 @@ class TestVisualization(unittest.TestCase):
         c_huge._n = 200000
         
         # Should warn if trying to get all
-        with self.assertRaises(UserWarning):
+        with self.assertRaises(ValueError):
             c_huge.coordinates()
             
         # Should work with force=True
