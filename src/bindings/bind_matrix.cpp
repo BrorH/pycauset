@@ -216,6 +216,10 @@ py::object export_numpy(const MatrixBase& mat) {
                        rows == mat.base_rows() && cols == mat.base_cols() &&
                        dynamic_cast<const pycauset::BitClosureMatrix*>(&mat) == nullptr;
     std::unique_ptr<MatrixBase> h;
+    // Pin the storage across the GIL release: another thread's close() frees it otherwise
+    // (review 3.7 C-4). The reads go through the pinned mapper's memory.
+    (void)mat.require_mapper();  // closed: ValueError
+    const std::shared_ptr<MemoryMapper> keep = mat.shared_mapper();
     if (!plain) {
         py::gil_scoped_release release;
         h = dt == DataType::BIT ? pycauset::write_out(mat) : pycauset::to_dense(mat, dt);
@@ -402,6 +406,7 @@ void bind_matrix_classes(py::module_& m) {
             return py::make_tuple(mat.rows(), mat.cols());
         })
         .def_property_readonly("size", &MatrixBase::size, "Number of elements (rows * cols), as NumPy's ndarray.size.")
+        .def_property_readonly("ndim", [](const MatrixBase&) { return 2; }, "Number of dimensions (2), as NumPy's ndarray.ndim.")
         .def("rows", &MatrixBase::rows)
         .def("cols", &MatrixBase::cols)
         .def("get_element_as_double", &MatrixBase::get_element_as_double)

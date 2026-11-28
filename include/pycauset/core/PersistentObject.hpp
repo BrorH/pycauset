@@ -44,7 +44,9 @@ public:
 
     // The storage itself (shared, copy-on-write). Lets another object view the same bytes
     // with a different shape, e.g. a dense vector as a 1 x n matrix (math/VectorOps.hpp).
-    const std::shared_ptr<MemoryMapper>& shared_mapper() const { return mapper_; }
+    // By value: a caller that releases the GIL keeps the storage alive across a close() from
+    // another thread (a reference kept nothing alive, review 3.7 C-4).
+    std::shared_ptr<MemoryMapper> shared_mapper() const { return mapper_; }
 
     // --- Metadata Accessors ---
 

@@ -1496,3 +1496,38 @@ def test_3_7_C3_numpy_import_normalises_byte_order_and_strides():
         np.testing.assert_allclose(np.asarray(pc.zeros((2, 3)) + arr).astype(np.float64), want)
         np.testing.assert_allclose(np.asarray(I3 @ arr.T).astype(np.float64), want.T)
     np.testing.assert_array_equal(np.asarray(pc.asarray(rec["x"][0])), base[0])
+
+
+def test_3_7_C4_close_from_another_thread_during_export_or_save(tmp_path):
+    """Review 3.7 C-4: the GIL-released export and payload write read storage another thread
+    could free (segfault, or a write from freed memory)."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    code = (
+        "import threading, numpy as np, pycauset as pc, sys\n"
+        "bad = 0\n"
+        "for trial in range(20):\n"
+        "    A = pc.matrix(np.random.rand(300, 300)); V = A.T; del A\n"
+        "    v = pc.vector(np.random.rand(400_000))\n"
+        "    t = threading.Thread(target=lambda: (V.close(), v.close()))\n"
+        "    t.start()\n"
+        "    for obj, f in ((V, np.asarray), (v, lambda o: pc.save(o, sys.argv[1]))):\n"
+        "        try:\n            f(obj)\n"
+        "        except ValueError:\n            pass\n"
+        "        except RuntimeError as e:\n            bad += 'closed' not in str(e)\n"
+        "    t.join()\n"
+        "print(bad)\n"
+    )
+    env = {**os.environ, "PYTHONPATH": str(Path(pc.__file__).parent.parent), "MALLOC_MMAP_THRESHOLD_": "131072"}
+    r = subprocess.run([sys.executable, "-c", code, str(tmp_path / "v.pycauset")], env=env,
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, (r.returncode, r.stderr[-2000:])
+
+
+def test_ndim_is_numpys():
+    """Matrices and vectors had no `ndim` (NumPy's attribute; found writing the 3.7 C-1 test)."""
+    assert pc.zeros((2, 3)).ndim == 2 and pc.zeros(4).ndim == 1 and pc.zeros(4).T.ndim == 2
+    assert pc.causal_matrix(3).ndim == np.asarray(pc.causal_matrix(3)).ndim

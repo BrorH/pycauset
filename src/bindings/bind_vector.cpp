@@ -338,6 +338,8 @@ void bind_vector_classes(py::module_& m) {
         .def("set_temporary", &VectorBase::set_temporary)
         .def("close", &VectorBase::close)
         .def_property_readonly("size", &VectorBase::size, "Number of elements, as NumPy's ndarray.size.")
+        .def_property_readonly("ndim", [](const VectorBase& v) { return v.is_transposed() ? 2 : 1; },
+                               "Number of dimensions (len(shape): 1, or 2 for a transposed (1, n) vector).")
         .def("__len__", &VectorBase::size)
         .def_property("seed", &VectorBase::get_seed, &VectorBase::set_seed)
         .def_property("scalar", &VectorBase::get_scalar, &VectorBase::set_scalar)
