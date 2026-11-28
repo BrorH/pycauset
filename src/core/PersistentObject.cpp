@@ -164,14 +164,14 @@ void PersistentObject::set_conjugated(bool conjugated) {
 
 MemoryMapper* PersistentObject::require_mapper() {
     if (!mapper_) {
-        throw std::runtime_error("Backing file has been closed.");
+        throw std::invalid_argument("operation on a closed matrix or vector (close() released its storage)");
     }
     return mapper_.get();
 }
 
 const MemoryMapper* PersistentObject::require_mapper() const {
     if (!mapper_) {
-        throw std::runtime_error("Backing file has been closed.");
+        throw std::invalid_argument("operation on a closed matrix or vector (close() released its storage)");
     }
     return mapper_.get();
 }

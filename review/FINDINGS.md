@@ -1929,12 +1929,13 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-140 Area 3.7 (bindings): export after close segfaults, list keys read as (row, col), byte order ignored
 - **Status:** reviewed (session 9), 18 findings in `review/areas/3.7-bindings.md` (3 S1, 4 S2,
-  7 S3, 4 S4). Open.
-  - C-1 (S1): `np.asarray` / `pc.to_numpy` of a closed matrix or vector segfaults.
-  - C-2 (S1): `A[[0, 2]]` is the element `A[0, 2]` (NumPy: rows 0 and 2); `A[True, 0]` reads
-    `A[1, 0]`; float index arrays truncate.
-  - C-3 (S1): NumPy import ignores byte order and strides (big-endian float16 swapped, a
-    stride-9 struct field read wrong).
+  7 S3, 4 S4). C-1 to C-3 fixed; the rest open.
+  - C-1 (S1, fixed): `np.asarray` / `pc.to_numpy` of a closed matrix or vector segfaulted; a
+    closed object raises `ValueError` now.
+  - C-2 (S1, fixed): `A[[0, 2]]` was the element `A[0, 2]` (NumPy: rows 0 and 2); `A[True, 0]`
+    read `A[1, 0]`; float index arrays truncated.
+  - C-3 (S1, fixed): NumPy import ignored byte order and strides (big-endian float16 swapped, a
+    stride-9 struct field read wrong); one normalisation at every importer now.
   - C-4: storage freed by another thread while the GIL is released (export, save).
   - C-5: slice assignment differs from NumPy (broadcasting, list right-hand sides, partial
     writes on failure). C-6: RuntimeError where NumPy raises TypeError / ValueError / IndexError.

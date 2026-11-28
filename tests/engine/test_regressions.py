@@ -1433,3 +1433,66 @@ def test_3_4_C7_norm_of_scaled_views_of_every_path():
     for m in (pc.matrix(np.ones((3, 3), np.float16)) * 3.0, pc.IdentityMatrix(3) * 3.0,
               pc.matrix(np.arange(6.0).reshape(2, 3)).T * -2.0, pc.matrix(np.ones((2, 2), np.int8)) * 3):
         assert pc.norm(m) == pytest.approx(np.linalg.norm(np.asarray(m).astype(np.float64)))
+
+
+def test_3_7_C1_closed_objects_raise_instead_of_crashing():
+    """Review 3.7 C-1: np.asarray / pc.to_numpy of a closed matrix or vector segfaulted."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    code = (
+        "import numpy as np, pycauset as pc\n"
+        "cases = []\n"
+        "for make in (lambda: pc.zeros((3, 3)), lambda: pc.zeros(3)):\n"
+        "    for op in (np.asarray, pc.to_numpy, lambda m: m + 1, pc.sum, lambda m: m[0:2, 0:2] if isinstance(m, pc.MatrixBase) else m[0]):\n"
+        "        m = make(); m.close()\n"
+        "        try:\n            op(m); cases.append('no error')\n"
+        "        except ValueError as e:\n            cases.append('ValueError' if 'closed' in str(e) else 'other ' + str(e))\n"
+        "        except Exception as e:\n            cases.append(type(e).__name__ + ' ' + str(e))\n"
+        "print(cases)\n"
+    )
+    env = {**os.environ, "PYTHONPATH": str(Path(pc.__file__).parent.parent)}
+    r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    assert r.returncode == 0, (r.returncode, r.stderr[-2000:])
+    out = eval(r.stdout.strip())
+    assert all(c == "ValueError" for c in out), out
+
+
+def test_3_7_C2_list_keys_index_rows_as_numpy():
+    """Review 3.7 C-2: A[[0, 2]] read the element A[0, 2]; A[True, 0] read A[1, 0]; float index
+    arrays were truncated."""
+    a = np.arange(12.0).reshape(3, 4)
+    A = pc.matrix(a)
+    np.testing.assert_array_equal(np.asarray(A[[0, 2]]), a[[0, 2]])
+    np.testing.assert_array_equal(np.asarray(A[[1]]), a[[1]])
+    np.testing.assert_array_equal(np.asarray(A[1:3]), a[1:3])
+    np.testing.assert_array_equal(np.asarray(A[np.array([2, 0])]), a[np.array([2, 0])])
+    with pytest.raises(IndexError):
+        A[True, 0]
+    with pytest.raises(IndexError):
+        A[np.array([0.7, 1.9]), 0]
+    z = pc.zeros((3, 4))
+    z[[0, 2]] = 5.0
+    want = np.zeros((3, 4))
+    want[[0, 2]] = 5.0
+    np.testing.assert_array_equal(np.asarray(z), want)
+
+
+def test_3_7_C3_numpy_import_normalises_byte_order_and_strides():
+    """Review 3.7 C-3: big-endian float16 imported byte-swapped; a struct field (9-byte stride)
+    read the wrong memory; '>f8' and '>i4' raised."""
+    base = np.arange(1.0, 7.0).reshape(2, 3)
+    rec = np.zeros((2, 3), dtype=[("x", "<f8"), ("y", "u1")])
+    rec["x"] = base
+    field = rec["x"]
+    assert field.strides[1] == 9
+    I3 = pc.matrix(np.eye(3))
+    for arr in (base.astype(">f2"), base.astype(">f8"), base.astype(">i4"), field):
+        want = arr.astype(np.float64)
+        np.testing.assert_array_equal(np.asarray(pc.asarray(arr)).astype(np.float64), want)
+        np.testing.assert_array_equal(np.asarray(pc.matrix(arr)).astype(np.float64), want)
+        np.testing.assert_allclose(np.asarray(pc.zeros((2, 3)) + arr).astype(np.float64), want)
+        np.testing.assert_allclose(np.asarray(I3 @ arr.T).astype(np.float64), want.T)
+    np.testing.assert_array_equal(np.asarray(pc.asarray(rec["x"][0])), base[0])

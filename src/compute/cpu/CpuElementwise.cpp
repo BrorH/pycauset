@@ -484,8 +484,8 @@ namespace {
                     if (ca->has_diagonal() != res_c->has_diagonal() || cb->has_diagonal() != res_c->has_diagonal())
                         return false;
                 }
-                const size_t bytes = res_c->shared_mapper()->get_data_size();
-                if (ca->shared_mapper()->get_data_size() != bytes || cb->shared_mapper()->get_data_size() != bytes)
+                const size_t bytes = res_c->require_mapper()->get_data_size();
+                if (ca->require_mapper()->get_data_size() != bytes || cb->require_mapper()->get_data_size() != bytes)
                     return false;
                 const T* x = ca->data();
                 const T* y = cb->data();
@@ -620,7 +620,7 @@ namespace {
                     auto range = [diag, cols](uint64_t i) { return std::pair<uint64_t, uint64_t>(diag ? i : i + 1, cols); };
                     if (fresh) {
                         res_tri->ensure_unique();  // first: it may move the storage
-                        auto* bytes = static_cast<uint8_t*>(res_tri->shared_mapper()->get_data());
+                        auto* bytes = static_cast<uint8_t*>(res_tri->require_mapper()->get_data());
                         if (rows_binary<T>(a, b, rows, cols, op, range, [&, bytes, diag](uint64_t i, uint64_t j, T v) {
                                 reinterpret_cast<T*>(bytes + res_tri->get_row_offset(i))[j - (diag ? i : i + 1)] = v;
                             }))
@@ -632,7 +632,7 @@ namespace {
                     auto range = [cols](uint64_t i) { return std::pair<uint64_t, uint64_t>(i, cols); };
                     if (fresh) {
                         res_sym->ensure_unique();  // first: it may move the storage
-                        auto* bytes = static_cast<uint8_t*>(res_sym->shared_mapper()->get_data());
+                        auto* bytes = static_cast<uint8_t*>(res_sym->require_mapper()->get_data());
                         // The diagonal through set(): it checks what the class requires there
                         // (0 for antisymmetric, real for Hermitian).
                         if (rows_binary<T>(a, b, rows, cols, op, range, [&, bytes](uint64_t i, uint64_t j, T v) {

@@ -253,7 +253,7 @@ py::object export_numpy(const MatrixBase& mat) {
     const auto it = names.find(dt);
     if (it == names.end()) throw py::type_error(std::string("no NumPy dtype for ") + pycauset::dtype_name(dt));
     py::array out(py::dtype(it->second), shape);
-    const void* data = src.shared_mapper()->get_data();
+    const void* data = src.require_mapper()->get_data();
     std::memcpy(out.mutable_data(), data, static_cast<size_t>(rows * cols) * static_cast<size_t>(out.itemsize()));
     return out;
 }
@@ -746,7 +746,8 @@ void bind_matrix_classes(py::module_& m) {
         throw py::type_error("not a pycauset matrix or vector");
     }, py::arg("obj"), "Internal: the storage structure name ('dense', 'triangular', ...).");
 
-    m.def("asarray", [](const py::array& array) -> py::object {
+    m.def("asarray", [](const py::array& array_in) -> py::object {
+        const py::array array = normalize_numpy(array_in);  // byte order, strides (3.7 C-3)
         auto buf = array.request();
         if (buf.ndim == 1) {
             if (is_numpy_float16(array)) {

@@ -96,6 +96,12 @@ inline SliceInfo make_full_slice(uint64_t dim) {
 }
 
 inline SliceInfo slice_from_object(const py::handle& obj, uint64_t dim) {
+    // A bool is an int in Python, so A[True, 0] read A[1, 0] (review 3.7 C-2). NumPy reads a
+    // bool scalar as a 0-d mask (a new axis), which a 2-D matrix has no room for.
+    if (PyBool_Check(obj.ptr()) || (py::isinstance<py::array>(obj) && py::array::ensure(obj).ndim() == 0 &&
+                                    py::array::ensure(obj).dtype().kind() == 'b')) {
+        throw py::index_error("boolean scalar indices are not supported (use a boolean array of the axis length)");
+    }
     if (py::isinstance<py::int_>(obj)) {
         return make_scalar_index(obj.cast<py::ssize_t>(), dim);
     }
@@ -105,8 +111,9 @@ inline SliceInfo slice_from_object(const py::handle& obj, uint64_t dim) {
         if (idx == -1 && PyErr_Occurred()) throw py::error_already_set();
         return make_scalar_index(idx, dim);
     }
-    // A Python list is an index array, as in NumPy (m[[0, 2], :]).
+    // A Python list is an index array, as in NumPy (m[[0, 2], :]); [] is an empty integer one.
     if (py::isinstance<py::list>(obj)) {
+        if (py::len(obj) == 0) return SliceInfo{false, true, 0, 0, 1, 0, {}};
         return slice_from_object(py::array::ensure(obj), dim);
     }
     if (py::isinstance<py::slice>(obj)) {
@@ -147,6 +154,11 @@ inline SliceInfo slice_from_object(const py::handle& obj, uint64_t dim) {
             return SliceInfo{false, true, 0, 0, 1, static_cast<uint64_t>(indices.size()), std::move(indices)};
         }
 
+        // Only integer arrays index (a float array was truncated, review 3.7 C-2), as in NumPy.
+        const char kind = py::array::ensure(obj).dtype().kind();
+        if (kind != 'i' && kind != 'u') {
+            throw py::index_error("arrays used as indices must be of integer (or boolean) type");
+        }
         auto idx = py::array_t<long long, py::array::c_style | py::array::forcecast>::ensure(obj);
         if (!idx) {
             throw py::type_error("Advanced index arrays must be integer or boolean");
@@ -183,14 +195,17 @@ inline ParsedIndex parse_matrix_subscript(const py::handle& key, uint64_t rows, 
     if (py::isinstance<py::ellipsis>(key)) {
         first = full();
         second = full();
-    } else if (py::isinstance<py::tuple>(key) || py::isinstance<py::list>(key)) {
+    } else if (py::isinstance<py::tuple>(key)) {
+        // Only a tuple is a multi-axis key. A list is an index array on axis 0, as in NumPy:
+        // A[[0, 2]] read the element A[0, 2] (review 3.7 C-2).
         py::sequence seq = key.cast<py::sequence>();
         if (seq.size() == 1) {
             if (py::isinstance<py::ellipsis>(seq[0])) {
                 first = full();
                 second = full();
             } else {
-                throw py::type_error("Matrix indices must be (row, col)");
+                first = seq[0];
+                second = full();
             }
         } else if (seq.size() == 2) {
             first = seq[0];
@@ -204,10 +219,12 @@ inline ParsedIndex parse_matrix_subscript(const py::handle& key, uint64_t rows, 
         } else {
             throw py::type_error("Matrix indices must be 2D (row, col) for matrices/vectors");
         }
+    } else if (py::isinstance<py::list>(key) || py::isinstance<py::slice>(key) || py::isinstance<py::array>(key)) {
+        first = py::reinterpret_borrow<py::object>(key);  // rows, every column (A[[0, 2]], A[1:3])
+        second = full();
     } else {
-        throw py::type_error("Matrix indices must be provided as [row, col]");
+        throw py::type_error("Matrix indices must be provided as [row, col] (a row is A[i, :])");
     }
-
     SliceInfo r = slice_from_object(first, rows);
     SliceInfo c = slice_from_object(second, cols);
     return ParsedIndex{r, c};
@@ -225,6 +242,7 @@ inline std::pair<uint64_t, uint64_t> slice_shape(const SliceInfo& r, const Slice
 
 template <typename T>
 inline std::shared_ptr<DenseMatrix<T>> slice_dense_matrix(const DenseMatrix<T>& mat, const SliceInfo& r, const SliceInfo& c) {
+    (void)mat.require_mapper();  // a window of a closed matrix had no storage (review 3.7 C-1)
     const bool has_array = r.is_array || c.is_array;
     // The copies below hold stored values (get() applies the transposition and window); they
     // keep the source's factor and conjugation, or B[[0, 1], [2, 3]] of B = A * 2 read A's values.

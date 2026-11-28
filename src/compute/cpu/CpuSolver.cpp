@@ -294,7 +294,7 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             std::vector<double> x(n);
             for (uint64_t j = 0; j < n; ++j) x[j] = v.get_element_as_double(j);
             // Row i holds columns i+1..n-1 as bits, starting at byte offset row_offset(i).
-            const auto* base = static_cast<const char*>(c.shared_mapper()->get_data());
+            const auto* base = static_cast<const char*>(c.require_mapper()->get_data());
             auto row_words = [&](uint64_t i) {
                 return reinterpret_cast<const uint64_t*>(base + c.get_row_offset(i));
             };
@@ -435,7 +435,7 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
         } else {
             return false;
         }
-        const char* base = static_cast<const char*>(m.shared_mapper()->get_data());
+        const char* base = static_cast<const char*>(m.require_mapper()->get_data());
         auto row = [&](uint64_t i) { return reinterpret_cast<const W*>(base + tri->get_row_offset(i)); };
         auto first = [&](uint64_t i) { return diag ? i : i + 1; };  // first stored column of row i
         // One pass over the stored rows: each chunk takes rows c, c + chunks, ... (rows shrink

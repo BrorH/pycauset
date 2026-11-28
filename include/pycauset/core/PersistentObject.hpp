@@ -11,6 +11,12 @@
 
 class PersistentObject {
 public:
+    // The storage; throws std::invalid_argument (ValueError) after close(). Every reader goes
+    // through this: the NumPy export dereferenced the mapper directly and segfaulted on a
+    // closed matrix (review 3.7 C-1).
+    MemoryMapper* require_mapper();
+    const MemoryMapper* require_mapper() const;
+
     // Constructor for loading/creating with explicit metadata
     PersistentObject(std::shared_ptr<MemoryMapper> mapper,
                      pycauset::Structure structure,
@@ -95,8 +101,6 @@ protected:
 
     void copy_storage_now();  // replace the storage by a private copy (RAM or a temp file)
 
-    MemoryMapper* require_mapper();
-    const MemoryMapper* require_mapper() const;
     
     static std::string resolve_backing_file(const std::string& requested,
                                           const std::string& fallback_prefix);

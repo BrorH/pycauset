@@ -151,7 +151,7 @@ void bind_core_classes(py::module_& m) {
         py::list out;
         if (!mat.shared_mapper()) return out;
         using pycauset::ReductionValue;
-        for (const auto& [key, value] : mat.shared_mapper()->cache_snapshot()) {
+        for (const auto& [key, value] : mat.require_mapper()->cache_snapshot()) {
             if (const auto* c = std::any_cast<std::complex<double>>(&value)) {
                 out.append(py::make_tuple(key, "complex", c->real(), c->imag()));
             } else if (const auto* sl = std::any_cast<std::pair<std::complex<double>, double>>(&value)) {
@@ -216,7 +216,7 @@ void bind_core_classes(py::module_& m) {
     // Python: twice the disk, the payload added to RSS, ~8x np.save's time). Returns the
     // number of bytes written. The GIL is released during the write.
     auto write_payload = [](const std::shared_ptr<MemoryMapper>& mapper, const std::string& path, uint64_t offset) {
-        if (!mapper) throw std::runtime_error("Backing file has been closed.");
+        if (!mapper) throw std::invalid_argument("operation on a closed matrix or vector (close() released its storage)");
         const char* data = static_cast<const char*>(mapper->get_data());
         const uint64_t size = mapper->get_data_size();
         {
@@ -236,10 +236,10 @@ void bind_core_classes(py::module_& m) {
     };
     // Bytes of storage an object maps (load checks it against the file's payload length).
     m.def("_storage_bytes", [](const pycauset::MatrixBase& mat) -> uint64_t {
-        return mat.shared_mapper() ? mat.shared_mapper()->get_data_size() : 0;
+        return mat.shared_mapper() ? mat.require_mapper()->get_data_size() : 0;
     });
     m.def("_storage_bytes", [](const pycauset::VectorBase& vec) -> uint64_t {
-        return vec.shared_mapper() ? vec.shared_mapper()->get_data_size() : 0;
+        return vec.shared_mapper() ? vec.require_mapper()->get_data_size() : 0;
     });
     m.def("_write_payload", [write_payload](const pycauset::MatrixBase& mat, const std::string& path, uint64_t offset) {
         return write_payload(mat.shared_mapper(), path, offset);

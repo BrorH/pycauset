@@ -2,6 +2,8 @@
 // bind_vector.cpp (review 4.2: the two files had diverging copies). Internal to src/bindings.
 #pragma once
 
+#include <bit>
+
 #include "bindings_common.hpp"
 #include "element_conversion.hpp"
 #include "binding_warnings.hpp"
@@ -26,6 +28,25 @@
 
 namespace pycauset_bindings::numpy_import {
 using namespace pycauset;
+
+// One normalisation of NumPy input for every importer: native byte order, aligned, and strides
+// that are whole items. A big-endian float16 imported byte-swapped, a struct-field view with a
+// 9-byte stride read the wrong memory, and '>f8' / '>i4' raised (review 3.7 C-3). Arrays
+// already in that form are returned as they are (no copy).
+inline py::array normalize_numpy(const py::array& a) {
+    const py::object dt = a.attr("dtype");
+    const std::string bo = dt.attr("byteorder").cast<std::string>();
+    const bool swapped = (std::endian::native == std::endian::little) ? bo == ">" : bo == "<";
+    bool odd = false;
+    const py::ssize_t item = a.itemsize();
+    for (py::ssize_t d = 0; d < a.ndim(); ++d) {
+        if (item > 0 && a.strides(d) % item != 0) odd = true;
+    }
+    const bool aligned = a.attr("flags").attr("aligned").cast<bool>();
+    if (!swapped && !odd && aligned) return a;
+    py::module_ np = py::module_::import("numpy");
+    return np.attr("ascontiguousarray")(a, dt.attr("newbyteorder")("=")).cast<py::array>();
+}
 
 inline bool is_numpy_float16(const py::array& array) {
     const py::dtype dt = array.dtype();
@@ -282,7 +303,8 @@ std::shared_ptr<DenseMatrix<T>> dense_row_matrix_from_numpy_1d(const py::array_t
     return result;
 }
 
-inline std::shared_ptr<VectorBase> vector_from_numpy(const py::array& array) {
+inline std::shared_ptr<VectorBase> vector_from_numpy(const py::array& array_in) {
+    const py::array array = normalize_numpy(array_in);
     if (is_numpy_float16(array)) {  // NumPy float16 has no C++ type in pybind11: read the bits
         auto buf = array.request();
         require_1d(buf);
@@ -349,7 +371,8 @@ inline std::shared_ptr<VectorBase> vector_from_numpy(const py::array& array) {
     throw py::type_error("Unsupported NumPy dtype for vector conversion");
 }
 
-inline std::shared_ptr<MatrixBase> matrix_from_numpy(const py::array& array) {
+inline std::shared_ptr<MatrixBase> matrix_from_numpy(const py::array& array_in) {
+    const py::array array = normalize_numpy(array_in);
     if (is_numpy_float16(array)) {
         auto buf = array.request();
         require_2d(buf);
@@ -433,7 +456,8 @@ inline std::shared_ptr<MatrixBase> matrix_from_numpy(const py::array& array) {
     throw py::type_error("Unsupported NumPy dtype for matrix conversion");
 }
 
-inline std::shared_ptr<MatrixBase> elementwise_operand_matrix_from_numpy(const py::array& array) {
+inline std::shared_ptr<MatrixBase> elementwise_operand_matrix_from_numpy(const py::array& array_in) {
+    const py::array array = normalize_numpy(array_in);
     auto buf = array.request();
     if (buf.ndim == 2) {
         return matrix_from_numpy(array);

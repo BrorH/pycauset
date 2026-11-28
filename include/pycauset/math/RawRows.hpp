@@ -117,7 +117,7 @@ bool raw_rows(const Src& m, uint64_t i0, uint64_t i1, T* __restrict dst) {
             // (i, j) = C(i, j) + sign * C(j, i) from C's strict upper bits, as get() (no view).
             const auto& c = m.bits();
             if (m.is_materialized() || m.is_subview() || c.is_transposed() || c.has_diagonal()) return false;
-            const auto* bytes = static_cast<const uint8_t*>(c.shared_mapper()->get_data());
+            const auto* bytes = static_cast<const uint8_t*>(c.require_mapper()->get_data());
             auto srow = [&](uint64_t r) { return reinterpret_cast<const uint64_t*>(bytes + c.get_row_offset(r)); };
             const T sg = static_cast<T>(m.sign());
             std::fill(dst, dst + nr * cols, T(0));
@@ -154,7 +154,7 @@ bool raw_rows(const Src& m, uint64_t i0, uint64_t i1, T* __restrict dst) {
         } else if constexpr (std::is_same_v<T, bool>) {
             // Bit storage (no windows: get() of the bit classes does not apply them).
             if (m.is_subview()) return false;
-            const auto* bytes = static_cast<const uint8_t*>(m.shared_mapper()->get_data());
+            const auto* bytes = static_cast<const uint8_t*>(m.require_mapper()->get_data());
             if constexpr (std::is_same_v<Src, DenseMatrix<bool>>) {
                 auto srow = [&](uint64_t r) { return reinterpret_cast<const uint64_t*>(bytes + r * m.stride_bytes()); };
                 if (!m.is_transposed()) {
@@ -201,7 +201,7 @@ bool raw_rows(const Src& m, uint64_t i0, uint64_t i1, T* __restrict dst) {
             return true;
         } else {
             if (m.is_subview()) return false;
-            const auto* bytes = static_cast<const uint8_t*>(m.shared_mapper()->get_data());
+            const auto* bytes = static_cast<const uint8_t*>(m.require_mapper()->get_data());
             auto stored_row = [&](uint64_t i) { return reinterpret_cast<const T*>(bytes + m.get_row_offset(i)); };
             if constexpr (std::is_same_v<Src, TriangularMatrix<T>>) {
                 const bool diag = m.has_diagonal();

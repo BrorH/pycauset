@@ -17,8 +17,8 @@ std::unique_ptr<MatrixBase> transitive_reduction(const TriangularMatrix<bool>& c
     const uint64_t n = c.rows();
     auto out = std::make_unique<TriangularMatrix<bool>>(n, "");
     if (n < 2) return out;
-    const auto* base = static_cast<const char*>(c.shared_mapper()->get_data());
-    auto* obase = static_cast<char*>(out->shared_mapper()->get_data());
+    const auto* base = static_cast<const char*>(c.require_mapper()->get_data());
+    auto* obase = static_cast<char*>(out->require_mapper()->get_data());
     const uint64_t full_words = (n + 63) / 64 + 1;
     pycauset::ParallelFor(0, n - 1, [&](size_t i) {
         const auto* row = reinterpret_cast<const uint64_t*>(base + c.get_row_offset(i));
