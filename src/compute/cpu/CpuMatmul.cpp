@@ -156,16 +156,33 @@ namespace {
 
         auto b_transposed_mat = std::make_unique<DenseBitMatrix>(n, k, "");
         uint64_t* b_transposed_data = b_transposed_mat->data();
+        if (b_transposed_mat->stride_bytes() / 8 != words_per_row) throw std::logic_error("bit matmul: row strides differ");
 
-        for (uint64_t i = 0; i < k; ++i) {
-            for (uint64_t j = 0; j < n; ++j) {
-                if (b.get(i, j)) {
-                    const uint64_t word_idx = i / 64;
-                    const uint64_t bit_idx = i % 64;
-                    b_transposed_data[j * words_per_row + word_idx] |= (1ULL << bit_idx);
+        // B^T from B's packed words, set bits only, in parallel over blocks of 64 rows of B (each
+        // block writes its own word of every B^T row). It read every element through b.get(),
+        // serially (review 3.4 C-16). B is plain (the caller writes views out).
+        const uint64_t* b_data = b.data();
+        const uint64_t b_words = b.stride_bytes() / 8;
+        ParallelFor(0, (k + 63) / 64, [&](size_t blk) {
+            const uint64_t i1 = std::min<uint64_t>(k, (blk + 1) * 64);
+            for (uint64_t i = blk * 64; i < i1; ++i) {
+                const uint64_t* row = b_data + i * b_words;
+                const uint64_t bit = 1ULL << (i % 64);
+                for (uint64_t w = 0; w * 64 < n; ++w) {
+                    uint64_t word = row[w];
+                    if (w * 64 + 64 > n && n % 64 != 0) word &= (1ULL << (n % 64)) - 1ULL;  // padding
+                    while (word) {
+                        const uint64_t j = w * 64 + static_cast<uint64_t>(std::countr_zero(word));
+                        b_transposed_data[j * words_per_row + blk] |= bit;
+                        word &= word - 1;
+                    }
                 }
             }
-        }
+        });
+        // One write gate for the whole result, then its buffer: c.set from every pool thread
+        // bumped the storage version (two contended atomics) per element.
+        c.ensure_unique();
+        int32_t* c_data = c.data();
 
         const bool use_avx512 = has_avx512_vpopcntdq();
 
@@ -194,7 +211,7 @@ namespace {
                 if (dot_product > static_cast<int64_t>((std::numeric_limits<int32_t>::max)())) {
                     throw std::overflow_error("Integer matmul overflow: bit×bit result does not fit in int32 output");
                 }
-                c.set(static_cast<uint64_t>(i), j, static_cast<int32_t>(dot_product));
+                c_data[static_cast<uint64_t>(i) * n + j] = static_cast<int32_t>(dot_product);
             }
         });
     }
@@ -660,16 +677,11 @@ bool bit_x_bit_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& resu
     // The popcount kernel reads rows of A and columns of B as packed words: a transposed
     // operand gets one typed O(n^2) plain copy (the per-element O(n^3) branch this replaced
     // took 104 ms vs NumPy 1.4 ms at n = 384, F-083).
-    auto plain = [](const DenseMatrix<bool>& X) {
-        auto out = std::make_unique<DenseMatrix<bool>>(X.rows(), X.cols(), std::string());
-        for (uint64_t i = 0; i < X.rows(); ++i)
-            for (uint64_t j = 0; j < X.cols(); ++j)
-                if (X.get(i, j)) out->set(i, j, true);
-        return out;
-    };
-    std::unique_ptr<DenseMatrix<bool>> ha = A->is_transposed() ? plain(*A) : nullptr;
-    std::unique_ptr<DenseMatrix<bool>> hb = B->is_transposed() ? plain(*B) : nullptr;
-    bit_popcount_matmul(ha ? *ha : *A, hb ? *hb : *B, *C);
+    // (write_out: the typed row reader, a block of rows at a time; it was get / set per element.)
+    std::unique_ptr<MatrixBase> ha = A->is_transposed() ? write_out(*A) : nullptr;
+    std::unique_ptr<MatrixBase> hb = B->is_transposed() ? write_out(*B) : nullptr;
+    bit_popcount_matmul(ha ? static_cast<const DenseMatrix<bool>&>(*ha) : *A,
+                        hb ? static_cast<const DenseMatrix<bool>&>(*hb) : *B, *C);
     C->set_scalar(compose_factors(A->get_scalar(), B->get_scalar()));
     return true;
 }
