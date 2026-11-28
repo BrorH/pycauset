@@ -691,7 +691,9 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     const uint64_t m = a.rows(), n = b.cols();
 
     // R1 identity.
-    if (sa == Structure::IDENTITY && sb == Structure::IDENTITY) {
+    // I(m, k) @ I(k, n) is I(m, n) only when k >= min(m, n); with a narrower k the product has
+    // k ones (IdentityMatrix(3, 2) @ IdentityMatrix(2, 3) is diag(1, 1, 0); review 3.6 C-3).
+    if (sa == Structure::IDENTITY && sb == Structure::IDENTITY && a.cols() >= std::min(m, n)) {
         // An identity entry's value is conj?(1 * s) (math/ViewValue.hpp).
         auto res = ObjectFactory::create_matrix(m, n, r, Structure::IDENTITY, saveas);
         res->set_scalar(view_value(1.0, a.get_scalar(), a.is_conjugated()) *
@@ -772,12 +774,19 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
             std::vector<int64_t> x(m), y(m);
             if (read_diagonal(a, x.data()) && read_diagonal(b, y.data())) {
                 const bool u64 = r == DataType::UINT64;
-                const auto [lo, hi] = mm_int_range(r);
+                const auto [lo_d, hi_d] = mm_int_range(r);
+                // Compared exactly: as doubles, 2**63 (one past INT64_MAX) passed the check and
+                // wrapped (review 3.6 C-1). The range ends are exact integers in double, except
+                // the 64-bit maxima, which are 2**63 - 1 / 2**64 - 1.
+                const __int128 lo = static_cast<__int128>(lo_d);
+                const __int128 hi = r == DataType::INT64 ? static_cast<__int128>(std::numeric_limits<int64_t>::max())
+                                  : u64 ? static_cast<__int128>(std::numeric_limits<uint64_t>::max())
+                                        : static_cast<__int128>(hi_d);
                 std::vector<__int128> p(m);
                 for (uint64_t i = 0; i < m; ++i) {
                     p[i] = u64 ? static_cast<__int128>(static_cast<uint64_t>(x[i])) * static_cast<uint64_t>(y[i])
                                : static_cast<__int128>(x[i]) * y[i];
-                    if (static_cast<double>(p[i]) < lo || static_cast<double>(p[i]) > hi) {
+                    if (p[i] < lo || p[i] > hi) {
                         throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
                     }
                 }

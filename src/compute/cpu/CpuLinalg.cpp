@@ -33,6 +33,15 @@
 namespace pycauset {
 namespace {
 
+// NumPy calls LAPACK on NaN input and returns NaN results; LAPACKE checks every input for NaN
+// first and rejected it as an "illegal argument" (det, solve, inv, qr, cholesky, svd, eigh,
+// ... all raised, and LAPACK printed to stderr; review 3.6 C-2). One process-wide switch,
+// set when the engine loads.
+[[maybe_unused]] const bool kLapackeNanCheckOff = [] {
+    LAPACKE_set_nancheck(0);
+    return true;
+}();
+
 template <typename T> struct real_of { using type = T; };
 template <typename V> struct real_of<std::complex<V>> { using type = V; };
 template <typename T> using real_t = typename real_of<T>::type;
@@ -78,10 +87,10 @@ DenseVector<T>& out_vector(VectorBase& v, const char* op) {
 // symmetric) or conj(A) (Hermitian): the same eigenvalues, and eigenvectors conj(v).
 template <typename T>
 lapack_int heevd(char jobz, lapack_int n, T* a, real_t<T>* w) {
-    if constexpr (std::is_same_v<T, float>) return LAPACKE_ssyevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, n, w);
-    else if constexpr (std::is_same_v<T, double>) return LAPACKE_dsyevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, n, w);
-    else if constexpr (std::is_same_v<T, std::complex<float>>) return LAPACKE_cheevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, n, w);
-    else return LAPACKE_zheevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, n, w);
+    if constexpr (std::is_same_v<T, float>) return LAPACKE_ssyevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, std::max<lapack_int>(1, n), w);
+    else if constexpr (std::is_same_v<T, double>) return LAPACKE_dsyevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, std::max<lapack_int>(1, n), w);
+    else if constexpr (std::is_same_v<T, std::complex<float>>) return LAPACKE_cheevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, std::max<lapack_int>(1, n), w);
+    else return LAPACKE_zheevd(LAPACK_COL_MAJOR, jobz, 'U', n, a, std::max<lapack_int>(1, n), w);
 }
 
 // dst (row-major n x n) = src read column-major, conjugated for complex T: the eigenvectors
@@ -183,10 +192,10 @@ bool cholesky_t(const MatrixBase& in, MatrixBase& out) {
     // ?potrf('U') on the column-major A^T (its upper triangle is A's lower one): A^T = U^H U,
     // so A = U^T conj(U) and L = U^T, which is the column-major U read row-major. L is in the
     // buffer's lower triangle as it stands, real or complex.
-    if constexpr (std::is_same_v<T, float>) info = LAPACKE_spotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), n);
-    else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), n);
-    else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), n);
-    else info = LAPACKE_zpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), n);
+    if constexpr (std::is_same_v<T, float>) info = LAPACKE_spotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), std::max<lapack_int>(1, n));
+    else if constexpr (std::is_same_v<T, double>) info = LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), std::max<lapack_int>(1, n));
+    else if constexpr (std::is_same_v<T, std::complex<float>>) info = LAPACKE_cpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), std::max<lapack_int>(1, n));
+    else info = LAPACKE_zpotrf(LAPACK_COL_MAJOR, 'U', n, a.data(), std::max<lapack_int>(1, n));
     if (info > 0) throw std::domain_error("cholesky: matrix is not positive definite");
     if (info < 0) throw std::runtime_error("cholesky: illegal argument to ?potrf");
     auto& o = out_matrix<T>(out, "cholesky");

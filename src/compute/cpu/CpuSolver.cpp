@@ -777,10 +777,10 @@ template <typename T>
 lapack_int gesdd_transposed(char job, lapack_int m, lapack_int n, T* a, real_of_t<T>* s, T* u, lapack_int ldu, T* vt) {
     // Column-major problem: n x m matrix (lda n); its U' (n x .) goes to vt (ld n), its
     // VT' (. x m) to u (ld = A's U columns).
-    if constexpr (std::is_same_v<T, double>) return LAPACKE_dgesdd(LAPACK_COL_MAJOR, job, n, m, a, n, s, vt, n, u, ldu);
-    else if constexpr (std::is_same_v<T, float>) return LAPACKE_sgesdd(LAPACK_COL_MAJOR, job, n, m, a, n, s, vt, n, u, ldu);
-    else if constexpr (std::is_same_v<T, std::complex<double>>) return LAPACKE_zgesdd(LAPACK_COL_MAJOR, job, n, m, a, n, s, vt, n, u, ldu);
-    else return LAPACKE_cgesdd(LAPACK_COL_MAJOR, job, n, m, a, n, s, vt, n, u, ldu);
+    if constexpr (std::is_same_v<T, double>) return LAPACKE_dgesdd(LAPACK_COL_MAJOR, job, n, m, a, std::max<lapack_int>(1, n), s, vt, std::max<lapack_int>(1, n), u, std::max<lapack_int>(1, ldu));
+    else if constexpr (std::is_same_v<T, float>) return LAPACKE_sgesdd(LAPACK_COL_MAJOR, job, n, m, a, std::max<lapack_int>(1, n), s, vt, std::max<lapack_int>(1, n), u, std::max<lapack_int>(1, ldu));
+    else if constexpr (std::is_same_v<T, std::complex<double>>) return LAPACKE_zgesdd(LAPACK_COL_MAJOR, job, n, m, a, std::max<lapack_int>(1, n), s, vt, std::max<lapack_int>(1, n), u, std::max<lapack_int>(1, ldu));
+    else return LAPACKE_cgesdd(LAPACK_COL_MAJOR, job, n, m, a, std::max<lapack_int>(1, n), s, vt, std::max<lapack_int>(1, n), u, std::max<lapack_int>(1, ldu));
 }
 
 template <typename T>

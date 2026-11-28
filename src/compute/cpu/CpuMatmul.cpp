@@ -144,6 +144,19 @@ namespace {
 }
 
 namespace {
+    // Exact integer accumulation for the matmul kernels: 128 bits hold any 64 x 64-bit product.
+    inline __int128 checked_add_i128(__int128 a, __int128 b) {
+        __int128 out;
+        if (__builtin_add_overflow(a, b, &out)) throw std::overflow_error("Integer matmul overflow: accumulator overflow");
+        return out;
+    }
+    template <typename T>
+    inline void check_fits(__int128 v) {
+        if (v < static_cast<__int128>((std::numeric_limits<T>::min)()) || v > static_cast<__int128>((std::numeric_limits<T>::max)())) {
+            throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
+        }
+    }
+
     inline int64_t checked_add_int64(int64_t a, int64_t b) {
         if ((b > 0 && a > (std::numeric_limits<int64_t>::max)() - b) ||
             (b < 0 && a < (std::numeric_limits<int64_t>::min)() - b)) {
@@ -350,14 +363,18 @@ namespace {
             return t_c ? (j * ldc + i) : (i * ldc + j);
         };
 
-        // --- Integer path: int64 accumulator + overflow checks ---
-        // Policy: never silently wrap, never silently widen output storage.
-        // We accumulate in int64 to avoid intermediate overflow, then range-check into T.
+        // --- Integer path: exact 128-bit accumulator + overflow check into T ---
+        // Policy: never silently wrap, never silently widen output storage. A product of two
+        // 64-bit values always fits in 128 bits; the sum is checked; the result must fit T.
+        // (An int64 accumulator multiplied unchecked: [[2**31]] @ [[2**32]] wrapped to -2**63,
+        // and uint64 values >= 2**63 were read as negative; review 3.6 C-1.)
         if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
             size_t block_size = 64;
+            const __int128 lo = static_cast<__int128>((std::numeric_limits<T>::min)());
+            const __int128 hi = static_cast<__int128>((std::numeric_limits<T>::max)());
 
             ParallelBlockMap(m, n, block_size, [&](size_t i_start, size_t i_end, size_t j_start, size_t j_end) {
-                std::vector<int64_t> sums(j_end - j_start);
+                std::vector<__int128> sums(j_end - j_start);
 
                 for (size_t i = i_start; i < i_end; ++i) {
                     for (size_t jj = 0; jj < sums.size(); ++jj) {
@@ -366,30 +383,22 @@ namespace {
                     for (size_t k_start = 0; k_start < k; k_start += block_size) {
                         const size_t k_end = std::min(k_start + block_size, static_cast<size_t>(k));
                         for (size_t kk = k_start; kk < k_end; ++kk) {
-                            const int64_t val_a = static_cast<int64_t>(a_data[idx_a(static_cast<uint64_t>(i), static_cast<uint64_t>(kk))]);
+                            const __int128 val_a = static_cast<__int128>(a_data[idx_a(static_cast<uint64_t>(i), static_cast<uint64_t>(kk))]);
                             if (val_a == 0) continue;
                             for (size_t jj = 0; jj < sums.size(); ++jj) {
                                 const uint64_t j = static_cast<uint64_t>(j_start + jj);
-                                const int64_t val_b = static_cast<int64_t>(b_data[idx_b(static_cast<uint64_t>(kk), j)]);
-                                const int64_t term = val_a * val_b;
-                                sums[jj] = checked_add_int64(sums[jj], term);
+                                const __int128 val_b = static_cast<__int128>(b_data[idx_b(static_cast<uint64_t>(kk), j)]);
+                                if (__builtin_add_overflow(sums[jj], val_a * val_b, &sums[jj])) {
+                                    throw std::overflow_error("Integer matmul overflow: accumulator overflow");
+                                }
                             }
                         }
                     }
 
                     for (size_t jj = 0; jj < sums.size(); ++jj) {
-                        int64_t s = sums[jj];
-                        if constexpr (std::is_signed_v<T>) {
-                            const int64_t lo = static_cast<int64_t>((std::numeric_limits<T>::min)());
-                            const int64_t hi = static_cast<int64_t>((std::numeric_limits<T>::max)());
-                            if (s < lo || s > hi) {
-                                throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
-                            }
-                        } else {
-                            const uint64_t hi = static_cast<uint64_t>((std::numeric_limits<T>::max)());
-                            if (s < 0 || static_cast<uint64_t>(s) > hi) {
-                                throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
-                            }
+                        const __int128 s = sums[jj];
+                        if (s < lo || s > hi) {
+                            throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
                         }
                         c_data[idx_c(static_cast<uint64_t>(i), static_cast<uint64_t>(j_start + jj))] = static_cast<T>(s);
                     }
@@ -590,7 +599,7 @@ bool triangular_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
         throw std::invalid_argument("CpuSolver::matmul: triangular kernel takes upper (untransposed) operands");
     }
     debug_trace::set_last("cpu.matmul.triangular");
-    using Acc = std::conditional_t<std::is_integral_v<T>, int64_t, double>;
+    using Acc = std::conditional_t<std::is_integral_v<T>, __int128, double>;  // exact (review 3.6 C-1)
     const uint64_t n = A->rows();
     const bool a_diag = A->has_diagonal(), b_diag = B->has_diagonal(), c_diag = C->has_diagonal();
     const char* a_base = reinterpret_cast<const char*>(A->data());
@@ -609,7 +618,7 @@ bool triangular_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
             const T* b_row = reinterpret_cast<const T*>(b_base + B->get_row_offset(k));
             for (uint64_t j = j0; j < n; ++j) {
                 if constexpr (std::is_integral_v<T>) {
-                    acc[j] = checked_add_int64(acc[j], va * static_cast<Acc>(b_row[j - j0]));
+                    acc[j] = checked_add_i128(acc[j], va * static_cast<Acc>(b_row[j - j0]));
                 } else {
                     acc[j] += va * static_cast<Acc>(b_row[j - j0]);
                 }
@@ -618,12 +627,7 @@ bool triangular_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& res
         const uint64_t c0 = c_diag ? i : i + 1;
         T* c_row = reinterpret_cast<T*>(c_base + C->get_row_offset(i));
         for (uint64_t j = c0; j < n; ++j) {
-            if constexpr (std::is_integral_v<T>) {
-                if (acc[j] < static_cast<int64_t>((std::numeric_limits<T>::min)()) ||
-                    (acc[j] > 0 && static_cast<uint64_t>(acc[j]) > static_cast<uint64_t>((std::numeric_limits<T>::max)()))) {
-                    throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
-                }
-            }
+            if constexpr (std::is_integral_v<T>) check_fits<T>(acc[j]);
             c_row[j - c0] = static_cast<T>(acc[j]);
         }
     });
@@ -641,7 +645,7 @@ bool bit_x_dense_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
     if (!A || !B || !C) return false;
     if (C->is_transposed()) throw std::invalid_argument("CpuSolver::matmul: result must not be transposed");
     debug_trace::set_last("cpu.matmul.bit_x_dense");
-    using Acc = std::conditional_t<std::is_integral_v<T>, int64_t, T>;
+    using Acc = std::conditional_t<std::is_integral_v<T>, __int128, T>;  // exact (review 3.6 C-1)
     const uint64_t m = A->rows(), k = A->cols(), n = B->cols();
     const bool a_packed = !A->is_transposed();
     const bool b_rows = !B->is_transposed();
@@ -656,7 +660,7 @@ bool bit_x_dense_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
         auto add_row = [&](uint64_t kk) {
             for (uint64_t j = 0; j < n; ++j) {
                 const Acc v = static_cast<Acc>(b_rows ? b_data[kk * ldb + j] : b_data[j * ldb + kk]);
-                if constexpr (std::is_integral_v<T>) acc[j] = checked_add_int64(acc[j], v);
+                if constexpr (std::is_integral_v<T>) acc[j] = checked_add_i128(acc[j], v);
                 else acc[j] += v;
             }
         };
@@ -672,12 +676,7 @@ bool bit_x_dense_kernel(const MatrixBase& a, const MatrixBase& b, MatrixBase& re
             for (uint64_t kk = 0; kk < k; ++kk) if (A->get(i, kk)) add_row(kk);
         }
         for (uint64_t j = 0; j < n; ++j) {
-            if constexpr (std::is_integral_v<T>) {
-                if (acc[j] < static_cast<int64_t>((std::numeric_limits<T>::min)()) ||
-                    acc[j] > static_cast<int64_t>((std::numeric_limits<T>::max)())) {
-                    throw std::overflow_error("Integer matmul overflow: result does not fit in output dtype");
-                }
-            }
+            if constexpr (std::is_integral_v<T>) check_fits<T>(acc[j]);
             c_data[i * ldc + j] = static_cast<T>(acc[j]);
         }
     });

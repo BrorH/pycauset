@@ -1828,3 +1828,23 @@ the entry (the history is useful). New findings go at the bottom with the next f
   and other files' deleted data leaked). Removed.
 - Open from 3.5: C-4 (LAPACK operations copy the whole operand into heap memory with no RAM
   check; documented in Out of Core), C-7 (no read-ahead hints from kernels; documented).
+
+### F-136 Area 3.6 (math entry): silent integer wrap, NaN rejected by LAPACK, identity product
+- **Status:** C-1, C-2, C-3 fixed (session 9); the rest open in `review/areas/3.6-math-entry.md`
+  (C-4 / C-5 scale views in complex / double arithmetic, `A / s` as `A * (1/s)` with subnormal
+  divisors; C-9 three dot implementations; C-10 `eigvals_skew` on non-skew input; smaller items).
+  - C-1: integer matmul multiplied in unchecked int64 (`[[2**31]] @ [[2**32]]` gave -2**63;
+    C++ undefined behaviour), read uint64 values >= 2**63 as negative (raised although the
+    result fits), and the diagonal rule range-checked through double. The dense, triangular
+    and bit x dense kernels accumulate in 128 bits with checked adds now, and the diagonal rule
+    compares exactly.
+  - C-2: LAPACKE's NaN check rejected every factorisation of NaN input as an "illegal
+    argument" (det, slogdet, inv, solve, qr, cholesky, eigh, svd, pinv, rank) and LAPACK printed
+    to stderr; it is off now (NumPy computes and returns NaN). 0 x 0 input passed `lda = 0`
+    (cholesky, eigh, eigvalsh, svd, pinv raised); `lda >= 1` now. `slogdet`'s sign follows
+    NumPy's rule (a NaN pivot keeps the sign).
+  - C-3: `IdentityMatrix(3, 2) @ IdentityMatrix(2, 3)` returned the full 3 x 3 identity (the
+    identity rule had no shape condition).
+  - `test_F136_*`.
+  - Note for Windows: the exact paths use `__int128` (as Reductions already does); MSVC has
+    none, so a Windows build needs clang-cl or a fallback.

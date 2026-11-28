@@ -1021,3 +1021,78 @@ def test_zeros_needs_no_fill(dtype, storage):
             assert not np.any(to_np(z))
     finally:
         pc.set_memory_threshold(previous)
+
+
+# --- area 3.6 review (F-136) ---------------------------------------------------------------
+
+@pytest.mark.parametrize("a, b, dtype", [([[2**31]], [[2**32]], "int64"), ([[2**62]], [[2]], "int64"),
+                                         ([[-(2**62)]], [[2]], "int64")])
+def test_F136_integer_matmul_overflow_raises(a, b, dtype):
+    """C-1: products multiplied in unchecked int64 wrapped (2**31 * 2**32 gave -2**63)."""
+    x, y = pc.matrix(np.array(a, dtype=dtype)), pc.matrix(np.array(b, dtype=dtype))
+    exact = int(a[0][0]) * int(b[0][0])
+    if -(2**63) <= exact < 2**63:
+        assert int(to_np(x @ y)[0, 0]) == exact
+    else:
+        with pytest.raises(OverflowError):
+            x @ y
+    d = pc.diagonal(np.array([a[0][0], 1], dtype=dtype))
+    e = pc.diagonal(np.array([b[0][0], 1], dtype=dtype))
+    if -(2**63) <= exact < 2**63:
+        assert int(to_np(d @ e)[0, 0]) == exact
+    else:
+        with pytest.raises(OverflowError):
+            d @ e
+
+
+def test_F136_uint64_matmul_above_2_63_is_exact():
+    """C-1: uint64 values >= 2**63 were read as negative and raised although the result fits."""
+    x = pc.matrix(np.array([[2**63, 0], [0, 1]], dtype=np.uint64))
+    y = pc.matrix(np.array([[1, 0], [0, 1]], dtype=np.uint64))
+    assert int(to_np(x @ y)[0, 0]) == 2**63
+    t = pc.TriangularMatrix(2, dtype="uint64", has_diagonal=True)
+    t[0, 0], t[1, 1] = 2**63, 1
+    u = pc.TriangularMatrix(2, dtype="uint64", has_diagonal=True)
+    u[0, 0], u[1, 1] = 1, 1
+    assert int(to_np(t @ u)[0, 0]) == 2**63
+
+
+@pytest.mark.parametrize("op", ["det", "slogdet", "inv", "solve", "qr", "svd", "eigvalsh", "pinv"])
+def test_F136_nan_input_gives_numpy_results_not_errors(op):
+    """C-2: LAPACKE's NaN check rejected every factorisation of NaN input ("illegal argument")."""
+    a = np.array([[1.0, np.nan], [np.nan, 2.0]])
+    m = pc.matrix(a)
+    fns = {"det": (pc.determinant, np.linalg.det), "slogdet": (pc.slogdet, np.linalg.slogdet),
+           "inv": (pc.invert, np.linalg.inv), "solve": (lambda x: pc.solve(x, pc.matrix(np.eye(2))),
+                                                        lambda x: np.linalg.solve(x, np.eye(2))),
+           "qr": (lambda x: pc.qr(x)[1], lambda x: np.linalg.qr(x)[1]),
+           "svd": (pc.svdvals if hasattr(pc, "svdvals") else (lambda x: pc.svd(x, compute_uv=False)),
+                   lambda x: np.linalg.svd(x, compute_uv=False)),
+           "eigvalsh": (pc.eigvalsh, np.linalg.eigvalsh), "pinv": (pc.pinv, np.linalg.pinv)}
+    ours, theirs = fns[op]
+    try:
+        want = theirs(a)
+    except np.linalg.LinAlgError:
+        with pytest.raises((RuntimeError, ValueError)):
+            ours(m)
+        return
+    got = ours(m)
+    def arr(v):
+        if isinstance(v, tuple):
+            return np.concatenate([np.ravel(np.asarray(x, dtype=complex)) for x in v])
+        return np.ravel(np.asarray(v if not hasattr(v, "shape") or isinstance(v, np.ndarray) else to_np(v), dtype=complex))
+    assert np.array_equal(np.isnan(arr(got)), np.isnan(arr(want)))
+
+
+@pytest.mark.parametrize("op", ["cholesky", "eigh", "eigvalsh", "svd", "pinv"])
+def test_F136_empty_matrices(op):
+    """C-2: 0 x 0 input passed lda = 0, which LAPACK rejects."""
+    f = getattr(pc, op)
+    f(pc.matrix(np.zeros((0, 0))))
+
+
+def test_F136_rectangular_identity_product():
+    """C-3: IdentityMatrix(3, 2) @ IdentityMatrix(2, 3) returned the full 3 x 3 identity."""
+    r = pc.IdentityMatrix(3, 2) @ pc.IdentityMatrix(2, 3)
+    np.testing.assert_array_equal(to_np(r), np.eye(3, 2) @ np.eye(2, 3))
+    np.testing.assert_array_equal(to_np(pc.IdentityMatrix(2, 3) @ pc.IdentityMatrix(3, 2)), np.eye(2))

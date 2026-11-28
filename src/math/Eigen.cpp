@@ -64,7 +64,13 @@ static std::pair<std::complex<double>, double> slogdet_compute(const MatrixBase&
     for (const auto& p : lu.pivots) {
         const double a = std::abs(p);
         if (a == 0.0) return {0.0, -INFINITY};
-        sign *= p / a;
+        // NumPy's rule: a real pivot flips the sign when negative (a NaN pivot does not: the
+        // sign stays +-1 and the log is NaN); a complex one multiplies it by p / |p|.
+        if (p.imag() == 0.0) {
+            if (p.real() < 0.0) sign = -sign;
+        } else {
+            sign *= p / a;
+        }
         logabs += std::log(a);
     }
     return {sign, logabs};
