@@ -148,6 +148,7 @@ nav:
         - docs/classes/core/pycauset.PersistentObject.md
         - docs/classes/core/pycauset.AccessPattern.md
         - docs/classes/core/pycauset.MemoryHint.md
+        - docs/classes/core/pycauset.StaleThunkError.md
     - Functions:
       - docs/functions/index.md
       - docs/functions/pycauset.I.md

@@ -61,6 +61,17 @@ rule in CLAUDE.md becomes: no result caching outside this mechanism.
   powers of two are exact. If bit-identical results are required, the view rule can be
   restricted to exact factors.
 
+## The one other cache: block results (review 3.10 C-5)
+`ThunkBlock` (python/pycauset/_internal/thunks.py) keeps its evaluated tile. It is not a
+derived value of a storage but the result of an operation on several inputs, so it lives
+outside this cache, under the same invariant: it is never served stale.
+- Every input it reads is pinned at creation by version: the storage version of an engine
+  leaf, a grid's `set_block` count, the leaves of nested grids and cut tiles, and the pins of a
+  thunk operand.
+- Every access checks the pins. A changed one raises `pycauset.StaleThunkError` ("recompute
+  the operation"); there is no silent recompute, so a block result keeps its
+  snapshot-at-creation meaning.
+
 ## Steps (PLAN phase D)
 - D.1 C++ storage version counter + invalidation on every mutable path; a test that walks
   every binding that writes and asserts the version moved (the atlas can enumerate them).

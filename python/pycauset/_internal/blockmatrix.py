@@ -148,15 +148,18 @@ def _block_kind(obj: Any) -> str:
 
 
 def _extend_staleness_sources(out: list[Any], blk: Any) -> None:
-    """Add block + any underlying source objects for staleness pinning.
-
-    Snapshot-at-creation semantics require stale detection even when callers
-    mutate leaf blocks in-place without touching the parent BlockMatrix.
-    """
-
+    """Add a leaf and everything its values come from, for staleness pinning: the source of a
+    cut tile, and every leaf of a nested grid (recursively). A write to any of them, before or
+    after the first evaluation, makes the thunk stale. A nested grid's leaves were not pinned,
+    so `[[[[a]]]] @ [[b]]` computed with a value written after creation where the flat grid
+    raised (review 3.10 C-5). Only the leaves a tile uses are expanded, not whole operand grids."""
     out.append(blk)
     if isinstance(blk, SubmatrixView):
-        out.append(blk.source)
+        _extend_staleness_sources(out, blk.source)
+    elif isinstance(blk, BlockMatrix):
+        for row in blk._blocks:
+            for leaf in row:
+                _extend_staleness_sources(out, leaf)
 
 
 class BlockMatrix:

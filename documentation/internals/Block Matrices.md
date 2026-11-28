@@ -68,7 +68,11 @@ A `ThunkBlock` represents a deferred computation that produces a concrete matrix
 
 Staleness (snapshot-at-creation, R1):
 
-- `ThunkBlock` pins `version` on captured sources; evaluation/cache hits check versions and **raise** on mismatch (no auto-recompute).
+- `ThunkBlock` pins the versions of everything it reads at creation (its leaves, the leaves of
+  nested grids and cut tiles, a thunk operand's own pins); evaluation and cache hits check them
+  and **raise** `pycauset.StaleThunkError` on a mismatch ("recompute the operation"; no
+  auto-recompute). Its cache is the one result cache outside the derived-value cache
+  (review/features/DERIVED_CACHE.md).
 - `BlockMatrix` increments its own `version` on `set_block`, invalidating cached/thunked blocks owned by the container.
 - Engine leaves are pinned by their storage version, so writing a leaf (`A[0, 0] = 1`) makes
   every thunk that read it stale; nothing has to be bumped by hand. A duck-typed leaf takes part

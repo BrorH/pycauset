@@ -6,7 +6,8 @@ from typing import Any, Callable, Iterable
 
 
 class StaleThunkError(RuntimeError):
-    pass
+    """A lazy block result whose inputs were written after the operation was created
+    (snapshot-at-creation): recompute the operation. Public as `pycauset.StaleThunkError`."""
 
 
 def _get_version(obj: Any) -> int | None:
@@ -98,7 +99,8 @@ class ThunkBlock:
                 continue
             if cur != pin.version:
                 raise StaleThunkError(
-                    f"stale thunk: input {type(pin.obj).__name__} version changed ({pin.version} -> {cur})"
+                    f"stale block result: an input {type(pin.obj).__name__} was written after the operation "
+                    f"was created (version {pin.version} -> {cur}); recompute the operation"
                 )
 
     def materialize(self) -> Any:

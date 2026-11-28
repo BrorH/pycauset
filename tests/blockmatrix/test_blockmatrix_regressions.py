@@ -165,3 +165,23 @@ def test_3_10_C8_scalars_negation_transposes_slices_and_indices():
     D = pc.diagonal([1.0, 2.0, 3.0, 4.0])
     g = BlockMatrix([[D]]).refine_partitions(row_partitions=[0, 1, 4], col_partitions=[0, 3, 4])
     np.testing.assert_allclose(np.asarray(g + g), 2 * np.diag([1.0, 2.0, 3.0, 4.0]))
+
+
+def test_3_10_C5_nested_and_flat_grids_pin_their_leaves_alike():
+    """A nested grid's leaves were not pinned: written after creation, the nested product
+    computed with the new value while the flat one raised."""
+    b = pc.matrix(np.eye(2))
+    for wrap in (lambda x: x, lambda x: BlockMatrix([[x]])):
+        a = pc.matrix(np.ones((2, 2)))
+        out = BlockMatrix([[wrap(a)]]) @ BlockMatrix([[b]])
+        a[0, 0] = 100.0
+        with pytest.raises(pc.StaleThunkError, match="recompute"):
+            out.get(0, 0)
+    # A cut tile of a nested grid's leaf is pinned too.
+    a = pc.matrix(np.ones((4, 4)))
+    g = BlockMatrix([[BlockMatrix([[a]])]]).refine_partitions(row_partitions=[0, 2, 4], col_partitions=[0, 4])
+    out = g * 2
+    assert out.get(3, 3) == 2.0
+    a[3, 3] = 5.0
+    with pytest.raises(pc.StaleThunkError):
+        out.get(3, 3)

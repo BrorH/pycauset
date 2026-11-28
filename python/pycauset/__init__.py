@@ -44,6 +44,7 @@ from ._internal import dtypes as _dtypes
 from ._internal import matrix_api as _matrix_api
 from ._internal import native as _native_mod
 from ._internal import ops as _ops
+from ._internal.thunks import StaleThunkError as StaleThunkError
 from ._internal import persistence as _persistence
 from ._internal import runtime as _runtime_mod
 from ._internal.warnings import (
@@ -1385,6 +1386,7 @@ _extra_exports = [
     "MemoryHint",
     "AccessPattern",
     "debug_mode",
+    "StaleThunkError",
 ]
 
 for _name in _extra_exports:
