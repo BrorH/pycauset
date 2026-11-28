@@ -794,3 +794,45 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
     extension loaded `build/cpp`'s core, and the current directory was searched).
   - Cost noted: dot / norm now sum fixed blocks (thread-count independent), 0.19 ms vs NumPy's
     0.05-0.09 ms for 10^6 elements (TIMING.md); speed phase item.
+- Rest of the night of 2026-11-28 (same gates after every step; 35 commits):
+  - Bindings (3.7, all but nits):
+    - The view flags, seed and temporary flag are read-only.
+    - Indexing is NumPy's for every class: `A[0]`, iteration, 2-D masks (`A[A > 5]`), vector
+      keys, structured and complex_float16 slices through one gather. A fold into a structured
+      complex_float16 view dropped every imaginary part.
+    - `& | ^` take scalars, ndarrays and reflected operands; `v + 2-D` broadcasts; `float64 M +
+      2**64` computes.
+    - One under-promotion warning for every operand kind.
+    - The first write into a scale view folds in place (it held 4x the matrix).
+    - One NumPy importer and one dtype table (65 ladder branches gone; a bool operand import
+      100x faster).
+    - No duplicate methods, named arguments, Python types in every signature, a stub without
+      stale entries.
+    - NumPy's element values (None is NaN, string parsing, bool truthiness) and argument
+      errors.
+    - Structured slice assignment is all or nothing.
+    - GIL-safe cached lookups, a local translator, `pycauset::interrupted`.
+  - Facade (3.8):
+    - One array-like rule for the public functions.
+    - `len(A)`; NumPy's sizes, empties and inhomogeneous errors.
+    - `identity(dtype=)`; int32 for Python ints in the structured constructors.
+    - `.dtype` compares equal to NumPy dtypes (`A.dtype == np.float64`), one dtype map.
+    - Debug lines and warning classes; the docs and docstrings.
+  - Block matrices (3.10):
+    - Scalars, negation, transposes, sub-grid slices, NumPy indices.
+    - One element-wise orchestrator; DensePythonMatrix gone; cut tiles are engine slices.
+    - Exports through the one guard; every grid saves.
+    - Nested and flat grids pin their leaves alike; `pc.StaleThunkError`.
+  - Persistence (3.9, closed):
+    - Generational block saves: an interrupted overwrite keeps the old snapshot.
+    - FILE_SHARE_DELETE on Windows.
+    - A payload checksum guards saved derived values (an `np.memmap` edit served the old det).
+  - Kernels (3.4, 3.6):
+    - Products and LAPACK calls release the GIL (operands pinned).
+    - `v @ (C - C.T)` uses the bit kernel; a triangular solve is one `trsm` (n = 2000: 5.7 ms,
+      LU 38.6).
+    - The bit matmul transposes packed words and writes its buffer (1500²: 8 ms).
+    - OS-aware AVX checks; view contracts asserted; a BLAS dimension guard.
+    - One element-wise entry; `A / s` is NumPy's quotient (the O(1) view only for powers of
+      two).
+  - Windows run to-do added: the GIL release, FILE_SHARE_DELETE, the generational block saves.
