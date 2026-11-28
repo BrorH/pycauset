@@ -23,8 +23,9 @@ structure and view (double precision).
 
 ## Raises
 
-- `ValueError`: an `ord` NumPy does not define for that input, or an empty matrix with a
-  singular-value or row/column order.
+- `ValueError`: an `ord` NumPy does not define for that input. For an empty matrix, as in
+  NumPy: the orders that take a maximum or a sum (`fro`, `nuc`, `1`, `2`, `inf`) give 0; the
+  minimum of nothing raises (`-2`; `-1` with no columns, `-inf` with no rows).
 
 ## Examples
 

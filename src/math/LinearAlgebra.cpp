@@ -1161,14 +1161,25 @@ static double matrix_norm_compute(const MatrixBase& a, const std::string& ord) {
     if (ord == "fro") return norm(a);
     if (ord == "nuc" || ord == "2" || ord == "-2") {
         const auto s = singular_values(a);
-        if (s.empty()) throw std::invalid_argument("norm: empty matrix");
+        // NumPy: the largest (and the sum) of no singular values is 0; the smallest raises
+        // (review 3.6 C-12: every order raised).
+        if (s.empty()) {
+            if (ord == "-2") throw std::invalid_argument("norm: zero-size array to reduction operation minimum which has no identity");
+            return 0.0;
+        }
         if (ord == "nuc") return std::accumulate(s.begin(), s.end(), 0.0);
         return ord == "2" ? *std::max_element(s.begin(), s.end()) : *std::min_element(s.begin(), s.end());
     }
     const bool cols = ord == "1" || ord == "-1";
     if (!cols && ord != "inf" && ord != "-inf") throw std::invalid_argument("norm: invalid norm order '" + ord + "' for matrices");
     const uint64_t m = a.rows(), n = a.cols();
-    if (m == 0 || n == 0) throw std::invalid_argument("norm: empty matrix");
+    if (m == 0 || n == 0) {
+        // NumPy: the max of no sums is 0, the min raises; a sum over an empty axis is 0.
+        const uint64_t reduced = cols ? n : m;  // the sums ord 1 / -1 (inf / -inf) take the max / min over
+        if (ord[0] == '-' && reduced == 0)
+            throw std::invalid_argument("norm: zero-size array to reduction operation minimum which has no identity");
+        return 0.0;
+    }
     const auto v = abs_values(a);
     std::vector<double> sums(cols ? n : m, 0.0);
     for (uint64_t i = 0; i < m; ++i)

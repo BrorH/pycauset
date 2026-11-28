@@ -1695,3 +1695,17 @@ def test_3_8_C19_causal_sets_pickle():
     d = pickle.loads(pickle.dumps(c))
     np.testing.assert_array_equal(np.asarray(d.C), np.asarray(c.C))
     assert d.n == c.n and d.spacetime.dimension() == c.spacetime.dimension()
+
+
+@pytest.mark.parametrize("shape", [(0, 3), (3, 0), (0, 0)])
+def test_3_6_C12_norm_of_empty_matrices_as_numpy(shape):
+    """Review 3.6 C-12: every norm order but fro raised for an empty matrix."""
+    z = np.zeros(shape)
+    for o in (None, "fro", "nuc", 1, -1, 2, -2, np.inf, -np.inf):
+        try:
+            want = float(np.linalg.norm(z, o))
+        except ValueError:
+            with pytest.raises(ValueError):
+                pc.norm(pc.matrix(z), o)
+            continue
+        assert pc.norm(pc.matrix(z), o) == want
