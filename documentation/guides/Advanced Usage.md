@@ -56,13 +56,9 @@ pc.last_io_trace("matmul")  # most recent matmul trace
 pc.clear_io_traces()        # reset the log
 ```
 
-## 5. Keeping temporary files
+## 5. Temporary files
 
-Temporary backing files are deleted on exit by default. Set the flag to keep them for
-debugging.
-
-```python
-pc.keep_temp_files = True
-```
+A file-backed object's `.tmp` file is deleted when the last object using it goes (views
+share it). To keep a matrix, save it with `pc.save`.
 
 See [[docs/index|API Reference]] for exact signatures.
