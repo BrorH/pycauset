@@ -40,42 +40,13 @@ std::unique_ptr<VectorBase> ObjectFactory::create_vector(
     const std::string& backing_file
 ) {
     if (mtype == Structure::VECTOR) {
-        switch (dtype) {
-            case DataType::BIT:
-                return std::make_unique<DenseVector<bool>>(n, backing_file);
-            case DataType::INT8:
-                return std::make_unique<DenseVector<int8_t>>(n, backing_file);
-            case DataType::INT16:
-                return std::make_unique<DenseVector<int16_t>>(n, backing_file);
-            case DataType::INT32:
-                return std::make_unique<DenseVector<int32_t>>(n, backing_file);
-            case DataType::INT64:
-                return std::make_unique<DenseVector<int64_t>>(n, backing_file);
-            case DataType::UINT8:
-                return std::make_unique<DenseVector<uint8_t>>(n, backing_file);
-            case DataType::UINT16:
-                return std::make_unique<DenseVector<uint16_t>>(n, backing_file);
-            case DataType::UINT32:
-                return std::make_unique<DenseVector<uint32_t>>(n, backing_file);
-            case DataType::UINT64:
-                return std::make_unique<DenseVector<uint64_t>>(n, backing_file);
-            case DataType::FLOAT16:
-                return std::make_unique<DenseVector<pycauset::float16_t>>(n, backing_file);
-            case DataType::FLOAT32:
-                return std::make_unique<DenseVector<float>>(n, backing_file);
-            case DataType::FLOAT64:
-                return std::make_unique<DenseVector<double>>(n, backing_file);
-            case DataType::COMPLEX_FLOAT16:
-                return std::make_unique<ComplexFloat16Vector>(n, backing_file);
-            case DataType::COMPLEX_FLOAT32:
-                return std::make_unique<DenseVector<std::complex<float>>>(n, backing_file);
-            case DataType::COMPLEX_FLOAT64:
-                return std::make_unique<DenseVector<std::complex<double>>>(n, backing_file);
-            default:
-                throw std::runtime_error("Unsupported DataType for DenseVector");
-        }
+        // The catalogue's dtype -> class map (DenseVectorOf), as for matrices (review 3.3 C-12).
+        return visit_dtype(dtype, [&](auto tag) -> std::unique_ptr<VectorBase> {
+            using V = typename DenseVectorOf<typename decltype(tag)::type>::type;
+            return std::make_unique<V>(n, backing_file);
+        });
     }
-    
+
     if (mtype == Structure::UNIT_VECTOR) {
         throw std::runtime_error("UnitVector requires an active index for creation");
     }
@@ -119,24 +90,10 @@ std::unique_ptr<VectorBase> ObjectFactory::clone_vector(
     if (mtype == Structure::UNIT_VECTOR) {
         vec = std::make_unique<UnitVector>(n, mapper, dtype);
     } else {
-        switch (dtype) {
-            case DataType::BIT: vec = std::make_unique<DenseVector<bool>>(n, mapper); break;
-            case DataType::INT8: vec = std::make_unique<DenseVector<int8_t>>(n, mapper); break;
-            case DataType::INT16: vec = std::make_unique<DenseVector<int16_t>>(n, mapper); break;
-            case DataType::INT32: vec = std::make_unique<DenseVector<int32_t>>(n, mapper); break;
-            case DataType::INT64: vec = std::make_unique<DenseVector<int64_t>>(n, mapper); break;
-            case DataType::UINT8: vec = std::make_unique<DenseVector<uint8_t>>(n, mapper); break;
-            case DataType::UINT16: vec = std::make_unique<DenseVector<uint16_t>>(n, mapper); break;
-            case DataType::UINT32: vec = std::make_unique<DenseVector<uint32_t>>(n, mapper); break;
-            case DataType::UINT64: vec = std::make_unique<DenseVector<uint64_t>>(n, mapper); break;
-            case DataType::FLOAT16: vec = std::make_unique<DenseVector<pycauset::float16_t>>(n, mapper); break;
-            case DataType::FLOAT64: vec = std::make_unique<DenseVector<double>>(n, mapper); break;
-            case DataType::FLOAT32: vec = std::make_unique<DenseVector<float>>(n, mapper); break;
-            case DataType::COMPLEX_FLOAT16: vec = std::make_unique<ComplexFloat16Vector>(n, mapper); break;
-            case DataType::COMPLEX_FLOAT32: vec = std::make_unique<DenseVector<std::complex<float>>>(n, mapper); break;
-            case DataType::COMPLEX_FLOAT64: vec = std::make_unique<DenseVector<std::complex<double>>>(n, mapper); break;
-            default: throw std::runtime_error("Unsupported DataType for DenseVector clone");
-        }
+        vec = visit_dtype(dtype, [&](auto tag) -> std::unique_ptr<VectorBase> {
+            using V = typename DenseVectorOf<typename decltype(tag)::type>::type;
+            return std::make_unique<V>(n, mapper);
+        });
     }
 
     if (vec) {
