@@ -62,7 +62,7 @@ Minimum expectation for API reference pages:
 - Exceptions / warnings
 - At least one example that actually runs
 
-### B) Guides (`documentation/guides/`), mandatory for “how do I use this?”
+### C) Guides (`documentation/guides/`), mandatory for “how do I use this?”
 
 Guides are where we teach workflows.
 
@@ -78,7 +78,7 @@ Minimum expectation for guides:
 - One realistic example (with caveats)
 - Links to the relevant API reference pages
 
-### C) Internals (`documentation/internals/`), mandatory for architecture/backend changes
+### D) Internals (`documentation/internals/`), mandatory for architecture/backend changes
 
 Internals are for contributors and future maintainers.
 
@@ -89,7 +89,7 @@ Minimum expectation for internals:
 - How to extend it safely
 - Common failure modes and debugging tips
 
-### D) Dev handbook (`documentation/internals/`), mandatory for process / contributor UX
+### E) Developer pages (`documentation/internals/`, the "Developers" section), mandatory for process / contributor UX
 
 Use dev handbook pages when:
 
