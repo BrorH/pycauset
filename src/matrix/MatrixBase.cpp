@@ -2,8 +2,6 @@
 #include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/core/ObjectFactory.hpp"
 #include "pycauset/matrix/TriangularMatrix.hpp"
-#include "pycauset/compute/ComputeContext.hpp"
-#include "pycauset/compute/AutoSolver.hpp"
 #include <memory>
 #include <cstring>
 

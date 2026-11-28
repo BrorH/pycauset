@@ -6,7 +6,6 @@
 #include "pycauset/core/StorageUtils.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
-#include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/core/ScalarUtils.hpp"
 #include "pycauset/vector/DenseVector.hpp"
 

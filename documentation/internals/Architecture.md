@@ -18,7 +18,7 @@ in the same commit. Deeper pages: [[internals/Compute Architecture|Compute Archi
  ──────────────────────────────────────────────────────────────────────────────────
  C++ engine    structure classes        include/pycauset/{matrix,vector}
  (libpycauset  operation entries        src/math (structure rules, normaliser)
-  _core)       dispatch and kernels     src/compute: ComputeContext -> CpuDevice -> CpuSolver
+  _core)       dispatch and kernels     src/compute: ComputeContext -> CpuSolver
                storage                  PersistentObject, MemoryMapper, MemoryGovernor
                causal sets              src/causet: sprinkler, Minkowski diamond
  ──────────────────────────────────────────────────────────────────────────────────
@@ -71,8 +71,8 @@ products and eigensolvers use the bits directly, anything else writes the result
    operand takes part as an operand of one dtype, DType System §9) and structure
    (`StructureResolver`), normalises the operands (views read in place), and allocates the
    result through `ObjectFactory` (RAM or file: `PersistentObject::initialize_storage`).
-3. **Device:** `ComputeContext` -> `AutoSolver` -> `CpuDevice`, which runs the kernel on
-   the operands' storage (mapped files out of core: the OS pages; [[internals/Out of Core|Out of Core]]).
+3. **Device:** `ComputeContext` holds the `CpuSolver`, which runs the kernel on the
+   operands' storage (mapped files out of core: the OS pages; [[internals/Out of Core|Out of Core]]).
 4. **Kernel** (`src/compute/cpu`): BLAS for float / complex, exact integer paths, popcount
    for bits, structure-specific loops; it records its tag in the kernel log
    (`DebugTrace`), which `pc.last_io_trace` and the atlas read.

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "pycauset/compute/ComputeDevice.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
 #include <complex>
 #include <memory>
@@ -12,6 +11,15 @@ class VectorBase; // Forward declaration
 template <typename T>
 class TriangularMatrix;
 
+// LU pivots (U's diagonal) and permutation parity of a plain square matrix: det and slogdet
+// both come from these (math/Eigen.cpp). Exactly singular: an exact 0 pivot.
+struct LuPivots {
+    std::vector<std::complex<double>> pivots;
+    bool odd_permutation = false;
+};
+
+// The CPU kernels: the one compute device (compute/ComputeContext.hpp). Each kernel's contract
+// (operand classes and views it reads, result it writes) is at its definition.
 class CpuSolver {
 public:
     CpuSolver() = default;
@@ -59,8 +67,6 @@ public:
     void eigvals_arnoldi(const MatrixBase& a, VectorBase& out, int k, int m, double tol);
     void eigvals_skew(const MatrixBase& a, VectorBase& out, int k);
     void eig_skew(const MatrixBase& a, VectorBase& eigenvalues, MatrixBase& eigenvectors, int k);
-
-private:
 };
 
 } // namespace pycauset

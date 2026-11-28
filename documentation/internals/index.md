@@ -16,7 +16,7 @@ what happens under a call.
 
 ## How it works
 
-*   **[[internals/Compute Architecture|Compute Architecture]]**: how an operation reaches a CPU kernel: `ComputeContext`, `CpuDevice`, the kernel files, LAPACK, parallelism.
+*   **[[internals/Compute Architecture|Compute Architecture]]**: how an operation reaches a CPU kernel: `ComputeContext`, the kernel files, LAPACK, parallelism.
 *   **[[internals/DType System|DType System]]**: scalar kinds, promotion rules, complex representation, overflow.
 *   **[[internals/Memory and Data|Memory & Data]]**: tiered storage, the Memory Governor, the IO Accelerator, the object hierarchy.
 *   **[[internals/Storage Semantics|Storage Semantics]]** and **[[internals/PyCauset Container Format|Container Format]]**: copy-on-write storage and the `.pycauset` file.

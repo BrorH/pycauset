@@ -960,32 +960,10 @@ void CpuSolver::elementwise_divide(const MatrixBase& a, const MatrixBase& b, Mat
         debug_trace::set_last("cpu.div.f32");
         if (try_fast_simd<float>(a, b, result, get_div_kernel<float>())) return;
         binary_op_impl<float>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
-    } else if (dtype == DataType::INT8) {
-        debug_trace::set_last("cpu.div.i8");
-        binary_op_impl<int8_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
-    } else if (dtype == DataType::INT16) {
-        debug_trace::set_last("cpu.div.i16");
-        binary_op_impl<int16_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
-    } else if (dtype == DataType::INT32) {
-        debug_trace::set_last("cpu.div.i32");
-        binary_op_impl<int32_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
-    } else if (dtype == DataType::INT64) {
-        debug_trace::set_last("cpu.div.i64");
-        binary_op_impl<int64_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
-    } else if (dtype == DataType::UINT8) {
-        debug_trace::set_last("cpu.div.u8");
-        binary_op_impl<uint8_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
-    } else if (dtype == DataType::UINT16) {
-        debug_trace::set_last("cpu.div.u16");
-        binary_op_impl<uint16_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
-    } else if (dtype == DataType::UINT32) {
-        debug_trace::set_last("cpu.div.u32");
-        binary_op_impl<uint32_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
-    } else if (dtype == DataType::UINT64) {
-        debug_trace::set_last("cpu.div.u64");
-        binary_op_impl<uint64_t>(a, b, result, [](auto x, auto y) { return pycauset::scalar::true_divide(x, y); });
     } else {
-        throw std::runtime_error("CpuSolver::elementwise_divide result data type not supported");
+        // Integer and bool division gives a float result (DType System §2.5): an integer result
+        // here is a caller bug (the integer branches truncated, and trapped on 0, review 3.4 C-17).
+        throw std::logic_error("CpuSolver::elementwise_divide: result dtype must be float or complex");
     }
 }
 

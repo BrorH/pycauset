@@ -419,8 +419,6 @@ set(PYCAUSET_SOURCES
     src/vector/VectorBase.cpp
     src/vector/DenseVector.cpp
     src/compute/ComputeContext.cpp
-    src/compute/AutoSolver.cpp
-    src/compute/cpu/CpuDevice.cpp
     src/compute/cpu/CpuSolver.cpp
     src/compute/cpu/CpuMatmul.cpp
     src/compute/cpu/CpuElementwise.cpp

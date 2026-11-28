@@ -5,7 +5,7 @@ Block matrices provide a **storage-first** way to represent a large matrix as a 
 The core goals are:
 
 - Preserve structure and avoid global densification (“no silent densify”).
-- Keep compute routed through the existing leaf compute boundary (AutoSolver / device routing).
+- Keep compute routed through the ordinary operations on the leaves (one engine path per operation).
 - Support semi-lazy orchestration (thunked per-block results, evaluated only on triggers).
 - Persist block matrices as a snapshot without writing a single giant dense payload.
 

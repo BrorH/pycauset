@@ -1,7 +1,8 @@
 # Compute Architecture
 
 How an operation reaches a kernel. R1 runs on the CPU only; the CUDA backend is parked in
-`experimental/cuda` (its README lists the dormant hooks still in the core).
+`experimental/cuda`, with the dispatch layer it needs (a device interface, a router with a
+cost model, a plugin loader, a hardware profile). The core has none of it (review 3.4 C-13).
 
 ## The path of an operation
 
@@ -10,23 +11,16 @@ flowchart LR
     Py["Python entry function<br/>(pycauset/_internal/ops.py)"] --> Bind["binding<br/>(src/bindings)"]
     Bind --> Entry["engine entry function<br/>(structure rules, normaliser)"]
     Entry --> Ctx["ComputeContext::get_device()"]
-    Ctx --> Auto["AutoSolver"]
-    Auto --> Cpu["CpuDevice"]
-    Cpu --> Solver["CpuSolver kernels<br/>(on RAM or mapped storage)"]
+    Ctx --> Solver["CpuSolver kernels<br/>(on RAM or mapped storage)"]
 ```
 
 - **Entry function.** Each operation has one: it applies the structure rules (which class
   the result is), the normaliser (views read in place) and allocates the result. The
   procedure is [[project/protocols/Adding Operations|Adding Operations]].
-- **`ComputeContext`** (`src/compute/ComputeContext.cpp`): a singleton whose device is an
-  `AutoSolver`.
-- **`AutoSolver`** (`src/compute/AutoSolver.cpp`): the device router. With no GPU device
-  loaded (always, in R1) every call goes to `CpuDevice`. Its GPU routing, cost model and
-  pinned-memory calls are dormant CUDA hooks, kept by design (review/DEADCODE.md).
-- **`CpuDevice`** (`src/compute/cpu/CpuDevice.cpp`): picks in-memory or out-of-core
-  execution. Matmul and element-wise operations stream when the operands and result do not
-  fit (`out_of_core`); everything else runs in memory.
-- **`CpuSolver`**: the kernels, split by family:
+- **`ComputeContext`** (`src/compute/ComputeContext.cpp`): a singleton holding the device, a
+  `CpuSolver`. (It used to route through an `AutoSolver` and a `CpuDevice` that forwarded every
+  call, and to load a CUDA plugin from the library search path at start.)
+- **`CpuSolver`**: the kernels, on RAM or mapped storage alike, split by family:
 
 | File | Kernels |
 |---|---|

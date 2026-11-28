@@ -97,9 +97,7 @@ Rationale:
 - The kernel should remain tight; warnings there have no useful stack level and may hurt performance.
 
 **The engine never prints.** No `std::cout` / `std::cerr` in `src/`: information is a
-warning, an exception, the IO trace (`pc.last_io_trace`) or `pc.debug_mode` output. (The
-parked CUDA hooks in `AutoSolver` / `ComputeContext` still print; see
-`experimental/cuda/README.md`.)
+warning, an exception, the IO trace (`pc.last_io_trace`) or `pc.debug_mode` output.
 
 ## Exception conventions
 

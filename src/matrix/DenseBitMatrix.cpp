@@ -1,8 +1,6 @@
 #include "pycauset/matrix/DenseBitMatrix.hpp"
 #include "pycauset/math/ViewValue.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
-#include "pycauset/compute/ComputeContext.hpp"
-#include "pycauset/compute/ComputeDevice.hpp"
 #include <stdexcept>
 #include <bit>
 #include <vector>

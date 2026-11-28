@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "pycauset/core/Errors.hpp"
-#include "pycauset/compute/ComputeDevice.hpp"
 #include "pycauset/compute/cpu/CpuSolver.hpp"
 #include "pycauset/core/DebugTrace.hpp"
 #include "pycauset/core/ParallelUtils.hpp"

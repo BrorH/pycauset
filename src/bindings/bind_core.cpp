@@ -13,7 +13,6 @@
 #include "pycauset/core/IOAccelerator.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/MemoryMapper.hpp"
-#include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
 #include "pycauset/vector/VectorBase.hpp"

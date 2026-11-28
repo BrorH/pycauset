@@ -136,7 +136,7 @@ risk: storage and object model first, since everything rests on them.
 | 3.7 | Bindings | `src/bindings*` | 7,300 |
 | 3.8 | Python facade & glue: `__init__`, patching, properties, ops, factories, dtypes, lazy_allocation **(reviewed, F-138; C-1 fixed)** | `python/pycauset` | 6,500 |
 | 3.9 | Persistence & caches **(reviewed; F-129, F-131, F-132, F-134)** | | 2,300 |
-| 3.10 | Block matrices: blockmatrix, submatrix_view, thunks, dense_python | | 1,200 |
+| 3.10 | Block matrices: blockmatrix, submatrix_view, thunks, dense_python **(reviewed, F-139; open)** | | 1,200 |
 | 3.11 | Physics: causet, spacetime, field, synthetic, Sprinkler.cpp, Spacetime.hpp **(post-R1; smoke tests only before)** | | 2,300 |
 | 3.12 | Visualization: vis.py **(R1: lightweight plots only)** | | 435 |
 | 3.13 | Build, packaging, CI, release **(light pass, session 9)** | | 1,000 |

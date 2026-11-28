@@ -29,7 +29,6 @@
 #include "pycauset/math/VectorOps.hpp"
 #include "pycauset/math/ViewRead.hpp"
 #include "pycauset/compute/ComputeContext.hpp"
-#include "pycauset/compute/ComputeDevice.hpp"
 #include <stdexcept>
 #include <bit>
 #include <vector>
@@ -685,7 +684,7 @@ std::unique_ptr<MatrixBase> dispatch_matmul(const MatrixBase& a, const MatrixBas
     const DataType da = a.get_data_type(), db = b.get_data_type();
     const DataType r = promotion::resolve(promotion::BinaryOp::Matmul, da, db).result_dtype;
     const Structure sa = a.get_structure(), sb = b.get_structure();
-    ComputeDevice* device = ComputeContext::instance().get_device();
+    CpuSolver* device = ComputeContext::instance().get_device();
     const uint64_t m = a.rows(), n = b.cols();
 
     // R1 identity.

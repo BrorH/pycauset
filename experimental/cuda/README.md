@@ -15,15 +15,19 @@ against the current engine.
 | `docs/` | API pages for `pycauset.cuda.*`, `is_gpu_available`, `pinning_budget` |
 | `CMakeLists.txt` | built only with `-DENABLE_CUDA=ON` (adds this directory) |
 
-## Hooks that remain in the core engine (dormant)
-- `IComputeDevice` (`include/pycauset/compute/ComputeDevice.hpp`): the device interface.
-- `ComputeContext::try_load_cuda` (`src/compute/ComputeContext.cpp`): at startup, tries to
-  `dlopen` `pycauset_cuda` and call `create_cuda_device`. Without the plugin this is a no-op.
-- `AutoSolver` GPU routing (`src/compute/AutoSolver.cpp`, `gpu_device_`): never taken without
-  the plugin. Dead-code review (DEADCODE.md Tier B) decides whether these stay dormant or
-  move here too. **Before the GPU path is re-enabled:** every AutoSolver method wraps the GPU
-  call in `try { gpu } catch { print; cpu }`, a silent fallback the Adding Operations protocol
-  forbids (review 4.8). Route by contract (dtype, structure, size) and let GPU errors surface.
+## The core's dispatch layer (removed, session 9)
+The core no longer has a GPU hook. `ComputeContext` holds the `CpuSolver` directly (review 3.4
+C-13). Removed with that change, all recoverable from git history (the commit "Remove the
+forwarding device layers" on the review branch):
+- `ComputeDevice` (`include/pycauset/compute/ComputeDevice.hpp`): the device interface.
+- `AutoSolver` (`src/compute/AutoSolver.cpp`): the router with a GPU cost model, a hardware
+  profile (`HardwareProfile.hpp`, `~/.pycauset/hardware_profile.json`) and pinned memory. Every
+  method wrapped the GPU call in `try { gpu } catch { print; cpu }`, a silent fallback the
+  Adding Operations protocol forbids (review 4.8): route by contract and let GPU errors surface.
+- `CpuDevice`: one-line forwards to `CpuSolver`.
+- `ComputeContext::try_load_cuda`: `dlopen("libpycauset_cuda.so")` at start, from the library
+  search path including the working directory (review 3.4 C-14). A returning plugin should be
+  loaded by absolute path from the core library's own directory.
 
 ## Bringing it back
 Re-add `bind_cuda_controls(m)` to `bind_core.cpp`, move `python/cuda.py` back to
@@ -33,5 +37,5 @@ review/features/LAZY.md), and restore the tests and docs.
 The `pip install pycauset[gpu]` extra (NVIDIA runtime wheels `nvidia-cuda-runtime-cu12`,
 `nvidia-cublas-cu12`, `nvidia-cusolver-cu12`, all `>=12.6`) was removed from `pyproject.toml`
 along with the move; restore it with the plugin.
-- `ComputeDevice` gained `lstsq` (session 9, CPU `?gelsd`): `CudaDevice` needs an override
-  (forward to the CPU device) before it compiles again.
+- The CPU device gained `lstsq` (session 9, `?gelsd`) and lost `compute_k`'s `num_threads`:
+  `CudaDevice` needs both before it compiles again.

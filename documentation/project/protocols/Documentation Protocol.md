@@ -42,7 +42,7 @@ Then apply the mapping below.
 Every source file (`.hpp`, `.cpp`, `.py`) must start with a technical header block that answers:
 - **What** this file contains (classes, functions, modules).
 - **Why** it exists (architectural role).
-- **Key dependencies** or interactions (e.g., "Implements the CPU backend for AutoSolver").
+- **Key dependencies** or interactions (e.g., "Implements the LAPACK kernels of CpuSolver").
 - **Thread-safety** or **Performance** notes if relevant.
 
 This is for the *maintainer* reading the code, not the user.
@@ -147,7 +147,7 @@ When editing a page, quickly verify:
 
 If you can’t verify something easily, rewrite it to be:
 
-- specific but testable (“runs through AutoSolver routing”), or
+- specific but testable (“runs through the engine entry function”), or
 - scoped (“GPU support is available for selected operations; see …”), or
 - explicitly marked as a plan (link to a plan doc).
 

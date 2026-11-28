@@ -20,7 +20,6 @@
 #include "pycauset/core/PromotionResolver.hpp"
 #include "pycauset/math/Eigen.hpp"
 #include "pycauset/math/LinearAlgebra.hpp"
-#include "pycauset/compute/ComputeContext.hpp"
 #include "pycauset/core/Float16.hpp"
 #include "pycauset/matrix/DiagonalMatrix.hpp"
 #include "pycauset/matrix/DenseMatrix.hpp"

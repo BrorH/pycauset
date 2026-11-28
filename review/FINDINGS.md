@@ -1870,8 +1870,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
 
 ### F-137 Area 3.4 (dispatch and CPU kernels): bit dot counts padding, fork hang, thread limits
 - **Status:** reviewed (session 9), 19 findings in `review/areas/3.4-dispatch-kernels.md`
-  (1 S1, 5 S2, 9 S3, 4 S4). C-1 to C-4, C-6, C-7, C-9 to C-11 fixed, C-12 partly; the rest
-  open (C-5 GIL, C-8 float32 accumulation, C-13 to C-19).
+  (1 S1, 5 S2, 9 S3, 4 S4). C-1 to C-4, C-6, C-7, C-9 to C-11, C-13 fixed, C-12 and C-17
+  partly; the rest open (C-5 GIL, C-8 float32 accumulation, C-14 RUNPATH, C-15 ladders,
+  C-16, C-18, C-19).
   - C-1 (S1, fixed): the bit-vector dot counted the padding bits of the last word
     (`pc.dot(~u, ~u)` = 64 for n = 5); the last word is masked now.
   - C-2 (fixed): after `fork()` the first parallel kernel in the child hung (ThreadPool,
@@ -1910,3 +1911,18 @@ the entry (the history is useful). New findings go at the bottom with the next f
     is not writable); after `os.chdir` Python and the engine used different roots.
   - C-7 (fixed): `pc.invert` was the matrix inverse, NumPy's `invert` is bitwise NOT. `pc.inv`
     is the inverse now and `pc.invert` NumPy's.
+
+### F-139 Area 3.10 (block matrices): block results cannot be reused, mismatched partitions fail
+- **Status:** reviewed (session 9), 12 findings in `review/areas/3.10-block-matrices.md`
+  (0 S1, 4 S2, 6 S3, 2 S4). Open. 3.9 C-4 (stale thunk cache) is fixed: engine leaves are pinned
+  by storage version.
+  - C-1: a block result (`ThunkBlock`) has no operators: `(L @ R) @ R`, `(L + R) + R` raise.
+  - C-2: element-wise ops on grids with different partitions fail in 7 of 8 cases.
+  - C-3: refined matmul round-trips each cut tile through NumPy (export ceiling, two RAM
+    copies) and raises for cut structured leaves.
+  - C-4: mixed-dtype grids promote per tile (int8 tile wraps where NumPy gives 200): the
+    block dtype contract needs a decision.
+  - C-5: thunk and nested-grid leaves are not pinned; the thunk cache is outside DerivedCache.
+  - C-7: `ndarray @ bm` computes in NumPy (no `__array_ufunc__ = None`).
+  - C-6, C-8 to C-12: export guard, missing scalar ops / transpose / slicing, persistence
+    leftovers, stale docs, IO hints, dead `DensePythonMatrix`.
