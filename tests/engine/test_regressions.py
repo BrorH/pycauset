@@ -1638,3 +1638,35 @@ def test_3_7_C14_public_surface():
     assert "set_storage_root" not in pc.__all__ and not hasattr(pc._native, "set_storage_root")
     with pytest.raises(AttributeError):
         A.shpae = (9, 9)
+
+
+def test_3_8_C16_setters_validate_before_changing_anything():
+    """Review 3.8 C-16: set_export_max_bytes(1.5) / ("10") changed the Python ceiling, then the
+    engine raised RuntimeError; -5 was accepted; set_memory_threshold(0.5) set 0."""
+    from pycauset._internal import export_guard
+
+    before_t, before_e = pc.get_memory_threshold(), export_guard.get_max_bytes()
+    for bad, exc in ((1.5, TypeError), ("10", TypeError), (-5, ValueError), (2**70, ValueError)):
+        with pytest.raises(exc):
+            pc.set_export_max_bytes(bad)
+        with pytest.raises(exc):
+            pc.set_memory_threshold(bad)
+    assert pc.get_memory_threshold() == before_t and export_guard.get_max_bytes() == before_e
+    pc.set_memory_threshold(np.int64(1 << 20))
+    assert pc.get_memory_threshold() == 1 << 20
+    pc.set_memory_threshold(before_t)
+
+
+def test_3_8_C15_file_helpers_write_where_they_say(tmp_path):
+    """Review 3.8 C-15: save_npy / save_npz returned a path NumPy had not written (it appended
+    the suffix); convert_file ignored dtype for a .pycauset destination."""
+    M = pc.matrix(np.arange(4.0).reshape(2, 2))
+    for f in (pc.save_npy, pc.save_npz):
+        p = f(M, tmp_path / ("nosuffix_" + f.__name__))
+        assert p.exists() and p == tmp_path / ("nosuffix_" + f.__name__)
+    np.testing.assert_array_equal(np.load(tmp_path / "nosuffix_save_npy"), np.arange(4.0).reshape(2, 2))
+    pc.save_npy(M, tmp_path / "c.npy")
+    with pytest.raises(TypeError, match="dtype"):
+        pc.convert_file(tmp_path / "c.npy", tmp_path / "c.pycauset", dtype="float32")
+    with pytest.raises(ValueError, match="source"):
+        pc.convert_file(tmp_path / "c.bin", tmp_path / "c.npy")

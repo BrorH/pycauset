@@ -69,13 +69,15 @@ def test_integer_matmul_overflow_raises():
             pc.matrix(x) @ pc.matrix(y)  # F-055
 
 
-def test_numpy_imported_first_warns_once_about_two_blas_pools():
-    code = "import numpy, warnings; warnings.simplefilter('always'); import pycauset"
+def test_numpy_imported_first_imports_under_warnings_as_errors():
+    """Review 3.8 C-13: the import-time warning broke `-W error` for the usual import order; the
+    case is recorded in `pycauset._numpy_imported_first` instead (Performance Guide)."""
+    code = "import numpy; import pycauset; print(pycauset._numpy_imported_first)"
     env = {k: v for k, v in os.environ.items() if k != "OPENBLAS_THREAD_TIMEOUT"}
     env["PYTHONPATH"] = os.path.dirname(os.path.dirname(os.path.abspath(pc.__file__)))
-    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=120)
+    r = subprocess.run([sys.executable, "-W", "error", "-c", code], capture_output=True, text=True, env=env, timeout=120)
     assert r.returncode == 0, r.stderr
-    assert r.stderr.count("PyCausetPerformanceWarning") == 1
+    assert r.stdout.strip() == "True"
 
 
 @pytest.mark.parametrize("make", [

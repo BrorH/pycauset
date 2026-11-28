@@ -25,8 +25,9 @@ before numpy** (or export `OPENBLAS_THREAD_TIMEOUT=18` in your shell) to cover N
 threads as well. This matters: with NumPy imported first, NumPy's OpenBLAS threads spin after
 every NumPy call and PyCauset's BLAS/LAPACK operations run next to them up to 50x slower
 (measured: Frobenius norm of a 1024 x 1024 matrix 32 ms instead of 0.7 ms; 384 x 384 matmul
-4-12 ms instead of 1.1 ms). PyCauset warns (`PyCausetPerformanceWarning`) when it is imported
-after NumPy without the variable set.
+4-12 ms instead of 1.1 ms). PyCauset does not warn at import (a warning there broke test
+suites run with warnings as errors, and NumPy is usually imported first, often by another
+package); `pycauset._numpy_imported_first` tells whether this process is affected.
 
 ## How fast, compared with NumPy
 
@@ -35,7 +36,8 @@ vary by about ±10% between runs):
 
 | operation | PyCauset vs NumPy |
 |---|---|
-| `A @ B`, `dot`, export to NumPy, `eigh`, `qr`, `eig` | at parity (0.9–1.05×) |
+| `A @ B`, export to NumPy, `eigh`, `qr`, `eig` | at parity (0.9–1.05×) |
+| `dot` of two 10^6-element vectors | about 0.5× (sums in fixed blocks, so the result does not depend on the thread count) |
 | `A + B`, `A * B` | 2.7–3.2× faster (multithreaded) |
 | `solve`, `inv`, `det`, `slogdet` | 1.6–1.8× faster |
 | `cholesky` | 2.4× faster |

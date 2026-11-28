@@ -20,8 +20,10 @@ import sys as _sys
 
 # NumPy imported first, with no timeout set: its OpenBLAS threads already spin after every call
 # and PyCauset's BLAS operations next to them ran up to 50x slower (norm of 1024 x 1024: 32 ms
-# instead of 0.6 ms; F-096). Nothing can be changed in NumPy's library now; say how to avoid it.
-_NUMPY_FIRST = "numpy" in _sys.modules and "OPENBLAS_THREAD_TIMEOUT" not in os.environ
+# instead of 0.6 ms; F-096). Nothing can be changed in NumPy's library now. The Performance
+# Guide says how to avoid it; there is no import-time warning (it broke `-W error` for the usual
+# import order, review 3.8 C-13). `_numpy_imported_first` records the case for diagnostics.
+_numpy_imported_first = "numpy" in _sys.modules and "OPENBLAS_THREAD_TIMEOUT" not in os.environ
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 # 2^18 cycles (~0.1 ms): long enough to keep threads awake between the many small BLAS calls
 # inside one LAPACK factorization (at 2^4, qr / eigh / svd ran 2x slower: F-108), far shorter
@@ -58,15 +60,6 @@ from ._internal.warnings import (
 from ._internal.warnings import (
     PyCausetWarning as PyCausetWarning,
 )
-
-if _NUMPY_FIRST:
-    warnings.warn(
-        "numpy was imported before pycauset: NumPy's OpenBLAS threads spin after each call and "
-        "slow PyCauset's BLAS/LAPACK operations (up to 50x for small ones). Import pycauset "
-        "first, or set OPENBLAS_THREAD_TIMEOUT=18 in the environment before starting Python.",
-        PyCausetPerformanceWarning,
-        stacklevel=2,
-    )
 
 import numpy as _np  # a dependency (pyproject); the native module needs it too
 
@@ -264,10 +257,27 @@ def get_memory_threshold() -> int:
     return int(_native.get_memory_threshold())
 
 
+def _byte_count(limit: Any, what: str) -> int:
+    """A non-negative integer number of bytes; anything else raises before a setting changes
+    (0.5 became 0 and "10" a pybind11 RuntimeError after the Python side had changed, review
+    3.8 C-16)."""
+    import operator
+
+    try:
+        n = operator.index(limit)
+    except TypeError:
+        raise TypeError(f"{what}: expected an integer number of bytes or None, got {limit!r}") from None
+    if n < 0:
+        raise ValueError(f"{what}: must be >= 0, got {n}")
+    if n >= 2**64:
+        raise ValueError(f"{what}: must be below 2**64, got {n}")
+    return n
+
+
 def set_memory_threshold(limit: int | None) -> int:
     """Objects up to `limit` bytes live in RAM, larger ones are file-backed; `None` restores
     the default (1 GiB). Returns the threshold now in effect."""
-    target = _DEFAULT_MEMORY_THRESHOLD if limit is None else int(limit)
+    target = _DEFAULT_MEMORY_THRESHOLD if limit is None else _byte_count(limit, "set_memory_threshold")
     _native.set_memory_threshold(target)
     _debug(f"set_memory_threshold -> {target} bytes")
     return int(_native.get_memory_threshold())
@@ -322,56 +332,11 @@ def _install_array_export_hook(native_type: Any) -> None:
     setattr(native_type, "__pycauset_array_wrapped__", True)
 
 
-def _coerce_scalar_for_native(value: Any) -> Any:
-    """Downcast NumPy scalar types to plain Python scalars for pybind setters."""
-    if isinstance(value, _np.generic):
-        return value.item()
-    return value
-
-
-def _is_int_key(k: Any) -> bool:
-    """A non-negative integer index (negative indices go through the native __setitem__)."""
-    is_int = isinstance(k, int) or isinstance(k, _np.integer)
-    return is_int and not isinstance(k, bool) and k >= 0
-
-
-def _wrap_setitem_for_scalars(base_type: Any) -> None:
-    if base_type is None:
-        return
-    if getattr(base_type, "__pycauset_setitem_wrapped__", False):
-        return
-    original = getattr(base_type, "__setitem__", None)
-    set_method = getattr(base_type, "set", None)
-    if not callable(original):
-        return
-
-    def _wrapped(self: Any, key: Any, value: Any, _orig=original) -> Any:
-        coerced = _coerce_scalar_for_native(value)
-        # Integer keys: the element setter. Anything else (slices, arrays): the native
-        # __setitem__. Chosen by the key, not by trying one and swallowing its error.
-        if callable(set_method):
-            if isinstance(key, tuple) and len(key) == 2 and all(_is_int_key(k) for k in key):
-                return set_method(self, int(key[0]), int(key[1]), coerced)
-            if _is_int_key(key) and _VectorBaseType is not None and isinstance(self, _VectorBaseType):
-                return set_method(self, int(key), coerced)
-        return _orig(self, key, coerced)  # a cast failure is a TypeError (native translator)
-
-    base_type.__setitem__ = _wrapped  # type: ignore[attr-defined]
-    setattr(base_type, "__pycauset_setitem_wrapped__", True)
-
-
-for _base in (_MatrixBaseType, _VectorBaseType):
-    _install_array_export_hook(_base)
-    _wrap_setitem_for_scalars(_base)
-
-# Ensure NumPy scalar coercion also applies to concrete native classes that
-# may override __setitem__.
-for _cls in (
-    *_MATRIX_CLASSES,
-    *_VECTOR_CLASSES,
-):
+# The native __setitem__ takes every key and value itself (NumPy scalars included; cast errors
+# are TypeErrors through the translator). A Python wrapper re-dispatched each write and tripled
+# its cost (review 3.8 C-14).
+for _cls in (_MatrixBaseType, _VectorBaseType, *_MATRIX_CLASSES, *_VECTOR_CLASSES):
     _install_array_export_hook(_cls)
-    _wrap_setitem_for_scalars(_cls)
 
 
 def set_export_max_bytes(limit: int | None) -> None:
@@ -381,8 +346,10 @@ def set_export_max_bytes(limit: int | None) -> None:
     export raises only when it would not fit in free RAM.
     """
 
+    if limit is not None:
+        limit = _byte_count(limit, "set_export_max_bytes")
+    _native._set_numpy_export_max_bytes(limit)  # the engine first: both or neither change
     _export_guard.set_max_bytes(limit)
-    _native._set_numpy_export_max_bytes(limit)
 
 
 def to_numpy(obj: Any, *, allow_huge: bool = False, dtype: Any = None, copy: bool = True) -> Any:
@@ -443,8 +410,11 @@ def load_npz(path: str | Path, *, key: str | None = None) -> Any:
 
 
 def save_npy(obj: Any, path: str | Path, *, allow_huge: bool = False, dtype: Any = None) -> Path:
+    """Write `obj` as a .npy file at exactly `path` (through a file handle: np.save appended
+    ".npy" to a path without it, and the returned path did not exist, review 3.8 C-15)."""
     arr = to_numpy(obj, allow_huge=allow_huge, dtype=dtype)
-    _np.save(path, arr)
+    with open(path, "wb") as f:
+        _np.save(f, arr)
     return Path(path)
 
 
@@ -457,7 +427,8 @@ def save_npz(
     key: str = "array",
 ) -> Path:
     arr = to_numpy(obj, allow_huge=allow_huge, dtype=dtype)
-    _np.savez(path, **{key: arr})
+    with open(path, "wb") as f:  # at exactly `path` (np.savez appended ".npz")
+        _np.savez(f, **{key: arr})
     return Path(path)
 
 
@@ -473,23 +444,29 @@ def convert_file(
     """Convert between .pycauset and NumPy formats (.npy/.npz).
 
     - dst_format defaults from dst_path suffix when not provided.
-    - npz imports default to the first key unless npz_key is provided.
+    - npz imports default to the alphabetically first key unless npz_key is provided.
+    - dtype converts .npy / .npz exports; with a .pycauset destination it raises.
     - Exports respect the NumPy materialization guard via allow_huge.
     """
 
     src = Path(src_path)
     dst = Path(dst_path)
 
-    def _infer_format(p: Path, explicit: str | None) -> str:
+    def _infer_format(p: Path, explicit: str | None, which: str) -> str:
         if explicit:
             return explicit.lower()
         suf = p.suffix.lower().lstrip(".")
         if suf in {"pycauset", "npy", "npz"}:
             return suf
-        raise ValueError("Could not infer format from path; provide dst_format")
+        hint = "; provide dst_format" if which == "destination" else " (.pycauset, .npy or .npz)"
+        raise ValueError(f"Could not infer the {which} format from {p}{hint}")
 
-    src_fmt = _infer_format(src, None)
-    dst_fmt = _infer_format(dst, dst_format)
+    src_fmt = _infer_format(src, None, "source")
+    dst_fmt = _infer_format(dst, dst_format, "destination")
+    if dst_fmt == "pycauset" and dtype is not None:
+        # It was ignored silently (review 3.8 C-15): a .pycauset file keeps the source's dtype.
+        raise TypeError("convert_file: dtype applies to .npy / .npz destinations only; cast first, "
+                        "e.g. pc.save(pc.asarray(pc.load(src), dtype=...), dst)")
 
     obj = None
     try:
