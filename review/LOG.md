@@ -720,3 +720,6 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   row reader no longer sends them to the per-element accessor: the atlas's generic
   per-element cells 190 -> 6 (all were closures). Atlas 0 wrong. C++ core library: no warnings
   under -Wall -Wextra (unused parameters aside), GCC 13.
+- Build: `PYCAUSET_WERROR` (CMake option, -Wall -Wextra -Wno-unused-parameter -Werror on the
+  core library) builds clean here (GCC 13, Release); the Linux CI job turns it on. The
+  bindings are not under it yet.
