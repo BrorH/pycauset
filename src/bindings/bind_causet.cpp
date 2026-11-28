@@ -24,16 +24,8 @@ static std::shared_ptr<TriangularBitMatrix> sprinkle_to_tbm(
     uint64_t n,
     uint64_t seed
 ) {
-    std::unique_ptr<MatrixBase> base;
-    try {
-        base = Sprinkler::sprinkle(spacetime, n, seed, "", &python_interrupt_pending);
-    } catch (const std::runtime_error& e) {
-        if (std::string(e.what()) == "pycauset: interrupted") {
-            // KeyboardInterrupt is already pending; propagate it.
-            throw pybind11::error_already_set();
-        }
-        throw;
-    }
+    // Ctrl-C: pycauset::interrupted, translated to the pending KeyboardInterrupt (bindings.cpp).
+    std::unique_ptr<MatrixBase> base = Sprinkler::sprinkle(spacetime, n, seed, "", &python_interrupt_pending);
 
     auto* tbm = dynamic_cast<TriangularBitMatrix*>(base.get());
     if (tbm == nullptr) {
@@ -79,14 +71,7 @@ void bind_causet_classes(py::module_& m) {
             if (!spacetime) {
                 throw std::invalid_argument("spacetime must not be None");
             }
-            try {
-                return Sprinkler::make_coordinates(*spacetime, n, seed, indices, &python_interrupt_pending);
-            } catch (const std::runtime_error& e) {
-                if (std::string(e.what()) == "pycauset: interrupted") {
-                    throw pybind11::error_already_set();
-                }
-                throw;
-            }
+            return Sprinkler::make_coordinates(*spacetime, n, seed, indices, &python_interrupt_pending);
         },
         py::arg("spacetime"),
         py::arg("n"),

@@ -10,12 +10,9 @@
 #include "scalar_args.hpp"
 #include "pycauset/math/Reductions.hpp"
 #include <vector>
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
-#include <immintrin.h>
-#endif
-#include <iostream>
 
 #include "binding_warnings.hpp"
+#include "pycauset/core/Errors.hpp"
 
 #include "pycauset/core/PromotionResolver.hpp"
 #include "pycauset/math/Eigen.hpp"
@@ -40,7 +37,6 @@
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 
-#include <Eigen/Dense>
 
 #include <cstdint>
 #include <cstring>
@@ -155,10 +151,6 @@ inline py::object matrix_bitwise(const MatrixBase& a, const py::object& other, p
     const auto b = pycauset_bindings::indexing::bitwise_operand(a, other);
     if (!b) return py::reinterpret_borrow<py::object>(Py_NotImplemented);
     return py::cast(std::shared_ptr<MatrixBase>(pycauset::bitwise(a, *b, op).release()));
-}
-
-inline std::shared_ptr<MatrixBase> matrix_inverse(const MatrixBase& mat) {
-    return std::shared_ptr<MatrixBase>(pycauset::inverse(mat).release());  // one entry (LinearAlgebra.cpp)
 }
 
 // Construct a structure of a dtype given by name, through the one factory.
@@ -342,9 +334,6 @@ py::object export_matrix_numpy(const pycauset::MatrixBase& m) { return export_nu
 void bind_matrix_classes(py::module_& m) {
     auto matrix_base_class = py::reinterpret_borrow<py::class_<MatrixBase, std::shared_ptr<MatrixBase>>>(m.attr("MatrixBase"));
     matrix_base_class
-        .def_property_readonly("__array_priority__", [](const MatrixBase&) { 
-            return 1000.0; 
-        })
         .def_property_readonly("backing_file", &MatrixBase::get_backing_file)
         .def("get_backing_file", &MatrixBase::get_backing_file)
         .def_property_readonly("is_temporary", &MatrixBase::is_temporary)
@@ -483,14 +472,13 @@ void bind_matrix_classes(py::module_& m) {
         .def(
             "__pos__",
             [](const MatrixBase& a) {
+                // NumPy 2 has no `positive` for bool (TypeError); it returned the bool matrix.
+                if (a.get_data_type() == DataType::BIT) throw pycauset::dtype_error("unary + is not supported for bool matrices");
                 return std::shared_ptr<MatrixBase>(a.multiply_scalar(static_cast<int64_t>(1)).release());
             },
             py::is_operator());
 
 
-    // Encourage NumPy to prefer MatrixBase reverse ops over coercion.
-    py::object mb_cls = m.attr("MatrixBase");
-    mb_cls.attr("__array_priority__") = py::float_(1000.0);
 
     // Native-side export ceiling so NumPy coercion paths (buffer protocol / native __array__)
     // honor the same policy as pycauset.to_numpy(...).
@@ -847,7 +835,8 @@ void bind_matrix_classes(py::module_& m) {
 
     // The matrix inverse (pycauset.inv). NumPy's `invert` is bitwise NOT, so there is no
     // .invert() / .inverse() method (review 3.8 C-7).
-    m.def("_inv", [](const MatrixBase& mat) { return matrix_inverse(mat); }, py::arg("a"));
+    m.def("_inv", [](const MatrixBase& mat) { return std::shared_ptr<MatrixBase>(pycauset::inverse(mat).release()); },
+          py::arg("a"));  // one entry (LinearAlgebra.cpp)
 
     m.def(
         "_compute_k_matrix",

@@ -18,10 +18,6 @@
 #include "scalar_args.hpp"
 #include "pycauset/math/Reductions.hpp"
 #include <vector>
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
-#include <immintrin.h>
-#endif
-#include <iostream>
 
 #include "binding_warnings.hpp"
 
@@ -46,7 +42,6 @@
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/ParallelUtils.hpp"
 
-#include <Eigen/Dense>
 
 #include <cstdint>
 #include <cstring>
@@ -356,14 +351,6 @@ inline std::shared_ptr<DenseMatrix<T>> slice_dense_matrix(const DenseMatrix<T>& 
     return keep_view(result);
 }
 
-// A scalar for a slice assignment: the element setter's conversion (NumPy's rules for Python
-// values: overflow raises, floats truncate into integers). It was pybind's cast, so
-// `int8 A[0, :] = 300` raised TypeError while `A[0, 0] = 300` raised OverflowError (3.7 C-5).
-template <typename T>
-inline T cast_scalar_to(const py::object& value) {
-    return py_to_element<T>(value);
-}
-
 template <typename T>
 inline void maybe_warn_assignment_cast(const py::dtype& src_dtype) {
     const py::dtype target_dtype = py::dtype::of<T>();
@@ -481,7 +468,7 @@ inline AssignmentValue<T> normalize_assignment_value(const py::object& value_in)
         throw py::value_error("Assignment array rank must be 0, 1, or 2");
     }
 
-    out.scalar = cast_scalar_to<T>(value);
+    out.scalar = py_to_element<T>(value);  // the element setter's conversion (3.7 C-5)
     out.is_scalar = true;
     return out;
 }
@@ -587,10 +574,7 @@ inline void dense_set_advanced(DenseMatrix<T>& mat, const SliceInfo& r, const Sl
 
 template <typename T>
 inline py::object dense_getitem(const DenseMatrix<T>& mat, const py::object& key) {
-    auto parsed = parse_matrix_subscript(key, mat.rows(), mat.cols());
-    if (parsed.rows.is_scalar && parsed.cols.is_scalar) {
-        return py::cast(mat.get(parsed.rows.index, parsed.cols.index));
-    }
+    auto parsed = parse_matrix_subscript(key, mat.rows(), mat.cols());  // not both scalar (the dispatch reads those)
     auto sliced = slice_dense_matrix(mat, parsed.rows, parsed.cols);
     // NumPy drops an integer-indexed axis (M[0, :] and M[:, 0] are 1-D), and paired index
     // arrays pick elements (M[[0, 1], [2, 1]] is 1-D): the result is a vector (F-112).
@@ -621,11 +605,7 @@ inline py::object dense_getitem(const DenseMatrix<T>& mat, const py::object& key
 
 template <typename T>
 inline void dense_setitem(DenseMatrix<T>& mat, const py::object& key, const py::object& value) {
-    auto parsed = parse_matrix_subscript(key, mat.rows(), mat.cols());
-    if (parsed.rows.is_scalar && parsed.cols.is_scalar) {
-        mat.set(parsed.rows.index, parsed.cols.index, cast_scalar_to<T>(value));
-        return;
-    }
+    auto parsed = parse_matrix_subscript(key, mat.rows(), mat.cols());  // not both scalar (the dispatch writes those)
     AssignmentValue<T> vinfo = normalize_assignment_value<T>(value);
     // NumPy's target shape drops an integer axis: A[:, 0] and A[[0, 1], 1] are 1-D. A 1-D value
     // (or a (1, n) one) fills it along that axis; an (n, 1) value does not broadcast into (n,).

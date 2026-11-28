@@ -1996,3 +1996,41 @@ def test_3_7_C5_failed_structured_assignment_writes_nothing():
     with pytest.raises(ValueError):
         V[0, :] = [1, "x"]
     np.testing.assert_array_equal(np.asarray(V), [[0.0, 6.0], [6.0, 0.0]])
+
+
+def test_3_7_C15_operator_details_as_numpy():
+    """+B of a bool matrix returned bool (NumPy 2: TypeError); len of a (1, n) row was n."""
+    B = pc.matrix(np.eye(2, dtype=bool))
+    with pytest.raises(TypeError):
+        +B
+    with pytest.raises(TypeError):
+        +np.eye(2, dtype=bool)
+    v = pc.vector([1.0, 2.0, 3.0])
+    assert len(v) == 3 and len(v.T) == len(np.zeros((1, 3))) == 1
+    assert pc.MatrixBase.__array_priority__ == pc.VectorBase.__array_priority__ == 1e6  # set once (Python)
+    np.testing.assert_array_equal(np.asarray(v.conjugate()), np.asarray(v.conj()))
+
+
+def test_3_7_C16_first_use_of_native_lookups_from_threads():
+    """The native code's cached Python objects were function-local statics initialised under the
+    C++ guard: two threads using them first could deadlock. Run the first uses from threads in a
+    fresh interpreter."""
+    import subprocess
+    import sys
+
+    code = (
+        "import threading, numpy as np, pycauset as pc\n"
+        "A = pc.matrix(np.zeros((2, 2)))\n"
+        "def work():\n"
+        "    for _ in range(200):\n"
+        "        pc.DenseMatrix(2, dtype=np.float32); A + np.float32(1); A[0, 0] = 2.0\n"
+        "ts = [threading.Thread(target=work) for _ in range(8)]\n"
+        "[t.start() for t in ts]; [t.join(30) for t in ts]\n"
+        "assert not any(t.is_alive() for t in ts)\n"
+        "print('ok')\n"
+    )
+    import os
+
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(sys.path))
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=120)
+    assert out.stdout.strip() == "ok", out.stderr

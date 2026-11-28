@@ -1,6 +1,7 @@
 #pragma once
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/gil_safe_call_once.h>
 #include <pybind11/stl.h>
 #include <pybind11/complex.h>
 
@@ -102,6 +103,16 @@ struct polymorphic_type_hook<itype, detail::enable_if_t<std::is_base_of<pycauset
 
 }  // namespace pybind11
 
+// A Python object looked up once, GIL-safely: a function-local static initialised under the C++
+// guard deadlocked when two threads first used it (one holds the guard and waits for the GIL in
+// the import, the other holds the GIL and waits for the guard; review 3.7 C-16). The object is
+// never destroyed, so nothing is released after the interpreter finalizes.
+#define PYCAUSET_PY_ONCE(expr)                                                                   \
+    ([]() -> const py::object& {                                                                 \
+        PYBIND11_CONSTINIT static py::gil_safe_call_once_and_store<py::object> storage_;         \
+        return storage_.call_once_and_store_result([]() -> py::object { return (expr); }).get_stored(); \
+    }())
+
 // A dimension argument: NumPy's ValueError for a negative one (uint64_t parameters gave pybind's
 // "incompatible function arguments" TypeError, review 3.7 C-6).
 inline uint64_t dim_arg(int64_t n) {
@@ -119,11 +130,11 @@ inline uint64_t index_arg(int64_t i, uint64_t dim) {
 // A user's dtype argument (a name, a NumPy code, np.float32, np.dtype(...), int, ...) through
 // the one parser, pycauset._internal.dtypes.normalize_dtype (review 3.3 C-9: the native
 // constructors had their own table: pc.DenseMatrix(2, dtype="bit") raised, pc.zeros accepted
-// it). Leaked statics: no Python object is destroyed after the interpreter finalizes.
+// it).
 inline pycauset::DataType dtype_arg(const py::handle& dtype) {
-    static py::object* normalize = new py::object(py::module_::import("pycauset._internal.dtypes").attr("normalize_dtype"));
-    static py::object* np = new py::object(py::module_::import("numpy"));
-    py::object name = (*normalize)(dtype, py::arg("np_module") = *np);
+    const py::object& normalize = PYCAUSET_PY_ONCE(py::module_::import("pycauset._internal.dtypes").attr("normalize_dtype"));
+    const py::object& np = PYCAUSET_PY_ONCE(py::module_::import("numpy"));
+    py::object name = normalize(dtype, py::arg("np_module") = np);
     if (name.is_none()) throw py::type_error("unsupported dtype: " + py::repr(dtype).cast<std::string>());
     return pycauset::parse_dtype_name(name.cast<std::string>());
 }

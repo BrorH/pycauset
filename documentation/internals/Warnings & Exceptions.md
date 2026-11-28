@@ -103,12 +103,24 @@ warning, an exception, the IO trace (`pc.last_io_trace`) or `pc.debug_mode` outp
 
 ### C++ → Python mapping
 
-We rely on pybind11’s standard exception translation and a small amount of explicit translation.
+pybind11's standard translation, plus one translator local to `_pycauset` (`src/bindings.cpp`)
+for the engine's own types (`include/pycauset/core/Errors.hpp`):
 
-- `std::invalid_argument` → `ValueError` (via `translate_invalid_argument` where used)
-- `std::out_of_range` → `IndexError`/`ValueError` depending on binding usage
-- `std::overflow_error` → `OverflowError`
+- `pycauset::dtype_error` → `TypeError` (an operand of a dtype the operation does not take, as
+  NumPy: `float_matrix & 1`)
+- `pycauset::linalg_error` → `numpy.linalg.LinAlgError` (singular, not positive definite, NaN
+  into LAPACK)
+- `pycauset::interrupted` → the pending `KeyboardInterrupt` (Ctrl-C during a long kernel)
+- `py::cast_error` → `TypeError` (a value of the wrong type reached a cast)
+- `std::invalid_argument`, `std::domain_error`, `std::length_error` → `ValueError` (pybind11)
+- `std::out_of_range` → `IndexError` (pybind11)
+- `std::overflow_error` → `OverflowError` (pybind11)
 - Other `std::runtime_error` → `RuntimeError`
+
+Element assignment and indexing follow NumPy's classes: a value that does not convert is a
+`TypeError` / `ValueError` (Python's own, from `float()` / `int()` / `complex()`), one that does
+not fit an integer dtype is an `OverflowError`, a bad index is an `IndexError`, a negative
+dimension a `ValueError`, and an operation on a closed object a `ValueError`.
 
 Policy notes:
 

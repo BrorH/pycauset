@@ -220,6 +220,13 @@ inline void vector_setitem(VectorBase& v, const py::object& key, const py::objec
     for (size_t k = 0; k < pos.size(); ++k) vector_element_set(v, pos[k], flat[nv == 1 ? 0 : k]);
 }
 
+// v.conj(): a view with the conjugation flag flipped (no copy).
+inline std::shared_ptr<VectorBase> vector_conj(const VectorBase& v) {
+    std::unique_ptr<VectorBase> out(static_cast<VectorBase*>(v.clone().release()));
+    out->set_conjugated(!v.is_conjugated());
+    return std::shared_ptr<VectorBase>(out.release());
+}
+
 // Vector arithmetic: `a op other` (or `other op a` when reflected) for another vector, a 1-D
 // NumPy array or a scalar. Everything runs through the matrix machinery (math/VectorOps.hpp),
 // so result dtypes follow NumPy and integers are exact. Anything else: NotImplemented.
@@ -298,7 +305,7 @@ void bind_vector_classes(py::module_& m) {
         .def_property_readonly("size", &VectorBase::size, "Number of elements, as NumPy's ndarray.size.")
         .def_property_readonly("ndim", [](const VectorBase& v) { return v.is_transposed() ? 2 : 1; },
                                "Number of dimensions (len(shape): 1, or 2 for a transposed (1, n) vector).")
-        .def("__len__", &VectorBase::size)
+        .def("__len__", [](const VectorBase& v) -> uint64_t { return v.is_transposed() ? 1 : v.size(); })  // len of shape[0]
         .def("__bool__", [](const VectorBase& v) {  // NumPy's truth value (see MatrixBase)
             if (v.size() != 1) {
                 throw py::value_error("The truth value of a vector with more than one element is ambiguous");
@@ -388,28 +395,8 @@ void bind_vector_classes(py::module_& m) {
                 auto out = v.transpose("");
                 return std::shared_ptr<VectorBase>(out.release());
             })
-        .def(
-            "conjugate",
-            [](const VectorBase& v) {
-                auto out = v.clone();
-                auto* vec = dynamic_cast<VectorBase*>(out.get());
-                if (!vec) {
-                    throw std::runtime_error("Internal error: clone() did not return a VectorBase");
-                }
-                vec->set_conjugated(!v.is_conjugated());
-                return std::shared_ptr<VectorBase>(static_cast<VectorBase*>(out.release()));
-            })
-        .def(
-            "conj",
-            [](const VectorBase& v) {
-                auto out = v.clone();
-                auto* vec = dynamic_cast<VectorBase*>(out.get());
-                if (!vec) {
-                    throw std::runtime_error("Internal error: clone() did not return a VectorBase");
-                }
-                vec->set_conjugated(!v.is_conjugated());
-                return std::shared_ptr<VectorBase>(static_cast<VectorBase*>(out.release()));
-            })
+        .def("conjugate", &vector_conj)  // NumPy has both names
+        .def("conj", &vector_conj)
         .def(
             "dot",
             [](const VectorBase& a, const std::shared_ptr<VectorBase>& b) { return vector_dot(a, *b); },
@@ -500,8 +487,4 @@ void bind_vector_classes(py::module_& m) {
              }),
              py::arg("n"), py::arg("active_index"), py::arg("dtype") = "float64")
         .def_property_readonly("active_index", &UnitVector::get_active_index);
-
-    // Encourage NumPy to prefer VectorBase's reverse ops over coercion.
-    py::object vb_cls = m.attr("VectorBase");
-    vb_cls.attr("__array_priority__") = py::float_(1000.0);
 }

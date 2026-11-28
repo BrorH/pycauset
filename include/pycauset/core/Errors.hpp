@@ -22,6 +22,13 @@ struct linalg_error : std::domain_error {
     using std::domain_error::domain_error;
 };
 
+// A long kernel stopped because Python has a pending signal (Ctrl-C): the KeyboardInterrupt
+// that PyErr_CheckSignals raised goes on, translated in src/bindings.cpp. (The bindings matched
+// the message text of a runtime_error, review 3.7 C-16.)
+struct interrupted : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 // LAPACK's ?gebal / ?lascl reject NaN through xerbla, which prints to stderr and returns an
 // "illegal argument" (review 3.4 C-9): the kernels that call them check first and raise with
 // NumPy's message.

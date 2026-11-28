@@ -20,10 +20,6 @@ void warn_impl(const char* message, const char* category_name, int stacklevel) {
 
 } // namespace
 
-void warn(const char* message, int stacklevel) {
-    warn_impl(message, "PyCausetWarning", stacklevel);
-}
-
 // Deduplication is Python's job: the default warnings filter shows each warning once per call
 // site, and users control it with warnings.simplefilter (a C++ "seen" set would override that).
 void warn_with_category(const std::string& message, const char* category_name, int stacklevel) {

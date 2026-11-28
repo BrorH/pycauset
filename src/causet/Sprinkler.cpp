@@ -1,4 +1,5 @@
 #include "pycauset/causet/Sprinkler.hpp"
+#include "pycauset/core/Errors.hpp"
 #include "pycauset/matrix/TriangularBitMatrix.hpp"
 #include <vector>
 #include <random>
@@ -25,7 +26,7 @@ uint64_t block_seed(uint64_t seed, uint64_t block_idx) {
 
 void check_abort(const Sprinkler::AbortCheck& should_abort) {
     if (should_abort && should_abort()) {
-        throw std::runtime_error(kInterrupted);
+        throw pycauset::interrupted(kInterrupted);
     }
 }
 

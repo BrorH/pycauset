@@ -14,6 +14,10 @@ laziness only changes speed and memory.
 | `C + C.T`, `C - C.T` for a causal matrix `C` | O(1) | nothing: computed from `C`'s bits |
 | `A + A.T`, `A - A.T` (any matrix) | one pass | the packed symmetric / antisymmetric result (half the memory) |
 
+`A.is_lazy` says whether elements are computed when read: a factor, a transpose, conjugation, or
+a closure such as `C + C.T`. A dense slice with step 1 shares `A`'s storage (O(1)), but its
+elements are the stored ones, read in place, so `A[0:2, 0:2].is_lazy` is False.
+
 Chains fold: `2 * (3 * A)` stores one factor, 6. Matrix-vector products on `C - C.T` read the
 bits directly, so iterative eigensolvers (`eigvals_arnoldi`) never build the full matrix.
 

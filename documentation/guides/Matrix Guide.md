@@ -207,6 +207,12 @@ M[:2, :3] = rhs          # broadcasts OK
 M[:, :2] = np.array([1.5, 2.5], dtype=np.float32)  # warns: cast float32 → float64
 ```
 
+### In-place operators
+
+`A += B` rebinds `A` to `A + B`. NumPy updates the array in place, so another name for the old
+`A` sees the change; in PyCauset it does not. This follows "views are values" above: a write
+never shows through to another object.
+
 ### Comparisons
 
 `== != < <= > >=` are element-wise, as in NumPy: the result is a dense bool matrix (or vector)

@@ -89,8 +89,9 @@ E py_to_element(const py::object& value) {
     } else {
         // complex(value), with Python's errors and its string parsing ('1+2j'), as NumPy.
         if (value.is_none()) return E(std::numeric_limits<double>::quiet_NaN(), 0.0);
-        static py::object* complex_type = new py::object(py::module_::import("builtins").attr("complex"));
-        return static_cast<E>((*complex_type)(value).cast<std::complex<double>>());
+        const py::object& complex_type = PYCAUSET_PY_ONCE(py::module_::import("builtins").attr("complex"));
+        const py::object z = complex_type(value);
+        return static_cast<E>(z.template cast<std::complex<double>>());
     }
 }
 

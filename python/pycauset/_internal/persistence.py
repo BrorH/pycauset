@@ -428,7 +428,7 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
         if isinstance(payload_obj, deps.native.MatrixBase):
             rows, cols = payload_obj.rows(), payload_obj.cols()
         else:  # a vector
-            rows, cols = len(payload_obj), 1
+            rows, cols = payload_obj.size, 1  # the stored length (len of a transposed vector is 1)
 
         scalar = getattr(payload_obj, "scalar", 1.0)
         view: dict[str, Any] = {

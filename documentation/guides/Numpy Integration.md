@@ -17,7 +17,14 @@ Supported dtypes include:
 - Complex floats: `complex64/complex128` (mapped to `complex_float32/complex_float64`)
 - Booleans: `bool_` (mapped to bit-packed storage)
 
-**Performance Note**: Import uses a parallelized direct path for large arrays, achieving >10GB/s on modern hardware. Non-contiguous arrays (slices) are automatically handled via an optimized parallel copy.
+**Performance note.** Import is one copy into the engine's storage, parallel above 1 MB:
+- contiguous rows are copied with memcpy;
+- transposed (column-contiguous) arrays are copied in 32 x 32 tiles;
+- any other strides are copied element by element;
+- bools are packed into bits (SSE).
+
+A byte-swapped, unaligned or odd-strided array (a struct field, `'>f8'`) is first normalised by
+one NumPy copy.
 
 ```python
 import numpy as np

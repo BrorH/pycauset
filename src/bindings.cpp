@@ -10,9 +10,15 @@ PYBIND11_MODULE(_pycauset, m) {
 
     // pycauset::dtype_error is a TypeError, pycauset::linalg_error NumPy's LinAlgError
     // (core/Errors.hpp).
-    py::register_exception_translator([](std::exception_ptr p) {
+    // Local to _pycauset: a global translator applied to every pybind11 module of this ABI
+    // (review 3.7 C-16).
+    py::register_local_exception_translator([](std::exception_ptr p) {
         try {
             if (p) std::rethrow_exception(p);
+        } catch (const pycauset::interrupted&) {
+            // PyErr_CheckSignals raised the KeyboardInterrupt (or another signal handler's
+            // exception) already: it goes on as it is.
+            if (!PyErr_Occurred()) PyErr_SetNone(PyExc_KeyboardInterrupt);
         } catch (const pycauset::dtype_error& e) {
             PyErr_SetString(PyExc_TypeError, e.what());
         } catch (const py::cast_error& e) {
@@ -46,6 +52,5 @@ PYBIND11_MODULE(_pycauset, m) {
         .def("get_total_system_ram", &pycauset::core::MemoryGovernor::get_total_system_ram)
         .def("get_available_system_ram", &pycauset::core::MemoryGovernor::get_available_system_ram)
         .def("get_safety_margin", &pycauset::core::MemoryGovernor::get_safety_margin)
-        .def("set_safety_margin", &pycauset::core::MemoryGovernor::set_safety_margin, py::arg("bytes"))
         .def("can_fit_in_ram", &pycauset::core::MemoryGovernor::can_fit_in_ram, py::arg("bytes"));
 }
