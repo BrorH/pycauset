@@ -72,10 +72,6 @@
 #include <iostream>
 #include <limits>
 #include <random>
-#if defined(__x86_64__) || defined(_M_X64)
-#include <immintrin.h>
-#endif
-
 #include "CpuKernelsCommon.hpp"
 
 namespace pycauset {
@@ -103,75 +99,19 @@ namespace {
         for(size_t i=0; i<n; ++i) dst[i] = a[i] / b[i]; 
     }
 
-    // AVX2 Kernels, per-function ISA target for GCC/Clang so these compile
-    // without a global -march (runtime-dispatched via has_avx2() below). MSVC
-    // emits intrinsics without /arch, so the attribute is a no-op there.
+    // The AVX2 variant: the same loop, compiled for AVX2 (GCC / Clang `target`; the compiler
+    // vectorises it) and chosen at run time by has_avx2(). It replaces eight hand-written
+    // intrinsic copies of `+ - * /` (review 3.4 C-15). Under MSVC the attribute is empty and this
+    // is the plain loop.
 #if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(_M_X64))
     #define PYCAUSET_AVX2_TARGET __attribute__((target("avx2")))
 #else
     #define PYCAUSET_AVX2_TARGET
 #endif
-#if defined(__x86_64__) || defined(_M_X64)
-    // Float
-    PYCAUSET_AVX2_TARGET void avx2_add_f32(float* dst, const float* a, const float* b, size_t n) {
-        size_t i = 0;
-        for (; i + 8 <= n; i += 8) {
-            _mm256_storeu_ps(dst + i, _mm256_add_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
-        }
-        for (; i < n; ++i) dst[i] = a[i] + b[i];
+    template <typename T, typename Op>
+    PYCAUSET_AVX2_TARGET void avx2_binary(T* __restrict dst, const T* __restrict a, const T* __restrict b, size_t n) {
+        for (size_t i = 0; i < n; ++i) dst[i] = Op{}(a[i], b[i]);
     }
-    PYCAUSET_AVX2_TARGET void avx2_sub_f32(float* dst, const float* a, const float* b, size_t n) {
-        size_t i = 0;
-        for (; i + 8 <= n; i += 8) {
-            _mm256_storeu_ps(dst + i, _mm256_sub_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
-        }
-        for (; i < n; ++i) dst[i] = a[i] - b[i];
-    }
-    PYCAUSET_AVX2_TARGET void avx2_mul_f32(float* dst, const float* a, const float* b, size_t n) {
-        size_t i = 0;
-        for (; i + 8 <= n; i += 8) {
-            _mm256_storeu_ps(dst + i, _mm256_mul_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
-        }
-        for (; i < n; ++i) dst[i] = a[i] * b[i];
-    }
-    PYCAUSET_AVX2_TARGET void avx2_div_f32(float* dst, const float* a, const float* b, size_t n) {
-        size_t i = 0;
-        for (; i + 8 <= n; i += 8) {
-            _mm256_storeu_ps(dst + i, _mm256_div_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
-        }
-        for (; i < n; ++i) dst[i] = a[i] / b[i];
-    }
-
-    // Double
-    PYCAUSET_AVX2_TARGET void avx2_add_f64(double* dst, const double* a, const double* b, size_t n) {
-        size_t i = 0;
-        for (; i + 4 <= n; i += 4) {
-            _mm256_storeu_pd(dst + i, _mm256_add_pd(_mm256_loadu_pd(a + i), _mm256_loadu_pd(b + i)));
-        }
-        for (; i < n; ++i) dst[i] = a[i] + b[i];
-    }
-    PYCAUSET_AVX2_TARGET void avx2_sub_f64(double* dst, const double* a, const double* b, size_t n) {
-        size_t i = 0;
-        for (; i + 4 <= n; i += 4) {
-            _mm256_storeu_pd(dst + i, _mm256_sub_pd(_mm256_loadu_pd(a + i), _mm256_loadu_pd(b + i)));
-        }
-        for (; i < n; ++i) dst[i] = a[i] - b[i];
-    }
-    PYCAUSET_AVX2_TARGET void avx2_mul_f64(double* dst, const double* a, const double* b, size_t n) {
-        size_t i = 0;
-        for (; i + 4 <= n; i += 4) {
-            _mm256_storeu_pd(dst + i, _mm256_mul_pd(_mm256_loadu_pd(a + i), _mm256_loadu_pd(b + i)));
-        }
-        for (; i < n; ++i) dst[i] = a[i] * b[i];
-    }
-    PYCAUSET_AVX2_TARGET void avx2_div_f64(double* dst, const double* a, const double* b, size_t n) {
-        size_t i = 0;
-        for (; i + 4 <= n; i += 4) {
-            _mm256_storeu_pd(dst + i, _mm256_div_pd(_mm256_loadu_pd(a + i), _mm256_loadu_pd(b + i)));
-        }
-        for (; i < n; ++i) dst[i] = a[i] / b[i];
-    }
-#endif
 #undef PYCAUSET_AVX2_TARGET
 
     // Discriminators
@@ -182,15 +122,15 @@ namespace {
 
     // Explicit specializations for runtime dispatch
 #if defined(__x86_64__) || defined(_M_X64)
-    template<> SimdKernel<float> get_add_kernel<float>() { return has_avx2() ? avx2_add_f32 : scalar_add<float>; }
-    template<> SimdKernel<float> get_sub_kernel<float>() { return has_avx2() ? avx2_sub_f32 : scalar_sub<float>; }
-    template<> SimdKernel<float> get_mul_kernel<float>() { return has_avx2() ? avx2_mul_f32 : scalar_mul<float>; }
-    template<> SimdKernel<float> get_div_kernel<float>() { return has_avx2() ? avx2_div_f32 : scalar_div<float>; }
+    template<> SimdKernel<float> get_add_kernel<float>() { return has_avx2() ? avx2_binary<float, std::plus<>> : scalar_add<float>; }
+    template<> SimdKernel<float> get_sub_kernel<float>() { return has_avx2() ? avx2_binary<float, std::minus<>> : scalar_sub<float>; }
+    template<> SimdKernel<float> get_mul_kernel<float>() { return has_avx2() ? avx2_binary<float, std::multiplies<>> : scalar_mul<float>; }
+    template<> SimdKernel<float> get_div_kernel<float>() { return has_avx2() ? avx2_binary<float, std::divides<>> : scalar_div<float>; }
     
-    template<> SimdKernel<double> get_add_kernel<double>() { return has_avx2() ? avx2_add_f64 : scalar_add<double>; }
-    template<> SimdKernel<double> get_sub_kernel<double>() { return has_avx2() ? avx2_sub_f64 : scalar_sub<double>; }
-    template<> SimdKernel<double> get_mul_kernel<double>() { return has_avx2() ? avx2_mul_f64 : scalar_mul<double>; }
-    template<> SimdKernel<double> get_div_kernel<double>() { return has_avx2() ? avx2_div_f64 : scalar_div<double>; }
+    template<> SimdKernel<double> get_add_kernel<double>() { return has_avx2() ? avx2_binary<double, std::plus<>> : scalar_add<double>; }
+    template<> SimdKernel<double> get_sub_kernel<double>() { return has_avx2() ? avx2_binary<double, std::minus<>> : scalar_sub<double>; }
+    template<> SimdKernel<double> get_mul_kernel<double>() { return has_avx2() ? avx2_binary<double, std::multiplies<>> : scalar_mul<double>; }
+    template<> SimdKernel<double> get_div_kernel<double>() { return has_avx2() ? avx2_binary<double, std::divides<>> : scalar_div<double>; }
 #endif
 
     template<typename T>
