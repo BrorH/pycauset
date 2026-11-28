@@ -348,14 +348,12 @@ inline std::shared_ptr<DenseMatrix<T>> slice_dense_matrix(const DenseMatrix<T>& 
     return keep_view(result);
 }
 
+// A scalar for a slice assignment: the element setter's conversion (NumPy's rules for Python
+// values: overflow raises, floats truncate into integers). It was pybind's cast, so
+// `int8 A[0, :] = 300` raised TypeError while `A[0, 0] = 300` raised OverflowError (3.7 C-5).
 template <typename T>
 inline T cast_scalar_to(const py::object& value) {
-    return value.cast<T>();
-}
-
-template <>
-inline bool cast_scalar_to<bool>(const py::object& value) {
-    return coerce_bit_value(value);
+    return py_to_element<T>(value);
 }
 
 template <typename T>
@@ -395,14 +393,45 @@ template <typename T>
 struct AssignmentValue {
     bool is_scalar = true;
     T scalar{};
-    std::shared_ptr<DenseMatrix<T>> mat;
+    std::shared_ptr<DenseMatrix<T>> mat;  // a 1-D value is stored 1 x n
     uint64_t rows = 1;
     uint64_t cols = 1;
+    int ndim = 0;
+    bool as_column = false;  // a 1-D value filling a column target: rows = n, cols = 1
 };
 
 template <typename T>
-inline AssignmentValue<T> normalize_assignment_value(const py::object& value) {
+inline AssignmentValue<T> normalize_assignment_value(const py::object& value_in) {
     AssignmentValue<T> out;
+    py::object value = value_in;
+    // Sequences and pycauset objects are array-likes, as in NumPy (they were rejected, 3.7
+    // C-5). Python values (lists, tuples) convert element by element with the element setter's
+    // rules; arrays cast as NumPy's unsafe astype.
+    const bool python_seq = py::isinstance<py::list>(value) || py::isinstance<py::tuple>(value);
+    if (python_seq || py::isinstance<pycauset::MatrixBase>(value) || py::isinstance<pycauset::VectorBase>(value)) {
+        py::module_ np = py::module_::import("numpy");
+        py::array arr = np.attr("asarray")(value);
+        if (python_seq) {
+            if (arr.ndim() > 2) throw py::value_error("Assignment array rank must be 0, 1, or 2");
+            const uint64_t rows = arr.ndim() == 2 ? static_cast<uint64_t>(arr.shape(0)) : 1;
+            const uint64_t cols = arr.ndim() == 2 ? static_cast<uint64_t>(arr.shape(1))
+                                                  : (arr.ndim() == 1 ? static_cast<uint64_t>(arr.shape(0)) : 1);
+            py::list flat = np.attr("asarray")(value, py::arg("dtype") = "object").attr("ravel")().attr("tolist")();
+            auto m = std::make_shared<DenseMatrix<T>>(rows, cols);
+            for (uint64_t k = 0; k < rows * cols; ++k) m->set(k / cols, k % cols, py_to_element<T>(flat[k]));
+            if (arr.ndim() == 0) {
+                out.scalar = m->get(0, 0);
+                return out;
+            }
+            out.is_scalar = false;
+            out.mat = std::move(m);
+            out.rows = rows;
+            out.cols = cols;
+            out.ndim = static_cast<int>(arr.ndim());
+            return out;
+        }
+        value = arr;
+    }
 
     if (py::isinstance<py::array>(value)) {
         py::array arr = py::array::ensure(value);
@@ -410,7 +439,7 @@ inline AssignmentValue<T> normalize_assignment_value(const py::object& value) {
         auto buf = arr.request();
         if (buf.ndim == 0) {
             maybe_warn_assignment_cast<T>(src_dtype);
-            out.scalar = value.cast<T>();
+            out.scalar = py_to_element<T>(value.attr("item")());
             out.is_scalar = true;
             return out;
         }
@@ -438,17 +467,10 @@ inline AssignmentValue<T> normalize_assignment_value(const py::object& value) {
             out.mat = std::move(m);
             out.rows = rows;
             out.cols = cols;
+            out.ndim = static_cast<int>(buf.ndim);
             return out;
         }
         throw py::value_error("Assignment array rank must be 0, 1, or 2");
-    }
-
-    if (py::isinstance<std::shared_ptr<DenseMatrix<T>>>(value)) {
-        out.mat = value.cast<std::shared_ptr<DenseMatrix<T>>>();
-        out.is_scalar = false;
-        out.rows = out.mat->rows();
-        out.cols = out.mat->cols();
-        return out;
     }
 
     out.scalar = cast_scalar_to<T>(value);
@@ -471,6 +493,7 @@ inline T value_at(const AssignmentValue<T>& v, uint64_t i, uint64_t j) {
     if (v.is_scalar) {
         return v.scalar;
     }
+    if (v.as_column) return v.mat->get(0, v.rows == 1 ? 0 : i);
     const uint64_t src_i = (v.rows == 1) ? 0 : i;
     const uint64_t src_j = (v.cols == 1) ? 0 : j;
     return v.mat->get(src_i, src_j);
@@ -595,7 +618,23 @@ inline void dense_setitem(DenseMatrix<T>& mat, const py::object& key, const py::
         mat.set(parsed.rows.index, parsed.cols.index, cast_scalar_to<T>(value));
         return;
     }
-    const AssignmentValue<T> vinfo = normalize_assignment_value<T>(value);
+    AssignmentValue<T> vinfo = normalize_assignment_value<T>(value);
+    // NumPy's target shape drops an integer axis: A[:, 0] and A[[0, 1], 1] are 1-D. A 1-D value
+    // (or a (1, n) one) fills it along that axis; an (n, 1) value does not broadcast into (n,).
+    const SliceInfo& r = parsed.rows;
+    const SliceInfo& c = parsed.cols;
+    if (!vinfo.is_scalar && (r.is_scalar != c.is_scalar)) {
+        const uint64_t target = r.is_scalar ? slice_length(c) : slice_length(r);
+        if (vinfo.ndim == 2 && vinfo.rows != 1) {
+            throw py::value_error("could not broadcast input array from shape (" + std::to_string(vinfo.rows) + "," +
+                                  std::to_string(vinfo.cols) + ") into shape (" + std::to_string(target) + ",)");
+        }
+        if (c.is_scalar) {  // a column target: the 1-D value runs down it
+            vinfo.as_column = true;
+            vinfo.rows = vinfo.cols;
+            vinfo.cols = 1;
+        }
+    }
     if (parsed.rows.is_array || parsed.cols.is_array) {
         dense_set_advanced(mat, parsed.rows, parsed.cols, vinfo);
     } else {

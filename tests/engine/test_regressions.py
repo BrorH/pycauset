@@ -1562,3 +1562,31 @@ def test_3_7_C6_exception_classes_as_numpy():
         A[2**70, 0]
     with pytest.raises(IndexError):
         A[0, 0, 0]
+
+
+def test_3_7_C5_slice_assignment_as_numpy():
+    """Review 3.7 C-5: a 1-D value could not fill a column, lists / tuples / pycauset matrices
+    were rejected, and slice scalars converted by other rules than element assignment."""
+    def both(dtype, key, value, np_value=None):
+        a = np.zeros((3, 3), dtype)
+        A = pc.matrix(a.copy())
+        a[key] = value if np_value is None else np_value
+        A[key] = value
+        np.testing.assert_array_equal(np.asarray(A), a)
+
+    both(np.float64, (slice(None), 0), np.array([1.0, 2.0, 3.0]))
+    both(np.float64, ([0, 1], 1), np.array([7.0, 8.0]))
+    both(np.float64, (0, slice(None)), [1, 2, 3])
+    both(np.float64, (0, slice(None)), (1, 2, 3))
+    both(np.float64, (slice(0, 2), slice(0, 2)), pc.matrix(np.ones((2, 2))) * 2, np.full((2, 2), 2.0))
+    both(np.float64, (slice(None), 1), np.ones((1, 3)))
+    both(np.int32, (0, slice(None)), 1.5)
+    both(np.float64, (slice(None), slice(None)), [[1, 2, 3]])
+    A = pc.matrix(np.zeros((3, 3), np.int8))
+    with pytest.raises(OverflowError):
+        A[0, :] = 300
+    with pytest.raises(OverflowError):
+        A[0, :] = [0, 5, 300]
+    assert np.asarray(A)[0].tolist() == [0, 0, 0]  # nothing written before the error
+    with pytest.raises(ValueError):
+        pc.matrix(np.zeros((2, 2)))[:, 0] = np.ones((2, 1))  # NumPy: (2,1) into (2,)
