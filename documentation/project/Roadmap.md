@@ -15,7 +15,8 @@ In scope:
 - Every operation for every dtype, structure and view, checked against NumPy (the operation
   atlas: about 88,000 combinations, 0 wrong).
 - Linear algebra through LAPACK with NumPy's conventions.
-- Storage that moves to disk when RAM runs out, and `.pycauset` snapshots.
+- Storage in RAM or memory-mapped files (decided when an object is made, by size and free
+  RAM), and `.pycauset` snapshots.
 - Causal sets: `pc.causet`, sprinkling into the d-dimensional Minkowski diamond, the order
   methods (links, chains, layers, intervals, past / future), Myrheim-Meyer, synthetic orders,
   save / load.
@@ -23,12 +24,12 @@ In scope:
 
 Still to do before the release (review PLAN):
 
-- Cleanup: the Python operator patch stack, splitting the largest files, the remaining dead code.
+- Cleanup: splitting the largest files, the remaining review findings (`review/FINDINGS.md`).
 - Speed: at least 0.9x NumPy in memory across the atlas (`review/atlas/TIMING.md`). Today
   most dense operations are there; small-call overhead and some structured and complex32
   cases are not.
-- Features: the derived-value cache (scalar results done; vector results and persistence next,
-  `review/features/DERIVED_CACHE.md`),
+- Features: the derived-value cache (scalar and vector results, saved with the file, done;
+  matrix-valued results next, `review/features/DERIVED_CACHE.md`),
   lazy expressions (`LAZY.md`), value bounds for exact integer result dtypes.
 - Release mechanics: tag a version, publish wheels for Linux, macOS and Windows, check
   `pip install pycauset` in a fresh environment.
