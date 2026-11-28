@@ -23,7 +23,7 @@ Nothing in `_internal/` should be treated as a public API.
 | `runtime.py` | backing-directory roots and temporary-file cleanup at exit |
 | `ops.py` | the glue of the linear algebra entry points (`solve`, `lstsq`, `pinv`, `norm`, ...), each traced for `last_io_trace` |
 | `matrix_api.py`, `factories.py`, `coercion.py`, `dtypes.py` | constructing matrices and vectors from data, dtype tokens |
-| `patching.py`, `formatting.py` | Python methods and `repr` / `str` added to the native classes |
+| `formatting.py` | `repr` / `str` added to the native classes |
 | `export_guard.py`, `native_threshold.py` | export to NumPy and its size guard; scoped memory-threshold changes |
 | `persistence.py` | the `.pycauset` container: save, load, metadata |
 | `io_observability.py` | IO traces (`last_io_trace`) |

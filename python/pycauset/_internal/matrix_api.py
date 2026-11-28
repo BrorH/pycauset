@@ -9,7 +9,7 @@ a NumPy array).
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any
 
 from . import export_guard
 from .dtypes import infer_sequence_dtype as _infer_sequence_dtype
@@ -19,7 +19,6 @@ from .native_threshold import temporary_native_memory_threshold
 
 _np: Any | None = None
 _native: Any | None = None
-_track_matrix: Callable[[Any], None] | None = None
 
 # Internal dtype name -> NumPy dtype name (complex_float16 has no NumPy equivalent).
 _NUMPY_DTYPE = {
@@ -40,11 +39,10 @@ _NUMPY_DTYPE = {
 }
 
 
-def configure(*, np_module: Any | None, native: Any, track_matrix: Callable[[Any], None]) -> None:
-    global _np, _native, _track_matrix
+def configure(*, np_module: Any | None, native: Any) -> None:
+    global _np, _native
     _np = np_module
     _native = native
-    _track_matrix = track_matrix
 
 
 def Matrix(size_or_data: Any, dtype: Any = None, **kwargs: Any) -> Any:

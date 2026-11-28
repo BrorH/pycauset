@@ -94,7 +94,7 @@ owner (views share the storage). `pc.save` writes a single-file `.pycauset` cont
 ## Python layer
 
 `__init__.py` defines every public name (thin: argument checks, then the engine) and
-patches Python conveniences onto the native classes (`_internal/patching.py`, `repr`,
+adds Python conveniences to the native classes (`repr` / `str` in `_internal/formatting.py`,
 factories). `_internal/ops.py` holds the linear-algebra glue, `persistence.py` the
 container, `blockmatrix.py` / `thunks.py` the Python-level block matrices
 ([[internals/Block Matrices|Block Matrices]]). The causal-set layer (`CausalSet`, the

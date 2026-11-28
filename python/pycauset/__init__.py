@@ -40,7 +40,6 @@ from ._internal import io_observability as _io_observability
 from ._internal import matrix_api as _matrix_api
 from ._internal import native as _native_mod
 from ._internal import ops as _ops
-from ._internal import patching as _patching
 from ._internal import persistence as _persistence
 from ._internal import runtime as _runtime_mod
 from ._internal.dtypes import normalize_dtype as _normalize_dtype
@@ -168,7 +167,7 @@ from ._internal.native_setup import configure_openblas_threads
 
 configure_openblas_threads()
 
-from ._storage import cleanup_storage, set_temporary_file
+from ._storage import cleanup_storage
 
 # Causal sets (R1: sprinkling into the Minkowski diamond, the order methods, synthetic
 # orders). Fields, plots and the rest of the spacetime library are parked in
@@ -218,7 +217,6 @@ _VECTOR_CLASSES = (DenseVector, UnitVector)
 
 _runtime = _runtime_mod.Runtime(
     cleanup_storage=cleanup_storage,
-    set_temporary_file=set_temporary_file,
 )
 
 _EXPORT_MAX_BYTES: int | None = None
@@ -255,7 +253,7 @@ def set_backing_dir(path: str | Path) -> Path:
     # Native code allocates backing files; configure it directly.
     _native.set_storage_root(str(new_root))
 
-    if old_root is not None and new_root != old_root and _runtime.has_live_matrices():
+    if old_root is not None and new_root != old_root and _runtime.has_own_temp_files(old_root):
         warnings.warn(
             "Changing the backing directory after matrices have been created can leave "
             "some objects backed by the old directory and may complicate cleanup. "
@@ -296,15 +294,6 @@ def clear_io_traces() -> None:
 
 # Perform initial cleanup of temporary files from previous runs
 _runtime.initial_cleanup()
-_live_add = _runtime.track_matrix
-
-
-def _track_matrix(instance: Any) -> None:
-    _live_add(instance)
-    if debug_mode:
-        _debug(f"allocated {_matrix_desc(instance)}")
-
-
 def _register_cleanup() -> None:
     _runtime.register_cleanup()
 
@@ -544,23 +533,9 @@ _native.VectorBase.save = save
 _formatting.configure(np_module=_np, edge_items=4)
 
 
-def _mark_temporary_if_auto(matrix: Any) -> None:
-    _runtime.mark_temporary_if_auto(matrix)
-
-
-_matrix_api.configure(np_module=_np, native=_native, track_matrix=_track_matrix)
+_matrix_api.configure(np_module=_np, native=_native)
 _matrix_api.register_native_matrices(*_MATRIX_CLASSES)
 
-_patching.apply_native_storage_patches(
-    matrix_classes=[
-        *((c, "backing_file") for c in _MATRIX_CLASSES),
-    ],
-    vector_classes=[
-        *((c, "backing_file") for c in _VECTOR_CLASSES),
-    ],
-    track_matrix=_track_matrix,
-    mark_temporary_if_auto=_mark_temporary_if_auto,
-)
 
 
 # Debug-mode timing for the `@` operator, which calls the native
@@ -858,8 +833,6 @@ _OPS_DEPS = _ops.OpsDeps(
     native=_native,
     np_module=_np,
     Matrix=_matrix_api.Matrix,
-    track_matrix=_track_matrix,
-    mark_temporary_if_auto=_mark_temporary_if_auto,
     warnings_module=warnings,
     io_observer=_IO_OBS,
 )
@@ -909,22 +882,8 @@ def dot(a: Any, b: Any) -> Any:
 
 
 def divide(a: Any, b: Any) -> Any:
-    """Elementwise division with NumPy-style 2D broadcasting.
-
-    This is a small convenience wrapper around the `/` operator.
-    When the result is a native PyCauset matrix/vector, it is tracked
-    for temporary-file lifecycle management.
-    """
-    result = a / b
-    native_matrix_base = _native.MatrixBase
-    native_vector_base = _native.VectorBase
-    if native_matrix_base is not None and isinstance(result, native_matrix_base):
-        _track_matrix(result)
-        _mark_temporary_if_auto(result)
-    elif native_vector_base is not None and isinstance(result, native_vector_base):
-        _track_matrix(result)
-        _mark_temporary_if_auto(result)
-    return result
+    """Element-wise division with NumPy-style 2D broadcasting (the `/` operator)."""
+    return a / b
 
 
 def norm(x: Any, ord: Any = None) -> float:
@@ -1193,9 +1152,7 @@ def _is_inexact_dtype(arr: Any) -> bool:
 
 def _packed(arr: Any, structure: str) -> Any:
     """`arr` (validated by the caller) as a native `structure` matrix of its exact dtype."""
-    out = _native._pack_as(matrix(arr), structure)
-    _track_matrix(out)
-    return out
+    return _native._pack_as(matrix(arr), structure)
 
 
 def _check_close(ok_exact: bool, ok_close: Any, arr: Any, what: str) -> None:

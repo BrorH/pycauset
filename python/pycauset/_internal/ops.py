@@ -7,16 +7,8 @@ from typing import Any
 from .coercion import safe_rows_cols as _safe_rows_cols
 
 
-def _track_and_mark_temporary_if_native(obj: Any, *, deps: OpsDeps) -> None:
-    if isinstance(obj, (deps.native.MatrixBase, deps.native.VectorBase)):
-        deps.track_matrix(obj)
-        deps.mark_temporary_if_auto(obj)
-
-
 def _as_pycauset_array(obj: Any, *, deps: OpsDeps) -> Any:
-    out = deps.native.asarray(obj)
-    _track_and_mark_temporary_if_native(out, deps=deps)
-    return out
+    return deps.native.asarray(obj)
 
 
 class OpsDeps:
@@ -26,16 +18,12 @@ class OpsDeps:
         native: Any,
         np_module: Any | None,
         Matrix: Any,
-        track_matrix: Any,
-        mark_temporary_if_auto: Any,
         warnings_module: Any,
         io_observer: Any | None,
     ) -> None:
         self.native = native
         self.np_module = np_module
         self.Matrix = Matrix
-        self.track_matrix = track_matrix
-        self.mark_temporary_if_auto = mark_temporary_if_auto
         self.warnings = warnings_module
         self.io_observer = io_observer
 
@@ -77,24 +65,14 @@ def matmul(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     if native_vector_base is not None and (
         isinstance(a, native_vector_base) or isinstance(b, native_vector_base)
     ):
-        result = a @ b
-        if native_matrix_base is not None and isinstance(result, native_matrix_base):
-            deps.track_matrix(result)
-            deps.mark_temporary_if_auto(result)
-        elif native_vector_base is not None and isinstance(result, native_vector_base):
-            deps.track_matrix(result)
-            deps.mark_temporary_if_auto(result)
-        return result
+        return a @ b
 
     if native_matrix_base is not None:
         if isinstance(a, native_matrix_base) and isinstance(b, native_matrix_base):
             # The engine dispatches every structure and dtype itself. The conversions that
             # were here (symmetric -> dense float64, triangular/diagonal -> float64) changed
             # result dtypes and duplicated engine paths (F-073).
-            result = a @ b
-            deps.track_matrix(result)
-            deps.mark_temporary_if_auto(result)
-            return result
+            return a @ b
 
     # Array-likes (NumPy arrays, nested lists): import, then the engine. No per-element or
     # NumPy fallback (R1: NumPy is an oracle, not a backend).
@@ -116,10 +94,7 @@ def _import_operand(x: Any, *, deps: OpsDeps) -> Any:
 
 
 def compute_k(matrix: Any, a: float, *, deps: OpsDeps) -> Any:
-    result = deps.native.compute_k_matrix(matrix, a, 0)
-    deps.track_matrix(result)
-    deps.mark_temporary_if_auto(result)
-    return result
+    return deps.native.compute_k_matrix(matrix, a, 0)
 
 
 def bitwise_not(matrix: Any, *, deps: OpsDeps) -> Any:
@@ -170,7 +145,6 @@ def invert(matrix: Any, *, deps: OpsDeps) -> Any:
     # The engine inverts every dtype, structure and view (LinearAlgebra.cpp `inverse`); a
     # singular matrix raises. No NumPy fallback.
     result = matrix.invert()
-    _track_and_mark_temporary_if_native(result, deps=deps)
     return result
 
 
@@ -186,7 +160,6 @@ def lstsq(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     a = a if isinstance(a, native) else _as_pycauset_array(deps.np_module.asarray(a), deps=deps)
     b = b if isinstance(b, native) else _as_pycauset_array(deps.np_module.asarray(b), deps=deps)
     result = deps.native.lstsq(a, b)
-    _track_and_mark_temporary_if_native(result, deps=deps)
     return result
 
 
@@ -230,12 +203,6 @@ def _engine_matrix(a: Any, *, deps: OpsDeps) -> Any:
     return deps.Matrix(deps.np_module.asarray(a))
 
 
-def _native_result(out: Any, *, deps: OpsDeps) -> Any:
-    for item in out if isinstance(out, tuple) else (out,):
-        _track_and_mark_temporary_if_native(item, deps=deps)
-    return out
-
-
 # Eigen decompositions, Cholesky, QR and pinv run in the engine (math/LinearAlgebra.cpp,
 # compute/cpu/CpuLinalg.cpp) for every dtype, structure and view, in NumPy's LAPACK dtype;
 # no NumPy fallback (F-090). eigh/eigvalsh/cholesky read the lower triangle, as NumPy does.
@@ -243,25 +210,25 @@ def _native_result(out: Any, *, deps: OpsDeps) -> Any:
 @_traced("eigh")
 def eigh(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     """Eigenvalues (real, ascending) and eigenvectors of a symmetric / Hermitian matrix."""
-    return _native_result(tuple(deps.native.eigh(_engine_matrix(a, deps=deps))), deps=deps)
+    return tuple(deps.native.eigh(_engine_matrix(a, deps=deps)))
 
 
 @_traced("eigvalsh")
 def eigvalsh(a: Any, *, deps: OpsDeps) -> Any:
     """Eigenvalues (real, ascending) of a symmetric / Hermitian matrix."""
-    return _native_result(deps.native.eigvalsh(_engine_matrix(a, deps=deps)), deps=deps)
+    return deps.native.eigvalsh(_engine_matrix(a, deps=deps))
 
 
 @_traced("eig")
 def eig(a: Any, *, deps: OpsDeps) -> tuple[Any, Any]:
     """Complex eigenvalues and right eigenvectors of a general square matrix."""
-    return _native_result(tuple(deps.native.eig(_engine_matrix(a, deps=deps))), deps=deps)
+    return tuple(deps.native.eig(_engine_matrix(a, deps=deps)))
 
 
 @_traced("eigvals")
 def eigvals(a: Any, *, deps: OpsDeps) -> Any:
     """Complex eigenvalues of a general square matrix."""
-    return _native_result(deps.native.eigvals(_engine_matrix(a, deps=deps)), deps=deps)
+    return deps.native.eigvals(_engine_matrix(a, deps=deps))
 
 
 @_traced("eigvals_arnoldi")
@@ -291,7 +258,6 @@ def eigvals_skew(a: Any, k: int, *, deps: OpsDeps) -> Any:
         raise ValueError("eigvals_skew requires a square matrix")
 
     result = deps.native.eigvals_skew(_engine_matrix(a, deps=deps), k)
-    _track_and_mark_temporary_if_native(result, deps=deps)
     return result
 
 
@@ -311,7 +277,7 @@ def eig_skew(a: Any, k: int, *, deps: OpsDeps) -> tuple[Any, Any]:
     if shape is not None and shape[0] != shape[1]:
         raise ValueError("eig_skew requires a square matrix")
 
-    return _native_result(tuple(deps.native.eig_skew(_engine_matrix(a, deps=deps), k)), deps=deps)
+    return tuple(deps.native.eig_skew(_engine_matrix(a, deps=deps), k))
 
 
 def solve_triangular(a: Any, b: Any, *, deps: OpsDeps) -> Any:
@@ -332,7 +298,7 @@ def solve_triangular(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 def pinv(a: Any, *, deps: OpsDeps) -> Any:
     """Moore-Penrose pseudoinverse, as NumPy's pinv: A = U S Vᴴ → A⁺ = V S⁺ Uᴴ, singular values
     at or below max(m, n) · eps · max(s) treated as zero (F-079, F-090)."""
-    return _native_result(deps.native.pinv(_engine_matrix(a, deps=deps)), deps=deps)
+    return deps.native.pinv(_engine_matrix(a, deps=deps))
 
 
 @_traced("trace")
@@ -419,7 +385,6 @@ def matrix_power(a: Any, n: int, *, deps: OpsDeps) -> Any:
         n >>= 1
         if n:
             base = matmul(base, base, deps=deps)
-    _track_and_mark_temporary_if_native(result, deps=deps)
     return result
 
 
@@ -444,13 +409,13 @@ def _engine_vector(x: Any, *, deps: OpsDeps) -> Any:
 @_traced("outer", 2)
 def outer(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Outer product out[i, j] = a[i] * b[j], as NumPy's outer (any lengths, multiply dtype)."""
-    return _native_result(deps.native.outer(_engine_vector(a, deps=deps), _engine_vector(b, deps=deps)), deps=deps)
+    return deps.native.outer(_engine_vector(a, deps=deps), _engine_vector(b, deps=deps))
 
 
 @_traced("cross", 2)
 def cross(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     """Cross product of two 3-element vectors, as NumPy's cross (multiply dtype; bool raises)."""
-    return _native_result(deps.native.cross(_engine_vector(a, deps=deps), _engine_vector(b, deps=deps)), deps=deps)
+    return deps.native.cross(_engine_vector(a, deps=deps), _engine_vector(b, deps=deps))
 
 
 @_traced("vecdot", 2)
@@ -463,7 +428,7 @@ def vecdot(a: Any, b: Any, *, deps: OpsDeps) -> Any:
 def cholesky(a: Any, *, deps: OpsDeps) -> Any:
     """Lower Cholesky factor L, A = L Lᴴ (reads the lower triangle, as NumPy). Not positive
     definite: ValueError (NumPy's LinAlgError is a ValueError)."""
-    return _native_result(deps.native.cholesky(_engine_matrix(a, deps=deps)), deps=deps)
+    return deps.native.cholesky(_engine_matrix(a, deps=deps))
 
 
 @_traced("qr")
@@ -474,8 +439,8 @@ def qr(a: Any, mode: str = 'reduced', *, deps: OpsDeps) -> Any:
         raise ValueError(f"qr: mode must be 'reduced', 'complete' or 'r' (got {mode!r})")
     q, r = deps.native.qr(_engine_matrix(a, deps=deps), mode == "complete")
     if mode == "r":
-        return _native_result(r, deps=deps)
-    return _native_result((q, r), deps=deps)
+        return r
+    return (q, r)
 
 
 @_traced("svd")
@@ -486,17 +451,14 @@ def svd(a: Any, full_matrices: bool = True, compute_uv: bool = True, *, deps: Op
         a = deps.Matrix(deps.np_module.asarray(a))
     u, s, vt = deps.native.svd(a, bool(full_matrices), bool(compute_uv))
     if not compute_uv:  # singular values only (?gesdd job 'N')
-        _track_and_mark_temporary_if_native(s, deps=deps)
         return s
-    for x in (u, s, vt):
-        _track_and_mark_temporary_if_native(x, deps=deps)
     return u, s, vt
 
 
 @_traced("lu")
 def lu(a: Any, *, deps: OpsDeps) -> Any:
     """(P, L, U) with A = P L U, as SciPy's lu: P real (m×m), L unit lower (m×k), U (k×n)."""
-    return _native_result(tuple(deps.native.lu(_engine_matrix(a, deps=deps))), deps=deps)
+    return tuple(deps.native.lu(_engine_matrix(a, deps=deps)))
 
 
 @_traced("solve", 2)
@@ -510,5 +472,4 @@ def solve(a: Any, b: Any, *, deps: OpsDeps) -> Any:
     a = a if isinstance(a, native) else _as_pycauset_array(deps.np_module.asarray(a), deps=deps)
     b = b if isinstance(b, native) else _as_pycauset_array(deps.np_module.asarray(b), deps=deps)
     x = deps.native.solve(a, b)
-    _track_and_mark_temporary_if_native(x, deps=deps)
     return x

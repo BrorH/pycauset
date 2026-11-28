@@ -296,7 +296,7 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
     with bind_vector.cpp (numpy_import.hpp; bind_vector's copy had diverged). Open: the
     indexing section of bind_matrix.cpp; `__init__.py`, which is not a pure move (its
     functions read module globals such as `debug_mode`): do it with 4.3/4.4.
-- [ ] 4.3 Single source of truth for operators and properties (RESTRUCTURE §3.1 items 1–2); delete the monkeypatch stack
+- [~] 4.3 Single source of truth for operators and properties (RESTRUCTURE §3.1 items 1–2); delete the monkeypatch stack
   - session 7: matrix `+ - * /` (and reflected) are one binding path (`matrix_arith`); vectors
     reuse the matrix machinery (F-058). Open: properties, `__iadd__`, the Python patch stack.
   - session 9, design for the patch stack (`_internal/patching.py` + `track_matrix` /
@@ -316,6 +316,12 @@ Behaviour-preserving moves in their own commits, then logic consolidation.
       destructors delete the rest; then delete patching.py, `track_matrix`,
       `mark_temporary_if_auto` and the `__init__` float->int argument coercion (NumPy raises
       for float sizes). Needs a Windows run before merging (exit-time cleanup).
+  - session 9, done: patching.py, `track_matrix`, `mark_temporary_if_auto`, the live-object
+    WeakSet, the Python temp-file tracker and the float -> int size coercion are removed. The
+    `set_backing_dir` warning checks for this process's own `.tmp` files in the old root
+    (pid in the name, F-121), and the exit sweep deletes this process's files (temp files
+    already go with their storage, F-123). Open: properties, `__iadd__`. Windows: a file still
+    mapped at exit cannot be deleted; the next import's sweep removes it (dead pid).
 - [ ] 4.4 Python `_internal/` subpackages; `.pyi` generation (F-007)
 - [x] 4.5 Retire the old test suite per TESTS.md §4 migration rules (session 9: 72 files retired by coverage, 4 removed with OpRegistry, 19 moved to tests/physics, 9 to tests/blockmatrix; stress substance restored in test_stress.py)
 - [x] 4.6a **Structure classes** (§3.1 item 4, revised): `MatrixType`→`Structure` enum; one

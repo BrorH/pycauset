@@ -95,24 +95,41 @@ class _Closable:
         self.closed = True
 
 
-def test_runtime_cleanup_closes_tracked_objects_and_sweeps_tmp_files(tmp_path):
-    """A private Runtime (the global one would close every live matrix of the test run)."""
+def test_runtime_cleanup_sweeps_tmp_files_only(tmp_path):
+    """A private Runtime (the global one would sweep the test run's own files)."""
     from pycauset import _storage
     from pycauset._internal.runtime import Runtime
 
-    rt = Runtime(cleanup_storage=_storage.cleanup_storage, set_temporary_file=_storage.set_temporary_file)
+    rt = Runtime(cleanup_storage=_storage.cleanup_storage)
     rt.set_storage_root(tmp_path)
     (tmp_path / "keep.pycauset").write_bytes(b"x")
-    tmp = tmp_path / "spill_1.tmp"
+    tmp = tmp_path / "dense_float_999999999_0.tmp"  # a dead process's file
     tmp.write_bytes(b"x")
-    _storage.record_temporary_file(tmp)
-    obj = _Closable()
-    rt.track_matrix(obj)
-    assert rt.has_live_matrices()
-
-    rt.cleanup_all_roots()  # closes live objects, sweeps *.tmp only
-    assert obj.closed
+    rt.cleanup_all_roots()
     assert not tmp.exists() and (tmp_path / "keep.pycauset").exists()
+
+
+def test_set_backing_dir_warns_only_when_this_process_has_files_there(tmp_path):
+    import warnings as w
+
+    old = pc._storage_root()
+    first, second = tmp_path / "a", tmp_path / "b"
+    try:
+        with w.catch_warnings():
+            w.simplefilter("ignore", pc.PyCausetStorageWarning)
+            pc.set_backing_dir(first)
+        with w.catch_warnings():
+            w.simplefilter("error", pc.PyCausetStorageWarning)
+            pc.set_backing_dir(second)  # nothing of ours in `first`: no warning
+            pc.set_backing_dir(first)
+        keep = pc.matrix(np.ones((4, 4)), storage="disk")  # a file of ours in `first`
+        with pytest.warns(pc.PyCausetStorageWarning, match="backing directory"):
+            pc.set_backing_dir(second)
+        del keep
+    finally:
+        with w.catch_warnings():
+            w.simplefilter("ignore", pc.PyCausetStorageWarning)
+            pc.set_backing_dir(old)
 
 
 def test_export_size_estimate_for_objects_without_a_native_exporter():
@@ -135,9 +152,6 @@ def test_storage_sweep_helpers(tmp_path):
     _storage.cleanup_storage(tmp_path / "missing")  # a missing root is a no-op
     inside = tmp_path / "a.tmp"
     inside.write_bytes(b"x")
-    _storage.record_temporary_file(inside)
-    _storage.clear_tracked_temp_files(tmp_path)
-    assert inside.exists()  # clearing the tracker never deletes
     _storage.cleanup_storage(tmp_path)
     assert not inside.exists()
 

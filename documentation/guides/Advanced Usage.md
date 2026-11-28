@@ -32,8 +32,9 @@ import pycauset as pc
 pc.set_backing_dir(Path.cwd() / "pycauset_storage")
 ```
 
-Changing it after matrices exist is allowed but not guaranteed to be clean; you get a
-`PyCausetStorageWarning` if live matrices are still tracked.
+Changing it later is allowed: objects already made keep their files in the old directory
+(you get a `PyCausetStorageWarning` if there are any), and every directory used is swept at
+exit.
 
 ## 3. Thread count
 

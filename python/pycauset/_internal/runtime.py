@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import atexit
-import sys
-import weakref
+import os
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 
 class Runtime:
@@ -12,16 +11,12 @@ class Runtime:
         self,
         *,
         cleanup_storage: Callable[[Path], None],
-        set_temporary_file: Callable[[Path, bool], None],
         env_var: str = "PYCAUSET_STORAGE_DIR",
     ) -> None:
         self._cleanup_storage = cleanup_storage
-        self._set_temporary_file = set_temporary_file
         self._env_var = env_var
         self._storage_root_cache: Path | None = None
-        self._resolved_root_cache: Path | None = None
         self._storage_roots_seen: set[Path] = set()
-        self._live_matrices: weakref.WeakSet = weakref.WeakSet()
 
     def storage_root(self) -> Path:
         if self._storage_root_cache is not None:
@@ -36,13 +31,8 @@ class Runtime:
         return base
 
     def set_storage_root(self, root: Path) -> Path:
-        """Set the directory used for auto-created backing files.
-
-                Notes:
-                - This affects Python's cleanup/temporary tracking.
-                - Switching the root mid-session can leave temp files in the old root;
-                    we mitigate this by tracking all roots used and cleaning them on exit.
-        """
+        """Set the directory used for auto-created backing files. Every root used is swept at
+        exit (objects made before the switch keep their files in the old one)."""
         root = root.expanduser().resolve()
         root.mkdir(parents=True, exist_ok=True)
         self._storage_root_cache = root
@@ -51,33 +41,17 @@ class Runtime:
         self._cleanup_storage(root)
         return root
 
-    def has_live_matrices(self) -> bool:
+    def has_own_temp_files(self, root: Path) -> bool:
+        """Whether objects of this process are file-backed in `root` (temp names carry the
+        pid: `<prefix>_<pid>_<n>.tmp`)."""
+        marker = f"_{os.getpid()}_"
         try:
-            return len(self._live_matrices) > 0
-        except TypeError:
-            return True
+            return any(marker in p.name for p in root.glob("*.tmp"))
+        except OSError:
+            return False
 
     def initial_cleanup(self) -> None:
         self._cleanup_storage(self.storage_root())
-
-    def track_matrix(self, instance: Any) -> None:
-        try:
-            self._live_matrices.add(instance)
-        except TypeError:
-            pass
-
-    def release_tracked_matrices(self) -> None:
-        # During interpreter finalization the native runtime is being torn down;
-        # calling native close() (file-mapping teardown + temp-file delete) can hang
-        # or crash. The OS reclaims mappings on process exit and _cleanup_storage
-        # handles temp files, so skip native close() when finalizing.
-        if getattr(sys, "is_finalizing", lambda: False)():
-            self._live_matrices.clear()
-            return
-        for matrix in list(self._live_matrices):
-            close = getattr(matrix, "close", None)
-            if callable(close):
-                close()  # drops the storage (its temp file goes with the last owner); cannot fail
 
     def register_cleanup(self) -> None:
         def _finalize() -> None:
@@ -91,43 +65,12 @@ class Runtime:
         atexit.register(_finalize)
 
     def cleanup_all_roots(self) -> None:
-        """Release live matrices (their temporary files go with them) and sweep every known
-        storage root for leftovers (files of crashed runs, files another process could not
-        delete)."""
-
-        self.release_tracked_matrices()
+        """Sweep every storage root this process used: its own temporary files (objects still
+        alive at exit; POSIX deletes a mapped file, Windows keeps it and the next import's
+        sweep gets it) and leftovers of crashed runs. Files of other live processes stay."""
 
         roots = set(self._storage_roots_seen)
         roots.add(self.storage_root())
         for root in roots:
             self._cleanup_storage(root)  # best effort per file (OSError handled inside)
 
-    def mark_temporary_if_auto(self, matrix: Any) -> None:
-        if not hasattr(matrix, "get_backing_file"):
-            return
-
-        try:
-            backing = matrix.get_backing_file()
-            # Anonymous RAM (:memory:) matrices are never auto-created temp files.
-            # Skip the Path.resolve() calls below, whose nt._getfinalpathname
-            # syscall (~30-60us each) would otherwise dominate small-op
-            # construction (the matmul parity residual was traced here).
-            if not backing or backing == ":memory:":
-                return
-
-            path = Path(backing).resolve()
-            root = self._resolved_storage_root()
-
-            # Path.is_relative_to is 3.9+; we support 3.8+ historically? repo is 3.12 now.
-            if path.is_relative_to(root):
-                if hasattr(matrix, "set_temporary"):
-                    matrix.set_temporary(True)
-                else:
-                    self._set_temporary_file(path, True)
-        except (ValueError, OSError, AttributeError):
-            pass
-
-    def _resolved_storage_root(self) -> Path:
-        if self._resolved_root_cache is None:
-            self._resolved_root_cache = self.storage_root().resolve()
-        return self._resolved_root_cache
