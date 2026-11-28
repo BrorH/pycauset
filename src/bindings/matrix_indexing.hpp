@@ -813,8 +813,18 @@ inline void setitem_elementwise(MatrixBase& mat, const ParsedIndex& parsed, cons
     if (nvals != 1 && nvals != targets.size()) {
         throw py::value_error("cannot broadcast " + std::to_string(nvals) + " values to " + std::to_string(targets.size()) + " elements");
     }
-    for (size_t k = 0; k < targets.size(); ++k) {
-        element_set(mat, targets[k].first, targets[k].second, flat[nvals == 1 ? 0 : k]);
+    // All or nothing, as NumPy: a structural violation (an off-diagonal of a diagonal matrix) or a
+    // value that does not convert stopped the loop with the earlier elements already written
+    // (review 3.7 C-5). The written elements get their old values back before the error goes on.
+    std::vector<py::object> old;
+    old.reserve(targets.size());
+    for (const auto& [i, j] : targets) old.push_back(element_get(mat, i, j));
+    size_t k = 0;
+    try {
+        for (; k < targets.size(); ++k) element_set(mat, targets[k].first, targets[k].second, flat[nvals == 1 ? 0 : k]);
+    } catch (...) {
+        for (size_t r = 0; r < k; ++r) element_set(mat, targets[r].first, targets[r].second, old[r]);
+        throw;
     }
 }
 

@@ -1976,3 +1976,23 @@ def test_3_7_C6_element_values_and_arguments_as_numpy():
         A.get(2, 0)
     with pytest.raises(IndexError):
         pc.UnitVector(3, 5)
+
+
+def test_3_7_C5_failed_structured_assignment_writes_nothing():
+    """D[:, :] = 1 raised after writing the diagonal; int8 T[0, :] = [0, 5, 300] left T[0, 1] == 5."""
+    D = pc.DiagonalMatrix(3)
+    for i in range(3):
+        D[i, i] = i + 1
+    with pytest.raises(ValueError):
+        D[:, :] = 7
+    np.testing.assert_array_equal(np.asarray(D), np.diag([1.0, 2.0, 3.0]))
+    T = pc.TriangularMatrix(3, dtype="int8")
+    with pytest.raises(OverflowError):
+        T[0, :] = [0, 5, 300]
+    assert not np.asarray(T).any()
+    S = pc.SymmetricMatrix(2)
+    S[0, 1] = 2.0
+    V = S * 3
+    with pytest.raises(ValueError):
+        V[0, :] = [1, "x"]
+    np.testing.assert_array_equal(np.asarray(V), [[0.0, 6.0], [6.0, 0.0]])
