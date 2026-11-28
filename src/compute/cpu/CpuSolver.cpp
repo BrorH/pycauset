@@ -631,12 +631,7 @@ double CpuSolver::frobenius_norm(const MatrixBase& m) {
     const uint64_t rows = m.rows(), cols = m.cols();
     if (rows == 0 || cols == 0) return 0.0;
     const std::complex<double> f = m.get_scalar();
-    if (dynamic_cast<const BitClosureMatrix*>(&m) != nullptr) {
-        debug_trace::set_last("cpu.norm.closure");
-        return std::sqrt(block_sum(rows, cols, [&](uint64_t i, uint64_t j) {
-            return std::norm(m.get_element_as_complex(i, j));
-        }));
-    }
+    // (Lazy closures go through visit_matrix too: the bulk path reads their bits.)
     return visit_matrix(m, [&](const auto& typed) -> double {
         using M = std::decay_t<decltype(typed)>;
         using T = std::decay_t<decltype(typed.get(0, 0))>;
