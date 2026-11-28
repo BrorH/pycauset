@@ -589,7 +589,7 @@ def _run_cell(cell: Cell, op: Op, seed: int, view_fn) -> Cell:
     if ok and op.exact_dtype and not cell.structure2:
         try:
             promised = pc._debug_resolve_promotion(op.resolver, xdt, ydt)["result_dtype"]
-            if promised != got_dtype and promised.replace("bit", "bool") != got_dtype:
+            if promised != got_dtype:
                 ok, cell.error = False, f"dtype {got_dtype}, resolver promised {promised}"
         except Exception:
             pass

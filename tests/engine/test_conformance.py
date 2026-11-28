@@ -65,7 +65,7 @@ def test_binary_matrix_op(op, da, db, request):
     native = expected_dtype  # PyCauset's dtype name
     # Export dtype: NumPy has no complex32, so complex_float16 exports as complex64.
     expected_dtype = {"complex_float16": "complex64", "complex_float32": "complex64",
-                      "complex_float64": "complex128", "bit": "bool"}.get(native, native)
+                      "complex_float64": "complex128"}.get(native, native)
 
     result = fn(pc.matrix(a), pc.matrix(b))
     assert type(result).__name__ != "MatrixBase", "result without a structure class (F-032)"

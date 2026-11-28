@@ -52,8 +52,7 @@ def _promote(op: str, a: str | None, b: str | None) -> str | None:
     matrix-like without a PyCauset dtype (then each tile keeps its own operation)."""
     if a not in _DTYPES or b not in _DTYPES:
         return None
-    r = _get_pycauset()._native._debug_resolve_promotion(op, a, b)["result_dtype"]
-    return "bool" if r == "bit" else r
+    return _get_pycauset()._native._debug_resolve_promotion(op, a, b)["result_dtype"]
 
 
 def _cast_leaf(x: Any, dtype: str | None) -> Any:

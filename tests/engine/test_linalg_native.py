@@ -165,7 +165,7 @@ def test_outer_any_lengths_numpy_dtype(da, db):
     got = pc.outer(x, y)
     want = np.outer(a, b)
     # The engine's multiply dtype (NumPy's, except within-float under-promotion, F-034).
-    assert got.dtype == pc._debug_resolve_promotion("elementwise_multiply", x.dtype, y.dtype)["result_dtype"].replace("bit", "bool")
+    assert got.dtype == pc._debug_resolve_promotion("elementwise_multiply", x.dtype, y.dtype)["result_dtype"]
     if want.dtype.kind in "biu":
         np.testing.assert_array_equal(to_np(got), want)  # integers wrap as NumPy's
     else:

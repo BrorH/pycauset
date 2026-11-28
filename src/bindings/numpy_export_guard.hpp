@@ -10,6 +10,7 @@
 
 namespace py = pybind11;
 
+#include "numpy_dtypes.hpp"
 #include "pycauset/core/MemoryGovernor.hpp"
 #include "pycauset/core/Types.hpp"
 #include "pycauset/matrix/MatrixBase.hpp"
@@ -21,38 +22,11 @@ namespace pycauset::bindings {
 // Note: this is a process-wide setting (matches the Python-side guard behavior).
 inline std::atomic<int64_t> g_numpy_export_max_bytes{-1};
 
+// What an export materialises (NumPy's element size, not the packed storage's), from the one
+// dtype table (numpy_dtypes.hpp).
 inline uint64_t numpy_output_itemsize_bytes(DataType dt) {
-    // Must reflect actual NumPy materialization size, not packed storage size.
-    switch (dt) {
-        case DataType::BIT:
-            return 1; // exported as bool
-        case DataType::INT8:
-        case DataType::UINT8:
-            return 1;
-        case DataType::INT16:
-        case DataType::UINT16:
-            return 2;
-        case DataType::INT32:
-        case DataType::UINT32:
-            return 4;
-        case DataType::INT64:
-        case DataType::UINT64:
-            return 8;
-        case DataType::FLOAT16:
-            return 2;
-        case DataType::FLOAT32:
-            return 4;
-        case DataType::FLOAT64:
-            return 8;
-        case DataType::COMPLEX_FLOAT16:
-        case DataType::COMPLEX_FLOAT32:
-            return 8; // exported as complex64
-        case DataType::COMPLEX_FLOAT64:
-            return 16; // exported as complex128
-        default:
-            // Be conservative.
-            return 8;
-    }
+    const auto* e = pycauset_bindings::numpy_dtype_of(dt);
+    return e ? static_cast<uint64_t>(e->itemsize) : 8;
 }
 
 inline bool mul_overflow_u64(uint64_t a, uint64_t b, uint64_t* out) {

@@ -1903,3 +1903,37 @@ def test_3_7_C11_first_write_into_a_scale_view_folds_in_place():
     W = T.T * 2
     W[2, 0] = 1.0  # a transposed triangular view: the fold walks its stored (lower) part
     np.testing.assert_array_equal(np.asarray(W)[:2, :2], np.array([[0.0, 0.0], [4.0, 8.0]]))
+
+
+def test_3_7_C12_one_numpy_importer_for_every_path():
+    """Five per-dtype ladders had diverged; the operand path set bool bits one call at a time (40x)."""
+    import time
+
+    rng = np.random.default_rng(0)
+    base = rng.standard_normal((7, 9)) * 50
+    for dt in ("bool", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64",
+               "float16", "float32", "float64", "complex64", "complex128"):
+        a = (base > 0) if dt == "bool" else (np.abs(base) if dt.startswith("u") else base).astype(dt)
+        if dt.startswith("complex"):
+            a = a + 1j * a[::-1]
+        for x in (a, a.T, a[::2, ::-3], np.asfortranarray(a)):
+            got = np.asarray(pc.asarray(x))
+            assert got.dtype == x.dtype and (got == x).all(), (dt, x.strides)
+            assert (np.asarray(pc.asarray(x[1])) == x[1]).all()
+            assert (np.asarray(pc.zeros(x.shape, dtype="bool") | (x != 0)) == (x != 0)).all()  # operand path
+            row = np.asarray(pc.matrix(np.zeros(x.shape, dtype=x.dtype)) + x[0])  # a 1-D operand is a row
+            assert (row == np.zeros(x.shape, dtype=x.dtype) + x[0]).all()
+    with pytest.raises(TypeError):
+        pc.asarray(np.zeros(3, dtype=np.longdouble))
+    b = rng.random((2000, 2000)) > 0.5
+    Z = pc.zeros((2000, 2000), dtype="bool")
+
+    def best(f):
+        times = []
+        for _ in range(3):
+            t = time.perf_counter()
+            f()
+            times.append(time.perf_counter() - t)
+        return min(times)
+
+    assert best(lambda: Z * b) < 10 * best(lambda: pc.asarray(b)) + 0.002
