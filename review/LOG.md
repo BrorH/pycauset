@@ -749,3 +749,20 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
 - Silent-exception sweep (Phase 4): Python catch-alls narrowed or removed; it exposed
   F-127 (`np.asarray(BlockMatrix)` recursed forever, hidden by a catch-all and a test that
   passed on any exception). C++ is clean apart from the dormant GPU fallbacks (F-116).
+- Areas 3.3 (factory / promotion) and 3.9 (persistence / caches) reviewed by agents; notes in
+  `review/areas/`. Fixed the same night:
+  - 3.3: broadcast-safe structure rules and exact identity matmul (two silent-wrong-value
+    bugs), NumPy scalars recognised, one promotion rule for matrix-with-scalar (C-3 decided:
+    the scalar is an operand of its dtype; DType System §9), the complex rule documented
+    (§4.3), one dtype parser for Python and the native constructors (NumPy codes mean what
+    NumPy says), the dtype warning for every narrower float result, ObjectFactory vectors
+    through the catalogue, resolver dead branches. Tests against the documented rules, not
+    the resolver: `test_dtype_rules` (1,125 pairs), `test_scalar_ops` (566).
+  - 3.9: unique staging files (concurrent saves swapped payloads), fsync of the container,
+    one payload copy (`_write_payload`; 488 MiB 1.2-1.5 s -> 0.6-0.8 s), engine-stamped
+    derived values, payload-length check on load, ThunkBlock staleness via process-unique
+    storage versions, export guard (dtype, copy=False, BlockMatrix as a whole), block saves
+    without silent fallbacks, mmap'd `.npy` loads, docs rewritten to the code.
+  - Also: the Python patch stack is gone (PLAN 4.3), `size` is an attribute,
+    `pc.zeros` no longer fills zeroed storage (4000²: 18 -> 0.2 ms), `a + b` 0.8 µs, C++
+    coverage re-measured (194 of 1,234 functions never run). Atlas 0 wrong after each step.
