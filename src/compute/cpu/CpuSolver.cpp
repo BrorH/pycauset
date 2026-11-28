@@ -393,7 +393,83 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
         std::vector<W> acc(n, W(0));
         const uint64_t chunks = std::min<uint64_t>(n, 64);
         std::vector<std::vector<W>> part(scatter ? chunks : 0);
-        ParallelFor(0, chunks, [&](size_t c) {
+        // Real symmetric / antisymmetric (gather and scatter, rows from the diagonal): four rows
+        // at a time, each stored element read once for both halves. The reductions vectorize
+        // only with reassociation (omp simd); one accumulator per row ran at the add latency
+        // and two passes (BLAS dot, then scatter) read the storage twice (0.3x NumPy's gemv).
+        bool fused = false;
+        if constexpr (!is_std_complex_v<W>) fused = gather && scatter && !scatter_diag && diag;
+        if constexpr (!is_std_complex_v<W>) if (fused) {
+            // 64 tasks (ParallelFor runs fewer than 32 inline) but only as many n-wide partial
+            // buffers as threads: a task claims a free one (each is zeroed once and summed at the
+            // end; 64 of them cost more than the products at n = 1024).
+            // Below ~2^19 stored elements one thread is faster than waking the pool (one chunk,
+            // which ParallelFor runs inline).
+            const uint64_t quads = (n + 3) / 4, qchunks = n * n < (uint64_t{1} << 19) ? 1 : std::min<uint64_t>(quads, 64);
+            const size_t nbuf = std::max<size_t>(1, ThreadPool::get_num_threads()) + 1;  // + the caller
+            part.assign(nbuf, {});
+            std::unique_ptr<std::atomic<bool>[]> busy(new std::atomic<bool>[nbuf]);
+            for (size_t k = 0; k < nbuf; ++k) busy[k] = false;
+            ParallelFor(0, qchunks, [&](size_t c) {
+                size_t k = 0;
+                for (;; k = (k + 1) % nbuf) {
+                    bool expected = false;
+                    if (busy[k].compare_exchange_weak(expected, true, std::memory_order_acquire)) break;
+                }
+                std::vector<W>& d = part[k];
+                if (d.empty()) d.assign(n, W(0));
+                W* __restrict dq = d.data();
+                const W* __restrict xv = x.data();
+                for (uint64_t q = c; q < quads; q += qchunks) {
+                    const uint64_t i0 = 4 * q, i1 = std::min(n, i0 + 4);
+                    // The corner among the group's own columns [i0, i1): row r stores columns
+                    // from r; gather includes the diagonal, scatter only j > r.
+                    for (uint64_t r = i0; r < i1; ++r) {
+                        const W* rr = row(r);
+                        for (uint64_t j = r; j < i1; ++j) {
+                            acc[r] += rr[j - r] * xv[j];
+                            if (j > r) dq[j] += rr[j - r] * xv[r];
+                        }
+                    }
+                    if (i1 >= n) continue;
+                    const uint64_t len = n - i1;
+                    const W* __restrict xs = xv + i1;
+                    W* __restrict ds = dq + i1;
+                    if (i1 - i0 == 4) {
+                        const W* __restrict p0 = row(i0) + (i1 - i0);
+                        const W* __restrict p1 = row(i0 + 1) + (i1 - i0 - 1);
+                        const W* __restrict p2 = row(i0 + 2) + (i1 - i0 - 2);
+                        const W* __restrict p3 = row(i0 + 3) + (i1 - i0 - 3);
+                        const W x0 = xv[i0], x1 = xv[i0 + 1], x2 = xv[i0 + 2], x3 = xv[i0 + 3];
+                        W a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+#pragma omp simd reduction(+ : a0, a1, a2, a3)
+                        for (uint64_t k = 0; k < len; ++k) {
+                            const W v0 = p0[k], v1 = p1[k], v2 = p2[k], v3 = p3[k], xk = xs[k];
+                            a0 += v0 * xk;
+                            a1 += v1 * xk;
+                            a2 += v2 * xk;
+                            a3 += v3 * xk;
+                            ds[k] += v0 * x0 + v1 * x1 + v2 * x2 + v3 * x3;
+                        }
+                        acc[i0] += a0; acc[i0 + 1] += a1; acc[i0 + 2] += a2; acc[i0 + 3] += a3;
+                    } else {
+                        for (uint64_t r = i0; r < i1; ++r) {
+                            const W* __restrict pr = row(r) + (i1 - r);
+                            const W xr = xv[r];
+                            W a = 0;
+#pragma omp simd reduction(+ : a)
+                            for (uint64_t k = 0; k < len; ++k) {
+                                a += pr[k] * xs[k];
+                                ds[k] += pr[k] * xr;
+                            }
+                            acc[r] += a;
+                        }
+                    }
+                }
+                busy[k].store(false, std::memory_order_release);
+            });
+        }
+        if (!fused) ParallelFor(0, chunks, [&](size_t c) {
             std::vector<W>* d = scatter ? &part[c] : nullptr;
             if (d) d->assign(n, W(0));
             for (uint64_t i = c; i < n; i += chunks) {
@@ -431,8 +507,8 @@ void CpuSolver::matrix_vector_multiply(const MatrixBase& m, const VectorBase& v,
             }
         });
         if (scatter) {
-            for (const auto& d : part)
-                for (uint64_t j = 0; j < n; ++j) acc[j] += static_cast<double>(sign) * d[j];
+            for (const auto& d : part)  // a buffer no task claimed is empty
+                for (uint64_t j = 0; j < d.size(); ++j) acc[j] += static_cast<double>(sign) * d[j];
         }
         const double t_sign = (st == Structure::ANTISYMMETRIC && transposed) ? -1.0 : 1.0;  // A^T = -A
         for (uint64_t i = 0; i < n; ++i) y[i] = finish(t_sign * acc[i]);

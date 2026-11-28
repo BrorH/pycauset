@@ -706,3 +706,8 @@ F-001, F-002, F-003); ctest 9/9; 0 compiler warnings in src/; sanitizers clean.
   view rule (`view_value`; it re-derived it as `v * scalar_`, a complex multiply that loses
   signed zeros). Integer vector views are still written out (they need NumPy's wrap). Atlas
   0 wrong; test `test_float_and_complex_vector_views_stay_views`.
+- Real symmetric / antisymmetric matvec: four rows at a time, each stored element read once
+  for the gather and the mirrored scatter, the row reductions vectorized with `omp simd`
+  (reassociation), partial scatter buffers one per thread (claimed by tasks) instead of 64,
+  one thread below 2^19 elements. float64: n = 1024 190 -> 100 us (NumPy dense gemv 45-60),
+  2048 parity, 4096 1.2 ms vs NumPy 1.5 ms, 512 31 vs 39 us. Atlas 0 wrong.
