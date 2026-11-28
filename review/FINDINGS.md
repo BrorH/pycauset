@@ -1716,7 +1716,7 @@ the entry (the history is useful). New findings go at the bottom with the next f
   (`CpuElementwise`), comparisons as element-wise ops with a bool result.
 
 ### F-129 Saves: shared staging names, no fsync of the container, untrusted cached values
-- **Status:** fixed (session 9; area 3.9 review C-1, C-2, C-3 in part, C-4, C-8).
+- **Status:** fixed (session 9; area 3.9 review C-1 to C-5, C-7, C-8, C-10).
   - C-1: the staging files had fixed names (`<stem>.raw_tmp`, `<name>.part`), so `r.pycauset`
     and `r.bak` saved at once swapped payloads (4 of 5 runs), two saves of one path raised,
     and `pc.save(m, "x.raw_tmp")` deleted its own result. They are unique (`mkstemp`) now, and
@@ -1729,8 +1729,9 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-8: the storage version is read before the derived values are exported and after the
     payload is written; if it moved (another thread wrote), the derived values are dropped.
   - C-3: saved derived values carry an engine stamp (version, native module size and mtime)
-    and are only imported by the same build. Open: a payload edited by another tool is not
-    detected (no checksum); documented in the Storage guide.
+    and are only imported by the same build, and only for the payload they were computed
+    from: a 64-bit `payload_checksum` is saved with them and checked at load (a payload edited
+    by another tool drops them, with a `PyCausetStorageWarning`).
   - C-4: ThunkBlock (block-matrix lazy products) pinned a `version` attribute native matrices
     do not have, so a write to a leaf went unnoticed and the stale product was served and
     saved. It pins the storage version now, and storage versions come from one process-wide
@@ -1738,9 +1739,11 @@ the entry (the history is useful). New findings go at the bottom with the next f
   - C-7: load requires the payload length in the file to equal the storage the metadata
     describes (`_storage_bytes`); a 9 x 9 label over an 8 x 8 payload loaded, reading the
     metadata block as values.
-  - `test_F129_*`. Open from the 3.9 list: C-5 (block-matrix view blocks copied element by
-    element; complex_float16 blocks come back complex_float32), C-10 Windows share mode,
-    a payload checksum (C-3).
+  - C-5: view blocks are saved as engine slices (3.10 C-9); block saves are generational (a
+    fresh `<name>.blocks.<token>/` named in the manifest, the parent replaced atomically, then
+    the old tree deleted), so an interrupted overwrite keeps the old snapshot.
+  - C-10: snapshots are opened with `FILE_SHARE_DELETE` on Windows (to check on the Windows run).
+  - `test_F129_*`, `test_3_9_C3_*`, `test_blockmatrix_overwrite_*`.
 
 ### F-130 Area 3.3 (factory and promotion): wrong values from structure rules, identity matmul, list input
 - **Status:** C-1, C-2, C-4, C-5, C-9 (Python parser, F-133), C-10 fixed (session 9); C-14 in

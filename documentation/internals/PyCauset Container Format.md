@@ -120,8 +120,10 @@ Reserved namespaces:
   dtype, structure and view it was computed for (`include/pycauset/math/DerivedCache.hpp`).
   `kind` is `complex`, `slogdet`, `real`, `int` or `reduction` (an integer sum carries its
   128-bit value as decimal text). `derived_engine` names the build that computed them; load
-  imports them only into the same build. Valid for the payload as written; a file whose
-  payload was changed by another program is not detected.
+  imports them only into the same build. `payload_checksum` (16 hex digits, a 64-bit hash of
+  the payload bytes) is written with them; load imports them only when the loaded payload
+  hashes the same, so a payload changed by another program drops them (with a
+  `PyCausetStorageWarning`).
 
 Readers ignore unknown keys.
 

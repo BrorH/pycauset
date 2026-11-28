@@ -19,6 +19,7 @@
 #include "pycauset/vector/VectorBase.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <cctype>
@@ -194,6 +195,44 @@ void bind_core_classes(py::module_& m) {
         }
         return size;
     };
+    // A 64-bit checksum of an object's storage bytes (four multiply-rotate lanes, ~GB/s): saved
+    // beside derived values, checked before a load trusts them, so a payload edited outside
+    // PyCauset (np.memmap r+) no longer serves the old determinant (review 3.9 C-3).
+    auto payload_checksum = [](const std::shared_ptr<MemoryMapper>& mapper) -> uint64_t {
+        if (!mapper) throw std::invalid_argument("operation on a closed matrix or vector (close() released its storage)");
+        const auto* p = static_cast<const unsigned char*>(mapper->get_data());
+        const uint64_t n = mapper->get_data_size();
+        py::gil_scoped_release release;  // `mapper` (by value) keeps the storage alive
+        constexpr uint64_t P1 = 11400714785074694791ULL, P2 = 14029467366897019727ULL, P3 = 1609587929392839161ULL,
+                           P4 = 9650029242287828579ULL, P5 = 2870177450012600261ULL;
+        auto rotl = [](uint64_t x, int r) { return (x << r) | (x >> (64 - r)); };
+        auto mix = [&](uint64_t acc, uint64_t in) { return rotl(acc + in * P2, 31) * P1; };
+        uint64_t v[4] = {P1 + P2, P2, 0, 0 - P1};
+        uint64_t i = 0;
+        for (; i + 32 <= n; i += 32) {
+            uint64_t w[4];
+            std::memcpy(w, p + i, 32);
+            for (int l = 0; l < 4; ++l) v[l] = mix(v[l], w[l]);
+        }
+        uint64_t h = rotl(v[0], 1) + rotl(v[1], 7) + rotl(v[2], 12) + rotl(v[3], 18) + n;
+        for (; i + 8 <= n; i += 8) {
+            uint64_t w;
+            std::memcpy(&w, p + i, 8);
+            h = rotl(h ^ mix(0, w), 27) * P1 + P4;
+        }
+        for (; i < n; ++i) h = rotl(h ^ (p[i] * P5), 11) * P1;
+        h ^= h >> 33;
+        h *= P2;
+        h ^= h >> 29;
+        h *= P3;
+        h ^= h >> 32;
+        return h;
+    };
+    m.def("_payload_checksum", [payload_checksum](const pycauset::MatrixBase& mat) { return payload_checksum(mat.shared_mapper()); },
+          py::arg("obj"));
+    m.def("_payload_checksum", [payload_checksum](const pycauset::VectorBase& vec) { return payload_checksum(vec.shared_mapper()); },
+          py::arg("obj"));
+
     // Bytes of storage an object maps (load checks it against the file's payload length).
     m.def("_storage_bytes", [](const pycauset::MatrixBase& mat) -> uint64_t {
         return mat.shared_mapper() ? mat.require_mapper()->get_data_size() : 0;

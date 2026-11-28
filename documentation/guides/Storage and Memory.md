@@ -172,8 +172,10 @@ the one a fresh computation would give. Slices (`A[1:4, 2:6]`) are not cached.
 brings them back: a determinant that took an hour is there again after loading. A write to the
 loaded matrix discards them as usual (the file itself never changes). They are only brought
 back by the same PyCauset build that saved them (another version may compute differently),
-and PyCauset cannot see a file's payload edited by other tools (e.g. `np.memmap` on the
-`.pycauset` file): after such an edit, load it with a fresh build or recompute.
+and only for the payload they were computed from: load checks a checksum of the payload, so
+after an edit by another tool (e.g. `np.memmap` on the `.pycauset` file) they are dropped, with
+a `PyCausetStorageWarning`, and recomputed when asked for. The check reads the payload once
+(O(n²), against the O(n³) of a determinant).
 
 ```python
 import pycauset as pc

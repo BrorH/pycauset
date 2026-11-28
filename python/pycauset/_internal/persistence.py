@@ -487,6 +487,9 @@ def save(obj: Any, path: str | Path, *, deps: PersistenceDeps) -> None:
         payload_length = int(deps.native._write_payload(payload_obj, str(part), payload_offset))
         if "derived" in meta and deps.native._storage_version(payload_obj) != version_before:
             del meta["derived"], meta["derived_engine"]  # written meanwhile: not this payload's
+        if "derived" in meta:
+            # The payload's checksum: load trusts the derived values only for these bytes (3.9 C-3).
+            meta["payload_checksum"] = format(int(deps.native._payload_checksum(payload_obj)), "016x")
         with part.open("r+b") as out_f:
             out_f.seek(0, os.SEEK_END)
             # pad to 16-byte boundary for metadata
@@ -631,7 +634,20 @@ def load(path: str | Path, *, deps: PersistenceDeps) -> Any:
 
     derived = metadata.get("derived")
     if derived and isinstance(obj, deps.native.MatrixBase) and metadata.get("derived_engine") == _engine_stamp(deps.native):
-        deps.native._derived_cache_import(obj, derived)
+        # Only for the bytes they were computed from: a payload edited outside PyCauset (an
+        # np.memmap in r+ mode) served the old determinant (review 3.9 C-3). One O(n^2) read,
+        # against the O(n^3) a saved determinant spares; files without a checksum are not trusted.
+        saved = metadata.get("payload_checksum")
+        if saved is not None and saved == format(int(deps.native._payload_checksum(obj)), "016x"):
+            deps.native._derived_cache_import(obj, derived)
+        else:
+            import warnings
+
+            from .warnings import PyCausetStorageWarning
+
+            warnings.warn(f"{path}: the payload changed since it was saved (or has no checksum); its saved "
+                          "derived values (determinant, norms, ...) are dropped and will be recomputed",
+                          PyCausetStorageWarning, stacklevel=3)
 
 
     if metadata.get("object_type") == "CausalSet":

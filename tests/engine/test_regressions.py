@@ -2158,3 +2158,27 @@ def test_3_6_C17_triangular_solve_is_one_trsm():
     for S in (pc.TriangularMatrix(3), pc.diagonal([1.0, 0.0, 2.0])):  # strictly triangular / a zero pivot
         with pytest.raises(np.linalg.LinAlgError, match="Singular"):
             pc.solve(S, np.ones((3, 1)))
+
+
+def test_3_9_C3_saved_derived_values_are_checked_against_the_payload(tmp_path):
+    """A payload edited outside PyCauset (np.memmap r+) served the determinant saved with it."""
+    import warnings
+
+    a = np.random.default_rng(0).random((6, 6))
+    A = pc.matrix(a)
+    pc.det(A)
+    p = tmp_path / "x.pycauset"
+    pc.save(A, p)
+    hits = pc._native._derived_cache_stats()[0]
+    assert pc.det(pc.load(p)) == pytest.approx(np.linalg.det(a))
+    assert pc._native._derived_cache_stats()[0] == hits + 1  # unchanged: the saved value is used
+    mm = np.memmap(p, dtype=np.float64, mode="r+", offset=4096, shape=(6, 6))
+    mm[0, 0] = 1000.0
+    mm.flush()
+    del mm
+    with pytest.warns(pc.PyCausetStorageWarning, match="payload changed"):
+        B = pc.load(p)
+    a[0, 0] = 1000.0
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert pc.det(B) == pytest.approx(np.linalg.det(a))

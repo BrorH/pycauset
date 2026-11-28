@@ -56,7 +56,10 @@ rule in CLAUDE.md becomes: no result caching outside this mechanism.
 
 ## Known limits
 - A process that modifies the payload file without PyCauset (another program mapping it)
-  is not detected; a cheap per-block checksum could close this later. Documented.
+  is detected at load: the file carries a 64-bit checksum of the payload beside its derived
+  values, and load drops them on a mismatch (review 3.9 C-3). An edit to the file *after* it
+  was loaded (the mapping is copy-on-write) is not seen; that is an edit to a file under a
+  running reader, outside PyCauset's contract.
 - Derived view answers are one multiply away from recomputation (floating rounding);
   powers of two are exact. If bit-identical results are required, the view rule can be
   restricted to exact factors.
